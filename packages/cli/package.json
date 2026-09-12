@@ -9,6 +9,7 @@
   "dependencies": {
     "@wilco/core": "workspace:*",
     "@wilco/daemon": "workspace:*",
+    "@wilco/orchestrator": "workspace:*",
     "@wilco/probes": "workspace:*",
     "commander": "^15.0.0"
   },

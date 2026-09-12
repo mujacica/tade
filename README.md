@@ -23,7 +23,7 @@ Early prototype. What works today:
 | Approval policy, off by default (`approvals.mode`) | ✅ |
 | CLI for tasks, runs and approvals | ✅ |
 | Orchestrator tools: an agent can drive Wilco itself | ✅ |
-| `wilco chat` | not started |
+| `wilco chat` | ✅ |
 | Voice surface, memory, self-extension | not started |
 
 ## Requirements
@@ -49,6 +49,7 @@ pnpm wilco config --check        # validates ~/.wilco/config.yaml (missing file 
 | `wilco status [--json] [--no-pr]` | Every task and its state, derived fresh from git, running processes and provider transcripts |
 | `wilco config` | Print the effective config (file merged with defaults) as JSON |
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
+| `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
 | `wilco task create <project>/<name> --intent "..."` | Create a task: branch, worktree, your intent recorded verbatim |
 | `wilco task remove <task> [--force]` | Remove a task worktree; refuses to destroy unmerged work |
 | `wilco run start <task> [--prompt ...] [--model ...]` | Start a supervised agent in the task worktree |

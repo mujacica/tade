@@ -29,6 +29,9 @@ importers:
       '@wilco/daemon':
         specifier: workspace:*
         version: link:../daemon
+      '@wilco/orchestrator':
+        specifier: workspace:*
+        version: link:../orchestrator
       '@wilco/probes':
         specifier: workspace:*
         version: link:../probes

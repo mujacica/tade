@@ -38,6 +38,8 @@ interface PiApi {
 
 const SOCKET = process.env.WILCO_SOCKET ?? ''
 const CLI = process.env.WILCO_CLI ?? 'wilco'
+/** Arguments before the command, so a source checkout can run `node path/to/bin.ts`. */
+const CLI_ARGS = (process.env.WILCO_CLI_ARGS ?? '').split(' ').filter((a) => a.length > 0)
 
 /** JSON Schema, which is also what pi's schema type is at runtime. */
 const object = (
@@ -181,7 +183,8 @@ async function worktreeOf(task: string): Promise<string | null> {
 
 function runCli(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(CLI, [...args, '--no-pr'], { maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+    const argv = [...CLI_ARGS, ...args, '--no-pr']
+    execFile(CLI, argv, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr.trim() || err.message))
       else resolve(stdout)
     })

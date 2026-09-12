@@ -5,6 +5,7 @@ import { defaultConfigPath, loadConfig } from '@wilco/core'
 import { laneLiveness } from '@wilco/daemon/lane-liveness'
 import { collectStatus } from '@wilco/probes'
 import { Command, CommanderError } from 'commander'
+import { registerChat } from './commands/chat.ts'
 import { registerDaemon } from './commands/daemon.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerTasks } from './commands/tasks.ts'
@@ -82,6 +83,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
       }
     })
 
+  registerChat(program, io, setExit)
   registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)
   registerDaemon(program, io, setExit)

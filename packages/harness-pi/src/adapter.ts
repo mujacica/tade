@@ -364,6 +364,22 @@ export class PiAdapter implements WorkerAdapter {
       })
       return
     }
+    // Turn boundaries. Supervised runs get these from the extension; without
+    // one, a caller waiting to speak again would otherwise never be told the
+    // agent had finished.
+    if (!this.opts.supervise && message.type === 'turn_end') {
+      this.dispatch(run.handle.run, {
+        type: 'turn_done',
+        run: run.handle.run,
+        at: Date.now(),
+        status: 'ok',
+      })
+      return
+    }
+    if (!this.opts.supervise && message.type === 'agent_settled') {
+      this.dispatch(run.handle.run, { type: 'idle', run: run.handle.run, at: Date.now() })
+      return
+    }
     if (!this.opts.supervise && message.type === 'tool_execution_end') {
       // The authoritative failure flag is on the result; the outer one reports
       // whether the execution itself blew up.
