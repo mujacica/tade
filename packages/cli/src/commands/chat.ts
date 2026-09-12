@@ -53,13 +53,20 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
       const rl = createInterface({ input: process.stdin, output: process.stdout })
       rl.on('SIGINT', () => rl.close())
       try {
-        for (;;) {
-          const line = (await rl.question('> ')).trim()
-          if (line === '') continue
+        // `for await` ends on EOF and on close; `question()` does neither, so
+        // Ctrl-D or piped input would hang here forever with the agent still
+        // running behind it.
+        rl.setPrompt('> ')
+        rl.prompt()
+        for await (const input of rl) {
+          const line = input.trim()
           if (line === '.exit' || line === 'exit') break
-          const idle = untilIdle()
-          await chat.ask(line)
-          await idle
+          if (line !== '') {
+            const idle = untilIdle()
+            await chat.ask(line)
+            await idle
+          }
+          rl.prompt()
         }
       } catch {
         // Ctrl-C or a closed pipe: leave quietly.

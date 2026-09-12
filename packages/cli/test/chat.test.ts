@@ -1,14 +1,16 @@
 import { spawn } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Daemon } from '@wilco/daemon/server'
 import { describe, expect, it } from 'vitest'
-import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
 // The conversation itself is tested against a real agent in
-// packages/orchestrator. What is left here is the branch that never reaches
-// the orchestrator at all.
+// packages/orchestrator. What is covered here is everything around it: the
+// branches that never reach the orchestrator, and leaving the session.
 
 function wilco(args: string[], env: Record<string, string>) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
@@ -24,6 +26,7 @@ function wilco(args: string[], env: Record<string, string>) {
       stderr += d
     })
     child.on('exit', (code) => resolve({ code, stdout: stdout.trim(), stderr: stderr.trim() }))
+    // No input at all: the session should end, not wait forever.
     child.stdin.end()
   })
 }
@@ -42,7 +45,6 @@ describe('wilco chat', () => {
 
   it('reports a broken config instead of starting', async () => {
     const home = tmp('wilco-chat-cli-')
-    const { writeFileSync } = await import('node:fs')
     writeFileSync(
       join(home, 'config.yaml'),
       'workers:\n  default: nope\n  routes:\n    a: {}\n    b: {}\n',
@@ -55,4 +57,19 @@ describe('wilco chat', () => {
     expect(r.code).toBe(2)
     expect(r.stderr).toContain('invalid config')
   })
+
+  it('ends the session at end of input instead of hanging', async () => {
+    const repo = mkrepo()
+    const home = tmp('wilco-chat-eof-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const socket = join(home, 'w.sock')
+    const daemon = await Daemon.start({ home, socket })
+    try {
+      const r = await wilco(['chat'], { WILCO_HOME: home, WILCO_SOCKET: socket, HOME: home })
+      // Ctrl-D and piped input both arrive here as end of input.
+      expect(r.code).toBe(0)
+    } finally {
+      await daemon.stop().catch(() => {})
+    }
+  }, 60_000)
 })

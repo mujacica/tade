@@ -19,6 +19,10 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
 - Heavy logic lives in the owning package (`@wilco/core`, `@wilco/probes`, ...). The command
   only parses flags, calls it, and formats.
 - Commands never throw for expected failures; turn them into a message on stderr + exit code.
+- **Interactive commands must end at end of input.** `readline`'s `question()` never settles on EOF,
+  so a loop built on it hangs on Ctrl-D or piped input, and whatever it started keeps running.
+  Iterate the interface (`for await (const line of rl)`), which ends on both EOF and close, and stop
+  what you started in a `finally`.
 
 ## Steps
 
