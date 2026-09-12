@@ -45,6 +45,11 @@ export interface AppState {
    * filled by a transcriber later: both feed the same sentence to the surface.
    */
   dictation: string | null
+  /**
+   * Keystrokes held back at an agent's prompt while they might still spell a
+   * line addressed to Wilco. Shown, so they are never simply missing.
+   */
+  held: string | null
   /** One line of transient news for the footer. */
   notice: string | null
 }
@@ -58,6 +63,7 @@ export function initialState(): AppState {
     lastInputAt: null,
     question: null,
     dictation: null,
+    held: null,
     notice: null,
   }
 }
@@ -120,6 +126,11 @@ export function setQuestion(state: AppState, question: AppState['question']): Ap
 /** Open, extend or close the dictation line. */
 export function setDictation(state: AppState, dictation: string | null): AppState {
   return { ...state, dictation }
+}
+
+/** Show what is being held back at an agent's prompt. */
+export function setHeld(state: AppState, held: string | null): AppState {
+  return { ...state, held }
 }
 
 export function notice(state: AppState, notice: string | null): AppState {

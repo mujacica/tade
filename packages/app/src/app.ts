@@ -21,10 +21,12 @@ import {
   notice,
   onEvent,
   setDictation,
+  setHeld,
   setListening,
   setQuestion,
   withTasks,
 } from './model.ts'
+import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { renderApp } from './view.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -75,6 +77,9 @@ export class App {
   private readonly tui: TuiAltScreen
   private state: AppState = initialState()
   private screen = ''
+  private router: RouterState = initialRouter()
+  /** Which agent the router's half-typed line belongs to. */
+  private routerFor: string | null = null
   private live: Live | null = null
   private voice: VoiceSurface | null = null
   private timer: NodeJS.Timeout | null = null
@@ -250,6 +255,11 @@ export class App {
     const said = (this.state.dictation ?? '').trim()
     this.state = setListening(setDictation(this.state, null), false)
     this.draw()
+    this.say(said)
+  }
+
+  /** Everything addressed to Wilco arrives here, however it was said. */
+  private say(said: string): void {
     if (said === '' || !this.voice) return
     void this.voice
       .handle(said)
@@ -267,8 +277,24 @@ export class App {
   private toLane(data: string): void {
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
     this.state = noteTyping(this.state, this.now())
-    if (!pane?.lane) return
-    void this.opts.client.write(pane.lane as LaneId, data).catch(() => {})
+
+    // A half-typed line belongs to the prompt it was started at, so switching
+    // agents abandons it rather than carrying it across.
+    if (this.routerFor !== this.state.focused) {
+      this.router = initialRouter()
+      this.routerFor = this.state.focused
+    }
+
+    // A line beginning "wilco " is addressed to Wilco, not to the agent.
+    const routed = route(this.router, data)
+    this.router = routed.state
+    this.state = setHeld(this.state, pending(this.router))
+
+    if (routed.toLane !== '' && pane?.lane) {
+      void this.opts.client.write(pane.lane as LaneId, routed.toLane).catch(() => {})
+    }
+    if (routed.toWilco !== null) this.say(routed.toWilco)
+    this.draw()
   }
 
   /** Answer what the focused agent is waiting on. */

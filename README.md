@@ -178,6 +178,10 @@ search            │ ⏵ wants approval: bash: npm i stripe@15
   you're watching, so its own keybindings keep working.
 - **Ctrl+space** talks. Where the terminal reports key releases it is hold-to-talk; elsewhere it
   toggles. Space is never claimed, because you have to be able to type one.
+- **Say something to Wilco without leaving the agent you're typing at.** Begin a line with `wilco ` —
+  *"wilco park this"* — and it goes to Wilco instead of the shell in front of you. Only at the start
+  of a line, so `echo wilco` is just a word; at most six characters are ever held back, they are
+  flushed in order the moment they can't spell it, and what is held is shown while it waits.
 - **A pane raises itself when an agent needs you** — but never while you're mid-sentence somewhere
   else: nothing takes the screen out from under you until you've been idle for 30 seconds.
 - **Every exchange shows its reasoning** (`→ park · checkout/stripe-v15 · "you mentioned it last"`),

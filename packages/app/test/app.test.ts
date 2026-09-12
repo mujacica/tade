@@ -129,6 +129,14 @@ describe('the window, wired up', () => {
     await until('the dictation line', () => terminal.written.includes('◉'))
   })
 
+  it('holds a line addressed to Wilco rather than typing it at the agent', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+    for (const char of 'wilco par') terminal.press(char)
+    await until('the held line', () => terminal.written.includes('◌'))
+  })
+
   it('moves between agents on tab', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

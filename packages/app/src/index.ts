@@ -18,6 +18,7 @@ export {
   paneTitle,
   type SidebarGroup,
   setDictation,
+  setHeld,
   setListening,
   setQuestion,
   shouldRaise,
@@ -25,4 +26,5 @@ export {
   type TaskSnapshot,
   withTasks,
 } from './model.ts'
+export { initialRouter, PREFIX, pending, type Routed, type RouterState, route } from './router.ts'
 export { type Frame, renderApp, renderTurn } from './view.ts'

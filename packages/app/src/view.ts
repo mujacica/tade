@@ -94,6 +94,8 @@ function renderStrip(state: AppState, width: number, height: number): string[] {
   if (body.length === 0) body.push(clip('press ctrl+space and say what you want', width))
   // Last, and with a cursor, because it is what you are doing right now.
   if (state.dictation !== null) body.push(clip(`◉ ${state.dictation}▏`, width))
+  // Typed at an agent, but held back because it might be meant for Wilco.
+  if (state.held) body.push(clip(`◌ ${state.held}▏`, width))
 
   // The last thing said is what you need to see.
   for (const line of body.slice(-(height - 1))) rows.push(pad(line, width))

@@ -11,6 +11,7 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 |---|---|---|
 | `model.ts` | What is shown, as data: panes, focus, key meanings | a terminal |
 | `view.ts` | `renderApp(state, frame) → string[]`, one row per line | a terminal |
+| `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a daemon (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the daemon | — |
 

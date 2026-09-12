@@ -8,6 +8,7 @@ import {
   initialState,
   notice,
   setDictation,
+  setHeld,
   setListening,
   setQuestion,
   type TaskSnapshot,
@@ -161,6 +162,13 @@ describe('the orchestrator strip', () => {
 
   it('shows the line the moment it opens, before anything is said', () => {
     expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('◉')
+  })
+
+  it('shows keystrokes held back at an agent prompt', () => {
+    // Held, not dropped: they have to be visible or they look like lost input.
+    const rows = renderApp(setHeld(state(), 'wilco par'), frame())
+    expect(rows.join('\n')).toContain('wilco par')
+    for (const row of rows) expect(visibleWidth(row)).toBe(80)
   })
 
   it('shows that it is listening', () => {
