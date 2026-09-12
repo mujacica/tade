@@ -54,8 +54,14 @@ file and cannot be tested.
 4. If it needs a new fact, add it to `live.ts`; keep the fold from status/lanes/approvals pure and
    test that, not the polling.
 5. Wire it in `app.ts`. No rules here.
-6. Update the **window** section of `README.md`.
-7. `pnpm check`.
+6. If the wiring changed, cover it in `test/app.test.ts`, which runs the window headlessly against a
+   real daemon and a real repository. `App` takes its `terminal` and `speaker` as options, and
+   `Terminal.start(onInput)` hands back the callback the TUI registers — so a fake terminal can press
+   keys and keep what was drawn instead of drawing it. Poll for what should appear: rendering is
+   batched, so asserting on the very next line is a flake. Point `home` at a tmp dir, or status reads
+   the real machine's agent transcripts.
+7. Update the **window** section of `README.md`.
+8. `pnpm check`.
 
 ## Gotchas
 
