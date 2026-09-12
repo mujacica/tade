@@ -42,6 +42,38 @@ pnpm wilco config --check        # validates ~/.wilco/config.yaml (missing file 
 
 `WILCO_HOME` overrides the state directory (default `~/.wilco`).
 
+## Try it
+
+Everything up to starting an agent works with no credentials at all:
+
+```sh
+pnpm install
+pnpm wilco daemon start
+
+# point Wilco at a repository (~/.wilco/config.yaml)
+printf 'projects:\n  app:\n    root: ~/src/app\n' >> ~/.wilco/config.yaml
+
+pnpm wilco task create app/refunds --intent "the refund flow double-charges on webhook retries"
+pnpm wilco status                 # app/refunds — queued
+pnpm wilco run start app/refunds  # needs a model; see below
+pnpm wilco status                 # app/refunds — working
+pnpm wilco run list
+pnpm wilco logs -n 10 --min-urgency notable
+pnpm wilco task remove app/refunds
+pnpm wilco daemon stop
+```
+
+**An agent needs a model, and pi owns that.** Wilco holds no credentials of its own. Log the
+bundled pi in once, or give it an API key:
+
+```sh
+pnpm --filter @wilco/harness-pi exec pi   # then /login, and pick your provider
+# or: export ANTHROPIC_API_KEY=...  (also OpenAI, OpenRouter, Ollama, ...)
+```
+
+Then name the model in a route (see Configuration) and `wilco run start` and `wilco chat` have
+something to think with.
+
 ## Commands
 
 | Command | Description |
