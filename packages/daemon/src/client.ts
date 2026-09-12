@@ -174,6 +174,11 @@ export class DaemonClient {
     return this.connection.sendRequest(Method.taskRemove, request)
   }
 
+  /** Set a task aside, or pick it back up. */
+  parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }> {
+    return this.connection.sendRequest(Method.taskPark, { worktree, parked })
+  }
+
   startRun(request: StartRunRequest): Promise<WorkerHandle> {
     return this.connection.sendRequest(Method.workerStart, request)
   }

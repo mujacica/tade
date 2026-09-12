@@ -147,6 +147,18 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
 
+  packages/surface-voice:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@wilco/daemon':
+        specifier: workspace:*
+        version: link:../daemon
+      '@wilco/probes':
+        specifier: workspace:*
+        version: link:../probes
+
   packages/worker-acp: {}
 
   test:

@@ -1,0 +1,15 @@
+{
+  "name": "@wilco/surface-voice",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*",
+    "@wilco/daemon": "workspace:*",
+    "@wilco/probes": "workspace:*"
+  }
+}

@@ -17,7 +17,7 @@ import { PiAdapter } from '@wilco/harness-pi'
 import { EventLog } from './events.ts'
 import { type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'
 import { drivers, LaneRegistry, type SpawnRequest } from './registry.ts'
-import { createTask, type RemoveTaskOptions, removeTask } from './tasks.ts'
+import { createTask, type RemoveTaskOptions, removeTask, setParked } from './tasks.ts'
 import { type StartRunRequest, WorkerSupervisor } from './workers.ts'
 
 // vscode-jsonrpc is CommonJS.
@@ -281,6 +281,16 @@ export class Daemon {
           detail: { branch: req.branch, worktree: req.worktree, forced: req.force === true },
         })
       }
+      return result
+    })
+
+    connection.onRequest(Method.taskPark, async (req: { worktree: string; parked: boolean }) => {
+      const result = await setParked(req.worktree, req.parked)
+      await this.log.append({
+        type: 'state_change',
+        task: result.task || null,
+        detail: { state: req.parked ? 'parked' : 'resumed', by: 'you' },
+      })
       return result
     })
 

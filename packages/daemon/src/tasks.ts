@@ -1,8 +1,8 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { TaskId } from '@wilco/core'
 import { git, parseStatusV2, resolveBaseRef } from '@wilco/probes'
-import { stringify } from 'yaml'
+import { parse as parseYaml, stringify } from 'yaml'
 
 // Task lifecycle: a branch, a worktree, and the sentence you said when you
 // started. Creating and removing tasks is the only write path into a user's
@@ -131,6 +131,31 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
   // -d refuses to delete unmerged work; -D is only reached when forced.
   const deleted = await git(opts.root, ['branch', opts.force ? '-D' : '-d', opts.branch])
   return { removed: true, branchDeleted: deleted.ok }
+}
+
+export interface ParkResult {
+  task: string
+  parked: boolean
+}
+
+/**
+ * Set a task aside, or pick it back up. Deliberate human choice, so it lives
+ * in task.yaml rather than being derived: nothing else can tell "parked" from
+ * "idle". Every other field is round-tripped untouched, `intent_spoken` above
+ * all.
+ */
+export async function setParked(worktree: string, parked: boolean): Promise<ParkResult> {
+  const path = join(worktree, '.wilco', 'task.yaml')
+  let file: Record<string, unknown>
+  try {
+    file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
+  } catch {
+    throw new Error(`no task at ${worktree}`)
+  }
+  if (typeof file !== 'object') throw new Error(`unreadable task at ${worktree}`)
+  file.parked = parked
+  await writeFile(path, stringify(file))
+  return { task: String(file.id ?? ''), parked }
 }
 
 function firstLine(text: string): string {

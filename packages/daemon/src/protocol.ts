@@ -29,6 +29,7 @@ export const Method = {
   laneDetach: 'lane/detach',
   taskCreate: 'task/create',
   taskRemove: 'task/remove',
+  taskPark: 'task/park',
   workerStart: 'worker/start',
   workerList: 'worker/list',
   workerPending: 'worker/pending',

@@ -24,7 +24,8 @@ Early prototype. What works today:
 | CLI for tasks, runs and approvals | ✅ |
 | Orchestrator tools: an agent can drive Wilco itself | ✅ |
 | `wilco chat` | ✅ |
-| Voice surface, memory, self-extension | not started |
+| Voice: attention policy, intent grammar, earcons and speech, summaries | ✅ |
+| `wilco listen` (the voice loop as a command), memory, self-extension | not started |
 
 ## Requirements
 
@@ -175,6 +176,30 @@ Wilco answers**. That gate is why approvals can be trusted: the exact command is
 runs, rather than scraped off a terminal. If Wilco becomes unreachable mid-request the agent
 refuses rather than proceeding unsupervised, and with no supervision socket set the extension is
 inert, so running plain `pi` is unaffected.
+
+### Voice
+
+Voice is a surface, not the architecture: it subscribes to the same events as everything else and
+has no privileged path. If it's unavailable, nothing is lost but convenience.
+
+- **Earcons carry state, speech carries content.** Three generated tones — falling for *blocked*,
+  rising for *review*, a flat double for *failed* — are learnable in a day, so several agents can be
+  tracked through one earbud without hearing a sentence.
+- **The attention policy decides what reaches you**: blocking events speak, notable ones chime, the
+  rest stay silent. Speech is downgraded to a tone during quiet hours, while you're typing in that
+  task's own lane, and once the hourly budget is spent. Nothing is dropped — held-back items come
+  back as one sentence ("3 things happened. migration failed, search is review and …").
+- **A small closed grammar** resolves what you said before any model is involved: *where are we*,
+  *show me X*, *tell X …*, *start … in …*, *park X*, *pick X back up*, *yes* / *no*, *remember …*.
+  Anything it doesn't recognise goes to the orchestrator as free text.
+- **A bare "yes" can never do something destructive.** Soft requests take one word; a force push or
+  an `rm -rf` outside the worktree is read back and requires the distinct phrase
+  (*confirm force push*). The grammar has a test asserting no ordinary sentence can reach one.
+
+Speech and tones use what the OS already has (`say` + `afplay` on macOS, `spd-say` + `paplay` on
+Linux), so there is nothing to install. **Speech-to-text is deliberately not built in**: the surface
+takes text from any source, so dictation apps, a local transcriber, or simply typing all work
+through the same path.
 
 ## Configuration
 

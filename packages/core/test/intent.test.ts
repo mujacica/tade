@@ -1,0 +1,173 @@
+import { describe, expect, it } from 'vitest'
+import { type Intent, parseUtterance, type Vocabulary } from '../src/intent.ts'
+
+const vocabulary: Vocabulary = {
+  tasks: ['checkout/stripe-v15', 'checkout/refunds', 'search/pagination', 'app/migration'],
+  projects: ['checkout', 'search', 'app'],
+}
+
+const parse = (text: string) => parseUtterance(text, vocabulary)
+
+interface Case {
+  said: string
+  want: Intent['kind']
+  check?: (intent: Intent) => void
+}
+
+const cases: Case[] = [
+  // --- status
+  { said: 'where are we', want: 'status' },
+  { said: 'Where are we?', want: 'status' },
+  { said: 'status', want: 'status' },
+  { said: "what's going on", want: 'status' },
+  { said: 'how are things', want: 'status' },
+  {
+    said: 'what about checkout',
+    want: 'status',
+    check: (i) => expect(i).toMatchObject({ scope: 'checkout' }),
+  },
+  {
+    said: "how's search",
+    want: 'status',
+    check: (i) => expect(i).toMatchObject({ scope: 'search/pagination' }),
+  },
+
+  // --- focus
+  {
+    said: 'show me pagination',
+    want: 'focus',
+    check: (i) => expect(i).toMatchObject({ task: 'search/pagination' }),
+  },
+  {
+    said: 'pull up refunds',
+    want: 'focus',
+    check: (i) => expect(i).toMatchObject({ task: 'checkout/refunds' }),
+  },
+  { said: 'open stripe-v15', want: 'focus' },
+
+  // --- steering
+  {
+    said: 'tell refunds to also update the docs',
+    want: 'steer',
+    check: (i) =>
+      expect(i).toMatchObject({ task: 'checkout/refunds', message: 'to also update the docs' }),
+  },
+  { said: 'ask pagination what it is waiting for', want: 'steer' },
+
+  // --- starting work
+  {
+    said: 'start the refund flow double-charges in checkout',
+    want: 'start',
+    check: (i) => expect(i).toMatchObject({ project: 'checkout' }),
+  },
+  {
+    said: 'start fixing the webhook signature in search',
+    want: 'start',
+    // Stored the way it was said, not the way it was normalised.
+    check: (i) =>
+      expect((i as { intent: string }).intent).toContain('fixing the webhook signature'),
+  },
+
+  // --- parking
+  {
+    said: 'park migration',
+    want: 'park',
+    check: (i) => expect(i).toMatchObject({ task: 'app/migration' }),
+  },
+  { said: 'bark migration', want: 'park' }, // misheard "park"
+  { said: 'set aside migration', want: 'park' },
+  { said: 'resume migration', want: 'resume' },
+  { said: 'pick migration back up', want: 'resume' },
+
+  // --- approvals
+  { said: 'yes', want: 'approve' },
+  { said: 'go ahead', want: 'approve' },
+  { said: 'do it', want: 'approve' },
+  { said: 'approve', want: 'approve' },
+  { said: 'no', want: 'deny' },
+  { said: 'deny', want: 'deny' },
+  { said: 'the neigh', want: 'deny' }, // misheard "deny"
+  { said: "don't", want: 'deny' },
+  {
+    said: 'confirm force push',
+    want: 'confirm',
+    check: (i) => expect(i).toMatchObject({ phrase: 'force push' }),
+  },
+
+  // --- memory
+  {
+    said: 'remember we pin major versions',
+    want: 'remember',
+    check: (i) => expect(i).toMatchObject({ text: 'we pin major versions' }),
+  },
+  { said: 'remember that I hate force pushes', want: 'remember' },
+
+  // --- anything else falls through
+  { said: 'what did the migration task actually change last week', want: 'free' },
+  { said: 'park something nobody has heard of', want: 'free' },
+  { said: 'show me nonsense', want: 'free' },
+  { said: 'start something in a project that does not exist', want: 'free' },
+  { said: 'tell nobody anything', want: 'free' },
+  { said: '', want: 'free' },
+  { said: 'yes but only the first one', want: 'free' },
+  { said: 'i was thinking about denying that', want: 'free' },
+]
+
+describe('parseUtterance', () => {
+  it.each(cases)('"$said" → $want', (c) => {
+    const intent = parse(c.said)
+    expect(intent.kind).toBe(c.want)
+    c.check?.(intent)
+  })
+
+  it('resolves a misheard project name', () => {
+    expect(parse('what about check out')).toMatchObject({ kind: 'status', scope: 'checkout' })
+  })
+
+  it('refuses to guess between two tasks of the same project', () => {
+    // checkout owns two tasks, so the bare project name stays a project.
+    expect(parse('what about checkout')).toMatchObject({ scope: 'checkout' })
+    expect(parse('park checkout')).toMatchObject({ kind: 'park', task: 'checkout' })
+  })
+
+  it('is pure and leaves its inputs alone', () => {
+    const frozen = structuredClone(vocabulary)
+    expect(parse('where are we')).toEqual(parse('where are we'))
+    expect(vocabulary).toEqual(frozen)
+  })
+})
+
+describe('approval safety', () => {
+  // This property is the reason the grammar exists. Deleting it should require
+  // an argument in review, not a shrug.
+  it('no ordinary sentence can reach a destructive confirmation', () => {
+    const utterances = [
+      ...cases.map((c) => c.said),
+      'yes go ahead and force push',
+      'sure, do whatever you need',
+      'push it',
+      'confirm',
+      'i confirm',
+      'please confirm that for me',
+      'yes confirm',
+      'approve the force push',
+      'do it, force push to main',
+    ]
+    for (const said of utterances) {
+      const intent = parse(said)
+      if (intent.kind !== 'confirm') continue
+      // The only way through is the exact shape "confirm <phrase>".
+      expect(said.toLowerCase().trim().startsWith('confirm ')).toBe(true)
+    }
+  })
+
+  it('a bare yes never confirms anything destructive', () => {
+    for (const said of ['yes', 'yeah', 'go ahead', 'do it', 'approve']) {
+      expect(parse(said).kind).toBe('approve')
+    }
+  })
+
+  it('"confirm" alone is not a confirmation', () => {
+    expect(parse('confirm').kind).toBe('free')
+  })
+})
