@@ -32,6 +32,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   probe results: no I/O, no clock reads (take `now`), no async.
 - `status` never throws. Failures degrade to a partial answer plus `warnings[]`.
 - Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. Never mock git.
+- **A fixture must not be kinder than reality.** If the fixture differs from what a user's machine
+  looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.wilco/`
+  untracked, because a real repository does, and excluding it once concealed a broken teardown.
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.
 - Parsers of external formats (provider transcripts) return `null` on unknown shapes, never throw.
 - `intent_spoken` is stored verbatim. Never paraphrase or normalise it.

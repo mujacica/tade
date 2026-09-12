@@ -21,7 +21,9 @@ Early prototype. What works today:
 | Agents: pi runs supervised by the daemon, every tool call classified | ✅ |
 | Task worktrees: created with your intent recorded, teardown that refuses to destroy work | ✅ |
 | Approval policy, off by default (`approvals.mode`) | ✅ |
-| CLI for tasks and runs, orchestrator (`wilco chat`) | not started |
+| CLI for tasks, runs and approvals | ✅ |
+| Orchestrator tools: an agent can drive Wilco itself | ✅ |
+| `wilco chat` | not started |
 | Voice surface, memory, self-extension | not started |
 
 ## Requirements

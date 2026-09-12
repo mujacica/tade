@@ -53,6 +53,13 @@ export function piBinary(): string {
 export interface PiAdapterOptions {
   /** Directory for per-run sockets and session files. */
   runDir: string
+  /**
+   * Load the supervision extension, so every tool call is held until Wilco
+   * answers. True for workers. False for the orchestrator, which is Wilco's
+   * own interface: gating its calls on an approval would mean asking
+   * permission to answer "where are we".
+   */
+  supervise?: boolean
   /** Defaults to the bundled pi. */
   bin?: string
   /** Extra arguments appended to every launch. */
@@ -64,7 +71,8 @@ export interface PiAdapterOptions {
 interface Run {
   handle: WorkerHandle
   child: ChildProcess
-  channel: SignalChannel
+  /** Null when the run is not supervised. */
+  channel: SignalChannel | null
   pendingRpc: Map<string, (response: RpcResponse) => void>
   streaming: boolean
   stdout: string
@@ -105,6 +113,7 @@ export class PiAdapter implements WorkerAdapter {
   constructor(opts: PiAdapterOptions) {
     this.opts = {
       runDir: opts.runDir,
+      supervise: opts.supervise ?? true,
       bin: opts.bin ?? piBinary(),
       args: opts.args ?? [],
       env: opts.env ?? process.env,
@@ -129,12 +138,14 @@ export class PiAdapter implements WorkerAdapter {
     if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
     const socketPath = join(this.opts.runDir, `${spec.run}.sock`)
 
-    const channel = await SignalChannel.listen({
-      path: socketPath,
-      run: spec.run,
-      onSignal: (signal) => this.dispatch(spec.run, signal),
-      onWarning: this.opts.onWarning,
-    })
+    const channel = this.opts.supervise
+      ? await SignalChannel.listen({
+          path: socketPath,
+          run: spec.run,
+          onSignal: (signal) => this.dispatch(spec.run, signal),
+          onWarning: this.opts.onWarning,
+        })
+      : null
 
     const child = spawn(
       process.execPath,
@@ -145,8 +156,7 @@ export class PiAdapter implements WorkerAdapter {
         ...this.modelArgs(spec.model),
         '--session-dir',
         join(this.opts.runDir, 'sessions'),
-        '-e',
-        EXTENSION_PATH,
+        ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
         ...this.opts.args,
       ],
       {
@@ -176,7 +186,7 @@ export class PiAdapter implements WorkerAdapter {
     child.stdout?.on('data', (chunk: Buffer) => this.readStdout(run, chunk))
     child.on('exit', (code) => {
       this.dispatch(spec.run, { type: 'exited', run: spec.run, at: Date.now(), code })
-      void channel.close()
+      void channel?.close()
     })
 
     const state = await this.rpc(run, { type: 'get_state' }).catch(() => null)
@@ -198,7 +208,7 @@ export class PiAdapter implements WorkerAdapter {
 
   async steer(run: RunId, message: string): Promise<void> {
     const entry = this.require(run)
-    if (entry.channel.connected) {
+    if (entry.channel?.connected) {
       entry.channel.send({ type: 'steer', message })
       return
     }
@@ -207,7 +217,7 @@ export class PiAdapter implements WorkerAdapter {
 
   async queue(run: RunId, message: string): Promise<void> {
     const entry = this.require(run)
-    if (entry.channel.connected) {
+    if (entry.channel?.connected) {
       entry.channel.send({ type: 'queue', message })
       return
     }
@@ -216,6 +226,7 @@ export class PiAdapter implements WorkerAdapter {
 
   async decide(run: RunId, requestId: string, decision: PermissionDecision): Promise<void> {
     const entry = this.require(run)
+    if (!entry.channel) throw new Error(`run ${run} is not supervised: nothing to decide`)
     entry.channel.send({
       type: 'decision',
       requestId,
@@ -241,9 +252,9 @@ export class PiAdapter implements WorkerAdapter {
   async stop(run: RunId): Promise<void> {
     const entry = this.runs.get(run)
     if (!entry) return
-    entry.channel.send({ type: 'shutdown' })
+    entry.channel?.send({ type: 'shutdown' })
     entry.child.kill()
-    await entry.channel.close()
+    await entry.channel?.close()
     this.runs.delete(run)
   }
 
@@ -320,6 +331,51 @@ export class PiAdapter implements WorkerAdapter {
       const resolve = run.pendingRpc.get(message.id)
       run.pendingRpc.delete(message.id)
       resolve?.(message as unknown as RpcResponse)
+      return
+    }
+    // What the agent actually said. The supervision extension carries
+    // structure; only this stream carries text, and it arrives per completed
+    // block rather than per token.
+    if (message.type === 'message_update') {
+      const event = message.assistantMessageEvent as { type?: string; content?: string } | undefined
+      if (event?.type === 'text_end' && typeof event.content === 'string' && event.content) {
+        this.dispatch(run.handle.run, {
+          type: 'message',
+          run: run.handle.run,
+          at: Date.now(),
+          text: event.content,
+        })
+      }
+      return
+    }
+
+    // Tool activity. A supervised run learns this from the extension, which
+    // sees calls *before* they run and can hold them; without one, stdout is
+    // the only source, and an unsupervised orchestrator should not be blind to
+    // what it is doing.
+    if (!this.opts.supervise && message.type === 'tool_execution_start') {
+      this.dispatch(run.handle.run, {
+        type: 'tool_call',
+        run: run.handle.run,
+        at: Date.now(),
+        callId: String(message.toolCallId ?? ''),
+        tool: String(message.toolName ?? ''),
+        input: message.args,
+      })
+      return
+    }
+    if (!this.opts.supervise && message.type === 'tool_execution_end') {
+      // The authoritative failure flag is on the result; the outer one reports
+      // whether the execution itself blew up.
+      const result = message.result as { isError?: boolean } | undefined
+      this.dispatch(run.handle.run, {
+        type: 'tool_result',
+        run: run.handle.run,
+        at: Date.now(),
+        callId: String(message.toolCallId ?? ''),
+        ok: !(result?.isError ?? message.isError ?? false),
+        summary: String(message.toolName ?? ''),
+      })
     }
   }
 

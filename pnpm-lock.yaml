@@ -120,7 +120,17 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/orchestrator: {}
+  packages/orchestrator:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@wilco/daemon':
+        specifier: workspace:*
+        version: link:../daemon
+      '@wilco/harness-pi':
+        specifier: workspace:*
+        version: link:../harness-pi
 
   packages/probes:
     dependencies:
