@@ -22,7 +22,9 @@ export const WorkerRoute = z.strictObject({
   provider: z.string().optional(),
   /** Model id; may be `provider/id`. */
   model: z.string().optional(),
-  sandbox: z.enum(['none', 'bwrap', 'seatbelt', 'container']).default('none'),
+  // `container` was here and did nothing; a sandbox you can select and not get
+  // is worse than one that is not offered.
+  sandbox: z.enum(['none', 'bwrap', 'seatbelt']).default('none'),
 })
 export type WorkerRoute = z.infer<typeof WorkerRoute>
 

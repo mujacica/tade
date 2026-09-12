@@ -220,6 +220,24 @@ worktree) still runs untouched, ordinary commands ask for a word, and a short li
 destructive ones — force push, history rewrite, `rm -rf` outside the worktree, credential access,
 publishing, database migrations — require you to hear the exact command first.
 
+**Workers can be contained; the orchestrator cannot.** Set `sandbox` on a route and workers on it
+run under `sandbox-exec` (macOS) or `bwrap` (Linux) with exactly one writable place: the task's own
+worktree, plus temp directories and build caches. Your other repositories, your dotfiles, your keys
+and Wilco's own state are read-only to it.
+
+```yaml
+workers:
+  routes:
+    cheap: { provider: openrouter, model: deepseek/deepseek-v3, sandbox: seatbelt }
+```
+
+This is doing real work rather than defence in depth: the harness runs with the permissions of
+whatever launched it and has no permission system of its own. Two honest limits — it restricts
+*writes*, not reads, because a toolchain that cannot read `~/.npmrc` does not work (credential reads
+are a job for the approval tiers); and asking for a sandbox the machine cannot provide fails the run
+rather than quietly starting an agent unconfined. The orchestrator is never sandboxed: it has to be
+able to drive your terminal.
+
 Supervision works the same whether the agent is visible in a lane or headless: Wilco loads a small
 extension into pi, which streams structured signals back over a per-run Unix socket
 (`turn_started`, `tool_call`, `turn_done`, `idle`, context usage) and **holds every tool call until

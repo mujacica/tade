@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import {
   type PermissionDecision,
   type RunId,
+  sandboxed,
   type Unsubscribe,
   WORKER_ENV,
   type WorkerAdapter,
@@ -127,11 +128,20 @@ export class PiAdapter implements WorkerAdapter {
     args: string[]
     env: Record<string, string>
   } {
-    return {
-      command: process.execPath,
-      args: [this.opts.bin, ...this.modelArgs(spec.model), '-e', EXTENSION_PATH, ...this.opts.args],
-      env: this.runEnv(spec),
-    }
+    const launch = sandboxed(
+      {
+        command: process.execPath,
+        args: [
+          this.opts.bin,
+          ...this.modelArgs(spec.model),
+          '-e',
+          EXTENSION_PATH,
+          ...this.opts.args,
+        ],
+      },
+      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
+    )
+    return { ...launch, env: this.runEnv(spec) }
   }
 
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
@@ -147,24 +157,31 @@ export class PiAdapter implements WorkerAdapter {
         })
       : null
 
-    const child = spawn(
-      process.execPath,
-      [
-        this.opts.bin,
-        '--mode',
-        'rpc',
-        ...this.modelArgs(spec.model),
-        '--session-dir',
-        join(this.opts.runDir, 'sessions'),
-        ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
-        ...this.opts.args,
-      ],
+    // Contained if the route asked for it. The harness runs with whatever
+    // permissions it was launched with, so this is the only thing between a
+    // worker and the rest of the disk.
+    const launch = sandboxed(
       {
-        cwd: spec.cwd,
-        env: { ...this.runEnv(spec), ...spec.env },
-        stdio: ['pipe', 'pipe', 'pipe'],
+        command: process.execPath,
+        args: [
+          this.opts.bin,
+          '--mode',
+          'rpc',
+          ...this.modelArgs(spec.model),
+          '--session-dir',
+          join(this.opts.runDir, 'sessions'),
+          ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
+          ...this.opts.args,
+        ],
       },
+      spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
     )
+
+    const child = spawn(launch.command, launch.args, {
+      cwd: spec.cwd,
+      env: { ...this.runEnv(spec), ...spec.env },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
 
     const run: Run = {
       handle: {

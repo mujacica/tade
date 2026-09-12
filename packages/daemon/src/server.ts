@@ -11,6 +11,8 @@ import {
   loadConfig,
   type PermissionDecision,
   type RunId,
+  resolveRoute,
+  type SandboxKind,
   type WorkspaceDriver,
 } from '@wilco/core'
 import { PiAdapter } from '@wilco/harness-pi'
@@ -146,6 +148,16 @@ export class Daemon {
     await chmod(socket, 0o600)
     await log.append({ type: 'daemon_started', detail: { pid: process.pid, socket, driverName } })
     return daemon
+  }
+
+  /**
+   * How the task's route says to contain a worker. Deliberately not caught: a
+   * route that cannot be resolved fails the run rather than quietly starting
+   * an agent with the whole disk writable.
+   */
+  private sandboxFor(task: string): SandboxKind {
+    const project = task.split('/')[0]
+    return resolveRoute(this.config, project ? { project } : {}).sandbox
   }
 
   private accept(socket: Socket): void {
@@ -309,7 +321,9 @@ export class Daemon {
       scope === undefined ? this.memory.all() : this.memory.recall(scope),
     )
 
-    connection.onRequest(Method.workerStart, (req: StartRunRequest) => this.workers.start(req))
+    connection.onRequest(Method.workerStart, (req: StartRunRequest) =>
+      this.workers.start({ ...req, sandbox: req.sandbox ?? this.sandboxFor(req.task) }),
+    )
     connection.onRequest(Method.workerList, () => this.workers.list())
     connection.onRequest(Method.workerPending, ({ task }: { task?: string } = {}) =>
       this.workers.pending(task),

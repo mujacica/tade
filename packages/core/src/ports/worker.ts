@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { LaneId, TaskId } from '../model.ts'
+import type { SandboxSpec } from '../sandbox.ts'
 import type { Unsubscribe } from './workspace.ts'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
@@ -28,6 +29,11 @@ export interface WorkerSpec {
   /** Lane to render into, for adapters that show a UI. */
   lane?: LaneId
   env?: Record<string, string>
+  /**
+   * How to contain this worker. An adapter that spawns a process must apply
+   * it: the harness has no permission system of its own.
+   */
+  sandbox?: SandboxSpec
 }
 
 /**

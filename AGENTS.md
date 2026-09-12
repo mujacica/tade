@@ -49,6 +49,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   append-only, and a line that won't parse is skipped rather than thrown over. Never lowercase or
   reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
   test with a capital letter in it to notice that it didn't.
+- **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
+  a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
+  contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
+  The orchestrator is never sandboxed; it has to drive your terminal.
 - No hot reload of extensions. Activation requires a daemon restart.
 - **Under the `pty` driver lanes are the daemon's children**, so they die with it; under `tmux` they
   do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:

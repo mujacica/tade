@@ -5,6 +5,7 @@ import {
   type PermissionDecision,
   PermissionNotPendingError,
   type RunId,
+  type SandboxKind,
   type TaskId,
   type Tier,
   type WorkerAdapter,
@@ -31,6 +32,11 @@ export interface StartRunRequest {
    * Defaults to `cwd`, which is the task's worktree in normal use.
    */
   worktree?: string
+  /**
+   * How to contain the worker. Comes from the task's route; `none` unless the
+   * config asks for one.
+   */
+  sandbox?: SandboxKind
 }
 
 export interface PendingApproval {
@@ -89,6 +95,11 @@ export class WorkerSupervisor {
         cwd: request.cwd,
         prompt: request.prompt,
         ...(request.model ? { model: request.model } : {}),
+        // The worktree is both the policy boundary and the sandbox boundary:
+        // the one place a worker is meant to be changing anything.
+        ...(request.sandbox && request.sandbox !== 'none'
+          ? { sandbox: { kind: request.sandbox, worktree } }
+          : {}),
       })
     } catch (err) {
       stop()
