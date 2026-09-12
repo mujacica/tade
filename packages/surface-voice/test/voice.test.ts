@@ -55,6 +55,10 @@ function fakeDaemon() {
         handler = fn
         return 'sub-1'
       },
+      async unsubscribe(subscription) {
+        calls.push(`unsubscribe ${subscription}`)
+        handler = null
+      },
       async remember(text, scope) {
         calls.push(`remember ${scope ?? '-'} ${text}`)
         return { text, scope, at: new Date(NOW).toISOString() }
@@ -116,6 +120,23 @@ describe('VoiceSurface', () => {
     const { voice, said } = await surface(daemon)
     expect(await voice.handle('where are we')).toBe('Two tasks, nothing blocked.')
     expect(said).toEqual(['Two tasks, nothing blocked.'])
+  })
+
+  it('lets go of the event stream when it stops', async () => {
+    const { voice } = await surface(daemon)
+    await voice.stop()
+    // Otherwise the daemon keeps pushing events at a surface that has gone.
+    expect(daemon.calls).toContain('unsubscribe sub-1')
+    daemon.emit(event({}))
+    expect(await voice.handle('where are we')).toBe('Two tasks, nothing blocked.')
+  })
+
+  it('stops safely even when the daemon has already gone', async () => {
+    const { voice } = await surface(daemon)
+    daemon.unsubscribe = async () => {
+      throw new Error('socket closed')
+    }
+    await expect(voice.stop()).resolves.toBeUndefined()
   })
 
   it('parks a task and picks it back up', async () => {

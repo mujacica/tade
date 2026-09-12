@@ -48,6 +48,12 @@ export interface VoiceDaemon {
   startRun(request: { task: string; cwd: string; prompt: string }): Promise<{ run: string }>
   subscribe(handler: (event: WilcoEvent) => void): Promise<string>
   /**
+   * Stop a subscription. Required, unlike `remember`: there is no honest
+   * degraded behaviour for a surface that cannot let go of the event stream,
+   * only a leak that outlives it.
+   */
+  unsubscribe(subscription: string): Promise<void>
+  /**
    * Optional: write something down. Without it the surface says plainly that
    * it cannot remember, rather than pretending to.
    */
@@ -143,7 +149,11 @@ export class VoiceSurface {
   }
 
   async stop(): Promise<void> {
+    const subscription = this.subscription
     this.subscription = null
+    if (!subscription) return
+    // A daemon that has already gone is the state we wanted anyway.
+    await this.opts.daemon.unsubscribe(subscription).catch(() => {})
   }
 
   /** Handle one thing you said. Returns what was said back. */

@@ -43,6 +43,9 @@ function fakeDaemon() {
     async startRun() {
       return { run: 'r1' }
     },
+    async unsubscribe(subscription) {
+      calls.push(`unsubscribe ${subscription}`)
+    },
     async subscribe() {
       return 'sub-1'
     },
