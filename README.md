@@ -47,6 +47,11 @@ pnpm wilco config --check        # validates ~/.wilco/config.yaml (missing file 
 | `wilco status [--json] [--no-pr]` | Every task and its state, derived fresh from git, running processes and provider transcripts |
 | `wilco config` | Print the effective config (file merged with defaults) as JSON |
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
+| `wilco task create <project>/<name> --intent "..."` | Create a task: branch, worktree, your intent recorded verbatim |
+| `wilco task remove <task> [--force]` | Remove a task worktree; refuses to destroy unmerged work |
+| `wilco run start <task> [--prompt ...] [--model ...]` | Start a supervised agent in the task worktree |
+| `wilco run list` / `steer <run> <msg>` / `stop <run>` | List agents, tell one something, stop one |
+| `wilco approvals` / `approve <run> <id>` / `deny <run> <id>` | Commands agents are waiting to run (empty unless approvals are on) |
 | `wilco daemon start [--foreground]` | Start `wilcod`, which owns lanes and the event log |
 | `wilco daemon stop` / `status [--json]` | Stop the daemon / show pid, driver, capabilities, lane count |
 | `wilco spawn <lane> --cmd <command...>` | Start a process in a new lane |

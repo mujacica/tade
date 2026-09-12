@@ -7,6 +7,7 @@ import { collectStatus } from '@wilco/probes'
 import { Command, CommanderError } from 'commander'
 import { registerDaemon } from './commands/daemon.ts'
 import { registerLanes } from './commands/lanes.ts'
+import { registerTasks } from './commands/tasks.ts'
 import { formatStatus } from './format.ts'
 import { defaultIo, Exit, type Io } from './io.ts'
 
@@ -81,6 +82,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
       }
     })
 
+  registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)
   registerDaemon(program, io, setExit)
   return program
