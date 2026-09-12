@@ -115,6 +115,11 @@ export interface PermissionDecision {
   allow: boolean
   /** Shown to the agent when denied, so it can choose another route. */
   reason?: string
+  /**
+   * The exact words that decided it. Recorded verbatim in the ledger, because
+   * "why did it do that" is only answerable if what you actually said is kept.
+   */
+  said?: string
 }
 
 /**

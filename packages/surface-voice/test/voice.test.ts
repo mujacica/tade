@@ -22,48 +22,55 @@ function fakeDaemon() {
     }>,
     runs: [] as Array<{ run: string; task: string }>,
   }
-  const daemon: VoiceDaemon & { calls: string[]; state: typeof state; emit(e: WilcoEvent): void } =
-    {
-      calls,
-      state,
-      emit: (event) => handler?.(event),
-      async pendingApprovals() {
-        return state.pending
-      },
-      async decideApproval(run, requestId, decision) {
-        calls.push(`decide ${run} ${requestId} ${decision.allow ? 'allow' : 'deny'}`)
-      },
-      async runs() {
-        return state.runs
-      },
-      async steerRun(run, message) {
-        calls.push(`steer ${run} ${message}`)
-      },
-      async parkTask(worktree, parked) {
-        calls.push(`park ${worktree} ${parked}`)
-        return { task: 'app/migration', parked }
-      },
-      async createTask(request) {
-        calls.push(`create ${request.project}/${request.slug} ${request.intent}`)
-        return { id: `${request.project}/${request.slug}`, worktree: `/wt/${request.slug}` }
-      },
-      async startRun(request) {
-        calls.push(`start ${request.task}`)
-        return { run: 'r1' }
-      },
-      async subscribe(fn) {
-        handler = fn
-        return 'sub-1'
-      },
-      async unsubscribe(subscription) {
-        calls.push(`unsubscribe ${subscription}`)
-        handler = null
-      },
-      async remember(text, scope) {
-        calls.push(`remember ${scope ?? '-'} ${text}`)
-        return { text, scope, at: new Date(NOW).toISOString() }
-      },
-    }
+  const decisions: Array<{ allow: boolean; reason?: string; said?: string }> = []
+  const daemon: VoiceDaemon & {
+    calls: string[]
+    decisions: typeof decisions
+    state: typeof state
+    emit(e: WilcoEvent): void
+  } = {
+    calls,
+    decisions,
+    state,
+    emit: (event) => handler?.(event),
+    async pendingApprovals() {
+      return state.pending
+    },
+    async decideApproval(run, requestId, decision) {
+      calls.push(`decide ${run} ${requestId} ${decision.allow ? 'allow' : 'deny'}`)
+      decisions.push(decision)
+    },
+    async runs() {
+      return state.runs
+    },
+    async steerRun(run, message) {
+      calls.push(`steer ${run} ${message}`)
+    },
+    async parkTask(worktree, parked) {
+      calls.push(`park ${worktree} ${parked}`)
+      return { task: 'app/migration', parked }
+    },
+    async createTask(request) {
+      calls.push(`create ${request.project}/${request.slug} ${request.intent}`)
+      return { id: `${request.project}/${request.slug}`, worktree: `/wt/${request.slug}` }
+    },
+    async startRun(request) {
+      calls.push(`start ${request.task}`)
+      return { run: 'r1' }
+    },
+    async subscribe(fn) {
+      handler = fn
+      return 'sub-1'
+    },
+    async unsubscribe(subscription) {
+      calls.push(`unsubscribe ${subscription}`)
+      handler = null
+    },
+    async remember(text, scope) {
+      calls.push(`remember ${scope ?? '-'} ${text}`)
+      return { text, scope, at: new Date(NOW).toISOString() }
+    },
+  }
   return daemon
 }
 
@@ -208,6 +215,38 @@ describe('VoiceSurface', () => {
       const { voice } = await surface(daemon)
       expect(await voice.handle('yes')).toMatch(/2 things are waiting/)
       expect(daemon.calls).toEqual([])
+    })
+
+    it('records the words that decided it, verbatim', async () => {
+      daemon.state.pending = [
+        {
+          run: 'r1',
+          requestId: 'q1',
+          task: 'app/migration',
+          summary: 'bash: npm test',
+          tier: 'soft',
+        },
+      ]
+      const { voice } = await surface(daemon)
+      await voice.handle('no')
+      // The ledger keeps what you said, so a decision can be explained later
+      // in the words that made it.
+      expect(daemon.decisions.at(-1)).toMatchObject({ allow: false, said: 'no' })
+    })
+
+    it('records the confirming phrase too', async () => {
+      daemon.state.pending = [
+        {
+          run: 'r1',
+          requestId: 'q1',
+          task: 'app/migration',
+          summary: 'bash: git push --force origin main',
+          tier: 'hard',
+        },
+      ]
+      const { voice } = await surface(daemon)
+      await voice.handle('confirm force push')
+      expect(daemon.decisions.at(-1)).toMatchObject({ allow: true, said: 'confirm force push' })
     })
 
     it('a bare yes cannot carry out something destructive', async () => {

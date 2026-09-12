@@ -193,6 +193,72 @@ describe('WorkerSupervisor', () => {
       expect(event?.detail.summary).toBe('bash: git push --force origin main')
     })
 
+    it('does not ask twice about something you already refused', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      const force = 'bash: git push --force origin main'
+      adapter.askPermission('r1', 'q1', 'bash', { command: 'git push --force origin main' }, force)
+      await until(() => supervisor.pending().length > 0)
+      await supervisor.decide('r1', 'q1', { allow: false, said: 'no, never force push' })
+
+      // The agent tries the same thing again, as agents do.
+      adapter.askPermission('r1', 'q2', 'bash', { command: 'git push --force origin main' }, force)
+      await until(() => adapter.decisions.length > 1)
+
+      // Refused without troubling anyone: being asked the same destructive
+      // question repeatedly is how people start saying yes to make it stop.
+      expect(adapter.decisions.at(-1)).toMatchObject({
+        requestId: 'q2',
+        decision: { allow: false, reason: 'already refused in this run' },
+      })
+      expect(supervisor.pending()).toEqual([])
+    })
+
+    it('asks again when it is a different command, which is new information', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'q1',
+        'bash',
+        { command: 'git push --force origin main' },
+        'bash: git push --force origin main',
+      )
+      await until(() => supervisor.pending().length > 0)
+      await supervisor.decide('r1', 'q1', { allow: false, said: 'no' })
+
+      adapter.askPermission(
+        'r1',
+        'q2',
+        'bash',
+        { command: 'sudo rm -rf /var/lib/thing' },
+        'bash: sudo rm -rf /var/lib/thing',
+      )
+      await until(() => supervisor.pending().length > 0)
+      // A refusal of one thing is not a refusal of everything.
+      expect(supervisor.pending()).toMatchObject([{ requestId: 'q2' }])
+    })
+
+    it('keeps the exact words that decided it', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'q1',
+        'bash',
+        { command: 'git push --force origin main' },
+        'bash: git push --force origin main',
+      )
+      await until(() => supervisor.pending().length > 0)
+      await supervisor.decide('r1', 'q1', { allow: false, said: 'no — we never force push main' })
+
+      await until(async () => (await logged(log, 'permission_denied')).length > 0)
+      const [event] = await logged(log, 'permission_denied')
+      // Verbatim, because "why did it do that" is only answerable if what you
+      // actually said is what was kept.
+      expect(event?.detail.said).toBe('no — we never force push main')
+    })
+
     it('lets routine work through untouched', async () => {
       const { log, adapter, supervisor } = await setup('policy')
       close = () => log.close()

@@ -35,7 +35,8 @@ export interface VoiceDaemon {
   decideApproval(
     run: string,
     requestId: string,
-    decision: { allow: boolean; reason?: string },
+    /** `said` is the exact utterance that decided it, kept in the ledger. */
+    decision: { allow: boolean; reason?: string; said?: string },
   ): Promise<void>
   runs(): Promise<Array<{ run: string; task: string }>>
   steerRun(run: string, message: string): Promise<void>
@@ -287,10 +288,10 @@ export class VoiceSurface {
 
       case 'approve':
       case 'deny':
-        return this.decide(intent.kind === 'approve')
+        return this.decide(intent.kind === 'approve', utterance)
 
       case 'confirm':
-        return this.confirm(intent.phrase)
+        return this.confirm(intent.phrase, utterance)
 
       case 'start': {
         const slug = slugify(intent.intent)
@@ -329,7 +330,7 @@ export class VoiceSurface {
    * A spoken yes only ever answers a soft request, and only when there is
    * exactly one. Anything destructive needs the phrase read back.
    */
-  private async decide(allow: boolean): Promise<string> {
+  private async decide(allow: boolean, said: string): Promise<string> {
     const pending = await this.opts.daemon.pendingApprovals()
     if (pending.length === 0) return 'Nothing is waiting.'
     if (pending.length > 1) return `${pending.length} things are waiting. Say which one.`
@@ -340,6 +341,9 @@ export class VoiceSurface {
     }
     await this.opts.daemon.decideApproval(request.run, request.requestId, {
       allow,
+      // Kept verbatim in the ledger, so a decision can be explained later in
+      // the words that made it.
+      said,
       ...(allow ? {} : { reason: 'you said no' }),
     })
     this.lastAddressed = request.task
@@ -347,7 +351,7 @@ export class VoiceSurface {
   }
 
   /** The distinct phrase a destructive command requires. */
-  private async confirm(phrase: string): Promise<string> {
+  private async confirm(phrase: string, said: string): Promise<string> {
     const pending = await this.opts.daemon.pendingApprovals()
     const words = phrase
       .toLowerCase()
@@ -361,7 +365,7 @@ export class VoiceSurface {
     if (matches.length > 1) return `More than one thing matches "${phrase}". Say more of it.`
     const [request] = matches
     if (!request) return `Nothing waiting matches "${phrase}".`
-    await this.opts.daemon.decideApproval(request.run, request.requestId, { allow: true })
+    await this.opts.daemon.decideApproval(request.run, request.requestId, { allow: true, said })
     this.lastAddressed = request.task
     return `Confirmed: ${request.summary}`
   }

@@ -71,6 +71,12 @@ export class WorkerSupervisor {
   private readonly approvals: ApprovalSettings
   private readonly runs = new Map<string, RunState>()
   private readonly pendingApprovals = new Map<string, PendingApproval>()
+  /**
+   * Hard-tier requests you have already refused, per run. Asking again for the
+   * same thing is refused without troubling you; asking for something else is
+   * new information and gets a fresh hearing.
+   */
+  private readonly refused = new Map<string, Set<string>>()
 
   constructor(opts: WorkerSupervisorOptions) {
     this.adapter = opts.adapter
@@ -151,6 +157,11 @@ export class WorkerSupervisor {
     const approval = this.pendingApprovals.get(key)
     if (!approval) throw new PermissionNotPendingError(requestId)
     this.pendingApprovals.delete(key)
+    if (!decision.allow && approval.tier === 'hard') {
+      const already = this.refused.get(run) ?? new Set<string>()
+      already.add(signatureOf(approval.tool, approval.summary))
+      this.refused.set(run, already)
+    }
     await this.adapter.decide(run, requestId, decision)
     await this.log.append({
       type: decision.allow ? 'permission_granted' : 'permission_denied',
@@ -163,6 +174,8 @@ export class WorkerSupervisor {
         tier: approval.tier,
         rule: approval.rule,
         reason: decision.reason ?? '',
+        // The ledger keeps what you said, not a paraphrase of it.
+        said: decision.said ?? '',
       },
     })
   }
@@ -180,6 +193,8 @@ export class WorkerSupervisor {
     for (const key of [...this.pendingApprovals.keys()]) {
       if (key.startsWith(`${run}:`)) this.pendingApprovals.delete(key)
     }
+    // A refusal is scoped to the run it was given in.
+    this.refused.delete(run)
     await this.adapter.stop(run)
     await this.log.append({ type: 'run_exited', task: state.task, run, detail: { stopped: true } })
   }
@@ -222,6 +237,35 @@ export class WorkerSupervisor {
       { tool: signal.tool, input: signal.input, worktree: state?.worktree ?? null },
       this.approvals,
     )
+
+    // Refused once in this run, refused again without asking. A "no" you have
+    // to repeat every time the agent retries is not really a no — and being
+    // asked the same destructive question four times is how people start
+    // saying yes to make it stop.
+    if (
+      approval.tier === 'hard' &&
+      this.refused.get(run)?.has(signatureOf(signal.tool, signal.summary))
+    ) {
+      await this.adapter.decide(run, signal.requestId, {
+        allow: false,
+        reason: 'already refused in this run',
+      })
+      await this.log.append({
+        type: 'permission_denied',
+        task,
+        run,
+        detail: {
+          requestId: signal.requestId,
+          tool: signal.tool,
+          summary: signal.summary,
+          tier: approval.tier,
+          rule: approval.rule,
+          reason: 'already refused in this run',
+          repeated: true,
+        },
+      })
+      return
+    }
 
     if (approval.decision === 'allow') {
       await this.adapter.decide(run, signal.requestId, { allow: true })
@@ -275,4 +319,12 @@ export class WorkerSupervisor {
     if (!state) throw new WorkerNotFoundError(run)
     return state
   }
+}
+
+/**
+ * What makes two requests the same request. A different command is new
+ * information and gets asked about again; the identical one does not.
+ */
+function signatureOf(tool: string, summary: string): string {
+  return `${tool} ${summary}`
 }
