@@ -1,0 +1,275 @@
+import { chmod, mkdir, rm, stat } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { createServer, type Server, type Socket } from 'node:net'
+import { dirname, join } from 'node:path'
+import type { EventFilter, LaneId, WorkspaceDriver } from '@wilco/core'
+import { EventLog } from './events.ts'
+import { type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'
+import { drivers, LaneRegistry, type SpawnRequest } from './registry.ts'
+
+// vscode-jsonrpc is CommonJS.
+const { createMessageConnection, SocketMessageReader, SocketMessageWriter } = createRequire(
+  import.meta.url,
+)('vscode-jsonrpc/node') as typeof import('vscode-jsonrpc/node')
+
+export interface DaemonOptions {
+  home: string
+  socket?: string
+  driver?: string
+  version?: string
+}
+
+interface Connection {
+  socket: Socket
+  dispose(): void
+  subscriptions: Map<string, () => void>
+}
+
+export class Daemon {
+  readonly socketPath: string
+  readonly log: EventLog
+  readonly registry: LaneRegistry
+  readonly driver: WorkspaceDriver
+  private readonly server: Server
+  private readonly connections = new Set<Connection>()
+  private readonly startedAt = Date.now()
+  private readonly version: string
+  private readonly home: string
+  private nextSubscription = 0
+  private stopping: Promise<void> | null = null
+
+  private constructor(
+    opts: Required<Pick<DaemonOptions, 'home'>> & {
+      socket: string
+      version: string
+      driver: WorkspaceDriver
+      log: EventLog
+      registry: LaneRegistry
+      server: Server
+    },
+  ) {
+    this.home = opts.home
+    this.socketPath = opts.socket
+    this.version = opts.version
+    this.driver = opts.driver
+    this.log = opts.log
+    this.registry = opts.registry
+    this.server = opts.server
+  }
+
+  static async start(opts: DaemonOptions): Promise<Daemon> {
+    const socket = opts.socket ?? socketPath({ ...process.env, WILCO_HOME: opts.home })
+    const driverName = opts.driver ?? 'pty'
+    const makeDriver = drivers[driverName]
+    if (!makeDriver) throw new Error(`unknown workspace driver: ${driverName}`)
+
+    // The OS caps Unix socket paths (104 bytes on macOS, 108 on Linux) and
+    // reports a bare EINVAL when they're too long.
+    const length = Buffer.byteLength(socket)
+    if (length > 100) {
+      throw new Error(`socket path is too long (${length} bytes, limit ~100): ${socket}`)
+    }
+    await mkdir(dirname(socket), { recursive: true, mode: 0o700 })
+    await removeStaleSocket(socket)
+
+    const log = await EventLog.open({ path: join(opts.home, 'events.jsonl') })
+    const driver = makeDriver()
+    const registry = await LaneRegistry.open({
+      driver,
+      log,
+      path: join(opts.home, 'lanes.json'),
+    })
+    const server = createServer()
+    const daemon = new Daemon({
+      home: opts.home,
+      socket,
+      version: opts.version ?? '0.0.0',
+      driver,
+      log,
+      registry,
+      server,
+    })
+
+    server.on('connection', (s) => daemon.accept(s))
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(socket, () => {
+        server.removeListener('error', reject)
+        resolve()
+      })
+    })
+    // Only this user may talk to the daemon.
+    await chmod(socket, 0o600)
+    await log.append({ type: 'daemon_started', detail: { pid: process.pid, socket, driverName } })
+    return daemon
+  }
+
+  private accept(socket: Socket): void {
+    const connection = createMessageConnection(
+      new SocketMessageReader(socket),
+      new SocketMessageWriter(socket),
+    )
+    const entry: Connection = {
+      socket,
+      subscriptions: new Map(),
+      dispose: () => connection.dispose(),
+    }
+    this.connections.add(entry)
+
+    connection.onRequest(Method.info, (): DaemonInfo => this.info())
+    connection.onRequest(Method.stop, async () => {
+      queueMicrotask(() => void this.stop())
+      return { stopping: true }
+    })
+
+    connection.onRequest(Method.laneSpawn, (req: SpawnRequest) => this.registry.spawn(req))
+    connection.onRequest(Method.laneRelaunch, ({ lane }: { lane: LaneId }) =>
+      this.registry.relaunch(lane),
+    )
+    connection.onRequest(Method.laneList, ({ task }: { task?: string } = {}) =>
+      this.registry.list(task),
+    )
+    connection.onRequest(Method.laneGet, ({ lane }: { lane: LaneId }) => this.registry.get(lane))
+    connection.onRequest(
+      Method.laneWrite,
+      async ({ lane, data }: { lane: LaneId; data: string }) => {
+        await this.registry.write(lane, Buffer.from(data, 'base64'))
+        return { ok: true }
+      },
+    )
+    connection.onRequest(Method.laneCapture, ({ lane, lines }: { lane: LaneId; lines?: number }) =>
+      this.registry.capture(lane, lines ?? 100),
+    )
+    connection.onRequest(
+      Method.laneResize,
+      async ({ lane, cols, rows }: { lane: LaneId; cols: number; rows: number }) => {
+        await this.registry.resize(lane, cols, rows)
+        return { ok: true }
+      },
+    )
+    connection.onRequest(
+      Method.laneSetTitle,
+      async ({ lane, title }: { lane: LaneId; title: string }) => {
+        await this.registry.setTitle(lane, title)
+        return { ok: true }
+      },
+    )
+    connection.onRequest(Method.laneClose, async ({ lane }: { lane: LaneId }) => {
+      await this.registry.close(lane)
+      return { ok: true }
+    })
+
+    connection.onRequest(
+      Method.laneAttach,
+      async ({ lane, lines }: { lane: LaneId; lines?: number }) => {
+        const record = this.registry.get(lane)
+        if (!record) throw new Error(`no such lane: ${lane}`)
+        const id = `sub-${++this.nextSubscription}`
+        const snapshot = await this.registry.capture(lane, lines ?? 200)
+        const stopOutput = this.registry.onOutput(lane, (chunk) => {
+          void connection.sendNotification(Notification.laneData, {
+            subscription: id,
+            data: Buffer.from(chunk).toString('base64'),
+          })
+        })
+        const stopExit = this.driver.onExit(lane, ({ code, signal }) => {
+          void connection.sendNotification(Notification.laneExit, {
+            subscription: id,
+            code,
+            signal,
+          })
+        })
+        entry.subscriptions.set(id, () => {
+          stopOutput()
+          stopExit()
+        })
+        return {
+          subscription: id,
+          snapshot,
+          cols: record.spec.cols ?? 80,
+          rows: record.spec.rows ?? 24,
+        }
+      },
+    )
+    connection.onRequest(Method.laneDetach, ({ subscription }: { subscription: string }) => {
+      entry.subscriptions.get(subscription)?.()
+      entry.subscriptions.delete(subscription)
+      return { ok: true }
+    })
+
+    connection.onRequest(Method.eventsRead, (filter: EventFilter = {}) => this.log.read(filter))
+    connection.onRequest(Method.eventsSubscribe, (filter: EventFilter = {}) => {
+      const id = `sub-${++this.nextSubscription}`
+      const stop = this.log.subscribe((event) => {
+        void connection.sendNotification(Notification.event, { subscription: id, event })
+      }, filter)
+      entry.subscriptions.set(id, stop)
+      return { subscription: id }
+    })
+    connection.onRequest(Method.eventsUnsubscribe, ({ subscription }: { subscription: string }) => {
+      entry.subscriptions.get(subscription)?.()
+      entry.subscriptions.delete(subscription)
+      return { ok: true }
+    })
+
+    socket.on('close', () => this.drop(entry))
+    socket.on('error', () => this.drop(entry))
+    connection.listen()
+  }
+
+  private drop(entry: Connection): void {
+    if (!this.connections.delete(entry)) return
+    for (const stop of entry.subscriptions.values()) stop()
+    entry.subscriptions.clear()
+    entry.dispose()
+    entry.socket.destroy()
+  }
+
+  info(): DaemonInfo {
+    return {
+      pid: process.pid,
+      version: this.version,
+      driver: this.driver.id,
+      capabilities: { ...this.driver.capabilities },
+      socket: this.socketPath,
+      home: this.home,
+      startedAt: this.startedAt,
+      lanes: this.registry.list().filter((l) => l.alive).length,
+    }
+  }
+
+  async stop(): Promise<void> {
+    this.stopping ??= this.doStop()
+    return this.stopping
+  }
+
+  private async doStop(): Promise<void> {
+    await this.log.append({ type: 'daemon_stopping', detail: { pid: process.pid } })
+    for (const entry of [...this.connections]) this.drop(entry)
+    await new Promise<void>((resolve) => this.server.close(() => resolve()))
+    await this.registry.shutdown()
+    await this.log.close()
+    await rm(this.socketPath, { force: true })
+  }
+}
+
+/** A socket file left behind by a crashed daemon is not a running daemon. */
+async function removeStaleSocket(path: string): Promise<void> {
+  try {
+    await stat(path)
+  } catch {
+    return
+  }
+  const { connect } = await import('node:net')
+  await new Promise<void>((resolve) => {
+    const probe = connect(path)
+    probe.on('connect', () => {
+      probe.destroy()
+      resolve(Promise.reject(new Error(`daemon already running at ${path}`)) as never)
+    })
+    probe.on('error', () => {
+      probe.destroy()
+      void rm(path, { force: true }).then(() => resolve())
+    })
+  })
+}

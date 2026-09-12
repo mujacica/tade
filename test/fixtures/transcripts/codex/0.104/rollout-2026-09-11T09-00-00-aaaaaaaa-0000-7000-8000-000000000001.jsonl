@@ -1,0 +1,8 @@
+{"timestamp":"2026-09-11T09:00:00.000Z","type":"session_meta","payload":{"id":"aaaaaaaa-0000-7000-8000-000000000001","timestamp":"2026-09-11T09:00:00.000Z","cwd":"/work/search","originator":"codex_cli_rs","cli_version":"0.104.0","base_instructions":{"text":"You are Codex."}}}
+{"timestamp":"2026-09-11T09:00:01.000Z","type":"turn_context","payload":{"cwd":"/work/search","approval_policy":"on-request","model":"gpt-5"}}
+{"timestamp":"2026-09-11T09:00:01.000Z","type":"event_msg","payload":{"type":"user_message","message":"add pagination"}}
+{"timestamp":"2026-09-11T09:00:03.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":[\"rg\",\"paginate\"]}","call_id":"c1"}}
+{"timestamp":"2026-09-11T09:00:04.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"c1","output":"{}"}}
+{"timestamp":"2026-09-11T09:00:09.000Z","type":"event_msg","payload":{"type":"agent_message","message":"Pagination added."}}
+{"timestamp":"2026-09-11T09:00:09.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Pagination added."}]}}
+{"timestamp":"2026-09-11T09:00:09.500Z","type":"event_msg","payload":{"type":"token_count","info":null}}

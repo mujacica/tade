@@ -1,0 +1,6 @@
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"migrate the orders table"},"uuid":"u1","timestamp":"2026-09-11T11:00:00.000Z","cwd":"/work/orders","sessionId":"33333333-3333-4333-8333-333333333333","version":"2.1.268"}
+{"parentUuid":"u1","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Looking."}],"stop_reason":"end_turn"},"uuid":"a1","timestamp":"2026-09-11T11:00:02.000Z","cwd":"/work/orders","sessionId":"33333333-3333-4333-8333-333333333333","version":"2.1.268"}
+{"parentUuid":"a1","isSidechain":false,"type":"user","message":{"role":"user","content":"continue"},"uuid":"u2","timestamp":"2026-09-11T11:01:00.000Z","cwd":"/work/orders","sessionId":"33333333-3333-4333-8333-333333333333","version":"2.1.268"}
+{"type":"system","subtype":"api_error","level":"error","timestamp":"2026-09-11T11:01:05.000Z","cwd":"/work/orders","sessionId":"33333333-3333-4333-8333-333333333333"}
+{"type":"system","subtype":"api_error","level":"error","timestamp":"2026-09-11T11:01:15.000Z","cwd":"/work/orders","sessionId":"33333333-3333-4333-8333-333333333333"}
+{"type":"system","subtype":"api_error","level":"error","timestamp":"2026-09-11T11:01:35.000Z","cwd":"/work/orders","sessionId":"33333333-3333-4333-8333-333333333333"}

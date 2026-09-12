@@ -1,0 +1,39 @@
+---
+name: add-status-probe
+description: Add a new signal to `wilco status` (e.g. test results, context usage, CI state) or change an existing probe (git, processes, adoption, liveness). Use when status needs information it doesn't collect yet.
+---
+
+# Adding or changing a status probe
+
+`wilco status` = probes (I/O, in `packages/probes`) → `ProbeBundle` → `deriveState` (pure, in
+`packages/core/src/state.ts`). `collectStatus` in `packages/probes/src/status.ts` wires them.
+
+## Invariants
+
+- **Status is a query, not a memory.** Probes run fresh on every call. No caching beyond a few
+  seconds, and never persist derived state.
+- **Never throw.** A probe returns `{ ..., warnings: string[] }`; failure means a partial result
+  (`null` fields) plus a warning that names the project/task. `collectStatus` has a last-resort
+  catch, but reaching it is a bug.
+- **Git**: call `git()` from `probes/src/git.ts` (sets `GIT_OPTIONAL_LOCKS=0` so probes never take
+  the index lock from under an agent). Use porcelain / `-z` formats and parse NUL-delimited output.
+- **No network by default in tests.** Anything that hits the network (like `gh`) is behind an option
+  that tests turn off.
+- **Deterministic output.** Sort every list. `--json` runs on an unchanged machine must be
+  byte-identical (the idempotence test in `probes/test/status.test.ts` guards this).
+- Probes gather facts; they don't decide state. If you catch yourself writing
+  `if (...) state = 'blocked'` in a probe, the rule belongs in `deriveState`.
+
+## Steps
+
+1. Add the fact's schema to `packages/core/src/model.ts` (e.g. a field on `GitSnapshot` or
+   `AgentSignal`, or a new top-level signal).
+2. Implement the probe in `packages/probes/src/<name>.ts`, exported from `src/index.ts`. Make
+   external dependencies injectable through `StatusOptions` (see `processes`) so tests control them.
+3. Test it against **real** inputs: `test/fixtures/mkrepo.ts` for git (never mock git), checked-in
+   fixtures for file formats.
+4. Feed it into `ProbeBundle` in `collectStatus`, then follow the `change-task-state` skill if it
+   changes derivation.
+5. Add a never-throws case to `packages/probes/test/status.test.ts` (missing tool, bad data).
+6. Update the `wilco status` section in `README.md`.
+7. `pnpm check`.

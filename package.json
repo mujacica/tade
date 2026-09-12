@@ -1,0 +1,31 @@
+{
+  "name": "wilco",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "check": "biome ci . && tsc -p tsconfig.json && vitest run",
+    "wilco": "node packages/cli/src/bin.ts",
+    "wilcod": "node packages/daemon/src/bin.ts",
+    "postinstall": "node scripts/fix-pty-permissions.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty",
+      "better-sqlite3"
+    ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.13",
+    "@types/node": "^22.20.2",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.0"
+  }
+}

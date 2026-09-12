@@ -1,0 +1,20 @@
+{
+  "name": "@wilco/daemon",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*",
+    "@wilco/driver-pty": "workspace:*",
+    "better-sqlite3": "^13.0.3",
+    "vscode-jsonrpc": "^9.0.2",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@wilco/driver-conformance": "workspace:*"
+  }
+}

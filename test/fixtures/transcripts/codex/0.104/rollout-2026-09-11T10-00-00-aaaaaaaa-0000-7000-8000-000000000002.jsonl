@@ -1,0 +1,5 @@
+{"timestamp":"2026-09-11T10:00:00.000Z","type":"session_meta","payload":{"id":"aaaaaaaa-0000-7000-8000-000000000002","timestamp":"2026-09-11T10:00:00.000Z","cwd":"/work/search","originator":"codex_cli_rs","cli_version":"0.104.0"}}
+{"timestamp":"2026-09-11T10:00:01.000Z","type":"event_msg","payload":{"type":"task_started"}}
+{"timestamp":"2026-09-11T10:00:02.000Z","type":"event_msg","payload":{"type":"user_message","message":"delete the old pagination tests"}}
+{"timestamp":"2026-09-11T10:00:05.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","arguments":"{\"command\":[\"rm\",\"-r\",\"test/old\"]}","call_id":"c1"}}
+{"timestamp":"2026-09-11T10:00:05.100Z","type":"event_msg","payload":{"type":"exec_approval_request","call_id":"c1","command":["rm","-r","test/old"],"cwd":"/work/search"}}

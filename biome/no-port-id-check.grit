@@ -1,0 +1,16 @@
+language js
+
+// R3 — Capabilities are declared, never sniffed.
+// Branch on `driver.capabilities.x`, never on `driver.id === 'tmux'`.
+or {
+  `$obj.id === $_`,
+  `$obj.id !== $_`,
+  `$obj.id == $_`,
+  `$obj.id != $_`,
+  `$_ === $obj.id`,
+  `$_ !== $obj.id`
+} where {
+  // No capture groups: Grit binds each group to a variable.
+  $obj <: r".*[Dd]river.*|.*[Aa]dapter.*|.*[Ss]urface.*|.*[Ss]tore.*|.*[Ee]ngine.*|.*[Ww]orker.*",
+  register_diagnostic(span=$obj, message="R3: branch on the port's declared capabilities, never on its id.")
+}
