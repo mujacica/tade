@@ -47,6 +47,11 @@ export interface VoiceDaemon {
   }): Promise<{ id: string; worktree: string }>
   startRun(request: { task: string; cwd: string; prompt: string }): Promise<{ run: string }>
   subscribe(handler: (event: WilcoEvent) => void): Promise<string>
+  /**
+   * Optional: write something down. Without it the surface says plainly that
+   * it cannot remember, rather than pretending to.
+   */
+  remember?(text: string, scope: string | null): Promise<unknown>
 }
 
 /** What the surface did with something you said, for the app to show. */
@@ -294,8 +299,15 @@ export class VoiceSurface {
         return `Starting ${slug} in ${intent.project}.`
       }
 
-      case 'remember':
-        return "I can't remember things yet."
+      case 'remember': {
+        if (!this.opts.daemon.remember) return "I can't remember things yet."
+        // Attached to whatever you were just talking about, and said out loud,
+        // because filing it under the wrong task silently would be worse than
+        // asking you to correct it.
+        const scope = this.lastAddressed
+        await this.opts.daemon.remember(intent.text, scope)
+        return scope ? `Noted, about ${short(scope)}.` : 'Noted.'
+      }
 
       default:
         if (this.opts.ask) return this.opts.ask(utterance)

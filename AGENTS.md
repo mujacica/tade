@@ -44,6 +44,11 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.
 - Parsers of external formats (provider transcripts) return `null` on unknown shapes, never throw.
 - `intent_spoken` is stored verbatim. Never paraphrase or normalise it.
+- **Notes are the one thing Wilco is told rather than derives**, and so the one exception to "status
+  is a query": nothing can recover them, so they are kept verbatim in `<home>/memory.jsonl`,
+  append-only, and a line that won't parse is skipped rather than thrown over. Never lowercase or
+  reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
+  test with a capital letter in it to notice that it didn't.
 - No hot reload of extensions. Activation requires a daemon restart.
 - **Lanes are the daemon's children**, so they die with it. Never report a lane as alive without
   evidence; keep its spec so it can be relaunched.

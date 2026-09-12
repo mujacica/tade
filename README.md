@@ -26,7 +26,8 @@ Early prototype. What works today:
 | `wilco chat` | ✅ |
 | Voice: attention policy, intent grammar, earcons and speech, summaries | ✅ |
 | `wilco app`: one window over every project, with the orchestrator always on screen | ✅ |
-| Speech-to-text, memory, self-extension | not started |
+| Memory: what you tell it, kept verbatim and scoped to what it is about | ✅ |
+| Speech-to-text, self-extension | not started |
 
 ## Requirements
 
@@ -85,6 +86,8 @@ something to think with.
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
 | `wilco app` | The window: every project, the agent you're watching, and the orchestrator |
 | `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
+| `wilco remember <text> [--about <scope>]` | Write something down, exactly as you said it |
+| `wilco notes [scope] [--json]` | What you have told Wilco, newest first |
 | `wilco task create <project>/<name> --intent "..."` | Create a task: branch, worktree, your intent recorded verbatim |
 | `wilco task remove <task> [--force]` | Remove a task worktree; refuses to destroy unmerged work |
 | `wilco run start <task> [--prompt ...] [--model ...]` | Start a supervised agent in the task worktree |
@@ -234,6 +237,26 @@ Speech and tones use what the OS already has (`say` + `afplay` on macOS, `spd-sa
 Linux), so there is nothing to install. **Speech-to-text is deliberately not built in**: the surface
 takes text from any source, so dictation apps, a local transcriber, or simply typing all work
 through the same path.
+
+### What it remembers
+
+Everything else Wilco tells you is derived from something it can observe. Notes are the exception:
+things you said that no probe could ever recover, which is why they are kept **verbatim**, exactly
+like `intent_spoken`.
+
+```sh
+wilco remember the staging key rotates on the 1st --about checkout
+wilco notes checkout/refunds
+```
+
+Say *"remember …"* (or *"note that …"*, *"keep in mind …"*) and it is filed against whatever you were
+just talking about — and it says which, *"Noted, about refunds"*, because filing something under the
+wrong task silently is worse than being told so you can correct it.
+
+A note about a project applies to every task in it and a note about nothing in particular applies
+everywhere, but a note about one task never leaks to its siblings. They live in
+`~/.wilco/memory.jsonl`, append-only like the journal; a line that can't be read is skipped rather
+than costing you the rest of the file.
 
 ## Configuration
 

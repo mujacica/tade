@@ -15,6 +15,7 @@ import {
 } from '@wilco/core'
 import { PiAdapter } from '@wilco/harness-pi'
 import { EventLog } from './events.ts'
+import { Memory } from './memory.ts'
 import { type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'
 import { drivers, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { createTask, type RemoveTaskOptions, removeTask, setParked } from './tasks.ts'
@@ -50,6 +51,8 @@ export class Daemon {
   private readonly startedAt = Date.now()
   private readonly version: string
   private readonly home: string
+  /** Opened here rather than in `start`: unlike the others it is synchronous. */
+  private readonly memory: Memory
   private nextSubscription = 0
   private stopping: Promise<void> | null = null
 
@@ -66,6 +69,7 @@ export class Daemon {
     },
   ) {
     this.home = opts.home
+    this.memory = Memory.open(opts.home)
     this.socketPath = opts.socket
     this.version = opts.version
     this.driver = opts.driver
@@ -293,6 +297,17 @@ export class Daemon {
       })
       return result
     })
+
+    connection.onRequest(
+      Method.memoryRemember,
+      ({ text, scope }: { text: string; scope?: string | null }) =>
+        this.memory.remember(text, scope ?? null),
+    )
+    // No scope at all asks for everything; an explicit null asks for only what
+    // was said about nothing in particular.
+    connection.onRequest(Method.memoryRecall, ({ scope }: { scope?: string | null } = {}) =>
+      scope === undefined ? this.memory.all() : this.memory.recall(scope),
+    )
 
     connection.onRequest(Method.workerStart, (req: StartRunRequest) => this.workers.start(req))
     connection.onRequest(Method.workerList, () => this.workers.list())

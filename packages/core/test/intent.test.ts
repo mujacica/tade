@@ -100,7 +100,11 @@ const cases: Case[] = [
     want: 'remember',
     check: (i) => expect(i).toMatchObject({ text: 'we pin major versions' }),
   },
-  { said: 'remember that I hate force pushes', want: 'remember' },
+  {
+    said: 'remember that I hate force pushes',
+    want: 'remember',
+    check: (i) => expect(i).toMatchObject({ text: 'I hate force pushes' }),
+  },
 
   // --- anything else falls through
   { said: 'what did the migration task actually change last week', want: 'free' },
@@ -169,5 +173,19 @@ describe('approval safety', () => {
 
   it('"confirm" alone is not a confirmation', () => {
     expect(parse('confirm').kind).toBe('free')
+  })
+
+  it('keeps a note exactly as it was said', () => {
+    // A note is the one thing nothing else can reconstruct, so it is stored
+    // verbatim like an intent. Normalised text would file this away as
+    // "i work from home on fridays".
+    expect(parse('remember I work from home on Fridays')).toMatchObject({
+      kind: 'remember',
+      text: 'I work from home on Fridays',
+    })
+    // Punctuation survives too.
+    expect(parse('note that the Stripe key rotates on the 1st.')).toMatchObject({
+      text: 'the Stripe key rotates on the 1st.',
+    })
   })
 })

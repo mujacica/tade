@@ -92,7 +92,12 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
   }
 
   const remember = REMEMBER.exec(said)
-  if (remember?.groups?.text) return { kind: 'remember', text: remember.groups.text }
+  // Kept exactly as it was said, like an intent: a note is the one thing
+  // nothing else can reconstruct, and normalised text would file "I work from
+  // home on Fridays" as "i work from home on fridays".
+  if (remember?.groups?.text) {
+    return { kind: 'remember', text: original(text, remember.groups.text) }
+  }
 
   // Matched against lightly-normalised text, so the intent keeps the words as
   // they were said: it is stored verbatim and nothing else can reconstruct it.

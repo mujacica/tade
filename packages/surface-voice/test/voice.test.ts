@@ -55,6 +55,10 @@ function fakeDaemon() {
         handler = fn
         return 'sub-1'
       },
+      async remember(text, scope) {
+        calls.push(`remember ${scope ?? '-'} ${text}`)
+        return { text, scope, at: new Date(NOW).toISOString() }
+      },
     }
   return daemon
 }
@@ -241,11 +245,6 @@ describe('VoiceSurface', () => {
     expect(asked).toEqual(['what did the migration actually change'])
   })
 
-  it('says plainly that it cannot remember things yet', async () => {
-    const { voice } = await surface(daemon)
-    expect(await voice.handle('remember we pin major versions')).toMatch(/can't remember/)
-  })
-
   describe('what it does with events', () => {
     it('speaks something waiting on you', async () => {
       const { voice, said } = await surface(daemon)
@@ -305,6 +304,51 @@ describe('VoiceSurface', () => {
       expect(said).toEqual([])
       expect(tones).toEqual(['blocked.wav'])
     })
+  })
+})
+
+describe('remembering', () => {
+  let daemon: ReturnType<typeof fakeDaemon>
+
+  beforeEach(() => {
+    daemon = fakeDaemon()
+  })
+
+  it('writes it down against whatever you were just talking about', async () => {
+    const { voice } = await surface(daemon)
+    await voice.handle('show me migration')
+    // It says where it filed it, so filing it wrong is obvious and correctable.
+    expect(await voice.handle('remember the constraint is on user_id')).toBe(
+      'Noted, about migration.',
+    )
+    expect(daemon.calls).toContain('remember app/migration the constraint is on user_id')
+  })
+
+  it('files it against nothing in particular when nothing is being discussed', async () => {
+    const { voice } = await surface(daemon)
+    expect(await voice.handle('remember I work from home on Fridays')).toBe('Noted.')
+    expect(daemon.calls).toContain('remember - I work from home on Fridays')
+  })
+
+  it('keeps the wording exactly, like an intent', async () => {
+    const { voice } = await surface(daemon)
+    await voice.handle('remember the staging key rotates on the 1st')
+    expect(daemon.calls).toContain('remember - the staging key rotates on the 1st')
+  })
+
+  it('takes a note the other ways of saying it', async () => {
+    const { voice } = await surface(daemon)
+    await voice.handle('note that the webhook retries twice')
+    await voice.handle('keep in mind the index is partial')
+    expect(daemon.calls).toContain('remember - the webhook retries twice')
+    expect(daemon.calls).toContain('remember - the index is partial')
+  })
+
+  it('says plainly when there is nowhere to write it down', async () => {
+    // Without a daemon that can store it, saying "noted" would be a lie.
+    const { remember: _cannot, ...cannotRemember } = fakeDaemon()
+    const { voice } = await surface(cannotRemember)
+    expect(await voice.handle('remember anything at all')).toBe("I can't remember things yet.")
   })
 })
 

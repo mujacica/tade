@@ -37,6 +37,8 @@ export const Method = {
   workerSteer: 'worker/steer',
   workerDecide: 'worker/decide',
   workerStop: 'worker/stop',
+  memoryRemember: 'memory/remember',
+  memoryRecall: 'memory/recall',
   eventsRead: 'events/read',
   eventsSubscribe: 'events/subscribe',
   eventsUnsubscribe: 'events/unsubscribe',

@@ -3,6 +3,7 @@ import { connect, type Socket } from 'node:net'
 import type {
   EventFilter,
   LaneId,
+  Note,
   PermissionDecision,
   RunId,
   WilcoEvent,
@@ -177,6 +178,26 @@ export class DaemonClient {
   /** Set a task aside, or pick it back up. */
   parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }> {
     return this.connection.sendRequest(Method.taskPark, { worktree, parked })
+  }
+
+  // --- memory
+
+  /** Write something down, exactly as it was said. */
+  remember(text: string, scope: string | null = null): Promise<Note> {
+    return this.connection.sendRequest(Method.memoryRemember, { text, scope })
+  }
+
+  /**
+   * What has been said about something, newest first: notes about the task,
+   * about its project, and about everything. `null` asks for only the last.
+   */
+  recall(scope: string | null): Promise<Note[]> {
+    return this.connection.sendRequest(Method.memoryRecall, { scope })
+  }
+
+  /** Everything that has ever been remembered, whatever it was about. */
+  recallAll(): Promise<Note[]> {
+    return this.connection.sendRequest(Method.memoryRecall, {})
   }
 
   startRun(request: StartRunRequest): Promise<WorkerHandle> {
