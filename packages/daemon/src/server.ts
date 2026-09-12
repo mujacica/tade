@@ -2,10 +2,23 @@ import { chmod, mkdir, rm, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname, join } from 'node:path'
-import type { EventFilter, LaneId, WorkspaceDriver } from '@wilco/core'
+import {
+  type Config,
+  ConfigSchema,
+  type EventFilter,
+  expandHome,
+  type LaneId,
+  loadConfig,
+  type PermissionDecision,
+  type RunId,
+  type WorkspaceDriver,
+} from '@wilco/core'
+import { PiAdapter } from '@wilco/harness-pi'
 import { EventLog } from './events.ts'
 import { type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'
 import { drivers, LaneRegistry, type SpawnRequest } from './registry.ts'
+import { createTask, type RemoveTaskOptions, removeTask } from './tasks.ts'
+import { type StartRunRequest, WorkerSupervisor } from './workers.ts'
 
 // vscode-jsonrpc is CommonJS.
 const { createMessageConnection, SocketMessageReader, SocketMessageWriter } = createRequire(
@@ -30,6 +43,8 @@ export class Daemon {
   readonly log: EventLog
   readonly registry: LaneRegistry
   readonly driver: WorkspaceDriver
+  readonly workers: WorkerSupervisor
+  private readonly config: Config
   private readonly server: Server
   private readonly connections = new Set<Connection>()
   private readonly startedAt = Date.now()
@@ -45,6 +60,8 @@ export class Daemon {
       driver: WorkspaceDriver
       log: EventLog
       registry: LaneRegistry
+      workers: WorkerSupervisor
+      config: Config
       server: Server
     },
   ) {
@@ -54,6 +71,8 @@ export class Daemon {
     this.driver = opts.driver
     this.log = opts.log
     this.registry = opts.registry
+    this.workers = opts.workers
+    this.config = opts.config
     this.server = opts.server
   }
 
@@ -79,6 +98,25 @@ export class Daemon {
       log,
       path: join(opts.home, 'lanes.json'),
     })
+    // A broken config must not stop the daemon booting; `wilco config --check`
+    // is where a typo gets reported, so here it degrades to defaults.
+    const loaded = await loadConfig(join(opts.home, 'config.yaml'))
+    const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
+    if (!loaded.ok) {
+      await log.append({
+        type: 'warning',
+        detail: {
+          message: `config.yaml is invalid, using defaults: ${loaded.issues[0]?.message ?? ''}`,
+        },
+      })
+    }
+
+    const workers = new WorkerSupervisor({
+      adapter: new PiAdapter({ runDir: join(opts.home, 'runs') }),
+      log,
+      approvals: { mode: config.approvals.mode, autoAllow: config.approvals.auto_allow },
+    })
+
     const server = createServer()
     const daemon = new Daemon({
       home: opts.home,
@@ -87,6 +125,8 @@ export class Daemon {
       driver,
       log,
       registry,
+      workers,
+      config,
       server,
     })
 
@@ -197,6 +237,84 @@ export class Daemon {
       return { ok: true }
     })
 
+    connection.onRequest(
+      Method.taskCreate,
+      async (req: {
+        project: string
+        slug: string
+        intent: string
+        root?: string
+        base?: string
+      }) => {
+        const configured = this.config.projects[req.project]
+        const root = req.root ?? (configured ? expandHome(configured.root) : undefined)
+        if (!root) {
+          throw new Error(`unknown project "${req.project}": add it to config.yaml or pass a root`)
+        }
+        const task = await createTask({
+          project: req.project,
+          root,
+          slug: req.slug,
+          intent: req.intent,
+          worktreeRoot: join(this.home, 'worktrees'),
+          ...(req.base ? { base: req.base } : {}),
+        })
+        await this.log.append({
+          type: 'task_created',
+          task: task.id,
+          detail: {
+            branch: task.branch,
+            worktree: task.worktree,
+            base: task.base,
+            // The journal is where "what was that about" gets answered.
+            intent_spoken: req.intent,
+          },
+        })
+        return task
+      },
+    )
+    connection.onRequest(Method.taskRemove, async (req: RemoveTaskOptions) => {
+      const result = await removeTask(req)
+      if (result.removed) {
+        await this.log.append({
+          type: 'task_removed',
+          detail: { branch: req.branch, worktree: req.worktree, forced: req.force === true },
+        })
+      }
+      return result
+    })
+
+    connection.onRequest(Method.workerStart, (req: StartRunRequest) => this.workers.start(req))
+    connection.onRequest(Method.workerList, () => this.workers.list())
+    connection.onRequest(Method.workerPending, ({ task }: { task?: string } = {}) =>
+      this.workers.pending(task),
+    )
+    connection.onRequest(
+      Method.workerPrompt,
+      async ({ run, message }: { run: RunId; message: string }) => {
+        await this.workers.prompt(run, message)
+        return { ok: true }
+      },
+    )
+    connection.onRequest(
+      Method.workerSteer,
+      async ({ run, message }: { run: RunId; message: string }) => {
+        await this.workers.steer(run, message)
+        return { ok: true }
+      },
+    )
+    connection.onRequest(
+      Method.workerDecide,
+      async (req: { run: RunId; requestId: string; decision: PermissionDecision }) => {
+        await this.workers.decide(req.run, req.requestId, req.decision)
+        return { ok: true }
+      },
+    )
+    connection.onRequest(Method.workerStop, async ({ run }: { run: RunId }) => {
+      await this.workers.stop(run)
+      return { ok: true }
+    })
+
     connection.onRequest(Method.eventsRead, (filter: EventFilter = {}) => this.log.read(filter))
     connection.onRequest(Method.eventsSubscribe, (filter: EventFilter = {}) => {
       const id = `sub-${++this.nextSubscription}`
@@ -235,6 +353,8 @@ export class Daemon {
       home: this.home,
       startedAt: this.startedAt,
       lanes: this.registry.list().filter((l) => l.alive).length,
+      runs: this.workers.list().length,
+      approvals: this.config.approvals.mode,
     }
   }
 
@@ -247,6 +367,9 @@ export class Daemon {
     await this.log.append({ type: 'daemon_stopping', detail: { pid: process.pid } })
     for (const entry of [...this.connections]) this.drop(entry)
     await new Promise<void>((resolve) => this.server.close(() => resolve()))
+    // Supervised agents are the daemon's children too: stop them before the
+    // log closes, so their exits are recorded.
+    await this.workers.shutdown()
     await this.registry.shutdown()
     await this.log.close()
     await rm(this.socketPath, { force: true })

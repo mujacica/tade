@@ -18,10 +18,11 @@ Early prototype. What works today:
 | Object model and task state machine | ✅ |
 | `wilco status`: git probe, adoption of Claude Code / Codex sessions started outside Wilco | ✅ |
 | Daemon (`wilcod`), lanes, `attach`, event log | ✅ |
-| Agent harness: pi supervised through an extension channel | 🚧 in progress |
+| Agents: pi runs supervised by the daemon, every tool call classified | ✅ |
 | Task worktrees: created with your intent recorded, teardown that refuses to destroy work | ✅ |
-| Orchestrator (`wilco chat`) | not started |
-| Voice surface, memory, approvals, self-extension | not started |
+| Approval policy, off by default (`approvals.mode`) | ✅ |
+| CLI for tasks and runs, orchestrator (`wilco chat`) | not started |
+| Voice surface, memory, self-extension | not started |
 
 ## Requirements
 

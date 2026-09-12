@@ -27,6 +27,15 @@ export const Method = {
   laneClose: 'lane/close',
   laneAttach: 'lane/attach',
   laneDetach: 'lane/detach',
+  taskCreate: 'task/create',
+  taskRemove: 'task/remove',
+  workerStart: 'worker/start',
+  workerList: 'worker/list',
+  workerPending: 'worker/pending',
+  workerPrompt: 'worker/prompt',
+  workerSteer: 'worker/steer',
+  workerDecide: 'worker/decide',
+  workerStop: 'worker/stop',
   eventsRead: 'events/read',
   eventsSubscribe: 'events/subscribe',
   eventsUnsubscribe: 'events/unsubscribe',
@@ -51,6 +60,10 @@ export interface DaemonInfo {
   home: string
   startedAt: number
   lanes: number
+  /** Supervised agent runs. */
+  runs: number
+  /** `bypass` (nothing is held) or `policy` (the approval tiers apply). */
+  approvals: string
 }
 
 export interface AttachResult {

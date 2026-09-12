@@ -1,14 +1,40 @@
 import { createRequire } from 'node:module'
 import { connect, type Socket } from 'node:net'
-import type { EventFilter, LaneId, WilcoEvent } from '@wilco/core'
+import type {
+  EventFilter,
+  LaneId,
+  PermissionDecision,
+  RunId,
+  WilcoEvent,
+  WorkerHandle,
+} from '@wilco/core'
 import { type AttachResult, type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'
 import type { LaneRecord, SpawnRequest } from './registry.ts'
+import type { RemoveResult, TaskWorktree } from './tasks.ts'
+import type { PendingApproval, StartRunRequest } from './workers.ts'
 
 const { createMessageConnection, SocketMessageReader, SocketMessageWriter } = createRequire(
   import.meta.url,
 )('vscode-jsonrpc/node') as typeof import('vscode-jsonrpc/node')
 
 type MessageConnection = ReturnType<typeof createMessageConnection>
+
+/** Task creation over the wire: the daemon supplies the worktree root. */
+export interface CreateTaskRequest {
+  project: string
+  slug: string
+  intent: string
+  /** Defaults to the project's configured root. */
+  root?: string
+  base?: string
+}
+
+export interface RemoveTaskRequest {
+  root: string
+  worktree: string
+  branch: string
+  force?: boolean
+}
 
 export interface AttachHandlers {
   onData(chunk: Buffer): void
@@ -134,6 +160,47 @@ export class DaemonClient {
   async detach(subscription: string): Promise<void> {
     this.dataHandlers.delete(subscription)
     await this.connection.sendRequest(Method.laneDetach, { subscription })
+  }
+
+  // --- tasks and runs
+
+  /** Create a task: a branch, a worktree, and your intent recorded verbatim. */
+  createTask(request: CreateTaskRequest): Promise<TaskWorktree> {
+    return this.connection.sendRequest(Method.taskCreate, request)
+  }
+
+  /** Remove a task. Refuses to destroy uncommitted or unmerged work. */
+  removeTask(request: RemoveTaskRequest): Promise<RemoveResult> {
+    return this.connection.sendRequest(Method.taskRemove, request)
+  }
+
+  startRun(request: StartRunRequest): Promise<WorkerHandle> {
+    return this.connection.sendRequest(Method.workerStart, request)
+  }
+
+  runs(): Promise<WorkerHandle[]> {
+    return this.connection.sendRequest(Method.workerList, {})
+  }
+
+  /** Approvals waiting on a human. Empty unless approvals are switched on. */
+  pendingApprovals(task?: string): Promise<PendingApproval[]> {
+    return this.connection.sendRequest(Method.workerPending, task ? { task } : {})
+  }
+
+  promptRun(run: RunId, message: string): Promise<void> {
+    return this.connection.sendRequest(Method.workerPrompt, { run, message })
+  }
+
+  steerRun(run: RunId, message: string): Promise<void> {
+    return this.connection.sendRequest(Method.workerSteer, { run, message })
+  }
+
+  decideApproval(run: RunId, requestId: string, decision: PermissionDecision): Promise<void> {
+    return this.connection.sendRequest(Method.workerDecide, { run, requestId, decision })
+  }
+
+  stopRun(run: RunId): Promise<void> {
+    return this.connection.sendRequest(Method.workerStop, { run })
   }
 
   events(filter: EventFilter = {}): Promise<WilcoEvent[]> {

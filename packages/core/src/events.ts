@@ -27,6 +27,8 @@ export const EventType = z.enum([
   'task_removed',
   'state_change',
   // agents
+  'run_started',
+  'run_exited',
   'tool_call',
   'permission_request',
   'permission_granted',
@@ -49,6 +51,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_created: 'notable',
   task_removed: 'notable',
   state_change: 'notable',
+  run_started: 'notable',
+  run_exited: 'notable',
   tool_call: 'routine',
   permission_request: 'blocking',
   permission_granted: 'routine',
