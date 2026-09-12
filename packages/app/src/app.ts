@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   type Component,
@@ -6,7 +7,15 @@ import {
   TuiAltScreen,
   type TuiInputListenerResult,
 } from '@earendil-works/pi-tui'
-import { type Config, describeWork, type LaneId } from '@wilco/core'
+import {
+  type AudioClip,
+  type Config,
+  describeWork,
+  type LaneId,
+  type Recorder,
+  type Recording,
+  type Transcriber,
+} from '@wilco/core'
 import type { DaemonClient } from '@wilco/daemon/client'
 import { Speaker, VoiceSurface } from '@wilco/surface-voice'
 import { appKey } from './keys.ts'
@@ -39,6 +48,9 @@ import { renderApp } from './view.ts'
 /** How often a lane's screen is re-read. */
 const FRAME_MS = 250
 
+/** A stuck key must not record until the disk is full. */
+const MAX_SPEECH_MS = 120_000
+
 /** Backspace, and what some terminals send instead. */
 const BACKSPACE = /^(\x7f|\b)$/
 
@@ -67,6 +79,9 @@ export interface AppOptions {
   cwd?: string
   terminal?: Terminal
   speaker?: Speaker
+  /** Push-to-talk becomes speech when both of these are given. */
+  transcriber?: Transcriber
+  recorder?: Recorder
   now?: () => number
   frameMs?: number
 }
@@ -77,6 +92,7 @@ export class App {
   private readonly tui: TuiAltScreen
   private state: AppState = initialState()
   private screen = ''
+  private recording: Recording | null = null
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -197,11 +213,10 @@ export class App {
         this.draw()
         return { consume: true }
       case 'talk-start':
-        this.state = setListening(setDictation(this.state, ''), true)
-        this.draw()
+        void this.talkStart()
         return { consume: true }
       case 'talk-stop':
-        this.submit()
+        void this.talkStop()
         return { consume: true }
       case 'approve':
         void this.decide(true)
@@ -230,6 +245,58 @@ export class App {
     }
     this.toLane(data)
     return undefined
+  }
+
+  /**
+   * Push-to-talk. Speech where it is configured and working, the typed line
+   * everywhere else — both end up at `say`, so nothing downstream knows or
+   * cares which one you used.
+   */
+  private async talkStart(): Promise<void> {
+    const recorder = this.opts.recorder
+    if (!recorder) {
+      this.state = setListening(setDictation(this.state, ''), true)
+      this.draw()
+      return
+    }
+    try {
+      this.recording = await recorder.start({ maxMs: MAX_SPEECH_MS })
+      this.state = setListening(notice(this.state, 'listening'), true)
+    } catch (err) {
+      // Say why, once, then fall back to typing rather than swallowing it.
+      this.state = setListening(setDictation(notice(this.state, why(err)), ''), true)
+    }
+    this.draw()
+  }
+
+  private async talkStop(): Promise<void> {
+    const recording = this.recording
+    const transcriber = this.opts.transcriber
+    this.recording = null
+    if (!recording || !transcriber) {
+      this.submit()
+      return
+    }
+
+    this.state = setListening(notice(this.state, 'transcribing'), false)
+    this.draw()
+    let clip: AudioClip | null = null
+    try {
+      clip = await recording.stop()
+      // Task and project names are the words a general model gets wrong.
+      const words = vocabulary(this.live?.tasks ?? [])
+      const heard = await transcriber.transcribe(clip, {
+        vocabulary: [...words.tasks, ...words.projects],
+      })
+      this.state = notice(this.state, heard.text ? null : 'nothing heard')
+      this.draw()
+      this.say(heard.text)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+      this.draw()
+    } finally {
+      if (clip) rmSync(clip.path, { force: true })
+    }
   }
 
   /** Edit the dictation line. Enter sends it, as holding the key again would. */
@@ -360,6 +427,10 @@ function vocabulary(tasks: readonly { task: string }[]): { tasks: string[]; proj
   const projects = new Set<string>()
   for (const task of tasks) projects.add(task.task.split('/')[0] ?? task.task)
   return { tasks: tasks.map((t) => t.task), projects: [...projects] }
+}
+
+function why(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
 }
 
 /** Only some terminals report key releases, which is what holding a key needs. */

@@ -2,6 +2,7 @@ import { App } from '@wilco/app'
 import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
 import { DaemonClient } from '@wilco/daemon/client'
 import { socketPath } from '@wilco/daemon/protocol'
+import { makeRecorder, makeTranscriber } from '@wilco/stt'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -32,6 +33,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         return
       }
 
+      // Speech is wired in only when it can actually work. Recording into an
+      // engine that has no model would lose what you said, so push-to-talk
+      // falls back to a typed line and `wilco voice` says what is missing.
+      const voice = cfg.config.surfaces.voice
+      const recorder = makeRecorder(voice.mic)
+      const transcriber = makeTranscriber(voice.stt)
+      const canHear = (await recorder.available()).ok && (await transcriber.available()).ok
+
       const client = await DaemonClient.connect(socket)
       try {
         const app = await App.start({
@@ -39,6 +48,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           config: cfg.config,
           home: wilcoHome(),
           cwd: process.cwd(),
+          ...(canHear ? { recorder, transcriber } : {}),
         })
         // Leaving the terminal in raw mode would outlive us, so stop on a
         // signal the same way as on quitting.

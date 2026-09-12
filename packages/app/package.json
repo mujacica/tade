@@ -13,5 +13,8 @@
     "@wilco/daemon": "workspace:*",
     "@wilco/probes": "workspace:*",
     "@wilco/surface-voice": "workspace:*"
+  },
+  "devDependencies": {
+    "@wilco/stt": "workspace:*"
   }
 }

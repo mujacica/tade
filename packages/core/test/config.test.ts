@@ -25,9 +25,9 @@ workers:
     cheap: { provider: openrouter, model: deepseek/deepseek-v3 }
     subscription: { provider: anthropic, model: claude-opus-5, sandbox: seatbelt }
 surfaces:
-  voice: { backend: qwen-audio-agent, wake: "hey wilco", tts: kokoro-local }
-  tui: { enabled: true }
-  web: { enabled: true, port: 7171 }
+  voice:
+    stt: { driver: groq, language: en, api_key_env: GROQ_API_KEY }
+    mic: { driver: ffmpeg, device: ":1" }
 projects:
   checkout: { root: ~/src/checkout, brief: "Payments.", worker: subscription, max_parallel: 2 }
 `)

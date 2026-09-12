@@ -73,22 +73,39 @@ export const ConfigSchema = z
         auto_allow: z.array(z.string()).default([]),
       })
       .prefault({}),
+    // Only keys that drive something. A setting Wilco accepts and ignores is
+    // worse than one it doesn't have, because it reads like a promise.
     surfaces: z
       .strictObject({
         voice: z
           .strictObject({
-            backend: z.string().default('qwen-audio-agent'),
-            wake: z.string().default('hey wilco'),
-            tts: z.string().optional(),
+            /** How speech becomes text. */
+            stt: z
+              .strictObject({
+                // Local by default: what you say to your own machine about
+                // your own code should not have to leave it.
+                driver: z
+                  .enum(['whisper-cpp', 'openai', 'groq', 'scripted'])
+                  .default('whisper-cpp'),
+                /** Path to a local model, where the engine needs one. */
+                model: z.string().optional(),
+                base_url: z.string().optional(),
+                /** Keys are read from the environment, never stored here. */
+                api_key_env: z.string().optional(),
+                language: z.string().optional(),
+                binary: z.string().optional(),
+              })
+              .prefault({}),
+            /** Where the speech comes from. */
+            mic: z
+              .strictObject({
+                driver: z.enum(['ffmpeg', 'scripted']).default('ffmpeg'),
+                /** Input device, in the backend's own terms. */
+                device: z.string().optional(),
+              })
+              .prefault({}),
           })
-          .optional(),
-        tui: z.strictObject({ enabled: z.boolean().default(false) }).optional(),
-        web: z
-          .strictObject({
-            enabled: z.boolean().default(false),
-            port: z.int().min(1).max(65535).default(7171),
-          })
-          .optional(),
+          .prefault({}),
       })
       .prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),

@@ -12,6 +12,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 // second driver does: writing a new driver means importing this, running it,
 // and fixing what is red.
 
+export { silentClip, testTranscriber } from './transcriber.ts'
+
 export const ECHO_CHILD = fileURLToPath(new URL('./echo-child.js', import.meta.url))
 
 export interface ConformanceOptions {

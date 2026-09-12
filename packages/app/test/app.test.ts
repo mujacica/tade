@@ -4,10 +4,11 @@ import type { Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@wilco/core'
 import { DaemonClient } from '@wilco/daemon/client'
 import { Daemon } from '@wilco/daemon/server'
+import { ScriptedRecorder, ScriptedTranscriber } from '@wilco/stt'
 import { Speaker } from '@wilco/surface-voice'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { App } from '../src/app.ts'
+import { App, type AppOptions } from '../src/app.ts'
 
 // The window against a real daemon and a real repository. Everything it shows
 // is tested elsewhere without a terminal; what is tested here is the wiring —
@@ -88,7 +89,7 @@ describe('the window, wired up', () => {
     await daemon.stop().catch(() => {})
   })
 
-  async function start(): Promise<App> {
+  async function start(over: Partial<AppOptions> = {}): Promise<App> {
     const speaker = await Speaker.create({
       soundDir: tmp('wilco-app-sound-'),
       platform: 'darwin',
@@ -103,6 +104,7 @@ describe('the window, wired up', () => {
       terminal,
       speaker,
       frameMs: 50,
+      ...over,
     })
     return app
   }
@@ -144,6 +146,46 @@ describe('the window, wired up', () => {
     terminal.press('\t')
     // The marker has to land somewhere; which task is the model's business.
     await until('a redraw with the focus marker', () => terminal.written.includes('▸'))
+  })
+
+  it('records what you say, and acts on it', async () => {
+    const transcriber = new ScriptedTranscriber(['where are we'])
+    const recorder = new ScriptedRecorder()
+    await start({ transcriber, recorder })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+
+    // ctrl+space, as a terminal without key releases sends it: press to start,
+    // press again to stop.
+    terminal.press('\x00')
+    await until('recording to start', () => recorder.started.length === 1)
+    terminal.press('\x00')
+    await until('what was said to reach the engine', () => transcriber.heard.length === 1)
+    // And it lands in the orchestrator strip, exactly as typing it would.
+    await until('the utterance on screen', () => terminal.written.includes('where are we'))
+  })
+
+  it('tells the engine the task names, which are the words it would get wrong', async () => {
+    const transcriber = new ScriptedTranscriber([''])
+    const recorder = new ScriptedRecorder()
+    await start({ transcriber, recorder })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+
+    terminal.press('\x00')
+    await until('recording to start', () => recorder.started.length === 1)
+    terminal.press('\x00')
+    await until('the engine to be asked', () => transcriber.offered.length === 1)
+    expect(transcriber.offered[0]).toContain('app/refunds')
+    expect(transcriber.offered[0]).toContain('app')
+  })
+
+  it('falls back to a typed line when there is nothing to listen with', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+    terminal.press('\x00')
+    // No recorder configured, so ctrl+space opens the line you can type into.
+    await until('the dictation line', () => terminal.written.includes('◉'))
   })
 
   it('stops cleanly, and stopping twice is safe', async () => {

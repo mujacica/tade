@@ -1,0 +1,17 @@
+{
+  "name": "@wilco/stt",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@wilco/driver-conformance": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}

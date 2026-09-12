@@ -27,7 +27,8 @@ Early prototype. What works today:
 | Voice: attention policy, intent grammar, earcons and speech, summaries | ✅ |
 | `wilco app`: one window over every project, with the orchestrator always on screen | ✅ |
 | Memory: what you tell it, kept verbatim and scoped to what it is about | ✅ |
-| Speech-to-text, self-extension | not started |
+| Speech-to-text: local whisper.cpp by default, or any OpenAI-compatible API | ✅ |
+| Self-extension, skill promotion, morning brief, spend budgets | not started |
 
 ## Requirements
 
@@ -86,6 +87,8 @@ something to think with.
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
 | `wilco app` | The window: every project, the agent you're watching, and the orchestrator |
 | `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
+| `wilco voice` | Whether Wilco can hear you, and what would fix it |
+| `wilco voice setup [--model base.en]` | Download a local speech model |
 | `wilco summary <task> [--json]` | What an agent has been doing, read off the journal |
 | `wilco remember <text> [--about <scope>]` | Write something down, exactly as you said it |
 | `wilco notes [scope] [--json]` | What you have told Wilco, newest first |
@@ -251,9 +254,50 @@ has no privileged path. If it's unavailable, nothing is lost but convenience.
   (*confirm force push*). The grammar has a test asserting no ordinary sentence can reach one.
 
 Speech and tones use what the OS already has (`say` + `afplay` on macOS, `spd-say` + `paplay` on
-Linux), so there is nothing to install. **Speech-to-text is deliberately not built in**: the surface
-takes text from any source, so dictation apps, a local transcriber, or simply typing all work
-through the same path.
+Linux), so there is nothing to install.
+
+### Talking to it
+
+Hold **ctrl+space** in `wilco app`, say something, let go. What you said is transcribed, resolved
+against the same grammar that typing uses, and shown in the orchestrator strip with what it decided
+and why.
+
+```sh
+brew install whisper-cpp ffmpeg
+wilco voice setup          # downloads a local model (base.en, 142 MB)
+wilco voice                # says whether it can hear you, and what is missing if not
+```
+
+Speech is two swappable pieces, like everything else here — something that captures a microphone and
+something that turns audio into words:
+
+| Engine | `stt.driver` | Where it runs | Needs |
+|---|---|---|---|
+| **whisper.cpp** *(default)* | `whisper-cpp` | this machine | `brew install whisper-cpp` + a model |
+| OpenAI | `openai` | their servers | `OPENAI_API_KEY` |
+| Groq | `groq` | their servers | `GROQ_API_KEY`, fastest of the three |
+| scripted | `scripted` | nowhere | for tests |
+
+**Local is the default on purpose.** What you say to your own machine about your own code should not
+have to leave it, and a voice feature that demands an API key before it works would contradict the
+rest of the tool. The cloud engines exist because they are faster and need no 142 MB download; both
+are one config key away.
+
+```yaml
+surfaces:
+  voice:
+    stt: { driver: whisper-cpp }        # or: { driver: groq, language: en }
+    mic: { driver: ffmpeg, device: ":1" }   # `ffmpeg -f avfoundation -list_devices true -i ""`
+```
+
+Task and project names are handed to the engine as expected vocabulary, because *"stripe-v15"* is
+exactly the kind of word a general model mishears.
+
+**If any of it is missing, nothing breaks.** `wilco voice` tells you what and how to fix it, and
+ctrl+space falls back to a line you type into — which is also how a dictation app (Wispr Flow, macOS
+dictation) works with Wilco today, with no integration at all. Wake words, and transcribing while
+you are still talking, are not built: push-to-talk is deliberate, since a microphone that is always
+listening in a room where you take calls is a different product.
 
 ### What it remembers
 
@@ -353,6 +397,7 @@ Contributor conventions (including the rules every port implementation must foll
 | `packages/daemon` | `wilcod`: JSON-RPC socket, lane registry, event log + index |
 | `packages/driver-pty` | The default `WorkspaceDriver`: node-pty + a headless xterm per lane |
 | `packages/driver-tmux` | Lanes that live in tmux, so they outlive the daemon |
+| `packages/stt` | Speech: microphone capture and transcription, local or hosted |
 | `packages/driver-conformance` | The shared suite every driver must pass |
 | `packages/harness-pi` | Runs and supervises pi: adapter, supervision channel, the in-agent extension |
 | `packages/worker-acp`, `orchestrator` | Reserved for a second worker adapter and the orchestrator (stubs) |

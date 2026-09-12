@@ -12,6 +12,7 @@
     "@wilco/daemon": "workspace:*",
     "@wilco/orchestrator": "workspace:*",
     "@wilco/probes": "workspace:*",
+    "@wilco/stt": "workspace:*",
     "commander": "^15.0.0"
   },
   "devDependencies": {

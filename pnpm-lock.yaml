@@ -38,6 +38,10 @@ importers:
       '@wilco/surface-voice':
         specifier: workspace:*
         version: link:../surface-voice
+    devDependencies:
+      '@wilco/stt':
+        specifier: workspace:*
+        version: link:../stt
 
   packages/cli:
     dependencies:
@@ -56,6 +60,9 @@ importers:
       '@wilco/probes':
         specifier: workspace:*
         version: link:../probes
+      '@wilco/stt':
+        specifier: workspace:*
+        version: link:../stt
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -183,6 +190,19 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+
+  packages/stt:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@wilco/driver-conformance':
+        specifier: workspace:*
+        version: link:../driver-conformance
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/surface-voice:
     dependencies:

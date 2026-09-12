@@ -79,6 +79,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 | `packages/orchestrator` | orchestrator extensions and prompt composition |
 | `packages/harness-pi` | the pi harness: worker adapter, signal channel, supervision extension |
 | `packages/surface-voice` | attention policy, intent grammar, earcons and spoken summaries |
+| `packages/stt` | speech: microphone capture and transcription, local or hosted |
 | `packages/app` | the window: project panes, orchestrator strip, push-to-talk |
 | `packages/cli` | the `wilco` binary |
 | `test/fixtures` | `mkrepo.ts`, provider transcript samples |
