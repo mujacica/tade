@@ -134,14 +134,20 @@ inert, so running plain `pi` is unaffected.
 workspace:
   driver: pty              # pty | tmux | ghostty | kitty | wezterm | zellij
   adopt: true              # discover agent sessions started outside Wilco
+orchestrator:
+  provider: anthropic      # omit to use whatever the harness is logged in to
+  model: claude-opus-5
 workers:
-  default: claude-code
-  protocol: acp            # acp | pty-scrape
-  sandbox: none            # none | bwrap | seatbelt | container
+  default: cheap           # route used when a project names none
+  routes:                  # each route is one way of running an agent
+    cheap:        { provider: openrouter, model: deepseek/deepseek-v3 }
+    subscription: { provider: anthropic, model: claude-opus-5 }
+    local:        { provider: ollama, model: qwen2.5-coder, sandbox: seatbelt }
 projects:
   checkout:
     root: ~/src/checkout
     brief: "Payments service. Stripe, Postgres, Node."
+    worker: subscription   # names a route above
     max_parallel: 2
 ```
 

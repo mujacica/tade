@@ -10,25 +10,32 @@ describe('parseConfig', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.config.workspace.driver).toBe('pty')
-    expect(r.config.workers.protocol).toBe('acp')
+    expect(r.config.workers.default).toBe('default')
+    expect(r.config.workers.routes.default?.harness).toBe('pi')
     expect(r.config.projects).toEqual({})
   })
 
-  it('accepts the design-doc example', () => {
+  it('accepts a fully populated config', () => {
     const r = parseConfig(`
 workspace: { driver: pty, fallback: pty, adopt: true }
-orchestrator: { harness: pi, model: anthropic/claude-opus-5, extensions: ~/.wilco/extensions }
-workers: { default: claude-code, protocol: acp, sandbox: bwrap, available: [claude-code, codex] }
+orchestrator: { harness: pi, provider: anthropic, model: claude-opus-5 }
+workers:
+  default: cheap
+  routes:
+    cheap: { provider: openrouter, model: deepseek/deepseek-v3 }
+    subscription: { provider: anthropic, model: claude-opus-5, sandbox: seatbelt }
 surfaces:
   voice: { backend: qwen-audio-agent, wake: "hey wilco", tts: kokoro-local }
   tui: { enabled: true }
   web: { enabled: true, port: 7171 }
 projects:
-  checkout: { root: ~/src/checkout, brief: "Payments.", worker: claude-code, max_parallel: 2 }
+  checkout: { root: ~/src/checkout, brief: "Payments.", worker: subscription, max_parallel: 2 }
 `)
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.config.projects.checkout?.max_parallel).toBe(2)
+    expect(r.config.workers.routes.subscription?.sandbox).toBe('seatbelt')
+    expect(r.config.orchestrator.mode).toBe('headless')
   })
 
   it('names a bad enum value by its dotted key', () => {
