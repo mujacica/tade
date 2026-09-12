@@ -5,21 +5,27 @@ import {
   decideAttention,
   describeEvent,
   type Intent,
+  type KnownTask,
   parseUtterance,
+  type ResolveOptions,
+  resolveAnswer,
+  resolveTarget,
   type Surface,
   summarise,
+  type Target,
   type Vocabulary,
   type WilcoEvent,
+  type WorkHistory,
 } from '@wilco/core'
 import type { Speaker, Tone } from './speaker.ts'
 
 // Voice as a surface, not as the architecture. It listens to text (from a
-// transcriber, a dictation app, or a keyboard), turns it into one of a small
-// set of verbs, and says back what happened. Anything it doesn't recognise
-// goes to the orchestrator untouched.
+// transcriber, a dictation app, or a keyboard), works out which agent you
+// meant, and says back what happened.
 //
-// Two rules run through all of it: it never guesses which of several things
-// you meant, and a bare yes can never carry out something destructive.
+// Three rules run through all of it: it never guesses which of several things
+// you meant, it asks instead; a bare yes can never carry out something
+// destructive; and every answer can explain itself.
 
 /** The slice of the daemon this surface uses. `DaemonClient` satisfies it. */
 export interface VoiceDaemon {
@@ -43,27 +49,48 @@ export interface VoiceDaemon {
   subscribe(handler: (event: WilcoEvent) => void): Promise<string>
 }
 
+/** What the surface did with something you said, for the app to show. */
+export interface Turn {
+  utterance: string
+  intent: Intent['kind']
+  /** The task it decided on, when the verb needed one. */
+  task?: string | null
+  /** Why that one: shown so a wrong guess is obvious and correctable. */
+  why?: string | null
+  reply: string
+  at: number
+}
+
 export interface VoiceOptions {
   daemon: VoiceDaemon
   speaker: Speaker
-  /** Live task and project names, for resolving what you said. */
+  /** Live task and project names, for recognising what you said. */
   vocabulary: () => Promise<Vocabulary>
   /** Where things stand, in a sentence. */
   status: (scope: string | null) => Promise<string>
   /** Where a task lives on disk, for parking it. */
   worktreeOf: (task: string) => Promise<string | null>
+  /** Live tasks with their states. Without it, names are taken literally. */
+  tasks?: () => Promise<KnownTask[]>
+  /** The journal rolled up, so "it" can mean what just moved. */
+  history?: () => Promise<WorkHistory>
   /** Anything the grammar doesn't recognise, if an orchestrator is running. */
   ask?: (text: string) => Promise<string>
+  /** Called when the surface decides which agent you meant. */
+  onTurn?: (turn: Turn) => void
   now?: () => number
-  /**
-   * Local hour, 0–23, for quiet hours. Supplied rather than derived so the
-   * same inputs behave the same way on every machine.
-   */
+  /** Local hour, 0–23, for quiet hours. Supplied so machines agree. */
   localHour?: () => number
   surface?: Surface
   settings?: AttentionSettings
   /** Task you are currently typing in, which drops it to earcons. */
   focusedTask?: () => { task: string | null; lastInputAt: number | null }
+}
+
+interface Pending {
+  intent: Intent
+  question: string
+  candidates: string[]
 }
 
 export class VoiceSurface {
@@ -72,6 +99,9 @@ export class VoiceSurface {
   private readonly spokenAt: number[] = []
   /** Things that earned speech but were held back, for the next summary. */
   private readonly held: WilcoEvent[] = []
+  /** A question we asked, waiting for you to pick one. */
+  private pending: Pending | null = null
+  private lastAddressed: string | null = null
   private subscription: string | null = null
 
   private constructor(opts: VoiceOptions) {
@@ -91,6 +121,13 @@ export class VoiceSurface {
     return this.spokenAt.filter((at) => at >= cutoff).length
   }
 
+  /** The question we are waiting on an answer to, if any. */
+  get awaiting(): { question: string; candidates: string[] } | null {
+    return this.pending
+      ? { question: this.pending.question, candidates: this.pending.candidates }
+      : null
+  }
+
   /** Everything held back, as one sentence. Empty when there is nothing. */
   async flush(): Promise<string> {
     if (this.held.length === 0) return ''
@@ -106,11 +143,126 @@ export class VoiceSurface {
 
   /** Handle one thing you said. Returns what was said back. */
   async handle(utterance: string): Promise<string> {
-    const vocabulary = await this.opts.vocabulary()
-    const intent = parseUtterance(utterance, vocabulary)
-    const reply = await this.act(intent, utterance)
+    const at = this.now()
+
+    // Answering the question we just asked.
+    if (this.pending) {
+      const chosen = resolveAnswer(utterance, this.pending.candidates)
+      if (chosen) {
+        const { intent } = this.pending
+        this.pending = null
+        return this.finish(
+          utterance,
+          intent,
+          await this.perform(intent, chosen),
+          chosen,
+          'you picked it',
+          at,
+        )
+      }
+      // Not an answer: drop the question rather than badgering you for it.
+      this.pending = null
+    }
+
+    const intent = parseUtterance(utterance, await this.opts.vocabulary())
+    if (!needsTarget(intent)) {
+      return this.finish(utterance, intent, await this.act(intent, utterance), null, null, at)
+    }
+
+    const target = await this.resolve(intent)
+    if (target.kind === 'ask') {
+      this.pending = { intent, question: target.question, candidates: target.candidates }
+      const reply = `${target.question} ${target.candidates.map(short).join(', ')}`
+      return this.finish(utterance, intent, reply, null, 'more than one matches', at)
+    }
+    if (target.kind === 'none') {
+      return this.finish(
+        utterance,
+        intent,
+        `I couldn't tell which one: ${target.why}.`,
+        null,
+        target.why,
+        at,
+      )
+    }
+    return this.finish(
+      utterance,
+      intent,
+      await this.perform(intent, target.task),
+      target.task,
+      target.why,
+      at,
+    )
+  }
+
+  private async finish(
+    utterance: string,
+    intent: Intent,
+    reply: string,
+    task: string | null,
+    why: string | null,
+    at: number,
+  ): Promise<string> {
+    if (task) this.lastAddressed = task
+    this.opts.onTurn?.({ utterance, intent: intent.kind, task, why, reply, at })
     await this.say(reply)
     return reply
+  }
+
+  /** Work out which agent a verb was aimed at. */
+  private async resolve(intent: Intent): Promise<Target> {
+    const spoken = 'task' in intent ? intent.task : ''
+    if (!this.opts.tasks) {
+      // No context available: take what was said literally.
+      return spoken
+        ? { kind: 'resolved', task: spoken, why: 'you said so' }
+        : { kind: 'none', why: 'I need to know which one' }
+    }
+    const [tasks, history] = await Promise.all([
+      this.opts.tasks(),
+      this.opts.history?.() ?? Promise.resolve({ tasks: [], projects: [] }),
+    ])
+    const focused = this.opts.focusedTask?.() ?? { task: null, lastInputAt: null }
+    return resolveTarget(
+      spoken || null,
+      {
+        tasks,
+        history,
+        focused: focused.task,
+        lastAddressed: this.lastAddressed,
+        now: this.now(),
+      },
+      // What the verb implies is an option, not part of the context: spread
+      // into the context it is silently ignored.
+      preference(intent),
+    )
+  }
+
+  /** Carry out a verb against a task we have settled on. */
+  private async perform(intent: Intent, task: string): Promise<string> {
+    switch (intent.kind) {
+      case 'park':
+      case 'resume': {
+        const worktree = await this.opts.worktreeOf(task)
+        if (!worktree) return `I don't know where ${short(task)} lives.`
+        const parked = intent.kind === 'park'
+        await this.opts.daemon.parkTask(worktree, parked)
+        return `${parked ? 'Parked' : 'Picked up'} ${short(task)}.`
+      }
+      case 'steer': {
+        const runs = await this.opts.daemon.runs()
+        const run = runs.find((r) => r.task === task)
+        if (!run) return `Nothing is running on ${short(task)}.`
+        await this.opts.daemon.steerRun(run.run, intent.message)
+        return `Told ${short(task)}.`
+      }
+      case 'focus':
+        // Raising a window is the workspace driver's job, and the default one
+        // cannot do it, so say where to look instead of pretending.
+        return `${short(task)}: run wilco attach ${task}`
+      default:
+        return `I can't do that to ${short(task)}.`
+    }
   }
 
   private async act(intent: Intent, utterance: string): Promise<string> {
@@ -118,35 +270,12 @@ export class VoiceSurface {
       case 'status':
         return this.opts.status(intent.scope)
 
-      case 'park':
-      case 'resume': {
-        const worktree = await this.opts.worktreeOf(intent.task)
-        if (!worktree) return `I don't know a task called ${short(intent.task)}`
-        const parked = intent.kind === 'park'
-        await this.opts.daemon.parkTask(worktree, parked)
-        return `${parked ? 'Parked' : 'Picked up'} ${short(intent.task)}.`
-      }
-
-      case 'steer': {
-        const runs = await this.opts.daemon.runs()
-        const run = runs.find((r) => r.task === intent.task)
-        if (!run) return `Nothing is running on ${short(intent.task)}.`
-        await this.opts.daemon.steerRun(run.run, intent.message)
-        return `Told ${short(intent.task)}.`
-      }
-
       case 'approve':
       case 'deny':
         return this.decide(intent.kind === 'approve')
 
       case 'confirm':
         return this.confirm(intent.phrase)
-
-      case 'focus': {
-        // Raising a window is the workspace driver's job, and the default one
-        // cannot do it, so say where to look instead of pretending.
-        return `${short(intent.task)}: run wilco attach ${intent.task}`
-      }
 
       case 'start': {
         const slug = slugify(intent.intent)
@@ -161,6 +290,7 @@ export class VoiceSurface {
           cwd: created.worktree,
           prompt: intent.intent,
         })
+        this.lastAddressed = created.id
         return `Starting ${slug} in ${intent.project}.`
       }
 
@@ -180,9 +310,7 @@ export class VoiceSurface {
   private async decide(allow: boolean): Promise<string> {
     const pending = await this.opts.daemon.pendingApprovals()
     if (pending.length === 0) return 'Nothing is waiting.'
-    if (pending.length > 1) {
-      return `${pending.length} things are waiting. Say which one.`
-    }
+    if (pending.length > 1) return `${pending.length} things are waiting. Say which one.`
     const [request] = pending
     if (!request) return 'Nothing is waiting.'
     if (allow && request.tier === 'hard') {
@@ -192,6 +320,7 @@ export class VoiceSurface {
       allow,
       ...(allow ? {} : { reason: 'you said no' }),
     })
+    this.lastAddressed = request.task
     return allow ? `Approved: ${request.summary}` : `Denied: ${request.summary}`
   }
 
@@ -211,6 +340,7 @@ export class VoiceSurface {
     const [request] = matches
     if (!request) return `Nothing waiting matches "${phrase}".`
     await this.opts.daemon.decideApproval(request.run, request.requestId, { allow: true })
+    this.lastAddressed = request.task
     return `Confirmed: ${request.summary}`
   }
 
@@ -253,6 +383,22 @@ export class VoiceSurface {
   private now(): number {
     return this.opts.now?.() ?? Date.now()
   }
+}
+
+/** Verbs that are aimed at one agent. */
+function needsTarget(intent: Intent): boolean {
+  return (
+    intent.kind === 'park' ||
+    intent.kind === 'resume' ||
+    intent.kind === 'steer' ||
+    intent.kind === 'focus'
+  )
+}
+
+/** What sort of task a verb implies, when you didn't name one. */
+function preference(intent: Intent): { prefer?: ResolveOptions['prefer'] } {
+  if (intent.kind === 'steer') return { prefer: 'running' }
+  return {}
 }
 
 function toneFor(event: WilcoEvent): Tone | null {

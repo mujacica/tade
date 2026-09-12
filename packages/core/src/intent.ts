@@ -50,6 +50,20 @@ const HOMOPHONES: Array<[RegExp, string]> = [
   [/\bwill co\b/g, 'wilco'],
 ]
 
+/** Words that mean "the one we were just talking about". */
+const SPOKEN_PRONOUNS = new Set(['it', 'that', 'this', 'that one', 'this one', 'them', 'the same'])
+
+/**
+ * A pronoun is not a name, so the grammar hands it on rather than guessing:
+ * working out which task you meant is the resolver's job, not the parser's.
+ */
+export function isPronoun(text: string): boolean {
+  const said = text.trim().toLowerCase()
+  // Check as said first: "the same" is itself a pronoun, so stripping "the"
+  // before looking would make that entry unreachable.
+  return SPOKEN_PRONOUNS.has(said) || SPOKEN_PRONOUNS.has(said.replace(/^the\s+/, ''))
+}
+
 export function normalise(text: string): string {
   let out = text.toLowerCase().trim().replace(/\s+/g, ' ')
   for (const [pattern, replacement] of HOMOPHONES) out = out.replace(pattern, replacement)
@@ -102,18 +116,21 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
 
   const focus = FOCUS.exec(said)
   if (focus?.groups?.task) {
+    if (isPronoun(focus.groups.task)) return { kind: 'focus', task: '' }
     const task = resolve(focus.groups.task, vocabulary)
     return task ? { kind: 'focus', task } : free
   }
 
   const park = PARK.exec(said)
   if (park?.groups?.task) {
+    if (isPronoun(park.groups.task)) return { kind: 'park', task: '' }
     const task = resolve(park.groups.task, vocabulary)
     return task ? { kind: 'park', task } : free
   }
 
   const resume = RESUME.exec(said)
   if (resume?.groups?.task) {
+    if (isPronoun(resume.groups.task)) return { kind: 'resume', task: '' }
     const task = resolve(resume.groups.task, vocabulary)
     return task ? { kind: 'resume', task } : free
   }
@@ -125,6 +142,10 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
     // never backtracks because the match still succeeds. So try one word as
     // the name, then two, and let the known names decide.
     const words = steer.groups.rest.split(' ')
+    // "tell it to also update the docs": the resolver works out which one.
+    if (words.length > 1 && isPronoun(words[0] ?? '')) {
+      return { kind: 'steer', task: '', message: original(text, words.slice(1).join(' ')) }
+    }
     for (const take of [1, 2]) {
       if (words.length <= take) break
       const task = resolve(words.slice(0, take).join(' '), vocabulary)
