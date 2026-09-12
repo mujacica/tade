@@ -183,8 +183,8 @@ export class DaemonClient {
   // --- memory
 
   /** Write something down, exactly as it was said. */
-  remember(text: string, scope: string | null = null): Promise<Note> {
-    return this.connection.sendRequest(Method.memoryRemember, { text, scope })
+  remember(text: string, scope: string | null = null, by = 'unknown'): Promise<Note> {
+    return this.connection.sendRequest(Method.memoryRemember, { text, scope, by })
   }
 
   /**

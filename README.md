@@ -333,9 +333,13 @@ just talking about — and it says which, *"Noted, about refunds"*, because fili
 wrong task silently is worse than being told so you can correct it.
 
 A note about a project applies to every task in it and a note about nothing in particular applies
-everywhere, but a note about one task never leaks to its siblings. They live in
-`~/.wilco/memory.jsonl`, append-only like the journal; a line that can't be read is skipped rather
-than costing you the rest of the file.
+everywhere, but a note about one task never leaks to its siblings. **The narrowest applies first**:
+told one thing about a task and something else about the whole workspace, the one about the task is
+what counts, however recently the other was said. Each note records where it came from and when, so
+*"why does it keep doing that"* has an answer.
+
+They live in `~/.wilco/memory.jsonl`, append-only like the journal; a line that can't be read is
+skipped rather than costing you the rest of the file.
 
 ## Configuration
 

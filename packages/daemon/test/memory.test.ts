@@ -21,7 +21,7 @@ describe('Memory', () => {
   it('keeps what it was told, and survives a restart', () => {
     const home = tmp('wilco-mem-')
     const memory = Memory.open(home)
-    memory.remember('the staging key rotates on the 1st', 'checkout', NOW)
+    memory.remember('the staging key rotates on the 1st', 'checkout', 'test', NOW)
 
     // A new daemon, the same file: this is the only copy there is.
     const reopened = Memory.open(home)
@@ -34,8 +34,8 @@ describe('Memory', () => {
   it('is append-only, one note per line', () => {
     const home = tmp('wilco-mem-')
     const memory = Memory.open(home)
-    memory.remember('first', null, NOW)
-    memory.remember('second', null, NOW + 1000)
+    memory.remember('first', null, 'test', NOW)
+    memory.remember('second', null, 'test', NOW + 1000)
     const lines = readFileSync(join(home, 'memory.jsonl'), 'utf8').trim().split('\n')
     expect(lines).toHaveLength(2)
     expect(JSON.parse(lines[0] ?? '{}').text).toBe('first')
@@ -44,9 +44,9 @@ describe('Memory', () => {
   it('scopes what it gives back', () => {
     const home = tmp('wilco-mem-')
     const memory = Memory.open(home)
-    memory.remember('I work from home on Fridays', null, NOW)
-    memory.remember('the webhook retries twice', 'checkout/refunds', NOW + 1000)
-    memory.remember('cursor, not offset', 'search/pagination', NOW + 2000)
+    memory.remember('I work from home on Fridays', null, 'test', NOW)
+    memory.remember('the webhook retries twice', 'checkout/refunds', 'test', NOW + 1000)
+    memory.remember('cursor, not offset', 'search/pagination', 'test', NOW + 2000)
 
     expect(memory.recall('checkout/refunds').map((n) => n.text)).toEqual([
       'the webhook retries twice',
@@ -60,11 +60,11 @@ describe('Memory', () => {
   it('skips a line it cannot read rather than losing the file', () => {
     const home = tmp('wilco-mem-')
     const memory = Memory.open(home)
-    memory.remember('worth keeping', null, NOW)
+    memory.remember('worth keeping', null, 'test', NOW)
     // A torn write, or someone editing the file by hand.
     appendFileSync(join(home, 'memory.jsonl'), '{"text":"half a lin\n')
     appendFileSync(join(home, 'memory.jsonl'), '{"nothing":"like a note"}\n')
-    memory.remember('also worth keeping', null, NOW + 1000)
+    memory.remember('also worth keeping', null, 'test', NOW + 1000)
 
     const reopened = Memory.open(home)
     expect(reopened.all().map((n) => n.text)).toEqual(['also worth keeping', 'worth keeping'])

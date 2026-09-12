@@ -312,8 +312,8 @@ export class Daemon {
 
     connection.onRequest(
       Method.memoryRemember,
-      ({ text, scope }: { text: string; scope?: string | null }) =>
-        this.memory.remember(text, scope ?? null),
+      ({ text, scope, by }: { text: string; scope?: string | null; by?: string }) =>
+        this.memory.remember(text, scope ?? null, by ?? 'unknown'),
     )
     // No scope at all asks for everything; an explicit null asks for only what
     // was said about nothing in particular.

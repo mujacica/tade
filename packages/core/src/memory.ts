@@ -15,13 +15,24 @@ export const NoteSchema = z.strictObject({
   text: z.string().min(1),
   /** A task id, a project name, or null when it is about everything. */
   scope: z.string().nullable(),
+  /**
+   * Where it came from: `voice`, `window`, `cli`. Defaulted rather than
+   * required so notes written before this existed still load — losing them to
+   * a schema change would be losing the one thing nothing can recover.
+   */
+  by: z.string().default('unknown'),
   at: z.string(),
 })
 
 export type Note = z.infer<typeof NoteSchema>
 
-export function note(text: string, scope: string | null, now: number): Note {
-  return { text: text.trim(), scope, at: new Date(now).toISOString() }
+export function note(text: string, scope: string | null, by: string, now: number): Note {
+  return { text: text.trim(), scope, by, at: new Date(now).toISOString() }
+}
+
+/** How specific a scope is: a task beats its project beats everything. */
+function depth(scope: string | null): number {
+  return scope === null ? 0 : scope.split('/').length
 }
 
 /**
@@ -36,10 +47,17 @@ export function appliesTo(entry: Note, scope: string | null): boolean {
   return scope.startsWith(`${entry.scope}/`)
 }
 
-/** What is known about something, newest first. */
+/**
+ * What is known about something, narrowest first and newest first within that.
+ *
+ * Narrowest first because that is the order they should be believed in: told
+ * something about a task and something else about the whole workspace, the one
+ * about the task is the one that applies. Recency alone would let a passing
+ * general remark outrank a specific instruction given weeks ago.
+ */
 export function recall(notes: readonly Note[], scope: string | null): Note[] {
   const wanted = notes.filter((entry) => appliesTo(entry, scope))
-  return [...wanted].sort((a, b) => b.at.localeCompare(a.at))
+  return [...wanted].sort((a, b) => depth(b.scope) - depth(a.scope) || b.at.localeCompare(a.at))
 }
 
 /** Everything known, newest first, whatever it is about. */

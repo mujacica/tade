@@ -17,20 +17,31 @@ const NOW = Date.parse('2026-09-12T10:00:00Z')
 const at = (iso: string, scope: string | null, text = 'something'): Note => ({
   text,
   scope,
+  by: 'test',
   at: iso,
 })
 
 describe('note', () => {
   it('keeps what was said, exactly', () => {
-    const saved = note('  the staging key rotates on the 1st  ', 'checkout', NOW)
+    const saved = note('  the staging key rotates on the 1st  ', 'checkout', 'voice', NOW)
     // Trimmed, never reworded: the wording is the point.
     expect(saved.text).toBe('the staging key rotates on the 1st')
     expect(saved.scope).toBe('checkout')
+    // Who set it and when, so "why does it keep doing that" is answerable.
+    expect(saved.by).toBe('voice')
     expect(saved.at).toBe('2026-09-12T10:00:00.000Z')
   })
 
   it('round-trips through its schema', () => {
-    expect(NoteSchema.parse(note('a thing', null, NOW))).toEqual(note('a thing', null, NOW))
+    const one = note('a thing', null, 'cli', NOW)
+    expect(NoteSchema.parse(one)).toEqual(one)
+  })
+
+  it('still loads a note written before provenance was kept', () => {
+    // Losing old notes to a schema change would be losing the one thing
+    // nothing else can recover.
+    const old = { text: 'we pin majors', scope: null, at: '2026-09-01T00:00:00.000Z' }
+    expect(NoteSchema.parse(old)).toMatchObject({ text: 'we pin majors', by: 'unknown' })
   })
 
   it('refuses a note that says nothing', () => {
@@ -71,7 +82,20 @@ describe('recall', () => {
     at('2026-09-12T09:00:00.000Z', 'search/pagination', 'cursor, not offset'),
   ]
 
-  it('gathers the task, its project and everything, newest first', () => {
+  it('believes the narrowest, even when something general was said later', () => {
+    const contradicting = [
+      at('2026-09-01T10:00:00.000Z', 'checkout/refunds', 'retry twice here'),
+      at('2026-09-12T10:00:00.000Z', null, 'never retry anything'),
+    ]
+    // The one about this task comes first even though it is much older: a
+    // passing general remark should not outrank a specific instruction.
+    expect(recall(contradicting, 'checkout/refunds').map((n) => n.text)).toEqual([
+      'retry twice here',
+      'never retry anything',
+    ])
+  })
+
+  it('gathers the task, its project and everything, narrowest first', () => {
     expect(recall(notes, 'checkout/refunds').map((n) => n.text)).toEqual([
       'the webhook retries twice',
       'staging key rotates on the 1st',

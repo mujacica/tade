@@ -28,8 +28,8 @@ export class Memory {
   }
 
   /** Write something down, verbatim. */
-  remember(text: string, scope: string | null, now: number = Date.now()): Note {
-    const entry = note(text, scope, now)
+  remember(text: string, scope: string | null, by = 'unknown', now: number = Date.now()): Note {
+    const entry = note(text, scope, by, now)
     appendFileSync(this.path, `${JSON.stringify(entry)}\n`)
     this.notes.push(entry)
     return entry

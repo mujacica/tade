@@ -13,7 +13,7 @@ export function registerNotes(program: Command, io: Io, setExit: (code: number) 
     .option('--about <scope>', 'the task or project it is about')
     .action(async (words: string[], opts: { about?: string }) => {
       await withDaemon(io, setExit, async (client) => {
-        const note = await client.remember(words.join(' '), opts.about ?? null)
+        const note = await client.remember(words.join(' '), opts.about ?? null, 'cli')
         io.out(note.scope ? `noted, about ${note.scope}` : 'noted')
       })
     })

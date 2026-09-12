@@ -58,7 +58,7 @@ export interface VoiceDaemon {
    * Optional: write something down. Without it the surface says plainly that
    * it cannot remember, rather than pretending to.
    */
-  remember?(text: string, scope: string | null): Promise<unknown>
+  remember?(text: string, scope: string | null, by?: string): Promise<unknown>
 }
 
 /** What the surface did with something you said, for the app to show. */
@@ -316,7 +316,7 @@ export class VoiceSurface {
         // because filing it under the wrong task silently would be worse than
         // asking you to correct it.
         const scope = this.lastAddressed
-        await this.opts.daemon.remember(intent.text, scope)
+        await this.opts.daemon.remember(intent.text, scope, 'voice')
         return scope ? `Noted, about ${short(scope)}.` : 'Noted.'
       }
 
