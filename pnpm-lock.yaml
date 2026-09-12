@@ -60,12 +60,18 @@ importers:
       '@wilco/driver-pty':
         specifier: workspace:*
         version: link:../driver-pty
+      '@wilco/probes':
+        specifier: workspace:*
+        version: link:../probes
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
       vscode-jsonrpc:
         specifier: ^9.0.2
         version: 9.0.2
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
       zod:
         specifier: ^4.6.2
         version: 4.6.2

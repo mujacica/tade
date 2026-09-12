@@ -19,7 +19,8 @@ Early prototype. What works today:
 | `wilco status`: git probe, adoption of Claude Code / Codex sessions started outside Wilco | ✅ |
 | Daemon (`wilcod`), lanes, `attach`, event log | ✅ |
 | Agent harness: pi supervised through an extension channel | 🚧 in progress |
-| Orchestrator (`wilco chat`), worktree lifecycle | not started |
+| Task worktrees: created with your intent recorded, teardown that refuses to destroy work | ✅ |
+| Orchestrator (`wilco chat`) | not started |
 | Voice surface, memory, approvals, self-extension | not started |
 
 ## Requirements
