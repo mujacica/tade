@@ -50,8 +50,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
   test with a capital letter in it to notice that it didn't.
 - No hot reload of extensions. Activation requires a daemon restart.
-- **Lanes are the daemon's children**, so they die with it. Never report a lane as alive without
-  evidence; keep its spec so it can be relaunched.
+- **Under the `pty` driver lanes are the daemon's children**, so they die with it; under `tmux` they
+  do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
+  never report a lane as alive without evidence, and keep its spec so it can be relaunched.
 - **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
   lane output never goes in the log (it lives in the lane's scrollback), only sampled byte counts.
 - Under subscriber backpressure, `trace` events are dropped first and `blocking` events never.

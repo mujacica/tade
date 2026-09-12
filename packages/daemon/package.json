@@ -10,6 +10,7 @@
   "dependencies": {
     "@wilco/core": "workspace:*",
     "@wilco/driver-pty": "workspace:*",
+    "@wilco/driver-tmux": "workspace:*",
     "@wilco/harness-pi": "workspace:*",
     "@wilco/probes": "workspace:*",
     "better-sqlite3": "^13.0.3",

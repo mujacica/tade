@@ -9,6 +9,7 @@ import {
   type WorkspaceDriver,
 } from '@wilco/core'
 import { PtyDriver } from '@wilco/driver-pty'
+import { TmuxDriver } from '@wilco/driver-tmux'
 import { z } from 'zod'
 import type { EventLog } from './events.ts'
 
@@ -22,6 +23,7 @@ import type { EventLog } from './events.ts'
  */
 export const drivers: Record<string, () => WorkspaceDriver> = {
   pty: () => new PtyDriver(),
+  tmux: () => new TmuxDriver(),
 }
 
 export const LaneRecord = z.object({

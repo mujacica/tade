@@ -144,9 +144,15 @@ wilco logs -f --min-urgency notable
 
 - **Attach from as many terminals as you like.** Every attacher sees the same session, gets a
   rendered snapshot of what it missed, and resizing your window resizes the lane.
-- **Lanes outlive clients, not the daemon.** They are the daemon's children, so restarting it
-  kills them. Wilco then reports them as dead (never as alive) and keeps enough detail to
-  relaunch: `wilco daemon start && wilco lanes` shows them exited, and `relaunch` restarts one.
+- **Lanes outlive clients, not the daemon** — with the default driver. They are the daemon's
+  children, so restarting it kills them. Wilco then reports them as dead (never as alive) and keeps
+  enough detail to relaunch: `wilco daemon start && wilco lanes` shows them exited, and `relaunch`
+  restarts one.
+- **Unless they live in tmux.** Set `workspace.driver: tmux` and lanes belong to a tmux server
+  instead: stop the daemon, start it again, and the agents are still running, mid-task. Wilco runs
+  its own tmux server (`tmux -L wilco`), so your own sessions are untouched, and it records the lane
+  id on each window, so lanes are recovered exactly rather than guessed at. You can attach to one
+  from any terminal, over SSH, with no Wilco running at all.
 - **The event log** is `~/.wilco/events.jsonl`, append-only and the source of truth, with a
   rebuildable SQLite index beside it. Events carry an urgency (`blocking`, `notable`, `routine`,
   `trace`); slow subscribers lose `trace` events first and `blocking` events never.
@@ -346,6 +352,7 @@ Contributor conventions (including the rules every port implementation must foll
 | `packages/cli` | The `wilco` binary |
 | `packages/daemon` | `wilcod`: JSON-RPC socket, lane registry, event log + index |
 | `packages/driver-pty` | The default `WorkspaceDriver`: node-pty + a headless xterm per lane |
+| `packages/driver-tmux` | Lanes that live in tmux, so they outlive the daemon |
 | `packages/driver-conformance` | The shared suite every driver must pass |
 | `packages/harness-pi` | Runs and supervises pi: adapter, supervision channel, the in-agent extension |
 | `packages/worker-acp`, `orchestrator` | Reserved for a second worker adapter and the orchestrator (stubs) |

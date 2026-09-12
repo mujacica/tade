@@ -43,6 +43,28 @@ The port is `packages/core/src/ports/workspace.ts`; the reference implementation
 - Prefer capabilities the backend genuinely has: a mux server (tmux, wezterm, zellij) can offer
   `detach: true`; an emulator-driven driver (ghostty, kitty) usually cannot.
 
+## What the second driver turned out to need
+
+`packages/driver-tmux` passed the suite once these were right. They are likely to matter for any
+backend that is a separate program rather than a library:
+
+- **Order writes yourself.** `pty.write` is synchronous, so call order survives for free. Every tmux
+  write is a separate process, so concurrent writes land in whatever order they finish. A per-lane
+  promise queue, appended to synchronously inside `write()`, is what makes the ordering test pass.
+- **Send bytes, not text.** `send-keys -H` takes hex, so control characters and UTF-8 survive
+  exactly instead of being interpreted as key names.
+- **Ask the backend to keep dead processes.** `remain-on-exit on` leaves the pane holding its exit
+  status, which is the only way to report an exit code. Set it before opening anything, or a
+  fast-exiting command is gone before the option applies.
+- **Address lanes by the backend's own id** (`@3`, from `new-window -P -F '#{window_id}'`), never by
+  a name you chose: names get sanitised, truncated and renamed.
+- **Keep the lane id where the backend keeps state** (tmux user options, `@wilco-lane`), so `adopt`
+  recovers lanes exactly rather than reverse-engineering window names.
+- **Replay only what has already been delivered live.** If replay reads to the end of the buffer,
+  the poller delivers the tail again and the subscriber sees it twice.
+- **Anything the backend runs through a shell must be shell-quoted**, even though the backend itself
+  is invoked with an argument array and no shell.
+
 ## Native dependencies
 
 If the backend needs a native module, check it works under pnpm's layout before building on it.

@@ -1,6 +1,4 @@
-import { accessSync, constants } from 'node:fs'
 import { createRequire } from 'node:module'
-import { delimiter, isAbsolute, join } from 'node:path'
 import {
   type AdoptHint,
   type CaptureOptions,
@@ -11,6 +9,8 @@ import {
   LaneNotFoundError,
   type LaneOutputListener,
   type LaneSpec,
+  resolveCommand,
+  stringEnv,
   type Unsubscribe,
   UnsupportedCapabilityError,
   type WorkspaceCapabilities,
@@ -251,38 +251,10 @@ export class PtyDriver implements WorkspaceDriver {
   }
 }
 
-function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [k, v] of Object.entries(env)) if (typeof v === 'string') out[k] = v
-  return out
-}
-
 function safely(fn: () => void): void {
   try {
     fn()
   } catch {
     // A broken subscriber must never take down a lane.
   }
-}
-
-/** Resolve a command the way exec would, so a missing binary fails at open(). */
-export function resolveCommand(command: string, env: Record<string, string>): string | null {
-  const executable = (p: string) => {
-    try {
-      accessSync(p, constants.X_OK)
-      return true
-    } catch {
-      return false
-    }
-  }
-  if (command.includes('/')) {
-    const abs = isAbsolute(command) ? command : join(process.cwd(), command)
-    return executable(abs) ? abs : null
-  }
-  for (const dir of (env.PATH ?? '').split(delimiter)) {
-    if (!dir) continue
-    const candidate = join(dir, command)
-    if (executable(candidate)) return candidate
-  }
-  return null
 }

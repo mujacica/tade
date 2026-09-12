@@ -84,6 +84,9 @@ importers:
       '@wilco/driver-pty':
         specifier: workspace:*
         version: link:../driver-pty
+      '@wilco/driver-tmux':
+        specifier: workspace:*
+        version: link:../driver-tmux
       '@wilco/harness-pi':
         specifier: workspace:*
         version: link:../harness-pi
@@ -127,6 +130,19 @@ importers:
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
+    devDependencies:
+      '@wilco/driver-conformance':
+        specifier: workspace:*
+        version: link:../driver-conformance
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/driver-tmux:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@wilco/driver-conformance':
         specifier: workspace:*
