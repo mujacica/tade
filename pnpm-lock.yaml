@@ -60,6 +60,9 @@ importers:
       '@wilco/driver-pty':
         specifier: workspace:*
         version: link:../driver-pty
+      '@wilco/harness-pi':
+        specifier: workspace:*
+        version: link:../harness-pi
       '@wilco/probes':
         specifier: workspace:*
         version: link:../probes

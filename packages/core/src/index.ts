@@ -1,6 +1,7 @@
 export * from './config.ts'
 export * from './events.ts'
 export * from './model.ts'
+export * from './policy.ts'
 export * from './ports/liveness.ts'
 export * from './ports/worker.ts'
 export * from './ports/workspace.ts'

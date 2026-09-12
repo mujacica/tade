@@ -88,7 +88,9 @@ describe('wilco attach', () => {
     })
     process.kill(pid, 'SIGTERM')
 
-    await until(() => existsSync(after))
+    // The shell creates this file the moment it redirects, before `stty` has
+    // written into it, so wait for content rather than existence.
+    await until(() => existsSync(after) && readFileSync(after, 'utf8').trim().length > 0)
     expect(readFileSync(after, 'utf8')).toBe(readFileSync(before, 'utf8'))
     term.kill()
   }, 30_000)

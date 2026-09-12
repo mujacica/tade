@@ -119,6 +119,14 @@ it, which is what lets one mechanism cover every way you might want to pay for a
 Model and provider are chosen per run (and switchable mid-session), so the orchestrator, a cheap
 background worker and a local model can each use something different.
 
+**Approvals are off by default.** Agents run without being interrupted (`approvals.mode: bypass`).
+Every tool call is still classified and recorded, so `wilco logs` can tell you that a force push or
+a credential read happened, even though nothing asked you at the time. Switching to
+`approvals.mode: policy` turns the gate on: routine work (reading, editing inside the task's own
+worktree) still runs untouched, ordinary commands ask for a word, and a short list of genuinely
+destructive ones — force push, history rewrite, `rm -rf` outside the worktree, credential access,
+publishing, database migrations — require you to hear the exact command first.
+
 Supervision works the same whether the agent is visible in a lane or headless: Wilco loads a small
 extension into pi, which streams structured signals back over a per-run Unix socket
 (`turn_started`, `tool_call`, `turn_done`, `idle`, context usage) and **holds every tool call until
@@ -135,6 +143,9 @@ inert, so running plain `pi` is unaffected.
 workspace:
   driver: pty              # pty | tmux | ghostty | kitty | wezterm | zellij
   adopt: true              # discover agent sessions started outside Wilco
+approvals:
+  mode: bypass             # bypass (default, never interrupts) | policy
+  auto_allow: []           # tools that never ask when mode is policy
 orchestrator:
   provider: anthropic      # omit to use whatever the harness is logged in to
   model: claude-opus-5

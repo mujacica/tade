@@ -64,6 +64,15 @@ export const ConfigSchema = z
         routes: z.record(RouteName, WorkerRoute).prefault({ default: {} }),
       })
       .prefault({}),
+    approvals: z
+      .strictObject({
+        // Default: never interrupt. Wilco still classifies and records every
+        // tool call, so the journal stays honest even when nothing is gated.
+        mode: z.enum(['bypass', 'policy']).default('bypass'),
+        /** Tools that never ask, when mode is `policy`. */
+        auto_allow: z.array(z.string()).default([]),
+      })
+      .prefault({}),
     surfaces: z
       .strictObject({
         voice: z
