@@ -10,6 +10,7 @@ import { registerChat } from './commands/chat.ts'
 import { registerDaemon } from './commands/daemon.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
+import { registerSummary } from './commands/summary.ts'
 import { registerTasks } from './commands/tasks.ts'
 import { formatStatus } from './format.ts'
 import { defaultIo, Exit, type Io } from './io.ts'
@@ -90,6 +91,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)
   registerNotes(program, io, setExit)
+  registerSummary(program, io, setExit)
   registerDaemon(program, io, setExit)
   return program
 }

@@ -86,6 +86,7 @@ something to think with.
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
 | `wilco app` | The window: every project, the agent you're watching, and the orchestrator |
 | `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
+| `wilco summary <task> [--json]` | What an agent has been doing, read off the journal |
 | `wilco remember <text> [--about <scope>]` | Write something down, exactly as you said it |
 | `wilco notes [scope] [--json]` | What you have told Wilco, newest first |
 | `wilco task create <project>/<name> --intent "..."` | Create a task: branch, worktree, your intent recorded verbatim |
@@ -229,6 +230,12 @@ has no privileged path. If it's unavailable, nothing is lost but convenience.
 - **A small closed grammar** resolves what you said before any model is involved: *where are we*,
   *show me X*, *tell X …*, *start … in …*, *park X*, *pick X back up*, *yes* / *no*, *remember …*.
   Anything it doesn't recognise goes to the orchestrator as free text.
+- **Ask about one agent and you get an account of it**, not a status word. *"What about refunds?"* →
+  *"refunds is working: 12 tool calls and 3 turns, mostly bash and edit. It is waiting on bash: npm i
+  stripe@15. Last moved 4m ago."* It is read off the journal and never asked of the agent, because an
+  agent's own account of itself is the one thing Wilco doesn't trust. `wilco summary <task>` prints
+  the same thing. Anything that ran which would normally have needed asking is named here, since with
+  approvals off nothing interrupted you at the time.
 - **A bare "yes" can never do something destructive.** Soft requests take one word; a force push or
   an `rm -rf` outside the worktree is read back and requires the distinct phrase
   (*confirm force push*). The grammar has a test asserting no ordinary sentence can reach one.

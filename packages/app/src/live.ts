@@ -2,8 +2,10 @@ import {
   type Config,
   historyFrom,
   type KnownTask,
+  summariseWork,
   type WilcoEvent,
   type WorkHistory,
+  type WorkSummary,
   type Workspace,
 } from '@wilco/core'
 import type { DaemonClient } from '@wilco/daemon/client'
@@ -108,6 +110,11 @@ export class Live {
   /** Where a task lives on disk, once status has seen it. */
   worktreeOf(task: string): string | null {
     return this.worktrees.get(task) ?? null
+  }
+
+  /** What one agent has been doing, from the journal. */
+  workOn(task: string): WorkSummary {
+    return summariseWork(this.journal, task, this.now())
   }
 
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */

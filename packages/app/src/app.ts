@@ -6,7 +6,7 @@ import {
   TuiAltScreen,
   type TuiInputListenerResult,
 } from '@earendil-works/pi-tui'
-import type { Config, LaneId } from '@wilco/core'
+import { type Config, describeWork, type LaneId } from '@wilco/core'
 import type { DaemonClient } from '@wilco/daemon/client'
 import { Speaker, VoiceSurface } from '@wilco/surface-voice'
 import { appKey } from './keys.ts'
@@ -301,7 +301,14 @@ export class App {
   }
 
   private describe(scope: string | null): string {
-    const tasks = this.live?.tasks ?? []
+    const live = this.live
+    const tasks = live?.tasks ?? []
+    // Asked about one agent, answer with what it has been doing. Asked about
+    // everything, answer with the shape of it: an account of nine tasks at
+    // once is unusable, spoken or read.
+    if (live && scope && tasks.some((task) => task.task === scope)) {
+      return describeWork(live.workOn(scope), this.now())
+    }
     const wanted = scope
       ? tasks.filter((t) => t.task === scope || t.task.startsWith(`${scope}/`))
       : tasks
