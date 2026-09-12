@@ -106,6 +106,35 @@ const cases: Case[] = [
     check: (i) => expect(i).toMatchObject({ text: 'I hate force pushes' }),
   },
 
+  // --- the other ways people say the same things
+  { said: 'where are we at', want: 'status' },
+  { said: 'how are we doing', want: 'status' },
+  { said: 'STATUS', want: 'status' },
+  { said: '  where are we  ', want: 'status' },
+  { said: 'how is migration', want: 'status' },
+  { said: 'status of checkout', want: 'status' },
+  { said: 'status for search', want: 'status' },
+  { said: 'what about app', want: 'status' },
+  { said: 'open migration', want: 'focus' },
+  { said: 'bring up pagination', want: 'focus' },
+  { said: 'ask refunds to add a test', want: 'steer' },
+  { said: 'kick off a redesign in search', want: 'start' },
+  { said: 'begin the cleanup in app', want: 'start' },
+  { said: 'pause migration', want: 'park' },
+  { said: 'set aside refunds', want: 'park' },
+  { said: 'unpark migration', want: 'resume' },
+  { said: 'resume pagination', want: 'resume' },
+  { said: 'pick up pagination', want: 'resume' },
+  { said: 'pick refunds back up', want: 'resume' },
+  { said: 'keep in mind we deploy on fridays', want: 'remember' },
+  { said: 'note the webhook retries twice', want: 'remember' },
+
+  // --- near-misses
+  // A known mishearing is corrected ("bark" → "park", above); one that is not
+  // falls through rather than being bent into the nearest command.
+  { said: 'parked migration', want: 'free' },
+  { said: 'sparking migration', want: 'free' },
+
   // --- anything else falls through
   { said: 'what did the migration task actually change last week', want: 'free' },
   { said: 'park something nobody has heard of', want: 'free' },
@@ -162,6 +191,69 @@ describe('approval safety', () => {
       if (intent.kind !== 'confirm') continue
       // The only way through is the exact shape "confirm <phrase>".
       expect(said.toLowerCase().trim().startsWith('confirm ')).toBe(true)
+    }
+  })
+
+  it('no generated sentence reaches a confirmation without being one', () => {
+    // Generated rather than listed, because a fixed corpus only ever proves
+    // the sentences somebody thought of. Deterministic, so a failure can be
+    // reproduced rather than re-rolled.
+    const words = [
+      'yes',
+      'no',
+      'ok',
+      'sure',
+      'please',
+      'confirm',
+      'force',
+      'push',
+      'delete',
+      'rm',
+      '-rf',
+      'the',
+      'it',
+      'that',
+      'do',
+      'go',
+      'ahead',
+      'approve',
+      'deny',
+      'wilco',
+      'park',
+      'start',
+      'checkout',
+      'refunds',
+      'main',
+      'branch',
+      'now',
+      'all',
+      'everything',
+      'drop',
+      'database',
+      'reset',
+      'hard',
+      'migration',
+      'and',
+      'to',
+      'on',
+      'with',
+      'just',
+      'really',
+    ]
+    let seed = 20_260_913
+    const next = () => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648
+      return seed
+    }
+    for (let i = 0; i < 20_000; i++) {
+      const said = Array.from(
+        { length: 1 + (next() % 6) },
+        () => words[next() % words.length],
+      ).join(' ')
+      if (parse(said).kind !== 'confirm') continue
+      // The only way through is the exact shape, with something after it.
+      expect(said.startsWith('confirm ')).toBe(true)
+      expect(said.length).toBeGreaterThan('confirm '.length)
     }
   })
 
