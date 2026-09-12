@@ -99,7 +99,7 @@ export function testWorkspaceDriver(
       await driver.write(s.id, line('first'))
       await waitFor(s.id, 'got:first')
       const text = await capture(s.id)
-      expect(text).not.toMatch(/\[/)
+      expect(text).not.toContain('\u001b[')
     })
 
     it('preserves output ordering under rapid writes', async () => {

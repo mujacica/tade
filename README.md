@@ -18,12 +18,13 @@ Early prototype. What works today:
 | Object model and task state machine | ✅ |
 | `wilco status`: git probe, adoption of Claude Code / Codex sessions started outside Wilco | ✅ |
 | Daemon (`wilcod`), lanes, `attach`, event log | ✅ |
-| Orchestrator (`wilco chat`) and ACP workers | not started |
+| Agent harness: pi supervised through an extension channel | 🚧 in progress |
+| Orchestrator (`wilco chat`), worktree lifecycle | not started |
 | Voice surface, memory, approvals, self-extension | not started |
 
 ## Requirements
 
-- Node **≥ 22.18** (Wilco runs TypeScript directly via Node's type stripping; there is no build step)
+- Node **≥ 22.19** (Wilco runs TypeScript directly via Node's type stripping; there is no build step)
 - pnpm 10
 - git; optionally `gh` for PR state
 
@@ -105,6 +106,26 @@ wilco logs -f --min-urgency notable
 - The socket is `$XDG_RUNTIME_DIR/wilco.sock` (else `~/.wilco/run/`), directory `0700`, socket
   `0600`: this user only, no TCP.
 
+### Agents and models
+
+Wilco does not talk to model providers itself. It runs **pi** as the agent harness and supervises
+it, which is what lets one mechanism cover every way you might want to pay for a model:
+
+- **Subscriptions** (Claude Pro/Max, ChatGPT, Copilot, xAI, OpenRouter) via pi's own login
+- **API keys** for 30+ providers, from environment or pi's credential store
+- **Local models** — llama.cpp, Ollama, LM Studio, vLLM, or any OpenAI-compatible endpoint
+
+Model and provider are chosen per run (and switchable mid-session), so the orchestrator, a cheap
+background worker and a local model can each use something different.
+
+Supervision works the same whether the agent is visible in a lane or headless: Wilco loads a small
+extension into pi, which streams structured signals back over a per-run Unix socket
+(`turn_started`, `tool_call`, `turn_done`, `idle`, context usage) and **holds every tool call until
+Wilco answers**. That gate is why approvals can be trusted: the exact command is known before it
+runs, rather than scraped off a terminal. If Wilco becomes unreachable mid-request the agent
+refuses rather than proceeding unsupervised, and with no supervision socket set the extension is
+inert, so running plain `pi` is unaffected.
+
 ## Configuration
 
 `~/.wilco/config.yaml`. Every key is optional and unknown keys are rejected.
@@ -174,4 +195,5 @@ Contributor conventions (including the rules every port implementation must foll
 | `packages/daemon` | `wilcod`: JSON-RPC socket, lane registry, event log + index |
 | `packages/driver-pty` | The default `WorkspaceDriver`: node-pty + a headless xterm per lane |
 | `packages/driver-conformance` | The shared suite every driver must pass |
-| `packages/worker-acp`, `orchestrator` | Agent workers and orchestrator (stubs) |
+| `packages/harness-pi` | Runs and supervises pi: adapter, supervision channel, the in-agent extension |
+| `packages/worker-acp`, `orchestrator` | Reserved for a second worker adapter and the orchestrator (stubs) |

@@ -1,0 +1,348 @@
+import { type ChildProcess, spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  type PermissionDecision,
+  type RunId,
+  type Unsubscribe,
+  WORKER_ENV,
+  type WorkerAdapter,
+  type WorkerCapabilities,
+  type WorkerHandle,
+  type WorkerModel,
+  WorkerNotFoundError,
+  type WorkerSignal,
+  type WorkerSignalListener,
+  type WorkerSpec,
+} from '@wilco/core'
+import { SignalChannel } from './channel.ts'
+
+// Drives pi as a Wilco worker: pi runs the agent, Wilco supervises it through
+// the extension channel. Model and provider are pi's business, which is how
+// one adapter covers API keys, subscriptions and local models alike.
+
+export const EXTENSION_PATH = fileURLToPath(new URL('./extension.ts', import.meta.url))
+
+/** The pi binary that ships with this package. */
+export function piBinary(): string {
+  // pi's exports map declares no `require` condition and does not expose
+  // package.json, so neither require.resolve nor a subpath resolve works here.
+  // Walk up for the installed package instead: correct under pnpm's layout and
+  // identical whether we run under node or a test runner.
+  const relative = join(
+    'node_modules',
+    '@earendil-works',
+    'pi-coding-agent',
+    'dist',
+    'bundle',
+    'cli.js',
+  )
+  let dir = fileURLToPath(new URL('.', import.meta.url))
+  for (;;) {
+    const cli = join(dir, relative)
+    if (existsSync(cli)) return cli
+    const parent = dirname(dir)
+    if (parent === dir) {
+      throw new Error('pi CLI not found: is @earendil-works/pi-coding-agent installed?')
+    }
+    dir = parent
+  }
+}
+
+export interface PiAdapterOptions {
+  /** Directory for per-run sockets and session files. */
+  runDir: string
+  /** Defaults to the bundled pi. */
+  bin?: string
+  /** Extra arguments appended to every launch. */
+  args?: string[]
+  env?: NodeJS.ProcessEnv
+  onWarning?: (message: string) => void
+}
+
+interface Run {
+  handle: WorkerHandle
+  child: ChildProcess
+  channel: SignalChannel
+  pendingRpc: Map<string, (response: RpcResponse) => void>
+  streaming: boolean
+  stdout: string
+  rpcId: number
+}
+
+interface RpcResponse {
+  type: 'response'
+  command: string
+  success: boolean
+  error?: string
+  data?: Record<string, unknown>
+}
+
+export class PiAdapter implements WorkerAdapter {
+  readonly id = 'pi'
+  readonly capabilities: WorkerCapabilities = {
+    permissionGate: true,
+    steer: true,
+    modelSwitch: true,
+    // This adapter runs pi headless; a visible lane is launched by the daemon
+    // with `laneLaunchSpec()` and supervised through the same channel.
+    visibleUi: false,
+    resume: true,
+  }
+
+  private readonly runs = new Map<string, Run>()
+  // Keyed by run rather than held on the run itself, so a caller can subscribe
+  // before `start()` returns: the first signals arrive while it is still running.
+  private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
+  private readonly opts: Required<Omit<PiAdapterOptions, 'onWarning' | 'bin' | 'args' | 'env'>> & {
+    bin: string
+    args: string[]
+    env: NodeJS.ProcessEnv
+    onWarning: (message: string) => void
+  }
+
+  constructor(opts: PiAdapterOptions) {
+    this.opts = {
+      runDir: opts.runDir,
+      bin: opts.bin ?? piBinary(),
+      args: opts.args ?? [],
+      env: opts.env ?? process.env,
+      onWarning: opts.onWarning ?? (() => {}),
+    }
+  }
+
+  /** Everything the daemon needs to run pi in a visible lane instead. */
+  laneLaunchSpec(spec: WorkerSpec): {
+    command: string
+    args: string[]
+    env: Record<string, string>
+  } {
+    return {
+      command: process.execPath,
+      args: [this.opts.bin, ...this.modelArgs(spec.model), '-e', EXTENSION_PATH, ...this.opts.args],
+      env: this.runEnv(spec),
+    }
+  }
+
+  async start(spec: WorkerSpec): Promise<WorkerHandle> {
+    if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
+    const socketPath = join(this.opts.runDir, `${spec.run}.sock`)
+
+    const channel = await SignalChannel.listen({
+      path: socketPath,
+      run: spec.run,
+      onSignal: (signal) => this.dispatch(spec.run, signal),
+      onWarning: this.opts.onWarning,
+    })
+
+    const child = spawn(
+      process.execPath,
+      [
+        this.opts.bin,
+        '--mode',
+        'rpc',
+        ...this.modelArgs(spec.model),
+        '--session-dir',
+        join(this.opts.runDir, 'sessions'),
+        '-e',
+        EXTENSION_PATH,
+        ...this.opts.args,
+      ],
+      {
+        cwd: spec.cwd,
+        env: { ...this.runEnv(spec), ...spec.env },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    )
+
+    const run: Run = {
+      handle: {
+        run: spec.run,
+        task: spec.task,
+        sessionId: null,
+        startedAt: Date.now(),
+        lane: spec.lane ?? null,
+      },
+      child,
+      channel,
+      pendingRpc: new Map(),
+      streaming: false,
+      stdout: '',
+      rpcId: 0,
+    }
+    this.runs.set(spec.run, run)
+
+    child.stdout?.on('data', (chunk: Buffer) => this.readStdout(run, chunk))
+    child.on('exit', (code) => {
+      this.dispatch(spec.run, { type: 'exited', run: spec.run, at: Date.now(), code })
+      void channel.close()
+    })
+
+    const state = await this.rpc(run, { type: 'get_state' }).catch(() => null)
+    const sessionId = state?.data?.sessionId
+    if (typeof sessionId === 'string') run.handle.sessionId = sessionId
+
+    if (spec.prompt.trim().length > 0) await this.prompt(spec.run, spec.prompt)
+    return { ...run.handle }
+  }
+
+  async prompt(run: RunId, message: string): Promise<void> {
+    const entry = this.require(run)
+    // A prompt sent mid-turn is rejected unless it says how to arrive.
+    const command = entry.streaming
+      ? { type: 'prompt', message, streamingBehavior: 'steer' }
+      : { type: 'prompt', message }
+    await this.rpc(entry, command)
+  }
+
+  async steer(run: RunId, message: string): Promise<void> {
+    const entry = this.require(run)
+    if (entry.channel.connected) {
+      entry.channel.send({ type: 'steer', message })
+      return
+    }
+    await this.rpc(entry, { type: 'steer', message })
+  }
+
+  async queue(run: RunId, message: string): Promise<void> {
+    const entry = this.require(run)
+    if (entry.channel.connected) {
+      entry.channel.send({ type: 'queue', message })
+      return
+    }
+    await this.rpc(entry, { type: 'follow_up', message })
+  }
+
+  async decide(run: RunId, requestId: string, decision: PermissionDecision): Promise<void> {
+    const entry = this.require(run)
+    entry.channel.send({
+      type: 'decision',
+      requestId,
+      allow: decision.allow,
+      reason: decision.reason ?? '',
+    })
+  }
+
+  async setModel(run: RunId, model: WorkerModel): Promise<void> {
+    const entry = this.require(run)
+    await this.rpc(entry, {
+      type: 'set_model',
+      ...(model.provider ? { provider: model.provider } : {}),
+      modelId: model.id,
+    })
+  }
+
+  async abort(run: RunId): Promise<void> {
+    const entry = this.require(run)
+    await this.rpc(entry, { type: 'abort' }).catch(() => {})
+  }
+
+  async stop(run: RunId): Promise<void> {
+    const entry = this.runs.get(run)
+    if (!entry) return
+    entry.channel.send({ type: 'shutdown' })
+    entry.child.kill()
+    await entry.channel.close()
+    this.runs.delete(run)
+  }
+
+  onSignal(run: RunId, listener: WorkerSignalListener): Unsubscribe {
+    let set = this.listeners.get(run)
+    if (!set) {
+      set = new Set()
+      this.listeners.set(run, set)
+    }
+    set.add(listener)
+    return () => set.delete(listener)
+  }
+
+  async list(): Promise<WorkerHandle[]> {
+    return [...this.runs.values()].map((r) => ({ ...r.handle }))
+  }
+
+  async shutdown(): Promise<void> {
+    for (const run of [...this.runs.keys()]) await this.stop(run)
+  }
+
+  private runEnv(spec: WorkerSpec): Record<string, string> {
+    const env: Record<string, string> = {}
+    for (const [key, value] of Object.entries(this.opts.env)) {
+      if (typeof value === 'string') env[key] = value
+    }
+    env[WORKER_ENV.socket] = join(this.opts.runDir, `${spec.run}.sock`)
+    env[WORKER_ENV.run] = spec.run
+    env[WORKER_ENV.task] = spec.task
+    return env
+  }
+
+  private modelArgs(model: WorkerModel | undefined): string[] {
+    if (!model) return []
+    return model.provider
+      ? ['--provider', model.provider, '--model', model.id]
+      : ['--model', model.id]
+  }
+
+  private dispatch(run: RunId, signal: WorkerSignal): void {
+    const entry = this.runs.get(run)
+    if (!entry) return
+    if (signal.type === 'turn_started') entry.streaming = true
+    if (signal.type === 'turn_done' || signal.type === 'idle') entry.streaming = false
+    for (const listener of this.listeners.get(run) ?? []) {
+      try {
+        listener(signal)
+      } catch {
+        // a broken listener must not stop the others
+      }
+    }
+  }
+
+  /** Strict LF framing: pi's own requirement, and JSON strings may contain U+2028. */
+  private readStdout(run: Run, chunk: Buffer): void {
+    run.stdout += chunk.toString('utf8')
+    let index = run.stdout.indexOf('\n')
+    while (index >= 0) {
+      const line = run.stdout.slice(0, index).replace(/\r$/, '')
+      run.stdout = run.stdout.slice(index + 1)
+      if (line.trim()) this.readMessage(run, line)
+      index = run.stdout.indexOf('\n')
+    }
+  }
+
+  private readMessage(run: Run, line: string): void {
+    let message: Record<string, unknown>
+    try {
+      message = JSON.parse(line) as Record<string, unknown>
+    } catch {
+      return
+    }
+    if (message.type === 'response' && typeof message.id === 'string') {
+      const resolve = run.pendingRpc.get(message.id)
+      run.pendingRpc.delete(message.id)
+      resolve?.(message as unknown as RpcResponse)
+    }
+  }
+
+  private rpc(run: Run, command: Record<string, unknown>): Promise<RpcResponse> {
+    const id = `w${++run.rpcId}`
+    return new Promise<RpcResponse>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        run.pendingRpc.delete(id)
+        reject(new Error(`pi did not answer ${String(command.type)}`))
+      }, 15_000)
+      timer.unref?.()
+      run.pendingRpc.set(id, (response) => {
+        clearTimeout(timer)
+        if (response.success) resolve(response)
+        else reject(new Error(response.error ?? `${response.command} failed`))
+      })
+      run.child.stdin?.write(`${JSON.stringify({ ...command, id })}\n`)
+    })
+  }
+
+  private require(run: RunId): Run {
+    const entry = this.runs.get(run)
+    if (!entry) throw new WorkerNotFoundError(run)
+    return entry
+  }
+}
