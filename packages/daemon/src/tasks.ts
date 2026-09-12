@@ -122,11 +122,10 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
     }
   }
 
-  const removed = await git(
-    opts.root,
-    ['worktree', 'remove', ...(opts.force ? ['--force'] : []), opts.worktree],
-    30_000,
-  )
+  // `--force` unconditionally: the refusals above are Wilco's, and they have
+  // already passed. Git would otherwise refuse over `.wilco/task.yaml`, which
+  // is Wilco's own bookkeeping and never work worth keeping.
+  const removed = await git(opts.root, ['worktree', 'remove', '--force', opts.worktree], 30_000)
   if (!removed.ok) throw new Error(`git worktree remove failed: ${firstLine(removed.stderr)}`)
 
   // -d refuses to delete unmerged work; -D is only reached when forced.

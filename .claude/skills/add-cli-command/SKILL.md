@@ -27,6 +27,10 @@ program and exposes `run(argv, io)` which returns an exit code instead of callin
    (or a `src/commands/<name>.ts` file exporting `register(program, io, setExit)` once
    `program.ts` grows past ~150 lines).
 3. Add an end-to-end test in `packages/cli/test/`, using the `wilco()` helper that spawns the
-   real binary under plain `node`. Set `WILCO_HOME` to a tmp dir so tests never touch `~/.wilco`.
+   real binary under plain `node`. Set `WILCO_HOME` (and `HOME`) to tmp dirs so tests never touch
+   `~/.wilco` or read your real transcripts.
+   **If the test also starts a `Daemon` in-process, spawn the CLI asynchronously.** `spawnSync`
+   blocks the event loop the daemon needs to answer the request, so the two deadlock — and with the
+   loop blocked, vitest's own timeout never fires: the run hangs silently instead of failing.
 4. Add the command to the **Commands** table in `README.md`.
 5. `pnpm check`.

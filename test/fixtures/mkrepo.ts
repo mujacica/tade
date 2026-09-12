@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { stringify } from 'yaml'
@@ -48,8 +48,9 @@ export function mkrepo(opts: { remote?: boolean } = {}): Repo & { remote: string
   const base = tmp('wilco-repo-')
   const root = join(base, 'repo')
   mkdirSync(root)
+  // Deliberately NOT excluding `.wilco/`: a real repository doesn't, and
+  // pretending otherwise hides bugs in how Wilco handles its own files.
   runGit(root, 'init', '-q', '-b', 'main')
-  appendFileSync(join(root, '.git', 'info', 'exclude'), '.wilco/\n')
 
   const repo: Repo & { remote: string | null } = {
     root,

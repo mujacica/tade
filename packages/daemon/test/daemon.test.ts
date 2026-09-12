@@ -137,7 +137,8 @@ describe('daemon', () => {
       await client.close()
       // Killing the daemon kills its children: they are its processes.
       await daemon.stop()
-      expect(isRunning(pid)).toBe(false)
+      // Killing is asynchronous: the signal goes out, then the child exits.
+      await until(() => !isRunning(pid))
 
       daemon = await Daemon.start({ home, socket, version: '9.9.9' })
       client = await DaemonClient.connect(socket)
