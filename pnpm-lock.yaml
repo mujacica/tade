@@ -21,8 +21,29 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/app:
+    dependencies:
+      '@earendil-works/pi-tui':
+        specifier: 0.85.1
+        version: 0.85.1
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@wilco/daemon':
+        specifier: workspace:*
+        version: link:../daemon
+      '@wilco/probes':
+        specifier: workspace:*
+        version: link:../probes
+      '@wilco/surface-voice':
+        specifier: workspace:*
+        version: link:../surface-voice
+
   packages/cli:
     dependencies:
+      '@wilco/app':
+        specifier: workspace:*
+        version: link:../app
       '@wilco/core':
         specifier: workspace:*
         version: link:../core

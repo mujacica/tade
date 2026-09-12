@@ -10,6 +10,12 @@ observable state, and is driven by an orchestrator. **You may be a Wilco worker 
 - `pnpm exec biome check --write .` formats and fixes.
 - `pnpm wilco <args>` runs the CLI from source.
 
+**Run the suite on its own.** `pnpm check` runs the gate in sequence for a reason: the tests spawn
+real git and PTY processes with short timeouts, so anything CPU-heavy running alongside them —
+`tsc` over the monorepo, most obviously — starves those processes and they time out. That looks
+exactly like a regression and is not one: 13 such failures over 485s became 465 passing in 8s once
+the suite had the machine to itself. Never conclude the suite is broken from a run that shared it.
+
 There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). Consequences:
 - Relative imports use the `.ts` extension: `import { x } from './x.ts'`.
 - Erasable syntax only: no `enum`, `namespace`, or constructor parameter properties.
@@ -65,6 +71,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 | `packages/driver-conformance` | shared suites for every port |
 | `packages/worker-acp` | ACP worker adapter |
 | `packages/orchestrator` | orchestrator extensions and prompt composition |
+| `packages/harness-pi` | the pi harness: worker adapter, signal channel, supervision extension |
+| `packages/surface-voice` | attention policy, intent grammar, earcons and spoken summaries |
+| `packages/app` | the window: project panes, orchestrator strip, push-to-talk |
 | `packages/cli` | the `wilco` binary |
 | `test/fixtures` | `mkrepo.ts`, provider transcript samples |
 

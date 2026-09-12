@@ -1,0 +1,192 @@
+import { visibleWidth } from '@earendil-works/pi-tui'
+import type { Turn } from '@wilco/surface-voice'
+import { describe, expect, it } from 'vitest'
+import {
+  type AppState,
+  addTurn,
+  focusTask,
+  initialState,
+  notice,
+  setDictation,
+  setListening,
+  setQuestion,
+  type TaskSnapshot,
+  withTasks,
+} from '../src/model.ts'
+import { renderApp, renderTurn } from '../src/view.ts'
+
+// The geometry contract matters more than the wording: a row that is not
+// exactly as wide as the window, or a frame with the wrong number of rows,
+// corrupts the whole screen.
+
+const tasks: TaskSnapshot[] = [
+  {
+    task: 'checkout/stripe-v15',
+    state: 'blocked',
+    lane: 'checkout/stripe-v15/agent',
+    waiting: true,
+  },
+  { task: 'checkout/refunds', state: 'working', lane: 'checkout/refunds/agent' },
+  { task: 'search/pagination', state: 'review' },
+]
+
+const state = (over: Partial<AppState> = {}): AppState => ({
+  ...withTasks(initialState(), tasks),
+  ...over,
+})
+
+const frame = (over: Partial<{ width: number; height: number; screen: string }> = {}) => ({
+  width: 80,
+  height: 24,
+  screen: '',
+  ...over,
+})
+
+const turn = (over: Partial<Turn> = {}): Turn => ({
+  utterance: 'park the stripe one',
+  intent: 'park',
+  task: 'checkout/stripe-v15',
+  why: 'you mentioned it last',
+  reply: 'parked stripe-v15',
+  at: 0,
+  ...over,
+})
+
+describe('the frame', () => {
+  it('fills the window exactly, at any size', () => {
+    for (const size of [
+      { width: 80, height: 24 },
+      { width: 120, height: 40 },
+      { width: 40, height: 12 },
+      { width: 200, height: 60 },
+    ]) {
+      const rows = renderApp(state(), frame(size))
+      expect(rows.length).toBe(size.height)
+      for (const row of rows) expect(visibleWidth(row)).toBe(size.width)
+    }
+  })
+
+  it('stays whole when an agent screen is wider and taller than the window', () => {
+    const screen = Array.from({ length: 200 }, (_, i) => `${'x'.repeat(300)} line ${i}`).join('\n')
+    const rows = renderApp(state(), frame({ screen }))
+    expect(rows.length).toBe(24)
+    for (const row of rows) expect(visibleWidth(row)).toBe(80)
+  })
+
+  it('survives a window too small to be reasonable', () => {
+    const rows = renderApp(state(), frame({ width: 10, height: 3 }))
+    expect(rows.length).toBeGreaterThan(0)
+    const width = visibleWidth(rows[0] ?? '')
+    for (const row of rows) expect(visibleWidth(row)).toBe(width)
+  })
+})
+
+describe('the projects list', () => {
+  it('shows every project and task, and marks the focused one', () => {
+    const text = renderApp(state(), frame()).join('\n')
+    expect(text).toContain('checkout')
+    expect(text).toContain('stripe-v15')
+    expect(text).toContain('search')
+    expect(text).toContain('pagination')
+    expect(text).toMatch(/▸.*stripe-v15/)
+  })
+
+  it('moves the marker with the focus', () => {
+    const text = renderApp(focusTask(state(), 'search/pagination'), frame()).join('\n')
+    expect(text).toMatch(/▸.*pagination/)
+    expect(text).not.toMatch(/▸.*stripe-v15/)
+  })
+})
+
+describe('the focused agent', () => {
+  it('shows the newest output, not the oldest', () => {
+    const screen = Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\n')
+    const text = renderApp(state(), frame({ screen })).join('\n')
+    // Tailing is the whole point: what an agent just said is what you need.
+    expect(text).toContain('line 99')
+    expect(text).not.toContain('line 0\n')
+  })
+
+  it('says so when there is no screen to show', () => {
+    const text = renderApp(focusTask(state(), 'search/pagination'), frame()).join('\n')
+    expect(text).toContain('no screen attached')
+  })
+
+  it('says when it is waiting on you', () => {
+    const text = renderApp(state(), frame()).join('\n')
+    expect(text).toContain('waiting on you')
+  })
+})
+
+describe('the orchestrator strip', () => {
+  it('is always there, even with nothing said yet', () => {
+    const text = renderApp(state(), frame()).join('\n')
+    expect(text).toContain('orchestrator')
+    expect(text).toContain('ctrl+space')
+  })
+
+  it('shows what was heard, where it went and why', () => {
+    const text = renderApp(addTurn(state(), turn()), frame()).join('\n')
+    expect(text).toContain('park the stripe one')
+    expect(text).toContain('checkout/stripe-v15')
+    expect(text).toContain('you mentioned it last')
+    expect(text).toContain('parked stripe-v15')
+  })
+
+  it('keeps the most recent exchange when there are many', () => {
+    let current = state()
+    for (let i = 0; i < 30; i++) current = addTurn(current, turn({ utterance: `said ${i}` }))
+    const text = renderApp(current, frame()).join('\n')
+    expect(text).toContain('said 29')
+    expect(text).not.toContain('said 0 ')
+  })
+
+  it('puts a question where you cannot miss it', () => {
+    const asked = setQuestion(state(), {
+      question: 'which one did you mean?',
+      candidates: ['checkout/refunds', 'checkout/stripe-v15'],
+    })
+    const text = renderApp(asked, frame()).join('\n')
+    expect(text).toContain('which one did you mean?')
+    expect(text).toContain('checkout/refunds')
+  })
+
+  it('shows what is being dictated as it is typed', () => {
+    const rows = renderApp(setDictation(state(), 'park the stripe'), frame())
+    const text = rows.join('\n')
+    expect(text).toContain('park the stripe')
+    // Still exactly the window's width, cursor and all.
+    for (const row of rows) expect(visibleWidth(row)).toBe(80)
+  })
+
+  it('shows the line the moment it opens, before anything is said', () => {
+    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('◉')
+  })
+
+  it('shows that it is listening', () => {
+    expect(renderApp(setListening(state(), true), frame()).join('\n')).toContain('listening')
+  })
+
+  it('shows the latest news', () => {
+    expect(renderApp(notice(state(), 'refunds needs you'), frame()).join('\n')).toContain(
+      'refunds needs you',
+    )
+  })
+})
+
+describe('renderTurn', () => {
+  it('reads as one exchange', () => {
+    expect(renderTurn(turn(), 80)).toEqual([
+      '❯ park the stripe one',
+      '  → park · checkout/stripe-v15 · "you mentioned it last"',
+      '  parked stripe-v15',
+    ])
+  })
+
+  it('leaves out what it does not have', () => {
+    expect(renderTurn(turn({ task: null, why: null, reply: '' }), 80)).toEqual([
+      '❯ park the stripe one',
+      '  → park',
+    ])
+  })
+})

@@ -25,7 +25,8 @@ Early prototype. What works today:
 | Orchestrator tools: an agent can drive Wilco itself | ✅ |
 | `wilco chat` | ✅ |
 | Voice: attention policy, intent grammar, earcons and speech, summaries | ✅ |
-| `wilco listen` (the voice loop as a command), memory, self-extension | not started |
+| `wilco app`: one window over every project, with the orchestrator always on screen | ✅ |
+| Speech-to-text, memory, self-extension | not started |
 
 ## Requirements
 
@@ -82,6 +83,7 @@ something to think with.
 | `wilco status [--json] [--no-pr]` | Every task and its state, derived fresh from git, running processes and provider transcripts |
 | `wilco config` | Print the effective config (file merged with defaults) as JSON |
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
+| `wilco app` | The window: every project, the agent you're watching, and the orchestrator |
 | `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
 | `wilco task create <project>/<name> --intent "..."` | Create a task: branch, worktree, your intent recorded verbatim |
 | `wilco task remove <task> [--force]` | Remove a task worktree; refuses to destroy unmerged work |
@@ -148,6 +150,38 @@ wilco logs -f --min-urgency notable
   log records periodic byte counts, so a chatty agent can't bloat the journal.
 - The socket is `$XDG_RUNTIME_DIR/wilco.sock` (else `~/.wilco/run/`), directory `0700`, socket
   `0600`: this user only, no TCP.
+
+### The window
+
+`wilco app` is one window over everything: your projects down the left, the agent you're currently
+watching in the middle, and the orchestrator along the bottom, where it cannot be closed — it is how
+you see what Wilco heard and what it did about it.
+
+```
+checkout          │ checkout · stripe-v15 · agent — waiting on you
+▸● stripe-v15     │ ────────────────────────────────────────────────
+ ○ refunds        │ $ npm i stripe@15
+search            │ ⏵ wants approval: bash: npm i stripe@15
+ ◆ pagination     │
+──── orchestrator ───────────────────────────────────────────────────
+❯ what's going on with checkout
+  → status · checkout · "you asked about it by name"
+  3 tasks, 1 working, 1 waiting on you.
+ 1 waiting  tab switch · ctrl+space talk · ? help
+```
+
+- **Tab** moves between agents; everything the window doesn't claim is typed straight into the agent
+  you're watching, so its own keybindings keep working.
+- **Ctrl+space** talks. Where the terminal reports key releases it is hold-to-talk; elsewhere it
+  toggles. Space is never claimed, because you have to be able to type one.
+- **A pane raises itself when an agent needs you** — but never while you're mid-sentence somewhere
+  else: nothing takes the screen out from under you until you've been idle for 30 seconds.
+- **Every exchange shows its reasoning** (`→ park · checkout/stripe-v15 · "you mentioned it last"`),
+  so a wrong guess is obvious and can be corrected rather than silently obeyed.
+- `a` and `d` answer an approval, and only while that pane is actually waiting on one.
+
+Speech-to-text is not wired in yet: the dictation line is typed today, and a transcriber will fill
+the same line later, through the same path.
 
 ### Agents and models
 

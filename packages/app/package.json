@@ -1,0 +1,17 @@
+{
+  "name": "@wilco/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-tui": "0.85.1",
+    "@wilco/core": "workspace:*",
+    "@wilco/daemon": "workspace:*",
+    "@wilco/probes": "workspace:*",
+    "@wilco/surface-voice": "workspace:*"
+  }
+}
