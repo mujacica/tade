@@ -80,7 +80,11 @@ export type TurnState = z.infer<typeof TurnState>
  * session adopted from a provider's transcript files.
  */
 export const AgentSignal = z.object({
-  source: z.enum(['lane', 'adopted']),
+  /**
+   * `lane` is a PTY Wilco opened, `run` a supervised agent it is driving, and
+   * `adopted` a session someone started outside Wilco entirely.
+   */
+  source: z.enum(['lane', 'run', 'adopted']),
   provider: z.string(),
   sessionId: z.string(),
   /** Process liveness; `null` when unknowable (adopted sessions). */
