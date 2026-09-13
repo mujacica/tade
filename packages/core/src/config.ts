@@ -90,6 +90,12 @@ export const ConfigSchema = z
         provider: z.string().optional(),
         model: z.string().optional(),
         extensions: z.string().default('~/.wilco/extensions'),
+        /**
+         * Look back at a task once it has finished, and write down a lesson if
+         * there is one. Costs a turn per finished task; set false if you would
+         * rather propose lessons yourself.
+         */
+        reflect: z.boolean().default(true),
       })
       .prefault({}),
     workers: z

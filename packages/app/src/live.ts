@@ -107,6 +107,11 @@ export class Live {
     return historyFrom(this.journal, this.now())
   }
 
+  /** What has happened recently, for anything that has to read it directly. */
+  get events(): readonly WilcoEvent[] {
+    return this.journal
+  }
+
   /** Where a task lives on disk, once status has seen it. */
   worktreeOf(task: string): string | null {
     return this.worktrees.get(task) ?? null

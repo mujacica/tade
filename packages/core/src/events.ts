@@ -39,6 +39,8 @@ export const EventType = z.enum([
   'failed',
   /** What a turn consumed, in tokens and money. */
   'usage',
+  /** A finished task was looked back over, so it is never looked at twice. */
+  'reflected',
   // the workbench itself
   'wilco_opened',
   'wilco_closing',
@@ -67,6 +69,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Routine rather than trace: spend is read back out of the journal, and
   // trace is the first thing dropped when a subscriber falls behind.
   usage: 'routine',
+  // Nobody needs to be told that Wilco thought about something.
+  reflected: 'trace',
   wilco_opened: 'notable',
   wilco_closing: 'notable',
   warning: 'notable',

@@ -12,7 +12,9 @@ import {
   DEFAULT_ATTENTION,
   describeWork,
   type LaneId,
+  needsReflection,
   parseQuietHours,
+  reflectionPrompt,
 } from '@wilco/core'
 import {
   type AudioClip,
@@ -26,6 +28,7 @@ import type { Workbench } from '@wilco/workbench'
 import { appKey } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
+import type { TaskSnapshot } from './model.ts'
 import {
   type AppState,
   addTurn,
@@ -113,6 +116,8 @@ export class App {
   /** Where you were last time, applied once the tasks are known. */
   private remembered: RememberedWindow | null = null
   private restored = false
+  /** Tasks being looked back at right now, so two polls cannot double up. */
+  private readonly reflecting = new Set<string>()
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -207,6 +212,7 @@ export class App {
           this.state = focusTask(this.state, this.remembered.focused)
           this.restored = this.state.panes.length > 0
         }
+        void this.reflect(tasks)
         this.draw()
       },
       onEvent: (event) => {
@@ -491,6 +497,37 @@ export class App {
       // The lane may not exist, or the terminal may have moved on. The pane
       // moved either way, which is the part this window can promise.
       return `Showing ${task}.`
+    }
+  }
+
+  /**
+   * Look back at tasks that have finished.
+   *
+   * Nothing was ever prompting the orchestrator to notice a lesson; a tool it
+   * may call whenever it likes is one it calls to be helpful rather than when
+   * it has learned something. A finished task is the one moment there is
+   * something to learn from, and the journal remembers which have been looked
+   * at, so nothing is reflected on twice.
+   *
+   * Quiet by design: it proposes, and what it proposes waits for you in
+   * `wilco skills` and the next brief. Nothing is said out loud.
+   */
+  private async reflect(tasks: readonly TaskSnapshot[]): Promise<void> {
+    const thinker = this.opts.thinker
+    if (!thinker || !this.opts.config.orchestrator.reflect) return
+    const finished = needsReflection(
+      tasks.map((task) => ({ task: task.task, state: task.state })),
+      this.live?.events ?? [],
+    ).filter((task) => !this.reflecting.has(task))
+
+    for (const task of finished) {
+      this.reflecting.add(task)
+      // Recorded before asking, not after: an ask that fails or is interrupted
+      // must not make Wilco ask again about the same task every two seconds.
+      await this.opts.client.log
+        .append({ type: 'reflected', task, detail: { by: 'orchestrator' } })
+        .catch(() => {})
+      await thinker.ask(reflectionPrompt(task)).catch(() => '')
     }
   }
 

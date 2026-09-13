@@ -466,6 +466,12 @@ wilco skills                      # active, proposed, turned down
 wilco skills activate payments-suite
 ```
 
+**When a task lands, Wilco looks back at it** and writes a lesson down if there is one — that is the
+only moment there is something to learn from, and a tool it may call whenever it likes is one it
+calls to be helpful rather than when it has learned something. It is asked in a way that makes
+declining the usual answer, because a lesson nobody needed costs context in every prompt after it.
+Set `orchestrator.reflect: false` to propose lessons yourself instead.
+
 The morning brief raises at most one waiting proposal, so something it wrote down is never something
 you were never told about. A turned-down lesson is kept, so the same idea is not proposed twice.
 
@@ -486,9 +492,6 @@ work out whether it was an oversight.
   models, and that turned out to be the part that mattered.
 - **No web dashboard.** The window is the surface. A second one would need its own answer to every
   question about focus and attention, for the same information.
-- **Nothing proposes a lesson on its own.** The orchestrator has a tool for writing one down and
-  uses it when it notices something; there is no reflector watching finished tasks. Automatic
-  proposals would mostly generate things to turn down.
 - **No wake word, and no transcription while you are still talking.** Push-to-talk is deliberate: a
   microphone that is always listening in a room where you take calls is a different product.
 - **One window per `WILCO_HOME` at a time.** Two would interleave in one journal. Questions —
@@ -514,6 +517,7 @@ approvals:
 orchestrator:
   provider: anthropic      # omit to use whatever the harness is logged in to
   model: claude-opus-5
+  reflect: true            # look back at a task when it lands, and note a lesson if there is one
 workers:
   default: cheap           # route used when a project names none
   routes:                  # each route is one way of running an agent
