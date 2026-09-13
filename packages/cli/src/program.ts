@@ -9,6 +9,7 @@ import { registerApp } from './commands/app.ts'
 import { registerBrief } from './commands/brief.ts'
 import { registerChat } from './commands/chat.ts'
 import { registerCheck } from './commands/check.ts'
+import { registerConfig } from './commands/config.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
 import { registerExtensions, registerSkills } from './commands/proposals.ts'
@@ -44,28 +45,6 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
     })
 
   program
-    .command('config')
-    .description('Inspect ~/.wilco/config.yaml')
-    .option('--check', 'validate the config file and exit')
-    .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (opts: { check?: boolean; config: string }) => {
-      const result = await loadConfig(opts.config)
-      if (!result.ok) {
-        io.err(`${result.path}: invalid config`)
-        for (const issue of result.issues) {
-          io.err(`  ${issue.path || '(file)'}: ${issue.message}`)
-        }
-        setExit(Exit.invalidInput)
-        return
-      }
-      if (opts.check) {
-        io.out(result.exists ? `${result.path}: ok` : `${result.path}: not found, using defaults`)
-        return
-      }
-      io.out(JSON.stringify(result.config, null, 2))
-    })
-
-  program
     .command('status')
     .description('Where are we: every task, derived fresh from git, processes and transcripts')
     .option('--json', 'machine-readable output')
@@ -93,6 +72,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
       else for (const line of formatStatus(ws)) io.out(line)
     })
 
+  registerConfig(program, io, setExit)
   registerSetup(program, io, setExit)
   registerApp(program, io, setExit)
   registerBrief(program, io, setExit)

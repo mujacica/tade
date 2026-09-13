@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { fileURLToPath } from 'node:url'
-import { runSetupUi, type SetupUi } from '@wilco/app'
+import { runScreen, ScreenCancelled, type Ui } from '@wilco/app'
 import {
   defaultConfigPath,
   isReady,
@@ -45,10 +45,7 @@ function readConfigText(): string {
  * Only offered where we know how — elsewhere it says the name and moves on,
  * because a wrong install command is worse than none.
  */
-async function offerInstall(
-  ui: SetupUi,
-  what: { name: string; packages: string[] },
-): Promise<boolean> {
+async function offerInstall(ui: Ui, what: { name: string; packages: string[] }): Promise<boolean> {
   const manager = installer()
   if (!manager) {
     ui.say(`  install ${what.packages.join(' and ')} and run \`wilco setup\` again`)
@@ -171,7 +168,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       }
 
       const stuck: string[] = []
-      await runSetupUi({ steps }, async (ui) => {
+      const flow = runScreen({ title: 'Setting up', context: render(steps) }, async (ui) => {
         for (const step of steps) {
           if (step.done) continue
           try {
@@ -188,9 +185,18 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
           }
           // The checklist is the point of the screen: it has to move as the
           // answers land, or it is a picture of the machine you arrived with.
-          ui.steps(readiness(await gather()))
+          ui.context(render(readiness(await gather())))
         }
       })
+      try {
+        await flow
+      } catch (err) {
+        // ctrl+c is how you leave a terminal program, not a failure: whatever
+        // was answered before it is already written down.
+        if (!(err instanceof ScreenCancelled)) throw err
+        io.out('Stopped. What you answered is saved.')
+        return
+      }
 
       for (const problem of stuck) io.err(`  ${problem}`)
       const after = readiness(await gather())
@@ -201,7 +207,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
     })
 }
 
-async function setUpProject(ui: SetupUi, facts: ReadinessFacts): Promise<void> {
+async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
   ui.say('A project is a git repository Wilco can start tasks in.')
   const suggested = facts.cwdIsRepo ? facts.cwd : ''
   const answer = await ui.ask('repository path', suggested)
@@ -219,18 +225,17 @@ async function setUpProject(ui: SetupUi, facts: ReadinessFacts): Promise<void> {
   ui.say(`  added ${name} → ${root}`)
 }
 
-async function setUpModel(ui: SetupUi): Promise<void> {
+async function setUpModel(ui: Ui): Promise<void> {
   if (!piLoggedIn() && API_KEYS.every((name) => !process.env[name])) {
     ui.say('Wilco holds no credentials of its own — the harness does.')
-    ui.say('  1. log in to a subscription (Claude, ChatGPT, Copilot, …)')
-    ui.say('  2. use an API key from the environment')
-    const choice = await ui.ask('which?', '1')
-    if (choice === '1') {
+    const choice = await ui.choose('How would you like to pay for a model?', [
+      'log in to a subscription (Claude, ChatGPT, Copilot, …)',
+      'use an API key from the environment',
+    ])
+    if (choice === 0) {
       ui.say('')
       ui.say('Opening the harness. Type /login, pick your provider, then /exit.')
-      await ui.run('pi — type /login, pick your provider, then /exit', process.execPath, [
-        piBinary(),
-      ])
+      await ui.run('pi — /login, pick your provider, then /exit', process.execPath, [piBinary()])
       if (!piLoggedIn()) throw new Error('still not logged in — run `wilco setup` again')
       ui.say('  logged in')
     } else {
@@ -254,12 +259,12 @@ async function setUpModel(ui: SetupUi): Promise<void> {
  * for: a default nobody was shown deciding whether a night's work stops when
  * you shut your laptop is not a default, it is a surprise.
  */
-async function setUpWorkspace(ui: SetupUi): Promise<void> {
-  ui.say('Agents run in a terminal. Where that terminal lives is up to you:')
-  ui.say('  · tmux — they keep working after you close Wilco, and you can attach from anywhere')
-  ui.say('  · pty  — nothing to install, and they stop when Wilco does')
-
-  const keepRunning = await ui.confirm('keep agents running after you close Wilco?', true)
+async function setUpWorkspace(ui: Ui): Promise<void> {
+  const keepRunning =
+    (await ui.choose('Where should agents run?', [
+      'tmux — they keep working after you close Wilco, and you can attach from anywhere',
+      'pty — nothing to install, and they stop when Wilco does',
+    ])) === 0
   if (!keepRunning) {
     patchConfig((config) => {
       config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
@@ -294,7 +299,7 @@ async function driverAvailable(driver: string): Promise<boolean> {
   return (await make(wilcoHome()).available()).ok
 }
 
-async function setUpVoice(ui: SetupUi, facts: ReadinessFacts): Promise<void> {
+async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
   ui.say(`Speech is optional — ${facts.speechReason ?? 'not set up'}.`)
   if (!(await ui.confirm('set it up now?', false))) {
     ui.say('  skipped — ctrl+space still opens a line you can type into')

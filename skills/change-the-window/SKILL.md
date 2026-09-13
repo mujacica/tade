@@ -14,6 +14,7 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
+| `screen.ts` | The screen Wilco asks you things on: setup, settings | a terminal (rendering is pure) |
 
 Put behaviour in `model.ts` and drawing in `view.ts`. If `app.ts` grows a rule, it is in the wrong
 file and cannot be tested.

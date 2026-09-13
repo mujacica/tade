@@ -169,8 +169,8 @@ something to think with.
 | Command | Description |
 |---|---|
 | `wilco status [--json] [--no-pr]` | Every task and its state, derived fresh from git, running processes and provider transcripts |
-| `wilco config` | Print the effective config (file merged with defaults) as JSON |
-| `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
+| `wilco config` | See every setting, what it is now and what changing it does — and change it |
+| `wilco config --json` / `--check` | Print the effective config as JSON / validate it, exiting `2` on a bad key |
 | `wilco setup` / `setup --check` | Walk through what is missing; or just report it |
 | `wilco` (no arguments) | The window: every project, the agent you're watching, and the orchestrator |
 | `wilco brief [--speak]` | Everything that matters, in one paragraph |
@@ -531,7 +531,14 @@ work out whether it was an oversight.
 
 ## Configuration
 
-`~/.wilco/config.yaml`. Every key is optional and unknown keys are rejected.
+**`wilco config` is a screen**: every setting, grouped, showing what it is now — or its default in
+brackets when you have not chosen — and a sentence on what changing it does, because the name of a
+key almost never answers that. Changes are written as you make them, and the file stays yours: it is
+read, changed and written back, so your comments and your key order survive everything except the one
+line you changed.
+
+`~/.wilco/config.yaml`. Every key is optional and unknown keys are rejected. Editing it by hand is
+still the same file.
 
 ```yaml
 workspace:

@@ -28,11 +28,12 @@ export {
 } from './model.ts'
 export { initialRouter, PREFIX, pending, type Routed, type RouterState, route } from './router.ts'
 export {
-  initialSetup,
-  renderSetup,
-  runSetupUi,
-  type SetupState,
-  type SetupUi,
-  type SetupUiOptions,
-} from './setup-ui.ts'
+  initialScreen,
+  renderScreen,
+  runScreen,
+  ScreenCancelled,
+  type ScreenOptions,
+  type ScreenState,
+  type Ui,
+} from './screen.ts'
 export { type Frame, renderApp, renderTurn } from './view.ts'

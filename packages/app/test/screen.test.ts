@@ -1,9 +1,8 @@
 import type { Terminal } from '@earendil-works/pi-tui'
-import type { Step } from '@wilco/core'
 import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
 import { PtyDriver } from '@wilco/drivers-pty'
 import { afterEach, describe, expect, it } from 'vitest'
-import { initialSetup, renderSetup, runSetupUi } from '../src/setup-ui.ts'
+import { initialScreen, renderScreen, runScreen, ScreenCancelled, type Ui } from '../src/screen.ts'
 
 // The first minute, drawn rather than printed.
 //
@@ -11,16 +10,11 @@ import { initialSetup, renderSetup, runSetupUi } from '../src/setup-ui.ts'
 // the terminal to pi while a readline was still reading it, and the two ate
 // each other's keystrokes.
 
-const steps: Step[] = [
-  { id: 'project', title: 'A project to work on', done: true, detail: '', required: true },
-  {
-    id: 'model',
-    title: 'A model to think with',
-    done: false,
-    detail: 'nothing set',
-    required: true,
-  },
-  { id: 'voice', title: 'Speech, if you want it', done: false, detail: 'no mic', required: false },
+/** What a caller keeps above the question: setup puts its checklist here. */
+const context = [
+  '✓ A project to work on',
+  '· A model to think with — nothing set',
+  '○ Speech, if you want it — no mic',
 ]
 
 class FakeTerminal implements Terminal {
@@ -54,38 +48,60 @@ class FakeTerminal implements Terminal {
 describe('the setup screen', () => {
   const frame = { width: 70, height: 20 }
 
-  it('marks what is done, what is needed and what is optional', () => {
-    const rows = renderSetup(initialSetup(steps), frame).join('\n')
+  it('keeps the banner, the standing context and the keys all on screen', () => {
+    const rows = renderScreen(initialScreen('Setting up', context), frame).join('\n')
+    expect(rows).toContain('Setting up')
     expect(rows).toContain('✓ A project to work on')
-    expect(rows).toContain('· A model to think with')
-    // Optional is marked differently, or "speech is not set up" reads as a
-    // failure on a machine that works perfectly well.
-    expect(rows).toContain('○ Speech, if you want it')
+    // The way out is always visible. A TUI with no stated way to leave it is
+    // one people close by killing the terminal.
+    expect(rows).toContain('ctrl+c quit')
+  })
+
+  it('drops the banner rather than the question on a small terminal', () => {
+    const small = renderScreen(initialScreen('Setting up', context), {
+      width: 40,
+      height: 14,
+    }).join('\n')
+    expect(small).toContain('W I L C O')
+    expect(small).not.toContain('██')
+    expect(small).toContain('✓ A project to work on')
+  })
+
+  it('shows a menu with the cursor on one of them', () => {
+    const state = {
+      ...initialScreen('Setting up', context),
+      menu: { question: 'which?', options: ['log in', 'use an API key'], index: 1 },
+    }
+    const rows = renderScreen(state, frame).join('\n')
+    expect(rows).toContain('▸ use an API key')
+    expect(rows).toContain('↑↓ choose')
   })
 
   it('shows the question and what has been typed at it', () => {
     const state = {
-      ...initialSetup(steps),
+      ...initialScreen('Setting up', context),
       prompt: { question: 'repository path', fallback: '/src/app', confirm: false },
       typed: '/src/other',
     }
-    const rows = renderSetup(state, frame).join('\n')
+    const rows = renderScreen(state, frame).join('\n')
     expect(rows).toContain('repository path [/src/app]: /src/other')
   })
 
   it('shows which way a yes/no question falls if you just press enter', () => {
     const yes = { question: 'keep agents running?', fallback: 'y', confirm: true }
-    expect(renderSetup({ ...initialSetup(steps), prompt: yes }, frame).join('\n')).toContain(
-      '[Y/n]',
-    )
+    expect(
+      renderScreen({ ...initialScreen('Setting up', context), prompt: yes }, frame).join('\n'),
+    ).toContain('[Y/n]')
     const no = { ...yes, fallback: 'n' }
-    expect(renderSetup({ ...initialSetup(steps), prompt: no }, frame).join('\n')).toContain('[y/N]')
+    expect(
+      renderScreen({ ...initialScreen('Setting up', context), prompt: no }, frame).join('\n'),
+    ).toContain('[y/N]')
   })
 
   it('tails an embedded terminal, because the newest line is the one to answer', () => {
     const screen = Array.from({ length: 60 }, (_, i) => `line ${i}`).join('\n')
-    const rows = renderSetup(
-      { ...initialSetup(steps), running: { title: 'pi', screen } },
+    const rows = renderScreen(
+      { ...initialScreen('Setting up', context), running: { title: 'pi', screen } },
       { width: 70, height: 16 },
     ).join('\n')
     expect(rows).toContain('line 59')
@@ -94,9 +110,12 @@ describe('the setup screen', () => {
   })
 
   it('never draws more rows than the terminal has', () => {
-    const state = { ...initialSetup(steps), said: Array.from({ length: 50 }, (_, i) => `n${i}`) }
+    const state = {
+      ...initialScreen('Setting up', context),
+      said: Array.from({ length: 50 }, (_, i) => `n${i}`),
+    }
     for (const height of [6, 12, 40]) {
-      expect(renderSetup(state, { width: 70, height }).length).toBeLessThanOrEqual(height)
+      expect(renderScreen(state, { width: 70, height }).length).toBeLessThanOrEqual(height)
     }
   })
 })
@@ -111,7 +130,7 @@ describe('answering it', () => {
   it('takes a typed answer, and an empty one means the suggestion', async () => {
     const terminal = new FakeTerminal()
     const answers: string[] = []
-    await runSetupUi({ steps, terminal }, async (ui) => {
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
       const typed = ui.ask('repository path', '/src/app')
       await until(() => terminal.written.includes('repository path'))
       for (const char of '/src/other') terminal.press(char)
@@ -129,7 +148,7 @@ describe('answering it', () => {
   it('treats enter on a yes/no question as the suggestion', async () => {
     const terminal = new FakeTerminal()
     const said: boolean[] = []
-    await runSetupUi({ steps, terminal }, async (ui) => {
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
       const keep = ui.confirm('keep agents running?', true)
       await until(() => terminal.written.includes('keep agents running?'))
       terminal.press('\r')
@@ -147,7 +166,7 @@ describe('answering it', () => {
     const terminal = new FakeTerminal()
     driver = new PtyDriver({ scrollback: 200 })
     let code: number | null = null
-    await runSetupUi({ steps, terminal, driver }, async (ui) => {
+    await runScreen({ title: 'Setting up', terminal, driver }, async (ui: Ui) => {
       const running = ui.run('echo', process.execPath, [ECHO_CHILD])
       await until(() => terminal.written.includes('ready'))
 
@@ -165,7 +184,7 @@ describe('answering it', () => {
   it('puts the terminal back however it ends', async () => {
     const terminal = new FakeTerminal()
     await expect(
-      runSetupUi({ steps, terminal }, async () => {
+      runScreen({ title: 'Setting up', terminal }, async () => {
         throw new Error('a step went wrong')
       }),
     ).rejects.toThrow('a step went wrong')
@@ -173,4 +192,48 @@ describe('answering it', () => {
     // worse first minute than the one this replaced.
     expect(terminal.written).toContain('\x1b[?1049l')
   })
+
+  it('chooses from a menu with the arrows, and with the number keys', async () => {
+    const terminal = new FakeTerminal()
+    const picked: number[] = []
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      const first = ui.choose('which?', ['log in', 'use an API key'])
+      await until(() => terminal.written.includes('which?'))
+      terminal.press('\x1b[B')
+      terminal.press('\r')
+      picked.push(await first)
+
+      const second = ui.choose('which?', ['log in', 'use an API key'])
+      await until(() => terminal.written.includes('use an API key'))
+      // The options are numbered on screen; typing one does what it looks like.
+      terminal.press('2')
+      picked.push(await second)
+    })
+    expect(picked).toEqual([1, 1])
+  })
+
+  it('stops on ctrl+c and puts the terminal back', async () => {
+    const terminal = new FakeTerminal()
+    const stopped = runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      await ui.ask('repository path', '/src/app')
+      throw new Error('it should never get here')
+    })
+    await until(() => terminal.written.includes('repository path'))
+    // The listener consumes every key, so without this ctrl+c does nothing at
+    // all and the only way out is killing the terminal.
+    terminal.press('\x03')
+    await expect(stopped).rejects.toThrow(ScreenCancelled)
+    expect(terminal.written).toContain('\x1b[?1049l')
+  })
+
+  it('stops on ctrl+c while a program is running inside it', async () => {
+    const terminal = new FakeTerminal()
+    driver = new PtyDriver({ scrollback: 200 })
+    const stopped = runScreen({ title: 'Setting up', terminal, driver }, async (ui: Ui) => {
+      await ui.run('echo', process.execPath, [ECHO_CHILD])
+    })
+    await until(() => terminal.written.includes('ready'))
+    terminal.press('\x03')
+    await expect(stopped).rejects.toThrow(ScreenCancelled)
+  }, 30_000)
 })
