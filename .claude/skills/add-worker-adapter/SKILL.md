@@ -23,10 +23,15 @@ closes, which is the thing this design exists to avoid.
 
 ## The contract
 
-- Emit `WorkerSignal`s: `started`, `turn_started`, `message`, `tool_call`, `tool_result`,
-  `permission_request`, `turn_done`, `idle`, `context`, `exited`. These are zod schemas because
-  they cross a socket.
-- Accept `WorkerCommand`s back: `decision`, `steer`, `queue`, `abort`, `shutdown`.
+- Emit `WorkerSignal`s: `started`, `turn_started`, `titled`, `message`, `message_delta`, `tool_call`,
+  `tool_result`, `extension_call`, `permission_request`, `turn_done`, `failed`, `idle`, `context`,
+  `usage`, `exited`. These are zod schemas because they cross a socket. A process that exits before
+  it answers anything says why with `failed`, from what it wrote to stderr — never leave a caller to
+  time out.
+- Accept `WorkerCommand`s back: `decision`, `steer`, `queue`, `abort`, `shutdown`, `extension_result`.
+- Honour `WorkerSpec.extras`: instructions appended to the agent's own, the list of extension tools
+  it may call (register them, and send `extension_call` when one is used, waiting for
+  `extension_result`), and the skills and native extensions extensions ship for this harness.
 - Declare `capabilities` truthfully. `permissionGate: false` means approvals cannot be trusted for
   that harness, and the policy engine must treat it accordingly — never fake it.
 
@@ -64,4 +69,4 @@ closes, which is the thing this design exists to avoid.
    call, deterministically and offline.
 5. Register the adapter where workers are chosen (`Workbench.adapterFor`), and add it to the
    `harness` enum in `packages/core/src/config.ts`.
-6. Update the agents section of `README.md`, then `pnpm check`.
+6. `pnpm check`.

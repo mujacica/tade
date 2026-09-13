@@ -84,6 +84,10 @@ file and cannot be tested.
   commands, never a second way of driving Wilco.
 - **Colour is decoration.** Every row must read correctly without it: `skinFor` returns the identity
   functions for `NO_COLOR`, a dumb terminal or a pipe, and tests render with the plain skin.
+- **Work you start for someone is shown in the conversation.** An extension's action, the brief, a
+  failure of the orchestrator: add it to `state.transcript` (`ran`, `said`, `suggest`, `problem` in
+  `transcript.ts`) rather than as a `notice`, which the next notice overwrites and which has no room
+  for the reason.
 - **Every exchange shows its reasoning** (`→ verb · task · "why"`). A wrong guess must be visible and
   correctable, never silently obeyed.
 
@@ -194,8 +198,7 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    the real machine's agent transcripts.
 7. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
    Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
-8. Update the **window** section of `README.md`.
-9. `pnpm check`.
+8. `pnpm check`.
 
 ## Gotchas
 

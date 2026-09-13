@@ -28,7 +28,6 @@ in step.
    rather than sleeping.
 4. Expose it where people reach it: the CLI (see `add-cli-command`), the window
    (`change-the-window`), or the orchestrator (`add-orchestrator-tool`).
-5. Update `README.md` in the same change.
 
 ## Rules
 

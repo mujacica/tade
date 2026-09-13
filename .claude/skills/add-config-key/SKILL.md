@@ -36,7 +36,8 @@ Schema: `ConfigSchema` in `packages/core/src/config.ts` (zod 4).
    the group they would look for it in: a `title`, a `means` sentence saying what changing it does,
    a `kind` (`choice`, `flag`, `number` with a `unit`, `text`, `hours`, `key`, `model`), and
    `live: false` if it is only read when Wilco starts — the panel labels it *on restart*.
-5. Document it in the **Configuration** block of `README.md` if users are expected to set it.
+5. Its `means` sentence is its documentation. The README shows config only for setting up something
+   people cannot start without (an extension's organization, say).
 6. `pnpm check`.
 
 Writing config: always edit the YAML **document** (`parseDocument`, `setIn`, `deleteIn`), never

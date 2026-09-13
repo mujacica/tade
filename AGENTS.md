@@ -30,15 +30,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 ## The four rules
 
 1. **R1: every port is an interface plus a registry.** A port lives with its subsystem —
-   `drivers/core`, `harnesses/core`, `voice/core` — next to the conformance suite its
-   implementations must pass. Implementations are registered by name in one registry map; call sites
+   `drivers/core`, `harnesses/core`, `voice/core`, `extensions/core` — next to the conformance suite
+   its implementations must pass. Implementations are registered by name in one registry map; call sites
    never `new` a concrete one.
 2. **R2: no port interface uses an implementation's vocabulary.** It's `write(lane, bytes)`,
    never `sendKeys`. Check every method name against this before implementing.
 3. **R3: capabilities are declared, never sniffed.** Branch on `driver.capabilities.focus`, never on
    `driver.id === 'tmux'`. A Biome plugin (`biome/no-port-id-check.grit`) fails lint on this.
-4. **R4: conformance suites come first.** Each port has a shared suite in
-   `packages/drivers/core`; every implementation must import and pass it.
+4. **R4: conformance suites come first.** Each port has a shared suite beside it in its `core`
+   package (`drivers/core`, `voice/core`, `extensions/core`); every implementation must import and
+   pass it.
 
 ## Other invariants
 
@@ -88,6 +89,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `status`, `logs`, `notes`, `summary`, `spend` — must read the files directly (`readJournal`,
   `Memory.open`) and never open the workbench. A question you cannot ask while a window is open is a
   question people stop asking.
+- **Extensions run in the window, and work happens in agents.** An extension's tools run in the
+  process that holds its settings and credentials; the orchestrator reaches them through the
+  `ToolHost` and agents through their supervision channel, so each harness sees them as its own
+  tools. A tool that changes a project starts an agent in a worktree (`ctx.wilco.startAgent`), with
+  what it found in `.wilco/context.md` — never the project's own checkout. Tool names start with the
+  extension's name, `ready()` never touches the network, and an extension that is broken is listed
+  as broken rather than stopping anything else.
+- **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
+  throws; anything else reaches the model as an empty answer that looks like success.
 - **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its
   own child agents, undiscoverable and dead when the window closes. If something that is not our own
   child would ever want to call it, it has become a daemon again — which is the thing we removed.
@@ -106,12 +116,18 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 
 ## Keeping the repo maintainable
 
-- `README.md` describes what works today. Update it in the same change as the behaviour.
-- **`skills/` holds step-by-step recipes** for recurring changes (new CLI command, config key, state
-  rule, transcript parser, ...). Use the matching skill, and add or update one when you create a new
-  extension point. They live at the repo root, not under any one agent's directory, so every agent
-  working on Wilco can read them — `.claude/skills` is a symlink to it. Do not confuse them with
-  `<WILCO_HOME>/skills`, which is what Wilco itself has learned.
+- **This file is the one guide.** `CLAUDE.md` is a link to it, so every agent reads the same words.
+- **`README.md` is the basics**: what Wilco is, how to install and start it, how to set up an
+  extension. Keep it that way. Everything else is documented where it is used — a command's
+  `--help`, a setting's `means`, the keys sheet, a tool's description — so it cannot drift from the
+  behaviour it describes.
+- **`.claude/skills/` holds step-by-step recipes** for recurring changes (a CLI command, a config
+  key, an extension, the window, ...). Use the matching skill, and add or update one when you create
+  a new extension point or a change teaches you something a recipe should have said. Do not confuse
+  them with `<WILCO_HOME>/skills`, which is what Wilco itself has learned.
+- **Third-party notices are generated.** After changing dependencies run `pnpm notices`, which
+  rewrites `THIRD_PARTY_NOTICES.md`; programs, services and data Wilco uses without installing are
+  listed in `scripts/notices.ts`.
 
 ## Where things go
 
@@ -129,8 +145,10 @@ implementations of it.
 | `packages/harnesses/pi` | runs and supervises pi |
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
-| `packages/orchestrator` | the thing you talk to: its tools and its prompt |
-| `packages/app` | the window: project panes, orchestrator strip, push-to-talk |
+| `packages/extensions/core` | the `WilcoExtension` port, the host that runs extensions, their suite |
+| `packages/extensions/{deps,sentry}` | the extensions that ship with Wilco |
+| `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
+| `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
 | `packages/cli` | the `wilco` binary |
 | `test/fixtures` | `mkrepo.ts`, provider transcript samples |
 

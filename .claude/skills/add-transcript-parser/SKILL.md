@@ -33,4 +33,3 @@ object in the `parsers` array: `{ provider, version, dir, depth, parse(chunk) }`
 5. For a **new provider**, also add its CLI to `PROVIDERS` in `packages/status/src/processes.ts`
    so a running process can prove liveness.
 6. `pnpm check`, then run `pnpm wilco status --json` on a machine with a live session and check it.
-7. Update the adoption bullet in `README.md` if the provider list changed.

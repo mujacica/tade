@@ -30,4 +30,4 @@ State is derived by one pure function, `deriveState(bundle)` in
 3. Change `deriveState`. Put the rule at the right priority, not at the end by default.
 4. Tunables go in `Thresholds`, never as inline literals.
 5. `pnpm test packages/core/test/state.test.ts`, then `pnpm check`.
-6. If the meaning of a state changed, update the state table in `README.md`.
+6. If the meaning of a state changed, say it where it is read: the `reason` strings and the brief.

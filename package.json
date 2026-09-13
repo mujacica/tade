@@ -1,6 +1,7 @@
 {
   "name": "wilco",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@10.27.0",
   "engines": {
@@ -14,7 +15,8 @@
     "check": "biome ci . && tsc -p tsconfig.json && vitest run",
     "wilco": "node packages/cli/src/bin.ts",
     "postinstall": "node scripts/fix-pty-permissions.mjs",
-    "screens": "node packages/app/scripts/screens.ts"
+    "screens": "node packages/app/scripts/screens.ts",
+    "notices": "node scripts/notices.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

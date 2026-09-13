@@ -15,12 +15,12 @@ description: Add a new signal to `wilco status` (e.g. test results, context usag
 - **Never throw.** A probe returns `{ ..., warnings: string[] }`; failure means a partial result
   (`null` fields) plus a warning that names the project/task. `collectStatus` has a last-resort
   catch, but reaching it is a bug.
-- **Git**: call `git()` from `probes/src/git.ts` (sets `GIT_OPTIONAL_LOCKS=0` so probes never take
+- **Git**: call `git()` from `packages/status/src/git.ts` (sets `GIT_OPTIONAL_LOCKS=0` so probes never take
   the index lock from under an agent). Use porcelain / `-z` formats and parse NUL-delimited output.
 - **No network by default in tests.** Anything that hits the network (like `gh`) is behind an option
   that tests turn off.
 - **Deterministic output.** Sort every list. `--json` runs on an unchanged machine must be
-  byte-identical (the idempotence test in `probes/test/status.test.ts` guards this).
+  byte-identical (the idempotence test in `packages/status/test/status.test.ts` guards this).
 - Probes gather facts; they don't decide state. If you catch yourself writing
   `if (...) state = 'blocked'` in a probe, the rule belongs in `deriveState`.
 
@@ -35,5 +35,4 @@ description: Add a new signal to `wilco status` (e.g. test results, context usag
 4. Feed it into `ProbeBundle` in `collectStatus`, then follow the `change-task-state` skill if it
    changes derivation.
 5. Add a never-throws case to `packages/status/test/status.test.ts` (missing tool, bad data).
-6. Update the `wilco status` section in `README.md`.
-7. `pnpm check`.
+6. `pnpm check`.

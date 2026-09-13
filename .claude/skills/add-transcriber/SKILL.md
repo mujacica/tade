@@ -5,7 +5,7 @@ description: Add a speech-to-text engine or a microphone backend (whisper.cpp, a
 
 # Adding a transcriber or a recorder
 
-Two ports, deliberately separate, in `packages/core/src/ports/transcriber.ts`:
+Two ports, deliberately separate, in `packages/voice/core/src/port.ts`:
 
 | Port | Job | Implementations |
 |---|---|---|
@@ -21,11 +21,12 @@ different sentences, and the same recorder feeds every engine.
 2. Add one entry to `transcribers` (or `recorders`) in `packages/voice/stt/src/index.ts`. That map is the
    only place a config name becomes an implementation.
 3. Add the name to the `stt.driver` / `mic.driver` enum in `packages/core/src/config.ts`.
-4. Import the conformance suite in `packages/voice/stt/test/conformance.test.ts`:
+4. Call the conformance suite (`testTranscriber` from `@wilco/voice-core/conformance`) in
+   `packages/voice/stt/test/conformance.test.ts`:
    ```ts
    testTranscriber('my-engine', () => new MyTranscriber())
    ```
-5. Update the engine table in `README.md`.
+5. Make sure `wilco voice` says what the engine needs when it is not ready.
 6. `pnpm check`.
 
 ## Rules

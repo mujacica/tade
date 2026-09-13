@@ -5,8 +5,12 @@ description: Add or change a tool the orchestrator can call (status, task create
 
 # Adding an orchestrator tool
 
-Tools live in `packages/orchestrator/src/tools-extension.ts`, which pi loads into the orchestrator
-session with `-e`. Each tool is a name, a description the model reads, a JSON Schema, and a function.
+Wilco's own tools live in `packages/orchestrator/src/tools-extension.ts`, which pi loads into the
+orchestrator session with `-e`. Each tool is a name, a description the model reads, a JSON Schema,
+and a function.
+
+**A tool about something outside Wilco** — a service, a project's files, a registry — is not one of
+these: it is an extension (see `add-extension`), which agents can use too and the window can run.
 
 ## Rules
 
@@ -23,9 +27,13 @@ session with `-e`. Each tool is a name, a description the model reads, a JSON Sc
   orchestrator sees exactly what a human sees.
 - **The description is the interface.** The model chooses tools by reading it, so say when to use
   the tool, not just what it does. `wilco_task_create` tells it to pass the human's words verbatim,
-  because that field can never be reconstructed later.
-- **Return text or JSON; never throw.** Errors come back as `{ output, isError: true }` so the model
-  can choose another route. A tool that throws kills the turn.
+  because that field can never be reconstructed later, and to pass the `context` and `links` it
+  gathered, which become `.wilco/context.md` in the agent's worktree.
+- **Answer with `content`; fail by throwing.** pi reads a tool's `{ content: [{ type: 'text', text }] }`
+  and nothing else, and marks a call failed only when it throws — the thrown message is what the
+  model reads, so make it say what to do instead. The `tool()` helper does both: return a string or
+  JSON from `run`, throw an `Error` with a reason. (Returning `{ output }` once gave the model an
+  empty answer from every tool, and no test noticed, because only the effect was checked.)
 - **Approval tools are not shortcuts.** `wilco_approve` exists so a human's spoken "yes" can be
   carried out; its description must keep it to that, never to the model approving its own work.
 - The orchestrator runs **unsupervised** (`supervise: false`): its own tool calls are not gated, so
@@ -38,5 +46,8 @@ session with `-e`. Each tool is a name, a description the model reads, a JSON Sc
    then expose it as a method on the `ToolHost`.
 3. Test it in `packages/orchestrator/test/tools.test.ts` against a real pi and a real workbench: the
    fake model in `test/fixtures/fake-model.ts` issues the tool call, and the assertion is that the
-   effect really happened (an event in the log, a worktree on disk), not merely that pi accepted it.
-4. `pnpm check`, then update the README if the orchestrator gained a user-visible ability.
+   effect really happened (an event in the log, a worktree on disk), not merely that pi accepted it —
+   and that the model was told the answer (`model.requests[1]` holds the tool message).
+4. If the prompt should mention it, change `ROLE` or `RULES` in `packages/core/src/compose.ts`, and
+   accept the golden with `WILCO_UPDATE_GOLDEN=1 pnpm vitest run packages/orchestrator/test/golden.test.ts`.
+5. `pnpm check`.

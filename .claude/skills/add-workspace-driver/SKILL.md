@@ -26,7 +26,6 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
 4. Register it in `drivers` in `packages/workbench/src/registry.ts`. That map is the only place a
    driver name turns into an implementation.
 5. Add the driver to the `workspace.driver` enum in `packages/core/src/config.ts`.
-6. Update the driver table in `README.md`.
 
 ## Rules
 
