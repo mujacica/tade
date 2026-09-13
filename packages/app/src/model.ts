@@ -86,6 +86,8 @@ export interface AppState {
   panel: Panel | null
   /** By task: the lane tab you chose, when it is not the agent. */
   viewing: Record<string, string>
+  /** Agents elsewhere that asked for you while you were looking at something else. */
+  toasts: { task: string; at: number }[]
 }
 
 /** Sections that start folded: the ones you look at on purpose, not all the time. */
@@ -113,6 +115,7 @@ export function initialState(): AppState {
     levels: [],
     panel: null,
     viewing: {},
+    toasts: [],
   }
 }
 
@@ -403,6 +406,16 @@ export function onEvent(state: AppState, event: WilcoEvent, now: number): AppSta
     }
   }
 
+  // Somewhere you are not looking needs you: say so where you will see it,
+  // without taking the screen.
+  if (waiting && event.task && event.task !== state.focused) {
+    next = {
+      ...next,
+      toasts: [...next.toasts.filter((t) => t.task !== event.task), { task: event.task, at: now }],
+    }
+  }
+  if (settled && event.task)
+    next = { ...next, toasts: next.toasts.filter((t) => t.task !== event.task) }
   if (!shouldRaise(next, event, now)) return next
   return { ...next, focused: event.task, notice: `${short(event.task ?? '')} needs you` }
 }
@@ -464,6 +477,7 @@ export type KeyAction =
   | { kind: 'approve' }
   | { kind: 'deny' }
   | { kind: 'help' }
+  | { kind: 'palette' }
   | { kind: 'quit' }
   | { kind: 'none' }
 
@@ -479,7 +493,7 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (key === 'talk-down') return { kind: 'talk-start' }
   if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
   if (key === 'ctrl+c') return { kind: 'quit' }
-  if (key === '?') return { kind: 'help' }
+  if (key === 'ctrl+g') return { kind: 'palette' }
   // Answering an approval is a single key only while one is actually waiting.
   const focused = state.panes.find((pane) => pane.task === state.focused)
   if (focused?.waiting && key === 'a') return { kind: 'approve' }

@@ -50,6 +50,7 @@ import {
   focusBy,
   focusedProject,
   focusTask,
+  glyph,
   initialState,
   keyAction,
   laneShown,
@@ -71,6 +72,7 @@ import {
   withProjects,
   withTasks,
 } from './model.ts'
+import type { OpenRowView } from './panel-view.ts'
 import {
   type Choice,
   type ConfirmRemovePanel,
@@ -78,10 +80,16 @@ import {
   diffPanel,
   menuItems,
   menuPanel,
+  nameFrom,
   newTaskPanel,
+  type OpenProjectPanel,
+  type OpenRow,
+  openProjectPanel,
+  type PaletteEntry,
   type Panel,
   type PanelInputs,
   type PanelOutcome,
+  palettePanel,
   panelClick,
   panelFailed,
   panelKey,
@@ -89,6 +97,17 @@ import {
   settingsPanel,
   spendPanel,
 } from './panels.ts'
+import {
+  ago,
+  branchOf,
+  browsing,
+  initialise,
+  isPath,
+  listFolders,
+  noteRecent,
+  readRecents,
+  recentProjects,
+} from './projects.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
@@ -228,6 +247,9 @@ export class App {
   private models: { id: string; provider: string; name: string }[] = []
   /** Providers the harness is signed in to, once read. */
   private accounts: string[] = []
+  /** The Open project list for the last query, and the branches found for its rows. */
+  private openCache: { query: string; rows: OpenRow[]; browsing: string | null } | null = null
+  private readonly branches = new Map<string, string | null>()
   private metering: NodeJS.Timeout | null = null
   /** Where you were last time, applied once the tasks are known. */
   private remembered: RememberedWindow | null = null
@@ -347,6 +369,14 @@ export class App {
     }
     if (panel.kind === 'diff') return { diff: this.diff }
     if (panel.kind === 'new-task') return { choices: this.choices }
+    if (panel.kind === 'palette') return { entries: this.paletteEntries() }
+    if (panel.kind === 'keys') {
+      const talk = this.opts.config.surfaces.voice.talk
+      return { talkKey: talk.key, talkMode: talk.mode, releases: kittyActive(this.terminal) }
+    }
+    if (panel.kind === 'open-project') {
+      return { openRows: this.openRowsFor(panel), browsing: this.openCache?.browsing ?? null }
+    }
     if (panel.kind === 'settings') {
       return {
         choices: this.choices,
@@ -573,6 +603,7 @@ export class App {
     if (this.state.panel) {
       const key = parseKey(data)
       if (key === 'ctrl+c') {
+        // Pressed again at the question, it is the answer: close anyway.
         void this.stop()
         return { consume: true }
       }
@@ -620,8 +651,12 @@ export class App {
         )
         this.draw()
         return { consume: true }
+      case 'palette':
+        this.state = { ...this.state, panel: palettePanel() }
+        this.draw()
+        return { consume: true }
       case 'quit':
-        void this.stop()
+        this.quit()
         return { consume: true }
       default:
         break
@@ -685,9 +720,12 @@ export class App {
       case 'change':
         void this.openDiff(target.task, target.path)
         return
-      case 'project':
+      case 'project': {
         this.state = selectProject(this.state, target.project)
+        const root = this.opts.config.projects[target.project]?.root
+        if (root) noteRecent(this.opts.home, target.project, root, this.now())
         break
+      }
       case 'section':
         this.state = toggleSection(this.state, target.section)
         break
@@ -713,12 +751,23 @@ export class App {
 
   /** The actions buttons name. Each is exactly what its label says. */
   private async run(action: string): Promise<void> {
+    const [verb, task] = action.split(':')
+    if (task && verb?.startsWith('toast-')) {
+      this.state = { ...this.state, toasts: this.state.toasts.filter((t) => t.task !== task) }
+      if (verb === 'toast-show') this.state = focusTask(this.state, task)
+      if (verb === 'toast-allow' || verb === 'toast-deny')
+        await this.decideFor(task, verb === 'toast-allow')
+      this.draw()
+      return
+    }
     switch (action) {
       case 'new-task':
         this.openNewTask()
         return
       case 'open-project':
-        await this.onScreen('/project')
+        this.openCache = null
+        this.state = { ...this.state, panel: openProjectPanel() }
+        this.draw()
         return
       case 'settings':
         await this.openSettings()
@@ -929,6 +978,22 @@ export class App {
       case 'confirm-remove':
         await this.removeTask(panel)
         break
+      case 'open-project':
+        await this.openProject(panel)
+        break
+      case 'palette':
+        await this.fromPalette(choice ?? '')
+        return
+      case 'keys':
+        await this.openSettings('keys')
+        return
+      case 'quit':
+        if (choice === 'where') {
+          await this.openSettings('agents')
+          return
+        }
+        await this.stop()
+        return
       case 'settings': {
         if (choice?.startsWith('write:')) {
           const [path, value] = choice.slice('write:'.length).split('\u0000')
@@ -957,6 +1022,136 @@ export class App {
       }
       default:
         return
+    }
+    this.draw()
+  }
+
+  /**
+   * Close, asking first only when closing would stop something: agents that
+   * live inside this window and cannot be found again once it is gone.
+   */
+  private quit(): void {
+    const capabilities = this.opts.client.driver.capabilities
+    const running = this.state.panes.reduce((n, pane) => n + pane.lanes.length, 0)
+    if (running > 0 && !capabilities.detach) {
+      this.state = { ...this.state, panel: { kind: 'quit', field: 'cancel', busy: false } }
+      this.draw()
+      return
+    }
+    void this.stop()
+  }
+
+  /** Everything the palette can go to, what needs you first. */
+  private paletteEntries(): PaletteEntry[] {
+    const entries: PaletteEntry[] = []
+    const panes = [...this.state.panes].sort((a, b) => Number(b.waiting) - Number(a.waiting))
+    const toneOf = (pane: (typeof panes)[number]): PaletteEntry['tone'] =>
+      pane.waiting || pane.state === 'blocked'
+        ? 'waiting'
+        : pane.state === 'failed'
+          ? 'bad'
+          : pane.state === 'review'
+            ? 'done'
+            : pane.state === 'working'
+              ? 'busy'
+              : 'hint'
+    for (const pane of panes) {
+      entries.push({
+        id: `task:${pane.task}`,
+        label: pane.project === this.state.project ? pane.name : pane.task,
+        kind: `task in ${pane.project}`,
+        mark: glyph(pane),
+        tone: toneOf(pane),
+        ...(pane.waiting ? { note: 'waiting on you' } : {}),
+      })
+    }
+    for (const pane of panes) {
+      if (pane.approval) {
+        entries.push({
+          id: `approve:${pane.task}`,
+          label: `Allow once: ${pane.approval.summary}`,
+          kind: 'approval',
+          mark: '▸',
+          tone: 'waiting',
+        })
+      }
+    }
+    for (const pane of panes) {
+      if (pane.lane)
+        entries.push({
+          id: `stop:${pane.task}`,
+          label: `Stop ${pane.name}`,
+          kind: 'agent',
+          mark: '■',
+        })
+      entries.push({
+        id: `changes:${pane.task}`,
+        label: `Show the changes in ${pane.name}`,
+        kind: 'task',
+        mark: '±',
+      })
+    }
+    for (const project of projects(this.state)) {
+      entries.push({ id: `project:${project}`, label: project, kind: 'project', mark: '◇' })
+    }
+    for (const [id, label] of [
+      ['new-task', 'New task'],
+      ['open-project', 'Open project'],
+      ['spend', 'Spend'],
+      ['settings', 'Settings'],
+      ['keys', 'Keys'],
+      ['quit', 'Quit'],
+    ] as const) {
+      entries.push({ id: `run:${id}`, label, kind: 'action', mark: '›' })
+    }
+    for (const group of settingsOf(this.opts.config)) {
+      for (const setting of group.settings) {
+        entries.push({
+          id: `setting:${group.id}`,
+          label: `Settings › ${group.title} › ${setting.title}`,
+          kind: 'setting',
+          mark: '◇',
+        })
+      }
+    }
+    return entries
+  }
+
+  /** Where a palette entry goes. */
+  private async fromPalette(id: string): Promise<void> {
+    const [verb, ...rest] = id.split(':')
+    const arg = rest.join(':')
+    this.state = { ...this.state, panel: null }
+    switch (verb) {
+      case 'task':
+        this.clicked({ kind: 'task', task: arg })
+        return
+      case 'approve':
+        this.state = focusTask(this.state, arg)
+        await this.decide(true)
+        return
+      case 'stop':
+        await this.stopAgent(arg)
+        return
+      case 'changes': {
+        const first = this.live?.changes(arg)[0]
+        if (first) await this.openDiff(arg, first.path)
+        else this.state = notice(this.state, `${arg} has not changed anything yet`)
+        break
+      }
+      case 'project':
+        this.clicked({ kind: 'project', project: arg })
+        return
+      case 'setting':
+        await this.openSettings(arg)
+        return
+      case 'run':
+        if (arg === 'keys') this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
+        else if (arg === 'quit') this.quit()
+        else await this.run(arg)
+        break
+      default:
+        break
     }
     this.draw()
   }
@@ -1470,6 +1665,11 @@ export class App {
   private async decide(allow: boolean): Promise<void> {
     const task = this.state.focused
     if (!task) return
+    await this.decideFor(task, allow)
+  }
+
+  /** Answer what one agent is waiting on, wherever you are looking. */
+  private async decideFor(task: string, allow: boolean): Promise<void> {
     try {
       const [pending] = await this.opts.client.pendingApprovals(task)
       if (!pending) return
@@ -1604,9 +1804,114 @@ export class App {
     return 'Settings are open.'
   }
 
+  /**
+   * The Open project list for what is typed: recent projects for a name,
+   * folders for a path. Read from disk once per query, not once per frame.
+   */
+  private openRowsFor(panel: OpenProjectPanel): OpenRowView[] {
+    if (this.openCache?.query !== panel.query) {
+      const cwd = this.opts.cwd ?? process.cwd()
+      const path = isPath(panel.query)
+      // Recent projects stay in view while you browse: going back to one is
+      // the commonest reason to open this at all.
+      const words = path ? [] : panel.query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const recent = recentProjects(readRecents(this.opts.home), this.opts.config.projects)
+        .filter((entry) =>
+          words.every((word) => `${entry.name} ${entry.root}`.toLowerCase().includes(word)),
+        )
+        .slice(0, path ? 5 : 12)
+        .map((entry) => ({
+          kind: 'recent' as const,
+          name: entry.name,
+          path: expandHome(entry.root),
+          git: true,
+        }))
+      if (path) {
+        const { dir, prefix } = browsing(panel.query, cwd)
+        const folders = listFolders(dir, prefix).map((folder) => ({
+          kind: 'folder' as const,
+          name: folder.name,
+          path: folder.path,
+          git: folder.git !== null,
+        }))
+        this.openCache = { query: panel.query, rows: [...recent, ...folders], browsing: tilde(dir) }
+      } else {
+        this.openCache = { query: panel.query, rows: recent, browsing: null }
+      }
+      for (const row of this.openCache.rows) {
+        if (row.git && !this.branches.has(row.path)) {
+          this.branches.set(row.path, null)
+          void branchOf(row.path).then((branch) => {
+            this.branches.set(row.path, branch)
+            this.draw()
+          })
+        }
+      }
+    }
+    const recents = readRecents(this.opts.home)
+    return this.openCache.rows.map((row) => ({
+      row,
+      branch: this.branches.get(row.path) ?? null,
+      tasks:
+        row.kind === 'recent'
+          ? this.state.panes.filter((pane) => pane.project === row.name).length
+          : 0,
+      when:
+        row.kind === 'recent'
+          ? ago(recents.find((entry) => entry.name === row.name)?.at ?? 0, this.now())
+          : null,
+    }))
+  }
+
+  /**
+   * Open what was chosen: go to a project Wilco knows, or add a folder as one —
+   * making it a repository first if it is not, and you said to.
+   */
+  private async openProject(panel: OpenProjectPanel): Promise<void> {
+    const chosen = this.openRowsFor(panel)[panel.index]?.row
+    const fail = (error: string) => {
+      this.state = { ...this.state, panel: { ...panel, busy: false, error } }
+    }
+    if (!chosen) return fail('Choose a project, or type a path to a folder.')
+    if (chosen.kind === 'recent') {
+      this.state = { ...selectProject(this.state, chosen.name), panel: null }
+      noteRecent(this.opts.home, chosen.name, chosen.path, this.now())
+      return
+    }
+    const name = panel.name ?? nameFrom(chosen.path)
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name))
+      return fail('A name is lowercase letters, digits and dashes.')
+    if (this.opts.config.projects[name])
+      return fail(`There is already a project called ${name}. Choose another name.`)
+    try {
+      if (!chosen.git) {
+        if (!panel.init)
+          return fail(
+            'Wilco needs git to start work here. Tick git init, or choose another folder.',
+          )
+        await initialise(chosen.path)
+      }
+      addProject(this.configPath, name, tilde(chosen.path))
+      const loaded = await loadConfig(this.configPath)
+      if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
+      this.opts.config = loaded.config
+      this.live?.useConfig(loaded.config)
+      noteRecent(this.opts.home, name, tilde(chosen.path), this.now())
+      this.state = withProjects(this.state, Object.keys(loaded.config.projects))
+      this.state = notice({ ...selectProject(this.state, name), panel: null }, `opened ${name}`)
+    } catch (err) {
+      fail(why(err))
+    }
+  }
+
   /** What panels need to know that they do not hold. */
   private panelInputs(): PanelInputs {
     return {
+      entries: this.state.panel?.kind === 'palette' ? this.paletteEntries() : [],
+      rows:
+        this.state.panel?.kind === 'open-project'
+          ? this.openRowsFor(this.state.panel).map((view) => view.row)
+          : [],
       choices: this.choices,
       items: this.menuItemsFor(this.state.panel),
       settings: settingsOf(this.opts.config),

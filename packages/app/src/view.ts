@@ -83,6 +83,13 @@ export interface Frame {
       | 'releases'
       | 'budgetWarnings'
       | 'levels'
+      | 'openRows'
+      | 'browsing'
+      | 'homeDir'
+      | 'entries'
+      | 'talkKey'
+      | 'talkMode'
+      | 'running'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
@@ -151,7 +158,19 @@ export function draw(state: AppState, frame: Frame): Drawn {
   add(renderStrip(state, frame, width, stripHeight, skin))
   add(renderFoot(state, frame, width, skin, pointer))
 
-  const window: Drawn = { rows, hits }
+  let window: Drawn = { rows, hits }
+  const toast = toastFor(state, frame, width, skin, pointer)
+  if (toast) {
+    const toastWidth = Math.max(0, ...toast.rows.map((row) => visibleWidth(row)))
+    window = overlay(
+      window,
+      toast,
+      { row: 2, col: Math.max(0, width - toastWidth - 1) },
+      width,
+      skin,
+      false,
+    )
+  }
   if (!state.panel) return window
   const extra = frame.panel ?? {}
   const drawing = drawPanel(state.panel, {
@@ -177,6 +196,13 @@ export function draw(state: AppState, frame: Frame): Drawn {
     releases: extra.releases ?? false,
     budgetWarnings: extra.budgetWarnings ?? 0,
     levels: extra.levels ?? state.levels,
+    openRows: extra.openRows ?? [],
+    browsing: extra.browsing ?? null,
+    homeDir: extra.homeDir ?? process.env.HOME ?? '',
+    entries: extra.entries ?? [],
+    talkKey: extra.talkKey ?? (frame.voice?.keys ?? ['ctrl', 'space']).join('+'),
+    talkMode: extra.talkMode ?? 'hold',
+    running: extra.running ?? state.panes.reduce((n, pane) => n + pane.lanes.length, 0),
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
@@ -217,6 +243,67 @@ export function draw(state: AppState, frame: Frame): Drawn {
     drawn = overlay(drawn, clipped, { row, col }, width, skin, false)
   }
   return drawn
+}
+
+/**
+ * An agent you are not looking at needs you: a card under the tabs, answerable
+ * where it appears. Only for what blocks an agent — news that does not need
+ * you goes to the orchestrator's transcript.
+ */
+function toastFor(
+  state: AppState,
+  frame: Frame,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+): Drawn | null {
+  const shown = state.toasts
+    .map((toast) => ({ toast, pane: state.panes.find((pane) => pane.task === toast.task) }))
+    .filter(({ pane }) => pane?.waiting && pane.approval && pane.task !== state.focused)
+    .at(-1)
+  if (!shown?.pane?.approval || width < 70) return null
+  const { toast, pane } = shown
+  const approval = pane.approval
+  if (!approval) return null
+  const cardWidth = 52
+  const inner = cardWidth - 2
+  const seconds = Math.max(0, Math.floor(((frame.now ?? toast.at) - toast.at) / 1000))
+  const card = box(
+    `${skin.waiting('●')} ${pane.project} › ${pane.name}`,
+    [
+      new Row(inner, skin)
+        .space()
+        .text('wants approval', skin.waiting)
+        .right((r) => r.text(`${seconds}s`, skin.hint).space())
+        .build(),
+      new Row(inner, skin)
+        .space()
+        .text(approval.tool, skin.you)
+        .space(2)
+        .text(approval.summary)
+        .build(),
+      blank(inner),
+      new Row(inner, skin, pointer)
+        .space()
+        .button('Allow once', { kind: 'action', name: `toast-allow:${pane.task}` }, 'attention')
+        .space()
+        .button('Deny', { kind: 'action', name: `toast-deny:${pane.task}` })
+        .space()
+        .button('Show', { kind: 'action', name: `toast-show:${pane.task}` })
+        .build(),
+    ],
+    cardWidth,
+    skin,
+    { tone: skin.waiting, corner: '×' },
+  )
+  // The × in the corner closes it.
+  card.hits.push({
+    row: 0,
+    from: cardWidth - 5,
+    to: cardWidth - 3,
+    target: { kind: 'action', name: `toast-close:${pane.task}` },
+  })
+  return card
 }
 
 // ── Top: projects, what needs you, and the key to talk ───────────────────────
@@ -270,8 +357,14 @@ function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin): void {
     r.text('◌ hearing you…', skin.hint, target)
     return
   }
+  if (!voice.available) {
+    // Said, not left to be discovered by holding a key that does nothing.
+    r.text('× voice off', skin.bad, target).space()
+    r.button('Set up', target)
+    return
+  }
   r.keys(voice.keys).space()
-  r.text(voice.available ? 'talk' : 'type', skin.hint, target)
+  r.text('talk', skin.hint, target)
 }
 
 function clock(seconds: number): string {

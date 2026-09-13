@@ -45,7 +45,7 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   // Releases of anything else are protocol noise: the shell acts on presses.
   if (released) return null
 
-  if (key === 'tab' || key === 'shift+tab' || key === 'ctrl+c' || key === '?') return key
+  if (key === 'tab' || key === 'shift+tab' || key === 'ctrl+c' || key === 'ctrl+g') return key
   // Only ever claimed while a pane is actually waiting, which the model knows.
   if (key === 'a' || key === 'd') return key
   return null
@@ -94,10 +94,10 @@ export function checkTalkKey(name: string): TalkKeyCheck {
   }
   const taken = TAKEN[key]
   if (taken) {
-    if (key === 'ctrl+c' || key === 'enter') return { ok: false, reason: `${key} ${taken}.` }
+    if (key === 'ctrl+c' || key === 'enter') return { ok: false, reason: `${capital(taken)}.` }
     return {
       ok: true,
-      warning: `${key}: ${taken}. While Wilco holds it, your agents never see it.`,
+      warning: `${capital(taken)}. While Wilco holds it, your agents never see it.`,
     }
   }
   return { ok: true, warning: null }

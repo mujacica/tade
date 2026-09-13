@@ -33,13 +33,14 @@ describe('keys the shell claims', () => {
     expect(appKey('\t', held)).toBe('tab')
     expect(appKey('\x1b[Z', held)).toBe('shift+tab')
     expect(appKey('\x03', held)).toBe('ctrl+c')
-    expect(appKey('?', held)).toBe('?')
+    expect(appKey('\x07', held)).toBe('ctrl+g')
     expect(appKey('a', held)).toBe('a')
     expect(appKey('d', held)).toBe('d')
   })
 
   it('leaves ordinary typing alone', () => {
-    for (const data of ['x', 'hello', '\r', '\x1b[A', '\x1b']) {
+    // `?` included: it is a character, and a question to an agent ends in one.
+    for (const data of ['x', 'hello', '?', '\r', '\x1b[A', '\x1b']) {
       expect(appKey(data, held)).toBeNull()
     }
   })

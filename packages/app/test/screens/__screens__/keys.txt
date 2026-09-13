@@ -1,0 +1,34 @@
+ WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
+▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds            $0.62   │                                                                                         
+                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+  M package.json        +2 ╭─ Keys ─────────────────────────────────────────────────── esc ─╮                           
+  A src/webhooks.test.ts  +│                                                                │                           
+  M src/webhooks.ts    +12 │ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
+                           │                                                                │                           
+ ▸ FILES                   │ GO TO ANYTHING   ▐ ctrl ▌+▐ g ▌                                │                           
+ ▸ NOTES  4                │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │                           
+                           │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
+                           │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
+                           │ QUIT             ▐ ctrl ▌+▐ c ▌                                │                           
+                           │                                                                │                           
+                           │ Everything else goes to the agent you're watching.             │                           
+                           │                                               ▐ Change keys… ▌ │───╮                       
+                           ╰────────────────────────────────────────────────────────────────╯   │                       
+                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
+━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 

@@ -17,6 +17,8 @@ import {
   menuItems,
   menuPanel,
   newTaskPanel,
+  openProjectPanel,
+  palettePanel,
   panelFailed,
   settingsPanel,
   spendPanel,
@@ -351,6 +353,129 @@ export const SCENARIOS: Scenario[] = [
       },
     },
     frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'open-project',
+    about:
+      'Opening a project: recent ones first, any folder by path, and git offered where there is none.',
+    state: { ...base(), panel: { ...openProjectPanel('~/src/pay'), index: 4 } },
+    frame: frame({
+      panel: {
+        browsing: '~/src',
+        homeDir: '/Users/me',
+        openRows: [
+          {
+            row: { kind: 'recent', name: 'checkout', path: '/Users/me/src/checkout', git: true },
+            branch: 'main',
+            tasks: 3,
+            when: '2h ago',
+          },
+          {
+            row: { kind: 'recent', name: 'search', path: '/Users/me/src/search', git: true },
+            branch: 'main',
+            tasks: 1,
+            when: 'yesterday',
+          },
+          {
+            row: { kind: 'recent', name: 'wilco', path: '/Users/me/wilco', git: true },
+            branch: 'main',
+            tasks: 0,
+            when: '4 days ago',
+          },
+          {
+            row: { kind: 'folder', name: 'payments', path: '/Users/me/src/payments', git: true },
+            branch: 'main',
+            tasks: 0,
+            when: null,
+          },
+          {
+            row: { kind: 'folder', name: 'payroll', path: '/Users/me/src/payroll', git: false },
+            branch: null,
+            tasks: 0,
+            when: null,
+          },
+        ],
+      },
+    }),
+  },
+  {
+    name: 'go-to-anything',
+    about: 'ctrl+g: every task, approval, action and setting, narrowed by what you type.',
+    state: { ...base(), panel: { ...palettePanel(), query: 'stri' } },
+    frame: frame({
+      panel: {
+        entries: [
+          {
+            id: 'task:checkout/stripe-v15',
+            label: 'stripe-v15',
+            kind: 'task in checkout',
+            mark: '●',
+            tone: 'waiting',
+            note: 'waiting on you',
+          },
+          {
+            id: 'approve:checkout/stripe-v15',
+            label: 'Allow once: npm i stripe@15',
+            kind: 'approval',
+            mark: '▸',
+            tone: 'waiting',
+          },
+          { id: 'stop:checkout/stripe-v15', label: 'Stop stripe-v15', kind: 'agent', mark: '■' },
+          {
+            id: 'changes:checkout/stripe-v15',
+            label: 'Show the changes in stripe-v15',
+            kind: 'task',
+            mark: '±',
+          },
+          {
+            id: 'setting:approvals',
+            label: 'Settings › Approvals › strict tools',
+            kind: 'setting',
+            mark: '◇',
+          },
+        ],
+      },
+    }),
+  },
+  {
+    name: 'keys',
+    about: 'The keys Wilco keeps, talking first.',
+    state: { ...base(), panel: { kind: 'keys', busy: false } },
+    frame: frame({ panel: { talkKey: 'ctrl+space', talkMode: 'hold', releases: true } }),
+  },
+  {
+    name: 'closing',
+    about: 'Closing asks only when it would stop agents, and says what happens to them.',
+    state: { ...base(), panel: { kind: 'quit', field: 'cancel', busy: false } },
+    frame: frame({ panel: { running: 2 } }),
+  },
+  {
+    name: 'another-project-needs-you',
+    about:
+      'An agent in a project you are not looking at wants approval: a toast, answerable where it is.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout', 'search', 'infra']), [
+          ...tasks.slice(1, 2),
+          {
+            task: 'search/pagination',
+            state: 'blocked',
+            lane: 'search/pagination/agent',
+            waiting: true,
+            approval: { tool: 'bash', summary: 'rm -rf node_modules && npm ci' },
+          },
+        ]),
+        'checkout/refunds',
+      ),
+      toasts: [{ task: 'search/pagination', at: NOW - 12_000 }],
+    },
+    frame: frame(),
+  },
+  {
+    name: 'voice-off',
+    about: 'No microphone or speech engine: the chip says so, and offers setup.',
+    state: base(),
+    frame: frame({ voice: { keys: ['ctrl', 'space'], available: false } }),
   },
   {
     name: 'first-open',

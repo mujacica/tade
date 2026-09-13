@@ -9,7 +9,7 @@
   A src/│  Approvals      byp│                                                            │                    │        
   M src/│▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
         │  Window            │                                                            │                    │        
- ▸ FILES│  Projects          │ ▲ ctrl+r: pi and most shells search history with ctrl+r.   │▾      ↻ on restart │        
+ ▸ FILES│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
  ▸ NOTES│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
         │  Keys              │                                                            │       ↻ on restart │        
         │  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        

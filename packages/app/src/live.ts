@@ -206,6 +206,12 @@ export class Live {
     return live
   }
 
+  /** Read the config again: a project opened from the window is status's to see at once. */
+  useConfig(config: Config): void {
+    this.opts.config = config
+    void this.refresh()
+  }
+
   get tasks(): TaskSnapshot[] {
     return this.snapshots
   }

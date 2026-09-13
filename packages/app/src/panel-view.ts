@@ -13,8 +13,15 @@ import {
   type MenuItem,
   type MenuPanel,
   matchingChoices,
+  matchingEntries,
   type NewTaskPanel,
+  nameFrom,
+  type OpenProjectPanel,
+  type OpenRow,
+  type PaletteEntry,
+  type PalettePanel,
   type Panel,
+  type QuitPanel,
   type SettingsPanel,
   type SpendPanel,
   usesDropdown,
@@ -67,6 +74,27 @@ export interface PanelContext {
   budgetWarnings: number
   /** How loud the microphone is, while it is being tried. */
   levels: readonly number[]
+  /** The Open project list, with what is known about each row. */
+  openRows: readonly OpenRowView[]
+  /** The folder being browsed, as you would type it. */
+  browsing: string | null
+  /** Your home directory, which paths are shown relative to. */
+  homeDir: string
+  /** Everything the palette can go to. */
+  entries: readonly PaletteEntry[]
+  /** The key you talk with, and how. */
+  talkKey: string
+  talkMode: 'hold' | 'toggle'
+  /** Agents that closing would stop. */
+  running: number
+}
+
+export interface OpenRowView {
+  row: OpenRow
+  branch: string | null
+  tasks: number
+  /** When it was last opened, said the way people say it. */
+  when: string | null
 }
 
 /** A panel, and anything that opens out of it and may reach past its edge. */
@@ -90,7 +118,290 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: diff(panel, ctx), popups: [] }
     case 'settings':
       return settings(panel, ctx)
+    case 'open-project':
+      return { panel: openProject(panel, ctx), popups: [] }
+    case 'palette':
+      return { panel: palette(panel, ctx), popups: [] }
+    case 'keys':
+      return { panel: keysSheet(ctx), popups: [] }
+    case 'quit':
+      return { panel: quit(panel, ctx), popups: [] }
   }
+}
+
+function palette(panel: PalettePanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(74, ctx.width - 4)
+  const inner = width - 2
+  const found = matchingEntries(ctx.entries, panel.query)
+  const room = Math.max(4, Math.min(14, ctx.height - 10))
+  const rows: { text: string; hits: Hit[] }[] = [
+    new Row(inner, skin)
+      .space()
+      .field(panel.query, inner - 2, { caret: true })
+      .build(),
+    blank(inner),
+  ]
+  const start = Math.max(0, Math.min(panel.index - room + 1, found.length - room))
+  found.slice(start, start + room).forEach((entry, offset) => {
+    const at = start + offset
+    const on = at === panel.index
+    const target = { kind: 'control' as const, id: `entry:${entry.id}` }
+    const tone = entry.tone ? skin[entry.tone] : skin.tab
+    const r = new Row(inner, skin)
+      .text(on ? '▌' : ' ', skin.signal)
+      .text(entry.mark, tone)
+      .space()
+    if (entry.note) {
+      // A task that needs you says where it is beside its name, and why at the edge.
+      r.text(pad(entry.label, 20), on ? skin.you : (t: string) => t)
+        .space()
+        .text(entry.kind, skin.hint)
+      r.right((right) => right.text(entry.note ?? '', skin.waiting).space())
+    } else {
+      r.text(entry.label, on ? skin.you : (t: string) => t)
+      r.right((right) => right.text(entry.kind, skin.hint).space())
+    }
+    const built = r.build()
+    rows.push({
+      text: on ? skin.selected(built.text) : built.text,
+      hits: [{ row: 0, from: 0, to: inner - 1, target }],
+    })
+  })
+  if (found.length === 0)
+    rows.push(new Row(inner, skin).space().text('Nothing by that name.', skin.hint).build())
+  rows.push(blank(inner))
+  rows.push(
+    new Row(inner, skin).space().text('↑↓ move · enter go · type to narrow', skin.hint).build(),
+  )
+  return box('Go to anything', rows, width, skin, { corner: 'ctrl+g' })
+}
+
+function keysSheet(ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(66, ctx.width - 4)
+  const inner = width - 2
+  const label = (text: string) =>
+    new Row(inner, skin, ctx.pointer).space().text(pad(text, 17), skin.label)
+  const talk = ctx.talkKey
+  const rows: { text: string; hits: Hit[] }[] = [
+    blank(inner),
+    label('TALK')
+      .keys(keyCaps(talk))
+      .space(2)
+      .text(
+        `${ctx.releases && ctx.talkMode === 'hold' ? 'hold' : 'press to start, press to stop'} · yours to change`,
+        skin.hint,
+      )
+      .build(),
+    blank(inner),
+    label('GO TO ANYTHING').keys(['ctrl', 'g']).build(),
+    label('NEXT AGENT').keys(['tab']).space(2).keys(['shift', 'tab']).build(),
+    label('ANSWER')
+      .keys(['a'])
+      .text(' allow  ', skin.hint)
+      .keys(['d'])
+      .text(' deny   ', skin.hint)
+      .text('only while one waits', skin.hint)
+      .build(),
+    label('IN A PANEL')
+      .keys(['enter'])
+      .space()
+      .keys(['esc'])
+      .space()
+      .keys(['↑'])
+      .keys(['↓'])
+      .build(),
+    label('QUIT').keys(['ctrl', 'c']).build(),
+    blank(inner),
+    new Row(inner, skin)
+      .space()
+      .text("Everything else goes to the agent you're watching.", skin.hint)
+      .build(),
+    new Row(inner, skin, ctx.pointer)
+      .right((r) => r.button('Change keys…', { kind: 'control', id: 'change-keys' }).space())
+      .build(),
+  ]
+  return box('Keys', rows, width, skin, { corner: 'esc' })
+}
+
+function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(62, ctx.width - 4)
+  const inner = width - 2
+  const pointer = ctx.pointer.hover
+    ? ctx.pointer
+    : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
+  const row = () => new Row(inner, skin, pointer)
+  const running = ctx.running
+  const rows: { text: string; hits: Hit[] }[] = [
+    blank(inner),
+    row()
+      .space()
+      .text(
+        `${running} agent${running === 1 ? ' is' : 's are'} running inside this window.`,
+        skin.you,
+      )
+      .build(),
+    blank(inner),
+    row()
+      .space()
+      .text('Agents here run under ')
+      .text('pty', skin.busy)
+      .text(', so closing stops them. Their')
+      .build(),
+    row().space().text('conversations are kept, and each one picks up where it').build(),
+    row().space().text('stopped the next time you open its task.').build(),
+    blank(inner),
+    row().space().text('Under tmux they would keep working after you close.', skin.hint).build(),
+    row()
+      .space()
+      .text('Settings › Agents › Where agents run', skin.link, { kind: 'control', id: 'where' })
+      .build(),
+    blank(inner),
+    row()
+      .right((r) =>
+        r
+          .button('Cancel', { kind: 'control', id: 'cancel' })
+          .space()
+          .button('Stop agents and close', { kind: 'control', id: 'quit' }, 'attention')
+          .space(),
+      )
+      .build(),
+  ]
+  return box('Close Wilco?', rows, width, skin, { corner: 'esc' })
+}
+
+function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(74, ctx.width - 4)
+  const inner = width - 2
+  const pointer =
+    ctx.pointer.hover || (panel.field !== 'init' && panel.field !== 'name')
+      ? ctx.pointer
+      : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
+  const row = () => new Row(inner, skin, pointer)
+  const rows: { text: string; hits: Hit[] }[] = []
+
+  rows.push(
+    row()
+      .space()
+      .field(panel.query, 50, {
+        caret: panel.field === 'query',
+        target: { kind: 'control', id: 'query' },
+      })
+      .right((r) => r.text('a path, or a name', skin.hint).space())
+      .build(),
+  )
+  rows.push(blank(inner))
+
+  const recent = ctx.openRows.filter((view) => view.row.kind === 'recent')
+  const folders = ctx.openRows.filter((view) => view.row.kind === 'folder')
+  const room = Math.max(4, Math.min(14, ctx.height - 18))
+  const line = (view: OpenRowView) => {
+    const at = ctx.openRows.indexOf(view)
+    const on = at === panel.index
+    const target = { kind: 'control' as const, id: `row:${at}` }
+    const r = new Row(inner, skin).text(on ? '▌' : ' ', skin.signal).space()
+    if (view.row.kind === 'recent') {
+      r.text(pad(view.row.name, 12), on ? skin.you : (t: string) => t)
+      r.text(pad(tildeOf(view.row.path, ctx.homeDir), 20))
+      r.text(pad(view.branch ?? '', 8), skin.hint)
+      if (view.tasks > 0) r.badge(view.tasks)
+      r.right((right) => right.text(view.when ?? '', skin.hint).space())
+    } else {
+      r.text(pad(`${view.row.name}/`, 14), skin.busy)
+      r.text(
+        view.row.git ? `git · ${view.branch ?? 'repository'}` : 'not a git repository',
+        view.row.git ? skin.hint : skin.waiting,
+      )
+    }
+    const built = r.build()
+    return {
+      text: on ? skin.selected(built.text) : built.text,
+      hits: [{ row: 0, from: 0, to: inner - 1, target }],
+    }
+  }
+
+  if (recent.length > 0) {
+    rows.push(row().space().text('RECENT', skin.label).build())
+    for (const view of recent.slice(0, room)) rows.push(line(view))
+    rows.push(blank(inner))
+  }
+  if (ctx.browsing !== null) {
+    rows.push(
+      row()
+        .space()
+        .text(`IN ${ctx.browsing}`, skin.label)
+        .right((r) => r.text('← up · → into', skin.hint).space())
+        .build(),
+    )
+    if (folders.length === 0) rows.push(row().space(3).text('no folders here', skin.hint).build())
+    for (const view of folders.slice(0, room)) rows.push(line(view))
+    rows.push(blank(inner))
+  }
+  if (recent.length === 0 && ctx.browsing === null) {
+    rows.push(
+      row().space().text('Nothing matches. Type a path to browse: ~/src/', skin.hint).build(),
+    )
+    rows.push(blank(inner))
+  }
+
+  const chosen = ctx.openRows[panel.index]?.row
+  if (chosen && !chosen.git) {
+    rows.push(
+      row()
+        .space()
+        .text('▲ ', skin.waiting)
+        .text(`${chosen.name} isn't a git repository. Tasks are git worktrees,`)
+        .build(),
+    )
+    rows.push(row().space(3).text('so Wilco needs one before it can start work there.').build())
+    rows.push(
+      row()
+        .space(3)
+        .check(panel.init, "git init, and commit what's there as the first commit", {
+          kind: 'control',
+          id: 'init',
+        })
+        .build(),
+    )
+    rows.push(blank(inner))
+  }
+  if (panel.error) {
+    rows.push(row().space().text(`▲ ${panel.error}`, skin.waiting).build())
+    rows.push(blank(inner))
+  }
+
+  const known = chosen?.kind === 'recent'
+  const name = known ? chosen.name : (panel.name ?? (chosen ? nameFrom(chosen.path) : ''))
+  rows.push(
+    row()
+      .space()
+      .text('Name  ', skin.hint)
+      .field(name, 26, {
+        caret: panel.field === 'name' && !known,
+        hint: known,
+        target: { kind: 'control', id: 'name' },
+      })
+      .right((r) =>
+        r
+          .button('Cancel', { kind: 'control', id: 'cancel' })
+          .space()
+          .button(
+            panel.busy ? 'Opening…' : known ? 'Go to project' : 'Open project',
+            { kind: 'control', id: 'open' },
+            panel.busy || !chosen || (!chosen.git && !panel.init) ? 'off' : 'primary',
+          )
+          .space(),
+      )
+      .build(),
+  )
+  return box('Open a project', rows, width, skin, { corner: 'esc' })
+}
+
+function tildeOf(path: string, home: string): string {
+  return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
 }
 
 // ── Settings ────────────────────────────────────────────────────────────────
