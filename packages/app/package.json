@@ -13,9 +13,11 @@
     "@wilco/workbench": "workspace:*",
     "@wilco/status": "workspace:*",
     "@wilco/voice-core": "workspace:*",
-    "@wilco/voice-tts": "workspace:*"
+    "@wilco/voice-tts": "workspace:*",
+    "@wilco/drivers-pty": "workspace:*"
   },
   "devDependencies": {
-    "@wilco/voice-stt": "workspace:*"
+    "@wilco/voice-stt": "workspace:*",
+    "@wilco/drivers-core": "workspace:*"
   }
 }

@@ -27,4 +27,12 @@ export {
   withTasks,
 } from './model.ts'
 export { initialRouter, PREFIX, pending, type Routed, type RouterState, route } from './router.ts'
+export {
+  initialSetup,
+  renderSetup,
+  runSetupUi,
+  type SetupState,
+  type SetupUi,
+  type SetupUiOptions,
+} from './setup-ui.ts'
 export { type Frame, renderApp, renderTurn } from './view.ts'

@@ -71,8 +71,15 @@ wilco
 
 `wilco` with no arguments opens the window. On a machine that has never run it, it walks you through
 a project, a model and somewhere to run agents before opening — it does not show you an empty window
-and let you work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup
---check` reports what is missing without changing anything:
+and let you work out the rest.
+
+Setup is a screen rather than a scroll of prompts: a checklist that ticks itself off as you answer,
+and **anything it has to run — logging into a provider, `brew install` — runs inside that screen**.
+Wilco keeps the keyboard throughout, which is what stops keystrokes going astray between two
+programs both reading the terminal. `ctrl+]` leaves an embedded program.
+
+`wilco setup` runs the same wizard on its own, and `wilco setup --check` reports what is missing
+without changing anything:
 
 ```
   ✓ A project to work on

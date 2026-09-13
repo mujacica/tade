@@ -29,6 +29,9 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
+      '@wilco/drivers-pty':
+        specifier: workspace:*
+        version: link:../drivers/pty
       '@wilco/status':
         specifier: workspace:*
         version: link:../status
@@ -42,6 +45,9 @@ importers:
         specifier: workspace:*
         version: link:../workbench
     devDependencies:
+      '@wilco/drivers-core':
+        specifier: workspace:*
+        version: link:../drivers/core
       '@wilco/voice-stt':
         specifier: workspace:*
         version: link:../voice/stt
