@@ -8,7 +8,7 @@
 // filesystem and the network; deciding what they mean does not, so the deciding
 // is here and exhaustively testable.
 
-export type StepId = 'project' | 'model' | 'workspace' | 'voice'
+export type StepId = 'project' | 'model' | 'workspace' | 'voice' | 'talk'
 
 export interface ReadinessFacts {
   /** `~/.wilco/config.yaml` exists and parses. */
@@ -33,6 +33,12 @@ export interface ReadinessFacts {
    * by a default nobody was shown.
    */
   driverChosen: boolean
+  /**
+   * Whether the config names the key you talk with. Like the driver: the
+   * default works, but a key you will press a hundred times a day is worth
+   * being shown once.
+   */
+  talkChosen?: boolean
   /** Speech, which is never required. */
   micOk: boolean
   speechOk: boolean
@@ -53,7 +59,7 @@ export interface Step {
 
 /** What a fresh machine still needs, in the order it should be done. */
 export function readiness(facts: ReadinessFacts): Step[] {
-  return [project(facts), model(facts), workspace(facts), voice(facts)]
+  return [project(facts), model(facts), workspace(facts), voice(facts), talk(facts)]
 }
 
 /** Ready enough to be useful. Voice is a convenience and never blocks. */
@@ -148,6 +154,18 @@ function voice(facts: ReadinessFacts): Step {
     done,
     detail: done ? '' : (facts.speechReason ?? 'no microphone'),
     // Typing works perfectly well; this is never a reason to stop.
+    required: false,
+  }
+}
+
+/** The key you hold to talk. The last step, so the window opens on the key you picked. */
+function talk(facts: ReadinessFacts): Step {
+  const done = facts.talkChosen === true
+  return {
+    id: 'talk',
+    title: 'Push to talk',
+    done,
+    detail: done ? '' : 'ctrl+space, unless you choose another',
     required: false,
   }
 }

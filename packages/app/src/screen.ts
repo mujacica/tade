@@ -4,11 +4,16 @@ import {
   type Terminal,
   TuiAltScreen,
   type TuiInputListenerResult,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
   truncateToWidth,
   visibleWidth,
 } from '@earendil-works/pi-tui'
 import type { LaneId } from '@wilco/core'
 import { PtyDriver } from '@wilco/drivers-pty'
+import { type Hit, hitAt } from './hits.ts'
+import { COLOUR as COLOUR_SKIN, PLAIN as PLAIN_SKIN, type Skin } from './skin.ts'
+import { blank, box, type Drawn, Row, stack } from './ui.ts'
 
 // A screen for the things Wilco asks you: setting up, and changing settings.
 //
@@ -21,17 +26,6 @@ import { PtyDriver } from '@wilco/drivers-pty'
 // a lane, exactly as an agent does, and its screen is drawn inside this one.
 // That is the claim the rest of Wilco makes — a window over things running
 // somewhere else — applied to the last place that was still shelling out.
-
-const LOGO = [
-  '██╗    ██╗██╗██╗      ██████╗ ██████╗ ',
-  '██║    ██║██║██║     ██╔════╝██╔═══██╗',
-  '██║ █╗ ██║██║██║     ██║     ██║   ██║',
-  '██║███╗██║██║██║     ██║     ██║   ██║',
-  '╚███╔███╔╝██║███████╗╚██████╗╚██████╔╝',
-  ' ╚══╝╚══╝ ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ',
-]
-/** Below this the banner is taking room the questions need. */
-const ROOM_FOR_LOGO = { width: 46, height: 24 }
 
 /**
  * How the screen is coloured.
@@ -163,10 +157,10 @@ export class ScreenCancelled extends Error {
 /**
  * The whole screen, one string per row.
  *
- * Fixed regions: the banner and whatever is always true at the top, the keys
- * you can press at the bottom, and the question in between. Fixed, because a
- * screen where the question moves as the transcript grows is one you have to
- * search every time you look up.
+ * Laid out as the first-run screen was designed: the wordmark, steps down the
+ * left when there are steps, and one question at a time in a panel on the
+ * right — with a program that has to run, like pi's sign-in, drawn inside that
+ * panel rather than handed the terminal.
  *
  * Pure: state in, rows out.
  */
@@ -174,110 +168,301 @@ export function renderScreen(
   state: ScreenState,
   frame: { width: number; height: number; palette?: Palette },
 ): string[] {
+  return drawScreen(state, frame).rows
+}
+
+/** The wordmark, in half blocks: curves in five rows rather than a wall of them. */
+const WORDMARK_LETTERS: Record<string, string[]> = {
+  W: ['██     ██', '██  ▄  ██', '██ ███ ██', '████▀████', ' ██▀ ▀██ '],
+  I: ['██', '██', '██', '██', '██'],
+  L: ['██      ', '██      ', '██      ', '██      ', '████████'],
+  C: [' ▄████▄ ', '██▀  ▀██', '██      ', '██▄  ▄██', ' ▀████▀ '],
+  O: [' ▄████▄ ', '██▀  ▀██', '██    ██', '██▄  ▄██', ' ▀████▀ '],
+}
+export const WORDMARK = [0, 1, 2, 3, 4].map((i) =>
+  [...'WILCO'].map((letter) => WORDMARK_LETTERS[letter]?.[i] ?? '').join('  '),
+)
+/** Five steps of the signal colour, light at the top. */
+const SHADES = [123, 87, 80, 73, 30]
+/** Below this the wordmark is taking room the questions need. */
+const ROOM_FOR_WORDMARK = { width: 60, height: 24 }
+
+interface Step {
+  mark: string
+  title: string
+  detail: string
+}
+
+/** A checklist line — `✓ A project — checkout` — or null for any other context. */
+function stepOf(line: string): Step | null {
+  const text = line.trim()
+  const mark = text.slice(0, 1)
+  if (!['✓', '·', '○', '▸'].includes(mark)) return null
+  const [title, ...detail] = text.slice(1).trim().split(' — ')
+  return { mark, title: title ?? '', detail: detail.join(' — ') }
+}
+
+export function drawScreen(
+  state: ScreenState,
+  frame: { width: number; height: number; palette?: Palette },
+): Drawn {
   const width = Math.max(30, frame.width)
   const height = Math.max(10, frame.height)
-  const paint = frame.palette ?? PLAIN
-  const rule = paint.rule('─'.repeat(width))
+  const skin: Skin = (frame.palette ?? PLAIN) === PLAIN ? PLAIN_SKIN : COLOUR_SKIN
+  const rows: { text: string; hits: Hit[] }[] = []
 
-  const head: string[] = []
-  if (width >= ROOM_FOR_LOGO.width && height >= ROOM_FOR_LOGO.height) {
-    LOGO.forEach((row, i) => {
-      head.push(`  ${paint.cursor(row)}${i === 2 ? `   ${paint.title(state.title)}` : ''}`)
+  // ── the wordmark, or its name where there is no room for it ──
+  const tagline = new Row(width, skin).space(4).text('will comply.', skin.you).space()
+  tagline.text(
+    state.title === 'Setting up'
+      ? 'A control room for the coding agents on this machine.'
+      : state.title,
+    skin.hint,
+  )
+  if (width >= ROOM_FOR_WORDMARK.width && height >= ROOM_FOR_WORDMARK.height) {
+    rows.push(blank(width))
+    WORDMARK.forEach((line, i) => {
+      const shade = SHADES[i] ?? 80
+      const painted = skin.colour ? `\x1b[38;5;${shade}m${line}\x1b[0m` : line
+      rows.push({ text: fitScreen(`    ${painted}`, width), hits: [] })
     })
-    head.push('')
+    rows.push(blank(width))
+    rows.push(tagline.build())
   } else {
-    head.push(`  ${paint.cursor('W I L C O')} · ${paint.title(state.title)}`)
+    rows.push(
+      new Row(width, skin)
+        .space()
+        .text('WILCO', skin.brand)
+        .text(` · ${state.title}`, skin.hint)
+        .build(),
+    )
   }
-  head.push(rule)
-  for (const line of state.context) head.push(`  ${colourContext(line, paint)}`)
-  if (state.context.length > 0) head.push(rule)
+  rows.push(blank(width))
 
-  const foot = [rule, `  ${paint.hint(keys(state))}`]
-  const body = renderBody(state, Math.max(1, height - head.length - foot.length), paint)
+  // ── the steps, and the question beside them ──
+  const steps = state.context.map(stepOf)
+  const checklist =
+    steps.every((step) => step !== null) && steps.length > 0 ? (steps as Step[]) : null
+  const current = checklist
+    ? checklist.findIndex((step) => step.mark === '·' || step.mark === '▸')
+    : -1
+  const room = Math.max(4, height - rows.length - 2)
+  const side = checklist && width >= 90 ? 28 : 0
+  const panelWidth = Math.min(width - side - 4, 84)
 
+  const left: { text: string; hits: Hit[] }[] = []
+  if (side > 0 && checklist) {
+    left.push({ text: skin.edge(`╭─ SET UP ${'─'.repeat(side - 11)}╮`), hits: [] })
+    checklist.forEach((step, i) => {
+      const on = i === current
+      const mark = on ? skin.signal('▸') : step.mark === '✓' ? skin.done('✓') : skin.hint(step.mark)
+      const r = new Row(side - 2, skin)
+        .space()
+        .text(mark)
+        .space()
+        .text(step.title, on ? skin.you : step.mark === '✓' ? (t: string) => t : skin.hint)
+      if (step.detail) r.right((right) => right.text(shorten(step.detail, 12), skin.hint).space())
+      const built = r.build()
+      left.push({
+        text: `${skin.edge('│')}${on ? skin.selected(built.text) : built.text}${skin.edge('│')}`,
+        hits: [],
+      })
+    })
+    left.push({ text: skin.edge(`╰${'─'.repeat(side - 2)}╯`), hits: [] })
+  }
+
+  const panel = drawQuestion(state, panelWidth, room, skin, checklist, current, side === 0)
+  const lines = Math.min(room, Math.max(left.length, panel.rows.length))
+  for (let i = 0; i < lines; i++) {
+    const l = side > 0 ? fitScreen(left[i]?.text ?? '', side) : ''
+    const r = panel.rows[i] ?? ''
+    const offset = 2 + (side > 0 ? side + 2 : 0)
+    rows.push({
+      text: fitScreen(`  ${l}${side > 0 ? '  ' : ''}${r}`, width),
+      hits: panel.hits
+        .filter((hit) => hit.row === i)
+        .map((hit) => ({ ...hit, row: 0, from: hit.from + offset, to: hit.to + offset })),
+    })
+  }
+  while (rows.length < height - 2) rows.push(blank(width))
+
+  // ── the keys ──
+  rows.push({ text: skin.chrome('─'.repeat(width)), hits: [] })
+  rows.push(
+    new Row(width, skin)
+      .space()
+      .text(keys(state), skin.hint)
+      .right((r) => r.text('ctrl+c quits — what you answered is saved', skin.hint).space())
+      .build(),
+  )
   // Clamped to what the terminal actually has, not to the minimum this layout
   // wants: drawing one row more than there is scrolls the screen out from
   // under itself, and a cramped window is somebody's split pane, not a bug.
-  return [...head, ...body, ...foot].slice(0, frame.height).map((row) => pad(row, width))
+  return stack(rows.slice(0, frame.height))
 }
 
-/**
- * The context lines are somebody else's strings — a checklist, a path — and
- * the marks at the front are the only part with a meaning worth colouring.
- */
-function colourContext(line: string, paint: Palette): string {
-  const mark = line.trimStart().slice(0, 1)
-  if (mark === '✓') return paint.done(line)
-  if (mark === '·' || mark === '▸') return paint.todo(line)
-  if (mark === '○') return paint.optional(line)
-  return line
+/** The question being asked, in its panel: a list, a field, or a program running. */
+function drawQuestion(
+  state: ScreenState,
+  width: number,
+  room: number,
+  skin: Skin,
+  checklist: Step[] | null,
+  current: number,
+  contextInside: boolean,
+): Drawn {
+  const inner = width - 2
+  const row = () => new Row(inner, skin)
+  const body: { text: string; hits: Hit[] }[] = []
+
+  // With no room for the steps beside the panel, they go inside it.
+  if (contextInside) {
+    for (const line of state.context) {
+      const step = stepOf(line)
+      const tone = step?.mark === '✓' ? skin.done : step ? skin.hint : skin.hint
+      body.push(row().space().text(line.trim(), tone).build())
+    }
+    if (state.context.length > 0) body.push(blank(inner))
+  }
+  for (const said of state.said) body.push(row().space().text(said.trim(), skin.hint).build())
+  if (state.said.length > 0) body.push(blank(inner))
+
+  let title = state.title
+  if (state.running) {
+    title = state.running.title
+    const screenRows = Math.max(3, room - body.length - 6)
+    const termWidth = inner - 2
+    body.push(
+      row()
+        .space()
+        .text(
+          `┌─ ${state.running.title} ${'─'.repeat(Math.max(0, termWidth - 5 - state.running.title.length))}┐`,
+          skin.chrome,
+        )
+        .build(),
+    )
+    const lines = state.running.screen.split('\n')
+    const shown = lines.slice(Math.max(0, lines.length - screenRows))
+    while (shown.length < screenRows) shown.push('')
+    for (const line of shown) {
+      body.push({
+        text: ` ${skin.chrome('│')}${fitScreen(line, termWidth - 2)}${skin.chrome('│')}`,
+        hits: [],
+      })
+    }
+    const back = ' ctrl+] back to Wilco '
+    body.push(
+      row()
+        .space()
+        .text(`└${'─'.repeat(Math.max(0, termWidth - 3 - back.length))}${back}─┘`, skin.chrome)
+        .build(),
+    )
+  } else if (state.menu) {
+    const menu = state.menu
+    title = menu.question
+    const found = matching(menu)
+    // A short list is read, not searched: the field only earns its row on a long one.
+    if (menu.options.length > 6 || menu.filter !== '') {
+      body.push(
+        row()
+          .space()
+          .field(menu.filter, Math.min(inner - 2, 40), { caret: true, hint: menu.filter === '' })
+          .right((r) => r.text(menu.filter === '' ? 'type to narrow' : '', skin.hint).space())
+          .build(),
+      )
+    }
+    body.push(blank(inner))
+    if (found.length === 0)
+      body.push(row().space(3).text('nothing matches that', skin.hint).build())
+    // A window around the cursor, so a long list neither overflows the screen
+    // nor scrolls the thing you are pointing at out of sight.
+    const space = Math.max(1, room - body.length - 5)
+    const first = Math.max(0, Math.min(menu.index - Math.floor(space / 2), found.length - space))
+    // Descriptions line up in a column, so the names read down the left.
+    const labelWidth = Math.max(
+      ...found.map(({ option }) => visibleWidth(option.split(' — ')[0] ?? option)),
+      0,
+    )
+    found.slice(first, first + space).forEach(({ option }, i) => {
+      const here = first + i === menu.index
+      const [label, ...more] = option.split(' — ')
+      const target = { kind: 'control' as const, id: `option:${first + i}` }
+      const r = row()
+        .space()
+        .text(here ? '◉' : '○', here ? skin.signal : skin.hint)
+        .space()
+      const name = label ?? option
+      r.text(name, here ? skin.you : (t: string) => t)
+      if (more.length > 0)
+        r.space(labelWidth - visibleWidth(name) + 3).text(more.join(' — '), skin.hint)
+      const built = r.build()
+      body.push({ text: built.text, hits: [{ row: 0, from: 0, to: inner - 1, target }] })
+    })
+  } else if (state.prompt) {
+    const prompt = state.prompt
+    title = prompt.question
+    if (prompt.confirm) {
+      const yes = prompt.fallback === 'y'
+      body.push(
+        row()
+          .space()
+          .text(`${prompt.question} [${yes ? 'Y/n' : 'y/N'}]`, skin.you)
+          .build(),
+      )
+      body.push(blank(inner))
+      body.push(
+        row()
+          .space()
+          .button('Yes', { kind: 'control', id: 'answer:y' }, yes ? 'primary' : 'rest')
+          .space()
+          .button('No', { kind: 'control', id: 'answer:n' }, yes ? 'rest' : 'primary')
+          .build(),
+      )
+    } else {
+      const shown = `${prompt.question}${prompt.fallback.trim() ? ` [${prompt.fallback}]` : ''}: ${state.typed}`
+      body.push(row().space().text(shown, skin.you).build())
+      body.push(
+        row()
+          .space()
+          .field(state.typed || prompt.fallback.trim(), Math.min(inner - 2, 60), {
+            caret: true,
+            hint: state.typed === '',
+          })
+          .build(),
+      )
+    }
+  }
+  if (state.finished) body.push(row().space().text(state.finished, skin.done).build())
+
+  body.push(blank(inner))
+  if (state.menu || (state.prompt && !state.prompt.confirm)) {
+    body.push(
+      row()
+        .right((r) =>
+          r.button('Continue ⏎', { kind: 'control', id: 'continue' }, 'primary').space(),
+        )
+        .build(),
+    )
+  }
+
+  const corner = checklist && current >= 0 ? `step ${current + 1} of ${checklist.length}` : ''
+  return box(title, body.slice(0, Math.max(1, room - 2)), width, skin, corner ? { corner } : {})
+}
+
+function shorten(text: string, size: number): string {
+  return [...text].length > size ? `${[...text].slice(0, size - 1).join('')}…` : text
+}
+
+function fitScreen(text: string, width: number): string {
+  const clipped = visibleWidth(text) > width ? truncateToWidth(text, width, '') : text
+  return clipped + ' '.repeat(Math.max(0, width - visibleWidth(clipped)))
 }
 
 function keys(state: ScreenState): string {
-  if (state.running) return 'ctrl+] leave it · ctrl+c quit'
-  if (state.menu) return '↑↓ choose · enter accept · ctrl+c quit'
-  if (state.prompt) return 'enter accepts the suggestion · ctrl+c quit'
-  return 'ctrl+c quit'
-}
-
-function renderBody(state: ScreenState, height: number, paint: Palette): string[] {
-  if (state.running) {
-    const rows = [`  ${paint.title(state.running.title)}`, '']
-    const screen = state.running.screen.split('\n')
-    // Tail it: what a program just printed is what you need to answer.
-    for (const line of screen.slice(Math.max(0, screen.length - (height - 2)))) {
-      rows.push(`  ${line}`)
-    }
-    return fill(rows, height)
-  }
-
-  if (state.menu) {
-    const menu = state.menu
-    const found = matching(menu)
-    const rows = [`  ${paint.title(menu.question)}`]
-    rows.push(
-      `  ${paint.cursor('❯')} ${menu.filter}${menu.filter === '' ? paint.hint('type to narrow') : ''}`,
-    )
-    rows.push('')
-    if (found.length === 0) rows.push(`    ${paint.hint('nothing matches that')}`)
-
-    // A window around the cursor, so a long list neither overflows the screen
-    // nor scrolls the thing you are pointing at out of sight.
-    const room = Math.max(1, height - rows.length)
-    const first = Math.max(0, Math.min(menu.index - Math.floor(room / 2), found.length - room))
-    found.slice(first, first + room).forEach(({ option }, i) => {
-      const here = first + i === menu.index
-      rows.push(here ? `  ${paint.cursor(`▸ ${option}`)}` : `    ${paint.said(option)}`)
-    })
-    return fill(rows, height)
-  }
-
-  // Everything hugs the top: a question at the bottom of an empty screen is a
-  // question you have to go looking for.
-  const rows = state.said.map((said) => `  ${paint.said(said)}`)
-  if (state.prompt) {
-    const shown = state.prompt.confirm
-      ? `${state.prompt.question} [${state.prompt.fallback === 'y' ? 'Y/n' : 'y/N'}]`
-      : `${state.prompt.question}${state.prompt.fallback ? ` [${state.prompt.fallback}]` : ''}`
-    rows.push('', `  ${paint.cursor('❯')} ${shown}: ${state.typed}`)
-  }
-  if (state.finished) rows.push('', `  ${paint.done(state.finished)}`)
-  // Cropped from the top when there is more than fits: the newest lines and
-  // the question are what matter, and they are at the end.
-  return fill(rows.slice(Math.max(0, rows.length - height)), height)
-}
-
-function fill(rows: string[], height: number): string[] {
-  while (rows.length < height) rows.push('')
-  return rows.slice(0, height)
-}
-
-function pad(text: string, width: number): string {
-  // By what it looks like, not by how long the string is: `padEnd` counts the
-  // bytes in a colour code, so a coloured row would come out short and the
-  // whole screen ragged down one side.
-  const clipped = truncateToWidth(text, width)
-  return clipped + ' '.repeat(Math.max(0, width - visibleWidth(clipped)))
+  if (state.running) return 'ctrl+] back to Wilco'
+  if (state.menu) return '↑↓ choose · enter continue'
+  if (state.prompt) return 'enter continues, or takes the suggestion'
+  return ''
 }
 
 /** What a flow can do to the screen. */
@@ -342,7 +527,12 @@ export async function runScreen(
 
   const draw = () => tui.requestRender()
   const palette = opts.palette ?? paletteFor(opts.env ?? process.env, true)
-  tui.addChild(new Screen(() => ({ state, height: Math.max(10, terminal.rows), palette })))
+  tui.addChild(
+    new Screen(
+      () => ({ state, height: Math.max(10, terminal.rows), palette }),
+      (id) => clicked(id),
+    ),
+  )
 
   /** Whoever is waiting on a keystroke right now. */
   let answer: ((text: string) => void) | null = null
@@ -420,6 +610,36 @@ export async function runScreen(
     draw()
     return { consume: true }
   })
+
+  /** A click is the same answer the keyboard would have given. */
+  const clicked = (id: string) => {
+    if (lane || !answer) return
+    const menu = state.menu
+    if (menu && id.startsWith('option:')) {
+      const found = matching(menu)
+      const index = Number(id.slice('option:'.length))
+      const picked = found[index]
+      if (!picked) return
+      const settle = answer
+      answer = null
+      state = { ...state, menu: null }
+      settle(String(picked.at))
+    } else if (menu && id === 'continue') {
+      const picked = matching(menu)[menu.index]
+      if (!picked) return
+      const settle = answer
+      answer = null
+      state = { ...state, menu: null }
+      settle(String(picked.at))
+    } else if (state.prompt && (id === 'continue' || id.startsWith('answer:'))) {
+      const text = id.startsWith('answer:') ? id.slice('answer:'.length) : state.typed
+      const settle = answer
+      answer = null
+      state = { ...state, typed: '' }
+      settle(text)
+    }
+    draw()
+  }
 
   tui.start()
   draw()
@@ -540,14 +760,27 @@ function stringly(env: NodeJS.ProcessEnv): Record<string, string> {
 
 class Screen implements Component {
   private readonly frame: () => { state: ScreenState; height: number; palette: Palette }
+  private readonly onClick: (id: string) => void
+  private hits: readonly Hit[] = []
 
-  constructor(frame: Screen['frame']) {
+  constructor(frame: Screen['frame'], onClick: (id: string) => void) {
     this.frame = frame
+    this.onClick = onClick
   }
 
   render(width: number): string[] {
     const { state, height, palette } = this.frame()
-    return renderScreen(state, { width, height, palette })
+    const drawn = drawScreen(state, { width, height, palette })
+    this.hits = drawn.hits
+    return drawn.rows
+  }
+
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    if (event.type !== 'click' || event.button !== 'left') return undefined
+    const target = hitAt(this.hits, event.x, event.y)
+    if (target?.kind !== 'control') return undefined
+    this.onClick(target.id)
+    return { handled: true }
   }
 
   invalidate(): void {

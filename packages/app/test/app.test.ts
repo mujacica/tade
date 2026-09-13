@@ -379,4 +379,48 @@ describe('the window, wired up', () => {
     const [created] = await client.events({ types: ['task_created'] })
     expect(created?.detail.intent_spoken).toBe('tidy the readme')
   }, 30_000)
+
+  // The panels, opened the way a person opens them, through the whole window.
+  // The screen tests draw each panel from a frame they build themselves; these
+  // are what notice when the window stops handing a panel what it needs.
+
+  it('opens Settings from its button, with its categories and controls', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    terminal.written = ''
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents run'))
+    expect(terminal.written).toContain('Accounts')
+  })
+
+  it("opens a task's menu with a right-click, listing what can be done", async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const task = find('refunds')
+    terminal.written = ''
+    terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}M`)
+    terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}m`)
+    await until('the menu', () => terminal.written.includes('Remove task'))
+    expect(terminal.written).toContain('Copy branch name')
+  })
+
+  it('goes to anything with ctrl+g, and finds the tasks there', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+    terminal.press('\x07')
+    await until('the palette', () => terminal.written.includes('Go to anything'))
+    for (const char of 'sear') terminal.press(char)
+    await until('the search task', () => terminal.written.includes('task in app'))
+  })
+
+  it('opens the Spend panel from the status bar', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('today'))
+    const status = find('today')
+    terminal.written = ''
+    click(status.col + 1, status.row)
+    await until('the spend panel', () => terminal.written.includes('BUDGETS'))
+  })
 })

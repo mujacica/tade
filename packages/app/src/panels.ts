@@ -290,7 +290,11 @@ export function visibleSettings(panel: SettingsPanel, groups: readonly SettingGr
         return words.every((word) => haystack.includes(word))
       })
       .map(({ setting }) => setting)
-      .filter((setting) => (seen.has(setting.path) ? false : (seen.add(setting.path), true)))
+      .filter((setting) => {
+        if (seen.has(setting.path)) return false
+        seen.add(setting.path)
+        return true
+      })
   }
   return groups.find((group) => group.id === panel.category)?.settings ?? []
 }

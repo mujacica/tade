@@ -18,7 +18,7 @@ import { piBinary, usableModels } from '@wilco/harnesses-pi'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { drivers } from '@wilco/workbench'
 import type { Command } from 'commander'
-import { parse, stringify } from 'yaml'
+import { type Document, parseDocument } from 'yaml'
 import { Exit, type Io } from '../io.ts'
 import { WHISPER_MODELS } from './voice.ts'
 
@@ -113,6 +113,7 @@ export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
     // Read from the file rather than the parsed config, which supplies a
     // default: the question is whether a person chose, not what is in effect.
     driverChosen: /^\s*driver:/m.test(readConfigText()),
+    talkChosen: /^\s*talk:/m.test(readConfigText()),
     micOk: mic.ok,
     speechOk: speech.ok,
     speechReason: speech.ok ? null : speech.reason,
@@ -177,6 +178,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
             if (step.id === 'model') await setUpModel(ui)
             if (step.id === 'workspace') await setUpWorkspace(ui)
             if (step.id === 'voice') await setUpVoice(ui, facts)
+            if (step.id === 'talk') await setUpTalkKey(ui)
           } catch (err) {
             // One step that cannot be finished is not a reason to abandon the
             // others: somebody who has to go and export an API key should
@@ -341,6 +343,29 @@ async function driverAvailable(driver: string): Promise<boolean> {
   return (await make(wilcoHome()).available()).ok
 }
 
+/**
+ * The key you hold to talk. Offered from keys nothing in pi or a shell already
+ * wants; any other can be pressed later in Settings › Voice.
+ */
+async function setUpTalkKey(ui: Ui): Promise<void> {
+  const keys = ['ctrl+space', 'f5', 'ctrl+t'] as const
+  const picked = await ui.choose('Which key do you hold to talk?', [
+    'ctrl+space — the default, and nothing else uses it',
+    'F5 — one key, free in pi and your shell',
+    'ctrl+t — free in pi and most shells',
+  ])
+  const key = keys[picked] ?? 'ctrl+space'
+  patchConfig((config) => {
+    const surfaces = (config.surfaces ?? {}) as Record<string, Record<string, unknown>>
+    const voice = (surfaces.voice ?? {}) as Record<string, unknown>
+    config.surfaces = {
+      ...surfaces,
+      voice: { ...voice, talk: { ...((voice.talk as object) ?? {}), key } },
+    }
+  })
+  ui.say(`  hold ${key} to talk — Settings › Voice changes it, and any key you can press is fine`)
+}
+
 async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
   ui.say(`Speech is optional — ${facts.speechReason ?? 'not set up'}.`)
   ui.say('Whatever you choose, ctrl+space always opens a line you can type into.')
@@ -431,14 +456,36 @@ function modelPathFor(name: string): string {
 /** Read, change and write `config.yaml`, keeping whatever else is in it. */
 function patchConfig(change: (config: Record<string, unknown>) => void): void {
   const path = defaultConfigPath()
-  let config: Record<string, unknown> = {}
+  let text = ''
   try {
-    config = (parse(readFileSync(path, 'utf8')) as Record<string, unknown>) ?? {}
+    text = readFileSync(path, 'utf8')
   } catch {
-    // No config yet, or one we cannot read: this writes a fresh one.
+    // No config yet: this writes a fresh one.
   }
-  change(config)
+  // The file is somebody's: their comments survive. The change is made to a
+  // copy of the data, and only the values that differ are written back into
+  // the document — printing the data again would drop every comment in it.
+  const doc = parseDocument(text)
+  const before = (doc.toJS() as Record<string, unknown> | null) ?? {}
+  const after = structuredClone(before)
+  change(after)
+  writeDifferences(doc, [], before, after)
   mkdirSync(dirname(path), { recursive: true })
   mkdirSync(wilcoHome(), { recursive: true })
-  writeFileSync(path, stringify(config))
+  writeFileSync(path, doc.toString())
+}
+
+function writeDifferences(doc: Document, at: string[], before: unknown, after: unknown): void {
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+  if (isObject(before) && isObject(after)) {
+    for (const key of Object.keys(before)) {
+      if (!(key in after)) doc.deleteIn([...at, key])
+    }
+    for (const [key, value] of Object.entries(after)) {
+      writeDifferences(doc, [...at, key], before[key], value)
+    }
+    return
+  }
+  if (JSON.stringify(before) !== JSON.stringify(after)) doc.setIn(at, after)
 }

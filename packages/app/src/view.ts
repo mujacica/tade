@@ -354,7 +354,7 @@ function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin): void {
     return
   }
   if (state.hearing) {
-    r.text('◌ hearing you…', skin.hint, target)
+    r.text('◌ transcribing…', skin.hint, target)
     return
   }
   if (!voice.available) {

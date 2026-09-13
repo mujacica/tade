@@ -15,6 +15,7 @@ const facts = (over: Partial<ReadinessFacts> = {}): ReadinessFacts => ({
   driver: 'pty',
   driverOk: true,
   driverChosen: true,
+  talkChosen: true,
   micOk: true,
   speechOk: true,
   speechReason: null,
@@ -92,7 +93,8 @@ describe('readiness', () => {
     const steps = readiness(
       facts({ projects: [], loggedIn: false, apiKeys: [], driverOk: false, speechOk: false }),
     )
-    expect(steps.map((s) => s.id)).toEqual(['project', 'model', 'workspace', 'voice'])
+    // The talk key last, so the window opens on the key you just picked.
+    expect(steps.map((s) => s.id)).toEqual(['project', 'model', 'workspace', 'voice', 'talk'])
     // A project first: choosing a model for nothing is a strange way to start.
     expect(nextStep(steps)?.id).toBe('project')
   })
@@ -108,6 +110,7 @@ describe('readiness', () => {
         micOk: false,
         speechOk: false,
         speechReason: 'whisper.cpp is not installed',
+        talkChosen: false,
       }),
     )
     for (const step of steps) {

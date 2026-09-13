@@ -169,6 +169,12 @@ class Window implements Component {
       case 'drag':
         return { handled: true, render: this.onPointer({ kind: 'move', target }) }
       case 'press':
+        // A right-click is a click the moment it is pressed: the terminal
+        // reports no click for it, and a menu should not wait for a release.
+        if (event.button === 'right' && target) {
+          this.onPointer({ kind: 'click', target, button: 'right', x: event.x, y: event.y })
+          return { handled: true }
+        }
         if (event.button !== 'left') return undefined
         return { handled: target !== null, render: this.onPointer({ kind: 'press', target }) }
       case 'release':
@@ -458,6 +464,9 @@ export class App {
         model: route.model ?? null,
         provider: route.provider ?? null,
       },
+      vitals: live.vitals(this.state.focused),
+      spendView,
+      panel: this.panelFacts(live),
       voice: {
         keys: keyCaps(this.opts.config.surfaces.voice.talk.key),
         available: this.opts.recorder !== undefined,

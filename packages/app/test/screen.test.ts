@@ -3,6 +3,7 @@ import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
 import { PtyDriver } from '@wilco/drivers-pty'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  drawScreen,
   initialScreen,
   PLAIN,
   paletteFor,
@@ -59,7 +60,8 @@ describe('the setup screen', () => {
   it('colours the marks, and reads the same without colour', () => {
     const state = initialScreen('Setting up', context)
     const coloured = renderScreen(state, { ...frame, palette: paletteFor({ TERM: 'xterm' }) })
-    expect(coloured.join('\n')).toContain('\x1b[32m')
+    // A done step is green: xterm 256-colour 114, as the window draws it.
+    expect(coloured.join('\n')).toContain('38;5;114m')
 
     // Colour is decoration. Everything has to say the same thing without it,
     // because pipes, CI logs and plenty of terminals will never show it.
@@ -92,7 +94,7 @@ describe('the setup screen', () => {
       width: 40,
       height: 14,
     }).join('\n')
-    expect(small).toContain('W I L C O')
+    expect(small).toContain('WILCO · Setting up')
     expect(small).not.toContain('██')
     expect(small).toContain('✓ A project to work on')
   })
@@ -103,7 +105,8 @@ describe('the setup screen', () => {
       menu: { question: 'which?', options: ['log in', 'use an API key'], index: 1, filter: '' },
     }
     const rows = renderScreen(state, frame).join('\n')
-    expect(rows).toContain('▸ use an API key')
+    expect(rows).toContain('◉ use an API key')
+    expect(rows).toContain('○ log in')
     expect(rows).toContain('↑↓ choose')
   })
 
@@ -231,6 +234,36 @@ describe('answering it', () => {
       await until(() => terminal.written.includes('which?'))
       terminal.press('\x1b[B')
       terminal.press('\r')
+      picked = await choosing
+    })
+    expect(picked).toBe(1)
+  })
+
+  it('takes a click on an option as the answer', async () => {
+    const terminal = new FakeTerminal()
+    terminal.columns = 110
+    terminal.rows = 32
+    let picked = -1
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      const choosing = ui.choose('which provider?', ['Anthropic — Claude', 'OpenAI — GPT'])
+      await until(() => terminal.written.includes('which provider?'))
+      // Find OpenAI on the screen as drawn, and click it as a terminal would.
+      const drawn = drawScreen(
+        {
+          ...initialScreen('Setting up'),
+          menu: {
+            question: 'which provider?',
+            options: ['Anthropic — Claude', 'OpenAI — GPT'],
+            index: 0,
+            filter: '',
+          },
+        },
+        { width: 110, height: 32 },
+      )
+      const hit = drawn.hits.find((h) => h.target.kind === 'control' && h.target.id === 'option:1')
+      if (!hit) throw new Error('no OpenAI option on screen')
+      terminal.press(`\x1b[<0;${hit.from + 3};${hit.row + 1}M`)
+      terminal.press(`\x1b[<0;${hit.from + 3};${hit.row + 1}m`)
       picked = await choosing
     })
     expect(picked).toBe(1)

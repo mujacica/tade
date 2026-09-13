@@ -1,13 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import {
-  applySetting,
-  describeSetting,
-  loadConfig,
-  parseSetting,
-  type Setting,
-  settingsOf,
-} from '@wilco/core'
-import { parse, parseDocument } from 'yaml'
+import { describeSetting, loadConfig, parseSetting, type Setting, settingsOf } from '@wilco/core'
+import { parseDocument } from 'yaml'
 import type { Ui } from './screen.ts'
 
 // Changing what Wilco has been told, on whatever screen is in front of you.
@@ -83,16 +76,6 @@ async function change(
  */
 export function addProject(path: string, name: string, root: string): void {
   writeSetting(path, `projects.${name}.root`, root)
-}
-
-function read(path: string): Record<string, unknown> {
-  try {
-    return (parse(readFileSync(path, 'utf8')) as Record<string, unknown>) ?? {}
-  } catch {
-    // No file yet, or one we cannot read: start from nothing rather than
-    // refusing to save something somebody just chose.
-    return {}
-  }
 }
 
 /**
