@@ -197,13 +197,36 @@ const PATH_PATTERN =
  * Only things a click can do something with: a URL, or a path that looks like
  * a file. Whether the file exists is for whoever opens it to find out.
  */
-export function findOpenable(text: string): Found[] {
+export function findOpenable(
+  text: string,
+  linkers: readonly { pattern: string; url: string }[] = [],
+): Found[] {
   const found: Found[] = []
-  for (const match of text.matchAll(URL_PATTERN)) {
-    const from = match.index ?? 0
-    found.push({ from, to: from + match[0].length - 1, target: { kind: 'url', url: match[0] } })
+  // What extensions know how to open — a Sentry short id — before anything
+  // that merely looks like a path.
+  for (const linker of linkers) {
+    let pattern: RegExp
+    try {
+      pattern = new RegExp(linker.pattern, 'g')
+    } catch {
+      continue
+    }
+    for (const match of text.matchAll(pattern)) {
+      if (!match[0]) continue
+      const from = match.index ?? 0
+      found.push({
+        from,
+        to: from + match[0].length - 1,
+        target: { kind: 'url', url: linker.url.replace(/\$&/g, encodeURIComponent(match[0])) },
+      })
+    }
   }
   const taken = (at: number) => found.some((f) => at >= f.from && at <= f.to)
+  for (const match of text.matchAll(URL_PATTERN)) {
+    const from = match.index ?? 0
+    if (taken(from)) continue
+    found.push({ from, to: from + match[0].length - 1, target: { kind: 'url', url: match[0] } })
+  }
   for (const match of text.matchAll(PATH_PATTERN)) {
     const path = match[1]
     if (!path) continue

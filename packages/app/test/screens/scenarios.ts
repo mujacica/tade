@@ -18,6 +18,7 @@ import {
   changeMenuItems,
   confirmRemovePanel,
   diffPanel,
+  extensionsPanel,
   fileMenuItems,
   filePanel,
   findPanel,
@@ -37,6 +38,8 @@ import {
   emptyTranscript,
   fromThinker,
   problem,
+  said,
+  suggest,
   type Transcript,
   thinking,
   youSaid,
@@ -560,6 +563,103 @@ export const SCENARIOS: Scenario[] = [
       hover: { kind: 'bottom-tab', tab: 'checkout/terminals/2' },
     },
     frame: frame(),
+  },
+  {
+    name: 'extensions',
+    about:
+      'The Extensions panel: what works, what needs setting up and how, what is broken, the actions of each, and what pi loads by itself.',
+    state: { ...base(), panel: extensionsPanel() },
+    frame: frame({
+      panel: {
+        extensions: [
+          {
+            name: 'deps',
+            title: 'Dependencies',
+            description:
+              'Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in an agent’s worktree.',
+            source: 'built-in',
+            state: 'ready',
+            problem: null,
+            tools: ['deps_check', 'deps_update'],
+            actions: [
+              { id: 'check', title: 'Check dependencies' },
+              { id: 'update', title: 'Update dependencies (minor)' },
+              { id: 'update-major', title: 'Update dependencies (major)' },
+            ],
+            unknownSettings: [],
+          },
+          {
+            name: 'sentry',
+            title: 'Sentry',
+            description: 'Reads the errors, traces, logs and metrics your projects send to Sentry.',
+            source: 'built-in',
+            state: 'needs setup',
+            problem:
+              'no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read, event:write), or log in with sentry-cli',
+            tools: ['sentry_issues', 'sentry_issue'],
+            actions: [{ id: 'new', title: 'New Sentry issues' }],
+            unknownSettings: ['orgg'],
+          },
+          {
+            name: 'standup',
+            title: 'standup',
+            description: '',
+            source: 'yours',
+            state: 'broken',
+            problem: "SyntaxError: Unexpected token '!'",
+            tools: [],
+            actions: [],
+            unknownSettings: [],
+          },
+        ],
+        harnessExtensions: [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }],
+        extensionsRoot: '~/.wilco/extensions',
+      },
+    }),
+  },
+  {
+    name: 'a-brief-on-demand',
+    about:
+      'The brief, asked for: one paragraph, and what extensions found offered as something to ask.',
+    state: {
+      ...base(),
+      focused: null,
+      chose: true,
+      transcript: suggest(
+        said(
+          youSaid(emptyTranscript(), 'brief me', 0),
+          'Morning. stripe-v15 is blocked on npm i stripe@15, 1 still working and Sentry has 3 new issues in checkout.',
+          1,
+        ),
+        'Sentry has 3 new issues in checkout',
+        'Look at the new Sentry issues in checkout and tell me which are worth fixing first, and why',
+        2,
+      ),
+    },
+    frame: frame({ screen: '' }),
+  },
+  {
+    name: 'an-agent-on-a-sentry-issue',
+    about:
+      'An agent started on a Sentry issue: where its work came from, under GIT, one click away; its short id clickable where it is said.',
+    state: toggleSection(toggleSection(base(), 'files'), 'changes'),
+    frame: frame({
+      where: {
+        repo: '~/src/checkout',
+        branch: 'wilco/fix-shop-1a',
+        base: 'main',
+        worktree: '~/.wilco/worktrees/checkout-fix-shop-1a',
+        path: '/Users/me/.wilco/worktrees/checkout-fix-shop-1a',
+        links: [
+          { title: 'SHOP-1A', url: 'https://acme.sentry.io/issues/4411/' },
+          { title: 'trace a1b2c3d4', url: 'https://acme.sentry.io/explore/traces/trace/a1b2/' },
+        ],
+      },
+      linkers: [
+        { pattern: '\\bSHOP-[0-9A-Z]{1,10}\\b', url: 'https://acme.sentry.io/issues/?query=$&' },
+      ],
+      screen: 'Reading .wilco/context.md for SHOP-1A before touching src/refunds.ts',
+    }),
   },
   {
     name: 'spend',

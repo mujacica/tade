@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
@@ -15,11 +16,18 @@ import {
   type SandboxKind,
   spendFrom,
   startOfToday,
+  TASK_CONTEXT_FILE,
   type Unsubscribe,
   type WilcoEvent,
 } from '@wilco/core'
 import type { WorkspaceCapabilities, WorkspaceDriver } from '@wilco/drivers-core'
-import type { PermissionDecision, RunId, WorkerHandle, WorkerModel } from '@wilco/harnesses-core'
+import type {
+  PermissionDecision,
+  RunId,
+  WorkerExtras,
+  WorkerHandle,
+  WorkerModel,
+} from '@wilco/harnesses-core'
 import { noUsage, PiAdapter, usageOfTask } from '@wilco/harnesses-pi'
 import { recordAuthored } from './authored.ts'
 import { EventLog } from './events.ts'
@@ -43,6 +51,7 @@ import {
   terminalsFrom,
 } from './terminals.ts'
 import {
+  type ExtensionCall,
   type PendingApproval,
   type RunVitals,
   type StartRunRequest,
@@ -68,6 +77,27 @@ export interface WorkbenchOptions {
    * is where agents write because Wilco deliberately does not move them.
    */
   sessionsRoot?: string
+  /**
+   * What extensions give agents: extras at launch, and a way to run the tools
+   * they call. Passed in, so the workbench never has to know what an extension
+   * is — only that there may be more to hand an agent than its prompt.
+   */
+  extensions?: WorkbenchExtensions
+}
+
+export interface WorkbenchExtensions {
+  /**
+   * What an agent starting on a task in this project gets besides its prompt,
+   * in terms of the harness it runs in.
+   */
+  extras(target: {
+    project: string
+    task: string
+    cwd: string
+    harness: string
+  }): WorkerExtras | undefined
+  /** Run a tool an agent called. Throws with the reason it could not. */
+  call(call: ExtensionCall & { project: string }): Promise<string>
 }
 
 export interface WorkbenchInfo {
@@ -91,6 +121,10 @@ export interface CreateTaskRequest {
   base?: string
   /** No branch until there is work to name it after. */
   detached?: boolean
+  /** What the agent should know before it starts: written to `.wilco/context.md`. */
+  context?: string
+  /** Where the work came from, kept with the task and shown beside it. */
+  links?: readonly { title: string; url: string }[]
 }
 
 export interface RemoveTaskRequest {
@@ -151,6 +185,7 @@ export class Workbench {
   private readonly sessionsRoot: string | undefined
   private readonly openedAt = Date.now()
   private closing: Promise<void> | null = null
+  private readonly extensions: WorkbenchExtensions | null
 
   private constructor(opts: {
     home: string
@@ -162,6 +197,7 @@ export class Workbench {
     config: Config
     lock: HomeLock
     sessionsRoot?: string
+    extensions?: WorkbenchExtensions
   }) {
     this.home = opts.home
     this.sessionsRoot = opts.sessionsRoot
@@ -173,6 +209,7 @@ export class Workbench {
     this.config = opts.config
     this.lock = opts.lock
     this.memory = Memory.open(opts.home)
+    this.extensions = opts.extensions ?? null
   }
 
   static async open(opts: WorkbenchOptions): Promise<Workbench> {
@@ -216,6 +253,11 @@ export class Workbench {
         onTitle: (_task, worktree, title, named) => {
           void setTitle(worktree, title, named).catch(() => {})
         },
+        // A tool an agent calls runs in this process, where the extensions are.
+        onExtensionCall: async (call) => {
+          if (!opts.extensions) throw new Error('Wilco has no extensions loaded')
+          return opts.extensions.call({ ...call, project: call.task.split('/')[0] ?? '' })
+        },
       })
 
       const workbench = new Workbench({
@@ -228,6 +270,7 @@ export class Workbench {
         config,
         lock,
         ...(opts.sessionsRoot ? { sessionsRoot: opts.sessionsRoot } : {}),
+        ...(opts.extensions ? { extensions: opts.extensions } : {}),
       })
       await log.append({
         type: 'wilco_opened',
@@ -536,6 +579,8 @@ export class Workbench {
       worktreeRoot: join(this.home, 'worktrees'),
       ...(req.base ? { base: req.base } : {}),
       ...(req.detached ? { detached: true } : {}),
+      ...(req.context ? { context: req.context } : {}),
+      ...(req.links ? { links: req.links } : {}),
     })
     await this.log.append({
       type: 'task_created',
@@ -631,11 +676,22 @@ export class Workbench {
       // Two agents in one worktree is two agents editing the same files.
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
+    const extras = withContext(
+      req.extras ??
+        this.extensions?.extras({
+          project: req.task.split('/')[0] ?? '',
+          task: req.task,
+          cwd: req.cwd,
+          harness: this.adapterFor().id,
+        }),
+      existsSync(join(req.cwd, TASK_CONTEXT_FILE)),
+    )
     const spec = {
       run: lane as RunId,
       task: req.task,
       cwd: req.cwd,
       prompt: req.prompt,
+      ...(extras ? { extras } : {}),
       model: req.model ?? this.modelFor(req.task),
       lane,
       sandbox: {
@@ -646,7 +702,12 @@ export class Workbench {
     // Listen before launching: the channel has to exist for the agent's very
     // first signal, and its path is derived from the run id so both halves
     // agree without being told.
-    await this.workers.start({ ...req, run: lane as RunId, model: spec.model })
+    await this.workers.start({
+      ...req,
+      run: lane as RunId,
+      model: spec.model,
+      ...(extras ? { extras } : {}),
+    })
     const launch = this.adapterFor().launchSpec(spec)
     try {
       return await this.registry.spawn({
@@ -836,3 +897,22 @@ export class Workbench {
 }
 
 export type { LaneId, LaneRecord, SpawnRequest }
+
+/**
+ * An agent whose task came with context is told to read it first. Said in its
+ * instructions rather than its prompt, so it holds when the conversation is
+ * reopened, and a prompt you typed yourself is never rewritten.
+ */
+function withContext(
+  extras: WorkerExtras | undefined,
+  hasContext: boolean,
+): WorkerExtras | undefined {
+  if (!hasContext) return extras
+  const note = `Whoever started this task left what you need to know in ${TASK_CONTEXT_FILE}, with links to where the work came from. Read it before you start, and keep to it.`
+  return {
+    ...(extras ?? {}),
+    instructions: [note, extras?.instructions ?? '']
+      .filter((part) => part.trim() !== '')
+      .join('\n\n'),
+  }
+}

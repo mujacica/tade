@@ -8,7 +8,7 @@ import {
   waitingOn,
   wilcoHome,
 } from '@wilco/core'
-import { proposedSkills } from '@wilco/orchestrator'
+import { loadExtensions, proposedSkills } from '@wilco/orchestrator'
 import { collectStatus } from '@wilco/status'
 import { Speaker } from '@wilco/voice-tts'
 import { readJournal } from '@wilco/workbench/events'
@@ -61,8 +61,17 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
         // short enough to hear it out: the parameter existed and nothing ever
         // filled it, so Wilco proposed things nobody was ever told about.
         const [waitingSkill] = proposedSkills(join(home, 'skills'))
+        // What the extensions found — new errors, vulnerable dependencies —
+        // said in the same breath, with what to ask about each after it.
+        const extensions = await loadExtensions({
+          config: cfg.config,
+          home,
+          safe: program.opts().safe === true,
+        })
+        const found = await extensions.brief()
         const brief = composeBrief(tasks, {
           localHour: new Date().getHours(),
+          extras: found.items.map((item) => item.said),
           ...(waitingSkill
             ? // No full stop: the brief joins its clauses and ends the sentence
               // itself, and two in a row is the sort of thing you hear.
@@ -70,6 +79,12 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
             : {}),
         })
         io.out(brief.spoken)
+        const asks = found.items.filter((item) => item.ask)
+        if (asks.length > 0) {
+          io.out('')
+          for (const item of asks) io.out(`→ ${item.ask}`)
+        }
+        for (const problem of found.problems) io.err(`(could not ask ${problem})`)
         if (opts.speak) {
           const speaker = await Speaker.create({ soundDir: join(wilcoHome(), 'sounds') })
           await speaker.speak(brief.spoken)

@@ -31,4 +31,4 @@ $ pnpm test
    AssertionError: expected 2 refunds to be 1                                                                           
 $                                                                                                                       
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 

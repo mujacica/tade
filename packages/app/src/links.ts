@@ -4,6 +4,13 @@ import { type Hit, sameTarget, type Target } from './hits.ts'
 import type { Skin } from './skin.ts'
 import { fit, type Pointer } from './ui.ts'
 
+/** Text an extension knows how to open, and where: a Sentry short id, say. */
+export interface Linker {
+  pattern: string
+  /** The address, with `$&` for what matched. */
+  url: string
+}
+
 /**
  * A row of text someone else wrote — an agent's screen, the orchestrator's
  * answer — with its links and file references made clickable. The one under
@@ -15,11 +22,12 @@ export function linkedRow(
   width: number,
   skin: Skin,
   pointer: Pointer,
+  linkers: readonly Linker[] = [],
 ): { text: string; hits: Hit[] } {
   const plain = stripTerminalSequences(line)
   const hits: Hit[] = []
   let text = fit(line, width)
-  for (const found of findOpenable(plain)) {
+  for (const found of findOpenable(plain, linkers)) {
     if (found.from >= width) continue
     const target: Target =
       found.target.kind === 'url'

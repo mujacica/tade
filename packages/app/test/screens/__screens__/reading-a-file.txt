@@ -31,4 +31,4 @@
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│  
  ›│ lines 1–15 of 15  ↑↓ scroll · space a page · e editor                 ▐ Copy path ▌ ▐ Open in editor ▌ ▐ Close ▌ │▌ 
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯──
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 

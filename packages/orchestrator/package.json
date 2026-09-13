@@ -10,6 +10,9 @@
     "@wilco/core": "workspace:*",
     "@wilco/workbench": "workspace:*",
     "@wilco/harnesses-core": "workspace:*",
-    "@wilco/harnesses-pi": "workspace:*"
+    "@wilco/harnesses-pi": "workspace:*",
+    "@wilco/extensions-core": "workspace:*",
+    "@wilco/extension-deps": "workspace:*",
+    "@wilco/extension-sentry": "workspace:*"
   }
 }

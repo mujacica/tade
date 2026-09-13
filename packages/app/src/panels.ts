@@ -343,6 +343,45 @@ export interface KeysPanel {
   busy: false
 }
 
+/** The extensions this window runs with, and what each can do for you. */
+export interface ExtensionsPanel {
+  kind: 'extensions'
+  /** Which action the keyboard is on, counting every extension's in order. */
+  index: number
+  busy: false
+}
+
+/** One extension, as the panel shows it. */
+export interface ExtensionView {
+  name: string
+  title: string
+  description: string
+  source: 'built-in' | 'yours'
+  state: 'ready' | 'needs setup' | 'off' | 'broken'
+  /** What is wrong, or what to do before it can work. */
+  problem: string | null
+  tools: string[]
+  /** What it can do from here, when it is ready. */
+  actions: { id: string; title: string }[]
+  /** Settings it was given and does not read. */
+  unknownSettings: string[]
+}
+
+export function extensionsPanel(): ExtensionsPanel {
+  return { kind: 'extensions', index: 0, busy: false }
+}
+
+/** Every action in the panel, in the order the keyboard moves through them. */
+export function extensionActions(
+  views: readonly ExtensionView[],
+): { extension: string; id: string }[] {
+  return views.flatMap((view) =>
+    view.state === 'ready'
+      ? view.actions.map((action) => ({ extension: view.name, id: action.id }))
+      : [],
+  )
+}
+
 /** Closing, when closing would stop something. */
 export interface QuitPanel {
   kind: 'quit'
@@ -401,6 +440,7 @@ export type Panel =
   | FindPanel
   | KeysPanel
   | QuitPanel
+  | ExtensionsPanel
 
 export function settingsPanel(category = 'agents'): SettingsPanel {
   return {
@@ -436,6 +476,8 @@ export interface PanelInputs {
   branches?: readonly BranchRow[]
   /** How many lines the find panel's query matches. */
   found?: number
+  /** The extensions, for moving through their actions. */
+  extensions?: readonly ExtensionView[]
 }
 
 /** The settings a panel is showing: a category's, or everything matching the search. */
@@ -652,6 +694,19 @@ export function panelKey(
   if (panel.kind === 'search') return searchKey(panel, key, data, inputs.entries ?? [])
   if (panel.kind === 'file') return fileKey(panel, key, inputs.lines ?? 0)
   if (panel.kind === 'keys') return key === 'escape' || key === 'enter' ? close : stay(panel)
+  if (panel.kind === 'extensions') {
+    const actions = extensionActions(inputs.extensions ?? [])
+    if (key === 'escape') return close
+    if (key === 'up' || key === 'shift+tab')
+      return stay({ ...panel, index: Math.max(0, panel.index - 1) })
+    if (key === 'down' || key === 'tab')
+      return stay({ ...panel, index: Math.min(Math.max(0, actions.length - 1), panel.index + 1) })
+    const chosen = actions[panel.index]
+    if (key === 'enter' && chosen) {
+      return { panel, submit: true, choice: `${chosen.extension}:${chosen.id}` }
+    }
+    return stay(panel)
+  }
   if (panel.kind === 'quit') {
     if (key === 'escape') return close
     if (key === 'tab' || key === 'left' || key === 'right') {
@@ -679,6 +734,12 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'file') return fileClick(panel, control)
   if (panel.kind === 'keys')
     return control === 'change-keys' ? { panel, submit: true, choice: 'change-keys' } : stay(panel)
+  if (panel.kind === 'extensions') {
+    if (control === 'close') return close
+    return control.startsWith('action:')
+      ? { panel, submit: true, choice: control.slice('action:'.length) }
+      : stay(panel)
+  }
   if (panel.kind === 'quit') {
     if (control === 'cancel') return close
     if (control === 'quit') return { panel, submit: true, choice: 'quit' }

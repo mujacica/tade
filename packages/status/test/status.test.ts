@@ -138,7 +138,7 @@ describe('collectStatus', () => {
     mkdirSync(join(wt, '.wilco'), { recursive: true })
     writeFileSync(
       join(wt, '.wilco', 'task.yaml'),
-      'id: app/agent-1\nproject: app\nintent_spoken: ""\ncreated: 2026-09-11T11:00:00Z\ntitle: refund retries\n',
+      'id: app/agent-1\nproject: app\nintent_spoken: ""\ncreated: 2026-09-11T11:00:00Z\ntitle: refund retries\nlinks:\n  - title: SHOP-1A\n    url: https://acme.sentry.io/issues/4411/\n',
     )
     // A detached worktree Wilco did not make is nobody's task.
     r.git('worktree', 'add', '-q', '--detach', join(r.root, '..', 'somebody'), 'main')
@@ -146,6 +146,10 @@ describe('collectStatus', () => {
     let ws = await collectStatus(opts({ config: config({ app: r.root }) }))
     expect(ws.projects[0]?.tasks.map((t) => [t.id, t.branch, t.title])).toEqual([
       ['app/agent-1', '', 'refund retries'],
+    ])
+    // Where the work came from is read back with it.
+    expect(task(ws, 'app/agent-1')?.links).toEqual([
+      { title: 'SHOP-1A', url: 'https://acme.sentry.io/issues/4411/' },
     ])
 
     r.git('-C', wt, 'switch', '-q', '-c', 'wilco/refund-retries')

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@wilco/core'
+import { ExtensionHost } from '@wilco/extensions-core'
 import { ScriptedRecorder, ScriptedTranscriber } from '@wilco/voice-stt'
 import { Speaker } from '@wilco/voice-tts'
 import { Workbench } from '@wilco/workbench'
@@ -605,6 +606,50 @@ describe('the window, wired up', () => {
     const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
     expect(kept.sidebarWidth).toBe(edge + 10)
   }, 30_000)
+
+  it('runs an extension from its panel, and shows it working and what it said', async () => {
+    terminal.columns = 120
+    terminal.rows = 40
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining where a project lives.',
+          tools: [
+            {
+              name: 'weather_now',
+              description: 'Is it raining.',
+              parameters: { type: 'object', properties: { project: { type: 'string' } } },
+              for: ['orchestrator'],
+              run: async (input, ctx) => {
+                ctx.progress('looking outside')
+                return { text: `Dry over **${String(input.project)}** today.` }
+              },
+            },
+          ],
+          actions: [{ id: 'now', title: 'Is it raining?', tool: 'weather_now', project: true }],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    await start({ extensions })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('the panel', () =>
+      screenOf(terminal.written).some((row) => row.includes('● Weather  built-in · ready')),
+    )
+    // The keyboard starts on the first action; enter runs it for the project you are in.
+    terminal.press('\r')
+    await until('its answer in the conversation', () =>
+      screenOf(terminal.written).some((row) => row.includes('Dry over app today.')),
+    )
+    expect(screenOf(terminal.written).some((row) => row.includes('✓ weather now · app'))).toBe(true)
+  })
 
   it('opens the Spend panel from the status bar', async () => {
     await start()

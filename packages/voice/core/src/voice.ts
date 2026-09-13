@@ -109,6 +109,8 @@ export interface VoiceOptions {
    * them is answered with the command that opens them.
    */
   openSettings?: () => Promise<string>
+  /** The brief, on demand: what is stopped, what is moving, and what extensions found. */
+  brief?: () => Promise<string>
   /** Live tasks with their states. Without it, names are taken literally. */
   tasks?: () => Promise<KnownTask[]>
   /** The journal rolled up, so "it" can mean what just moved. */
@@ -362,6 +364,9 @@ export class VoiceSurface {
         }
         return "I didn't catch that."
       }
+
+      case 'brief':
+        return this.opts.brief ? this.opts.brief() : 'Run `wilco brief` for it.'
 
       case 'settings': {
         // The window can open them in place; anywhere else, say the command.

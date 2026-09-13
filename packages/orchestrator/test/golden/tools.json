@@ -271,7 +271,7 @@
   },
   {
     "name": "wilco_task_create",
-    "description": "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased.",
+    "description": "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased. Give it the context and links you gathered, so the agent that works on it starts knowing what you know.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -286,6 +286,32 @@
         "intent": {
           "type": "string",
           "description": "what the human said, word for word"
+        },
+        "context": {
+          "type": "string",
+          "description": "what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .wilco/context.md in its worktree."
+        },
+        "links": {
+          "type": "array",
+          "description": "where the work came from: an issue, a trace, a discussion",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "what it is"
+              },
+              "url": {
+                "type": "string",
+                "description": "where it is"
+              }
+            },
+            "required": [
+              "title",
+              "url"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [

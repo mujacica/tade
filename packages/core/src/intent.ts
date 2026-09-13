@@ -37,6 +37,8 @@ export type Intent =
     }
   /** Open the settings, so changing one never means closing Wilco. */
   | { kind: 'settings' }
+  /** Everything that matters, in one paragraph: the brief, now rather than in the morning. */
+  | { kind: 'brief' }
   | { kind: 'free'; text: string }
 
 export interface Vocabulary {
@@ -52,6 +54,8 @@ const STEER = /^(tell|ask)\s+(?<rest>.+)$/
 const START = /^(start|kick off|begin)\s+(?<rest>.+)$/
 const PARK = /^(park|pause|set aside)\s+(?<task>.+?)[?.]?$/
 const SETTINGS = /^((open|show|change)\s+)?(settings|preferences|config(uration)?)[?.]?$/
+const BRIEF =
+  /^((give me|read me|what'?s|what is)\s+)?(the\s+|a\s+|my\s+)?(morning\s+)?brief(ing)?(\s+me)?[?.!]?$|^(brief me|catch me up|what did i miss)[?.!]?$/
 const RESUME = /^(resume|unpark|pick up|pick)\s+(?<task>.+?)(\s+back up)?[?.]?$/
 /**
  * Everything people say when they want something written down. `note` and
@@ -126,6 +130,7 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
   if (DENY.test(said)) return { kind: 'deny' }
 
   if (SETTINGS.test(said)) return { kind: 'settings' }
+  if (BRIEF.test(said)) return { kind: 'brief' }
 
   if (STATUS.test(said)) return { kind: 'status', scope: null }
   const scoped = STATUS_SCOPED.exec(said)

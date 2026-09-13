@@ -1,5 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { ConfigSchema } from '@wilco/core'
+import { ExtensionHost } from '@wilco/extensions-core'
 import { Workbench } from '@wilco/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -8,6 +10,7 @@ import {
   writeProviderExtension,
 } from '../../../test/fixtures/fake-model.ts'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { orchestratorExtensions } from '../src/extensions.ts'
 import { Orchestrator, type OrchestratorEvent } from '../src/orchestrator.ts'
 import { ToolHost } from '../src/tool-host.ts'
 
@@ -107,6 +110,64 @@ describe('Orchestrator', () => {
     expect(JSON.stringify(answered)).toContain('nothing-here')
     expect(events.filter((event) => event.type === 'delta').length).toBeGreaterThan(0)
     expect(events).toContainEqual({ type: 'message', text: 'There was nothing to stop.' })
+  }, 90_000)
+
+  it("calls an extension's tool through the window, and is told about the extension first", async () => {
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          tools: [
+            {
+              name: 'weather_now',
+              description: 'Is it raining where a project lives.',
+              parameters: { type: 'object', properties: { project: { type: 'string' } } },
+              for: ['orchestrator'],
+              run: async (input) => ({ text: `Raining over ${String(input.project)}.` }),
+            },
+          ],
+          orchestrator: () => 'Check weather_now before a deploy.',
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    await tools.close()
+    tools = await ToolHost.listen({
+      wilco,
+      path: join(home, 'tools.sock'),
+      extensions: async (call) =>
+        (
+          await extensions.call(call.tool, call.input, {
+            caller: { kind: 'orchestrator' },
+            id: call.callId,
+          })
+        ).text,
+    })
+    model = await startFakeModel({
+      tool: { name: 'weather_now', arguments: { project: 'app' } },
+      finalText: 'Hold the deploy.',
+    })
+    const runDir = tmp('wilco-chat-run-')
+    orchestrator = await Orchestrator.start({
+      home,
+      socket: tools.path,
+      runDir,
+      cwd: repo.root,
+      config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
+      model: { provider: 'wilco-test', id: 'fake' },
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      extensions: orchestratorExtensions(extensions, home, 'pi'),
+    })
+    expect(await orchestrator.askFor('can we deploy app?')).toBe('Hold the deploy.')
+    expect(JSON.stringify(model.requests[0])).toContain('Check weather_now before a deploy.')
+    const answered = (
+      (model.requests[1] ?? {}) as { messages?: { role?: string }[] }
+    ).messages?.filter((message) => message.role === 'tool')
+    expect(JSON.stringify(answered)).toContain('Raining over app.')
   }, 90_000)
 
   it('says why it would not start, instead of never answering', async () => {

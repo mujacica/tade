@@ -32,6 +32,24 @@ export interface WorkerSpec {
    * it: the harness has no permission system of its own.
    */
   sandbox?: SandboxSpec
+  /** What extensions add to this worker. */
+  extras?: WorkerExtras
+}
+
+/**
+ * What Wilco's extensions give an agent beyond the harness it runs in: words
+ * about what it can use, tools Wilco runs on its behalf, and the pieces an
+ * extension ships in this harness's own terms.
+ */
+export interface WorkerExtras {
+  /** Appended to the agent's own instructions. */
+  instructions?: string
+  /** A file listing tools Wilco runs for it, which the agent's side registers at launch. */
+  tools?: string
+  /** Native extension modules for this harness. */
+  extensions?: readonly string[]
+  /** Skills, in this harness's own format. */
+  skills?: readonly string[]
 }
 
 /**
@@ -71,6 +89,15 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     callId: z.string(),
     tool: z.string(),
     input: z.unknown(),
+  }),
+  /** The agent is running one of Wilco's extension tools, and waits for the answer. */
+  z.object({
+    type: z.literal('extension_call'),
+    run: RunId,
+    at: z.number(),
+    callId: z.string(),
+    tool: z.string(),
+    input: z.record(z.string(), z.unknown()).default({}),
   }),
   z.object({
     type: z.literal('tool_result'),
@@ -173,6 +200,13 @@ export const WorkerCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('queue'), message: z.string() }),
   z.object({ type: z.literal('abort') }),
   z.object({ type: z.literal('shutdown') }),
+  /** What an extension tool the agent called answered. */
+  z.object({
+    type: z.literal('extension_result'),
+    callId: z.string(),
+    ok: z.boolean(),
+    text: z.string(),
+  }),
 ])
 export type WorkerCommand = z.infer<typeof WorkerCommand>
 
@@ -188,6 +222,8 @@ export const WORKER_ENV = {
    * gate that cannot be asked has to refuse.
    */
   approvals: 'WILCO_APPROVALS',
+  /** Where the list of Wilco's extension tools for this agent is. */
+  tools: 'WILCO_EXTENSION_TOOLS',
 } as const
 
 /** A picture sent with an instruction: a screenshot, usually. */
@@ -259,6 +295,8 @@ export interface WorkerAdapter {
   queue(run: RunId, message: string): Promise<void>
   /** Answer a pending `permission_request`. */
   decide(run: RunId, requestId: string, decision: PermissionDecision): Promise<void>
+  /** Answer an `extension_call` with what the tool said. */
+  answer(run: RunId, callId: string, result: { ok: boolean; text: string }): Promise<void>
   setModel(run: RunId, model: WorkerModel): Promise<void>
   /** Stop the current turn, leaving the run alive. */
   abort(run: RunId): Promise<void>

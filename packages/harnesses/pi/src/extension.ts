@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { connect, type Socket } from 'node:net'
 
 // The Wilco supervision extension for pi.
@@ -46,8 +47,25 @@ interface PiUsage {
   totalTokens?: number
   cost?: { total?: number }
 }
+/** A tool as Wilco lists it for an agent: what pi needs to register it. */
+interface ToolSpec {
+  name: string
+  label: string
+  description: string
+  parameters: Record<string, unknown>
+}
 interface PiApi {
   on(event: string, handler: (event: never, ctx: PiContext) => unknown): void
+  registerTool?(tool: {
+    name: string
+    label: string
+    description: string
+    parameters: Record<string, unknown>
+    execute(
+      toolCallId: string,
+      params: Record<string, unknown>,
+    ): Promise<{ content: Array<{ type: 'text'; text: string }>; details: unknown }>
+  }): void
   /** The name given to the session with `/name`, if one was. */
   getSessionName?(): string | undefined
   sendUserMessage?(
@@ -87,11 +105,18 @@ let spent = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 
  */
 let seeded = false
 const RUN = process.env.WILCO_RUN_ID ?? 'unknown'
+/** Where Wilco listed the extension tools this agent may call. */
+const TOOLS = process.env.WILCO_EXTENSION_TOOLS
+
+/** How long a tool Wilco runs may take: a dependency update, a Seer analysis. */
+const EXTENSION_CALL_MS = 10 * 60_000
 
 export default function wilcoExtension(pi: PiApi): void {
   if (!SOCKET) return
 
   const pending = new Map<string, (result: ToolCallResult) => void>()
+  /** Extension tools waiting on Wilco's answer, by call id. */
+  const calls = new Map<string, (answer: { ok: boolean; text: string }) => void>()
   let socket: Socket | null = null
   let connected = false
   /** Set when pi is going away, so we stop trying to find Wilco. */
@@ -134,6 +159,12 @@ export default function wilcoExtension(pi: PiApi): void {
         void pi.sendUserMessage?.(String(command.message), {
           deliverAs: command.type === 'steer' ? 'steer' : 'followUp',
         })
+        return
+      }
+      case 'extension_result': {
+        const resolve = calls.get(String(command.callId))
+        calls.delete(String(command.callId))
+        resolve?.({ ok: command.ok === true, text: String(command.text ?? '') })
         return
       }
       case 'abort':
@@ -186,6 +217,9 @@ export default function wilcoExtension(pi: PiApi): void {
     // approvals off, nothing was waiting on it, and failing a call that was
     // never going to be held would break work for no reason.
     if (GATED && wasConnected) failPending('Wilco is not reachable, and approvals are on')
+    // A tool that runs inside Wilco has nowhere to run once it is gone.
+    for (const [, resolve] of calls) resolve({ ok: false, text: 'Wilco closed before it answered' })
+    calls.clear()
     if (stopped) return
     // Unref'd, so waiting to be picked up again never keeps pi alive by itself.
     const timer = setTimeout(dial, RETRY_MS)
@@ -193,6 +227,33 @@ export default function wilcoExtension(pi: PiApi): void {
   }
 
   dial()
+
+  // Wilco's extension tools: listed at launch, run in Wilco, answered here.
+  for (const spec of readTools(TOOLS)) {
+    pi.registerTool?.({
+      name: spec.name,
+      label: spec.label,
+      description: spec.description,
+      parameters: spec.parameters,
+      async execute(toolCallId, params) {
+        if (!connected) {
+          throw new Error(`Wilco is not open, so ${spec.name} cannot run right now`)
+        }
+        const answer = await new Promise<{ ok: boolean; text: string }>((resolve) => {
+          calls.set(toolCallId, resolve)
+          const timer = setTimeout(() => {
+            calls.delete(toolCallId)
+            resolve({ ok: false, text: `${spec.name} did not answer in time` })
+          }, EXTENSION_CALL_MS)
+          timer.unref?.()
+          send({ type: 'extension_call', callId: toolCallId, tool: spec.name, input: params ?? {} })
+        })
+        // Thrown, so pi marks the call failed and the model reads why.
+        if (!answer.ok) throw new Error(answer.text)
+        return { content: [{ type: 'text', text: answer.text }], details: {} }
+      },
+    })
+  }
 
   const remember = (_event: unknown, ctx: PiContext) => {
     latest = ctx
@@ -397,4 +458,21 @@ function truncate(text: string, limit = 120): string {
 export function firstWords(text: string): string {
   const line = text.split('\n').find((part) => part.trim() !== '') ?? ''
   return line.trim().split(/\s+/).slice(0, 8).join(' ').slice(0, 60)
+}
+
+/** The tools listed for this agent, or none when the list is missing or unreadable. */
+export function readTools(path: string | undefined): ToolSpec[] {
+  if (!path) return []
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (one): one is ToolSpec =>
+        typeof one?.name === 'string' &&
+        typeof one?.description === 'string' &&
+        typeof one?.parameters === 'object',
+    )
+  } catch {
+    return []
+  }
 }

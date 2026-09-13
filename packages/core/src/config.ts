@@ -230,6 +230,18 @@ export const ConfigSchema = z
       })
       .prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
+    /**
+     * Settings for each extension, by its name. Which keys mean something is
+     * the extension's to say, so they are checked against what it declares
+     * when it loads — a key it does not read is reported, never silently kept.
+     * `enabled: false` turns one off.
+     */
+    extensions: z
+      .record(
+        z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+        z.looseObject({ enabled: z.boolean().optional() }),
+      )
+      .default({}),
   })
   // A route name that doesn't exist is a typo that would otherwise surface as a
   // failed spawn much later, so catch it at `wilco config --check` time.

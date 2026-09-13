@@ -154,6 +154,7 @@ async function buildTask(
     intent_spoken: tf?.intent_spoken ?? '',
     branch,
     ...(tf?.title ? { title: tf.title } : {}),
+    ...(tf && tf.links.length > 0 ? { links: tf.links } : {}),
     worktree: wt.path,
     created: tf ? tf.created.toISOString() : '',
     ...derived,

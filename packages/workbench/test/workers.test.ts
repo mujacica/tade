@@ -32,6 +32,7 @@ class FakeAdapter implements WorkerAdapter {
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
   readonly steered: Array<{ run: string; message: string }> = []
   readonly stopped: string[] = []
+  readonly answers: Array<{ run: string; callId: string; ok: boolean; text: string }> = []
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
   private readonly handles = new Map<string, WorkerHandle>()
 
@@ -61,6 +62,9 @@ class FakeAdapter implements WorkerAdapter {
   async queue(): Promise<void> {}
   async decide(run: RunId, requestId: string, decision: PermissionDecision): Promise<void> {
     this.decisions.push({ run, requestId, decision })
+  }
+  async answer(run: RunId, callId: string, result: { ok: boolean; text: string }): Promise<void> {
+    this.answers.push({ run, callId, ...result })
   }
   async setModel(): Promise<void> {}
   async abort(): Promise<void> {}

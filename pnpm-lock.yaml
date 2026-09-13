@@ -32,6 +32,9 @@ importers:
       '@wilco/drivers-pty':
         specifier: workspace:*
         version: link:../drivers/pty
+      '@wilco/extensions-core':
+        specifier: workspace:*
+        version: link:../extensions/core
       '@wilco/status':
         specifier: workspace:*
         version: link:../status
@@ -66,6 +69,9 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
+      '@wilco/extensions-core':
+        specifier: workspace:*
+        version: link:../extensions/core
       '@wilco/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
@@ -158,6 +164,33 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/extensions/core:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../../core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/extensions/deps:
+    dependencies:
+      '@wilco/extensions-core':
+        specifier: workspace:*
+        version: link:../core
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+
+  packages/extensions/sentry:
+    dependencies:
+      '@wilco/extensions-core':
+        specifier: workspace:*
+        version: link:../core
+      better-sqlite3:
+        specifier: ^13.0.3
+        version: 13.0.3
+
   packages/harnesses/core:
     dependencies:
       '@wilco/core':
@@ -188,6 +221,15 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
+      '@wilco/extension-deps':
+        specifier: workspace:*
+        version: link:../extensions/deps
+      '@wilco/extension-sentry':
+        specifier: workspace:*
+        version: link:../extensions/sentry
+      '@wilco/extensions-core':
+        specifier: workspace:*
+        version: link:../extensions/core
       '@wilco/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core

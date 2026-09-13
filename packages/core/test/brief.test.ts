@@ -87,6 +87,14 @@ describe('composeBrief', () => {
     expect(busy.spoken).not.toContain('want a rule')
   })
 
+  it("says what extensions found after what is stopped, instead of 'nothing running'", () => {
+    const brief = composeBrief([], {
+      localHour: 9,
+      extras: ['Sentry has 3 new issues in checkout'],
+    })
+    expect(brief.spoken).toBe('Morning. Sentry has 3 new issues in checkout.')
+  })
+
   it('reads as one sentence however many things there are', () => {
     const one = composeBrief([task({ task: 'a/b', state: 'review' })], { localHour: 8 })
     expect(one.spoken).toBe('Morning. b is done and wants your eyes.')

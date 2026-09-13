@@ -16,7 +16,8 @@
     "@wilco/voice-core": "workspace:*",
     "@wilco/voice-tts": "workspace:*",
     "@wilco/drivers-pty": "workspace:*",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "@wilco/extensions-core": "workspace:*"
   },
   "devDependencies": {
     "@wilco/voice-stt": "workspace:*",

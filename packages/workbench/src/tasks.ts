@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { TaskId } from '@wilco/core'
+import { TASK_CONTEXT_FILE, TaskId } from '@wilco/core'
 import { git, parseStatusV2, resolveBaseRef } from '@wilco/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
@@ -29,6 +29,10 @@ export interface CreateTaskOptions {
    * to look around leaves no `wilco/*` branch behind.
    */
   detached?: boolean
+  /** What the agent should know before it starts, written beside the task file. */
+  context?: string
+  /** Where the work came from, kept with the task. */
+  links?: readonly { title: string; url: string }[]
   now?: Date
 }
 
@@ -93,11 +97,36 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
   if (!added.ok) throw new Error(`git worktree add failed: ${firstLine(added.stderr)}`)
 
   const task: TaskWorktree = { id, project: opts.project, branch, worktree, base, baseRef }
-  await writeTaskFile(task, opts.intent, opts.now ?? new Date())
+  await writeTaskFile(task, opts.intent, opts.now ?? new Date(), opts.links ?? [])
+  const context = contextDocument(opts.context ?? '', opts.links ?? [])
+  if (context) await writeFile(join(worktree, TASK_CONTEXT_FILE), context)
   return task
 }
 
-async function writeTaskFile(task: TaskWorktree, intent: string, now: Date): Promise<void> {
+/**
+ * What an agent reads before it starts: what it was told, then where the work
+ * came from. Empty when there is nothing to say, so no file is written.
+ */
+export function contextDocument(
+  context: string,
+  links: readonly { title: string; url: string }[],
+): string {
+  const parts = [context.trim()]
+  if (links.length > 0) {
+    parts.push(
+      ['## Links', '', ...links.map((link) => `- [${link.title}](${link.url})`)].join('\n'),
+    )
+  }
+  const text = parts.filter((part) => part !== '').join('\n\n')
+  return text ? `${text}\n` : ''
+}
+
+async function writeTaskFile(
+  task: TaskWorktree,
+  intent: string,
+  now: Date,
+  links: readonly { title: string; url: string }[],
+): Promise<void> {
   await mkdir(join(task.worktree, '.wilco'), { recursive: true })
   await writeFile(
     join(task.worktree, '.wilco', 'task.yaml'),
@@ -109,6 +138,7 @@ async function writeTaskFile(task: TaskWorktree, intent: string, now: Date): Pro
       created: now.toISOString(),
       base: task.base,
       parked: false,
+      ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
     }),
   )
 }

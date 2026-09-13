@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { join } from 'node:path'
@@ -8,6 +9,25 @@ function extensionsRoot(): string {
   const configured = process.env.WILCO_EXTENSIONS
   if (configured) return configured
   return join(process.env.WILCO_HOME ?? process.cwd(), 'extensions')
+}
+
+/** The extension tools Wilco listed for this orchestrator, or none. */
+function extensionTools(): Array<{
+  name: string
+  label: string
+  description: string
+  parameters: Record<string, unknown>
+}> {
+  const path = process.env.WILCO_EXTENSION_TOOLS
+  if (!path) return []
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
+    return Array.isArray(parsed)
+      ? parsed.filter((one) => typeof one?.name === 'string' && typeof one?.parameters === 'object')
+      : []
+  } catch {
+    return []
+  }
 }
 
 /** Where lessons are written. Set by the orchestrator that launched us. */
@@ -77,17 +97,18 @@ export default function wilcoTools(pi: PiApi): void {
     name: string,
     description: string,
     parameters: Record<string, unknown>,
-    run: (params: Record<string, unknown>) => Promise<unknown>,
+    run: (params: Record<string, unknown>, callId: string) => Promise<unknown>,
+    label = name.replace(/^wilco_/, 'wilco: ').replace(/_/g, ' '),
   ): void => {
     pi.registerTool({
       name,
-      label: name.replace(/^wilco_/, 'wilco: ').replace(/_/g, ' '),
+      label,
       description,
       parameters,
-      async execute(_id, params) {
+      async execute(id, params) {
         // A failure is thrown, so pi marks the call failed and the model is
         // told what went wrong in words it can choose another route from.
-        const result = await run(params ?? {})
+        const result = await run(params ?? {}, id)
         const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
         return { content: [{ type: 'text', text }], details: {} }
       },
@@ -128,14 +149,27 @@ export default function wilcoTools(pi: PiApi): void {
     },
   )
 
+  // What an agent should know before it starts, and where the work came from:
+  // written into its worktree, so it finds them however it is started.
+  const context = string(
+    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .wilco/context.md in its worktree.',
+  )
+  const links = {
+    type: 'array',
+    description: 'where the work came from: an issue, a trace, a discussion',
+    items: object({ title: string('what it is'), url: string('where it is') }, ['title', 'url']),
+  }
+
   tool(
     'wilco_task_create',
-    "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased.",
+    "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased. Give it the context and links you gathered, so the agent that works on it starts knowing what you know.",
     object(
       {
         project: string('project name, as configured'),
         name: string('short task name, lowercase with dashes'),
         intent: string('what the human said, word for word'),
+        context,
+        links,
       },
       ['project', 'name', 'intent'],
     ),
@@ -144,8 +178,22 @@ export default function wilcoTools(pi: PiApi): void {
         project: String(p.project),
         slug: String(p.name),
         intent: String(p.intent),
+        ...(p.context ? { context: String(p.context) } : {}),
+        ...(Array.isArray(p.links) ? { links: p.links } : {}),
       }),
   )
+
+  // Wilco's extensions: listed when Wilco started this orchestrator, run by
+  // Wilco, which is where their settings, secrets and window are.
+  for (const spec of extensionTools()) {
+    tool(
+      spec.name,
+      spec.description,
+      spec.parameters,
+      (p, callId) => rpc('extension/call', { tool: spec.name, input: p, callId }),
+      spec.label,
+    )
+  }
 
   tool(
     'wilco_run_start',

@@ -1,7 +1,15 @@
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { activityFrom, defaultConfigPath, historyFrom, loadConfig, wilcoHome } from '@wilco/core'
-import { Orchestrator, ToolHost } from '@wilco/orchestrator'
+import type { ExtensionWorkbench } from '@wilco/extensions-core'
+import {
+  extensionWorkbench,
+  loadExtensions,
+  Orchestrator,
+  orchestratorExtensions,
+  ToolHost,
+  workbenchExtensions,
+} from '@wilco/orchestrator'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
@@ -23,9 +31,15 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         return
       }
       const home = wilcoHome()
+      const safe = program.opts().safe === true
+      const extensions = await loadExtensions({ config: cfg.config, home, safe })
+      let window: ExtensionWorkbench | null = null
       let wilco: Workbench
       try {
-        wilco = await Workbench.open({ home })
+        wilco = await Workbench.open({
+          home,
+          extensions: workbenchExtensions(extensions, home, () => window),
+        })
       } catch (err) {
         io.err(
           err instanceof HomeBusyError
@@ -37,9 +51,18 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         setExit(Exit.error)
         return
       }
+      window = extensionWorkbench(wilco)
       const tools = await ToolHost.listen({
         wilco,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
+        extensions: async (call) =>
+          (
+            await extensions.call(call.tool, call.input, {
+              caller: { kind: 'orchestrator' },
+              id: call.callId,
+              wilco: window,
+            })
+          ).text,
       })
 
       const chat = await Orchestrator.start({
@@ -55,7 +78,8 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         cwd: process.cwd(),
         config: cfg.config,
         // `wilco --safe chat` loads none of the self-written tools.
-        safe: program.opts().safe === true,
+        safe,
+        extensions: orchestratorExtensions(extensions, home, cfg.config.orchestrator.harness),
       })
 
       chat.onMessage((text) => io.out(text))

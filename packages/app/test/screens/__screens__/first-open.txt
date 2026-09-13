@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌            claude-opus-5 · anthropic · signed in │ nothing spent today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                     claude-opus-5 │ nothing spent today ▾ 

@@ -24,6 +24,12 @@ export interface ToolHostOptions {
   path: string
   /** A terminal was opened or used, so the window can put it in front of you. */
   onTerminal?: (terminal: string) => void
+  /** Runs the orchestrator's extension tools. Without it, it has none. */
+  extensions?: (call: {
+    tool: string
+    input: Record<string, unknown>
+    callId: string
+  }) => Promise<string>
 }
 
 type Handler = (params: Record<string, unknown>) => unknown | Promise<unknown>
@@ -55,7 +61,17 @@ export class ToolHost {
           intent: String(p.intent),
           ...(p.root ? { root: String(p.root) } : {}),
           ...(p.base ? { base: String(p.base) } : {}),
+          ...(p.context ? { context: String(p.context) } : {}),
+          ...(Array.isArray(p.links) ? { links: linksOf(p.links) } : {}),
         }),
+      'extension/call': async (p) => {
+        if (!opts.extensions) throw new Error('Wilco has no extensions loaded')
+        return opts.extensions({
+          tool: String(p.tool),
+          input: (p.input ?? {}) as Record<string, unknown>,
+          callId: String(p.callId ?? ''),
+        })
+      },
       'task/park': (p) => wilco.parkTask(String(p.worktree), p.parked === true),
       'worker/start': (p) =>
         wilco.startAgent({
@@ -190,4 +206,14 @@ function reply(socket: Socket, message: unknown): void {
   const body = Buffer.from(JSON.stringify(message), 'utf8')
   socket.write(`Content-Length: ${body.byteLength}\r\n\r\n`)
   socket.write(body)
+}
+
+/** Links as a model sent them: only the ones with somewhere to go. */
+function linksOf(value: unknown[]): { title: string; url: string }[] {
+  return value.flatMap((one) => {
+    const link = one as { title?: unknown; url?: unknown }
+    return typeof link?.url === 'string' && link.url !== ''
+      ? [{ title: typeof link.title === 'string' ? link.title : link.url, url: link.url }]
+      : []
+  })
 }

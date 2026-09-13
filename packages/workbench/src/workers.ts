@@ -11,6 +11,7 @@ import {
   PermissionNotPendingError,
   type RunId,
   type WorkerAdapter,
+  type WorkerExtras,
   type WorkerHandle,
   type WorkerModel,
   WorkerNotFoundError,
@@ -39,6 +40,19 @@ export interface StartRunRequest {
    * config asks for one.
    */
   sandbox?: SandboxKind
+  /** What extensions add to it: instructions, tools, harness-native pieces. */
+  extras?: WorkerExtras
+}
+
+/** An agent running one of Wilco's extension tools. */
+export interface ExtensionCall {
+  run: RunId
+  task: TaskId
+  /** Where it works, which is where the tool works on its behalf. */
+  cwd: string
+  tool: string
+  input: Record<string, unknown>
+  callId: string
 }
 
 export interface PendingApproval {
@@ -60,6 +74,11 @@ export interface WorkerSupervisorOptions {
   approvals: ApprovalSettings
   /** An agent said what its work is called. */
   onTitle?: (task: TaskId, worktree: string, title: string, named: boolean) => void
+  /**
+   * An agent called an extension tool. Whatever this answers — or the reason
+   * it threw — goes back to the agent as the tool's result.
+   */
+  onExtensionCall?: (call: ExtensionCall) => Promise<string>
 }
 
 interface RunState {
@@ -81,6 +100,7 @@ export class WorkerSupervisor {
   private readonly log: EventLog
   private readonly approvals: ApprovalSettings
   private readonly onTitle: WorkerSupervisorOptions['onTitle']
+  private readonly onExtensionCall: WorkerSupervisorOptions['onExtensionCall']
   private readonly runs = new Map<string, RunState>()
   private readonly pendingApprovals = new Map<string, PendingApproval>()
   /** By task: what each agent last said about its model and context. */
@@ -97,6 +117,7 @@ export class WorkerSupervisor {
     this.log = opts.log
     this.approvals = opts.approvals
     this.onTitle = opts.onTitle
+    this.onExtensionCall = opts.onExtensionCall
   }
 
   /**
@@ -153,6 +174,7 @@ export class WorkerSupervisor {
         cwd: request.cwd,
         prompt: request.prompt,
         ...(request.model ? { model: request.model } : {}),
+        ...(request.extras ? { extras: request.extras } : {}),
         // The worktree is both the policy boundary and the sandbox boundary:
         // the one place a worker is meant to be changing anything.
         ...(request.sandbox && request.sandbox !== 'none'
@@ -298,6 +320,9 @@ export class WorkerSupervisor {
       case 'titled':
         if (state) this.onTitle?.(state.task, state.worktree, signal.title, signal.named)
         return
+      case 'extension_call':
+        await this.answerExtensionCall(run, signal, state)
+        return
       case 'usage':
         if (task && signal.model) this.noteVitals(task, { type: 'started', model: signal.model })
         // What the turn cost, as the harness priced it. The journal is where
@@ -349,6 +374,33 @@ export class WorkerSupervisor {
         ? { ...was, model: signal.model ?? was.model }
         : { ...was, contextTokens: signal.tokens, contextPercent: signal.percent },
     )
+  }
+
+  /** Run the tool an agent asked for, and give it the answer whatever happens. */
+  private async answerExtensionCall(
+    run: RunId,
+    signal: Extract<WorkerSignal, { type: 'extension_call' }>,
+    state: RunState | undefined,
+  ): Promise<void> {
+    let result: { ok: boolean; text: string }
+    if (!this.onExtensionCall || !state) {
+      result = { ok: false, text: 'Wilco has no extension tools to run here' }
+    } else {
+      try {
+        const text = await this.onExtensionCall({
+          run,
+          task: state.task,
+          cwd: state.worktree,
+          tool: signal.tool,
+          input: signal.input,
+          callId: signal.callId,
+        })
+        result = { ok: true, text }
+      } catch (err) {
+        result = { ok: false, text: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    await this.adapter.answer(run, signal.callId, result).catch(() => {})
   }
 
   private async onPermissionRequest(

@@ -14,7 +14,7 @@ import {
   skillStanding,
   wilcoHome,
 } from '@wilco/core'
-import { activeSkills } from '@wilco/orchestrator'
+import { activeSkills, loadExtensions } from '@wilco/orchestrator'
 import { recordAuthored } from '@wilco/workbench'
 import { readJournal } from '@wilco/workbench/events'
 import type { Command } from 'commander'
@@ -60,7 +60,17 @@ const SKILLS: Kind = {
 
 function names(dir: string, kind: Kind): string[] {
   try {
-    return kind.list(readdirSync(dir)).map((file) => file.replace(kind.ext, ''))
+    const files = kind.list(readdirSync(dir)).map((file) => file.replace(kind.ext, ''))
+    // An extension of Wilco's own is a folder with an `extension.ts` in it.
+    const folders =
+      kind.noun === 'extensions'
+        ? readdirSync(dir, { withFileTypes: true })
+            .filter(
+              (entry) => entry.isDirectory() && existsSync(join(dir, entry.name, 'extension.ts')),
+            )
+            .map((entry) => `${entry.name}/`)
+        : []
+    return [...files, ...folders].sort((a, b) => a.localeCompare(b))
   } catch {
     return []
   }
@@ -86,6 +96,28 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action(async (opts: { config: string }) => {
       const dirs = kind.dirs(await rootFor(kind, opts.config))
+      if (kind.noun === 'extensions') {
+        const cfg = await loadConfig(opts.config)
+        if (cfg.ok) {
+          const host = await loadExtensions({
+            config: cfg.config,
+            home: wilcoHome(),
+            safe: program.opts().safe === true,
+          })
+          for (const one of host.list()) {
+            io.out(`${one.title} (${one.name}, ${one.source}): ${one.state}`)
+            if (one.problem) io.out(`  ${one.problem}`)
+            if (one.tools.length > 0)
+              io.out(`  tools: ${one.tools.map((tool) => tool.name).join(', ')}`)
+            if (one.unknownSettings.length > 0) {
+              io.out(
+                `  not read: ${one.unknownSettings.map((key) => `extensions.${one.name}.${key}`).join(', ')}`,
+              )
+            }
+          }
+          io.out('')
+        }
+      }
       const show = (label: string, found: string[]) =>
         io.out(`${label.padEnd(10)}${found.length > 0 ? found.join(', ') : '—'}`)
       show('active', names(dirs.active, kind))
@@ -134,15 +166,21 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
           return
         }
         const dirs = kind.dirs(await rootFor(kind, opts.config))
-        const source = join(dirs.proposed, `${name}${kind.ext}`)
-        if (!existsSync(source)) {
+        const file = join(dirs.proposed, `${name}${kind.ext}`)
+        const folder = join(dirs.proposed, name)
+        const source = existsSync(file)
+          ? file
+          : kind.noun === 'extensions' && existsSync(join(folder, 'extension.ts'))
+            ? folder
+            : null
+        if (!source) {
           io.err(`nothing proposed called ${name}`)
           setExit(Exit.invalidInput)
           return
         }
         const target = to === 'active' ? dirs.active : dirs.rejected
         mkdirSync(target, { recursive: true })
-        renameSync(source, join(target, `${name}${kind.ext}`))
+        renameSync(source, join(target, source === file ? `${name}${kind.ext}` : name))
         // A decision about what Wilco may do to itself is worth a commit: the
         // question later is never "what is active" — the directory says that —
         // but "when did this start, and what was going on when I agreed".
@@ -158,6 +196,48 @@ export function registerExtensions(
   setExit: (code: number) => void,
 ): void {
   register(program, io, setExit, EXTENSIONS)
+  const group = program.commands.find((command) => command.name() === 'extensions')
+  group
+    ?.command('run <tool>')
+    .description(
+      "Run one of an extension's tools and print its answer: `wilco extensions run deps_check --project shop`",
+    )
+    .option('-p, --project <name>', 'the project it works on')
+    .option('--input <json>', 'the rest of its input, as JSON', '{}')
+    .option('-c, --config <path>', 'config file path', defaultConfigPath())
+    .action(async (tool: string, opts: { project?: string; input: string; config: string }) => {
+      const cfg = await loadConfig(opts.config)
+      if (!cfg.ok) {
+        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        setExit(Exit.invalidInput)
+        return
+      }
+      let input: Record<string, unknown>
+      try {
+        input = JSON.parse(opts.input) as Record<string, unknown>
+      } catch {
+        io.err('--input is not JSON')
+        setExit(Exit.invalidInput)
+        return
+      }
+      const host = await loadExtensions({
+        config: cfg.config,
+        home: wilcoHome(),
+        safe: program.opts().safe === true,
+      })
+      try {
+        // No window here, so a tool that starts an agent says it needs one.
+        const answer = await host.call(
+          tool,
+          { ...input, ...(opts.project ? { project: opts.project } : {}) },
+          { caller: { kind: 'you' }, wilco: null },
+        )
+        io.out(answer.text)
+      } catch (err) {
+        io.err(err instanceof Error ? err.message : String(err))
+        setExit(Exit.error)
+      }
+    })
 }
 
 export function registerSkills(program: Command, io: Io, setExit: (code: number) => void): void {

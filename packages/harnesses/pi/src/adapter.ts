@@ -202,6 +202,7 @@ export class PiAdapter implements WorkerAdapter {
           sessionIdFor(spec.task),
           '-e',
           EXTENSION_PATH,
+          ...extrasArgs(spec),
           ...this.opts.args,
           // Last, so the opening instruction is not mistaken for a flag.
           ...(spec.prompt ? [spec.prompt] : []),
@@ -279,6 +280,7 @@ export class PiAdapter implements WorkerAdapter {
           '--session-dir',
           join(this.opts.runDir, 'sessions'),
           ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
+          ...extrasArgs(spec),
           ...this.opts.args,
         ],
       },
@@ -388,6 +390,12 @@ export class PiAdapter implements WorkerAdapter {
     })
   }
 
+  async answer(run: RunId, callId: string, result: { ok: boolean; text: string }): Promise<void> {
+    const entry = this.require(run)
+    if (!entry.channel) throw new Error(`run ${run} is not supervised: nothing to answer`)
+    entry.channel.send({ type: 'extension_result', callId, ok: result.ok, text: result.text })
+  }
+
   async setModel(run: RunId, model: WorkerModel): Promise<void> {
     const entry = this.require(run)
     await this.rpc(entry, {
@@ -459,6 +467,7 @@ export class PiAdapter implements WorkerAdapter {
     env[WORKER_ENV.approvals] = this.opts.approvals
     env[WORKER_ENV.run] = spec.run
     env[WORKER_ENV.task] = spec.task
+    if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
     return env
   }
 
@@ -666,4 +675,19 @@ export function exitReason(code: number | null, stderr: string): string {
   const last = said.find((line) => /^error\b/i.test(line)) ?? said.at(-1)
   if (last) return last.replace(/^error:\s*/i, '')
   return code === null ? 'pi was stopped' : `pi exited with code ${code}`
+}
+
+/**
+ * What extensions add, as pi takes it: instructions appended to its system
+ * prompt, and skills and extensions loaded as its own. Tools arrive through
+ * the environment instead, read by the extension on the other side.
+ */
+function extrasArgs(spec: WorkerSpec): string[] {
+  const extras = spec.extras
+  if (!extras) return []
+  return [
+    ...(extras.instructions?.trim() ? ['--append-system-prompt', extras.instructions] : []),
+    ...(extras.skills ?? []).flatMap((path) => ['--skill', path]),
+    ...(extras.extensions ?? []).flatMap((path) => ['-e', path]),
+  ]
 }

@@ -1,7 +1,7 @@
 import { basename } from 'node:path'
 import { stripTerminalSequences, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import type { Hit, Target } from './hits.ts'
-import { linkedRow } from './links.ts'
+import { type Linker, linkedRow } from './links.ts'
 import type { Skin } from './skin.ts'
 import { type Entry, type Transcript, toolName } from './transcript.ts'
 import { fit, type Pointer, Row } from './ui.ts'
@@ -62,10 +62,11 @@ export function transcriptLines(
   skin: Skin,
   pointer: Pointer,
   now: number,
+  linkers: readonly Linker[] = [],
 ): Line[] {
   const lines: Line[] = []
   const plainText = (text: string) => lines.push({ text: fit(text, width), hits: [] })
-  const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer))
+  const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer, linkers))
 
   transcript.entries.forEach((entry, index) => {
     // A breath before each thing you said, so exchanges read as exchanges.

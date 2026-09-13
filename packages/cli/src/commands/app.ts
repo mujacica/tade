@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
@@ -11,9 +12,18 @@ import {
   readiness,
   wilcoHome,
 } from '@wilco/core'
+import type { ExtensionWorkbench } from '@wilco/extensions-core'
 import { piBinary } from '@wilco/harnesses-pi/adapter'
+import { installedPieces } from '@wilco/harnesses-pi/installed'
 import { credentials, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
-import { Orchestrator, ToolHost } from '@wilco/orchestrator'
+import {
+  extensionWorkbench,
+  loadExtensions,
+  Orchestrator,
+  orchestratorExtensions,
+  ToolHost,
+  workbenchExtensions,
+} from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
 import type { Command } from 'commander'
@@ -67,9 +77,18 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const canHear = (await recorder.available()).ok && (await transcriber.available()).ok
 
       const home = wilcoHome()
+      const safe = program.opts().safe === true
+      // Loaded before anything that hands them out: the workbench gives agents
+      // their tools, the host gives the orchestrator its, the window runs them.
+      const extensions = await loadExtensions({ config: cfg.config, home, safe })
+      // What an extension may ask of the window, once there is one.
+      let windowForExtensions: ExtensionWorkbench | null = null
       let client: Workbench
       try {
-        client = await Workbench.open({ home })
+        client = await Workbench.open({
+          home,
+          extensions: workbenchExtensions(extensions, home, () => windowForExtensions),
+        })
       } catch (err) {
         io.err(
           err instanceof HomeBusyError
@@ -92,6 +111,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         wilco: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
+        extensions: async (call) =>
+          (
+            await extensions.call(call.tool, call.input, {
+              caller: { kind: 'orchestrator' },
+              id: call.callId,
+              wilco: windowForExtensions,
+            })
+          ).text,
       })
       // Held so it can be stopped on the way out, whenever it finishes coming
       // up. Typed explicitly: assigned only from inside a callback, which is
@@ -113,8 +140,13 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // Signed in, or a key: which one is paying, said beside the model.
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
+          extensions,
+          harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })
         showTerminal = (terminal) => void app.showTerminal(terminal)
+        // An agent an extension starts is put in front of you, like one you started.
+        windowForExtensions = extensionWorkbench(client, (task) => app.showTask(task))
+        app.useExtensionWorkbench(windowForExtensions)
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty
@@ -135,7 +167,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             historyFrom(await client.events({ limit: 2_000 }), Date.now()),
             Object.keys(cfg.config.projects),
           ),
-          safe: program.opts().safe === true,
+          safe,
+          extensions: orchestratorExtensions(extensions, home, cfg.config.orchestrator.harness),
           onUsage: (usage) => {
             void client.log
               .append({ type: 'usage', task: null, detail: { by: 'orchestrator', ...usage } })

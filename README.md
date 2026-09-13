@@ -621,6 +621,39 @@ what counts, however recently the other was said. Each note records where it cam
 They live in `~/.wilco/memory.jsonl`, append-only like the journal; a line that can't be read is
 skipped rather than costing you the rest of the file.
 
+### Extensions
+
+Extensions are what Wilco can do that it was not built knowing about. Each gives the orchestrator
+tools (so you can just say *"verify and update all the dependencies in checkout"* or *"check Sentry
+for new errors and tell me what to fix"*), gives agents the same reading tools and a paragraph on how
+to use them, can add to the brief, and can hand work to an agent with everything it found written
+into `.wilco/context.md` and the links kept beside the task. **Extensions** in the footer (or
+`ctrl+k`) lists them — what works, what needs setting up and how, what is broken — with their
+actions as buttons; `wilco extensions` does the same from a terminal, and
+`wilco extensions run <tool> --project <name>` runs one.
+
+Two ship with Wilco:
+
+- **Dependencies** (`deps`): npm (and pnpm catalogs), PyPI, crates.io and Go modules — what is behind,
+  by how much, vulnerable (OSV) or deprecated. Updating starts an agent in its own worktree with the
+  manifests already moved forward, which installs, tests, fixes and commits. Nothing to set up.
+- **Sentry** (`sentry`): issues, events with stack traces and breadcrumbs, traces, logs, spans,
+  metrics, Seer's root cause, and `sentry_fix`, which starts an agent on an issue. Uses the token you
+  already have for sentry-cli (`$SENTRY_AUTH_TOKEN`, `.sentryclirc`, or the `sentry` CLI's login); set
+  the organization and, where slugs differ, which Sentry project each Wilco project reports to:
+
+  ```yaml
+  extensions:
+    sentry:
+      org: acme
+      projects: { checkout: checkout-api }
+      # url: http://localhost:8000   # a Sentry you run yourself
+  ```
+
+Your own go in `~/.wilco/extensions/active/<name>/extension.ts`, under the same rails as everything
+Wilco writes for itself: proposals do nothing until moved there, they load when Wilco starts, and
+`--safe` starts without them.
+
 ### What it has learned
 
 A **skill** is a lesson Wilco wrote for itself — *"every time a task touched payments you made me

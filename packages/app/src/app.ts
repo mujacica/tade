@@ -15,6 +15,7 @@ import {
 } from '@earendil-works/pi-tui'
 import {
   type Config,
+  composeBrief,
   DEFAULT_ATTENTION,
   describeWork,
   expandHome,
@@ -28,6 +29,7 @@ import {
   resolveRoute,
   settingsOf,
 } from '@wilco/core'
+import type { ExtensionHost, ExtensionWorkbench } from '@wilco/extensions-core'
 import { git } from '@wilco/status'
 import {
   type AudioClip,
@@ -55,6 +57,7 @@ import {
 import { asPaste, clipboardImage, imagePaths, pasted, readImage, shellQuote } from './images.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
+import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
 import {
@@ -105,6 +108,8 @@ import {
   changeMenuItems,
   confirmRemovePanel,
   diffPanel,
+  type ExtensionView,
+  extensionsPanel,
   fileMenuItems,
   filePanel,
   findPanel,
@@ -147,7 +152,16 @@ import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } fr
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
-import { fromThinker, problem, type ThinkerEvent, thinking, youSaid } from './transcript.ts'
+import {
+  fromThinker,
+  problem,
+  ran,
+  said,
+  suggest,
+  type ThinkerEvent,
+  thinking,
+  youSaid,
+} from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
 import { draw, type Frame } from './view.ts'
 import { formattable, formattedLines, readForView, sourceLines, type ViewedFile } from './viewer.ts'
@@ -300,6 +314,12 @@ export interface AppOptions {
   credentials?: () => Promise<Record<string, 'signed-in' | 'api-key' | 'env-key'>>
   /** The command that runs the harness interactively, for signing in. */
   signIn?: () => { command: string; args: string[] }
+  /** The extensions this window runs with: their actions, their answers, their brief. */
+  extensions?: ExtensionHost
+  /** What the window lets an extension do: start an agent on something. */
+  extensionWorkbench?: ExtensionWorkbench
+  /** Extensions the harness loads by itself, which Wilco lists but does not run. */
+  harnessExtensions?: () => Promise<{ name: string; where: string }[]>
   now?: () => number
   frameMs?: number
 }
@@ -320,6 +340,10 @@ export class App {
   private thinker: Thinker | null = null
   /** The pictures that went with what was said last, until the orchestrator is asked. */
   private sending: string[] = []
+  /** Text the extensions know how to open, asked once: working it out reads files. */
+  private linkers: readonly Linker[] = []
+  /** What the harness loads by itself, once asked. */
+  private harnessPieces: { name: string; where: string }[] = []
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
   /** The size each lane was last made, so resizing happens once per change. */
@@ -391,6 +415,8 @@ export class App {
   private timer: NodeJS.Timeout | null = null
   /** When the whole screen was last written over itself. */
   private repaintedAt = 0
+  /** Extension actions you have run, for giving each its own line. */
+  private ranCount = 0
   private release: (() => void) | null = null
   private stopped = false
   private settle: () => void = () => {}
@@ -432,6 +458,19 @@ export class App {
     this.thinker = thinker
     thinker.onEvent?.((event) => {
       this.state = withTranscript(this.state, fromThinker(this.state.transcript, event, this.now()))
+      this.draw()
+    })
+  }
+
+  /** What extensions may ask of this window, once it exists to be asked. */
+  useExtensionWorkbench(workbench: ExtensionWorkbench): void {
+    this.opts.extensionWorkbench = workbench
+  }
+
+  /** Put an agent in front of you: one an extension just started, say. */
+  showTask(task: string): void {
+    void this.live?.refresh().then(() => {
+      this.state = focusTask(this.state, task)
       this.draw()
     })
   }
@@ -600,6 +639,13 @@ export class App {
     const panel = this.state.panel
     if (!panel) return {}
     if (panel.kind === 'menu') return { items: this.menuItemsFor(panel) }
+    if (panel.kind === 'extensions') {
+      return {
+        extensions: this.extensionViews(),
+        harnessExtensions: this.harnessPieces,
+        extensionsRoot: tilde(expandHome(this.opts.config.orchestrator.extensions)),
+      }
+    }
     if (panel.kind === 'branch') return { branches: this.branchRows }
     if (panel.kind === 'find') {
       return {
@@ -710,6 +756,7 @@ export class App {
             base: focused ? live.baseOf(focused.task) : null,
             worktree: worktree ? tilde(worktree) : null,
             path: worktree ?? repo,
+            links: facts?.links ?? [],
           }
         : null,
       changes: live.changes(this.state.focused),
@@ -736,6 +783,7 @@ export class App {
       },
       terminal: { screen: this.terminalScreen, find: this.findView() },
       home: tilde(this.opts.home),
+      linkers: this.linkers,
       now: this.now(),
     }
   }
@@ -877,6 +925,8 @@ export class App {
       },
     })
     this.live = live
+    this.linkers = this.opts.extensions?.linkers() ?? []
+    this.watchExtensions()
     // Never an empty project: the one you open in gets an agent, ready to type to.
     this.ensureAgent(this.state.project)
 
@@ -898,6 +948,7 @@ export class App {
       worktreeOf: async (task) => live.worktreeOf(task),
       show: async (task) => this.show(task),
       openSettings: async () => this.openSettings(),
+      brief: () => this.brief(),
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
       ask: (text: string) => this.ask(text),
@@ -1173,6 +1224,11 @@ export class App {
       this.say(action.slice('ask:'.length))
       return
     }
+    if (action.startsWith('extension:')) {
+      const [, name, id] = action.split(':')
+      await this.runExtension(name ?? '', id ?? '')
+      return
+    }
     switch (action) {
       case 'new-agent':
         await this.newAgent('')
@@ -1180,6 +1236,14 @@ export class App {
       case 'transcript-end':
         this.state = { ...this.state, transcriptScroll: 0 }
         this.draw()
+        return
+      case 'extensions':
+        this.harnessPieces = (await this.opts.harnessExtensions?.().catch(() => [])) ?? []
+        this.state = { ...this.state, panel: extensionsPanel() }
+        this.draw()
+        return
+      case 'brief':
+        await this.brief()
         return
       case 'open-project':
         this.openCache = null
@@ -1445,6 +1509,12 @@ export class App {
         this.draw()
         await this.fromMenu(panel.subject, choice ?? '')
         return
+      case 'extensions': {
+        this.state = { ...this.state, panel: null }
+        const [name, id] = (choice ?? '').split(':')
+        await this.runExtension(name ?? '', id ?? '')
+        return
+      }
       case 'prompt':
         await this.savePrompt(panel)
         break
@@ -1557,6 +1627,17 @@ export class App {
         })
       }
     }
+    // What the extensions can do, where you are.
+    for (const { extension, action: one } of this.opts.extensions?.actions() ?? []) {
+      entries.push({
+        id: `run:extension:${extension.name}:${one.id}`,
+        kind: 'action',
+        label: one.title,
+        detail: extension.title,
+        mark: '◆',
+        complete: `>${one.title}`,
+      })
+    }
     for (const pane of panes) {
       entries.push({
         id: `task:${pane.task}`,
@@ -1576,6 +1657,8 @@ export class App {
       ['run:new-terminal', 'New terminal'],
       ['run:open-project', 'Open project'],
       ['run:spend', 'Spend'],
+      ['run:extensions', 'Extensions'],
+      ['run:brief', 'Brief'],
       ['run:settings', 'Settings'],
       ['run:keys', 'Keys'],
       ['run:quit', 'Quit'],
@@ -3027,6 +3110,122 @@ export class App {
    * capability says which, never the driver's name, and when it cannot the
    * answer says where to look instead of pretending.
    */
+  /** The extensions, as the panel shows them. */
+  private extensionViews(): ExtensionView[] {
+    return (this.opts.extensions?.list() ?? []).map((one) => ({
+      name: one.name,
+      title: one.title,
+      description: one.description,
+      source: one.source,
+      state: one.state,
+      problem: one.problem,
+      tools: one.tools.map((tool) => tool.name),
+      actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
+      unknownSettings: one.unknownSettings,
+    }))
+  }
+
+  /**
+   * Show extension tools running in the conversation: yours from start to
+   * answer, and how the orchestrator's are getting on while they run. An
+   * agent's are shown in its own pane, by its harness.
+   */
+  private watchExtensions(): void {
+    this.opts.extensions?.onRun((run) => {
+      const at = this.now()
+      let transcript = this.state.transcript
+      if (run.caller.kind === 'agent') return
+      if (run.caller.kind === 'you') {
+        if (run.state === 'running') transcript = ran(transcript, run, at)
+        if (run.state === 'ok' || run.state === 'failed') {
+          transcript = fromThinker(
+            transcript,
+            {
+              type: 'tool_done',
+              id: run.id,
+              ok: run.state === 'ok',
+              text: run.state === 'ok' ? '' : run.text,
+            },
+            at,
+          )
+          if (run.state === 'ok') transcript = said(transcript, run.text, at)
+        }
+      }
+      if (run.state === 'progress') {
+        transcript = fromThinker(transcript, { type: 'progress', id: run.id, text: run.text }, at)
+      }
+      this.state = withTranscript(this.state, transcript)
+      this.draw()
+    })
+  }
+
+  /** Run one of an extension's actions for the project you are in, in front of you. */
+  private async runExtension(name: string, id: string): Promise<void> {
+    const host = this.opts.extensions
+    const found = host?.actions().find((one) => one.extension.name === name && one.action.id === id)
+    if (!host || !found) {
+      this.state = notice(this.state, `no extension action ${name}:${id}`)
+      this.draw()
+      return
+    }
+    const { action } = found
+    const project = this.state.project
+    if (action.project && !project) {
+      this.state = notice(this.state, 'open a project first: this works on one')
+      this.draw()
+      return
+    }
+    this.state = {
+      ...this.state,
+      bottom: ORCHESTRATOR_TAB,
+      bottomMode: this.state.bottomMode === 'min' ? 'open' : this.state.bottomMode,
+    }
+    this.draw()
+    await host
+      .call(
+        action.tool,
+        { ...(action.input ?? {}), ...(action.project && project ? { project } : {}) },
+        {
+          caller: { kind: 'you' },
+          id: `you-${++this.ranCount}`,
+          wilco: this.opts.extensionWorkbench ?? null,
+        },
+      )
+      // Shown by the run itself: a failure's reason is already on its line.
+      .catch(() => {})
+  }
+
+  /**
+   * The brief, on demand: what is stopped, what is moving, and what the
+   * extensions found — with what to ask about each offered to click. Returned
+   * as it would be said, for a surface that speaks it.
+   */
+  private async brief(): Promise<string> {
+    const tasks = (this.live?.tasks ?? []).map((task) => ({
+      task: task.task,
+      state: task.state,
+      waiting: task.approval?.summary ?? null,
+      reason: '',
+    }))
+    const found = (await this.opts.extensions?.brief().catch(() => null)) ?? {
+      items: [],
+      problems: [],
+    }
+    const composed = composeBrief(tasks, {
+      localHour: new Date(this.now()).getHours(),
+      extras: found.items.map((item) => item.said),
+    })
+    const at = this.now()
+    let transcript = said(this.state.transcript, composed.spoken, at)
+    for (const item of found.items) {
+      if (item.ask) transcript = suggest(transcript, item.said, item.ask, at)
+    }
+    this.state = withTranscript({ ...this.state, bottom: ORCHESTRATOR_TAB }, transcript)
+    if (found.problems.length > 0) this.state = notice(this.state, found.problems.join(' · '))
+    this.draw()
+    return composed.spoken
+  }
+
   private async show(task: string): Promise<string> {
     const known = this.state.panes.some((pane) => pane.task === task)
     if (!known) return `I don't have a pane for ${task}.`
@@ -3210,6 +3409,7 @@ export class App {
           : [],
       choices: this.choices,
       items: this.menuItemsFor(this.state.panel),
+      extensions: this.extensionViews(),
       settings: settingsOf(this.opts.config),
       accounts: this.accounts.length,
     }

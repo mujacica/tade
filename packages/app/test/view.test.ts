@@ -137,7 +137,8 @@ describe('what is clickable', () => {
       expect(kinds('section').has(JSON.stringify({ kind: 'section', section }))).toBe(true)
     }
     expect(kinds('folder').size).toBe(1)
-    for (const button of BUTTONS) {
+    // Every button that must always be there; the optional ones only where there is room.
+    for (const button of BUTTONS.filter((one) => !one.optional)) {
       expect(kinds('action').has(JSON.stringify({ kind: 'action', name: button.action }))).toBe(
         true,
       )

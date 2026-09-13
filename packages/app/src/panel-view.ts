@@ -1,3 +1,4 @@
+import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import type { Setting, SettingGroup } from '@wilco/core'
 import type { ParsedDiff } from './diff.ts'
 import type { Hit } from './hits.ts'
@@ -13,6 +14,9 @@ import {
   type ConfirmRemovePanel,
   choicesFor,
   type DiffPanel,
+  type ExtensionsPanel,
+  type ExtensionView,
+  extensionActions,
   type FilePanel,
   type FindPanel,
   type MenuItem,
@@ -111,6 +115,12 @@ export interface PanelContext {
   found: number
   /** What the terminal being searched is called. */
   terminalName: string
+  /** The extensions this window runs with. */
+  extensions: readonly ExtensionView[]
+  /** Extensions the harness loads itself, which Wilco only lists. */
+  harnessExtensions: readonly { name: string; where: string }[]
+  /** Where your own extensions go, as you would type it. */
+  extensionsRoot: string
 }
 
 export interface OpenRowView {
@@ -158,7 +168,129 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: keysSheet(ctx), popups: [] }
     case 'quit':
       return { panel: quit(panel, ctx), popups: [] }
+    case 'extensions':
+      return { panel: extensions(panel, ctx), popups: [] }
   }
+}
+
+/**
+ * The extensions: each with whether it works and, when it does not, what to
+ * do about it; its actions as buttons; and where your own go. A fixed height,
+ * scrolled to the action the keyboard is on, so nothing jumps while you move.
+ */
+function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(100, ctx.width - 4)
+  const inner = width - 2
+  const actions = extensionActions(ctx.extensions)
+  const chosen = actions[panel.index]
+  const pointer = ctx.pointer.hover
+    ? ctx.pointer
+    : {
+        ...ctx.pointer,
+        hover: chosen
+          ? { kind: 'control' as const, id: `action:${chosen.extension}:${chosen.id}` }
+          : null,
+      }
+  const row = () => new Row(inner, skin, pointer)
+  const lines: { text: string; hits: Hit[]; chosen?: boolean }[] = []
+
+  for (const view of ctx.extensions) {
+    const mark =
+      view.state === 'ready'
+        ? skin.done('●')
+        : view.state === 'broken'
+          ? skin.bad('✗')
+          : view.state === 'off'
+            ? skin.hint('○')
+            : skin.waiting('◐')
+    lines.push(
+      row()
+        .space()
+        .text(mark)
+        .space()
+        .text(view.title, skin.you)
+        .text(`  ${view.source} · ${view.state}`, skin.hint)
+        .right((r) =>
+          r
+            .text(
+              view.tools.length > 0
+                ? `${view.tools.length} tool${view.tools.length === 1 ? '' : 's'}`
+                : '',
+              skin.hint,
+            )
+            .space(),
+        )
+        .build(),
+    )
+    const said = view.problem && view.state !== 'ready' ? view.problem : view.description
+    for (const piece of wrapTextWithAnsi(said, Math.max(10, inner - 4))) {
+      lines.push(
+        row()
+          .text('   ')
+          .text(piece, view.problem && view.state !== 'ready' ? skin.waiting : skin.hint)
+          .build(),
+      )
+    }
+    if (view.unknownSettings.length > 0) {
+      lines.push(
+        row()
+          .text('   ')
+          .text(`not read: extensions.${view.name}.${view.unknownSettings.join(', ')}`, skin.bad)
+          .build(),
+      )
+    }
+    if (view.state === 'ready' && view.actions.length > 0) {
+      let buttons = row().text('   ')
+      let chosenHere = false
+      for (const action of view.actions) {
+        const id = `action:${view.name}:${action.id}`
+        // A button that would not fit starts the next line.
+        if (buttons.used + visibleWidth(action.title) + 5 > inner) {
+          lines.push({ ...buttons.build(), chosen: chosenHere })
+          buttons = row().text('   ')
+          chosenHere = false
+        }
+        buttons.button(action.title, { kind: 'control', id }).space()
+        if (chosen && `${chosen.extension}:${chosen.id}` === `${view.name}:${action.id}`)
+          chosenHere = true
+      }
+      lines.push({ ...buttons.build(), chosen: chosenHere })
+    }
+    lines.push(blank(inner))
+  }
+  if (ctx.extensions.length === 0)
+    lines.push(row().space().text('No extensions are loaded.', skin.hint).build(), blank(inner))
+
+  if (ctx.harnessExtensions.length > 0) {
+    lines.push(
+      row()
+        .space()
+        .text("PI'S OWN", skin.label)
+        .text('  loaded by pi itself, in every agent', skin.hint)
+        .build(),
+    )
+    for (const piece of ctx.harnessExtensions) {
+      lines.push(row().text('   ').text(piece.name).text(`  ${piece.where}`, skin.hint).build())
+    }
+    lines.push(blank(inner))
+  }
+
+  // As tall as the window allows, and no taller than it needs; scrolled so the
+  // chosen action is in view.
+  const room = Math.max(6, Math.min(lines.length, ctx.height - 8))
+  const at = Math.max(
+    0,
+    lines.findIndex((line) => line.chosen),
+  )
+  const start = Math.max(0, Math.min(at - Math.floor(room / 2), lines.length - room))
+  const shown = lines.slice(start, start + room)
+  const footer = row()
+    .space()
+    .text(`yours go in ${ctx.extensionsRoot}/active/<name>/extension.ts`, skin.hint)
+    .right((r) => r.text('enter runs · esc closes', skin.hint).space())
+    .build()
+  return box('Extensions', [...shown, footer], width, skin, { corner: 'esc' })
 }
 
 function search(panel: SearchPanel, ctx: PanelContext): Drawn {

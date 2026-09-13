@@ -6,6 +6,7 @@ import {
   fromThinker,
   fromTurn,
   problem,
+  said,
   suggest,
   TRANSCRIPT_MAX,
   type Transcript,
@@ -116,6 +117,23 @@ describe('the conversation', () => {
       at: 1,
     })
     expect(text(unanswered).at(-1)).toBe('  The orchestrator is still starting.')
+  })
+
+  it('shows a brief once, however it was asked for', () => {
+    let current = youSaid(emptyTranscript(), 'brief me', 0)
+    current = suggest(
+      said(current, 'Morning. Nothing running.', 1),
+      'Sentry has 1 new issue',
+      'look',
+      1,
+    )
+    current = fromTurn(current, {
+      utterance: 'brief me',
+      intent: 'brief',
+      reply: 'Morning. Nothing running.',
+      at: 2,
+    })
+    expect(text(current).filter((line) => line.includes('Morning.'))).toHaveLength(1)
   })
 
   it('offers a suggestion as something to click', () => {

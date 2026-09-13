@@ -320,6 +320,25 @@ describe('asking for the settings', () => {
   })
 })
 
+describe('asking for the brief', () => {
+  it('understands the ways people ask', () => {
+    for (const said of [
+      'brief me',
+      'morning brief',
+      'give me the brief',
+      "what's the briefing",
+      'catch me up',
+      'what did I miss?',
+    ]) {
+      expect(parseUtterance(said, vocabulary).kind).toBe('brief')
+    }
+  })
+
+  it('leaves a sentence that mentions one to the orchestrator', () => {
+    expect(parseUtterance('write a brief for the refunds agent', vocabulary).kind).toBe('free')
+  })
+})
+
 describe('a sentence about a terminal', () => {
   const vocabulary = { tasks: ['app/refunds'], projects: ['app'] }
   const parse = (said: string) => parseUtterance(said, vocabulary)

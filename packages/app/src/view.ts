@@ -2,7 +2,7 @@ import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
-import { linkedRow } from './links.ts'
+import { type Linker, linkedRow } from './links.ts'
 import {
   type AgentPane,
   type AppState,
@@ -79,6 +79,8 @@ export interface Frame {
     worktree: string | null
     /** Where that is on this machine, in full: the worktree, or the repository. */
     path: string
+    /** Where the agent's work came from — an issue, a trace — each opened by a click. */
+    links?: readonly { title: string; url: string }[]
   } | null
   /** What the focused agent has changed since it branched. */
   changes?: readonly Change[]
@@ -132,12 +134,17 @@ export interface Frame {
       | 'checkout'
       | 'found'
       | 'terminalName'
+      | 'extensions'
+      | 'harnessExtensions'
+      | 'extensionsRoot'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
   voice?: { keys: readonly string[]; available: boolean }
   /** Wilco's home, as you would type it, for showing where worktrees go. */
   home?: string
+  /** Text extensions know how to open, made clickable wherever it is shown. */
+  linkers?: readonly Linker[]
   now?: number
   /** How to divide the window. Defaults when absent. */
   layout?: LayoutPrefs
@@ -156,9 +163,16 @@ export interface Spend {
  * The buttons along the foot, which are also what clicking them does. Each
  * names an action the app carries out; none of them types a command for you.
  */
-export const BUTTONS: readonly { label: string; action: string; look?: 'primary' }[] = [
+export const BUTTONS: readonly {
+  label: string
+  action: string
+  look?: 'primary'
+  /** Left out where the footer is too narrow for it and what it costs: it is in ctrl+k too. */
+  optional?: boolean
+}[] = [
   { label: '+ New agent', action: 'new-agent' },
   { label: 'Open project', action: 'open-project' },
+  { label: 'Extensions', action: 'extensions', optional: true },
   { label: 'Settings', action: 'settings' },
 ]
 
@@ -268,6 +282,9 @@ export function draw(state: AppState, frame: Frame): Drawn {
     checkout: extra.checkout ?? frame.where?.branch ?? null,
     found: extra.found ?? 0,
     terminalName: extra.terminalName ?? 'terminal',
+    extensions: extra.extensions ?? [],
+    harnessExtensions: extra.harnessExtensions ?? [],
+    extensionsRoot: extra.extensionsRoot ?? '~/.wilco/extensions',
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
@@ -595,6 +612,16 @@ function whereRows(
     hits: [rowHit(0, branchLine.width, branch)],
   })
   if (where.base) rows.push(line('from', where.base.replace(/^origin\//, ''), skin.hint, false))
+  for (const link of where.links ?? []) {
+    const target: Target = { kind: 'link', url: link.url }
+    const lit = sameTarget(row().pointer.hover, target)
+    const r = row().space(3).text('about'.padEnd(9), skin.hint)
+    r.text(
+      tailOf(`${link.title} ↗`, Math.max(1, r.width - r.used - 1)),
+      lit ? skin.link : skin.signal,
+    )
+    rows.push({ text: r.build().text, hits: [rowHit(0, r.width, target)] })
+  }
   if (where.worktree) rows.push(line('worktree', where.worktree))
   // The whole path, never shortened — it is the one to paste into another
   // terminal — so it wraps under its label, and a click copies it.
@@ -848,9 +875,11 @@ function renderMain(
       // An approval card sits at the bottom; the conversation ends above it.
       const reading = pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
       for (let gap = reading - lines.length; gap > 0; gap--) rows.push(blank(width))
-      for (const line of lines.slice(-reading)) rows.push(linkedRow(line, width, skin, pointer))
+      for (const line of lines.slice(-reading))
+        rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
     } else {
-      for (const line of lines.slice(-room)) rows.push(linkedRow(line, width, skin, pointer))
+      for (const line of lines.slice(-room))
+        rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
     }
   }
   // Anywhere on the agent's screen gives it the keyboard back.
@@ -1034,7 +1063,14 @@ function renderStrip(
     return { rows: rows.slice(0, height), hits }
   }
 
-  const body: Line[] = transcriptLines(state.transcript, width, skin, pointer, frame.now ?? 0)
+  const body: Line[] = transcriptLines(
+    state.transcript,
+    width,
+    skin,
+    pointer,
+    frame.now ?? 0,
+    frame.linkers,
+  )
   const quiet = (text: string): Line => ({ text: fit(text, width), hits: [] })
   if (state.question) {
     body.push(quiet(skin.waiting(` ? ${state.question.question}`)))
@@ -1199,7 +1235,10 @@ function renderFoot(
   pointer: Pointer,
 ): Drawn {
   const row = new Row(width, skin, pointer).space()
-  for (const button of BUTTONS) {
+  // The footer keeps what it costs today before a button you can also reach from ctrl+k.
+  const all = BUTTONS.reduce((used, button) => used + visibleWidth(button.label) + 5, 1)
+  const roomy = all + 24 <= width
+  for (const button of BUTTONS.filter((one) => roomy || !one.optional)) {
     const look = button.action === 'new-agent' && !state.project ? 'off' : (button.look ?? 'rest')
     row.button(button.label, { kind: 'action', name: button.action }, look).space()
   }

@@ -23,6 +23,12 @@ export interface BriefOptions {
   localHour: number
   /** At most one, and only when there is room for it. */
   proposal?: string | null
+  /**
+   * What extensions found worth saying — new Sentry issues, a vulnerable
+   * dependency — each a clause. Said after what is stopped and before the
+   * proposal: they are about the work, and you asked for them.
+   */
+  extras?: readonly string[]
 }
 
 export interface Brief {
@@ -50,7 +56,7 @@ export function composeBrief(tasks: readonly BriefTask[], opts: BriefOptions): B
   const working = tasks.filter((t) => t.state === 'working').length
   if (working > 0) clauses.push(`${working} still working`)
 
-  if (clauses.length === 0) {
+  if (clauses.length === 0 && (opts.extras ?? []).length === 0) {
     // Nothing is moving, but "nothing running" while three tasks sit waiting
     // to be started is true and useless.
     const idle = [
@@ -59,6 +65,8 @@ export function composeBrief(tasks: readonly BriefTask[], opts: BriefOptions): B
     ].filter((part) => part !== '')
     clauses.push(idle.length > 0 ? `nothing running, ${idle.join(' and ')}` : 'nothing running')
   }
+
+  clauses.push(...(opts.extras ?? []))
 
   // One proposal, and only when the brief is short enough to hear it out.
   if (opts.proposal && clauses.length <= 4) clauses.push(opts.proposal)
@@ -72,7 +80,7 @@ function describe(task: BriefTask): string {
     case 'blocked':
       return task.waiting ? `${name} is blocked on ${task.waiting}` : `${name} is blocked`
     case 'failed':
-      return `${name} failed — ${task.reason}`
+      return task.reason ? `${name} failed — ${task.reason}` : `${name} failed`
     case 'review':
       return `${name} is done and wants your eyes`
     default:

@@ -55,8 +55,16 @@ export const TaskFile = z.object({
    * name you gave its session, or the start of the first thing you asked it.
    */
   title: z.string().optional(),
+  /**
+   * Where the work came from and where to read about it — an issue, a trace —
+   * put there by whoever started it, so an agent and a person both find it.
+   */
+  links: z.array(z.object({ title: z.string(), url: z.string() })).default([]),
 })
 export type TaskFile = z.infer<typeof TaskFile>
+
+/** Beside the task file: what whoever started a task wanted the agent to know. */
+export const TASK_CONTEXT_FILE = '.wilco/context.md'
 
 export const PrState = z.enum(['OPEN', 'MERGED', 'CLOSED'])
 
@@ -131,6 +139,8 @@ export const Task = z.object({
   branch: z.string(),
   /** What the work is called, when the agent has said. */
   title: z.string().optional(),
+  /** Where the work came from: an issue, a trace. */
+  links: z.array(z.object({ title: z.string(), url: z.string() })).optional(),
   worktree: z.string(),
   created: z.string(),
   state: TaskState,

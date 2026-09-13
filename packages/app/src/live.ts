@@ -193,7 +193,12 @@ export class Live {
   /** Each task's branch and how far ahead of its base, for removing it. */
   private readonly facts = new Map<
     string,
-    { project: string; branch: string; ahead: number | null }
+    {
+      project: string
+      branch: string
+      ahead: number | null
+      links: readonly { title: string; url: string }[]
+    }
   >()
   /** Every `usage` event since midnight, which is what today's spend is. */
   private usage: WilcoEvent[] = []
@@ -364,7 +369,13 @@ export class Live {
   }
 
   /** A task's branch, its project, and how many commits it has that its base does not. */
-  factsOf(task: string): { project: string; branch: string; ahead: number | null } | null {
+  factsOf(task: string): {
+    project: string
+    branch: string
+    ahead: number | null
+    /** Where the work came from: an issue, a trace. */
+    links: readonly { title: string; url: string }[]
+  } | null {
     return this.facts.get(task) ?? null
   }
 
@@ -483,6 +494,7 @@ export class Live {
             project: project.name,
             branch: task.branch,
             ahead: task.git?.ahead ?? null,
+            links: task.links ?? [],
           })
           const worked = (task.git?.dirty.length ?? 0) > 0 || (task.git?.ahead ?? 0) > 0
           if (!task.branch && worked) {

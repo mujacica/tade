@@ -87,6 +87,13 @@ export function thinking(transcript: Transcript, at: number): Transcript {
  * as they arrived — unless it never got that far, and the reply says why.
  */
 export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
+  // The brief writes itself into the conversation as it is composed, with
+  // what to ask about it; its reply is the same words again.
+  if (turn.intent === 'brief') {
+    const since = lastYou(transcript.entries)
+    if (transcript.entries.slice(since + 1).some((entry) => entry.kind === 'said'))
+      return transcript
+  }
   if (turn.intent === 'free') {
     const since = lastYou(transcript.entries)
     const answered = transcript.entries
@@ -170,6 +177,32 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
       return next
     }
   }
+}
+
+/** Words from Wilco itself, not the orchestrator: a brief, an extension's answer. */
+export function said(transcript: Transcript, text: string, at: number): Transcript {
+  return push(transcript, { kind: 'said', text, streaming: false, at })
+}
+
+/**
+ * Something you ran yourself — an extension's action — shown as a tool line
+ * like the orchestrator's, without claiming the orchestrator is thinking.
+ */
+export function ran(
+  transcript: Transcript,
+  run: { id: string; tool: string; input: unknown },
+  at: number,
+): Transcript {
+  return push(transcript, {
+    kind: 'tool',
+    id: run.id,
+    tool: run.tool,
+    detail: toolDetail(run.input),
+    state: 'running',
+    result: '',
+    progress: null,
+    at,
+  })
 }
 
 /** Something went wrong outside the orchestrator: shown where you were looking for the answer. */

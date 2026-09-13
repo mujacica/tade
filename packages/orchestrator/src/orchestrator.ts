@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Config, Note, SkillActivity, Unsubscribe } from '@wilco/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@wilco/core'
-import type { WorkerImage, WorkerModel } from '@wilco/harnesses-core'
+import type { WorkerExtras, WorkerImage, WorkerModel } from '@wilco/harnesses-core'
 import { type AvailableModel, chooseModel, PiAdapter, usableModels } from '@wilco/harnesses-pi'
 import { activeExtensions, activeSkills } from './extensions.ts'
 
@@ -47,6 +47,11 @@ export interface OrchestratorOptions {
   model?: WorkerModel
   /** The models you can use, to settle which one a configured name means. Read from the harness unless given. */
   models?: () => Promise<AvailableModel[]>
+  /**
+   * What extensions add: the tools it may call (run by the window), what it is
+   * told about them, and harness-native pieces they ship.
+   */
+  extensions?: { prompt: string; extras: WorkerExtras }
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
@@ -143,6 +148,7 @@ export class Orchestrator {
                   opts.activity ?? { lastSeenAt: {}, known: Object.keys(opts.config.projects) },
                   opts.now ?? Date.now(),
                 ),
+                ...(opts.extensions?.prompt ? { extensions: opts.extensions.prompt } : {}),
               }),
             ]
           : []),
@@ -202,6 +208,7 @@ export class Orchestrator {
       cwd: opts.cwd ?? process.cwd(),
       prompt: '',
       ...(model ? { model } : {}),
+      ...(opts.extensions ? { extras: opts.extensions.extras } : {}),
     })
     // A harness that refused to start — a model it could not resolve, most
     // often — has already said why, and that is the answer to give.
