@@ -79,7 +79,6 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 | `packages/daemon` | `wilcod`: socket, lane registry, event log |
 | `packages/driver-*` | `WorkspaceDriver` implementations |
 | `packages/driver-conformance` | shared suites for every port |
-| `packages/worker-acp` | ACP worker adapter |
 | `packages/orchestrator` | orchestrator extensions and prompt composition |
 | `packages/harness-pi` | the pi harness: worker adapter, signal channel, supervision extension |
 | `packages/surface-voice` | attention policy, intent grammar, earcons and spoken summaries |

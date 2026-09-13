@@ -1,10 +1,20 @@
+import { spawn } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
-import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
+import { defaultConfigPath, isReady, loadConfig, readiness, wilcoHome } from '@wilco/core'
 import { DaemonClient } from '@wilco/daemon/client'
 import { socketPath } from '@wilco/daemon/protocol'
 import { makeRecorder, makeTranscriber } from '@wilco/stt'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import { gather } from './setup.ts'
+
+/** Run the wizard attached to this terminal, and report how it went. */
+async function runSetup(): Promise<number> {
+  const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
+  const child = spawn(process.execPath, [bin, 'setup'], { stdio: 'inherit' })
+  return new Promise((done) => child.once('exit', (code) => done(code ?? 1)))
+}
 
 // The window. Everything it does is in `@wilco/app`; this only checks that
 // there is a terminal and a daemon to talk to, then gets out of the way.
@@ -26,6 +36,16 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         setExit(Exit.error)
         return
       }
+
+      // A fresh machine gets led through setup rather than shown an empty
+      // window. Same command, so there is only one implementation of it.
+      if (!isReady(readiness(await gather()))) {
+        if ((await runSetup()) !== 0) {
+          setExit(Exit.error)
+          return
+        }
+      }
+
       const socket = socketPath()
       if (!(await DaemonClient.isRunning(socket))) {
         io.err('daemon not running: start it with `wilco daemon start`')

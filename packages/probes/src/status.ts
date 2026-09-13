@@ -17,6 +17,7 @@ import { type AdoptedSession, scanTranscripts } from './adoption.ts'
 import { git, listWorktrees, probeGit, resolveBaseRef, type WorktreeEntry } from './git.ts'
 import { type LivenessProbe, noLanes } from './liveness.ts'
 import { type AgentProcess, listAgentProcesses } from './processes.ts'
+import { readTests } from './tests.ts'
 
 // Assembles `wilco status`: runs every probe fresh, then derives each task's
 // state with the pure state machine. Never throws: every failure becomes a
@@ -136,7 +137,8 @@ async function buildTask(
     parked: tf?.parked ?? false,
     git: g.snapshot,
     agents,
-    tests: 'unknown',
+    // Only counts for the commit it ran against; anything older is unknown.
+    tests: await readTests(wt.path, g.snapshot?.head ?? null),
   })
 
   return {
@@ -149,7 +151,9 @@ async function buildTask(
     ...derived,
     git: g.snapshot,
     agents: agents.sort((a, b) => cmp(a.sessionId, b.sessionId)),
-    lanes: [],
+    // This reported an empty list while the daemon was tracking lanes the
+    // whole time, so `wilco status --json` never showed anything to attach to.
+    lanes: (await liveness.records?.(id)) ?? [],
   }
 }
 

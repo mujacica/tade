@@ -84,7 +84,13 @@ export class Daemon {
 
   static async start(opts: DaemonOptions): Promise<Daemon> {
     const socket = opts.socket ?? socketPath({ ...process.env, WILCO_HOME: opts.home })
-    const driverName = opts.driver ?? 'pty'
+    // A broken config must not stop the daemon booting; `wilco config --check`
+    // is where a typo gets reported, so here it degrades to defaults.
+    const loaded = await loadConfig(join(opts.home, 'config.yaml'))
+    const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
+    // Explicit argument, then the config, then the default. The config used to
+    // be ignored entirely, so `workspace.driver: tmux` did nothing.
+    const driverName = opts.driver ?? config.workspace.driver
     const makeDriver = drivers[driverName]
     if (!makeDriver) throw new Error(`unknown workspace driver: ${driverName}`)
 
@@ -104,10 +110,6 @@ export class Daemon {
       log,
       path: join(opts.home, 'lanes.json'),
     })
-    // A broken config must not stop the daemon booting; `wilco config --check`
-    // is where a typo gets reported, so here it degrades to defaults.
-    const loaded = await loadConfig(join(opts.home, 'config.yaml'))
-    const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
     if (!loaded.ok) {
       await log.append({
         type: 'warning',
@@ -155,6 +157,23 @@ export class Daemon {
    * route that cannot be resolved fails the run rather than quietly starting
    * an agent with the whole disk writable.
    */
+  /**
+   * Refuse to run more agents on a project than it allows. The setting existed
+   * and nothing enforced it, so a project configured for one agent would
+   * happily get five.
+   */
+  private guardParallel(task: string): void {
+    const project = task.split('/')[0] ?? ''
+    const limit = this.config.projects[project]?.max_parallel
+    if (!limit) return
+    const running = this.workers.list().filter((h) => h.task.startsWith(`${project}/`)).length
+    if (running >= limit) {
+      throw new Error(
+        `${project} already has ${running} agent${running === 1 ? '' : 's'} running, and max_parallel is ${limit}`,
+      )
+    }
+  }
+
   private sandboxFor(task: string): SandboxKind {
     const project = task.split('/')[0]
     return resolveRoute(this.config, project ? { project } : {}).sandbox
@@ -321,9 +340,10 @@ export class Daemon {
       scope === undefined ? this.memory.all() : this.memory.recall(scope),
     )
 
-    connection.onRequest(Method.workerStart, (req: StartRunRequest) =>
-      this.workers.start({ ...req, sandbox: req.sandbox ?? this.sandboxFor(req.task) }),
-    )
+    connection.onRequest(Method.workerStart, (req: StartRunRequest) => {
+      this.guardParallel(req.task)
+      return this.workers.start({ ...req, sandbox: req.sandbox ?? this.sandboxFor(req.task) })
+    })
     connection.onRequest(Method.workerList, () => this.workers.list())
     connection.onRequest(Method.workerPending, ({ task }: { task?: string } = {}) =>
       this.workers.pending(task),

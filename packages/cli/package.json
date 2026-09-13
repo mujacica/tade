@@ -10,10 +10,13 @@
     "@wilco/app": "workspace:*",
     "@wilco/core": "workspace:*",
     "@wilco/daemon": "workspace:*",
+    "@wilco/harness-pi": "workspace:*",
     "@wilco/orchestrator": "workspace:*",
     "@wilco/probes": "workspace:*",
     "@wilco/stt": "workspace:*",
-    "commander": "^15.0.0"
+    "@wilco/surface-voice": "workspace:*",
+    "commander": "^15.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@wilco/driver-conformance": "workspace:*",

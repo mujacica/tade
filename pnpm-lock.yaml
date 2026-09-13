@@ -54,6 +54,9 @@ importers:
       '@wilco/daemon':
         specifier: workspace:*
         version: link:../daemon
+      '@wilco/harness-pi':
+        specifier: workspace:*
+        version: link:../harness-pi
       '@wilco/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
@@ -63,9 +66,15 @@ importers:
       '@wilco/stt':
         specifier: workspace:*
         version: link:../stt
+      '@wilco/surface-voice':
+        specifier: workspace:*
+        version: link:../surface-voice
       commander:
         specifier: ^15.0.0
         version: 15.0.0
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@wilco/driver-conformance':
         specifier: workspace:*
@@ -215,8 +224,6 @@ importers:
       '@wilco/probes':
         specifier: workspace:*
         version: link:../probes
-
-  packages/worker-acp: {}
 
   test:
     dependencies:

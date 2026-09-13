@@ -422,4 +422,4 @@ Contributor conventions (including the rules every port implementation must foll
 | `packages/stt` | Speech: microphone capture and transcription, local or hosted |
 | `packages/driver-conformance` | The shared suite every driver must pass |
 | `packages/harness-pi` | Runs and supervises pi: adapter, supervision channel, the in-agent extension |
-| `packages/worker-acp`, `orchestrator` | Reserved for a second worker adapter and the orchestrator (stubs) |
+| `packages/orchestrator` | The orchestrator: its tools, and how its prompt is composed |

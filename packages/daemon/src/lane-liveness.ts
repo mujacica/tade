@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import type { AgentSignal, LivenessProbe, TaskId, WorkerHandle } from '@wilco/core'
+import type { AgentSignal, Lane, LivenessProbe, TaskId, WorkerHandle } from '@wilco/core'
 import { DaemonClient } from './client.ts'
 import { socketPath } from './protocol.ts'
 import type { LaneRecord } from './registry.ts'
@@ -58,6 +58,19 @@ export function livenessFrom(client: DaemonClient): LivenessProbe {
         ...lanes.filter((l) => l.kind === 'agent').map(laneSignal),
         ...runs.filter((r) => r.task === task).map((r) => runSignal(r, pending)),
       ]
+    },
+
+    async records(task: TaskId): Promise<Lane[]> {
+      const lanes = await safely(() => client.lanes(task), [] as LaneRecord[])
+      return lanes.map((lane) => ({
+        id: lane.id,
+        kind: lane.kind,
+        alive: lane.alive,
+        pid: lane.pid,
+        lastOutputAt: lane.lastOutputAt,
+        // The escape hatch that works whatever the driver is.
+        attach: `wilco attach ${lane.id}`,
+      }))
     },
   }
 }

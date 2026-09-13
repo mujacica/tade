@@ -17,7 +17,7 @@ describe('parseConfig', () => {
 
   it('accepts a fully populated config', () => {
     const r = parseConfig(`
-workspace: { driver: pty, fallback: pty, adopt: true }
+workspace: { driver: tmux, adopt: true }
 orchestrator: { harness: pi, provider: anthropic, model: claude-opus-5 }
 workers:
   default: cheap

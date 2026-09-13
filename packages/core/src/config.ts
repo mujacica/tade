@@ -7,7 +7,9 @@ import { z } from 'zod'
 // Schema for ~/.wilco/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
 
-const DriverId = z.enum(['pty', 'tmux', 'ghostty', 'kitty', 'wezterm', 'zellij'])
+// The drivers that exist. Names with no implementation behind them used to be
+// listed here and validated clean, which reads as a promise.
+const DriverId = z.enum(['pty', 'tmux'])
 const Harness = z.enum(['pi'])
 const RouteName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/)
 
@@ -34,6 +36,11 @@ export const ProjectConfigSchema = z.strictObject({
   /** Names a route in `workers.routes`. */
   worker: RouteName.optional(),
   max_parallel: z.int().positive().default(1),
+  /**
+   * How to check the work, run by `wilco check`. Without it, `review` means
+   * "finished and clean" rather than "finished, clean and verified".
+   */
+  test_command: z.string().min(1).optional(),
 })
 
 export const ConfigSchema = z
@@ -41,7 +48,6 @@ export const ConfigSchema = z
     workspace: z
       .strictObject({
         driver: DriverId.default('pty'),
-        fallback: DriverId.default('pty'),
         adopt: z.boolean().default(true),
       })
       .prefault({}),
