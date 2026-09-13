@@ -1,5 +1,6 @@
 import type { Config } from './config.ts'
 import type { Note } from './memory.ts'
+import { type Skill, skillText } from './skills.ts'
 
 // What the orchestrator is told about your world before it says anything.
 //
@@ -16,6 +17,8 @@ export interface ComposeInput {
   config: Config
   /** What you have told it. Global ones always apply; scoped ones are listed. */
   notes?: readonly Note[]
+  /** Lessons it wrote and you approved. */
+  skills?: readonly Skill[]
   /** Limits how much of the config is repeated at it. */
   maxNotes?: number
 }
@@ -34,7 +37,13 @@ const RULES = [
 ].join('\n')
 
 export function composePrompt(input: ComposeInput): string {
-  const sections = [ROLE, describeProjects(input.config), describeNotes(input), RULES]
+  const sections = [
+    ROLE,
+    describeProjects(input.config),
+    describeNotes(input),
+    skillText(input.skills ?? []),
+    RULES,
+  ]
   return sections.filter((section) => section !== '').join('\n\n')
 }
 

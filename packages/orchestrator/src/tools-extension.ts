@@ -10,6 +10,11 @@ function extensionsRoot(): string {
   return join(process.env.WILCO_HOME ?? process.cwd(), 'extensions')
 }
 
+/** Where lessons are written. Set by the orchestrator that launched us. */
+function skillsRoot(): string {
+  return process.env.WILCO_SKILLS ?? join(process.env.WILCO_HOME ?? process.cwd(), 'skills')
+}
+
 // Wilco's tools, as seen by the orchestrator.
 //
 // pi loads this file directly, so like the supervision extension it is
@@ -158,7 +163,12 @@ export default function wilcoTools(pi: PiApi): void {
     },
   )
 
-  tool('wilco_run_list', 'The agents currently running.', object({}), () => rpc('worker/list', {}))
+  tool(
+    'wilco_run_list',
+    'The agents running right now, with the task each is working on and its run id. Steering or stopping one needs the run id from here.',
+    object({}),
+    () => rpc('worker/list', {}),
+  )
 
   tool(
     'wilco_steer',
@@ -167,8 +177,87 @@ export default function wilcoTools(pi: PiApi): void {
     (p) => rpc('worker/steer', { run: String(p.run), message: String(p.message) }),
   )
 
-  tool('wilco_run_stop', 'Stop a running agent.', object({ run: string('run id') }, ['run']), (p) =>
-    rpc('worker/stop', { run: String(p.run) }),
+  tool(
+    'wilco_run_stop',
+    'Stop a running agent. The task and its worktree stay; only the agent ends.',
+    object({ run: string('run id') }, ['run']),
+    (p) => rpc('worker/stop', { run: String(p.run) }),
+  )
+
+  for (const [name, parked, what] of [
+    [
+      'wilco_park',
+      true,
+      'Set a task aside. Nothing is lost: the worktree stays and it can be picked back up.',
+    ],
+    ['wilco_resume', false, 'Pick a parked task back up, so it counts as work again.'],
+  ] as const) {
+    tool(
+      name,
+      what,
+      object({ task: string('task id, like checkout/refunds') }, ['task']),
+      async (p) => {
+        const task = String(p.task)
+        const worktree = await worktreeOf(task)
+        if (!worktree) throw new Error(`no such task: ${task}`)
+        return rpc('task/park', { worktree, parked })
+      },
+    )
+  }
+
+  tool(
+    'wilco_remember',
+    'Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything.',
+    object(
+      {
+        text: string('exactly what they said, never a tidier version of it'),
+        about: string('task or project it is about, if any'),
+      },
+      ['text'],
+    ),
+    (p) =>
+      rpc('memory/remember', {
+        text: String(p.text),
+        scope: p.about ? String(p.about) : null,
+        by: 'orchestrator',
+      }),
+  )
+
+  tool(
+    'wilco_propose_skill',
+    'Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.',
+    object(
+      {
+        name: string('short name, lowercase with dashes'),
+        text: string('the lesson, in markdown, in your own words'),
+      },
+      ['name', 'text'],
+    ),
+    async (p) => {
+      const name = String(p.name)
+      if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) {
+        throw new Error(`${name} is not a usable name: lowercase letters, digits and dashes`)
+      }
+      const dir = join(skillsRoot(), 'proposed')
+      await mkdir(dir, { recursive: true })
+      const path = join(dir, `${name}.md`)
+      await writeFile(path, `${String(p.text).trim()}\n`)
+      return `Proposed ${name}. It is not in use: a human activates it with \`wilco skills activate ${name}\` after reading ${path}.`
+    },
+  )
+
+  tool(
+    'wilco_logs',
+    'What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.',
+    object({
+      task: string('only this task'),
+      limit: { type: 'number', description: 'how many events, newest last' },
+    }),
+    (p) =>
+      rpc('events/read', {
+        ...(p.task ? { task: String(p.task) } : {}),
+        limit: Number(p.limit) > 0 ? Number(p.limit) : 50,
+      }),
   )
 
   tool(

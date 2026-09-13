@@ -1,6 +1,6 @@
-import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
-import { extensionDirs, loadable } from '@wilco/core'
+import { readdirSync, readFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
+import { extensionDirs, loadable, loadableSkills, type Skill, skillDirs } from '@wilco/core'
 
 // Finding the tools Wilco wrote for itself. The rules about which files count
 // are in core and tested there; this is the part that touches the disk.
@@ -13,6 +13,19 @@ export function activeExtensions(root: string): string[] {
   const dirs = extensionDirs(root)
   try {
     return loadable(readdirSync(dirs.active)).map((name) => join(dirs.active, name))
+  } catch {
+    return []
+  }
+}
+
+/** Lessons a human has approved, for the prompt. Never throws. */
+export function activeSkills(root: string): Skill[] {
+  const dirs = skillDirs(root)
+  try {
+    return loadableSkills(readdirSync(dirs.active)).map((file) => ({
+      name: basename(file, '.md'),
+      text: readFileSync(join(dirs.active, file), 'utf8'),
+    }))
   } catch {
     return []
   }

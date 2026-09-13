@@ -29,7 +29,9 @@ Early prototype. What works today:
 | Memory: what you tell it, kept verbatim and scoped to what it is about | ✅ |
 | Speech-to-text: local whisper.cpp by default, or any OpenAI-compatible API | ✅ |
 | Guided setup, the morning brief, verified tests, self-written tools | ✅ |
-| Skill promotion with decay, spend budgets | not started |
+| Spend in tokens and dollars, with per-project daily budgets | ✅ |
+| Skills: lessons Wilco proposes and you approve | ✅ |
+| Automatic decay of unused skills | not started |
 
 ## Requirements
 
@@ -138,6 +140,8 @@ something to think with.
 | `wilco brief [--speak]` | Everything that matters, in one paragraph |
 | `wilco check <task>` | Run the project's `test_command` and record the result against its commit |
 | `wilco extensions [activate\|reject <name>]` | Tools Wilco wrote for itself: review and decide |
+| `wilco skills [activate\|reject <name>]` | Lessons Wilco wrote for itself: review and decide |
+| `wilco spend [--days N] [--json]` | What the agents have cost, in tokens and dollars |
 | `wilco --safe <command>` | Start with none of the self-written tools loaded |
 | `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
 | `wilco voice` | Whether Wilco can hear you, and what would fix it |

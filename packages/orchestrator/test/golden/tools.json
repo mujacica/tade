@@ -1,0 +1,295 @@
+[
+  {
+    "name": "wilco_approvals",
+    "description": "Commands agents are waiting for permission to run.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "only this task"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_approve",
+    "description": "Let a waiting command run. Only after the human has agreed to that exact command.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "run id"
+        },
+        "request": {
+          "type": "string",
+          "description": "request id"
+        }
+      },
+      "required": [
+        "run",
+        "request"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_deny",
+    "description": "Refuse a waiting command, telling the agent why.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "run id"
+        },
+        "request": {
+          "type": "string",
+          "description": "request id"
+        },
+        "reason": {
+          "type": "string",
+          "description": "why not"
+        }
+      },
+      "required": [
+        "run",
+        "request"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_logs",
+    "description": "What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "only this task"
+        },
+        "limit": {
+          "type": "number",
+          "description": "how many events, newest last"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_park",
+    "description": "Set a task aside. Nothing is lost: the worktree stays and it can be picked back up.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_propose_extension",
+    "description": "Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `wilco extensions activate`. Never assume a proposed tool is available.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "short name, lowercase with dashes"
+        },
+        "source": {
+          "type": "string",
+          "description": "the extension source: a pi extension module"
+        },
+        "why": {
+          "type": "string",
+          "description": "what it is for, in one sentence"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "why"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_propose_skill",
+    "description": "Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "short name, lowercase with dashes"
+        },
+        "text": {
+          "type": "string",
+          "description": "the lesson, in markdown, in your own words"
+        }
+      },
+      "required": [
+        "name",
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_remember",
+    "description": "Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "exactly what they said, never a tidier version of it"
+        },
+        "about": {
+          "type": "string",
+          "description": "task or project it is about, if any"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_resume",
+    "description": "Pick a parked task back up, so it counts as work again.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_run_list",
+    "description": "The agents running right now, with the task each is working on and its run id. Steering or stopping one needs the run id from here.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_run_start",
+    "description": "Start an agent working on an existing task. The prompt is what the agent is told first.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "what to tell the agent first"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_run_stop",
+    "description": "Stop a running agent. The task and its worktree stay; only the agent ends.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "run id"
+        }
+      },
+      "required": [
+        "run"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_status",
+    "description": "Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_steer",
+    "description": "Tell a running agent something without stopping it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "string",
+          "description": "run id"
+        },
+        "message": {
+          "type": "string",
+          "description": "what to tell it"
+        }
+      },
+      "required": [
+        "run",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_task_create",
+    "description": "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "project name, as configured"
+        },
+        "name": {
+          "type": "string",
+          "description": "short task name, lowercase with dashes"
+        },
+        "intent": {
+          "type": "string",
+          "description": "what the human said, word for word"
+        }
+      },
+      "required": [
+        "project",
+        "name",
+        "intent"
+      ],
+      "additionalProperties": false
+    }
+  }
+]

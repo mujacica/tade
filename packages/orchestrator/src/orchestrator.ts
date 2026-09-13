@@ -4,7 +4,12 @@ import type { Config, Note, Unsubscribe } from '@wilco/core'
 import { composePrompt, expandHome, orchestratorRoute } from '@wilco/core'
 import type { WorkerModel } from '@wilco/harnesses-core'
 import { PiAdapter } from '@wilco/harnesses-pi'
-import { activeExtensions } from './extensions.ts'
+import { activeExtensions, activeSkills } from './extensions.ts'
+
+/** Where approved lessons live, beside everything else Wilco keeps. */
+function skillsRoot(opts: { home: string }): string {
+  return join(opts.home, 'skills')
+}
 
 // The thing you talk to. An agent like any other, except that its tools are
 // Wilco's own and nobody supervises it: it is the interface, not the work.
@@ -85,6 +90,7 @@ export class Orchestrator {
               composePrompt({
                 config: opts.config,
                 ...(opts.notes ? { notes: opts.notes } : {}),
+                skills: activeSkills(skillsRoot(opts)),
               }),
             ]
           : []),
@@ -94,11 +100,12 @@ export class Orchestrator {
         ...(opts.env ?? process.env),
         WILCO_SOCKET: opts.socket,
         WILCO_HOME: opts.home,
-        // Where proposals are written, so the tool does not have to guess at
-        // a path the config may have moved.
+        // Where proposals are written, so the tools do not have to guess at
+        // paths the config may have moved.
         WILCO_EXTENSIONS: expandHome(
           opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
         ),
+        WILCO_SKILLS: skillsRoot(opts),
         WILCO_CLI: process.execPath,
         WILCO_CLI_ARGS: CLI_BIN,
       },

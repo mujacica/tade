@@ -10,9 +10,9 @@ import { registerBrief } from './commands/brief.ts'
 import { registerChat } from './commands/chat.ts'
 import { registerCheck } from './commands/check.ts'
 import { registerDaemon } from './commands/daemon.ts'
-import { registerExtensions } from './commands/extensions.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
+import { registerExtensions, registerSkills } from './commands/proposals.ts'
 import { registerSetup } from './commands/setup.ts'
 import { registerSpend } from './commands/spend.ts'
 import { registerSummary } from './commands/summary.ts'
@@ -107,6 +107,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)
   registerExtensions(program, io, setExit)
+  registerSkills(program, io, setExit)
   registerDaemon(program, io, setExit)
   return program
 }
