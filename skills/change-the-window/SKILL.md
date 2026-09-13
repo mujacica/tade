@@ -14,7 +14,12 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
-| `screen.ts` | The screen Wilco asks you things on: setup, settings | a terminal (rendering is pure) |
+| `screen.ts` | The screen Wilco asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
+
+**A command that needs more than a word borrows the whole terminal.** `App.onScreen` stops the
+window, runs a `runScreen` flow, and starts it again — because two things drawing at once is the bug
+this design exists to avoid. Anything that goes wrong in there is shown *on that screen* and waited
+on (`ui.pause`): a window that redraws over the explanation is a window that ate it.
 
 Put behaviour in `model.ts` and drawing in `view.ts`. If `app.ts` grows a rule, it is in the wrong
 file and cannot be tested.

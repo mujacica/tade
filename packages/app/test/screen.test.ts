@@ -298,4 +298,20 @@ describe('answering it', () => {
     terminal.press('\x03')
     await expect(stopped).rejects.toThrow(ScreenCancelled)
   }, 30_000)
+
+  it('waits to be told an explanation has been read', async () => {
+    const terminal = new FakeTerminal()
+    let went = false
+    await runScreen({ title: 'Wilco', terminal }, async (ui: Ui) => {
+      const paused = ui.pause('  that branch already exists')
+      await until(() => terminal.written.includes('that branch already exists'))
+      // A screen that closes on its way out takes the reason with it, and the
+      // window behind is about to redraw over where it was.
+      expect(terminal.written).toContain('press enter')
+      terminal.press('\r')
+      await paused
+      went = true
+    })
+    expect(went).toBe(true)
+  })
 })

@@ -291,8 +291,13 @@ search            │ ⏵ wants approval: bash: npm i stripe@15
  1 waiting  tab switch · ctrl+space talk · ? help
 ```
 
-- **Tab** moves between agents; everything the window doesn't claim is typed straight into the agent
-  you're watching, so its own keybindings keep working.
+- **Tab** moves between agents *and the orchestrator*, which is a place you can be: it is where you
+  type to Wilco. Everything the window doesn't claim is typed straight into the agent you're
+  watching, so its own keybindings keep working.
+- **Type `/` to see what Wilco can do** — create a task, start or stop an agent, add a project, open
+  the settings. Unavailable ones are still listed, with the reason (*"nothing is running"*), because
+  a menu that changes shape is one you re-read every time. Anything needing more than a word opens a
+  form with room for it.
 - **Ctrl+space** talks. Where the terminal reports key releases it is hold-to-talk; elsewhere it
   toggles. Space is never claimed, because you have to be able to type one.
 - **Say something to Wilco without leaving the agent you're typing at.** Begin a line with `wilco ` —

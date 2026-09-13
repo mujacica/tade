@@ -52,6 +52,11 @@ export interface AppState {
   held: string | null
   /** One line of transient news for the footer. */
   notice: string | null
+  /**
+   * You have moved focus yourself, so nothing may move it for you again. Until
+   * then the first task is a better opening view than an empty pane.
+   */
+  chose: boolean
 }
 
 export function initialState(): AppState {
@@ -65,6 +70,7 @@ export function initialState(): AppState {
     dictation: null,
     held: null,
     notice: null,
+    chose: false,
   }
 }
 
@@ -88,23 +94,106 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     state: task.state,
     waiting: task.waiting ?? false,
   }))
-  const focused =
-    state.focused && panes.some((pane) => pane.task === state.focused)
+  return { ...state, panes, focused: refocus(state, panes) }
+}
+
+/**
+ * Where focus goes after the tasks change.
+ *
+ * Once you have chosen, it stays where you put it — including on the
+ * orchestrator, which is a real place to be and not merely the absence of a
+ * pane. Before you have chosen anything, the first task is a better opening
+ * view than an empty one. The distinction matters because this runs on a
+ * timer: without it, tabbing to the orchestrator would last about two seconds.
+ */
+function refocus(state: AppState, panes: AgentPane[]): string | null {
+  if (state.chose) {
+    // A task that has gone cannot keep focus; the orchestrator always can.
+    if (state.focused === null) return null
+    return panes.some((pane) => pane.task === state.focused)
       ? state.focused
       : (panes[0]?.task ?? null)
-  return { ...state, panes, focused }
+  }
+  return state.focused && panes.some((pane) => pane.task === state.focused)
+    ? state.focused
+    : (panes[0]?.task ?? null)
 }
 
 export function focusTask(state: AppState, task: string): AppState {
-  return state.panes.some((pane) => pane.task === task) ? { ...state, focused: task } : state
+  return state.panes.some((pane) => pane.task === task)
+    ? { ...state, focused: task, chose: true }
+    : state
 }
 
 /** Move focus along the sidebar, wrapping at both ends. */
+/**
+ * Move focus, counting the orchestrator as one of the things you can focus.
+ *
+ * It is where you type to Wilco, so leaving it out of the cycle meant a window
+ * with no tasks had nothing at all to type into — which is exactly the window
+ * everybody sees first.
+ */
 export function focusBy(state: AppState, delta: number): AppState {
-  if (state.panes.length === 0) return state
-  const at = state.panes.findIndex((pane) => pane.task === state.focused)
-  const next = at < 0 ? 0 : (at + delta + state.panes.length) % state.panes.length
-  return { ...state, focused: state.panes[next]?.task ?? state.focused }
+  // `null` is the orchestrator, and it is always there.
+  const ring: Array<string | null> = [...state.panes.map((pane) => pane.task), null]
+  const at = ring.indexOf(state.focused)
+  const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length
+  return { ...state, focused: ring[next] ?? null }
+}
+
+/** What you can ask for by name, rather than by remembering a phrase. */
+export interface Action {
+  name: string
+  about: string
+  /** False when it cannot be done right now, with `about` saying why. */
+  ready: boolean
+}
+
+/**
+ * The slash commands, and whether each one can be done at the moment.
+ *
+ * Listed rather than hidden when they cannot: a menu that changes shape as
+ * you work is one you have to re-read every time, and "no agent is running
+ * here" is more use than an option that silently is not there.
+ */
+export function actions(state: AppState): Action[] {
+  const focused = state.panes.find((pane) => pane.task === state.focused)
+  const running = state.panes.filter((pane) => pane.lane !== null)
+  return [
+    { name: '/task', about: 'create a task: a branch, a worktree, your words', ready: true },
+    {
+      name: '/agent',
+      about: focused ? `start an agent on ${focused.name}` : 'start an agent on a task',
+      ready: state.panes.length > 0,
+    },
+    {
+      name: '/stop',
+      about: running.length > 0 ? 'stop an agent, keeping its task' : 'nothing is running',
+      ready: running.length > 0,
+    },
+    {
+      name: '/open',
+      about: state.panes.length > 0 ? 'watch a task' : 'no tasks yet',
+      ready: state.panes.length > 0,
+    },
+    { name: '/project', about: 'add a git repository Wilco can work in', ready: true },
+    { name: '/settings', about: 'see and change what Wilco has been told', ready: true },
+    { name: '/help', about: 'what the keys do', ready: true },
+    { name: '/quit', about: 'close the window; agents carry on if they can', ready: true },
+  ]
+}
+
+/** The actions matching what has been typed after the slash. */
+export function matchActions(state: AppState, typed: string): Action[] {
+  const want = typed.replace(/^\//, '').trim().toLowerCase()
+  const all = actions(state)
+  if (want === '') return all
+  return all.filter((action) => action.name.slice(1).startsWith(want))
+}
+
+/** Whether what is being typed is reaching for a command rather than words. */
+export function isAction(typed: string | null): boolean {
+  return typed?.startsWith('/') === true
 }
 
 export function noteTyping(state: AppState, at: number): AppState {

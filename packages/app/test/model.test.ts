@@ -68,16 +68,26 @@ describe('tasks and focus', () => {
     expect(fewer.focused).toBe('checkout/stripe-v15')
   })
 
-  it('cycles through panes in both directions, wrapping', () => {
+  it('cycles through panes and the orchestrator, wrapping', () => {
     let current = state()
     expect(current.focused).toBe('checkout/stripe-v15')
     current = focusBy(current, 1)
     expect(current.focused).toBe('checkout/refunds')
     current = focusBy(current, 1)
     expect(current.focused).toBe('search/pagination')
+    // The orchestrator is one of the things you tab to: it is where you type
+    // to Wilco, and leaving it out left a window with no tasks unusable.
+    current = focusBy(current, 1)
+    expect(current.focused).toBeNull()
     current = focusBy(current, 1)
     expect(current.focused).toBe('checkout/stripe-v15')
-    expect(focusBy(current, -1).focused).toBe('search/pagination')
+    expect(focusBy(current, -1).focused).toBeNull()
+  })
+
+  it('has somewhere to go even with no tasks at all', () => {
+    // Which is the window everybody sees first.
+    const empty = { ...state(), panes: [], focused: null }
+    expect(focusBy(empty, 1).focused).toBeNull()
   })
 
   it('ignores a task it does not have', () => {

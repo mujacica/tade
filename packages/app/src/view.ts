@@ -1,7 +1,15 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@wilco/voice-core'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
-import { type AppState, glyph, headline, paneTitle, sidebar } from './model.ts'
+import {
+  type AppState,
+  glyph,
+  headline,
+  isAction,
+  matchActions,
+  paneTitle,
+  sidebar,
+} from './model.ts'
 
 // Drawing, as one pure function of state.
 //
@@ -44,7 +52,7 @@ export function renderApp(state: AppState, frame: Frame): string[] {
   return rows
 }
 
-const HINTS = 'tab switch · ctrl+space talk · ? help'
+const HINTS = 'tab switch · / commands · ctrl+space talk · ctrl+c quit'
 
 function renderSidebar(state: AppState, width: number, height: number): string[] {
   const lines: string[] = []
@@ -61,7 +69,20 @@ function renderSidebar(state: AppState, width: number, height: number): string[]
 
 function renderMain(state: AppState, screen: string, width: number, height: number): string[] {
   const pane = state.panes.find((p) => p.task === state.focused)
-  if (!pane) return [clip('nothing to show', width)]
+  if (!pane) {
+    // The window everybody sees first. It has to say what to do next, not
+    // report that there is nothing to report.
+    const lines = [
+      clip(state.panes.length === 0 ? 'Nothing is running yet.' : 'Watching nothing.', width),
+      '',
+      clip('  /task      create a task and start work on it', width),
+      clip('  /project   add a repository Wilco can work in', width),
+      clip('  /settings  see and change what Wilco has been told', width),
+      '',
+      clip('Type / below for the rest, or just say what you want.', width),
+    ]
+    return lines.slice(0, height)
+  }
 
   const title = pane.waiting ? `${paneTitle(pane)} — waiting on you` : paneTitle(pane)
   const lines = [clip(title, width), '─'.repeat(width)]
@@ -79,8 +100,9 @@ function renderMain(state: AppState, screen: string, width: number, height: numb
 }
 
 function renderStrip(state: AppState, width: number, height: number): string[] {
-  const rows = [`${state.listening ? '─ orchestrator ── ⏺ listening ' : '─ orchestrator '}`]
-  rows[0] = rows[0]!.padEnd(width, '─').slice(0, width)
+  const here = state.focused === null ? ' ── here ' : ' '
+  const title = state.listening ? '─ orchestrator ── ⏺ listening ' : `─ orchestrator${here}`
+  const rows = [title.padEnd(width, '─').slice(0, width)]
 
   const body: string[] = []
   if (state.question) {
@@ -89,9 +111,28 @@ function renderStrip(state: AppState, width: number, height: number): string[] {
   }
   for (const turn of state.turns) body.push(...renderTurn(turn, width))
   if (state.notice) body.push(clip(`· ${state.notice}`, width))
-  if (body.length === 0) body.push(clip('press ctrl+space and say what you want', width))
+  if (body.length === 0) {
+    body.push(clip('say what you want, or / for what Wilco can do', width))
+  }
+
+  // Reaching for a command: the list is more use than the transcript, so it
+  // takes the room.
+  if (isAction(state.dictation)) {
+    const found = matchActions(state, state.dictation ?? '')
+    const room = Math.max(1, height - 2)
+    for (const action of found.slice(0, room)) {
+      const mark = action.ready ? ' ' : '·'
+      body.push(clip(`${mark} ${action.name.padEnd(10)} ${action.about}`, width))
+    }
+    if (found.length === 0) body.push(clip('  no command like that', width))
+  }
+
   // Last, and with a cursor, because it is what you are doing right now.
-  if (state.dictation !== null) body.push(clip(`◉ ${state.dictation}▏`, width))
+  // `◉` while the microphone is open, `❯` while you type: the same line, and
+  // which one it is matters, because one of them is recording you.
+  if (state.dictation !== null) {
+    body.push(clip(`${state.listening ? '◉' : '❯'} ${state.dictation}▏`, width))
+  }
   // Typed at an agent, but held back because it might be meant for Wilco.
   if (state.held) body.push(clip(`◌ ${state.held}▏`, width))
 

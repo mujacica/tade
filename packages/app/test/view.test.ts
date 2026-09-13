@@ -161,7 +161,29 @@ describe('the orchestrator strip', () => {
   })
 
   it('shows the line the moment it opens, before anything is said', () => {
-    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('◉')
+    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('❯')
+  })
+
+  it('marks the line differently while the microphone is open', () => {
+    // The same line either way, but one of them is recording you, and that is
+    // not a thing to have to infer.
+    const talking = setListening(setDictation(state(), ''), true)
+    expect(renderApp(talking, frame()).join('\n')).toContain('◉')
+  })
+
+  it('offers the commands as you type a slash', () => {
+    const rows = renderApp(setDictation(state(), '/t'), frame()).join('\n')
+    expect(rows).toContain('/task')
+    // Narrowed: a list that does not shrink as you type is a list you scroll.
+    expect(rows).not.toContain('/settings')
+  })
+
+  it('says what to do when there is nothing to show yet', () => {
+    const empty = { ...state(), panes: [], focused: null }
+    const rows = renderApp(empty, frame()).join('\n')
+    // The window everybody sees first has to say what to do next.
+    expect(rows).toContain('/task')
+    expect(rows).not.toContain('nothing to show')
   })
 
   it('shows keystrokes held back at an agent prompt', () => {

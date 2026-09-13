@@ -291,6 +291,11 @@ export interface Ui {
   /** Pick one of several. Returns the index. */
   choose(question: string, options: readonly string[]): Promise<number>
   /**
+   * Say something and wait to be told it has been read. For anything that went
+   * wrong: a screen that closes on the way out takes the explanation with it.
+   */
+  pause(text: string): Promise<void>
+  /**
    * Run something in a terminal inside the window, and wait for it. Every
    * keystroke goes to it while it runs, because Wilco is the only thing
    * reading the keyboard.
@@ -454,6 +459,10 @@ export async function runScreen(
       draw()
       return said === '' ? fallback : said.startsWith('y')
     },
+    async pause(text) {
+      state = { ...state, said: [...state.said, text] }
+      await ui.ask('press enter to go back', ' ')
+    },
     async choose(question, options) {
       state = { ...state, menu: { question, options, index: 0, filter: '' } }
       draw()
@@ -514,6 +523,9 @@ export async function runScreen(
     release()
     await driver.shutdown().catch(() => {})
     tui.stop()
+    // Nothing of the screen is left behind: what somebody sees after it closes
+    // is their own terminal, not the bottom half of a form.
+    terminal.clearScreen()
   }
 }
 

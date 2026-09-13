@@ -1,5 +1,5 @@
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, join, resolve } from 'node:path'
 import {
   type Component,
   ProcessTerminal,
@@ -36,6 +36,7 @@ import {
   focusTask,
   initialState,
   keyAction,
+  matchActions,
   noteTyping,
   notice,
   onEvent,
@@ -46,8 +47,8 @@ import {
   withTasks,
 } from './model.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
-import { runScreen, ScreenCancelled } from './screen.ts'
-import { editSettings } from './settings.ts'
+import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
+import { addProject, editSettings } from './settings.ts'
 import { renderApp } from './view.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -65,6 +66,22 @@ const MAX_SPEECH_MS = 120_000
 
 /** Backspace, and what some terminals send instead. */
 const BACKSPACE = /^(\x7f|\b)$/
+
+const HELP = 'tab moves · / lists commands · ctrl+space talks · ctrl+c quits'
+
+/** A printable key, which is somebody starting to type rather than a shortcut. */
+function printable(data: string): boolean {
+  return data.length === 1 && data >= ' ' && data !== '\x7f'
+}
+
+/** A short, filesystem-safe name from what somebody said they wanted done. */
+function slugify(intent: string): string {
+  const words = intent
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  return words.split('-').slice(0, 3).join('-') || 'task'
+}
 
 class Window implements Component {
   private readonly frame: () => {
@@ -120,8 +137,8 @@ export class App {
   private restored = false
   /** Tasks being looked back at right now, so two polls cannot double up. */
   private readonly reflecting = new Set<string>()
-  /** The settings have the terminal, so this window must not draw over them. */
-  private settingsOpen = false
+  /** Another screen has the terminal, so this window must not draw over it. */
+  private borrowed = false
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -160,6 +177,10 @@ export class App {
     this.remember()
     this.release?.()
     this.tui.stop()
+    // Leave the terminal as it was found. The alternate screen is restored by
+    // the TUI, but whatever was painted before it goes back is a half-window
+    // stranded in your scrollback.
+    this.terminal.clearScreen()
     await this.voice?.stop()
     await this.live?.stop()
     this.settle()
@@ -328,6 +349,13 @@ export class App {
       this.type(data)
       return { consume: true }
     }
+    // Nothing focused means the orchestrator is, and it is a thing you type
+    // at: a window with no agents used to swallow every keystroke.
+    if (this.state.focused === null && printable(data)) {
+      this.state = setDictation(this.state, data)
+      this.draw()
+      return { consume: true }
+    }
     this.toLane(data)
     return undefined
   }
@@ -407,7 +435,113 @@ export class App {
     const said = (this.state.dictation ?? '').trim()
     this.state = setListening(setDictation(this.state, null), false)
     this.draw()
+    // A command is carried out here; anything else is a sentence for Wilco.
+    if (said.startsWith('/')) {
+      void this.act(said)
+      return
+    }
     this.say(said)
+  }
+
+  /**
+   * Carry out a slash command.
+   *
+   * The ones that need more than a word borrow the whole terminal for a moment
+   * — the same screen the settings use — because a form squeezed into three
+   * rows of a strip is worse than one that has room.
+   */
+  private async act(said: string): Promise<void> {
+    const [chosen] = matchActions(this.state, said)
+    if (!chosen) {
+      this.state = notice(this.state, `no command like ${said}`)
+      this.draw()
+      return
+    }
+    if (!chosen.ready) {
+      this.state = notice(this.state, chosen.about)
+      this.draw()
+      return
+    }
+    switch (chosen.name) {
+      case '/quit':
+        void this.stop()
+        return
+      case '/help':
+        this.state = notice(this.state, HELP)
+        this.draw()
+        return
+      case '/open': {
+        const task = await this.pick(
+          'Which task?',
+          this.state.panes.map((pane) => pane.task),
+        )
+        if (task) this.state = focusTask(this.state, task)
+        this.draw()
+        return
+      }
+      default:
+        await this.onScreen(chosen.name)
+    }
+  }
+
+  /** Ask, on a screen of its own, and put the window back afterwards. */
+  private async onScreen(command: string): Promise<void> {
+    if (this.borrowed) return
+    this.borrowed = true
+    this.tui.stop()
+    try {
+      await runScreen(
+        { title: command, context: [join(this.opts.home, 'config.yaml')], terminal: this.terminal },
+        async (ui) => {
+          try {
+            const done = await this.runCommand(command, ui)
+            if (done) this.state = notice(this.state, done)
+          } catch (err) {
+            // Shown here and waited on, rather than thrown out to a window
+            // that is about to redraw over it: an explanation that leaves with
+            // the screen is an explanation nobody read.
+            if (err instanceof ScreenCancelled) throw err
+            await ui.pause(`  ${err instanceof Error ? err.message : String(err)}`)
+          }
+        },
+      )
+    } catch (err) {
+      // ctrl+c closes the form, not Wilco.
+      if (!(err instanceof ScreenCancelled)) {
+        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
+      }
+    } finally {
+      this.borrowed = false
+      this.tui.start()
+      this.draw()
+    }
+  }
+
+  /** One short list, on a screen, because three rows is not enough to choose in. */
+  private async pick(question: string, options: string[]): Promise<string | null> {
+    let picked: string | null = null
+    await this.onScreenWith(async (ui) => {
+      const at = await ui.choose(question, options)
+      picked = options[at] ?? null
+    })
+    return picked
+  }
+
+  private async onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> {
+    if (this.borrowed) return
+    this.borrowed = true
+    this.tui.stop()
+    try {
+      await runScreen({ title: 'Wilco', terminal: this.terminal }, flow)
+    } catch (err) {
+      if (!(err instanceof ScreenCancelled)) {
+        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
+      }
+    } finally {
+      this.borrowed = false
+      this.tui.start()
+      this.draw()
+    }
   }
 
   /** Everything addressed to Wilco arrives here, however it was said. */
@@ -545,8 +679,8 @@ export class App {
    * design exists to avoid — and starts again where it left off.
    */
   private async openSettings(): Promise<string> {
-    if (this.settingsOpen) return 'Settings are already open.'
-    this.settingsOpen = true
+    if (this.borrowed) return 'Settings are already open.'
+    this.borrowed = true
     this.tui.stop()
     try {
       await runScreen(
@@ -563,11 +697,63 @@ export class App {
         this.state = notice(this.state, err instanceof Error ? err.message : String(err))
       }
     } finally {
-      this.settingsOpen = false
+      this.borrowed = false
       this.tui.start()
       this.draw()
     }
     return 'Settings closed. Changes apply next time Wilco starts.'
+  }
+
+  /** What each command actually does, once it has a screen to ask on. */
+  private async runCommand(command: string, ui: Ui): Promise<string> {
+    const path = join(this.opts.home, 'config.yaml')
+    switch (command) {
+      case '/settings':
+        await editSettings(ui, path)
+        return 'settings closed — changes apply next time Wilco starts'
+      case '/project': {
+        const root = resolve(await ui.ask('repository path', this.opts.cwd ?? process.cwd()))
+        if (!existsSync(join(root, '.git'))) throw new Error(`${root} is not a git repository`)
+        const fallback = basename(root)
+          .toLowerCase()
+          .replace(/[^a-z0-9-]+/g, '-')
+        const name = await ui.ask('call it what?', fallback)
+        addProject(path, name, root)
+        return `added ${name} → ${root}, from the next time Wilco starts`
+      }
+      case '/task': {
+        const projects = Object.keys(this.opts.config.projects)
+        if (projects.length === 0) throw new Error('no projects yet — /project adds one')
+        const project = projects[await ui.choose('Which project?', projects)] ?? projects[0]
+        const intent = await ui.ask('what needs doing? (in your own words)')
+        if (!intent || !project) return ''
+        const slug = slugify(intent)
+        const task = await this.opts.client.createTask({ project, slug, intent })
+        ui.say(`  ${task.id} → ${task.worktree}`)
+        if (!(await ui.confirm('start an agent on it now?', true))) return `${task.id} created`
+        await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
+        return `${task.id} created, and an agent is on it`
+      }
+      case '/agent': {
+        const tasks = this.state.panes.map((pane) => pane.task)
+        const task = tasks[await ui.choose('Which task?', tasks)]
+        if (!task) return ''
+        const worktree = this.live?.worktreeOf(task)
+        if (!worktree) throw new Error(`I do not know where ${task} lives`)
+        const prompt = await ui.ask('what should it do first?')
+        await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt })
+        return `an agent is working on ${task}`
+      }
+      case '/stop': {
+        const running = this.state.panes.filter((pane) => pane.lane !== null).map((p) => p.task)
+        const task = running[await ui.choose('Stop which agent?', running)]
+        if (!task) return ''
+        await this.opts.client.stopAgent(task)
+        return `${task} stopped — the task and its worktree stay`
+      }
+      default:
+        return ''
+    }
   }
 
   private describe(scope: string | null): string {
@@ -592,7 +778,7 @@ export class App {
   }
 
   private draw(): void {
-    if (!this.stopped && !this.settingsOpen) this.tui.requestRender()
+    if (!this.stopped && !this.borrowed) this.tui.requestRender()
   }
 
   private now(): number {

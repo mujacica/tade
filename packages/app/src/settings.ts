@@ -75,19 +75,37 @@ async function change(
 }
 
 /**
+ * Add a project to the config, keeping everything else as it was.
+ *
+ * Its own function rather than a `write` of a dotted path, because a project
+ * is two values that only mean something together, and half of one written
+ * down is a config that fails to load.
+ */
+export function addProject(path: string, name: string, root: string): void {
+  const config = read(path)
+  const projects = (config.projects ?? {}) as Record<string, unknown>
+  config.projects = { ...projects, [name]: { root } }
+  writeFileSync(path, stringify(config))
+}
+
+function read(path: string): Record<string, unknown> {
+  try {
+    return (parse(readFileSync(path, 'utf8')) as Record<string, unknown>) ?? {}
+  } catch {
+    // No file yet, or one we cannot read: start from nothing rather than
+    // refusing to save something somebody just chose.
+    return {}
+  }
+}
+
+/**
  * Write one setting back, keeping everything else exactly as it was.
  *
  * Read, change, write: the file belongs to whoever wrote it, so comments and
  * key order survive everything this touches except the one line it changed.
  */
 function write(path: string, key: string, value: string | number | boolean | undefined): void {
-  let config: Record<string, unknown> = {}
-  try {
-    config = (parse(readFileSync(path, 'utf8')) as Record<string, unknown>) ?? {}
-  } catch {
-    // No file yet, or one we cannot read: start from nothing rather than
-    // refusing to save a setting somebody just chose.
-  }
+  const config = read(path)
   applySetting(config, key, value)
   writeFileSync(path, stringify(config))
 }

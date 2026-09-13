@@ -227,10 +227,20 @@ async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
 }
 
 async function setUpModel(ui: Ui): Promise<void> {
+  // Said before anything is asked, because "which harness" is the question
+  // people arrive with and the answer explains everything that follows: Wilco
+  // never holds a credential, so every question about models is really a
+  // question about the harness.
+  ui.say('Agents are run by a harness. Wilco ships with pi and uses it for everything:')
+  ui.say('  · one login covers subscriptions (Claude, ChatGPT, Copilot, xAI, …)')
+  ui.say('  · or an API key for any of 30-odd providers, read from your environment')
+  ui.say('  · or a local model — Ollama, llama.cpp, LM Studio, anything OpenAI-shaped')
+  ui.say('Credentials stay with pi. Wilco never sees, stores or sends them.')
+  ui.say('')
+
   if (!piLoggedIn() && API_KEYS.every((name) => !process.env[name])) {
-    ui.say('Wilco holds no credentials of its own — the harness does.')
     const choice = await ui.choose('How would you like to pay for a model?', [
-      'log in to a subscription (Claude, ChatGPT, Copilot, …)',
+      'log in to a subscription — opens pi, you type /login',
       'use an API key from the environment',
     ])
     if (choice === 0) {
@@ -243,7 +253,9 @@ async function setUpModel(ui: Ui): Promise<void> {
       if (!piLoggedIn()) throw new Error('still not logged in — run `wilco setup` again')
       ui.say('  logged in')
     } else {
-      ui.say(`  set one of: ${API_KEYS.join(', ')}`)
+      ui.say('  pi reads these from your shell, so export one and it is picked up:')
+      for (const key of API_KEYS) ui.say(`    ${key}`)
+      ui.say('  e.g. `export ANTHROPIC_API_KEY=sk-…` in your ~/.zshrc, then a new terminal')
       throw new Error('set the key in your shell, then run `wilco setup` again')
     }
   }

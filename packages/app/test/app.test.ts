@@ -249,6 +249,30 @@ describe('the window, wired up', () => {
     expect(terminal.written).not.toContain('run wilco attach')
   })
 
+  it('types to the orchestrator when no agent has focus', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Tab past every pane to the orchestrator, which is one of the things you
+    // can focus precisely so that there is always somewhere to type.
+    terminal.press('\t')
+    terminal.press('\t')
+    terminal.written = ''
+    terminal.press('h')
+    terminal.press('i')
+    await until('the typed line', () => terminal.written.includes('hi'))
+  })
+
+  it('offers its commands when you type a slash', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\t')
+    terminal.press('\t')
+    terminal.written = ''
+    terminal.press('/')
+    await until('the command list', () => terminal.written.includes('/task'))
+    expect(terminal.written).toContain('/settings')
+  })
+
   it('stops cleanly, and stopping twice is safe', async () => {
     const started = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
