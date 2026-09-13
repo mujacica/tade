@@ -11,6 +11,10 @@ why closing it is harmless. **You may be a Wilco worker editing Wilco itself.**
 - `pnpm test`: vitest (must stay under 30s with zero network calls).
 - `pnpm exec biome check --write .` formats and fixes.
 - `pnpm wilco <args>` runs the CLI from source.
+- `WILCO_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` is the only test that uses a
+  real model. It costs money and needs credentials, so it is skipped by default and run before a
+  release — but it is the only evidence that a model can choose the right tool from the descriptions
+  we wrote, because every other test tells the fake model what to call.
 
 **Run the suite on its own.** `pnpm check` runs the gate in sequence for a reason: the tests spawn
 real git and PTY processes with short timeouts, so anything CPU-heavy running alongside them —

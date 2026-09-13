@@ -563,7 +563,16 @@ original request verbatim as `intent_spoken`. Task states:
 pnpm check      # biome ci + tsc + vitest: the full gate, same as CI
 pnpm test       # tests only
 pnpm exec biome check --write .
+
+WILCO_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts
 ```
+
+The suite runs offline against a scripted model, which is what keeps it fast
+and credential-free — and means none of it can tell you whether a real model
+can *choose* the right tool from the descriptions we wrote, since the fake one
+is told what to call. `WILCO_LIVE=1` is the one test that can: it costs money,
+needs credentials, and is meant for before a release rather than the inner
+loop. `WILCO_LIVE_MODEL` picks the model.
 
 `pnpm install` runs `scripts/fix-pty-permissions.mjs`, which restores the executable bit on
 node-pty's `spawn-helper`. Package extraction drops it, and without it every lane fails to start
