@@ -1,10 +1,10 @@
 import { homedir } from 'node:os'
-import { defaultConfigPath, loadConfig } from '@wilco/core'
+import { defaultConfigPath, type LaneId, loadConfig, type TaskId } from '@wilco/core'
 import type { RunId } from '@wilco/harnesses-core'
 import { collectStatus } from '@wilco/status'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
-import { withDaemon } from '../with-daemon.ts'
+import { withWorkbench } from '../with-workbench.ts'
 
 // Tasks and the agents working on them. Thin over the daemon: parse, call,
 // format.
@@ -26,7 +26,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
         setExit(Exit.invalidInput)
         return
       }
-      await withDaemon(io, setExit, async (client) => {
+      await withWorkbench(io, setExit, async (client) => {
         const created = await client.createTask({
           project,
           slug,
@@ -66,7 +66,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
         setExit(Exit.invalidInput)
         return
       }
-      await withDaemon(io, setExit, async (client) => {
+      await withWorkbench(io, setExit, async (client) => {
         const result = await client.removeTask({
           root: project.root,
           worktree: found.worktree,
@@ -113,17 +113,17 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
           setExit(Exit.invalidInput)
           return
         }
-        await withDaemon(io, setExit, async (client) => {
-          const handle = await client.startRun({
-            task: taskId,
+        await withWorkbench(io, setExit, async (client) => {
+          const lane = await client.startAgent({
+            task: taskId as TaskId,
             cwd,
             prompt: opts.prompt,
             ...(opts.model
               ? { model: { id: opts.model, ...(opts.provider ? { provider: opts.provider } : {}) } }
               : {}),
           })
-          if (opts.json) io.out(JSON.stringify(handle, null, 2))
-          else io.out(`${handle.run}  ${handle.task}  started`)
+          if (opts.json) io.out(JSON.stringify(lane, null, 2))
+          else io.out(`${lane.id}  started  ${client.attachCommand(lane.id as LaneId)}`)
         })
       },
     )
@@ -133,40 +133,42 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
     .description('List running agents')
     .option('--json', 'machine-readable output')
     .action(async (opts: { json?: boolean }) => {
-      await withDaemon(io, setExit, async (client) => {
-        const runs = await client.runs()
+      await withWorkbench(io, setExit, async (client) => {
+        // An agent is a lane with an agent in it. There is no second list of
+        // running things to fall out of step with what is actually running.
+        const agents = client.lanes().filter((l) => l.kind === 'agent' && l.alive)
         if (opts.json) {
-          io.out(JSON.stringify(runs, null, 2))
+          io.out(JSON.stringify(agents, null, 2))
           return
         }
-        if (runs.length === 0) {
+        if (agents.length === 0) {
           io.out('no agents running')
           return
         }
-        for (const r of runs) io.out(`${r.run}  ${r.task}  ${age(r.startedAt)}`)
+        for (const a of agents) io.out(`${a.id}  ${a.task}  ${age(a.startedAt)}`)
       })
     })
 
   run
     .command('steer')
-    .argument('<run>')
+    .argument('<task>')
     .argument('<message...>')
     .description('Tell a running agent something without stopping it')
-    .action(async (runId: string, message: string[]) => {
-      await withDaemon(io, setExit, async (client) => {
-        await client.steerRun(runId as RunId, message.join(' '))
-        io.out(`told ${runId}`)
+    .action(async (taskId: string, message: string[]) => {
+      await withWorkbench(io, setExit, async (client) => {
+        await client.steerAgent(taskId, message.join(' '))
+        io.out(`told ${taskId}`)
       })
     })
 
   run
     .command('stop')
-    .argument('<run>')
-    .description('Stop an agent')
-    .action(async (runId: string) => {
-      await withDaemon(io, setExit, async (client) => {
-        await client.stopRun(runId as RunId)
-        io.out(`${runId} stopped`)
+    .argument('<task>')
+    .description('Stop an agent. The task and its worktree stay.')
+    .action(async (taskId: string) => {
+      await withWorkbench(io, setExit, async (client) => {
+        await client.closeLane(`${taskId}/agent` as LaneId)
+        io.out(`${taskId} stopped`)
       })
     })
 
@@ -176,7 +178,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
     .option('--task <task>', 'only this task')
     .option('--json', 'machine-readable output')
     .action(async (opts: { task?: string; json?: boolean }) => {
-      await withDaemon(io, setExit, async (client) => {
+      await withWorkbench(io, setExit, async (client) => {
         const pending = await client.pendingApprovals(opts.task)
         if (opts.json) {
           io.out(JSON.stringify(pending, null, 2))
@@ -198,7 +200,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
     .argument('<request>')
     .description('Let a waiting command run')
     .action(async (runId: string, request: string) => {
-      await withDaemon(io, setExit, async (client) => {
+      await withWorkbench(io, setExit, async (client) => {
         await client.decideApproval(runId as RunId, request, { allow: true })
         io.out(`approved ${request}`)
       })
@@ -211,7 +213,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
     .description('Refuse a waiting command')
     .option('--reason <text>', 'what to tell the agent instead')
     .action(async (runId: string, request: string, opts: { reason?: string }) => {
-      await withDaemon(io, setExit, async (client) => {
+      await withWorkbench(io, setExit, async (client) => {
         await client.decideApproval(runId as RunId, request, {
           allow: false,
           ...(opts.reason ? { reason: opts.reason } : {}),

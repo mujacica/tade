@@ -1,11 +1,10 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { LaneId } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { Daemon } from '@wilco/daemon/server'
 import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
+import { Workbench } from '@wilco/workbench'
 import { spawn } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -24,20 +23,20 @@ async function awaitBanner(output: string[]): Promise<void> {
 // `wilco attach` puts the user's terminal in raw mode. If it ever fails to put
 // it back, people are left with a broken terminal, so this runs the real
 // command inside a real pty and compares `stty -g` before and after.
+//
+// It runs under tmux because attaching from another terminal is the thing tmux
+// is for: the lane is opened here, this window closes, and a separate process
+// walks back into it. Under pty there would be nothing for it to find.
 
 describe('wilco attach', () => {
   let home: string
-  let socket: string
-  let daemon: Daemon
-  let client: DaemonClient
   const lane = 'app/t/shell' as LaneId
 
   beforeEach(async () => {
     home = tmp('wilco-attach-')
-    socket = join(home, 'wilco.sock')
-    daemon = await Daemon.start({ home, socket })
-    client = await DaemonClient.connect(socket)
-    await client.spawn({
+    writeFileSync(join(home, 'config.yaml'), 'workspace:\n  driver: tmux\n')
+    const wilco = await Workbench.open({ home })
+    await wilco.spawn({
       id: lane,
       task: 'app/t',
       kind: 'shell',
@@ -47,11 +46,15 @@ describe('wilco attach', () => {
       cols: 80,
       rows: 24,
     })
+    // Close, so the lane is running with nobody holding it — which is exactly
+    // the state `wilco attach` exists for, and frees the home for the CLI.
+    await wilco.close()
   })
 
   afterEach(async () => {
-    await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
+    // Whatever is left, stop it: these are real processes in a real session.
+    const wilco = await Workbench.open({ home }).catch(() => null)
+    await wilco?.stopEverything().catch(() => {})
   })
 
   it('restores terminal settings when the client is killed', async () => {
@@ -67,7 +70,7 @@ describe('wilco attach', () => {
         cols: 80,
         rows: 24,
         cwd: home,
-        env: { ...process.env, WILCO_SOCKET: socket, WILCO_HOME: home } as Record<string, string>,
+        env: { ...process.env, WILCO_HOME: home } as Record<string, string>,
       },
     )
     term.onData((d) => output.push(d))
@@ -101,7 +104,7 @@ describe('wilco attach', () => {
       cols: 80,
       rows: 24,
       cwd: home,
-      env: { ...process.env, WILCO_SOCKET: socket, WILCO_HOME: home } as Record<string, string>,
+      env: { ...process.env, WILCO_HOME: home } as Record<string, string>,
     })
     term.onData((d) => output.push(d))
     let exited = false
@@ -111,13 +114,21 @@ describe('wilco attach', () => {
 
     await awaitBanner(output)
     term.write('hello\n')
-    // The keystrokes reached the lane, not just the local terminal.
-    await until(async () => (await client.capture(lane)).includes('got:hello'))
+    // The keystrokes reached the lane and its answer came back, which no
+    // amount of local echo would produce: the child prints `got:`.
+    await until(() => output.join('').includes('got:hello'))
 
     term.write('\x1c\x1c')
     await until(() => exited)
     expect(output.join('')).toContain('[detached]')
-    // The lane is still running: detaching is not killing.
-    expect((await client.lane(lane))?.alive).toBe(true)
+
+    // The lane is still running: detaching is not killing, and a window opened
+    // afterwards walks straight back into it.
+    const wilco = await Workbench.open({ home })
+    try {
+      expect(wilco.lane(lane)?.alive).toBe(true)
+    } finally {
+      await wilco.close()
+    }
   }, 30_000)
 })

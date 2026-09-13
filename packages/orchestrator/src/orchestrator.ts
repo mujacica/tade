@@ -24,7 +24,7 @@ export const ORCHESTRATOR_TASK = 'wilco/orchestrator'
 export interface OrchestratorOptions {
   /** Wilco's state directory, passed through to the tools. */
   home: string
-  /** Daemon socket the tools talk to. */
+  /** The `ToolHost` socket its tools call back through. */
   socket: string
   /** Where the orchestrator's own session files live. */
   runDir: string

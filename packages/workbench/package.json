@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/daemon",
+  "name": "@wilco/workbench",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,6 @@
     "@wilco/harnesses-pi": "workspace:*",
     "@wilco/status": "workspace:*",
     "better-sqlite3": "^13.0.3",
-    "vscode-jsonrpc": "^9.0.2",
     "yaml": "^2.9.0",
     "zod": "^4.6.2"
   },

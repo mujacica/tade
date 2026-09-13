@@ -29,9 +29,6 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/daemon':
-        specifier: workspace:*
-        version: link:../daemon
       '@wilco/status':
         specifier: workspace:*
         version: link:../status
@@ -41,6 +38,9 @@ importers:
       '@wilco/voice-tts':
         specifier: workspace:*
         version: link:../voice/tts
+      '@wilco/workbench':
+        specifier: workspace:*
+        version: link:../workbench
     devDependencies:
       '@wilco/voice-stt':
         specifier: workspace:*
@@ -54,9 +54,6 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/daemon':
-        specifier: workspace:*
-        version: link:../daemon
       '@wilco/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
@@ -78,6 +75,9 @@ importers:
       '@wilco/voice-tts':
         specifier: workspace:*
         version: link:../voice/tts
+      '@wilco/workbench':
+        specifier: workspace:*
+        version: link:../workbench
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -94,42 +94,6 @@ importers:
 
   packages/core:
     dependencies:
-      yaml:
-        specifier: ^2.9.0
-        version: 2.9.0
-      zod:
-        specifier: ^4.6.2
-        version: 4.6.2
-
-  packages/daemon:
-    dependencies:
-      '@wilco/core':
-        specifier: workspace:*
-        version: link:../core
-      '@wilco/drivers-core':
-        specifier: workspace:*
-        version: link:../drivers/core
-      '@wilco/drivers-pty':
-        specifier: workspace:*
-        version: link:../drivers/pty
-      '@wilco/drivers-tmux':
-        specifier: workspace:*
-        version: link:../drivers/tmux
-      '@wilco/harnesses-core':
-        specifier: workspace:*
-        version: link:../harnesses/core
-      '@wilco/harnesses-pi':
-        specifier: workspace:*
-        version: link:../harnesses/pi
-      '@wilco/status':
-        specifier: workspace:*
-        version: link:../status
-      better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
-      vscode-jsonrpc:
-        specifier: ^9.0.2
-        version: 9.0.2
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -204,15 +168,15 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/daemon':
-        specifier: workspace:*
-        version: link:../daemon
       '@wilco/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
       '@wilco/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
+      '@wilco/workbench':
+        specifier: workspace:*
+        version: link:../workbench
 
   packages/status:
     dependencies:
@@ -231,15 +195,15 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../../core
-      '@wilco/daemon':
-        specifier: workspace:*
-        version: link:../../daemon
       '@wilco/status':
         specifier: workspace:*
         version: link:../../status
       '@wilco/voice-tts':
         specifier: workspace:*
         version: link:../tts
+      '@wilco/workbench':
+        specifier: workspace:*
+        version: link:../../workbench
 
   packages/voice/stt:
     dependencies:
@@ -258,6 +222,39 @@ importers:
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/voice/tts: {}
+
+  packages/workbench:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
+      '@wilco/drivers-core':
+        specifier: workspace:*
+        version: link:../drivers/core
+      '@wilco/drivers-pty':
+        specifier: workspace:*
+        version: link:../drivers/pty
+      '@wilco/drivers-tmux':
+        specifier: workspace:*
+        version: link:../drivers/tmux
+      '@wilco/harnesses-core':
+        specifier: workspace:*
+        version: link:../harnesses/core
+      '@wilco/harnesses-pi':
+        specifier: workspace:*
+        version: link:../harnesses/pi
+      '@wilco/status':
+        specifier: workspace:*
+        version: link:../status
+      better-sqlite3:
+        specifier: ^13.0.3
+        version: 13.0.3
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+      zod:
+        specifier: ^4.6.2
+        version: 4.6.2
 
   test:
     dependencies:
@@ -1464,10 +1461,6 @@ packages:
       jsdom:
         optional: true
 
-  vscode-jsonrpc@9.0.2:
-    resolution: {integrity: sha512-SbQSV9yRemARxeXw6LU5sS6Zq0e9/DgCCX5yelH263ZQWukbTk8EF8fjTrr1dziasf4GwlJbvTwFnTrnQFWZXQ==}
-    engines: {node: '>=14.0.0'}
-
   web-streams-polyfill@3.3.3:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
@@ -2621,8 +2614,6 @@ snapshots:
       '@types/node': 22.20.2
     transitivePeerDependencies:
       - msw
-
-  vscode-jsonrpc@9.0.2: {}
 
   web-streams-polyfill@3.3.3: {}
 

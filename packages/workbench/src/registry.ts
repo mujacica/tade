@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { type LaneId, LaneKind } from '@wilco/core'
@@ -19,10 +20,23 @@ import type { EventLog } from './events.ts'
 /**
  * Every WorkspaceDriver implementation, by name. Adding a driver means adding
  * one entry here; nothing else in the codebase changes.
+ *
+ * They are built from the home directory because that is what a workspace
+ * belongs to: one home, one set of lanes. Two homes on one machine — a test
+ * run beside a real one, most obviously — must not be able to see, adopt or
+ * kill each other's agents.
  */
-export const drivers: Record<string, () => WorkspaceDriver> = {
+export const drivers: Record<string, (home: string) => WorkspaceDriver> = {
   pty: () => new PtyDriver(),
-  tmux: () => new TmuxDriver(),
+  tmux: (home) => new TmuxDriver({ session: tmuxSession(home) }),
+}
+
+/**
+ * The tmux session a home's lanes live in. Stable, so reopening finds the same
+ * windows, and distinct per home, so nothing else's are in reach.
+ */
+export function tmuxSession(home: string): string {
+  return `wilco-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`
 }
 
 export const LaneRecord = z.object({
@@ -281,6 +295,11 @@ export class LaneRegistry {
   onOutput(id: LaneId, listener: (chunk: Uint8Array) => void, opts?: { replay?: boolean }) {
     this.requireAlive(id)
     return this.driver.onOutput(id, listener, opts)
+  }
+
+  onExit(id: LaneId, listener: (exit: { code: number | null; signal: number | null }) => void) {
+    this.requireAlive(id)
+    return this.driver.onExit(id, listener)
   }
 
   async close(id: LaneId): Promise<void> {

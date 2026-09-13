@@ -12,7 +12,8 @@ const facts = (over: Partial<ReadinessFacts> = {}): ReadinessFacts => ({
   loggedIn: true,
   apiKeys: [],
   orchestratorModel: 'claude-opus-5',
-  daemonRunning: true,
+  driver: 'pty',
+  driverOk: true,
   micOk: true,
   speechOk: true,
   speechReason: null,
@@ -55,8 +56,11 @@ describe('readiness', () => {
     expect(isReady(readiness(facts({ loggedIn: true, apiKeys: [] })))).toBe(true)
   })
 
-  it('notices the daemon is not running', () => {
-    expect(nextStep(readiness(facts({ daemonRunning: false })))?.id).toBe('daemon')
+  it('notices a driver this machine cannot provide', () => {
+    const steps = readiness(facts({ driver: 'tmux', driverOk: false }))
+    expect(nextStep(steps)?.id).toBe('workspace')
+    // Naming the driver is what makes it fixable.
+    expect(nextStep(steps)?.detail).toContain('tmux')
   })
 
   it('never lets speech block anything', () => {
@@ -74,9 +78,9 @@ describe('readiness', () => {
 
   it('asks in a sensible order', () => {
     const steps = readiness(
-      facts({ projects: [], loggedIn: false, apiKeys: [], daemonRunning: false, speechOk: false }),
+      facts({ projects: [], loggedIn: false, apiKeys: [], driverOk: false, speechOk: false }),
     )
-    expect(steps.map((s) => s.id)).toEqual(['project', 'model', 'daemon', 'voice'])
+    expect(steps.map((s) => s.id)).toEqual(['project', 'model', 'workspace', 'voice'])
     // A project first: choosing a model for nothing is a strange way to start.
     expect(nextStep(steps)?.id).toBe('project')
   })
@@ -88,7 +92,7 @@ describe('readiness', () => {
         loggedIn: false,
         apiKeys: [],
         orchestratorModel: null,
-        daemonRunning: false,
+        driverOk: false,
         micOk: false,
         speechOk: false,
         speechReason: 'whisper.cpp is not installed',

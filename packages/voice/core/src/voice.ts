@@ -1,5 +1,6 @@
 import {
   type AttentionSettings,
+  type Awaitable,
   type Channel,
   DEFAULT_ATTENTION,
   decideAttention,
@@ -13,6 +14,7 @@ import {
   type Surface,
   summarise,
   type Target,
+  type Unsubscribe,
   type Vocabulary,
   type WilcoEvent,
   type WorkHistory,
@@ -27,18 +29,20 @@ import type { Speaker, Tone } from '@wilco/voice-tts'
 // you meant, it asks instead; a bare yes can never carry out something
 // destructive; and every answer can explain itself.
 
-/** The slice of the daemon this surface uses. `DaemonClient` satisfies it. */
-export interface VoiceDaemon {
+/** The slice of Wilco this surface uses. `Workbench` satisfies it. */
+export interface VoiceWorkbench {
   pendingApprovals(
     task?: string,
-  ): Promise<Array<{ run: string; requestId: string; task: string; summary: string; tier: string }>>
+  ): Awaitable<
+    Array<{ run: string; requestId: string; task: string; summary: string; tier: string }>
+  >
   decideApproval(
     run: string,
     requestId: string,
     /** `said` is the exact utterance that decided it, kept in the ledger. */
     decision: { allow: boolean; reason?: string; said?: string },
   ): Promise<void>
-  runs(): Promise<Array<{ run: string; task: string }>>
+  runs(): Awaitable<Array<{ run: string; task: string }>>
   steerRun(run: string, message: string): Promise<void>
   parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }>
   createTask(request: {
@@ -47,18 +51,17 @@ export interface VoiceDaemon {
     intent: string
   }): Promise<{ id: string; worktree: string }>
   startRun(request: { task: string; cwd: string; prompt: string }): Promise<{ run: string }>
-  subscribe(handler: (event: WilcoEvent) => void): Promise<string>
   /**
-   * Stop a subscription. Required, unlike `remember`: there is no honest
-   * degraded behaviour for a surface that cannot let go of the event stream,
-   * only a leak that outlives it.
+   * Watch the journal. What comes back is how to stop watching: a surface
+   * that cannot let go of the event stream leaks past its own lifetime, so
+   * this is required where `remember` is not.
    */
-  unsubscribe(subscription: string): Promise<void>
+  subscribe(handler: (event: WilcoEvent) => void): Awaitable<Unsubscribe>
   /**
    * Optional: write something down. Without it the surface says plainly that
    * it cannot remember, rather than pretending to.
    */
-  remember?(text: string, scope: string | null, by?: string): Promise<unknown>
+  remember?(text: string, scope: string | null, by?: string): Awaitable<unknown>
 }
 
 /** What the surface did with something you said, for the app to show. */
@@ -74,7 +77,7 @@ export interface Turn {
 }
 
 export interface VoiceOptions {
-  daemon: VoiceDaemon
+  wilco: VoiceWorkbench
   speaker: Speaker
   /** Live task and project names, for recognising what you said. */
   vocabulary: () => Promise<Vocabulary>
@@ -114,7 +117,7 @@ export class VoiceSurface {
   /** A question we asked, waiting for you to pick one. */
   private pending: Pending | null = null
   private lastAddressed: string | null = null
-  private subscription: string | null = null
+  private unsubscribe: Unsubscribe | null = null
 
   private constructor(opts: VoiceOptions) {
     this.opts = opts
@@ -123,7 +126,7 @@ export class VoiceSurface {
 
   static async start(opts: VoiceOptions): Promise<VoiceSurface> {
     const surface = new VoiceSurface(opts)
-    surface.subscription = await opts.daemon.subscribe((event) => void surface.onEvent(event))
+    surface.unsubscribe = await opts.wilco.subscribe((event) => void surface.onEvent(event))
     return surface
   }
 
@@ -150,11 +153,9 @@ export class VoiceSurface {
   }
 
   async stop(): Promise<void> {
-    const subscription = this.subscription
-    this.subscription = null
-    if (!subscription) return
-    // A daemon that has already gone is the state we wanted anyway.
-    await this.opts.daemon.unsubscribe(subscription).catch(() => {})
+    const unsubscribe = this.unsubscribe
+    this.unsubscribe = null
+    unsubscribe?.()
   }
 
   /** Handle one thing you said. Returns what was said back. */
@@ -262,14 +263,14 @@ export class VoiceSurface {
         const worktree = await this.opts.worktreeOf(task)
         if (!worktree) return `I don't know where ${short(task)} lives.`
         const parked = intent.kind === 'park'
-        await this.opts.daemon.parkTask(worktree, parked)
+        await this.opts.wilco.parkTask(worktree, parked)
         return `${parked ? 'Parked' : 'Picked up'} ${short(task)}.`
       }
       case 'steer': {
-        const runs = await this.opts.daemon.runs()
+        const runs = await this.opts.wilco.runs()
         const run = runs.find((r) => r.task === task)
         if (!run) return `Nothing is running on ${short(task)}.`
-        await this.opts.daemon.steerRun(run.run, intent.message)
+        await this.opts.wilco.steerRun(run.run, intent.message)
         return `Told ${short(task)}.`
       }
       case 'focus':
@@ -295,13 +296,13 @@ export class VoiceSurface {
 
       case 'start': {
         const slug = slugify(intent.intent)
-        const created = await this.opts.daemon.createTask({
+        const created = await this.opts.wilco.createTask({
           project: intent.project,
           slug,
           // Word for word: nothing else can reconstruct why you started.
           intent: intent.intent,
         })
-        await this.opts.daemon.startRun({
+        await this.opts.wilco.startRun({
           task: created.id,
           cwd: created.worktree,
           prompt: intent.intent,
@@ -311,12 +312,12 @@ export class VoiceSurface {
       }
 
       case 'remember': {
-        if (!this.opts.daemon.remember) return "I can't remember things yet."
+        if (!this.opts.wilco.remember) return "I can't remember things yet."
         // Attached to whatever you were just talking about, and said out loud,
         // because filing it under the wrong task silently would be worse than
         // asking you to correct it.
         const scope = this.lastAddressed
-        await this.opts.daemon.remember(intent.text, scope, 'voice')
+        await this.opts.wilco.remember(intent.text, scope, 'voice')
         return scope ? `Noted, about ${short(scope)}.` : 'Noted.'
       }
 
@@ -331,7 +332,7 @@ export class VoiceSurface {
    * exactly one. Anything destructive needs the phrase read back.
    */
   private async decide(allow: boolean, said: string): Promise<string> {
-    const pending = await this.opts.daemon.pendingApprovals()
+    const pending = await this.opts.wilco.pendingApprovals()
     if (pending.length === 0) return 'Nothing is waiting.'
     if (pending.length > 1) return `${pending.length} things are waiting. Say which one.`
     const [request] = pending
@@ -339,7 +340,7 @@ export class VoiceSurface {
     if (allow && request.tier === 'hard') {
       return `That one needs confirming: ${request.summary}. Say confirm, then what it does.`
     }
-    await this.opts.daemon.decideApproval(request.run, request.requestId, {
+    await this.opts.wilco.decideApproval(request.run, request.requestId, {
       allow,
       // Kept verbatim in the ledger, so a decision can be explained later in
       // the words that made it.
@@ -352,7 +353,7 @@ export class VoiceSurface {
 
   /** The distinct phrase a destructive command requires. */
   private async confirm(phrase: string, said: string): Promise<string> {
-    const pending = await this.opts.daemon.pendingApprovals()
+    const pending = await this.opts.wilco.pendingApprovals()
     const words = phrase
       .toLowerCase()
       .split(/\s+/)
@@ -365,7 +366,7 @@ export class VoiceSurface {
     if (matches.length > 1) return `More than one thing matches "${phrase}". Say more of it.`
     const [request] = matches
     if (!request) return `Nothing waiting matches "${phrase}".`
-    await this.opts.daemon.decideApproval(request.run, request.requestId, { allow: true, said })
+    await this.opts.wilco.decideApproval(request.run, request.requestId, { allow: true, said })
     this.lastAddressed = request.task
     return `Confirmed: ${request.summary}`
   }

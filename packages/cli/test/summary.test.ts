@@ -1,20 +1,19 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Daemon } from '@wilco/daemon/server'
+import { EventLog } from '@wilco/workbench/events'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
-// The daemon runs inside this process, so the CLI must be spawned
-// ASYNCHRONOUSLY: spawnSync would block the event loop the daemon needs to
-// answer the request, and the two would deadlock forever.
+// The CLI is spawned for real: each invocation opens the workbench, does its
+// work and closes it. Nothing else may hold the home while it runs.
 
 describe('wilco summary', () => {
+  let log: EventLog
   let home: string
   let env: Record<string, string>
-  let daemon: Daemon
 
   const wilco = (...args: string[]): Promise<{ code: number | null; stdout: string }> =>
     new Promise((resolve) => {
@@ -29,12 +28,12 @@ describe('wilco summary', () => {
 
   beforeEach(async () => {
     home = tmp('wilco-cli-summary-')
-    env = { WILCO_HOME: home, WILCO_SOCKET: join(home, 'w.sock'), WILCO_NO_GH: '1', HOME: home }
-    daemon = await Daemon.start({ home, socket: env.WILCO_SOCKET })
+    env = { WILCO_HOME: home, WILCO_NO_GH: '1', HOME: home }
+    log = await EventLog.open({ path: join(home, 'events.jsonl') })
   })
 
   afterEach(async () => {
-    await daemon.stop().catch(() => {})
+    await log.close().catch(() => {})
   })
 
   it('says plainly when the journal has nothing about it', async () => {
@@ -45,14 +44,14 @@ describe('wilco summary', () => {
 
   it('accounts for what an agent did', async () => {
     for (const tool of ['bash', 'bash', 'edit']) {
-      await daemon.log.append({
+      await log.append({
         type: 'tool_call',
         task: 'app/refunds',
         run: 'r1',
         detail: { tool },
       })
     }
-    await daemon.log.append({
+    await log.append({
       type: 'turn_done',
       task: 'app/refunds',
       run: 'r1',
@@ -64,13 +63,13 @@ describe('wilco summary', () => {
   })
 
   it('reports what it is waiting on, and what ran unasked', async () => {
-    await daemon.log.append({
+    await log.append({
       type: 'tool_call',
       task: 'app/refunds',
       run: 'r1',
       detail: { tool: 'bash', tier: 'hard', summary: 'git push --force' },
     })
-    await daemon.log.append({
+    await log.append({
       type: 'permission_request',
       task: 'app/refunds',
       run: 'r1',
@@ -84,7 +83,7 @@ describe('wilco summary', () => {
   })
 
   it("keeps one agent out of another's account", async () => {
-    await daemon.log.append({
+    await log.append({
       type: 'tool_call',
       task: 'search/pagination',
       run: 'r2',
@@ -94,7 +93,7 @@ describe('wilco summary', () => {
   })
 
   it('has a machine-readable form', async () => {
-    await daemon.log.append({
+    await log.append({
       type: 'tool_call',
       task: 'app/refunds',
       run: 'r1',

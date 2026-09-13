@@ -2,15 +2,14 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { Daemon } from '@wilco/daemon/server'
 import { ScriptedRecorder, ScriptedTranscriber } from '@wilco/voice-stt'
 import { Speaker } from '@wilco/voice-tts'
+import { Workbench } from '@wilco/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { App, type AppOptions } from '../src/app.ts'
 
-// The window against a real daemon and a real repository. Everything it shows
+// The window against a real workbench and a real repository. Everything it shows
 // is tested elsewhere without a terminal; what is tested here is the wiring —
 // that it boots, draws, and that a keystroke reaches it at all.
 
@@ -64,8 +63,7 @@ async function until(what: string, ok: () => boolean, ms = 5_000): Promise<void>
 describe('the window, wired up', () => {
   let repo: ReturnType<typeof mkrepo>
   let home: string
-  let daemon: Daemon
-  let client: DaemonClient
+  let client: Workbench
   let terminal: FakeTerminal
   let app: App | null = null
 
@@ -77,8 +75,7 @@ describe('the window, wired up', () => {
     // A tmp home, so status never reads the real machine's agent transcripts.
     home = tmp('wilco-app-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    daemon = await Daemon.start({ home, socket: join(home, 'w.sock') })
-    client = await DaemonClient.connect(daemon.socketPath)
+    client = await Workbench.open({ home })
     terminal = new FakeTerminal()
   })
 
@@ -86,7 +83,6 @@ describe('the window, wired up', () => {
     await app?.stop().catch(() => {})
     app = null
     await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
   })
 
   async function start(over: Partial<AppOptions> = {}): Promise<App> {

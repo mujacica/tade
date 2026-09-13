@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Daemon } from '@wilco/daemon/server'
+import { lockHome } from '@wilco/workbench'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -32,15 +32,16 @@ function wilco(args: string[], env: Record<string, string>) {
 }
 
 describe('wilco chat', () => {
-  it('says how to start the daemon rather than failing obscurely', async () => {
+  it('says who has it open rather than failing obscurely', async () => {
     const home = tmp('wilco-chat-cli-')
-    const r = await wilco(['chat'], {
-      WILCO_HOME: home,
-      WILCO_SOCKET: join(home, 'not-running.sock'),
-      HOME: home,
-    })
-    expect(r.code).toBe(1)
-    expect(r.stderr).toContain('daemon not running')
+    const held = await lockHome(home)
+    try {
+      const r = await wilco(['chat'], { WILCO_HOME: home, HOME: home })
+      expect(r.code).toBe(1)
+      expect(r.stderr).toContain('already open')
+    } finally {
+      await held.release()
+    }
   })
 
   it('reports a broken config instead of starting', async () => {
@@ -49,11 +50,7 @@ describe('wilco chat', () => {
       join(home, 'config.yaml'),
       'workers:\n  default: nope\n  routes:\n    a: {}\n    b: {}\n',
     )
-    const r = await wilco(['chat'], {
-      WILCO_HOME: home,
-      WILCO_SOCKET: join(home, 'not-running.sock'),
-      HOME: home,
-    })
+    const r = await wilco(['chat'], { WILCO_HOME: home, HOME: home })
     expect(r.code).toBe(2)
     expect(r.stderr).toContain('invalid config')
   })
@@ -62,14 +59,8 @@ describe('wilco chat', () => {
     const repo = mkrepo()
     const home = tmp('wilco-chat-eof-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    const socket = join(home, 'w.sock')
-    const daemon = await Daemon.start({ home, socket })
-    try {
-      const r = await wilco(['chat'], { WILCO_HOME: home, WILCO_SOCKET: socket, HOME: home })
-      // Ctrl-D and piped input both arrive here as end of input.
-      expect(r.code).toBe(0)
-    } finally {
-      await daemon.stop().catch(() => {})
-    }
+    const r = await wilco(['chat'], { WILCO_HOME: home, HOME: home })
+    // Ctrl-D and piped input both arrive here as end of input.
+    expect(r.code).toBe(0)
   }, 60_000)
 })

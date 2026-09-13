@@ -2,7 +2,7 @@ import { historyFrom, type KnownTask, type WilcoEvent } from '@wilco/core'
 import { Speaker } from '@wilco/voice-tts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { type Turn, type VoiceDaemon, VoiceSurface } from '../src/voice.ts'
+import { type Turn, VoiceSurface, type VoiceWorkbench } from '../src/voice.ts'
 
 // Working out which agent you meant, and asking when the evidence doesn't
 // single one out.
@@ -16,9 +16,9 @@ const task = (id: string, state: KnownTask['state']): KnownTask => ({
   state,
 })
 
-function fakeDaemon() {
+function fakeWilco() {
   const calls: string[] = []
-  const daemon: VoiceDaemon & { calls: string[] } = {
+  const wilco: VoiceWorkbench & { calls: string[] } = {
     calls,
     async pendingApprovals() {
       return []
@@ -43,18 +43,15 @@ function fakeDaemon() {
     async startRun() {
       return { run: 'r1' }
     },
-    async unsubscribe(subscription) {
-      calls.push(`unsubscribe ${subscription}`)
-    },
     async subscribe() {
-      return 'sub-1'
+      return () => calls.push('unsubscribed')
     },
   }
-  return daemon
+  return wilco
 }
 
 async function surface(
-  daemon: ReturnType<typeof fakeDaemon>,
+  wilco: ReturnType<typeof fakeWilco>,
   over: {
     tasks?: KnownTask[]
     events?: WilcoEvent[]
@@ -76,7 +73,7 @@ async function surface(
     task('search/pagination', 'working'),
   ]
   const voice = await VoiceSurface.start({
-    daemon,
+    wilco,
     speaker,
     now: () => NOW,
     localHour: () => 14,
@@ -106,15 +103,15 @@ const event = (type: WilcoEvent['type'], task: string, ts: string): WilcoEvent =
 })
 
 describe('working out which agent you meant', () => {
-  let daemon: ReturnType<typeof fakeDaemon>
+  let wilco: ReturnType<typeof fakeWilco>
   beforeEach(() => {
-    daemon = fakeDaemon()
+    wilco = fakeWilco()
   })
 
   it('uses what you are looking at when you say "it"', async () => {
-    const { voice, turns } = await surface(daemon, { focused: 'search/pagination' })
+    const { voice, turns } = await surface(wilco, { focused: 'search/pagination' })
     expect(await voice.handle('park it')).toBe('Parked pagination.')
-    expect(daemon.calls).toEqual(['park /wt/pagination true'])
+    expect(wilco.calls).toEqual(['park /wt/pagination true'])
     // The app can show why it chose that one.
     expect(turns[0]).toMatchObject({
       intent: 'park',
@@ -124,7 +121,7 @@ describe('working out which agent you meant', () => {
   })
 
   it('uses what just moved when you are not looking at anything', async () => {
-    const { voice } = await surface(daemon, {
+    const { voice } = await surface(wilco, {
       events: [
         event('turn_done', 'checkout/refunds', minutesAgo(2)),
         event('turn_done', 'search/pagination', minutesAgo(500)),
@@ -134,7 +131,7 @@ describe('working out which agent you meant', () => {
   })
 
   it('remembers what you last spoke to', async () => {
-    const { voice } = await surface(daemon)
+    const { voice } = await surface(wilco)
     await voice.handle('tell refunds to also update the docs')
     // No name this time: it should still be refunds.
     expect(await voice.handle('park it')).toBe('Parked refunds.')
@@ -142,57 +139,57 @@ describe('working out which agent you meant', () => {
 
   it('narrows by what the verb needs', async () => {
     const tasks = [task('checkout/refunds', 'working'), task('checkout/stripe-v15', 'blocked')]
-    const { voice } = await surface(daemon, { tasks })
+    const { voice } = await surface(wilco, { tasks })
     // Only one is running, so steering can only mean that one.
     expect(await voice.handle('tell it to hurry up')).toBe('Told refunds.')
-    expect(daemon.calls).toEqual(['steer r-refunds to hurry up'])
+    expect(wilco.calls).toEqual(['steer r-refunds to hurry up'])
   })
 
   describe('when it cannot tell', () => {
     it('asks, rather than picking one', async () => {
-      const { voice, turns } = await surface(daemon)
+      const { voice, turns } = await surface(wilco)
       const reply = await voice.handle('park it')
       expect(reply).toMatch(/^Which one\?/)
       expect(reply).toContain('refunds')
-      expect(daemon.calls).toEqual([])
+      expect(wilco.calls).toEqual([])
       expect(voice.awaiting?.candidates.length).toBe(3)
       expect(turns[0]?.why).toBe('more than one matches')
     })
 
     it('carries out the held verb once you pick one', async () => {
-      const { voice, turns } = await surface(daemon)
+      const { voice, turns } = await surface(wilco)
       await voice.handle('park it')
       expect(await voice.handle('the second one')).toBe('Parked stripe-v15.')
-      expect(daemon.calls).toEqual(['park /wt/stripe-v15 true'])
+      expect(wilco.calls).toEqual(['park /wt/stripe-v15 true'])
       expect(voice.awaiting).toBeNull()
       expect(turns[1]).toMatchObject({ task: 'checkout/stripe-v15', why: 'you picked it' })
     })
 
     it('takes a name as the answer too', async () => {
-      const { voice } = await surface(daemon)
+      const { voice } = await surface(wilco)
       await voice.handle('park it')
       expect(await voice.handle('pagination')).toBe('Parked pagination.')
     })
 
     it('drops the question if you say something else entirely', async () => {
-      const { voice } = await surface(daemon)
+      const { voice } = await surface(wilco)
       await voice.handle('park it')
       expect(await voice.handle('where are we')).toBe('All quiet.')
       expect(voice.awaiting).toBeNull()
-      expect(daemon.calls).toEqual([])
+      expect(wilco.calls).toEqual([])
     })
   })
 
   it('says so plainly when the name means nothing here', async () => {
-    const { voice } = await surface(daemon)
+    const { voice } = await surface(wilco)
     const reply = await voice.handle('park nonsense')
     // The grammar refuses an unknown name outright, so this is free text.
     expect(reply).toBe("I didn't catch that.")
-    expect(daemon.calls).toEqual([])
+    expect(wilco.calls).toEqual([])
   })
 
   it('still takes an explicit name over any inference', async () => {
-    const { voice, turns } = await surface(daemon, { focused: 'search/pagination' })
+    const { voice, turns } = await surface(wilco, { focused: 'search/pagination' })
     expect(await voice.handle('park refunds')).toBe('Parked refunds.')
     expect(turns[0]).toMatchObject({ task: 'checkout/refunds', why: 'you said refunds' })
   })

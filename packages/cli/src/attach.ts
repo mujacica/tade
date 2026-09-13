@@ -1,5 +1,5 @@
 import type { LaneId } from '@wilco/core'
-import type { DaemonClient } from '@wilco/daemon/client'
+import type { Workbench } from '@wilco/workbench'
 import { Exit, type Io } from './io.ts'
 
 // Attaching puts the user's terminal into raw mode. Getting the restore wrong
@@ -11,7 +11,7 @@ const DETACH_KEY = 0x1c
 const DETACH_WINDOW_MS = 1_000
 
 export async function attachToLane(
-  client: DaemonClient,
+  client: Workbench,
   lane: LaneId,
   io: Io,
   streams: { stdin?: NodeJS.ReadStream; stdout?: NodeJS.WriteStream } = {},
@@ -71,23 +71,22 @@ export async function attachToLane(
 
   const finish = async (code: number = Exit.ok) => {
     restore()
-    if (subscription) await client.detach(subscription).catch(() => {})
+    stop?.()
     settle(code)
   }
 
   const onSignal = () => void finish(Exit.error)
 
-  const result = await client.attach(lane, {
-    onData: (chunk) => stdout.write(chunk),
+  const watching = await client.watch(lane, (chunk) => stdout.write(chunk), {
     onExit: ({ code }) => {
       exitCode = code
       void finish()
     },
   })
-  const subscription: string | null = result.subscription
+  const stop: (() => void) | null = watching.stop
 
   // Paint what the lane looks like right now, then follow along live.
-  stdout.write(`${result.snapshot}\n`)
+  stdout.write(`${watching.snapshot}\n`)
   if (interactive) {
     io.err('[attached — press Ctrl-\\ twice to detach]')
     try {

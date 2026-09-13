@@ -11,8 +11,6 @@ import {
   type Step,
   wilcoHome,
 } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { socketPath } from '@wilco/daemon/protocol'
 import { piBinary } from '@wilco/harnesses-pi'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import type { Command } from 'commander'
@@ -21,7 +19,7 @@ import { Exit, type Io } from '../io.ts'
 
 // The first minute.
 //
-// A fresh machine has no config, no model and no daemon. What decides whether
+// A fresh machine has no config and no model. What decides whether
 // somebody keeps this tool is whether that first minute tells them what to do
 // or shows them an empty screen, so `wilco app` runs this when it has to and
 // nothing else has to be read first.
@@ -40,6 +38,7 @@ export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
   const loaded = await loadConfig(defaultConfigPath())
   const config = loaded.ok ? loaded.config : null
   const voice = config?.surfaces.voice
+  const driver = config?.workspace.driver ?? 'pty'
   const [mic, speech] = await Promise.all([
     makeRecorder(voice?.mic ?? {}).available(),
     makeTranscriber(voice?.stt ?? {}).available(),
@@ -52,7 +51,8 @@ export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
     loggedIn: piLoggedIn(),
     apiKeys: API_KEYS.filter((name) => (process.env[name] ?? '').length > 0),
     orchestratorModel: config?.orchestrator.model ?? null,
-    daemonRunning: await DaemonClient.isRunning(socketPath()),
+    driver,
+    driverOk: await driverAvailable(driver),
     micOk: mic.ok,
     speechOk: speech.ok,
     speechReason: speech.ok ? null : speech.reason,
@@ -79,7 +79,9 @@ function render(steps: readonly Step[]): string[] {
 export function registerSetup(program: Command, io: Io, setExit: (code: number) => void): void {
   program
     .command('setup')
-    .description('Set Wilco up: a project, a model, the daemon, and speech if you want it')
+    .description(
+      'Set Wilco up: a project, a model, somewhere to run agents, and speech if you want it',
+    )
     .option('--check', 'report what is missing and exit, changing nothing')
     .action(async (opts: { check?: boolean }) => {
       const facts = await gather()
@@ -117,7 +119,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
           if (step.done) continue
           if (step.id === 'project') await setUpProject(rl, io, facts)
           if (step.id === 'model') await setUpModel(rl, io)
-          if (step.id === 'daemon') await startDaemon(io)
+          if (step.id === 'workspace') explainWorkspace(io, facts)
           if (step.id === 'voice') await setUpVoice(rl, io, facts)
         }
       } catch (err) {
@@ -180,15 +182,25 @@ async function setUpModel(rl: Interface, io: Io): Promise<void> {
   io.out(`  orchestrator will use ${model || 'claude-opus-5'}`)
 }
 
-async function startDaemon(io: Io): Promise<void> {
-  const bin = new URL('../bin.ts', import.meta.url).pathname
-  const child = spawn(process.execPath, [bin, 'daemon', 'start'], { stdio: 'ignore' })
-  await new Promise<void>((done) => child.once('exit', () => done()))
-  io.out(
-    (await DaemonClient.isRunning(socketPath()))
-      ? '  daemon started'
-      : '  daemon did not start — try `wilco daemon start` to see why',
-  )
+/**
+ * There is nothing to start here — Wilco is the window — so the only thing
+ * that can be wrong is a driver this machine cannot provide.
+ */
+function explainWorkspace(io: Io, facts: ReadinessFacts): void {
+  io.out(`  workspace.driver is ${facts.driver}, which is not installed.`)
+  io.out('  Either install it, or set `workspace: { driver: pty }` to run agents inside Wilco.')
+  io.out('  With pty they close when Wilco does; with tmux they keep working.')
+}
+
+/** Whether this machine can actually provide the configured driver. */
+async function driverAvailable(driver: string): Promise<boolean> {
+  // Only tmux needs anything installed; pty is Node and a pseudo-terminal.
+  if (driver !== 'tmux') return true
+  return new Promise((done) => {
+    const child = spawn('tmux', ['-V'], { stdio: 'ignore' })
+    child.once('error', () => done(false))
+    child.once('exit', (code) => done(code === 0))
+  })
 }
 
 async function setUpVoice(rl: Interface, io: Io, facts: ReadinessFacts): Promise<void> {

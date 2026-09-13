@@ -1,20 +1,16 @@
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Daemon } from '@wilco/daemon/server'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
-// The daemon runs inside this process, so the CLI must be spawned
-// ASYNCHRONOUSLY: spawnSync would block the event loop the daemon needs to
-// answer the request, and the two would deadlock forever.
+// The CLI is spawned for real: each invocation opens the workbench, does its
+// work and closes it. Nothing else may hold the home while it runs.
 
 describe('wilco remember and notes', () => {
   let home: string
   let env: Record<string, string>
-  let daemon: Daemon
 
   interface Result {
     code: number | null
@@ -42,12 +38,7 @@ describe('wilco remember and notes', () => {
 
   beforeEach(async () => {
     home = tmp('wilco-cli-notes-')
-    env = { WILCO_HOME: home, WILCO_SOCKET: join(home, 'w.sock'), WILCO_NO_GH: '1', HOME: home }
-    daemon = await Daemon.start({ home, socket: env.WILCO_SOCKET })
-  })
-
-  afterEach(async () => {
-    await daemon.stop().catch(() => {})
+    env = { WILCO_HOME: home, WILCO_NO_GH: '1', HOME: home }
   })
 
   it('has nothing to say before it is told anything', async () => {

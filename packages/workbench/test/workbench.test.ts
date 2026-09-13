@@ -4,15 +4,12 @@ import type { LaneId, WilcoEvent } from '@wilco/core'
 import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { DaemonClient } from '../src/client.ts'
 import { livenessFrom } from '../src/lane-liveness.ts'
-import { Daemon } from '../src/server.ts'
+import { Workbench } from '../src/workbench.ts'
 
-describe('daemon', () => {
+describe('the workbench', () => {
   let home: string
-  let socket: string
-  let daemon: Daemon
-  let client: DaemonClient
+  let client: Workbench
 
   const spawnLane = (id: string, kind: 'agent' | 'shell' = 'shell') =>
     client.spawn({
@@ -27,20 +24,17 @@ describe('daemon', () => {
     })
 
   beforeEach(async () => {
-    home = tmp('wilco-daemon-')
-    socket = join(home, 'wilco.sock')
-    daemon = await Daemon.start({ home, socket, version: '9.9.9' })
-    client = await DaemonClient.connect(socket)
+    home = tmp('wilco-workbench-')
+    client = await Workbench.open({ home, version: '9.9.9' })
   })
 
   afterEach(async () => {
     await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
   })
 
   it('reports its own identity and declared capabilities', async () => {
     const info = await client.info()
-    expect(info).toMatchObject({ version: '9.9.9', driver: 'pty', lanes: 0, socket })
+    expect(info).toMatchObject({ version: '9.9.9', driver: 'pty', lanes: 0, home })
     // Under pty the lanes are our own children: they go when we go.
     expect(info.capabilities.detach).toBe(false)
   })
@@ -54,19 +48,21 @@ describe('daemon', () => {
     expect((await client.lanes()).map((l) => l.id)).toEqual(['app/t1/agent'])
   })
 
-  it('an attached client receives live output and a snapshot of the past', async () => {
+  it('watching a lane replays what it missed, then follows it live', async () => {
     const lane = await spawnLane('app/t2/shell')
     await client.write(lane.id as LaneId, 'before\n')
     await until(async () => (await client.capture(lane.id as LaneId)).includes('got:before'))
 
     const chunks: string[] = []
-    const { snapshot, subscription } = await client.attach(lane.id as LaneId, {
-      onData: (c) => chunks.push(c.toString()),
-    })
-    expect(snapshot).toContain('got:before')
+    const watching = await client.watch(lane.id as LaneId, (c) =>
+      chunks.push(Buffer.from(c).toString()),
+    )
+    // The snapshot first, or a new watcher stares at an empty pane until the
+    // agent next says something.
+    expect(watching.snapshot).toContain('got:before')
     await client.write(lane.id as LaneId, 'after\n')
     await until(() => chunks.join('').includes('got:after'))
-    await client.detach(subscription)
+    watching.stop()
 
     const before = chunks.length
     await client.write(lane.id as LaneId, 'ignored\n')
@@ -74,23 +70,23 @@ describe('daemon', () => {
     expect(chunks.length).toBe(before)
   })
 
-  it('two simultaneous attachers see identical output', async () => {
+  it('two watchers of one lane see the same output', async () => {
     const lane = await spawnLane('app/t3/shell')
-    const second = await DaemonClient.connect(socket)
+    const a: string[] = []
+    const b: string[] = []
+    const first = await client.watch(lane.id as LaneId, (c) => a.push(Buffer.from(c).toString()))
+    const second = await client.watch(lane.id as LaneId, (c) => b.push(Buffer.from(c).toString()))
     try {
-      const a: string[] = []
-      const b: string[] = []
-      await client.attach(lane.id as LaneId, { onData: (c) => a.push(c.toString()) })
-      await second.attach(lane.id as LaneId, { onData: (c) => b.push(c.toString()) })
       await client.write(lane.id as LaneId, 'shared\n')
       await until(() => a.join('').includes('got:shared') && b.join('').includes('got:shared'))
       expect(a.join('')).toBe(b.join(''))
     } finally {
-      await second.close()
+      first.stop()
+      second.stop()
     }
   })
 
-  it('resize and title changes are visible to every client', async () => {
+  it('resize and title changes are visible to everything reading the lane', async () => {
     const lane = await spawnLane('app/t4/shell')
     await client.resize(lane.id as LaneId, 100, 30)
     await client.setTitle(lane.id as LaneId, 'app · t4 · shell')
@@ -133,13 +129,11 @@ describe('daemon', () => {
       const lane = await spawnLane('app/t8/agent', 'agent')
       const pid = lane.pid!
       await client.close()
-      // Killing the daemon kills its children: they are its processes.
-      await daemon.stop()
+      // Closing Wilco closes them: under pty they are its own children.
       // Killing is asynchronous: the signal goes out, then the child exits.
       await until(() => !isRunning(pid))
 
-      daemon = await Daemon.start({ home, socket, version: '9.9.9' })
-      client = await DaemonClient.connect(socket)
+      client = await Workbench.open({ home, version: '9.9.9' })
       const after = await client.lane(lane.id as LaneId)
       expect(after).toMatchObject({ id: lane.id, alive: false })
       // The spec is kept so the lane can be relaunched.
@@ -158,13 +152,21 @@ describe('daemon', () => {
     })
   })
 
-  it('refuses a second daemon on the same socket', async () => {
-    await expect(Daemon.start({ home, socket })).rejects.toThrow()
+  it('refuses a second window on the same home, and says who has it', async () => {
+    await expect(Workbench.open({ home })).rejects.toThrow(/already open/)
   })
 
-  it('cleans up the socket on stop', async () => {
-    await daemon.stop()
-    expect(await DaemonClient.isRunning(socket)).toBe(false)
+  it('lets the next window in once this one has closed', async () => {
+    await client.close()
+    // A lock that outlived the thing holding it would lock you out of your own
+    // workbench, which is worse than the corruption it was guarding against.
+    client = await Workbench.open({ home, version: '9.9.9' })
+    expect(client.info().home).toBe(home)
+  })
+
+  it('closing twice is safe', async () => {
+    await client.close()
+    await expect(client.close()).resolves.toBeUndefined()
   })
 })
 

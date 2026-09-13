@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { WorkerSignal } from '@wilco/harnesses-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { PiAdapter } from '../src/adapter.ts'
+import { EXTENSION_PATH, PiAdapter } from '../src/adapter.ts'
 
 // The approval gate, proven against a REAL pi agent making a REAL tool call.
 //
@@ -170,6 +170,9 @@ describe('approval gate', () => {
 
     adapter = new PiAdapter({
       runDir,
+      // The gate only exists under `policy`: with approvals off nothing is
+      // ever held, which is the default and is tested below.
+      approvals: 'policy',
       args: ['-e', writeProviderExtension(runDir)],
       env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
     })
@@ -215,6 +218,9 @@ describe('approval gate', () => {
 
     adapter = new PiAdapter({
       runDir,
+      // The gate only exists under `policy`: with approvals off nothing is
+      // ever held, which is the default and is tested below.
+      approvals: 'policy',
       args: ['-e', writeProviderExtension(runDir)],
       env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
     })
@@ -235,6 +241,36 @@ describe('approval gate', () => {
     expect(existsSync(marker)).toBe(false)
 
     await adapter.decide('gate-allow', request.requestId, { allow: true })
+    await until(() => existsSync(marker))
+    expect(existsSync(marker)).toBe(true)
+  }, 90_000)
+
+  // The default, and the case that matters under a driver whose lanes outlive
+  // the window: nobody is listening, and the agent has to work anyway.
+  it('never holds anything with approvals off, even with nowhere to ask', async () => {
+    const runDir = tmp('wilco-gate-')
+    const cwd = tmp('wilco-gate-work-')
+    const marker = join(cwd, 'the-command-ran')
+    model = await fakeModel(`touch ${marker}`)
+
+    adapter = new PiAdapter({
+      runDir,
+      // Not supervised at all: there is no socket to reach, exactly as when
+      // Wilco has been closed and the agent is still running in tmux.
+      supervise: false,
+      args: ['-e', writeProviderExtension(runDir), '-e', EXTENSION_PATH],
+      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+    })
+
+    await adapter.start({
+      run: 'gate-bypass',
+      task: 'app/gate',
+      cwd,
+      prompt: 'run the command',
+      model: { provider: 'wilco-test', id: 'fake' },
+    })
+
+    // It ran. Losing Wilco costs the journal an entry, never the work.
     await until(() => existsSync(marker))
     expect(existsSync(marker)).toBe(true)
   }, 90_000)

@@ -45,6 +45,36 @@ export interface WorkHistory {
   projects: ProjectActivity[]
 }
 
+/**
+ * What each task is waiting on a human for, in the words the request used.
+ *
+ * Derived from the journal rather than asked of whoever is supervising, so it
+ * is the same answer from anywhere: an open window has it in memory, but a
+ * `wilco brief` in another terminal can read it just as well, and neither has
+ * to be running for it to be true.
+ */
+export function waitingOn(events: readonly WilcoEvent[]): Map<string, string> {
+  const open = new Map<string, { task: string; summary: string }>()
+  for (const event of events) {
+    const requestId = String(event.detail.requestId ?? '')
+    if (event.type === 'permission_request' && requestId && event.task) {
+      open.set(requestId, { task: event.task, summary: String(event.detail.summary ?? event.type) })
+    }
+    if (event.type === 'permission_granted' || event.type === 'permission_denied') {
+      open.delete(requestId)
+    }
+    // A run that ended is waiting for nothing, whatever it asked before.
+    if (event.type === 'run_exited') {
+      for (const [id, held] of open) if (held.task === event.task) open.delete(id)
+    }
+  }
+  const byTask = new Map<string, string>()
+  for (const held of open.values()) {
+    if (!byTask.has(held.task)) byTask.set(held.task, held.summary)
+  }
+  return byTask
+}
+
 export function historyFrom(events: readonly WilcoEvent[], now: number): WorkHistory {
   const byTask = new Map<string, TaskActivity>()
   const pending = new Map<string, Set<string>>()

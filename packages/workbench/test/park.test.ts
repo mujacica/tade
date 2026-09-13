@@ -5,9 +5,8 @@ import { collectStatus } from '@wilco/status'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { DaemonClient } from '../src/client.ts'
-import { Daemon } from '../src/server.ts'
 import { createTask, setParked } from '../src/tasks.ts'
+import { Workbench } from '../src/workbench.ts'
 
 // Parking is the one task state nothing can derive: only you know that a task
 // is deliberately set aside rather than merely idle.
@@ -45,20 +44,17 @@ describe('setParked', () => {
 describe('task/park over the socket', () => {
   let repo: ReturnType<typeof mkrepo>
   let home: string
-  let daemon: Daemon
-  let client: DaemonClient
+  let client: Workbench
 
   beforeEach(async () => {
     repo = mkrepo()
     home = tmp('wilco-park-rpc-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    daemon = await Daemon.start({ home, socket: join(home, 'w.sock') })
-    client = await DaemonClient.connect(daemon.socketPath)
+    client = await Workbench.open({ home })
   })
 
   afterEach(async () => {
     await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
   })
 
   it('a parked task reads as parked in status, and speaks for itself in the log', async () => {

@@ -3,10 +3,9 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
 import { defaultConfigPath, isReady, loadConfig, readiness, wilcoHome } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { socketPath } from '@wilco/daemon/protocol'
-import { Orchestrator } from '@wilco/orchestrator'
+import { Orchestrator, ToolHost } from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
+import { HomeBusyError, Workbench } from '@wilco/workbench'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { gather } from './setup.ts'
@@ -18,8 +17,9 @@ async function runSetup(): Promise<number> {
   return new Promise((done) => child.once('exit', (code) => done(code ?? 1)))
 }
 
-// The window. Everything it does is in `@wilco/app`; this only checks that
-// there is a terminal and a daemon to talk to, then gets out of the way.
+// The window. Everything it does is in `@wilco/app`; this opens the workbench,
+// starts the orchestrator and the way back for its tools, then gets out of the
+// way. Closing it lets go of the lanes rather than ending them.
 
 export function registerApp(program: Command, io: Io, setExit: (code: number) => void): void {
   program
@@ -48,13 +48,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         }
       }
 
-      const socket = socketPath()
-      if (!(await DaemonClient.isRunning(socket))) {
-        io.err('daemon not running: start it with `wilco daemon start`')
-        setExit(Exit.error)
-        return
-      }
-
       // Speech is wired in only when it can actually work. Recording into an
       // engine that has no model would lose what you said, so push-to-talk
       // falls back to a typed line and `wilco voice` says what is missing.
@@ -63,19 +56,40 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const transcriber = makeTranscriber(voice.stt)
       const canHear = (await recorder.available()).ok && (await transcriber.available()).ok
 
-      const client = await DaemonClient.connect(socket)
+      const home = wilcoHome()
+      let client: Workbench
+      try {
+        client = await Workbench.open({ home })
+      } catch (err) {
+        io.err(
+          err instanceof HomeBusyError
+            ? `${err.message}. Only one window at a time.`
+            : err instanceof Error
+              ? err.message
+              : String(err),
+        )
+        setExit(Exit.error)
+        return
+      }
+
+      // The way back for the orchestrator's own tools: it runs as pi in its
+      // own process, so `wilco_run_start` has to reach us somehow. One socket,
+      // named after this process, gone when the window is.
+      const tools = await ToolHost.listen({
+        wilco: client,
+        path: join(home, 'runs', `tools-${process.pid}.sock`),
+      })
       // Anything the grammar does not recognise goes to the orchestrator. If
       // it cannot start — no model configured yet — the window still works and
       // free text is simply not understood, which is the honest outcome.
-      const home = wilcoHome()
       const orchestrator = await Orchestrator.start({
         home,
-        socket,
+        socket: tools.path,
         runDir: join(home, 'orchestrator'),
         cwd: process.cwd(),
         config: cfg.config,
         // So it knows what you have told it, not just what it can do.
-        notes: await client.recallAll().catch(() => []),
+        notes: client.recallAll(),
         safe: program.opts().safe === true,
       }).catch(() => null)
 
@@ -106,7 +120,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         setExit(Exit.error)
       } finally {
         await orchestrator?.stop().catch(() => {})
-        await client.close()
+        await tools.close().catch(() => {})
+        // Lets go of the lanes; under tmux the agents carry on working.
+        await client.close().catch(() => {})
       }
     })
 }

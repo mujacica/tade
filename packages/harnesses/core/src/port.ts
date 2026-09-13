@@ -165,6 +165,13 @@ export const WORKER_ENV = {
   socket: 'WILCO_RUN_SOCKET',
   run: 'WILCO_RUN_ID',
   task: 'WILCO_TASK_ID',
+  /**
+   * Whether tool calls are gated. The agent has to be told, because what it
+   * should do when Wilco is unreachable depends on the answer: under `bypass`
+   * nothing was ever going to be held, so it carries on; under `policy` a
+   * gate that cannot be asked has to refuse.
+   */
+  approvals: 'WILCO_APPROVALS',
 } as const
 
 export interface WorkerCapabilities {

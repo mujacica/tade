@@ -10,7 +10,7 @@
   "dependencies": {
     "@earendil-works/pi-tui": "0.85.1",
     "@wilco/core": "workspace:*",
-    "@wilco/daemon": "workspace:*",
+    "@wilco/workbench": "workspace:*",
     "@wilco/status": "workspace:*",
     "@wilco/voice-core": "workspace:*",
     "@wilco/voice-tts": "workspace:*"

@@ -2,8 +2,7 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { DaemonClient } from '../src/client.ts'
-import { Daemon } from '../src/server.ts'
+import { Workbench } from '../src/workbench.ts'
 
 // Tasks and runs over the socket: the path the CLI and the orchestrator both
 // take. Uses a real repository and a real daemon; only the agent's model is
@@ -14,22 +13,19 @@ const INTENT = 'the refund flow double-charges when the webhook retries'
 describe('task and run RPC', () => {
   let repo: ReturnType<typeof mkrepo>
   let home: string
-  let socket: string
-  let daemon: Daemon
-  let client: DaemonClient
+  let _socket: string
+  let client: Workbench
 
   beforeEach(async () => {
     repo = mkrepo()
     home = tmp('wilco-rpc-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    socket = join(home, 'w.sock')
-    daemon = await Daemon.start({ home, socket })
-    client = await DaemonClient.connect(socket)
+    _socket = join(home, 'w.sock')
+    client = await Workbench.open({ home, version: '9.9.9' })
   })
 
   afterEach(async () => {
     await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
   })
 
   it('creates a task in the configured project and records the intent verbatim', async () => {

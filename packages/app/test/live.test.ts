@@ -1,6 +1,6 @@
 import type { Task, Workspace } from '@wilco/core'
-import type { LaneRecord } from '@wilco/daemon/registry'
-import type { PendingApproval } from '@wilco/daemon/workers'
+import type { LaneRecord } from '@wilco/workbench/registry'
+import type { PendingApproval } from '@wilco/workbench/workers'
 import { describe, expect, it } from 'vitest'
 import { knownTasks, snapshotsFrom } from '../src/live.ts'
 

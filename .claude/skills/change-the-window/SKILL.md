@@ -12,8 +12,8 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `model.ts` | What is shown, as data: panes, focus, key meanings | a terminal |
 | `view.ts` | `renderApp(state, frame) → string[]`, one row per line | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
-| `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a daemon (the fold is pure) |
-| `app.ts` | Wiring only: pi-tui, the voice surface, the daemon | — |
+| `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
+| `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
 
 Put behaviour in `model.ts` and drawing in `view.ts`. If `app.ts` grows a rule, it is in the wrong
 file and cannot be tested.
@@ -56,7 +56,7 @@ file and cannot be tested.
    test that, not the polling.
 5. Wire it in `app.ts`. No rules here.
 6. If the wiring changed, cover it in `test/app.test.ts`, which runs the window headlessly against a
-   real daemon and a real repository. `App` takes its `terminal` and `speaker` as options, and
+   real workbench and a real repository. `App` takes its `terminal` and `speaker` as options, and
    `Terminal.start(onInput)` hands back the callback the TUI registers — so a fake terminal can press
    keys and keep what was drawn instead of drawing it. Poll for what should appear: rendering is
    batched, so asserting on the very next line is a flake. Point `home` at a tmp dir, or status reads

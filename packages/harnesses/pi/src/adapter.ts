@@ -24,6 +24,17 @@ import { SignalChannel } from './channel.ts'
 
 export const EXTENSION_PATH = fileURLToPath(new URL('./extension.ts', import.meta.url))
 
+/**
+ * The session a task's agent talks in, for the life of the task.
+ *
+ * Stable, because that is what makes reopening ordinary: pi creates a session
+ * with this id the first time and continues it every time after, so nothing
+ * has to decide whether this is a start or a resume.
+ */
+export function sessionIdFor(task: string): string {
+  return `wilco-${task.replace(/[^a-zA-Z0-9-]+/g, '-')}`
+}
+
 /** The pi binary that ships with this package. */
 export function piBinary(): string {
   // pi's exports map declares no `require` condition and does not expose
@@ -64,6 +75,11 @@ export interface PiAdapterOptions {
   bin?: string
   /** Extra arguments appended to every launch. */
   args?: string[]
+  /**
+   * Whether this worker's tool calls are gated. Passed to the agent so it
+   * knows what to do when Wilco goes away: carry on, or refuse.
+   */
+  approvals?: 'bypass' | 'policy'
   env?: NodeJS.ProcessEnv
   onWarning?: (message: string) => void
 }
@@ -93,8 +109,8 @@ export class PiAdapter implements WorkerAdapter {
     permissionGate: true,
     steer: true,
     modelSwitch: true,
-    // This adapter runs pi headless; a visible lane is launched by the daemon
-    // with `laneLaunchSpec()` and supervised through the same channel.
+    // This adapter runs pi headless; a visible lane is launched with
+    // `laneLaunchSpec()` and supervised through the same channel.
     visibleUi: false,
     resume: true,
   }
@@ -103,7 +119,10 @@ export class PiAdapter implements WorkerAdapter {
   // Keyed by run rather than held on the run itself, so a caller can subscribe
   // before `start()` returns: the first signals arrive while it is still running.
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
-  private readonly opts: Required<Omit<PiAdapterOptions, 'onWarning' | 'bin' | 'args' | 'env'>> & {
+  private readonly opts: Required<
+    Omit<PiAdapterOptions, 'onWarning' | 'bin' | 'args' | 'env' | 'approvals'>
+  > & {
+    approvals: 'bypass' | 'policy'
     bin: string
     args: string[]
     env: NodeJS.ProcessEnv
@@ -114,6 +133,7 @@ export class PiAdapter implements WorkerAdapter {
     this.opts = {
       runDir: opts.runDir,
       supervise: opts.supervise ?? true,
+      approvals: opts.approvals ?? 'bypass',
       bin: opts.bin ?? piBinary(),
       args: opts.args ?? [],
       env: opts.env ?? process.env,
@@ -121,7 +141,21 @@ export class PiAdapter implements WorkerAdapter {
     }
   }
 
-  /** Everything the daemon needs to run pi in a visible lane instead. */
+  /**
+   * How to run pi as itself, in a lane you can watch, rather than as a
+   * machine-protocol child of ours.
+   *
+   * The session id is the whole point. pi's sessions are append-only and
+   * survive being killed mid-turn — everything up to the kill is on disk, and
+   * only the answer that never came back is missing — so naming the session
+   * after the task means reopening is not a special case: the same command
+   * line starts it the first time and continues it every time after.
+   *
+   * There is no `--session-dir` here on purpose. pi keeps sessions per working
+   * directory, and every task has its own worktree, so they are already
+   * partitioned by task — and leaving them where pi puts them means you can
+   *`cd` into the worktree, run pi yourself, and be in the same conversation.
+   */
   laneLaunchSpec(spec: WorkerSpec): {
     command: string
     args: string[]
@@ -133,9 +167,13 @@ export class PiAdapter implements WorkerAdapter {
         args: [
           this.opts.bin,
           ...this.modelArgs(spec.model),
+          '--session-id',
+          sessionIdFor(spec.task),
           '-e',
           EXTENSION_PATH,
           ...this.opts.args,
+          // Last, so the opening instruction is not mistaken for a flag.
+          ...(spec.prompt ? [spec.prompt] : []),
         ],
       },
       spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
@@ -298,6 +336,9 @@ export class PiAdapter implements WorkerAdapter {
       if (typeof value === 'string') env[key] = value
     }
     env[WORKER_ENV.socket] = join(this.opts.runDir, `${spec.run}.sock`)
+    // What the agent should do when we are not reachable. Declared at launch
+    // rather than discovered later, so it can never change underneath a run.
+    env[WORKER_ENV.approvals] = this.opts.approvals
     env[WORKER_ENV.run] = spec.run
     env[WORKER_ENV.task] = spec.task
     return env

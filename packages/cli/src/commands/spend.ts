@@ -8,7 +8,7 @@ import {
 } from '@wilco/core'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
-import { withDaemon } from '../with-daemon.ts'
+import { withWorkbench } from '../with-workbench.ts'
 
 // What the agents have cost.
 //
@@ -28,7 +28,7 @@ export function registerSpend(program: Command, io: Io, setExit: (code: number) 
       const since = startOfToday(Date.now()) - (days - 1) * 86_400_000
       const cfg = await loadConfig(opts.config)
 
-      await withDaemon(io, setExit, async (client) => {
+      await withWorkbench(io, setExit, async (client) => {
         const events = await client.events({ types: ['usage'] })
         const report = spendFrom(events, { since })
 

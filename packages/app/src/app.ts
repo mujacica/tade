@@ -8,7 +8,6 @@ import {
   type TuiInputListenerResult,
 } from '@earendil-works/pi-tui'
 import { type Config, describeWork, type LaneId } from '@wilco/core'
-import type { DaemonClient } from '@wilco/daemon/client'
 import {
   type AudioClip,
   type Recorder,
@@ -17,6 +16,7 @@ import {
   VoiceSurface,
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
+import type { Workbench } from '@wilco/workbench'
 import { appKey } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
@@ -78,7 +78,7 @@ class Window implements Component {
 }
 
 export interface AppOptions {
-  client: DaemonClient
+  client: Workbench
   config: Config
   /** Wilco's state directory, where generated earcons are kept. */
   home: string
@@ -215,7 +215,7 @@ export class App {
     this.live = live
 
     this.voice = await VoiceSurface.start({
-      daemon: this.opts.client,
+      wilco: this.opts.client,
       speaker:
         this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
       vocabulary: async () => vocabulary(live.tasks),

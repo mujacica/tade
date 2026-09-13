@@ -39,9 +39,9 @@ export const EventType = z.enum([
   'failed',
   /** What a turn consumed, in tokens and money. */
   'usage',
-  // daemon
-  'daemon_started',
-  'daemon_stopping',
+  // the workbench itself
+  'wilco_opened',
+  'wilco_closing',
   'warning',
 ])
 export type EventType = z.infer<typeof EventType>
@@ -67,8 +67,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Routine rather than trace: spend is read back out of the journal, and
   // trace is the first thing dropped when a subscriber falls behind.
   usage: 'routine',
-  daemon_started: 'notable',
-  daemon_stopping: 'notable',
+  wilco_opened: 'notable',
+  wilco_closing: 'notable',
   warning: 'notable',
 }
 

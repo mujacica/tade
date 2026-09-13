@@ -1,7 +1,9 @@
 # Wilco — agent guide
 
-Wilco is a local daemon that runs coding agents in lanes (PTYs), derives task status from
-observable state, and is driven by an orchestrator. **You may be a Wilco worker editing Wilco itself.**
+Wilco is a voice-first control room for coding agents: it runs them as pi in lanes (terminals),
+derives task status from observable state, and is driven by an orchestrator you talk to. It owns no
+state of its own — tmux owns the processes, pi owns the conversations, git owns the work — which is
+why closing it is harmless. **You may be a Wilco worker editing Wilco itself.**
 
 ## Commands
 
@@ -73,6 +75,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   that this driver can drive it: a fresh driver knows nothing about a window it did not open. Ask
   the driver on open (`list` for what it already holds, `adopt` for what it can find) and take its
   answer over the process table.
+- **One window per home, and questions never need it.** Opening the workbench takes a lock on
+  `WILCO_HOME`, because two writers would interleave in one journal. So anything that only reads —
+  `status`, `logs`, `notes`, `summary`, `spend` — must read the files directly (`readJournal`,
+  `Memory.open`) and never open the workbench. A question you cannot ask while a window is open is a
+  question people stop asking.
+- **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its
+  own child agents, undiscoverable and dead when the window closes. If something that is not our own
+  child would ever want to call it, it has become a daemon again — which is the thing we removed.
+- **An agent is a lane with pi in it**, named `<task>/agent`, talking in a pi session named after
+  the task. That session id never changes, which is what makes reopening ordinary: the same command
+  line starts the conversation the first time and continues it every time after.
 - **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
   lane output never goes in the log (it lives in the lane's scrollback), only sampled byte counts.
 - Under subscriber backpressure, `trace` events are dropped first and `blocking` events never.
@@ -95,7 +108,7 @@ implementations of it.
 |---|---|
 | `packages/core` | the domain: object model, state machine, config, policy, memory, prompts |
 | `packages/status` | observing reality: git · processes · adoption · tests · liveness |
-| `packages/daemon` | `wilcod`: socket, lane registry, event log, worker supervisor |
+| `packages/workbench` | what Wilco holds while open: lane registry, journal, notes, agents |
 | `packages/drivers/core` | the `WorkspaceDriver` port + the suite every driver passes |
 | `packages/drivers/{pty,tmux}` | where lanes physically live |
 | `packages/harnesses/core` | the `WorkerAdapter` port: what an agent tells us, how we answer |

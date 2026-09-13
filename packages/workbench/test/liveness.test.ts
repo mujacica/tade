@@ -4,9 +4,8 @@ import { deriveState } from '@wilco/core'
 import type { WorkerHandle } from '@wilco/harnesses-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { DaemonClient } from '../src/client.ts'
 import { livenessFrom, runSignal } from '../src/lane-liveness.ts'
-import { Daemon } from '../src/server.ts'
+import { Workbench } from '../src/workbench.ts'
 import type { PendingApproval } from '../src/workers.ts'
 
 // Supervised runs have to reach `wilco status`, or a task waiting on an
@@ -91,20 +90,17 @@ describe('runSignal', () => {
 
 describe('livenessFrom', () => {
   let repo: ReturnType<typeof mkrepo>
-  let daemon: Daemon
-  let client: DaemonClient
+  let client: Workbench
 
   beforeEach(async () => {
     repo = mkrepo()
     const home = tmp('wilco-liveness-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    daemon = await Daemon.start({ home, socket: join(home, 'w.sock') })
-    client = await DaemonClient.connect(daemon.socketPath)
+    client = await Workbench.open({ home })
   })
 
   afterEach(async () => {
     await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
   })
 
   it('reports a supervised run under its own task and nothing under others', async () => {

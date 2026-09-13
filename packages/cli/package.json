@@ -9,7 +9,7 @@
   "dependencies": {
     "@wilco/app": "workspace:*",
     "@wilco/core": "workspace:*",
-    "@wilco/daemon": "workspace:*",
+    "@wilco/workbench": "workspace:*",
     "@wilco/harnesses-core": "workspace:*",
     "@wilco/harnesses-pi": "workspace:*",
     "@wilco/orchestrator": "workspace:*",

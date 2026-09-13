@@ -1,6 +1,6 @@
 // Whether Wilco can actually do anything yet, and what would fix it.
 //
-// A fresh machine has no config, no model and no daemon, and the difference
+// A fresh machine has no config and no model, and the difference
 // between a tool people keep and one they delete is whether that first minute
 // tells them what to do or shows them an empty screen.
 //
@@ -8,7 +8,7 @@
 // filesystem and the network; deciding what they mean does not, so the deciding
 // is here and exhaustively testable.
 
-export type StepId = 'project' | 'model' | 'daemon' | 'voice'
+export type StepId = 'project' | 'model' | 'workspace' | 'voice'
 
 export interface ReadinessFacts {
   /** `~/.wilco/config.yaml` exists and parses. */
@@ -24,7 +24,9 @@ export interface ReadinessFacts {
   apiKeys: string[]
   /** A model named for the orchestrator. */
   orchestratorModel: string | null
-  daemonRunning: boolean
+  /** The configured workspace driver, and whether this machine can run it. */
+  driver: string
+  driverOk: boolean
   /** Speech, which is never required. */
   micOk: boolean
   speechOk: boolean
@@ -45,7 +47,7 @@ export interface Step {
 
 /** What a fresh machine still needs, in the order it should be done. */
 export function readiness(facts: ReadinessFacts): Step[] {
-  return [project(facts), model(facts), daemon(facts), voice(facts)]
+  return [project(facts), model(facts), workspace(facts), voice(facts)]
 }
 
 /** Ready enough to be useful. Voice is a convenience and never blocks. */
@@ -105,12 +107,17 @@ function model(facts: ReadinessFacts): Step {
   }
 }
 
-function daemon(facts: ReadinessFacts): Step {
+/**
+ * Somewhere for the agents to live. There is nothing to start — Wilco is the
+ * window and it is already running — but a driver the machine cannot provide
+ * is a spawn that fails later, with no clue why, so it is checked here.
+ */
+function workspace(facts: ReadinessFacts): Step {
   return {
-    id: 'daemon',
-    title: 'The daemon running',
-    done: facts.daemonRunning,
-    detail: facts.daemonRunning ? '' : 'not started',
+    id: 'workspace',
+    title: 'Somewhere to run agents',
+    done: facts.driverOk,
+    detail: facts.driverOk ? '' : `workspace.driver is ${facts.driver}, which is not installed`,
     required: true,
   }
 }

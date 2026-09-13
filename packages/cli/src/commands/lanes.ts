@@ -1,30 +1,20 @@
-import type { EventFilter, LaneId, LaneKind, WilcoEvent } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { socketPath } from '@wilco/daemon/protocol'
-import type { LaneRecord } from '@wilco/daemon/registry'
+import {
+  type EventFilter,
+  type LaneId,
+  type LaneKind,
+  type WilcoEvent,
+  wilcoHome,
+} from '@wilco/core'
+import type { Workbench } from '@wilco/workbench'
+import { readJournal } from '@wilco/workbench/events'
+import type { LaneRecord } from '@wilco/workbench/registry'
 import type { Command } from 'commander'
 import { attachToLane } from '../attach.ts'
 import { Exit, type Io } from '../io.ts'
+import { withWorkbench } from '../with-workbench.ts'
 
 export function registerLanes(program: Command, io: Io, setExit: (code: number) => void): void {
-  const withClient = async (fn: (client: DaemonClient) => Promise<void>) => {
-    let client: DaemonClient
-    try {
-      client = await DaemonClient.connect(socketPath())
-    } catch {
-      io.err('daemon not running: start it with `wilco daemon start`')
-      setExit(Exit.error)
-      return
-    }
-    try {
-      await fn(client)
-    } catch (err) {
-      io.err(err instanceof Error ? err.message : String(err))
-      setExit(Exit.error)
-    } finally {
-      await client.close()
-    }
-  }
+  const withClient = (fn: (client: Workbench) => Promise<void>) => withWorkbench(io, setExit, fn)
 
   program
     .command('spawn')
@@ -134,17 +124,31 @@ export function registerLanes(program: Command, io: Io, setExit: (code: number) 
           limit: Number(opts.limit),
         }
         const show = (e: WilcoEvent) => io.out(opts.json ? JSON.stringify(e) : formatEvent(e))
-        await withClient(async (client) => {
-          const past = await client.events(filter)
-          for (const e of past) show(e)
-          if (!opts.follow) return
-          const { limit: _limit, ...live } = filter
-          await client.subscribe(show, live)
-          // Stream until interrupted.
-          await new Promise<void>((resolve) => {
-            process.once('SIGINT', () => resolve())
-            process.once('SIGTERM', () => resolve())
-          })
+        // Read the file rather than take the workbench: what happened is a
+        // question, and you must be able to ask it with a window open.
+        const home = wilcoHome()
+        let seen = 0
+        for (const e of await readJournal(home, filter)) {
+          show(e)
+          seen = Math.max(seen, e.seq)
+        }
+        if (!opts.follow) return
+
+        const { limit: _limit, ...live } = filter
+        await new Promise<void>((resolve) => {
+          const stop = () => {
+            clearInterval(timer)
+            resolve()
+          }
+          const timer = setInterval(async () => {
+            for (const e of await readJournal(home, live).catch(() => [])) {
+              if (e.seq <= seen) continue
+              seen = e.seq
+              show(e)
+            }
+          }, 250)
+          process.once('SIGINT', stop)
+          process.once('SIGTERM', stop)
         })
       },
     )

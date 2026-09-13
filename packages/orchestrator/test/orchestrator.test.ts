@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { Daemon } from '@wilco/daemon/server'
+import { Workbench } from '@wilco/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -9,6 +9,7 @@ import {
 } from '../../../test/fixtures/fake-model.ts'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Orchestrator } from '../src/orchestrator.ts'
+import { ToolHost } from '../src/tool-host.ts'
 
 // The thing you talk to, driven by a scripted model: it answers, it reaches
 // for Wilco's own tools, and it says when it has finished.
@@ -23,7 +24,8 @@ async function until(check: () => boolean | Promise<boolean>, timeout = 30_000):
 }
 
 describe('Orchestrator', () => {
-  let daemon: Daemon
+  let wilco: Workbench
+  let tools: ToolHost
   let model: FakeModel | null = null
   let orchestrator: Orchestrator | null = null
   let home: string
@@ -33,13 +35,15 @@ describe('Orchestrator', () => {
     repo = mkrepo()
     home = tmp('wilco-chat-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    daemon = await Daemon.start({ home, socket: join(home, 'w.sock') })
+    wilco = await Workbench.open({ home })
+    tools = await ToolHost.listen({ wilco, path: join(home, 'tools.sock') })
   })
 
   afterEach(async () => {
     await orchestrator?.stop()
     await model?.close()
-    await daemon.stop().catch(() => {})
+    await tools.close().catch(() => {})
+    await wilco.close().catch(() => {})
     orchestrator = null
     model = null
   })
@@ -52,7 +56,7 @@ describe('Orchestrator', () => {
     const runDir = tmp('wilco-chat-run-')
     orchestrator = await Orchestrator.start({
       home,
-      socket: daemon.socketPath,
+      socket: tools.path,
       runDir,
       cwd: repo.root,
       model: { provider: 'wilco-test', id: 'fake' },
@@ -117,7 +121,7 @@ describe('Orchestrator', () => {
     // That signal fires BEFORE the tool runs, so wait for the effect itself.
     // On failure, report what the model was told: a tool that errored hands
     // the reason back rather than throwing, so it would otherwise be silent.
-    await until(async () => (await daemon.log.read({ types: ['task_created'] })).length > 0).catch(
+    await until(async () => (await wilco.events({ types: ['task_created'] })).length > 0).catch(
       () => {
         throw new Error(
           `task never created. The model was told: ${JSON.stringify(model?.requests[1] ?? {}).slice(
@@ -129,7 +133,7 @@ describe('Orchestrator', () => {
     )
 
     // The task exists and the intent is kept word for word.
-    const [created] = await daemon.log.read({ types: ['task_created'] })
+    const [created] = await wilco.events({ types: ['task_created'] })
     expect(created?.task).toBe('app/refunds')
     expect(created?.detail.intent_spoken).toBe('the refund flow double-charges')
   }, 90_000)

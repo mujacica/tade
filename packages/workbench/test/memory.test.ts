@@ -2,9 +2,8 @@ import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { DaemonClient } from '../src/client.ts'
 import { Memory } from '../src/memory.ts'
-import { Daemon } from '../src/server.ts'
+import { Workbench } from '../src/workbench.ts'
 
 // Notes cannot be re-derived from anything, so the two things that matter are
 // that they survive a restart and that one bad line never costs you the rest.
@@ -82,18 +81,15 @@ describe('Memory', () => {
 // in the core tests, where the clock is supplied.
 describe('memory over the socket', () => {
   let home: string
-  let daemon: Daemon
-  let client: DaemonClient
+  let client: Workbench
 
   beforeEach(async () => {
     home = tmp('wilco-mem-rpc-')
-    daemon = await Daemon.start({ home, socket: join(home, 'w.sock') })
-    client = await DaemonClient.connect(daemon.socketPath)
+    client = await Workbench.open({ home })
   })
 
   afterEach(async () => {
     await client.close().catch(() => {})
-    await daemon.stop().catch(() => {})
   })
 
   it('keeps what it is told, and gives it back for the task it is about', async () => {
@@ -128,11 +124,9 @@ describe('memory over the socket', () => {
   it('keeps what it was told across a restart', async () => {
     await client.remember('the staging key rotates on the 1st', 'checkout')
     await client.close()
-    await daemon.stop()
 
     // A note cannot be re-derived from anything, so this file is the only copy.
-    daemon = await Daemon.start({ home, socket: join(home, 'w2.sock') })
-    client = await DaemonClient.connect(daemon.socketPath)
+    client = await Workbench.open({ home })
     expect((await client.recall('checkout/refunds')).map((n) => n.text)).toEqual([
       'the staging key rotates on the 1st',
     ])

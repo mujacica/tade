@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
-import { defaultConfigPath, loadConfig } from '@wilco/core'
-import { laneLiveness } from '@wilco/daemon/lane-liveness'
+import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
 import { collectStatus, writeTests } from '@wilco/status'
+import { laneLivenessFromFile } from '@wilco/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -28,33 +28,25 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
         return
       }
 
-      const lanes = await laneLiveness()
-      let worktree = ''
-      let head: string | null = null
-      let command = ''
-      try {
-        const workspace = await collectStatus({
-          config: cfg.config,
-          now: Date.now(),
-          home: homedir(),
-          cwd: process.cwd(),
-          pr: false,
-          ...(lanes ? { liveness: lanes.probe } : {}),
-        })
-        const found = workspace.projects
-          .flatMap((project) => project.tasks.map((task) => ({ project, task })))
-          .find((entry) => entry.task.id === taskId)
-        if (!found) {
-          io.err(`no such task: ${taskId}`)
-          setExit(Exit.invalidInput)
-          return
-        }
-        worktree = found.task.worktree
-        head = found.task.git?.head ?? null
-        command = cfg.config.projects[found.project.name]?.test_command ?? ''
-      } finally {
-        await lanes?.close()
+      const workspace = await collectStatus({
+        config: cfg.config,
+        now: Date.now(),
+        home: homedir(),
+        cwd: process.cwd(),
+        pr: false,
+        liveness: await laneLivenessFromFile(wilcoHome()),
+      })
+      const found = workspace.projects
+        .flatMap((project) => project.tasks.map((task) => ({ project, task })))
+        .find((entry) => entry.task.id === taskId)
+      if (!found) {
+        io.err(`no such task: ${taskId}`)
+        setExit(Exit.invalidInput)
+        return
       }
+      const worktree = found.task.worktree
+      const head = found.task.git?.head ?? null
+      const command = cfg.config.projects[found.project.name]?.test_command ?? ''
 
       if (!command) {
         io.err(`${taskId.split('/')[0]} has no test_command in ${cfg.path}`)

@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@wilco/core": "workspace:*",
-    "@wilco/daemon": "workspace:*",
+    "@wilco/workbench": "workspace:*",
     "@wilco/status": "workspace:*",
     "@wilco/voice-tts": "workspace:*"
   }

@@ -2,22 +2,21 @@ import { spawn } from 'node:child_process'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Daemon } from '@wilco/daemon/server'
+import { lockHome, Workbench } from '@wilco/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 const INTENT = 'the refund flow double-charges when the webhook retries'
 
-// The daemon runs inside this process, so the CLI must be spawned
-// ASYNCHRONOUSLY: spawnSync would block the event loop the daemon needs to
-// answer the request, and the two would deadlock forever.
+// The CLI is spawned for real rather than called in-process: each invocation
+// opens the workbench, does its work and closes it, which is the thing under
+// test. Two of them at once would be refused, so they run one at a time.
 
 describe('wilco task and run commands', () => {
   let repo: ReturnType<typeof mkrepo>
   let home: string
   let env: Record<string, string>
-  let daemon: Daemon
 
   interface Result {
     code: number | null
@@ -46,13 +45,19 @@ describe('wilco task and run commands', () => {
   beforeEach(async () => {
     repo = mkrepo()
     home = tmp('wilco-cli-tasks-')
-    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    env = { WILCO_HOME: home, WILCO_SOCKET: join(home, 'w.sock'), WILCO_NO_GH: '1', HOME: home }
-    daemon = await Daemon.start({ home, socket: env.WILCO_SOCKET })
+    // tmux, because the point of the run commands is that the agent is still
+    // there when the next command runs: three invocations, three processes.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `workspace:\n  driver: tmux\nprojects:\n  app:\n    root: ${repo.root}\n`,
+    )
+    env = { WILCO_HOME: home, WILCO_NO_GH: '1', HOME: home }
   })
 
   afterEach(async () => {
-    await daemon.stop().catch(() => {})
+    // These are real processes in a real tmux session: leave none behind.
+    const wilco = await Workbench.open({ home }).catch(() => null)
+    await wilco?.stopEverything().catch(() => {})
   })
 
   it('creates a task and reports where it lives', async () => {
@@ -69,19 +74,20 @@ describe('wilco task and run commands', () => {
     expect(r.stderr).toContain('invalid task id')
   })
 
-  it('starts an agent in the task worktree, lists it, and stops it', async () => {
+  it('starts an agent that is still there for the next command', async () => {
     expect((await wilco('task', 'create', 'app/refunds', '--intent', INTENT)).code).toBe(0)
 
     const started = await wilco('run', 'start', 'app/refunds')
     expect(started.code).toBe(0)
-    expect(started.stdout).toContain('app/refunds  started')
-    const run = started.stdout.split(/\s+/)[0]!
+    expect(started.stdout).toContain('app/refunds/agent  started')
+    // It says how to go and look at it, which is the whole idea.
+    expect(started.stdout).toContain('tmux')
 
+    // A different process entirely, and the agent is still working.
     const listed = await wilco('run', 'list')
-    expect(listed.stdout).toContain(run)
-    expect(listed.stdout).toContain('app/refunds')
+    expect(listed.stdout).toContain('app/refunds/agent')
 
-    expect((await wilco('run', 'stop', run)).stdout).toBe(`${run} stopped`)
+    expect((await wilco('run', 'stop', 'app/refunds')).stdout).toBe('app/refunds stopped')
     expect((await wilco('run', 'list')).stdout).toBe('no agents running')
   }, 60_000)
 
@@ -110,10 +116,32 @@ describe('wilco task and run commands', () => {
     expect(existsSync(worktree)).toBe(false)
   }, 30_000)
 
-  it('says so plainly when the daemon is not running', async () => {
-    await daemon.stop()
-    const r = await wilco('run', 'list')
-    expect(r.code).toBe(1)
-    expect(r.stderr).toContain('daemon not running')
+  it('says who has it open rather than interleaving with them', async () => {
+    // A window is open on this home. Only one thing may write to it.
+    const held = await lockHome(home)
+    try {
+      const r = await wilco('run', 'list')
+      expect(r.code).toBe(1)
+      expect(r.stderr).toContain('already open')
+      // Naming the pid is the difference between a refusal you can act on and
+      // one you have to investigate.
+      expect(r.stderr).toContain(String(process.pid))
+    } finally {
+      await held.release()
+    }
+  })
+
+  it('reads what happened without taking the workbench', async () => {
+    expect((await wilco('task', 'create', 'app/refunds', '--intent', INTENT)).code).toBe(0)
+    const held = await lockHome(home)
+    try {
+      // Questions stay answerable with a window open: this is the whole reason
+      // the journal is a file rather than something a server owns.
+      const r = await wilco('logs', '--type', 'task_created')
+      expect(r.code).toBe(0)
+      expect(r.stdout).toContain('app/refunds')
+    } finally {
+      await held.release()
+    }
   })
 })

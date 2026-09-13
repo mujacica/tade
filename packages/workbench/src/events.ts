@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs'
 import { type FileHandle, mkdir, open, rm } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
 import {
   DEFAULT_URGENCY,
@@ -204,6 +204,18 @@ async function scanTail(path: string): Promise<{ lastSeq: number; corrupt: numbe
     else if (e.seq > lastSeq) lastSeq = e.seq
   }
   return { lastSeq, corrupt }
+}
+
+/**
+ * Read the journal without taking the workbench.
+ *
+ * For anyone who only wants to know what happened — `wilco brief`, `wilco
+ * logs`, a script — and must not have to wait on, or disturb, an open window
+ * to find out. Unparseable lines are skipped, never thrown over.
+ */
+export async function readJournal(home: string, filter: EventFilter = {}): Promise<WilcoEvent[]> {
+  const all = (await readAll(join(home, 'events.jsonl'))).filter((e) => matchesFilter(e, filter))
+  return filter.limit ? all.slice(-filter.limit) : all
 }
 
 async function readAll(path: string): Promise<WilcoEvent[]> {

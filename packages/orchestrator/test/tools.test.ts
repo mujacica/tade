@@ -1,9 +1,9 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Daemon } from '@wilco/daemon/server'
 import type { WorkerSignal } from '@wilco/harnesses-core'
 import { PiAdapter } from '@wilco/harnesses-pi'
+import { Workbench } from '@wilco/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -11,11 +11,12 @@ import {
   writeProviderExtension,
 } from '../../../test/fixtures/fake-model.ts'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { ToolHost } from '../src/tool-host.ts'
 
 // Proves the orchestrator's tools work against a REAL pi agent and a REAL
-// daemon, with a scripted model standing in for the LLM. Two assumptions are
-// under test: that pi accepts our plain JSON Schema parameters, and that a
-// tool call made by the model reaches the daemon and comes back with an answer.
+// workbench, with a scripted model standing in for the LLM. Two assumptions
+// are under test: that pi accepts our plain JSON Schema parameters, and that a
+// tool call made by the model reaches Wilco and comes back with an answer.
 
 const TOOLS = fileURLToPath(new URL('../src/tools-extension.ts', import.meta.url))
 
@@ -29,7 +30,8 @@ async function until(check: () => boolean | Promise<boolean>, timeout = 30_000):
 }
 
 describe('orchestrator tools', () => {
-  let daemon: Daemon
+  let wilco: Workbench
+  let tools: ToolHost
   let adapter: PiAdapter | null = null
   let model: FakeModel | null = null
   let home: string
@@ -39,13 +41,15 @@ describe('orchestrator tools', () => {
     repo = mkrepo()
     home = tmp('wilco-orch-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    daemon = await Daemon.start({ home, socket: join(home, 'w.sock') })
+    wilco = await Workbench.open({ home })
+    tools = await ToolHost.listen({ wilco, path: join(home, 'tools.sock') })
   })
 
   afterEach(async () => {
     await adapter?.shutdown()
     await model?.close()
-    await daemon.stop().catch(() => {})
+    await tools.close().catch(() => {})
+    await wilco.close().catch(() => {})
     adapter = null
     model = null
   })
@@ -62,7 +66,7 @@ describe('orchestrator tools', () => {
       env: {
         ...process.env,
         WILCO_TEST_BASE_URL: model.url,
-        WILCO_SOCKET: daemon.socketPath,
+        WILCO_SOCKET: tools.path,
         WILCO_HOME: home,
       },
     })
@@ -78,7 +82,7 @@ describe('orchestrator tools', () => {
     return signals
   }
 
-  it('registers tools pi can call, and the call reaches the daemon', async () => {
+  it('registers tools pi can call, and the call reaches Wilco', async () => {
     const signals = await runWithTool({ name: 'wilco_run_list', arguments: {} })
 
     // The model asked for the tool, pi ran it, and the result went back: the
@@ -100,7 +104,7 @@ describe('orchestrator tools', () => {
     })
 
     await until(() => (model?.requests.length ?? 0) >= 2)
-    const created = await daemonEvents()
+    const created = await taskEvents()
     expect(created?.detail.intent_spoken).toBe(intent)
     expect(created?.task).toBe('app/refunds')
   }, 90_000)
@@ -112,8 +116,8 @@ describe('orchestrator tools', () => {
     expect(message).toMatchObject({ type: 'message', text: 'Done looking.' })
   }, 90_000)
 
-  async function daemonEvents() {
-    const events = await daemon.log.read({ types: ['task_created'] })
+  async function taskEvents() {
+    const events = await wilco.events({ types: ['task_created'] })
     return events[0]
   }
 })

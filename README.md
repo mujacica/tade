@@ -2,11 +2,15 @@
 
 > **wilco** *(radio procedure)*: "will comply."
 
-A voice-first workbench for running coding agents on your own machine. A local daemon owns your
-agent sessions; you talk to one orchestrator that knows what projects exist, what's running, what's
-stuck, and what you said you were trying to do. Status is always derived from observable state
-(git, process liveness, agent event streams, provider transcripts), never from what an agent says
-about itself.
+A voice-first control room for running coding agents on your own machine. The agents are pi, running
+in your terminal; Wilco is the window over them and the orchestrator you talk to — one that knows
+what projects exist, what's running, what's stuck, and what you said you were trying to do.
+
+Nothing here is the source of truth for anything. tmux owns the processes, pi owns the
+conversations, git owns the work, and status is always derived from what can be observed (git,
+process liveness, agent event streams, provider transcripts) rather than from what an agent says
+about itself. That is why closing Wilco is harmless: it was never holding anything the others
+weren't already holding.
 
 ## Status
 
@@ -17,8 +21,8 @@ Early prototype. What works today:
 | `wilco config --check` validates `~/.wilco/config.yaml` | ✅ |
 | Object model and task state machine | ✅ |
 | `wilco status`: git probe, adoption of Claude Code / Codex sessions started outside Wilco | ✅ |
-| Daemon (`wilcod`), lanes, `attach`, event log | ✅ |
-| Agents: pi runs supervised by the daemon, every tool call classified | ✅ |
+| Lanes, `attach`, event log | ✅ |
+| Agents: pi in a lane, one session per task, still there when you come back | ✅ |
 | Task worktrees: created with your intent recorded, teardown that refuses to destroy work | ✅ |
 | Approval policy, off by default (`approvals.mode`) | ✅ |
 | CLI for tasks, runs and approvals | ✅ |
@@ -47,14 +51,14 @@ pnpm wilco app
 ```
 
 That is the whole thing. On a machine that has never run Wilco, `wilco app` walks you through a
-project, a model and the daemon before it opens — it does not show you an empty window and let you
-work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup --check` reports
+project, a model and somewhere to run agents before it opens — it does not show you an empty window
+and let you work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup --check` reports
 what is missing without changing anything:
 
 ```
   ✓ A project to work on
   · A model to think with — no provider is logged in and no API key is set
-  · The daemon running — not started
+  · Somewhere to run agents — workspace.driver is tmux, which is not installed
   ○ Speech, if you want it — whisper.cpp is not installed (brew install whisper-cpp)
 ```
 
@@ -64,7 +68,7 @@ into instead. `WILCO_HOME` overrides the state directory (default `~/.wilco`).
 ## How people use it
 
 **The first five minutes.** `wilco app` asks which repository, opens the harness so you can
-`/login`, starts the daemon, and opens the window. You say what you want done; a worktree and an
+`/login`, and opens the window. You say what you want done; a worktree and an
 agent appear; you watch it work in the middle pane.
 
 **Morning, one earbud, kettle boiling.** `wilco brief --speak` — *"Morning. stripe-v15 is blocked on
@@ -103,7 +107,6 @@ Everything up to starting an agent works with no credentials at all:
 
 ```sh
 pnpm install
-pnpm wilco daemon start
 
 # point Wilco at a repository (~/.wilco/config.yaml)
 printf 'projects:\n  app:\n    root: ~/src/app\n' >> ~/.wilco/config.yaml
@@ -112,11 +115,15 @@ pnpm wilco task create app/refunds --intent "the refund flow double-charges on w
 pnpm wilco status                 # app/refunds — queued
 pnpm wilco run start app/refunds  # needs a model; see below
 pnpm wilco status                 # app/refunds — working
-pnpm wilco run list
+pnpm wilco run list               # a different process, and it is still working
 pnpm wilco logs -n 10 --min-urgency notable
+pnpm wilco run stop app/refunds
 pnpm wilco task remove app/refunds
-pnpm wilco daemon stop
 ```
+
+There is nothing to start and nothing to leave running. Each command opens the workbench, does its
+work and closes it; questions (`status`, `logs`, `notes`, `summary`, `spend`) read the files and do
+not open it at all, so they still answer with a window open.
 
 **An agent needs a model, and pi owns that.** Wilco holds no credentials of its own. Log the
 bundled pi in once, or give it an API key:
@@ -152,11 +159,9 @@ something to think with.
 | `wilco notes [scope] [--json]` | What you have told Wilco, newest first |
 | `wilco task create <project>/<name> --intent "..."` | Create a task: branch, worktree, your intent recorded verbatim |
 | `wilco task remove <task> [--force]` | Remove a task worktree; refuses to destroy unmerged work |
-| `wilco run start <task> [--prompt ...] [--model ...]` | Start a supervised agent in the task worktree |
-| `wilco run list` / `steer <run> <msg>` / `stop <run>` | List agents, tell one something, stop one |
+| `wilco run start <task> [--prompt ...] [--model ...]` | Start pi in a lane in the task worktree |
+| `wilco run list` / `steer <task> <msg>` / `stop <task>` | List agents, tell one something, stop one |
 | `wilco approvals` / `approve <run> <id>` / `deny <run> <id>` | Commands agents are waiting to run (empty unless approvals are on) |
-| `wilco daemon start [--foreground]` | Start `wilcod`, which owns lanes and the event log |
-| `wilco daemon stop` / `status [--json]` | Stop the daemon / show pid, driver, capabilities, lane count |
 | `wilco spawn <lane> --cmd <command...>` | Start a process in a new lane |
 | `wilco lanes [--task t] [--json]` | List lanes with state and uptime |
 | `wilco attach <lane>` | Attach your terminal to a lane (detach with Ctrl-\ twice) |
@@ -190,21 +195,20 @@ elsewhere: 1 session: codex idle (~/src/search)
 - `status` never fails on a broken repo or unreadable file. It reports what it can and lists the
   problems in `warnings` (`--json`).
 
-### Lanes and the daemon
+### Lanes
 
-A **lane** is one PTY belonging to a task: `<project>/<task>/<lane>`. The daemon owns them, so
-your terminal is only a viewer and nothing is nested or hijacked.
+A **lane** is one terminal belonging to a task: `<project>/<task>/<lane>`. An agent is a lane with
+pi in it — the same pi you would run yourself, driven by the same keystrokes you would type.
 
 ```sh
-wilco daemon start
 wilco spawn app/scratch/shell --cmd bash
 wilco attach app/scratch/shell     # Ctrl-\ twice to detach
 wilco lanes
 wilco logs -f --min-urgency notable
 ```
 
-- **Attach from as many terminals as you like.** Every attacher sees the same session, gets a
-  rendered snapshot of what it missed, and resizing your window resizes the lane.
+- **Attach from as many terminals as you like** (under `tmux`). Every attacher sees the same
+  session, gets a rendered snapshot of what it missed, and resizing your window resizes the lane.
 - **With the default driver, lanes do not outlive Wilco.** They are its own children, so closing it
   closes them. Wilco then reports them as dead (never as alive) and keeps enough detail to put the
   work back: `wilco lanes` shows them exited, and `relaunch` restarts one. Nothing to install and
@@ -222,8 +226,12 @@ wilco logs -f --min-urgency notable
   `trace`); slow subscribers lose `trace` events first and `blocking` events never.
 - Lane output is not copied into the log. It lives in the lane's scrollback (`capture`), and the
   log records periodic byte counts, so a chatty agent can't bloat the journal.
-- The socket is `$XDG_RUNTIME_DIR/wilco.sock` (else `~/.wilco/run/`), directory `0700`, socket
-  `0600`: this user only, no TCP.
+- **One window per `WILCO_HOME` at a time.** Opening the workbench claims the home with a lock file
+  naming the pid, so a second one is refused with a message saying who has it rather than
+  interleaving its writes with theirs. A lock whose process is gone is taken over, so a crash never
+  locks you out. Questions never take the lock.
+- Under `tmux`, each home gets its own session (`wilco-<hash of home>`) on Wilco's own server, so a
+  test run, a second checkout and your real work can never adopt or kill each other's agents.
 
 ### The window
 
@@ -447,11 +455,11 @@ The schema lives in [packages/core/src/config.ts](packages/core/src/config.ts).
 ## Concepts
 
 ```
-Workspace   one machine, one daemon
+Workspace   one machine, one WILCO_HOME
 └ Project   a repo root + brief + preferences
   └ Task    an intent + branch + worktree   ← what you talk about
-    └ Lane  one PTY: agent | server | tests | shell
-      └ Run one agent session
+    └ Lane  one terminal: agent | server | tests | shell
+      └ pi  one session, named after the task, for as long as the task lives
 ```
 
 A task is a git worktree on a `wilco/*` branch containing `.wilco/task.yaml`, which records your
@@ -491,7 +499,7 @@ what is red.
 ```
 core/          the domain: tasks, state machine, config, policy, memory, prompts
 status/        observing reality: git · processes · adoption · tests
-daemon/        wilcod: the socket, the lane registry, the event log
+workbench/     what Wilco holds while open: lanes, journal, notes, agents
 drivers/       core (port + suite) · pty · tmux          where lanes physically live
 harnesses/     core (port) · pi                          what runs an agent
 voice/         core (surface + ports) · stt · tts        hearing and speaking

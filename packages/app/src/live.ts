@@ -8,11 +8,11 @@ import {
   type WorkSummary,
   type Workspace,
 } from '@wilco/core'
-import type { DaemonClient } from '@wilco/daemon/client'
-import { livenessFrom } from '@wilco/daemon/lane-liveness'
-import type { LaneRecord } from '@wilco/daemon/registry'
-import type { PendingApproval } from '@wilco/daemon/workers'
 import { collectStatus } from '@wilco/status'
+import type { Workbench } from '@wilco/workbench'
+import { livenessFrom } from '@wilco/workbench/lane-liveness'
+import type { LaneRecord } from '@wilco/workbench/registry'
+import type { PendingApproval } from '@wilco/workbench/workers'
 import type { TaskSnapshot } from './model.ts'
 
 // Where the app gets its facts.
@@ -62,7 +62,7 @@ export function knownTasks(snapshots: readonly TaskSnapshot[]): KnownTask[] {
 }
 
 export interface LiveOptions {
-  client: DaemonClient
+  client: Workbench
   config: Config
   /** $HOME, for finding agent sessions started outside Wilco. */
   home: string
@@ -152,8 +152,8 @@ export class Live {
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
           liveness: livenessFrom(this.opts.client),
         }),
-        this.opts.client.pendingApprovals().catch(() => []),
-        this.opts.client.lanes().catch(() => []),
+        this.opts.client.pendingApprovals(),
+        this.opts.client.lanes(),
       ])
       for (const warning of workspace.warnings) this.opts.onWarning?.(warning)
       for (const project of workspace.projects) {

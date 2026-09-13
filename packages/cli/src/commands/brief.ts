@@ -1,11 +1,17 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { type BriefTask, composeBrief, defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { laneLiveness } from '@wilco/daemon/lane-liveness'
-import { socketPath } from '@wilco/daemon/protocol'
+import {
+  type BriefTask,
+  composeBrief,
+  defaultConfigPath,
+  loadConfig,
+  waitingOn,
+  wilcoHome,
+} from '@wilco/core'
 import { collectStatus } from '@wilco/status'
 import { Speaker } from '@wilco/voice-tts'
+import { readJournal } from '@wilco/workbench/events'
+import { laneLivenessFromFile } from '@wilco/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -28,28 +34,19 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
         return
       }
 
-      // The daemon knows what is waiting on a human; without one the brief is
-      // still true, just less specific about why something is blocked.
-      const socket = socketPath()
-      const client = (await DaemonClient.isRunning(socket))
-        ? await DaemonClient.connect(socket).catch(() => null)
-        : null
-      const waiting = new Map<string, string>()
-      if (client) {
-        for (const approval of await client.pendingApprovals().catch(() => [])) {
-          if (!waiting.has(approval.task)) waiting.set(approval.task, approval.summary)
-        }
-      }
+      // What is waiting on a human comes out of the journal, so the brief is
+      // the same whether a window is open or not.
+      const home = wilcoHome()
+      const waiting = waitingOn(await readJournal(home))
 
-      const lanes = await laneLiveness()
-      try {
+      {
         const workspace = await collectStatus({
           config: cfg.config,
           now: Date.now(),
           home: homedir(),
           cwd: process.cwd(),
           pr: opts.pr && process.env.WILCO_NO_GH !== '1',
-          ...(lanes ? { liveness: lanes.probe } : {}),
+          liveness: await laneLivenessFromFile(home),
         })
         const tasks: BriefTask[] = workspace.projects.flatMap((project) =>
           project.tasks.map((task) => ({
@@ -65,9 +62,6 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
           const speaker = await Speaker.create({ soundDir: join(wilcoHome(), 'sounds') })
           await speaker.speak(brief.spoken)
         }
-      } finally {
-        await lanes?.close()
-        await client?.close().catch(() => {})
       }
     })
 }

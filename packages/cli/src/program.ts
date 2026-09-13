@@ -1,15 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { defaultConfigPath, loadConfig } from '@wilco/core'
-// Subpath imports: the CLI must not load the driver stack just to read status.
-import { laneLiveness } from '@wilco/daemon/lane-liveness'
+import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
 import { collectStatus } from '@wilco/status'
+// Subpath imports: the CLI must not load the driver stack just to read status.
+import { laneLivenessFromFile } from '@wilco/workbench/lane-liveness'
 import { Command, CommanderError } from 'commander'
 import { registerApp } from './commands/app.ts'
 import { registerBrief } from './commands/brief.ts'
 import { registerChat } from './commands/chat.ts'
 import { registerCheck } from './commands/check.ts'
-import { registerDaemon } from './commands/daemon.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
 import { registerExtensions, registerSkills } from './commands/proposals.ts'
@@ -76,23 +75,19 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
         setExit(Exit.invalidInput)
         return
       }
-      // Lanes are only known to a running daemon; without one, status still
-      // works from git and adopted sessions alone.
-      const lanes = await laneLiveness()
-      try {
-        const ws = await collectStatus({
-          config: cfg.config,
-          now: Date.now(),
-          home: homedir(),
-          cwd: process.cwd(),
-          pr: opts.pr && process.env.WILCO_NO_GH !== '1',
-          ...(lanes ? { liveness: lanes.probe } : {}),
-        })
-        if (opts.json) io.out(JSON.stringify(ws, null, 2))
-        else for (const line of formatStatus(ws)) io.out(line)
-      } finally {
-        await lanes?.close()
-      }
+      // Read the lanes rather than take the workbench: status is a question,
+      // and asking it must never wait on, or interfere with, an open window.
+      const liveness = await laneLivenessFromFile(wilcoHome())
+      const ws = await collectStatus({
+        config: cfg.config,
+        now: Date.now(),
+        home: homedir(),
+        cwd: process.cwd(),
+        pr: opts.pr && process.env.WILCO_NO_GH !== '1',
+        liveness,
+      })
+      if (opts.json) io.out(JSON.stringify(ws, null, 2))
+      else for (const line of formatStatus(ws)) io.out(line)
     })
 
   registerSetup(program, io, setExit)
@@ -108,7 +103,6 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerVoice(program, io, setExit)
   registerExtensions(program, io, setExit)
   registerSkills(program, io, setExit)
-  registerDaemon(program, io, setExit)
   return program
 }
 

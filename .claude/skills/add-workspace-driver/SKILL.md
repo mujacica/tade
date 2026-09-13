@@ -1,6 +1,6 @@
 ---
 name: add-workspace-driver
-description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, container) or change the driver port. Use when lanes should live somewhere other than the daemon's own PTYs.
+description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, container) or change the driver port. Use when lanes should live somewhere other than Wilco's own PTYs.
 ---
 
 # Adding a WorkspaceDriver
@@ -17,11 +17,13 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
    ```ts
    import { testWorkspaceDriver } from '@wilco/drivers-core/conformance'
    import { TmuxDriver } from '../src/index.ts'
-   testWorkspaceDriver('tmux', () => new TmuxDriver())
+   // The argument is a workspace name: two calls with the same one must look
+   // at the same lanes, because that is what Wilco being reopened is.
+   testWorkspaceDriver('tmux', (workspace) => new TmuxDriver({ session: workspace }))
    ```
 3. Implement until the suite passes. It covers the round-trip, output ordering, concurrent writes,
    resize, titles, replay, exit reporting, idempotent close, and typed errors.
-4. Register it in `drivers` in `packages/daemon/src/registry.ts`. That map is the only place a
+4. Register it in `drivers` in `packages/workbench/src/registry.ts`. That map is the only place a
    driver name turns into an implementation.
 5. Add the driver to the `workspace.driver` enum in `packages/core/src/config.ts`.
 6. Update the driver table in `README.md`.
@@ -36,6 +38,14 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   driver's own module.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is.
+- **`detach()` lets go, `shutdown()` ends it.** Closing Wilco calls `detach`, and under a driver
+  claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot
+  be found again, `detach` ends them — leaving processes nobody can see, drive or stop is worse
+  than either.
+- **`adopt()` is what makes `detach: true` mean anything.** A fresh instance must be able to find
+  the lanes a previous one left and return handles that can actually be written to, with the spec
+  intact. Store whatever that needs on the backend's own objects, as the tmux driver stores the
+  lane id and spec on the window.
 - **Typed errors:** `LaneNotFoundError` for unknown lanes, `LaneClosedError` after close.
 - **`open()` must not leave a phantom lane.** If the command can't launch, reject and register
   nothing (the PTY driver resolves the executable before spawning, because node-pty reports a

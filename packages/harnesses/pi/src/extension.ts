@@ -57,6 +57,17 @@ interface PiApi {
 type Json = Record<string, unknown>
 
 const SOCKET = process.env.WILCO_RUN_SOCKET
+/**
+ * Whether tool calls are gated at all.
+ *
+ * This decides what happens when Wilco is not there, which under a driver
+ * whose lanes outlive the window is the ordinary case rather than a fault.
+ * Under `bypass` nothing was ever going to be held, so losing the connection
+ * costs telemetry and nothing else and the agent works on. Under `policy` a
+ * gate that cannot be asked has to refuse: quietly downgrading to ungated
+ * would be the one outcome nobody asked for.
+ */
+const GATED = process.env.WILCO_APPROVALS === 'policy'
 
 /** Session totals as last reported, so each turn sends only the difference. */
 let spent = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
@@ -134,8 +145,10 @@ export default function wilcoExtension(pi: PiApi): void {
   })
   const drop = () => {
     connected = false
-    // Supervisor gone mid-flight: refuse rather than run unsupervised.
-    failPending('Wilco is not reachable')
+    // Wilco gone mid-flight. Only a gate has anything to say about that: with
+    // approvals off, nothing was waiting on it, and failing a call that was
+    // never going to be held would break work for no reason.
+    if (GATED) failPending('Wilco is not reachable, and approvals are on')
   }
   socket.on('close', drop)
   socket.on('error', drop)
@@ -213,12 +226,19 @@ export default function wilcoExtension(pi: PiApi): void {
     })
   }) as never)
 
-  // The gate. Every tool call is held here until Wilco answers, so policy
-  // lives in exactly one place instead of being re-implemented per agent.
+  // The gate. When approvals are on, every tool call is held here until Wilco
+  // answers, so policy lives in one place instead of being re-implemented per
+  // agent. When they are off — the default — nothing is ever held.
   pi.on('tool_call', (async (event: ToolCallEvent, ctx: PiContext): Promise<ToolCallResult> => {
     latest = ctx
+    // Recorded either way, so the journal is honest even when nothing is
+    // gated. `send` is a no-op while disconnected: what happened is still in
+    // pi's own session, which is where it gets recovered from.
     send({ type: 'tool_call', callId: event.toolCallId, tool: event.toolName, input: event.input })
-    if (!connected) return {}
+    if (!GATED) return {}
+    if (!connected) {
+      return { block: true, reason: 'Wilco is not reachable, and approvals are on' }
+    }
     const requestId = `${RUN}-${++counter}`
     const decision = new Promise<ToolCallResult>((resolve) => {
       pending.set(requestId, resolve)

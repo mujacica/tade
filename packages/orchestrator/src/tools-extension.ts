@@ -318,7 +318,7 @@ function runCli(args: string[]): Promise<string> {
 
 /** Minimal JSON-RPC 2.0 client: one connection per call, Content-Length framed. */
 function rpc(method: string, params: Record<string, unknown>): Promise<unknown> {
-  if (!SOCKET) return Promise.reject(new Error('WILCO_SOCKET is not set: is the daemon running?'))
+  if (!SOCKET) return Promise.reject(new Error('WILCO_SOCKET is not set: no way back to Wilco'))
   return new Promise((resolve, reject) => {
     const socket = connect(SOCKET)
     let buffer = Buffer.alloc(0)
@@ -345,7 +345,7 @@ function rpc(method: string, params: Record<string, unknown>): Promise<unknown> 
         error?: { message?: string }
       }
       socket.end()
-      if (message.error) reject(new Error(message.error.message ?? 'daemon rejected the request'))
+      if (message.error) reject(new Error(message.error.message ?? 'Wilco rejected the request'))
       else resolve(message.result ?? { ok: true })
     })
   })

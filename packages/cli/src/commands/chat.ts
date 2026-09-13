@@ -1,9 +1,8 @@
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
-import { DaemonClient } from '@wilco/daemon/client'
-import { socketPath } from '@wilco/daemon/protocol'
-import { Orchestrator } from '@wilco/orchestrator'
+import { Orchestrator, ToolHost } from '@wilco/orchestrator'
+import { HomeBusyError, Workbench } from '@wilco/workbench'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -23,27 +22,31 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         setExit(Exit.invalidInput)
         return
       }
-      const socket = socketPath()
-      if (!(await DaemonClient.isRunning(socket))) {
-        io.err('daemon not running: start it with `wilco daemon start`')
+      const home = wilcoHome()
+      let wilco: Workbench
+      try {
+        wilco = await Workbench.open({ home })
+      } catch (err) {
+        io.err(
+          err instanceof HomeBusyError
+            ? `${err.message}. Talk to it there instead.`
+            : err instanceof Error
+              ? err.message
+              : String(err),
+        )
         setExit(Exit.error)
         return
       }
+      const tools = await ToolHost.listen({
+        wilco,
+        path: join(home, 'runs', `tools-${process.pid}.sock`),
+      })
 
-      // Fetched and handed over, so composing the prompt stays pure.
-      const notes = await DaemonClient.connect(socket)
-        .then(async (client) => {
-          const all = await client.recallAll().catch(() => [])
-          await client.close().catch(() => {})
-          return all
-        })
-        .catch(() => [])
-
-      const home = wilcoHome()
       const chat = await Orchestrator.start({
-        notes,
+        // Fetched and handed over, so composing the prompt stays pure.
+        notes: wilco.recallAll(),
         home,
-        socket,
+        socket: tools.path,
         runDir: join(home, 'orchestrator'),
         cwd: process.cwd(),
         config: cfg.config,
@@ -85,6 +88,8 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
       } finally {
         rl.close()
         await chat.stop()
+        await tools.close().catch(() => {})
+        await wilco.close().catch(() => {})
       }
     })
 }

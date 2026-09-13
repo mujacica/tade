@@ -13,7 +13,6 @@
     "lint": "biome check .",
     "check": "biome ci . && tsc -p tsconfig.json && vitest run",
     "wilco": "node packages/cli/src/bin.ts",
-    "wilcod": "node packages/daemon/src/bin.ts",
     "postinstall": "node scripts/fix-pty-permissions.mjs"
   },
   "pnpm": {

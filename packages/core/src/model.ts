@@ -155,3 +155,12 @@ export type Workspace = z.infer<typeof Workspace>
 
 /** Stop listening. Returned by anything that starts a subscription. */
 export type Unsubscribe = () => void
+
+/**
+ * A value, or the promise of one.
+ *
+ * Ports use this where an implementation may reasonably be either: asking a
+ * running object is immediate, asking across a process is not, and a port that
+ * insisted on a promise would make the immediate answer pretend.
+ */
+export type Awaitable<T> = T | Promise<T>
