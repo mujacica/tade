@@ -31,7 +31,7 @@ export type Target =
   /** A ≡ that opens something's menu. */
   | { kind: 'menu'; subject: MenuSubject }
   /** Somewhere the wheel scrolls, laid under what is drawn there. */
-  | { kind: 'scroll'; area: 'sidebar' | 'panel' }
+  | { kind: 'scroll'; area: ScrollArea }
   /** A file the task changed: clicking it shows the change. */
   | { kind: 'change'; task: string; path: string }
   /** A link on an agent's screen. */
@@ -47,6 +47,9 @@ export type Target =
   /** Inside a panel but on nothing: swallows the click so it cannot fall through. */
   | { kind: 'inert' }
 
+/** Somewhere the wheel moves what is shown: the sidebar, a panel, the conversation. */
+export type ScrollArea = 'sidebar' | 'panel' | 'transcript'
+
 export interface Hit {
   /** Inclusive row, zero-based from the top of the window. */
   row: number
@@ -57,8 +60,8 @@ export interface Hit {
 }
 
 /** The scrollable area under this cell, whatever is drawn over it. */
-export function scrollAt(hits: readonly Hit[], x: number, y: number): 'sidebar' | 'panel' | null {
-  let found: 'sidebar' | 'panel' | null = null
+export function scrollAt(hits: readonly Hit[], x: number, y: number): ScrollArea | null {
+  let found: ScrollArea | null = null
   for (const hit of hits) {
     if (hit.target.kind === 'scroll' && hit.row === y && x >= hit.from && x <= hit.to)
       found = hit.target.area

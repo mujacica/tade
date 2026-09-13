@@ -21,6 +21,7 @@ import {
   fileMenuItems,
   filePanel,
   findPanel,
+  imageMenuItems,
   menuItems,
   menuPanel,
   openProjectPanel,
@@ -32,6 +33,14 @@ import {
 import { type SearchEntry, searchResults } from '../../src/search.ts'
 import { COLOUR } from '../../src/skin.ts'
 import { spendView } from '../../src/spend.ts'
+import {
+  emptyTranscript,
+  fromThinker,
+  problem,
+  type Transcript,
+  thinking,
+  youSaid,
+} from '../../src/transcript.ts'
 import type { Frame } from '../../src/view.ts'
 import { formattedLines, sourceLines, type ViewedFile } from '../../src/viewer.ts'
 
@@ -434,6 +443,123 @@ export const SCENARIOS: Scenario[] = [
       'what is going on with checkout',
     ),
     frame: frame({ screen: '' }),
+  },
+  {
+    name: 'orchestrator-at-work',
+    about:
+      'The conversation as it happens: what you said, each tool as it runs or fails with its reason, the answer arriving.',
+    state: {
+      ...base(),
+      focused: null,
+      chose: true,
+      sizes: { stripHeight: 16 },
+      transcript: [
+        (t: Transcript) => youSaid(t, 'run the webhook tests and tell me what broke', 0),
+        (t: Transcript) => thinking(t, 0),
+        (t: Transcript) =>
+          fromThinker(t, { type: 'tool', id: '1', tool: 'wilco_status', input: {} }, 1),
+        (t: Transcript) =>
+          fromThinker(t, { type: 'tool_done', id: '1', ok: true, text: '2 agents, 1 waiting' }, 2),
+        (t: Transcript) =>
+          fromThinker(
+            t,
+            {
+              type: 'tool',
+              id: '2',
+              tool: 'wilco_terminal_run',
+              input: { terminal: 'tests', command: 'pnpm test src/webhooks' },
+            },
+            3,
+          ),
+        (t: Transcript) =>
+          fromThinker(
+            t,
+            {
+              type: 'tool_done',
+              id: '2',
+              ok: false,
+              text: 'no terminal called tests is open in checkout: open one first, or name another',
+            },
+            4,
+          ),
+        (t: Transcript) =>
+          fromThinker(
+            t,
+            {
+              type: 'tool',
+              id: '3',
+              tool: 'wilco_terminal_open',
+              input: { project: 'checkout', name: 'tests' },
+            },
+            5,
+          ),
+        (t: Transcript) =>
+          fromThinker(t, { type: 'delta', text: 'Opening a **tests** terminal first, then' }, 6),
+      ].reduce((t, step) => step(t), emptyTranscript()),
+    },
+    frame: frame({ screen: '', now: 1_300 }),
+  },
+  {
+    name: 'orchestrator-did-not-start',
+    about: 'The orchestrator failing to start, said where you would wait for it, with the reason.',
+    state: {
+      ...base(),
+      focused: null,
+      chose: true,
+      transcript: problem(
+        youSaid(emptyTranscript(), 'where are we', 0),
+        'The orchestrator did not start: claude-opus-5 is not offered by anything you are signed in to (openrouter): pick one in Settings',
+        1,
+      ),
+    },
+    frame: frame({ screen: '' }),
+  },
+  {
+    name: 'dropping-a-screenshot',
+    about:
+      'A screenshot dropped on the window: who it is for, starting on whoever you were typing to.',
+    state: {
+      ...base(),
+      panel: menuPanel(
+        { kind: 'images', paths: ['/Users/me/Desktop/Screenshot 2026-09-14 at 09.12.33.png'] },
+        'Screenshot 2026-09-14 at 09.12.33.png',
+      ),
+    },
+    frame: frame({
+      panel: {
+        items: imageMenuItems({
+          agents: [
+            { task: 'checkout/refunds', name: 'refunds', running: true, focused: true },
+            { task: 'checkout/stripe-v15', name: 'stripe-v15', running: false, focused: false },
+          ],
+          terminal: { id: 'checkout/terminals/1', name: 'tests' },
+        }),
+      },
+    }),
+  },
+  {
+    name: 'a-screenshot-attached',
+    about: 'A picture waiting to go to the orchestrator with what you type next.',
+    state: {
+      ...setDictation(
+        { ...base(), focused: null, chose: true },
+        'why does the refund button look like this',
+      ),
+      attached: ['/var/folders/T/wilco-clipboard-1.png'],
+    },
+    frame: frame({ screen: '' }),
+  },
+  {
+    name: 'pointing-at-a-terminal-tab',
+    about: "A terminal's tab under the pointer: its menu and close button appear.",
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+        { id: 'checkout/terminals/2', project: 'checkout', name: 'server' },
+      ]),
+      hover: { kind: 'bottom-tab', tab: 'checkout/terminals/2' },
+    },
+    frame: frame(),
   },
   {
     name: 'spend',

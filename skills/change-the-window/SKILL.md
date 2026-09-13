@@ -26,6 +26,10 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
+| `transcript.ts` | The conversation with the orchestrator as entries, folded from what it does | a terminal |
+| `transcript-view.ts` | That conversation laid out to a width: wrapped, formatted, spinning | a terminal |
+| `images.ts` | Pictures: recognising a dropped path, reading the clipboard, reading bytes | a terminal |
+| `links.ts` | A row of someone else's text with its links and file references clickable | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
 | `screen.ts` | The screen Wilco asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |

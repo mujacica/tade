@@ -377,8 +377,8 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   **+** opens a terminal: a login shell in the project's folder, called `terminal 1` until renamed.
   Click into one to type there — tab, ctrl+c and escape are the shell's while it has the keyboard,
   and only your talk key and `ctrl+k` stay Wilco's; click the agent or the orchestrator to take the
-  keyboard back. A right-click on a terminal's tab, or its `×`, runs a command in it, finds, renames,
-  clears or closes it. `⌕` finds in its scrollback: typing narrows, enter or `↑` goes to an older
+  keyboard back. Pointing at a terminal's tab shows its `▾` menu and `×`; the menu, or a right-click,
+  runs a command in it, finds, renames, clears or closes it. `⌕` finds in its scrollback: typing narrows, enter or `↑` goes to an older
   match, `↓` a newer one, and the line is lit where it is. `⤢` fills the window with the panel, `▾`
   folds it to its tabs. Terminals are lanes like everything else, so under tmux they outlive the
   window and come back with it. `ctrl+k` search looks through what every terminal has printed too.
@@ -395,6 +395,16 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   shows a meter of what the microphone actually hears. Hold where the terminal reports key releases,
   press to start and stop elsewhere or if you prefer. With nothing to hear you, the chip says voice is
   off and offers setup. Space is never claimed; nor is any key that types a character.
+- **The conversation.** The orchestrator's tab reads like a terminal: what you said after `❯` the
+  moment you send it, each tool it reaches for as a line that spins while it runs and ends `✓` or
+  `✗` with the reason, and its answer written out as it arrives. A model that will not start, or a
+  run that stops, says why there too. The wheel scrolls back through it.
+- **Pictures.** Drop a screenshot on the window, or paste its path, and Wilco asks who it is for —
+  the orchestrator, one of the project's agents, or the terminal in front — starting on whoever you
+  were typing to. The orchestrator gets the picture with the next thing you say or type (`▣` on the
+  line shows it waiting); an agent gets its path pasted at its prompt, which pi reads; a terminal
+  gets the path typed. `ctrl+v` at the orchestrator's line attaches the screenshot on the clipboard;
+  at an agent it is pi's own `ctrl+v`, which does the same.
 - **Search.** `ctrl+k` (Cmd+K too, in terminals that pass Cmd on, such as kitty and Ghostty) is one
   box for everything, grouped with a mark for each kind: what is waiting on you, agents, files by
   name across the project and every agent's worktree (fuzzy, with what matched lit), lines inside
@@ -402,6 +412,8 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   text inside files, `>` to actions and settings. Tab completes to the chosen result, shown greyed
   after what you typed. Files come from `git ls-files` and lines from `git grep`, so what git ignores
   is never searched. `ctrl+k` is taken from agents and shells, where it deletes to the end of the line.
+  In Terminal.app, iTerm2 and VS Code, Cmd+K is the terminal's own "clear", which Wilco never sees:
+  the screen goes dark and is drawn again within two seconds. Use `ctrl+k` there.
 - **Somewhere else needs you.** An agent in a project you are not looking at that wants approval gets
   a toast under the tabs, answerable where it appears. A pane you are looking at raises itself only
   when you have been idle for 30 seconds.

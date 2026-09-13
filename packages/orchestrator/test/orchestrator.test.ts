@@ -8,7 +8,7 @@ import {
   writeProviderExtension,
 } from '../../../test/fixtures/fake-model.ts'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { Orchestrator } from '../src/orchestrator.ts'
+import { Orchestrator, type OrchestratorEvent } from '../src/orchestrator.ts'
 import { ToolHost } from '../src/tool-host.ts'
 
 // The thing you talk to, driven by a scripted model: it answers, it reaches
@@ -81,6 +81,44 @@ describe('Orchestrator', () => {
     expect(said[0]).toBe('Nothing is running.')
     // Without this a surface would never know it could speak again.
     await until(() => idle)
+  }, 90_000)
+
+  it('lets a surface watch it work: the tool, how it went, the words as they come', async () => {
+    const events: OrchestratorEvent[] = []
+    const chat = await start({
+      tool: { name: 'wilco_run_stop', arguments: { task: 'app/nothing-here' } },
+      finalText: 'There was nothing to stop.',
+    })
+    chat.onEvent((event) => events.push(event))
+    await chat.ask('stop the nothing-here agent')
+    await until(() => events.some((event) => event.type === 'idle'))
+    const tool = events.find((event) => event.type === 'tool')
+    expect(tool).toMatchObject({ tool: 'wilco_run_stop', input: { task: 'app/nothing-here' } })
+    // It failed, and the reason came with it rather than the tool's name.
+    const done = events.find((event) => event.type === 'tool_done')
+    expect(done).toMatchObject({ ok: false })
+    expect(done?.type === 'tool_done' ? done.text : '').toContain('nothing-here')
+    // And the model was told it too: a tool whose answer never reaches the
+    // model is a tool that silently does nothing.
+    const request = (model?.requests[1] ?? {}) as {
+      messages?: { role?: string; content?: unknown }[]
+    }
+    const answered = (request.messages ?? []).filter((message) => message.role === 'tool')
+    expect(JSON.stringify(answered)).toContain('nothing-here')
+    expect(events.filter((event) => event.type === 'delta').length).toBeGreaterThan(0)
+    expect(events).toContainEqual({ type: 'message', text: 'There was nothing to stop.' })
+  }, 90_000)
+
+  it('says why it would not start, instead of never answering', async () => {
+    await expect(
+      Orchestrator.start({
+        home,
+        socket: tools.path,
+        runDir: tmp('wilco-chat-run-'),
+        cwd: repo.root,
+        model: { provider: 'no-such-provider', id: 'nothing' },
+      }),
+    ).rejects.toThrow(/no-such-provider/)
   }, 90_000)
 
   it('waits for the whole answer when asked to', async () => {

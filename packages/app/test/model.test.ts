@@ -1,9 +1,7 @@
 import type { WilcoEvent } from '@wilco/core'
-import type { Turn } from '@wilco/voice-core'
 import { describe, expect, it } from 'vitest'
 import {
   type AppState,
-  addTurn,
   FOCUS_GUARD_MS,
   focusBy,
   focusTask,
@@ -23,7 +21,6 @@ import {
   showTerminal,
   sidebar,
   type TaskSnapshot,
-  TURN_HISTORY,
   tasksOf,
   terminalsOf,
   whichProject,
@@ -173,15 +170,6 @@ describe('what the window shows', () => {
     expect(headline(state())).toBe('1 waiting')
     expect(headline(setListening(state(), true))).toBe('⏺ listening · 1 waiting')
   })
-
-  it('keeps the conversation bounded', () => {
-    let current = state()
-    for (let i = 0; i < TURN_HISTORY + 20; i++) {
-      current = addTurn(current, turn(`utterance ${i}`))
-    }
-    expect(current.turns.length).toBe(TURN_HISTORY)
-    expect(current.turns[0]?.utterance).toBe('utterance 20')
-  })
 })
 
 describe('which project you are in', () => {
@@ -303,10 +291,6 @@ describe('keys the shell claims', () => {
     }
   })
 })
-
-function turn(utterance: string): Turn {
-  return { utterance, intent: 'status', reply: 'fine', at: NOW }
-}
 
 describe('the bottom panel', () => {
   const tabs = [

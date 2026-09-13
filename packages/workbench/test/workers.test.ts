@@ -27,6 +27,7 @@ class FakeAdapter implements WorkerAdapter {
     modelSwitch: true,
     visibleUi: false,
     resume: false,
+    images: false,
   }
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
   readonly steered: Array<{ run: string; message: string }> = []

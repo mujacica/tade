@@ -142,11 +142,28 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               .catch(() => {})
           },
         })
-          .then((started) => {
+          .then(async (started) => {
             orchestrator = started
-            app.attachThinker({ ask: (text: string) => started.askFor(text) })
+            app.attachThinker({
+              ask: (text, images = []) =>
+                started.askFor(
+                  text,
+                  120_000,
+                  images.map(({ data, mimeType }) => ({ data, mimeType })),
+                ),
+              onEvent: (listener) => started.onEvent(listener),
+            })
+            // Nothing chosen, so the harness picked: keep what it picked, so the
+            // next time an agent switches model the orchestrator does not follow.
+            if (!cfg.config.orchestrator.model) {
+              const model = await started.model().catch(() => null)
+              if (model) app.keepThinkerModel(model)
+            }
           })
-          .catch(() => {})
+          // Said in the conversation, where you would have waited for an answer.
+          .catch((err: unknown) => {
+            app.thinkerFailed(err instanceof Error ? err.message : String(err))
+          })
         // Leaving the terminal in raw mode would outlive us, so stop on a
         // signal the same way as on quitting.
         const stop = () => void app.stop()

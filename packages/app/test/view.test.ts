@@ -16,8 +16,10 @@ import {
   withProjects,
   withTasks,
   withTerminals,
+  withTranscript,
 } from '../src/model.ts'
-import { BUTTONS, draw, renderApp, renderTurn, wrapPath } from '../src/view.ts'
+import { youSaid } from '../src/transcript.ts'
+import { BUTTONS, draw, renderApp, wrapPath } from '../src/view.ts'
 
 /** The same row without its colour, for comparing positions against columns. */
 const plain = (row: string) =>
@@ -193,7 +195,8 @@ describe('the orchestrator strip', () => {
   })
 
   it('shows what was heard, where it went and why', () => {
-    const text = renderApp(addTurn(state(), turn()), frame()).join('\n')
+    const said = withTranscript(state(), youSaid(state().transcript, 'park the stripe one', 0))
+    const text = renderApp(addTurn(said, turn()), frame()).join('\n')
     expect(text).toContain('park the stripe one')
     expect(text).toContain('checkout/stripe-v15')
     expect(text).toContain('you mentioned it last')
@@ -202,7 +205,10 @@ describe('the orchestrator strip', () => {
 
   it('keeps the most recent exchange when there are many', () => {
     let current = state()
-    for (let i = 0; i < 30; i++) current = addTurn(current, turn({ utterance: `said ${i}` }))
+    for (let i = 0; i < 30; i++) {
+      current = withTranscript(current, youSaid(current.transcript, `said ${i}`, 0))
+      current = addTurn(current, turn({ utterance: `said ${i}` }))
+    }
     const text = renderApp(current, frame()).join('\n')
     expect(text).toContain('said 29')
     expect(text).not.toContain('said 0 ')
@@ -269,23 +275,6 @@ describe('the orchestrator strip', () => {
     expect(renderApp(notice(state(), 'refunds needs you'), frame()).join('\n')).toContain(
       'refunds needs you',
     )
-  })
-})
-
-describe('renderTurn', () => {
-  it('reads as one exchange', () => {
-    expect(renderTurn(turn(), 80)).toEqual([
-      ' ❯ park the stripe one',
-      '   → park · checkout/stripe-v15 · "you mentioned it last"',
-      '   parked stripe-v15',
-    ])
-  })
-
-  it('leaves out what it does not have', () => {
-    expect(renderTurn(turn({ task: null, why: null, reply: '' }), 80)).toEqual([
-      ' ❯ park the stripe one',
-      '   → park',
-    ])
   })
 })
 

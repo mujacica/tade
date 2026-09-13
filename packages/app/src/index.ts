@@ -58,4 +58,4 @@ export {
   skinFor,
 } from './skin.ts'
 export { box, type Drawn as Region, overlay, type Pointer, Row } from './ui.ts'
-export { BUTTONS, type Drawn, draw, type Frame, renderApp, renderTurn } from './view.ts'
+export { BUTTONS, type Drawn, draw, type Frame, renderApp } from './view.ts'

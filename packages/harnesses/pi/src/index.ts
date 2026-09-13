@@ -1,5 +1,6 @@
 export {
   EXTENSION_PATH,
+  exitReason,
   PiAdapter,
   type PiAdapterOptions,
   piBinary,
@@ -10,7 +11,9 @@ export { SignalChannel, type SignalChannelOptions } from './channel.ts'
 export {
   type AvailableModel,
   availableModels,
+  chooseModel,
   loggedInProviders,
+  type ModelChoice,
   usableModels,
 } from './models.ts'
 export {

@@ -2,8 +2,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Config, Note, SkillActivity, Unsubscribe } from '@wilco/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@wilco/core'
-import type { WorkerModel } from '@wilco/harnesses-core'
-import { PiAdapter } from '@wilco/harnesses-pi'
+import type { WorkerImage, WorkerModel } from '@wilco/harnesses-core'
+import { type AvailableModel, chooseModel, PiAdapter, usableModels } from '@wilco/harnesses-pi'
 import { activeExtensions, activeSkills } from './extensions.ts'
 
 /** Where approved lessons live, beside everything else Wilco keeps. */
@@ -45,6 +45,8 @@ export interface OrchestratorOptions {
   /** Supplied so the same facts always compose the same prompt. */
   now?: number
   model?: WorkerModel
+  /** The models you can use, to settle which one a configured name means. Read from the harness unless given. */
+  models?: () => Promise<AvailableModel[]>
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
@@ -70,11 +72,28 @@ export interface OrchestratorUsage {
   usd: number
 }
 
+/**
+ * Everything the orchestrator does that a person should be able to watch: what
+ * it is saying as it says it, which tool it reached for with what, how that
+ * went, and — the part that used to vanish — that it failed, and why.
+ */
+export type OrchestratorEvent =
+  | { type: 'delta'; text: string }
+  | { type: 'message'; text: string }
+  | { type: 'tool'; id: string; tool: string; input: unknown }
+  | { type: 'tool_done'; id: string; ok: boolean; text: string }
+  | { type: 'idle' }
+  | { type: 'failed'; reason: string }
+  | { type: 'exited'; code: number | null }
+
 export class Orchestrator {
   private readonly adapter: PiAdapter
   private readonly messageListeners = new Set<(text: string) => void>()
   private readonly toolListeners = new Set<(tool: string) => void>()
   private readonly idleListeners = new Set<() => void>()
+  private readonly eventListeners = new Set<(event: OrchestratorEvent) => void>()
+  /** Why it stopped, once it has: asking it anything after that cannot work. */
+  private gone: string | null = null
 
   private constructor(adapter: PiAdapter) {
     this.adapter = adapter
@@ -82,11 +101,15 @@ export class Orchestrator {
 
   static async start(opts: OrchestratorOptions): Promise<Orchestrator> {
     const route = opts.config ? orchestratorRoute(opts.config) : null
+    // The exact model, chosen from what you are signed in to: a bare name the
+    // harness finds under several providers makes it exit before it reads a
+    // word, which looked like an orchestrator that never answered.
+    const choice = opts.model
+      ? null
+      : chooseModel(route ?? {}, route?.model ? await (opts.models ?? usableModels)() : [])
+    if (choice && !choice.ok) throw new Error(choice.reason)
     const model =
-      opts.model ??
-      (route?.model
-        ? { id: route.model, ...(route.provider ? { provider: route.provider } : {}) }
-        : undefined)
+      opts.model ?? (choice?.ok ? { provider: choice.provider, id: choice.id } : undefined)
 
     // Wilco's own tools always load. The ones it wrote for itself load after
     // them, so a self-written tool can never shadow `status` or `approve`.
@@ -141,12 +164,31 @@ export class Orchestrator {
     })
 
     const orchestrator = new Orchestrator(adapter)
+    const emit = (event: OrchestratorEvent) => {
+      for (const listener of orchestrator.eventListeners) listener(event)
+    }
     adapter.onSignal(ORCHESTRATOR_RUN, (signal) => {
       if (signal.type === 'message') {
         for (const listener of orchestrator.messageListeners) listener(signal.text)
+        emit({ type: 'message', text: signal.text })
+      } else if (signal.type === 'message_delta') {
+        emit({ type: 'delta', text: signal.text })
       } else if (signal.type === 'tool_call') {
         for (const listener of orchestrator.toolListeners) listener(signal.tool)
+        emit({ type: 'tool', id: signal.callId, tool: signal.tool, input: signal.input })
+      } else if (signal.type === 'tool_result') {
+        emit({ type: 'tool_done', id: signal.callId, ok: signal.ok, text: signal.summary })
       } else if (signal.type === 'idle') {
+        for (const listener of orchestrator.idleListeners) listener()
+        emit({ type: 'idle' })
+      } else if (signal.type === 'failed') {
+        orchestrator.gone = signal.error
+        emit({ type: 'failed', reason: signal.error })
+      } else if (signal.type === 'exited') {
+        orchestrator.gone ??=
+          signal.code === 0 ? 'it stopped' : `it exited with code ${signal.code}`
+        emit({ type: 'exited', code: signal.code })
+        // Anyone waiting for it to finish a turn would wait forever.
         for (const listener of orchestrator.idleListeners) listener()
       } else if (signal.type === 'usage') {
         const { type: _type, run: _run, at: _at, ...usage } = signal
@@ -161,12 +203,26 @@ export class Orchestrator {
       prompt: '',
       ...(model ? { model } : {}),
     })
+    // A harness that refused to start — a model it could not resolve, most
+    // often — has already said why, and that is the answer to give.
+    if (orchestrator.gone) throw new Error(orchestrator.gone)
     return orchestrator
   }
 
-  /** Say something. Replies arrive through `onMessage`. */
-  async ask(text: string): Promise<void> {
-    await this.adapter.prompt(ORCHESTRATOR_RUN, text)
+  /** Say something, with pictures if there are any. Replies arrive through `onMessage`. */
+  async ask(text: string, images: readonly WorkerImage[] = []): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    await this.adapter.prompt(ORCHESTRATOR_RUN, text, images)
+  }
+
+  /** Why it is not running, or null while it is. */
+  get stopped(): string | null {
+    return this.gone
+  }
+
+  /** The model it is actually thinking with, as the harness reports it. */
+  model(): Promise<WorkerModel | null> {
+    return this.adapter.model(ORCHESTRATOR_RUN)
   }
 
   /**
@@ -175,7 +231,11 @@ export class Orchestrator {
    * Bounded on purpose: a surface that waits forever on a thinking agent is a
    * surface that has hung, and saying so is better than looking broken.
    */
-  async askFor(text: string, timeoutMs = 120_000): Promise<string> {
+  async askFor(
+    text: string,
+    timeoutMs = 120_000,
+    images: readonly WorkerImage[] = [],
+  ): Promise<string> {
     const parts: string[] = []
     const offMessage = this.onMessage((part) => parts.push(part))
     let offIdle: Unsubscribe = () => {}
@@ -183,7 +243,7 @@ export class Orchestrator {
       offIdle = this.onIdle(resolve)
     })
     try {
-      await this.ask(text)
+      await this.ask(text, images)
       const timer = new Promise<'slow'>((resolve) => {
         const handle = setTimeout(() => resolve('slow'), timeoutMs)
         handle.unref?.()
@@ -191,6 +251,7 @@ export class Orchestrator {
       if ((await Promise.race([settled.then(() => 'done' as const), timer])) === 'slow') {
         return parts.join(' ').trim() || 'Still thinking about that one.'
       }
+      if (this.gone && parts.length === 0) return `The orchestrator stopped: ${this.gone}`
       return parts.join(' ').trim()
     } finally {
       offMessage()
@@ -207,6 +268,12 @@ export class Orchestrator {
   onTool(listener: (tool: string) => void): Unsubscribe {
     this.toolListeners.add(listener)
     return () => this.toolListeners.delete(listener)
+  }
+
+  /** Everything it does, as it does it. */
+  onEvent(listener: (event: OrchestratorEvent) => void): Unsubscribe {
+    this.eventListeners.add(listener)
+    return () => this.eventListeners.delete(listener)
   }
 
   /** Fires when it has finished and is waiting on you. */

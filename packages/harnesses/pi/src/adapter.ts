@@ -11,6 +11,7 @@ import {
   type WorkerAdapter,
   type WorkerCapabilities,
   type WorkerHandle,
+  type WorkerImage,
   type WorkerModel,
   WorkerNotFoundError,
   type WorkerSignal,
@@ -113,6 +114,8 @@ interface Run {
   pendingRpc: Map<string, (response: RpcResponse) => void>
   streaming: boolean
   stdout: string
+  /** The last things it wrote to stderr, which is where pi says why it would not start. */
+  stderr: string
   rpcId: number
 }
 
@@ -135,6 +138,7 @@ export class PiAdapter implements WorkerAdapter {
     // Wilco draws itself.
     visibleUi: true,
     resume: true,
+    images: true,
   }
 
   private readonly runs = new Map<string, Run>()
@@ -241,6 +245,7 @@ export class PiAdapter implements WorkerAdapter {
       pendingRpc: new Map(),
       streaming: false,
       stdout: '',
+      stderr: '',
       rpcId: 0,
     }
     this.runs.set(spec.run, run)
@@ -299,12 +304,27 @@ export class PiAdapter implements WorkerAdapter {
       pendingRpc: new Map(),
       streaming: false,
       stdout: '',
+      stderr: '',
       rpcId: 0,
     }
     this.runs.set(spec.run, run)
 
     child.stdout?.on('data', (chunk: Buffer) => this.readStdout(run, chunk))
+    child.stderr?.on('data', (chunk: Buffer) => {
+      run.stderr = (run.stderr + chunk.toString('utf8')).slice(-4_000)
+    })
     child.on('exit', (code) => {
+      // Whatever was waiting on an answer will not get one, and should say
+      // why now rather than time out saying nothing: a model name pi could not
+      // resolve ends the process before it reads a single command.
+      const reason = exitReason(code, run.stderr)
+      for (const [id, resolve] of run.pendingRpc) {
+        run.pendingRpc.delete(id)
+        resolve({ type: 'response', command: 'exit', success: false, error: reason })
+      }
+      if (code !== 0 && code !== null) {
+        this.dispatch(spec.run, { type: 'failed', run: spec.run, at: Date.now(), error: reason })
+      }
       this.dispatch(spec.run, { type: 'exited', run: spec.run, at: Date.now(), code })
       void channel?.close()
     })
@@ -317,13 +337,26 @@ export class PiAdapter implements WorkerAdapter {
     return { ...run.handle }
   }
 
-  async prompt(run: RunId, message: string): Promise<void> {
+  async prompt(run: RunId, message: string, images: readonly WorkerImage[] = []): Promise<void> {
     const entry = this.require(run)
+    const attached =
+      images.length > 0 ? { images: images.map((image) => ({ type: 'image', ...image })) } : {}
     // A prompt sent mid-turn is rejected unless it says how to arrive.
     const command = entry.streaming
-      ? { type: 'prompt', message, streamingBehavior: 'steer' }
-      : { type: 'prompt', message }
+      ? { type: 'prompt', message, ...attached, streamingBehavior: 'steer' }
+      : { type: 'prompt', message, ...attached }
     await this.rpc(entry, command)
+  }
+
+  /** The model a headless run is actually on, which is not always the one asked for. */
+  async model(run: RunId): Promise<WorkerModel | null> {
+    const state = await this.rpc(this.require(run), { type: 'get_state' }).catch(() => null)
+    const model = state?.data?.model as { provider?: unknown; id?: unknown } | undefined
+    if (typeof model?.id !== 'string') return null
+    return {
+      id: model.id,
+      ...(typeof model.provider === 'string' ? { provider: model.provider } : {}),
+    }
   }
 
   async steer(run: RunId, message: string): Promise<void> {
@@ -479,7 +512,17 @@ export class PiAdapter implements WorkerAdapter {
     // structure; only this stream carries text, and it arrives per completed
     // block rather than per token.
     if (message.type === 'message_update') {
-      const event = message.assistantMessageEvent as { type?: string; content?: string } | undefined
+      const event = message.assistantMessageEvent as
+        | { type?: string; content?: string; delta?: string }
+        | undefined
+      if (!this.opts.supervise && event?.type === 'text_delta' && event.delta) {
+        this.dispatch(run.handle.run, {
+          type: 'message_delta',
+          run: run.handle.run,
+          at: Date.now(),
+          text: event.delta,
+        })
+      }
       if (event?.type === 'text_end' && typeof event.content === 'string' && event.content) {
         this.dispatch(run.handle.run, {
           type: 'message',
@@ -561,14 +604,22 @@ export class PiAdapter implements WorkerAdapter {
     if (!this.opts.supervise && message.type === 'tool_execution_end') {
       // The authoritative failure flag is on the result; the outer one reports
       // whether the execution itself blew up.
-      const result = message.result as { isError?: boolean } | undefined
+      const result = message.result as
+        | { isError?: boolean; content?: Array<{ type?: string; text?: string }> }
+        | undefined
+      const said = (result?.content ?? [])
+        .map((part) => (part.type === 'text' ? (part.text ?? '') : ''))
+        .join('\n')
+        .trim()
       this.dispatch(run.handle.run, {
         type: 'tool_result',
         run: run.handle.run,
         at: Date.now(),
         callId: String(message.toolCallId ?? ''),
         ok: !(result?.isError ?? message.isError ?? false),
-        summary: String(message.toolName ?? ''),
+        // What it answered, so a surface can show why a call failed; the name
+        // when it said nothing.
+        summary: said ? said.slice(0, 2_000) : String(message.toolName ?? ''),
       })
     }
   }
@@ -603,4 +654,16 @@ export class PiAdapter implements WorkerAdapter {
     if (!entry) throw new WorkerNotFoundError(run)
     return entry
   }
+}
+
+/** Why pi went away, in its own words where it left any. */
+export function exitReason(code: number | null, stderr: string): string {
+  const said = stderr
+    .split('\n')
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: pi colours its errors.
+    .map((line) => line.replace(/\x1b\[[0-9;]*m/g, '').trim())
+    .filter((line) => line !== '')
+  const last = said.find((line) => /^error\b/i.test(line)) ?? said.at(-1)
+  if (last) return last.replace(/^error:\s*/i, '')
+  return code === null ? 'pi was stopped' : `pi exited with code ${code}`
 }

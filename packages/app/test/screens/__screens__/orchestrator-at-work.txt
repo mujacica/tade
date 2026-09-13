@@ -14,13 +14,6 @@
        webhooks.test.ts       │                                                                                         
        webhooks.ts            │                                                                                         
    ▸ test/                    │                                                                                         
-     package.json             │                                                                                         
-     README.md                │                                                                                         
-                              │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▾ GIT                        │                                                                                         
-   repo     ~/src/checkout    │                                                                                         
-   branch   …lco/stripe-v15   │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
@@ -29,6 +22,13 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- › what is going on with checkout▏                                                                                      
+❯ run the webhook tests and tell me what broke                                                                          
+  ✓ status                                                                                                              
+    2 agents, 1 waiting                                                                                                 
+  ✗ terminal run · tests · "pnpm test src/webhooks"                                                                     
+    no terminal called tests is open in checkout: open one first, or name another                                       
+  ⠸ terminal open · checkout · tests                                                                                    
+  Opening a tests terminal first, then▍                                                                                 
+ ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

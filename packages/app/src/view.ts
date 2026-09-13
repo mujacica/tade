@@ -1,9 +1,8 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
-import type { Turn } from '@wilco/voice-core'
-import { findOpenable } from './editor.ts'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
+import { linkedRow } from './links.ts'
 import {
   type AgentPane,
   type AppState,
@@ -20,6 +19,7 @@ import {
 import { drawPanel, type PanelContext } from './panel-view.ts'
 import { PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
+import { type Line, transcriptLines } from './transcript-view.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
 
 // Drawing, as one pure function of state.
@@ -848,9 +848,9 @@ function renderMain(
       // An approval card sits at the bottom; the conversation ends above it.
       const reading = pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
       for (let gap = reading - lines.length; gap > 0; gap--) rows.push(blank(width))
-      for (const line of lines.slice(-reading)) rows.push(screenRow(line, width, skin, pointer))
+      for (const line of lines.slice(-reading)) rows.push(linkedRow(line, width, skin, pointer))
     } else {
-      for (const line of lines.slice(-room)) rows.push(screenRow(line, width, skin, pointer))
+      for (const line of lines.slice(-room)) rows.push(linkedRow(line, width, skin, pointer))
     }
   }
   // Anywhere on the agent's screen gives it the keyboard back.
@@ -862,45 +862,6 @@ function renderMain(
   const drawn = stack(rows.slice(0, height))
   if (pane.approval) return withApproval(drawn, pane.approval, width, height, skin, pointer)
   return drawn
-}
-
-/**
- * One row of an agent's screen, with its links and file references made
- * clickable. The one under the pointer is underlined, which costs that row its
- * own colours while you point at it — a fair trade for seeing what you would
- * open.
- */
-function screenRow(
-  line: string,
-  width: number,
-  skin: Skin,
-  pointer: Pointer,
-): { text: string; hits: Hit[] } {
-  const plain = stripTerminalSequences(line)
-  const hits: Hit[] = []
-  let text = fit(line, width)
-  for (const found of findOpenable(plain)) {
-    if (found.from >= width) continue
-    const target: Target =
-      found.target.kind === 'url'
-        ? { kind: 'link', url: found.target.url }
-        : {
-            kind: 'place',
-            path: found.target.path,
-            ...(found.target.line ? { line: found.target.line } : {}),
-            ...(found.target.column ? { column: found.target.column } : {}),
-          }
-    const to = Math.min(found.to, width - 1)
-    hits.push({ row: 0, from: found.from, to, target })
-    if (sameTarget(pointer.hover, target)) {
-      const cells = [...fit(plain, width)]
-      text =
-        cells.slice(0, found.from).join('') +
-        skin.link(cells.slice(found.from, to + 1).join('')) +
-        cells.slice(to + 1).join('')
-    }
-  }
-  return { text, hits }
 }
 
 /** How tall the approval card is: its border and two rows. */
@@ -1073,46 +1034,69 @@ function renderStrip(
     return { rows: rows.slice(0, height), hits }
   }
 
-  const body: string[] = []
+  const body: Line[] = transcriptLines(state.transcript, width, skin, pointer, frame.now ?? 0)
+  const quiet = (text: string): Line => ({ text: fit(text, width), hits: [] })
   if (state.question) {
-    body.push(skin.waiting(` ? ${state.question.question}`))
-    body.push(skin.hint(`   ${state.question.candidates.join('  ·  ')}`))
+    body.push(quiet(skin.waiting(` ? ${state.question.question}`)))
+    body.push(quiet(skin.hint(`   ${state.question.candidates.join('  ·  ')}`)))
   }
-  for (const turn of state.turns) body.push(...renderTurn(turn, width, skin))
-  if (state.notice) body.push(skin.hint(` · ${state.notice}`))
+  if (state.notice) body.push(quiet(skin.hint(` · ${state.notice}`)))
 
   if (isAction(state.dictation)) {
     const found = matchActions(state, state.dictation ?? '')
     for (const action of found.slice(0, Math.max(1, height - 2))) {
       const line = ` ${action.name.padEnd(10)} ${action.about}`
-      body.push(action.ready ? line : skin.hint(line))
+      body.push(quiet(action.ready ? line : skin.hint(line)))
     }
-    if (found.length === 0) body.push(skin.hint('  no command like that'))
+    if (found.length === 0) body.push(quiet(skin.hint('  no command like that')))
   }
+
+  // Scrolled back through the conversation, the newest lines wait below; the
+  // prompt row says so, and takes you back to them.
+  const scroll = isAction(state.dictation)
+    ? 0
+    : Math.min(state.transcriptScroll, Math.max(0, body.length - (room - 1)))
 
   // The line you type on, always last. `◉` while the microphone is open, `›`
   // while you type: the same line, and which one it is matters.
-  const prompt = new Row(width, skin).space()
+  const prompt = new Row(width, skin, pointer).space()
   if (state.dictation !== null) {
-    prompt
-      .text(state.listening ? '◉' : '›', state.listening ? skin.bad : skin.signal)
-      .space()
-      .text(`${state.dictation}▏`, skin.you)
+    prompt.text(state.listening ? '◉' : '›', state.listening ? skin.bad : skin.signal).space()
+    // Pictures going with it, before the words about them.
+    for (const path of state.attached) {
+      prompt.text(`▣ ${path.split('/').at(-1) ?? path}`, skin.busy).space()
+    }
+    prompt.text(`${state.dictation}▏`, skin.you)
   } else if (state.held) {
     prompt.text(`◌ ${state.held}▏`, skin.hint)
   } else {
     prompt.text('›', skin.hint).space()
     prompt.right((r) => r.text('type, or hold ', skin.hint).keys(voice.keys).space())
   }
-
-  const shown = body.slice(-(room - 1))
-  for (let gap = room - 1 - shown.length; gap > 0; gap--) rows.push(' '.repeat(width))
-  for (const line of shown) {
-    hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
-    rows.push(fit(line, width))
+  if (scroll > 0) {
+    prompt.right((r) =>
+      r.button(`↓ ${scroll} newer`, { kind: 'action', name: 'transcript-end' }).space(),
+    )
   }
+
+  const end = body.length - scroll
+  const shown = body.slice(Math.max(0, end - (room - 1)), end)
+  for (let gap = room - 1 - shown.length; gap > 0; gap--) {
+    hits.push(rowHit(rows.length, width, { kind: 'scroll', area: 'transcript' }))
+    hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
+    rows.push(' '.repeat(width))
+  }
+  for (const line of shown) {
+    // Under everything, the wheel; over that, the strip; over that, links.
+    hits.push(rowHit(rows.length, width, { kind: 'scroll', area: 'transcript' }))
+    hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
+    hits.push(...shift(line.hits, rows.length))
+    rows.push(line.text)
+  }
+  const built = prompt.build()
   hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
-  rows.push(prompt.build().text)
+  hits.push(...shift(built.hits, rows.length))
+  rows.push(built.text)
   return { rows: rows.slice(0, height), hits }
 }
 
@@ -1135,15 +1119,22 @@ function bottomTabs(
   const row = new Row(width, skin, pointer).text(`${line} `, rule)
   const orchestrator: Target = { kind: 'bottom-tab', tab: ORCHESTRATOR_TAB }
   row.tab('orchestrator', orchestrator, state.bottom === ORCHESTRATOR_TAB)
-  if (state.bottom === ORCHESTRATOR_TAB && (state.dictation !== null || state.focused === null)) {
-    row.text(' here', skin.hint, orchestrator)
-  }
   for (const terminal of terminalsOf(state)) {
     const on = terminal.id === state.bottom
     const target: Target = { kind: 'bottom-tab', tab: terminal.id }
+    const menu: Target = { kind: 'menu', subject: { kind: 'terminal', id: terminal.id } }
+    const close: Target = { kind: 'action', name: `close-terminal:${terminal.id}` }
     row.space().tab(terminal.name, target, on)
-    // The one in front can be closed from its tab.
-    if (on) row.text('×', skin.hint, { kind: 'action', name: `close-terminal:${terminal.id}` })
+    // Its menu and its close button, on the tab you point at or are on. The
+    // room for them is kept either way, so pointing never moves the tabs.
+    const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
+    row.space()
+    if (on || pointed) {
+      row.text('▾', sameTarget(state.hover, menu) ? skin.signal : skin.hint, menu)
+      row.text('×', sameTarget(state.hover, close) ? skin.bad : skin.hint, close)
+    } else {
+      row.text('  ')
+    }
   }
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
 
@@ -1246,20 +1237,6 @@ function renderFoot(
   })
   row.right(status(fits ?? tries[tries.length - 1] ?? full))
   return stack([{ text: skin.chrome('─'.repeat(width)), hits: [] }, row.build()])
-}
-
-/**
- * One exchange: what was heard, where it went and why, then the answer. The
- * reasoning is shown so a wrong guess is obvious and can be corrected.
- */
-export function renderTurn(turn: Turn, width: number, skin: Skin = PLAIN): string[] {
-  const lines = [skin.you(fit(` ❯ ${turn.utterance}`, width).trimEnd())]
-  const parts: string[] = [turn.intent]
-  if (turn.task) parts.push(turn.task)
-  if (turn.why) parts.push(`"${turn.why}"`)
-  lines.push(skin.hint(fit(`   → ${parts.join(' · ')}`, width).trimEnd()))
-  if (turn.reply) lines.push(fit(`   ${turn.reply}`, width).trimEnd())
-  return lines
 }
 
 /**

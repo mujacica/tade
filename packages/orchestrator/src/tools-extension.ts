@@ -28,10 +28,14 @@ function skillsRoot(): string {
 interface ToolContext {
   cwd: string
 }
+/**
+ * What a tool hands back: pi reads `content` and nothing else, and counts a
+ * call as failed only when it throws. Returning an `output` field instead —
+ * as these tools once did — gave the model an empty answer from every one.
+ */
 interface ToolResult {
-  output: string
-  details?: unknown
-  isError?: boolean
+  content: Array<{ type: 'text'; text: string }>
+  details: unknown
 }
 interface ToolDefinition {
   name: string
@@ -81,13 +85,11 @@ export default function wilcoTools(pi: PiApi): void {
       description,
       parameters,
       async execute(_id, params) {
-        try {
-          const result = await run(params ?? {})
-          return { output: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }
-        } catch (err) {
-          // The model is told what went wrong so it can choose another route.
-          return { output: err instanceof Error ? err.message : String(err), isError: true }
-        }
+        // A failure is thrown, so pi marks the call failed and the model is
+        // told what went wrong in words it can choose another route from.
+        const result = await run(params ?? {})
+        const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+        return { content: [{ type: 'text', text }], details: {} }
       },
     })
   }

@@ -43,7 +43,16 @@ import { matchingLines, type Workbench } from '@wilco/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
-import { type Hit, hitAt, pressable, sameTarget, scrollAt, type Target } from './hits.ts'
+import {
+  type Hit,
+  hitAt,
+  pressable,
+  type ScrollArea,
+  sameTarget,
+  scrollAt,
+  type Target,
+} from './hits.ts'
+import { asPaste, clipboardImage, imagePaths, pasted, readImage, shellQuote } from './images.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
@@ -68,6 +77,7 @@ import {
   projects,
   resizeTo,
   scrollSidebar,
+  scrollTranscript,
   selectProject,
   setDictation,
   setHeld,
@@ -83,6 +93,7 @@ import {
   withProjects,
   withTasks,
   withTerminals,
+  withTranscript,
 } from './model.ts'
 import { fileViewSize, type OpenRowView } from './panel-view.ts'
 import {
@@ -97,6 +108,7 @@ import {
   fileMenuItems,
   filePanel,
   findPanel,
+  imageMenuItems,
   type MenuSubject,
   menuItems,
   menuPanel,
@@ -133,8 +145,10 @@ import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } from './search.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
-import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
+import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
+import { fromThinker, problem, type ThinkerEvent, thinking, youSaid } from './transcript.ts'
+import { transcriptLines } from './transcript-view.ts'
 import { draw, type Frame } from './view.ts'
 import { formattable, formattedLines, readForView, sourceLines, type ViewedFile } from './viewer.ts'
 
@@ -147,6 +161,9 @@ import { formattable, formattedLines, readForView, sourceLines, type ViewedFile 
 
 /** How often a lane's screen is re-read. */
 const FRAME_MS = 250
+
+/** How long a screen the terminal wiped on its own stays dark, at most. */
+const REPAINT_MS = 2_000
 
 /** A stuck key must not record until the disk is full. */
 const MAX_SPEECH_MS = 120_000
@@ -167,7 +184,7 @@ export type PointerEvent =
   | { kind: 'press'; target: Target | null }
   | { kind: 'release' }
   | { kind: 'click'; target: Target; button: 'left' | 'right'; x: number; y: number }
-  | { kind: 'wheel'; area: 'sidebar' | 'panel'; rows: number }
+  | { kind: 'wheel'; area: ScrollArea; rows: number }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' }
   | { kind: 'drag'; x: number; y: number }
@@ -239,6 +256,23 @@ class Window implements Component {
   }
 }
 
+/**
+ * Where free text goes: the orchestrator, seen from the window. Answers come
+ * back from `ask`; everything it does on the way arrives through `onEvent`,
+ * so the conversation can be watched rather than waited on.
+ */
+export interface Thinker {
+  ask(text: string, images?: readonly WorkerImageFile[]): Promise<string>
+  onEvent?(listener: (event: ThinkerEvent) => void): () => void
+}
+
+/** A picture to send with what you said: where it is, and what kind. */
+export interface WorkerImageFile {
+  path: string
+  data: string
+  mimeType: string
+}
+
 export interface AppOptions {
   client: Workbench
   config: Config
@@ -254,7 +288,7 @@ export interface AppOptions {
    * Where anything the grammar does not recognise goes. Without it, free text
    * gets "I didn't catch that", which is a poor answer to a real question.
    */
-  thinker?: { ask(text: string): Promise<string> }
+  thinker?: Thinker
   /**
    * The models an agent can be started on, from the harness's own catalog.
    * Passed in, so the window does not have to know which harness it is.
@@ -283,7 +317,9 @@ export class App {
    * an empty terminal while something else starts is the worst first second
    * Wilco could have, and everything except free text works meanwhile.
    */
-  private thinker: AppOptions['thinker'] | null = null
+  private thinker: Thinker | null = null
+  /** The pictures that went with what was said last, until the orchestrator is asked. */
+  private sending: string[] = []
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
   /** The size each lane was last made, so resizing happens once per change. */
@@ -353,6 +389,8 @@ export class App {
   private live: Live | null = null
   private voice: VoiceSurface | null = null
   private timer: NodeJS.Timeout | null = null
+  /** When the whole screen was last written over itself. */
+  private repaintedAt = 0
   private release: (() => void) | null = null
   private stopped = false
   private settle: () => void = () => {}
@@ -360,7 +398,7 @@ export class App {
 
   private constructor(opts: AppOptions) {
     this.opts = opts
-    this.thinker = opts.thinker ?? null
+    if (opts.thinker) this.thinkWith(opts.thinker)
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
@@ -383,9 +421,55 @@ export class App {
    * sentence Wilco's own grammar does not recognise has nowhere to go, and
    * knowing when that changed is the difference between waiting and retyping.
    */
-  attachThinker(thinker: NonNullable<AppOptions['thinker']>): void {
-    this.thinker = thinker
+  attachThinker(thinker: Thinker): void {
+    this.thinkWith(thinker)
     this.state = notice(this.state, 'orchestrator ready')
+    this.draw()
+  }
+
+  /** Take free text to this thinker, and show what it does as it does it. */
+  private thinkWith(thinker: Thinker): void {
+    this.thinker = thinker
+    thinker.onEvent?.((event) => {
+      this.state = withTranscript(this.state, fromThinker(this.state.transcript, event, this.now()))
+      this.draw()
+    })
+  }
+
+  /**
+   * Write down the model the orchestrator ended up on when none was chosen,
+   * so it stays on it. Otherwise the harness's default decides every start,
+   * and that default is whatever an agent last switched to.
+   */
+  keepThinkerModel(model: { provider?: string; id: string }): void {
+    if (this.opts.config.orchestrator.model) return
+    try {
+      writeSetting(this.configPath, 'orchestrator.provider', model.provider)
+      writeSetting(this.configPath, 'orchestrator.model', model.id)
+      this.opts.config = {
+        ...this.opts.config,
+        orchestrator: {
+          ...this.opts.config.orchestrator,
+          model: model.id,
+          ...(model.provider ? { provider: model.provider } : {}),
+        },
+      }
+    } catch {
+      // Not writable: it still runs, only without the promise to stay put.
+    }
+  }
+
+  /**
+   * The orchestrator could not be started, said where you would have waited
+   * for it — not swallowed, which left a window that never answered anything
+   * and gave no reason.
+   */
+  thinkerFailed(reason: string): void {
+    this.state = withTranscript(
+      this.state,
+      problem(this.state.transcript, `The orchestrator did not start: ${reason}`, this.now()),
+    )
+    this.state = notice(this.state, null)
     this.draw()
   }
 
@@ -475,6 +559,18 @@ export class App {
       }
       case 'terminal':
         return terminalMenuItems()
+      case 'images':
+        return imageMenuItems({
+          agents: this.state.panes
+            .filter((pane) => pane.project === this.state.project)
+            .map((pane) => ({
+              task: pane.task,
+              name: shownName(pane),
+              running: pane.lane !== null,
+              focused: pane.task === this.state.focused,
+            })),
+          terminal: activeTerminal(this.state),
+        })
     }
   }
 
@@ -667,6 +763,11 @@ export class App {
           this.state = scrollSidebar(this.state, event.rows)
           return true
         }
+        if (event.area === 'transcript' && !panel) {
+          // The wheel up reads back: further from the newest line.
+          this.state = scrollTranscript(this.state, -event.rows, this.transcriptRows())
+          return true
+        }
         return false
       }
       case 'grab':
@@ -844,6 +945,32 @@ export class App {
       // where the key is all that matters and a release is not a key.
       if (isKeyRelease(data)) return { consume: true }
       this.applyPanel(panelKey(this.state.panel, key, data, this.panelInputs()))
+      return { consume: true }
+    }
+    // A picture dropped on the window arrives as its path, pasted. Where it
+    // landed is not something a terminal says, so ask who it is for.
+    const paste = pasted(data)
+    if (paste !== null) {
+      const paths = imagePaths(paste)
+      if (paths.length > 0) {
+        this.askWhereImagesGo(paths)
+        return { consume: true }
+      }
+      // Words pasted at the orchestrator's line are typed into it, on one line.
+      if (
+        this.state.dictation !== null ||
+        (this.state.focused === null && !activeTerminal(this.state))
+      ) {
+        const text = paste.replace(/\s*\n\s*/g, ' ')
+        this.state = setDictation(this.state, `${this.state.dictation ?? ''}${text}`)
+        this.draw()
+        return { consume: true }
+      }
+    }
+    // ctrl+v at the orchestrator's line takes a screenshot off the clipboard;
+    // an agent or a shell reads its own clipboard, so there it passes through.
+    if (data === '\x16' && (this.state.dictation !== null || this.state.focused === null)) {
+      void this.attachClipboard()
       return { consume: true }
     }
     const kitty = kittyActive(this.terminal)
@@ -1042,9 +1169,17 @@ export class App {
       this.draw()
       return
     }
+    if (action.startsWith('ask:')) {
+      this.say(action.slice('ask:'.length))
+      return
+    }
     switch (action) {
       case 'new-agent':
         await this.newAgent('')
+        return
+      case 'transcript-end':
+        this.state = { ...this.state, transcriptScroll: 0 }
+        this.draw()
         return
       case 'open-project':
         this.openCache = null
@@ -1645,7 +1780,9 @@ export class App {
               : this.live?.branchAt(this.hereOnDisk() ?? '')) || 'branch'
           : subject.kind === 'terminal'
             ? (this.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal')
-            : (subject.path.split('/').at(-1) ?? subject.path)
+            : subject.kind === 'images'
+              ? imagesTitle(subject.paths)
+              : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -1666,7 +1803,88 @@ export class App {
         return this.fromBranchMenu(item)
       case 'terminal':
         return this.fromTerminalMenu(subject.id, item)
+      case 'images':
+        return this.giveImages(subject.paths, item)
     }
+  }
+
+  /**
+   * Ask who dropped or pasted pictures are for. The keyboard starts on
+   * whoever you were typing to, so enter is the likely answer.
+   */
+  private askWhereImagesGo(paths: string[]): void {
+    const panel = menuPanel({ kind: 'images', paths }, imagesTitle(paths))
+    const items = this.menuItemsFor(panel)
+    const typingTo =
+      this.state.dictation !== null || this.state.focused === null
+        ? 'orchestrator'
+        : this.state.keyboard === 'terminal' && activeTerminal(this.state)
+          ? `terminal:${activeTerminal(this.state)?.id}`
+          : `agent:${this.state.focused}`
+    const index = Math.max(
+      0,
+      items.findIndex((item) => item.id === typingTo && !item.off),
+    )
+    this.state = { ...this.state, panel: { ...panel, index } }
+    this.draw()
+  }
+
+  /** Give pictures to whoever was picked: attached, pasted as paths, or typed. */
+  private async giveImages(paths: string[], to: string): Promise<void> {
+    if (to === 'orchestrator') {
+      this.attachImages(paths)
+      return
+    }
+    const [kind, ...rest] = to.split(':')
+    const id = rest.join(':')
+    if (kind === 'agent') {
+      const pane = this.state.panes.find((one) => one.task === id)
+      if (!pane?.lane) {
+        this.state = notice(this.state, `open ${pane ? shownName(pane) : id}'s agent first`)
+        this.draw()
+        return
+      }
+      // Pasted the way the terminal would have: the agent reads the picture
+      // from its path, and you finish the sentence at its prompt.
+      this.state = { ...focusTask(this.state, id), keyboard: 'pane', dictation: null }
+      await this.opts.client
+        .write(pane.lane as LaneId, asPaste(paths.join(' ')))
+        .catch((err) => (this.state = notice(this.state, why(err))))
+    } else if (kind === 'terminal') {
+      this.state = { ...this.state, bottom: id, keyboard: 'terminal', dictation: null }
+      await this.opts.client
+        .write(id as LaneId, paths.map(shellQuote).join(' '))
+        .catch((err) => (this.state = notice(this.state, why(err))))
+    }
+    this.soonTick()
+    this.draw()
+  }
+
+  /** Pictures waiting to go to the orchestrator with what you say next. */
+  private attachImages(paths: readonly string[]): void {
+    const readable = paths.filter((path) => readImage(path) !== null)
+    this.state = {
+      ...this.state,
+      attached: [...new Set([...this.state.attached, ...readable])],
+      bottom: ORCHESTRATOR_TAB,
+      dictation: this.state.dictation ?? '',
+      notice:
+        readable.length < paths.length
+          ? `${paths.length - readable.length} could not be read: a picture over 20 MB, or not a picture`
+          : 'say or type what to do with it',
+    }
+    this.draw()
+  }
+
+  /** ctrl+v at the orchestrator: the screenshot on the clipboard, attached. */
+  private async attachClipboard(): Promise<void> {
+    const path = await clipboardImage()
+    if (path) {
+      this.attachImages([path])
+      return
+    }
+    this.state = notice(this.state, 'no picture on the clipboard — ⌘V pastes text')
+    this.draw()
   }
 
   private async copy(text: string): Promise<void> {
@@ -2161,8 +2379,8 @@ export class App {
     if (BACKSPACE.test(data)) {
       this.state = setDictation(this.state, current.slice(0, -1))
     } else if (data === '\x1b') {
-      // Escape abandons it rather than sending half a sentence.
-      this.state = setListening(setDictation(this.state, null), false)
+      // Escape abandons it rather than sending half a sentence, pictures and all.
+      this.state = setListening(setDictation({ ...this.state, attached: [] }, null), false)
     } else if (!data.startsWith('\x1b')) {
       this.state = setDictation(this.state, current + data)
     }
@@ -2441,12 +2659,29 @@ export class App {
   /** Free text, which only the orchestrator can answer. */
   private async ask(text: string): Promise<string> {
     if (!this.thinker) return 'The orchestrator is still starting.'
-    return this.thinker.ask(text)
+    this.state = withTranscript(this.state, thinking(this.state.transcript, this.now()))
+    this.draw()
+    const images = this.sending.flatMap((path) => readImage(path) ?? [])
+    this.sending = []
+    try {
+      return await this.thinker.ask(text, images)
+    } catch (err) {
+      this.state = withTranscript(this.state, problem(this.state.transcript, why(err), this.now()))
+      return ''
+    }
   }
 
   /** Everything addressed to Wilco arrives here, however it was said. */
   private say(said: string): void {
     if (said === '' || !this.voice) return
+    // Shown the moment it is sent, not once something has answered it. The
+    // pictures waiting go with it, and only with it.
+    this.sending = this.state.attached
+    this.state = withTranscript(
+      { ...this.state, attached: [] },
+      youSaid(this.state.transcript, said, this.now(), this.state.attached),
+    )
+    this.draw()
     void this.voice
       .handle(said)
       .then(() => {
@@ -2454,7 +2689,10 @@ export class App {
         this.draw()
       })
       .catch((err: unknown) => {
-        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
+        this.state = withTranscript(
+          this.state,
+          problem(this.state.transcript, why(err), this.now()),
+        )
         this.draw()
       })
   }
@@ -2510,6 +2748,10 @@ export class App {
   /** Re-read the focused lane's screen. */
   private async tick(): Promise<void> {
     if (this.stopped) return
+    if (this.now() - this.repaintedAt >= REPAINT_MS) {
+      this.repaintedAt = this.now()
+      this.repaint()
+    }
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
     const lane = pane ? laneShown(this.state, pane) : null
     const size = this.paneSize()
@@ -2518,7 +2760,13 @@ export class App {
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : null)
     const screen = await (this.live?.capture(lane, size.rows, this.skin.colour) ?? '')
     const terminal = await this.captureTerminal()
-    if (screen !== this.screen || terminal || this.state.talkingSince !== null) {
+    // While the orchestrator works, its spinner is news every frame.
+    const working =
+      this.state.transcript.thinking !== null ||
+      this.state.transcript.entries.some(
+        (entry) => entry.kind === 'tool' && entry.state === 'running',
+      )
+    if (screen !== this.screen || terminal || this.state.talkingSince !== null || working) {
       this.screen = screen
       this.draw()
     }
@@ -2529,6 +2777,26 @@ export class App {
    * whether what it shows has changed. Nothing is read while the panel is
    * folded or showing the orchestrator.
    */
+  /**
+   * How far the conversation can scroll back: its lines, less the rows the
+   * strip shows them in. Laid out the way the view lays it out, at its width.
+   */
+  private transcriptRows(): number {
+    const layout = resolveLayout(this.layout(), {
+      width: this.terminal.columns,
+      height: Math.max(6, this.terminal.rows),
+    })
+    const width = layout.sidebarWidth + layout.mainWidth + 1
+    const lines = transcriptLines(
+      this.state.transcript,
+      width,
+      PLAIN,
+      { hover: null, pressed: null },
+      0,
+    )
+    return Math.max(0, lines.length - Math.max(0, layout.stripHeight - 2))
+  }
+
   private async captureTerminal(): Promise<boolean> {
     const terminal = activeTerminal(this.state)
     const layout = resolveLayout(this.layout(), {
@@ -3122,6 +3390,26 @@ export class App {
     if (!this.stopped && !this.borrowed) this.tui.requestRender()
   }
 
+  /**
+   * Write the whole screen again, over itself.
+   *
+   * The terminal can wipe it without telling us: ⌘K is "clear" in Terminal.app,
+   * iTerm2 and VS Code, and never reaches Wilco at all. Rendering only sends
+   * what changed, so a wiped screen stayed dark until something moved. Every
+   * row is written in place — no clear first, so on a screen that was not
+   * wiped nothing visibly happens.
+   */
+  private repaint(): void {
+    if (this.stopped || this.borrowed) return
+    const shown = (this.tui as unknown as { previousScreen?: unknown }).previousScreen
+    if (!Array.isArray(shown) || shown.length === 0) return
+    let buffer = '\x1b[?2026h\x1b7'
+    shown.forEach((line, row) => {
+      if (typeof line === 'string') buffer += `\x1b[${row + 1};1H${line}`
+    })
+    this.terminal.write(`${buffer}\x1b8\x1b[?2026l`)
+  }
+
   private now(): number {
     return this.opts.now?.() ?? Date.now()
   }
@@ -3207,4 +3495,9 @@ function subjectOf(target: Target): MenuSubject | null {
 
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/** A menu's title for pictures: who gets this one, or these. */
+function imagesTitle(paths: readonly string[]): string {
+  return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} pictures`} to`
 }

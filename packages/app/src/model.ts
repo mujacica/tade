@@ -2,6 +2,7 @@ import type { TaskState, WilcoEvent } from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
 import type { Target } from './hits.ts'
 import type { Panel } from './panels.ts'
+import { emptyTranscript, fromTurn, type Transcript } from './transcript.ts'
 
 // What the app is showing, as data.
 //
@@ -15,9 +16,6 @@ export const ORCHESTRATOR = 'orchestrator'
 
 /** Nothing may steal focus while you have been typing this recently. */
 export const FOCUS_GUARD_MS = 30_000
-
-/** How much of the conversation to keep on screen. */
-export const TURN_HISTORY = 50
 
 export interface AgentPane {
   task: string
@@ -51,7 +49,12 @@ export interface AppState {
   project: string | null
   /** Task id of the focused pane, or null when only the orchestrator is up. */
   focused: string | null
-  turns: Turn[]
+  /** The conversation with the orchestrator, step by step as it happens. */
+  transcript: Transcript
+  /** How many rows the conversation is scrolled back from its newest line. */
+  transcriptScroll: number
+  /** Pictures that go to the orchestrator with the next thing you say. */
+  attached: string[]
   /** Push-to-talk is held. */
   listening: boolean
   /** When you last typed into a pane, which is what holds focus still. */
@@ -129,7 +132,9 @@ export function initialState(): AppState {
     known: [],
     project: null,
     focused: null,
-    turns: [],
+    transcript: emptyTranscript(),
+    transcriptScroll: 0,
+    attached: [],
     listening: false,
     lastInputAt: null,
     question: null,
@@ -504,8 +509,20 @@ export function setListening(state: AppState, listening: boolean): AppState {
   return { ...state, listening }
 }
 
+/** An exchange Wilco finished, into the conversation. */
 export function addTurn(state: AppState, turn: Turn): AppState {
-  return { ...state, turns: [...state.turns, turn].slice(-TURN_HISTORY) }
+  return { ...state, transcript: fromTurn(state.transcript, turn) }
+}
+
+/** Change the conversation, and follow it to its newest line. */
+export function withTranscript(state: AppState, transcript: Transcript): AppState {
+  return { ...state, transcript, transcriptScroll: 0 }
+}
+
+/** Scroll the conversation back (positive) or forward, never past either end. */
+export function scrollTranscript(state: AppState, rows: number, total: number): AppState {
+  const most = Math.max(0, total)
+  return { ...state, transcriptScroll: Math.max(0, Math.min(most, state.transcriptScroll + rows)) }
 }
 
 export function setQuestion(state: AppState, question: AppState['question']): AppState {

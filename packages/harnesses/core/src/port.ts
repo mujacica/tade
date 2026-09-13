@@ -59,6 +59,11 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     named: z.boolean().default(false),
   }),
   z.object({ type: z.literal('message'), run: RunId, at: z.number(), text: z.string() }),
+  /**
+   * Part of what it is saying, as it says it. Only a surface that draws the
+   * agent itself needs these; `message` still arrives with the whole block.
+   */
+  z.object({ type: z.literal('message_delta'), run: RunId, at: z.number(), text: z.string() }),
   z.object({
     type: z.literal('tool_call'),
     run: RunId,
@@ -185,6 +190,13 @@ export const WORKER_ENV = {
   approvals: 'WILCO_APPROVALS',
 } as const
 
+/** A picture sent with an instruction: a screenshot, usually. */
+export interface WorkerImage {
+  /** The bytes, base64. */
+  data: string
+  mimeType: string
+}
+
 export interface WorkerCapabilities {
   /** Can hold a tool call until a decision arrives. Without this there are no reliable approvals. */
   permissionGate: boolean
@@ -196,6 +208,8 @@ export interface WorkerCapabilities {
   visibleUi: boolean
   /** Can resume a previous session. */
   resume: boolean
+  /** Can be sent pictures with an instruction, not only told where they are. */
+  images: boolean
 }
 
 export interface WorkerHandle {
@@ -238,7 +252,7 @@ export interface WorkerAdapter {
    */
   start(spec: WorkerSpec): Promise<WorkerHandle>
   /** Send an instruction, to be handled when the agent is ready for it. */
-  prompt(run: RunId, message: string): Promise<void>
+  prompt(run: RunId, message: string, images?: readonly WorkerImage[]): Promise<void>
   /** Deliver a message into the current turn. */
   steer(run: RunId, message: string): Promise<void>
   /** Deliver a message after the current turn finishes. */

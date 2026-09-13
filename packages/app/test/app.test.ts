@@ -8,6 +8,8 @@ import { Workbench } from '@wilco/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { App, type AppOptions } from '../src/app.ts'
+import { asPaste } from '../src/images.ts'
+import type { ThinkerEvent } from '../src/transcript.ts'
 
 // The window against a real workbench and a real repository. Everything it shows
 // is tested elsewhere without a terminal; what is tested here is the wiring —
@@ -252,6 +254,71 @@ describe('the window, wired up', () => {
     await until('the answer on screen', () =>
       terminal.written.includes('because the webhook retries twice'),
     )
+  })
+
+  it('shows the orchestrator working, and why a tool it used failed', async () => {
+    let emit: (event: ThinkerEvent) => void = () => {}
+    let answer: (text: string) => void = () => {}
+    await start({
+      thinker: {
+        ask: () => new Promise<string>((resolve) => (answer = resolve)),
+        onEvent: (listener) => {
+          emit = listener
+          return () => {}
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'run the tests') terminal.press(char)
+    terminal.press('\r')
+    // What you said is there before anything has answered it.
+    await until('what you said', () =>
+      screenOf(terminal.written).some((row) => row.includes('❯ run the tests')),
+    )
+
+    emit({ type: 'tool', id: '1', tool: 'wilco_terminal_run', input: { command: 'pnpm test' } })
+    emit({ type: 'tool_done', id: '1', ok: false, text: 'no terminal is open in app' })
+    await until('the failure, with its reason', () =>
+      screenOf(terminal.written).some((row) => row.includes('no terminal is open in app')),
+    )
+    emit({ type: 'message', text: 'There is no terminal to run them in.' })
+    emit({ type: 'idle' })
+    answer('There is no terminal to run them in.')
+    await until('the answer, once', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('There is no terminal to run them in.'),
+      ),
+    )
+  })
+
+  it('asks who a dropped screenshot is for, and sends it with what you say next', async () => {
+    const shot = join(tmp('wilco-shot-'), 'Screen Shot.png')
+    writeFileSync(shot, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    const sent: { text: string; images: readonly { mimeType: string }[] }[] = []
+    await start({
+      thinker: {
+        ask: async (text, images = []) => {
+          sent.push({ text, images })
+          return 'a red square'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // What a terminal types when a file is dropped on it.
+    terminal.press(asPaste(shot.replace(/ /g, '\\ ')))
+    await until('the question', () =>
+      screenOf(terminal.written).some((row) => row.includes('Send Screen Shot.png to')),
+    )
+    terminal.press('\r')
+    await until('the picture waiting on the line', () =>
+      screenOf(terminal.written).some((row) => row.includes('▣ Screen Shot.png')),
+    )
+    for (const char of 'what is this') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator to be asked', () => sent.length === 1)
+    expect(sent[0]?.text).toBe('what is this')
+    expect(sent[0]?.images.map((image) => image.mimeType)).toEqual(['image/png'])
   })
 
   it('comes back to the pane you were watching', async () => {

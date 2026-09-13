@@ -52,6 +52,8 @@ export type MenuSubject =
   | { kind: 'branch' }
   /** A terminal's tab. */
   | { kind: 'terminal'; id: string }
+  /** Pictures dropped or pasted on the window, waiting to be given to someone. */
+  | { kind: 'images'; paths: string[] }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -207,6 +209,38 @@ export function terminalMenuItems(): MenuItem[] {
     { id: 'rename', label: 'Rename…' },
     { id: 'clear', label: 'Clear' },
     { id: 'close', label: 'Close', danger: true, divider: true },
+  ]
+}
+
+/**
+ * Who can be given a picture: the orchestrator, each agent in the project —
+ * the one in front of you first — and the terminal in front, which only gets
+ * the path typed. A drop does not say where it landed, so this is asked.
+ */
+export function imageMenuItems(where: {
+  agents: readonly { task: string; name: string; running: boolean; focused: boolean }[]
+  terminal: { id: string; name: string } | null
+}): MenuItem[] {
+  const agents = [...where.agents].sort((a, b) => Number(b.focused) - Number(a.focused))
+  return [
+    { id: 'orchestrator', label: 'The orchestrator', note: 'sent with what you say next' },
+    ...agents.map((agent, i) => ({
+      id: `agent:${agent.task}`,
+      label: agent.name,
+      note: agent.focused ? 'in front of you' : '',
+      ...(agent.running ? {} : { off: 'its agent is not running' }),
+      ...(i === 0 ? { divider: true } : {}),
+    })),
+    ...(where.terminal
+      ? [
+          {
+            id: `terminal:${where.terminal.id}`,
+            label: where.terminal.name,
+            note: 'types the path',
+            divider: true,
+          },
+        ]
+      : []),
   ]
 }
 

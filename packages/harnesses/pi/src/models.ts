@@ -116,6 +116,52 @@ export async function usableModels(home = homedir()): Promise<AvailableModel[]> 
   return usable.length > 0 ? usable : models
 }
 
+export type ModelChoice = { ok: true; provider: string; id: string } | { ok: false; reason: string }
+
+/**
+ * The exact model a configured name means, among the ones you can use.
+ *
+ * A bare name like `claude-opus-5` is offered by several providers, and the
+ * harness refuses to guess between them — it exits before reading a word,
+ * which looked like an orchestrator that never answered. And with no name at
+ * all it takes whatever model was used last anywhere, which is an agent's
+ * choice leaking into the orchestrator. So the choice is made here, once,
+ * from what you are signed in to: an exact id first, then one a provider
+ * offers under its vendor's name (`openrouter`'s `anthropic/claude-opus-5`).
+ *
+ * Null when nothing was asked for, so the caller decides what that means.
+ * With no catalog to check against, the name is passed on as it was given.
+ */
+export function chooseModel(
+  wanted: { provider?: string | undefined; model?: string | undefined },
+  usable: readonly AvailableModel[],
+): ModelChoice | null {
+  const model = wanted.model?.trim()
+  if (!model) return null
+  const split = (entry: AvailableModel) => ({
+    provider: entry.provider,
+    id: entry.id.slice(entry.provider.length + 1),
+  })
+  if (wanted.provider) return { ok: true, provider: wanted.provider, id: model }
+  if (usable.length === 0) {
+    const [provider, ...rest] = model.split('/')
+    return rest.length > 0 && provider
+      ? { ok: true, provider, id: rest.join('/') }
+      : { ok: false, reason: `${model} needs a provider: pick the model again in Settings` }
+  }
+  const named = usable.find((entry) => entry.id === model)
+  if (named) return { ok: true, ...split(named) }
+  const exact = usable.filter((entry) => split(entry).id === model)
+  const vendor = usable.filter((entry) => split(entry).id.endsWith(`/${model}`))
+  const found = exact[0] ?? vendor[0]
+  if (found) return { ok: true, ...split(found) }
+  const providers = [...new Set(usable.map((entry) => entry.provider))].join(', ')
+  return {
+    ok: false,
+    reason: `${model} is not offered by anything you are signed in to (${providers}): pick one in Settings`,
+  }
+}
+
 async function readJson(path: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(path, 'utf8'))

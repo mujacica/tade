@@ -79,7 +79,12 @@ export function sourceLines(file: ViewedFile, plain: boolean): string[] {
 
 /** Markdown as it reads, at a width: headings, lists and code blocks laid out. */
 export function formattedLines(file: ViewedFile, width: number, plain: boolean): string[] {
-  const markdown = new Markdown(file.text, 1, 0, plain ? PLAIN_THEME : COLOUR_THEME)
+  return markdownLines(file.text, width, plain, 1)
+}
+
+/** Any markdown as it reads, at a width: the viewer's files, the orchestrator's answers. */
+export function markdownLines(text: string, width: number, plain: boolean, padding = 0): string[] {
+  const markdown = new Markdown(text, padding, 0, plain ? PLAIN_THEME : COLOUR_THEME)
   return markdown.render(Math.max(10, width))
 }
 
