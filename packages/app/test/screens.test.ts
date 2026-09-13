@@ -1,4 +1,4 @@
-import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { sliceByColumn, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { pressable } from '../src/hits.ts'
 import { draw } from '../src/view.ts'
@@ -43,13 +43,17 @@ describe.each(SCENARIOS)('$name', (scenario) => {
   it('draws something wherever a click would press something', () => {
     // A button you can click but cannot see is the bug a hit map exists to
     // prevent: every pressable cell has to have ink on it somewhere.
-    const ink = new Map<string, string>()
+    // Ink is a character, or a painted background: a field's empty end is
+    // still a field you can click.
+    const background = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*48;5;`)
+    const ink = new Map<string, boolean>()
     for (const hit of drawn.hits) {
       if (!pressable(hit.target)) continue
       const key = `${hit.row} ${JSON.stringify(hit.target)}`
-      const row = [...stripTerminalSequences(drawn.rows[hit.row] ?? '')]
-      ink.set(key, (ink.get(key) ?? '') + row.slice(hit.from, hit.to + 1).join(''))
+      const cells = sliceByColumn(drawn.rows[hit.row] ?? '', hit.from, hit.to - hit.from + 1)
+      const visible = stripTerminalSequences(cells).trim() !== '' || background.test(cells)
+      ink.set(key, (ink.get(key) ?? false) || visible)
     }
-    for (const [key, cells] of ink) expect(cells.trim(), key).not.toBe('')
+    for (const [key, visible] of ink) expect(visible, key).toBe(true)
   })
 })

@@ -14,6 +14,8 @@ export type Target =
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }
+  /** A file the task changed: clicking it shows the change. */
+  | { kind: 'change'; task: string; path: string }
   /** A link on an agent's screen. */
   | { kind: 'link'; url: string }
   /** A file reference on an agent's screen, maybe at a line. */

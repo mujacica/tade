@@ -7,7 +7,7 @@ import {
   type Setting,
   settingsOf,
 } from '@wilco/core'
-import { parse, stringify } from 'yaml'
+import { parse, parseDocument } from 'yaml'
 import type { Ui } from './screen.ts'
 
 // Changing what Wilco has been told, on whatever screen is in front of you.
@@ -82,10 +82,7 @@ async function change(
  * down is a config that fails to load.
  */
 export function addProject(path: string, name: string, root: string): void {
-  const config = read(path)
-  const projects = (config.projects ?? {}) as Record<string, unknown>
-  config.projects = { ...projects, [name]: { root } }
-  writeFileSync(path, stringify(config))
+  writeSetting(path, `projects.${name}.root`, root)
 }
 
 function read(path: string): Record<string, unknown> {
@@ -105,7 +102,28 @@ function read(path: string): Record<string, unknown> {
  * key order survive everything this touches except the one line it changed.
  */
 function write(path: string, key: string, value: string | number | boolean | undefined): void {
-  const config = read(path)
-  applySetting(config, key, value)
-  writeFileSync(path, stringify(config))
+  writeSetting(path, key, value)
+}
+
+/**
+ * Write one setting back into the file as a document, not as data: parsing to
+ * an object and printing it again loses every comment in the file, and the
+ * file belongs to whoever wrote those comments.
+ */
+export function writeSetting(
+  path: string,
+  key: string,
+  value: string | number | boolean | undefined,
+): void {
+  let text = ''
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch {
+    // No file yet: this starts it.
+  }
+  const doc = parseDocument(text)
+  const at = key.split('.')
+  if (value === undefined || value === '') doc.deleteIn(at)
+  else doc.setIn(at, value)
+  writeFileSync(path, doc.toString())
 }

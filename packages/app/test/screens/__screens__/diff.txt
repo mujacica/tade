@@ -1,0 +1,34 @@
+ WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
+▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds            $0.62   │                                                                                         
+                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+  M package.╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮            
+  A src/webh│ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                   │            
+  M src/webh│ 38     const sig = req.headers['stripe-signature']                                           │            
+            │ 39 -   const event = stripe.webhooks.constructEvent(body, sig, key)                          │            
+ ▸ FILES    │ 39 +   const event = await stripe.webhooks.constructEventAsync(                              │            
+ ▸ NOTES  4 │ 40 +     body, sig, key, undefined, cryptoProvider,                                          │            
+            │ 41 +   )                                                                                     │            
+            │ 42     if (event.type === 'charge.refunded') {                                               │            
+            │ 43       await refund(event)                                                                 │            
+            │                                                                                              │            
+            │ ▐ Open in editor ▌ ▐ Ask the agent about this ▌                 ‹ 2/3 ›  ↑↓ scroll · ←→ file │            
+            ╰──────────────────────────────────────────────────────────────────────────────────────────────╯            
+                              │  │ bash  npm i stripe@15                                        │                       
+                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
+━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 

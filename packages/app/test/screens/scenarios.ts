@@ -1,4 +1,5 @@
-import type { WilcoEvent } from '@wilco/core'
+import { ConfigSchema, settingsOf, type WilcoEvent } from '@wilco/core'
+import { parseDiff } from '../../src/diff.ts'
 import {
   type AppState,
   focusTask,
@@ -10,7 +11,16 @@ import {
   withProjects,
   withTasks,
 } from '../../src/model.ts'
-import { newTaskPanel, panelFailed, spendPanel } from '../../src/panels.ts'
+import {
+  confirmRemovePanel,
+  diffPanel,
+  menuItems,
+  menuPanel,
+  newTaskPanel,
+  panelFailed,
+  settingsPanel,
+  spendPanel,
+} from '../../src/panels.ts'
 import { COLOUR } from '../../src/skin.ts'
 import { spendView } from '../../src/spend.ts'
 import type { Frame } from '../../src/view.ts'
@@ -122,6 +132,30 @@ const spent = [
   usage('search/pagination', 'anthropic/claude-sonnet-5', 148_000, 0.2),
 ]
 
+/** What the Settings panel is shown: a machine set up the way the design was drawn. */
+function settingsFacts() {
+  const config = ConfigSchema.parse({
+    projects: {
+      checkout: { root: '~/src/checkout', budget: { usd_per_day: 5 } },
+      search: { root: '~/src/search' },
+      infra: { root: '~/src/infra' },
+    },
+    surfaces: {
+      voice: {
+        mic: { device: 'MacBook Pro Microphone' },
+        attention: { budget: 6, quiet: '22:00-07:00' },
+      },
+    },
+  })
+  return {
+    settings: settingsOf(config),
+    accounts: ['anthropic'],
+    configPath: '~/.wilco/config.yaml',
+    releases: true,
+    budgetWarnings: 1,
+  }
+}
+
 export const SCENARIOS: Scenario[] = [
   {
     name: 'watching-an-agent',
@@ -212,6 +246,111 @@ export const SCENARIOS: Scenario[] = [
         budgets: { checkout: { usd_per_day: 5 } },
       }),
     }),
+  },
+  {
+    name: 'task-menu',
+    about: "A task's menu, opened from its ≡: what can be done, and why not where it cannot.",
+    state: { ...base(), panel: menuPanel('checkout/stripe-v15', { row: 4, col: 2 }) },
+    frame: frame({
+      panel: {
+        items: menuItems({ lane: 'checkout/stripe-v15/agent', state: 'blocked' }, 3),
+      },
+    }),
+  },
+  {
+    name: 'remove-task',
+    about: 'Removing a task asks first, and says exactly what would be lost.',
+    state: { ...base(), panel: confirmRemovePanel('checkout/stripe-v15') },
+    frame: frame({ panel: { ahead: 3, branch: 'wilco/stripe-v15', base: 'main' } }),
+  },
+  {
+    name: 'diff',
+    about: 'A changed file, read-only, over the window.',
+    state: {
+      ...base(),
+      panel: diffPanel(
+        'checkout/stripe-v15',
+        ['package.json', 'src/webhooks.ts', 'src/webhooks.test.ts'],
+        1,
+      ),
+    },
+    frame: frame({
+      panel: {
+        diff: parseDiff(
+          [
+            'diff --git a/src/webhooks.ts b/src/webhooks.ts',
+            '--- a/src/webhooks.ts',
+            '+++ b/src/webhooks.ts',
+            '@@ -38,5 +38,7 @@ export async function handle(req, res) {',
+            "   const sig = req.headers['stripe-signature']",
+            '-  const event = stripe.webhooks.constructEvent(body, sig, key)',
+            '+  const event = await stripe.webhooks.constructEventAsync(',
+            '+    body, sig, key, undefined, cryptoProvider,',
+            '+  )',
+            "   if (event.type === 'charge.refunded') {",
+            '     await refund(event)',
+          ].join('\n'),
+        ),
+      },
+    }),
+  },
+  {
+    name: 'choosing-a-model',
+    about: "New task's model list, open and narrowed by typing.",
+    state: {
+      ...base(),
+      panel: {
+        ...newTaskPanel(['checkout', 'search', 'infra'], 'checkout'),
+        intent: 'refunds are charged twice when the webhook retries',
+        dropdown: { query: 'opus', index: 0 },
+      },
+    },
+    frame: frame({
+      panel: {
+        choices: [
+          { value: 'anthropic/claude-opus-5', label: 'claude-opus-5', group: 'anthropic' },
+          { value: 'anthropic/claude-opus-4-8', label: 'claude-opus-4-8', group: 'anthropic' },
+          { value: 'anthropic/claude-sonnet-5', label: 'claude-sonnet-5', group: 'anthropic' },
+          {
+            value: 'openrouter/anthropic/claude-opus-5',
+            label: 'anthropic/claude-opus-5',
+            group: 'openrouter',
+          },
+        ],
+      },
+    }),
+  },
+  {
+    name: 'settings',
+    about: 'Settings over the window: categories down the side, real controls on the right.',
+    state: { ...base(), panel: { ...settingsPanel('voice'), row: 0 } },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-list-open',
+    about:
+      'A setting whose choices need explaining opens as a list, grouped, with what each needs.',
+    state: {
+      ...base(),
+      panel: {
+        ...settingsPanel('voice'),
+        row: 2,
+        dropdown: { path: 'surfaces.voice.stt.driver', query: '', index: 0 },
+      },
+    },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'choosing-the-talk-key',
+    about: 'Pressing a key to talk with, and being told what it would take away.',
+    state: {
+      ...base(),
+      panel: {
+        ...settingsPanel('voice'),
+        capture: { path: 'surfaces.voice.talk.key', key: 'ctrl+r' },
+      },
+    },
+    frame: frame({ panel: settingsFacts() }),
   },
   {
     name: 'first-open',

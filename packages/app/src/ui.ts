@@ -259,8 +259,37 @@ export function overlay(
     if (r < 0 || r >= rows.length) return
     rows[r] = compositeTuiLine(rows[r] ?? '', row, at.col, topWidth, width)
   })
-  const under = modal ? base.rows.map((_, i) => rowHit(i, width, { kind: 'dismiss' })) : base.hits
+  const under = modal
+    ? base.rows.map((_, i) => rowHit(i, width, { kind: 'dismiss' }))
+    : uncovered(base.hits, { row: at.row, col: at.col, rows: top.rows.length, cols: topWidth })
   return { rows, hits: [...under, ...shift(top.hits, at.row, at.col)] }
+}
+
+/**
+ * What is still clickable once a region is laid over it: a control hidden
+ * under a popup cannot be pressed, and one half-covered keeps the half you can
+ * see.
+ */
+function uncovered(
+  hits: readonly Hit[],
+  cover: { row: number; col: number; rows: number; cols: number },
+): Hit[] {
+  const out: Hit[] = []
+  const last = cover.col + cover.cols - 1
+  for (const hit of hits) {
+    if (
+      hit.row < cover.row ||
+      hit.row >= cover.row + cover.rows ||
+      hit.to < cover.col ||
+      hit.from > last
+    ) {
+      out.push(hit)
+      continue
+    }
+    if (hit.from < cover.col) out.push({ ...hit, to: cover.col - 1 })
+    if (hit.to > last) out.push({ ...hit, from: last + 1 })
+  }
+  return out
 }
 
 /** Exactly `width` visible columns: cut if longer, padded if shorter. */

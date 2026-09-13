@@ -185,6 +185,20 @@ export const ConfigSchema = z
                 quiet: z.string().optional(),
               })
               .prefault({}),
+            /**
+             * The key you hold to talk, and whether holding it is how.
+             * Validated where it can be understood — as a key the terminal can
+             * send that does not type a character — by the window that reads it.
+             */
+            talk: z
+              .strictObject({
+                key: z.string().min(1).default('ctrl+space'),
+                /** hold where the terminal reports releases; toggle everywhere. */
+                mode: z.enum(['hold', 'toggle']).default('hold'),
+              })
+              .prefault({}),
+            /** Say replies and news out loud. Off keeps the earcons and the text. */
+            speak: z.boolean().default(true),
             /** Where the speech comes from. */
             mic: z
               .strictObject({

@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import {
@@ -17,11 +18,14 @@ import {
   describeWork,
   expandHome,
   type LaneId,
+  loadConfig,
   needsReflection,
   orchestratorRoute,
   parseQuietHours,
+  parseSetting,
   reflectionPrompt,
   resolveRoute,
+  settingsOf,
 } from '@wilco/core'
 import {
   type AudioClip,
@@ -33,9 +37,10 @@ import {
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
 import type { Workbench } from '@wilco/workbench'
+import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { type Hit, hitAt, pressable, sameTarget, type Target } from './hits.ts'
-import { appKey, TALK } from './keys.ts'
+import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
@@ -67,17 +72,26 @@ import {
   withTasks,
 } from './model.ts'
 import {
+  type Choice,
+  type ConfirmRemovePanel,
+  confirmRemovePanel,
+  diffPanel,
+  menuItems,
+  menuPanel,
   newTaskPanel,
   type Panel,
+  type PanelInputs,
   type PanelOutcome,
   panelClick,
   panelFailed,
   panelKey,
+  type SettingsPanel,
+  settingsPanel,
   spendPanel,
 } from './panels.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
-import { addProject, editSettings } from './settings.ts'
+import { addProject, editSettings, writeSetting } from './settings.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
 import { draw, type Frame } from './view.ts'
@@ -110,7 +124,7 @@ export type PointerEvent =
   | { kind: 'move'; target: Target | null }
   | { kind: 'press'; target: Target | null }
   | { kind: 'release' }
-  | { kind: 'click'; target: Target; button: 'left' | 'right' }
+  | { kind: 'click'; target: Target; button: 'left' | 'right'; x: number; y: number }
 
 class Window implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
@@ -142,7 +156,7 @@ class Window implements Component {
         return { handled: true, render: this.onPointer({ kind: 'release' }) }
       case 'click':
         if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
-        this.onPointer({ kind: 'click', target, button: event.button })
+        this.onPointer({ kind: 'click', target, button: event.button, x: event.x, y: event.y })
         return { handled: true }
       default:
         return undefined
@@ -170,6 +184,15 @@ export interface AppOptions {
    * gets "I didn't catch that", which is a poor answer to a real question.
    */
   thinker?: { ask(text: string): Promise<string> }
+  /**
+   * The models an agent can be started on, from the harness's own catalog.
+   * Passed in, so the window does not have to know which harness it is.
+   */
+  models?: () => Promise<{ id: string; provider: string; name: string }[]>
+  /** Providers the harness is signed in to. */
+  accounts?: () => Promise<string[]>
+  /** The command that runs the harness interactively, for signing in. */
+  signIn?: () => { command: string; args: string[] }
   now?: () => number
   frameMs?: number
 }
@@ -199,6 +222,12 @@ export class App {
   private readonly opening = new Set<string>()
   private screen = ''
   private recording: Recording | null = null
+  /** The diff the diff panel is showing, once git has answered. */
+  private diff: ParsedDiff | null = null
+  /** The models an agent can be started on, once they have been read. */
+  private models: { id: string; provider: string; name: string }[] = []
+  /** Providers the harness is signed in to, once read. */
+  private accounts: string[] = []
   private metering: NodeJS.Timeout | null = null
   /** Where you were last time, applied once the tasks are known. */
   private remembered: RememberedWindow | null = null
@@ -295,6 +324,65 @@ export class App {
     }
   }
 
+  /** The items of an open task menu, from what is true of the task now. */
+  private menuItemsFor(panel: Panel | null) {
+    if (panel?.kind !== 'menu') return []
+    const pane = this.state.panes.find((p) => p.task === panel.task)
+    return pane ? menuItems(pane, this.live?.changes(panel.task).length ?? 0) : []
+  }
+
+  /** What the open panel needs to draw that the window does not. */
+  private panelFacts(live: Live): Frame['panel'] {
+    const panel = this.state.panel
+    if (!panel) return {}
+    if (panel.kind === 'menu') return { items: this.menuItemsFor(panel) }
+    if (panel.kind === 'confirm-remove') {
+      const facts = live.factsOf(panel.task)
+      return {
+        changes: live.changes(panel.task),
+        ahead: facts?.ahead ?? null,
+        branch: facts?.branch ?? null,
+        base: live.baseOf(panel.task),
+      }
+    }
+    if (panel.kind === 'diff') return { diff: this.diff }
+    if (panel.kind === 'new-task') return { choices: this.choices }
+    if (panel.kind === 'settings') {
+      return {
+        choices: this.choices,
+        settings: settingsOf(this.opts.config),
+        accounts: this.accounts,
+        configPath: tilde(this.configPath),
+        releases: kittyActive(this.terminal),
+        budgetWarnings: 0,
+      }
+    }
+    return {}
+  }
+
+  /** Models an agent can start on, as choices grouped by provider. */
+  private get choices(): Choice[] {
+    return this.models.map((model) => ({
+      value: model.id,
+      label: model.id.split('/').slice(1).join('/') || model.id,
+      group: model.provider,
+    }))
+  }
+
+  /**
+   * The speaker, as the settings have it now: with spoken replies off, the
+   * sounds still play and the words still appear, but nothing is said.
+   */
+  private muteable(speaker: Speaker): Speaker {
+    return new Proxy(speaker, {
+      get: (target, name, receiver) => {
+        if (name === 'speak' && !this.opts.config.surfaces.voice.speak) return async () => {}
+        const value = Reflect.get(target, name, receiver)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+  }
+
   /** Everything the drawing needs that is not the app's own state. */
   private frameFor(live: Live, width: number): Frame {
     const focused = this.state.panes.find((pane) => pane.task === this.state.focused)
@@ -340,7 +428,10 @@ export class App {
         model: route.model ?? null,
         provider: route.provider ?? null,
       },
-      voice: { keys: TALK.split('+'), available: this.opts.recorder !== undefined },
+      voice: {
+        keys: keyCaps(this.opts.config.surfaces.voice.talk.key),
+        available: this.opts.recorder !== undefined,
+      },
       home: tilde(this.opts.home),
       now: this.now(),
     }
@@ -374,7 +465,7 @@ export class App {
         return true
       case 'click':
         this.state = { ...this.state, pressed: null }
-        this.clicked(event.target, event.button)
+        this.clicked(event.target, event.button, { x: event.x, y: event.y })
         return true
     }
   }
@@ -390,6 +481,8 @@ export class App {
 
   private async begin(): Promise<void> {
     this.remembered = this.recall()
+    // Read once, in the background: nothing waits on the catalog but the list.
+    void this.loadAccounts()
     // Every project, before any of them has a task: an empty one is still a
     // tab you can be standing in when you start work.
     this.state = withProjects(this.state, Object.keys(this.opts.config.projects))
@@ -434,8 +527,9 @@ export class App {
         ...(attention.budget === undefined ? {} : { budget: attention.budget }),
         quiet: parseQuietHours(attention.quiet) ?? DEFAULT_ATTENTION.voice.quiet,
       },
-      speaker:
+      speaker: this.muteable(
         this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
+      ),
       vocabulary: async () => vocabulary(live.tasks),
       status: async (scope) => this.describe(scope),
       worktreeOf: async (task) => live.worktreeOf(task),
@@ -482,12 +576,20 @@ export class App {
         void this.stop()
         return { consume: true }
       }
+      // Releases are protocol noise to a form — except while choosing a key,
+      // where the key is all that matters and a release is not a key.
       if (isKeyRelease(data)) return { consume: true }
-      this.applyPanel(panelKey(this.state.panel, key, data))
+      this.applyPanel(panelKey(this.state.panel, key, data, this.panelInputs()))
       return { consume: true }
     }
     const kitty = kittyActive(this.terminal)
-    const key = appKey(data, { kitty, listening: this.state.listening })
+    const talk = this.opts.config.surfaces.voice.talk
+    const key = appKey(data, {
+      kitty,
+      listening: this.state.listening,
+      talk: talk.key,
+      toggle: talk.mode === 'toggle',
+    })
     const action = key ? keyAction(key, this.state) : { kind: 'none' as const }
 
     switch (action.kind) {
@@ -549,9 +651,18 @@ export class App {
    * driving Wilco that behaves differently. Nothing here types a command for
    * you to finish — what needs more than a click opens a panel.
    */
-  private clicked(target: Target, button: 'left' | 'right' = 'left'): void {
+  private clicked(
+    target: Target,
+    button: 'left' | 'right' = 'left',
+    at: { x: number; y: number } = { x: 0, y: 0 },
+  ): void {
     if (this.state.panel) {
       this.clickPanel(target)
+      return
+    }
+    // A right-click on a task is its menu, as it is on anything else you own.
+    if (button === 'right' && (target.kind === 'task' || target.kind === 'task-menu')) {
+      this.openMenu(target.task, at)
       return
     }
     switch (target.kind) {
@@ -569,10 +680,11 @@ export class App {
         this.state = viewLane(this.state, target.task, target.lane)
         break
       case 'task-menu':
-        // The menu itself comes with the rest of the panels; until then the
-        // task is at least put in front of you.
-        this.state = focusTask(this.state, target.task)
-        break
+        this.openMenu(target.task, at)
+        return
+      case 'change':
+        void this.openDiff(target.task, target.path)
+        return
       case 'project':
         this.state = selectProject(this.state, target.project)
         break
@@ -596,7 +708,6 @@ export class App {
       default:
         break
     }
-    void button
     this.draw()
   }
 
@@ -610,8 +721,13 @@ export class App {
         await this.onScreen('/project')
         return
       case 'settings':
-      case 'voice':
         await this.openSettings()
+        return
+      case 'voice':
+        await this.openSettings('voice')
+        return
+      case 'budgets':
+        await this.openSettings('budgets')
         return
       case 'spend':
         this.state = { ...this.state, panel: spendPanel() }
@@ -761,29 +877,222 @@ export class App {
     if (target.kind === 'dismiss') {
       this.state = { ...this.state, panel: panel.busy ? panel : null }
     } else if (target.kind === 'control') {
-      this.applyPanel(panelClick(panel, target.id))
+      this.applyPanel(panelClick(panel, target.id, this.panelInputs()))
+      return
+    } else if (target.kind === 'action') {
+      // A link inside a panel leads somewhere else: the panel gives way to it.
+      this.state = { ...this.state, panel: null }
+      void this.run(target.name)
       return
     }
     this.draw()
   }
 
   private applyPanel(outcome: PanelOutcome): void {
+    const before = this.state.panel
     this.state = { ...this.state, panel: outcome.panel }
+    // A different file in the diff panel is a different diff to read.
+    if (outcome.panel?.kind === 'diff') {
+      const was = before?.kind === 'diff' ? before : null
+      if (!was || was.file !== outcome.panel.file || was.task !== outcome.panel.task) {
+        void this.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
+      }
+    }
     this.draw()
-    if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel)
+    if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel, outcome.choice)
   }
 
   /** Carry a panel out, and either close it or say in it why not. */
-  private async submitPanel(panel: Panel): Promise<void> {
-    if (panel.kind !== 'new-task' || !panel.project) return
-    try {
-      const id = await this.startTask(panel.project, panel.intent.trim(), panel.start)
-      this.state = { ...this.state, panel: null }
-      this.state = focusTask(this.state, id)
-    } catch (err) {
-      this.state = { ...this.state, panel: panelFailed(panel, why(err)) }
+  private async submitPanel(panel: Panel, choice?: string): Promise<void> {
+    switch (panel.kind) {
+      case 'new-task': {
+        if (!panel.project) return
+        try {
+          const id = await this.startTask(
+            panel.project,
+            panel.intent.trim(),
+            panel.start,
+            panel.model,
+          )
+          this.state = { ...this.state, panel: null }
+          this.state = focusTask(this.state, id)
+        } catch (err) {
+          this.state = { ...this.state, panel: panelFailed(panel, why(err)) }
+        }
+        break
+      }
+      case 'menu':
+        this.state = { ...this.state, panel: null }
+        this.draw()
+        await this.fromMenu(panel.task, choice ?? '')
+        return
+      case 'confirm-remove':
+        await this.removeTask(panel)
+        break
+      case 'settings': {
+        if (choice?.startsWith('write:')) {
+          const [path, value] = choice.slice('write:'.length).split('\u0000')
+          if (path !== undefined) await this.saveSetting(panel, path, value ?? '')
+          return
+        }
+        if (choice === 'open-file') {
+          this.state = { ...this.state, panel: null }
+          await this.openPlace({ path: this.configPath })
+          return
+        }
+        if (choice === 'sign-in') await this.signIn()
+        if (choice === 'mic-test') await this.testMicrophone()
+        return
+      }
+      case 'diff': {
+        const path = panel.files[panel.file]
+        if (!path) return
+        if (choice === 'editor') {
+          this.state = { ...this.state, panel: null }
+          await this.openPlace({ path })
+          return
+        }
+        if (choice === 'ask') await this.askAbout(panel.task, path)
+        break
+      }
+      default:
+        return
     }
     this.draw()
+  }
+
+  /** A task's menu, opened where you clicked, just below and to the left. */
+  private openMenu(task: string, at: { x: number; y: number }): void {
+    this.state = {
+      ...focusTask(this.state, task),
+      panel: menuPanel(task, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
+    }
+    this.draw()
+  }
+
+  /** What a menu item does. Each is exactly what it says. */
+  private async fromMenu(task: string, item: string): Promise<void> {
+    const facts = this.live?.factsOf(task)
+    const worktree = this.live?.worktreeOf(task)
+    switch (item) {
+      case 'open': {
+        this.state = focusTask(this.state, task)
+        const pane = this.state.panes.find((p) => p.task === task)
+        if (pane && !pane.lane) await this.newAgent('')
+        break
+      }
+      case 'start':
+        this.state = focusTask(this.state, task)
+        await this.newAgent('')
+        break
+      case 'stop':
+        await this.stopAgent(task)
+        break
+      case 'changes': {
+        const first = this.live?.changes(task)[0]
+        if (first) await this.openDiff(task, first.path)
+        return
+      }
+      case 'editor':
+        if (worktree) await this.openPlace({ path: worktree })
+        return
+      case 'copy-branch':
+        if (facts) {
+          const copied = await copyText(facts.branch, (data) => this.terminal.write(data))
+          this.state = notice(this.state, copied ? `copied ${facts.branch}` : facts.branch)
+        }
+        break
+      case 'park': {
+        if (!worktree) break
+        const pane = this.state.panes.find((p) => p.task === task)
+        const parked = pane?.state !== 'parked'
+        try {
+          await this.opts.client.parkTask(worktree, parked)
+          await this.live?.refresh()
+          this.state = notice(this.state, parked ? `parked ${task}` : `picked ${task} up again`)
+        } catch (err) {
+          this.state = notice(this.state, why(err))
+        }
+        break
+      }
+      case 'remove':
+        this.state = { ...this.state, panel: confirmRemovePanel(task) }
+        break
+      default:
+        break
+    }
+    this.draw()
+  }
+
+  private async removeTask(panel: ConfirmRemovePanel): Promise<void> {
+    const facts = this.live?.factsOf(panel.task)
+    const worktree = this.live?.worktreeOf(panel.task)
+    const root = facts ? this.opts.config.projects[facts.project]?.root : undefined
+    if (!facts || !worktree || !root) {
+      this.state = {
+        ...this.state,
+        panel: { ...panel, busy: false, error: 'I cannot find where this task lives.' },
+      }
+      return
+    }
+    try {
+      // Its agent first: a worktree cannot go out from under a process using it.
+      await this.opts.client.stopAgent(panel.task).catch(() => {})
+      const result = await this.opts.client.removeTask({
+        root: expandHome(root),
+        worktree,
+        branch: facts.branch,
+        force: true,
+      })
+      if (!result.removed) {
+        this.state = { ...this.state, panel: { ...panel, busy: false, error: result.reason } }
+        return
+      }
+      await this.live?.refresh()
+      this.state = notice({ ...this.state, panel: null }, `removed ${panel.task}`)
+    } catch (err) {
+      this.state = { ...this.state, panel: { ...panel, busy: false, error: why(err) } }
+    }
+  }
+
+  /** The diff panel, on a changed file, with every other changed file a step away. */
+  private async openDiff(task: string, path: string): Promise<void> {
+    const files = (this.live?.changes(task) ?? []).map((change) => change.path)
+    const at = Math.max(0, files.indexOf(path))
+    this.applyPanel({
+      panel: diffPanel(task, files.length > 0 ? files : [path], at),
+      submit: false,
+    })
+  }
+
+  private async loadDiff(task: string, path: string): Promise<void> {
+    this.diff = null
+    this.draw()
+    const text = await this.live?.diffOf(task, path).catch(() => null)
+    const panel = this.state.panel
+    // Only if the panel is still on that file: a slow git must not draw an old diff.
+    if (panel?.kind === 'diff' && panel.task === task && panel.files[panel.file] === path) {
+      this.diff = text ? parseDiff(text) : parseDiff('')
+      this.draw()
+    }
+  }
+
+  /**
+   * Put a question about a file in front of the agent, unsent. Typed into its
+   * prompt, not submitted: asking costs money, so you are the one who presses
+   * enter.
+   */
+  private async askAbout(task: string, path: string): Promise<void> {
+    const pane = this.state.panes.find((p) => p.task === task)
+    this.state = { ...focusTask(this.state, task), panel: null }
+    if (!pane?.lane) {
+      this.state = notice(this.state, `open ${task}'s agent first, then ask`)
+      return
+    }
+    this.state = viewLane(this.state, task, pane.lane)
+    await this.opts.client
+      .write(pane.lane as LaneId, new TextEncoder().encode(`Look at ${path}: `))
+      .catch(() => {})
   }
 
   /**
@@ -983,10 +1292,27 @@ export class App {
    * pane is refreshed before anything tries to focus it, because a pane you
    * cannot see yet cannot take focus.
    */
-  private async startTask(project: string, intent: string, start: boolean): Promise<string> {
+  private async startTask(
+    project: string,
+    intent: string,
+    start: boolean,
+    model: string | null = null,
+  ): Promise<string> {
     const task = await this.opts.client.createTask({ project, slug: slugify(intent), intent })
     if (start) {
-      await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
+      const [provider, ...rest] = model?.split('/') ?? []
+      const chosen =
+        model && rest.length > 0
+          ? { provider: provider as string, id: rest.join('/') }
+          : model
+            ? { id: model }
+            : null
+      await this.opts.client.startAgent({
+        task: task.id,
+        cwd: task.worktree,
+        prompt: intent,
+        ...(chosen ? { model: chosen } : {}),
+      })
     }
     await this.live?.refresh()
     return task.id
@@ -1272,30 +1598,137 @@ export class App {
    * screen has the keyboard — two things drawing at once is the bug this whole
    * design exists to avoid — and starts again where it left off.
    */
-  private async openSettings(): Promise<string> {
-    if (this.borrowed) return 'Settings are already open.'
-    this.borrowed = true
-    this.tui.stop()
+  private async openSettings(category = 'agents'): Promise<string> {
+    this.state = { ...this.state, panel: settingsPanel(category) }
+    this.draw()
+    return 'Settings are open.'
+  }
+
+  /** What panels need to know that they do not hold. */
+  private panelInputs(): PanelInputs {
+    return {
+      choices: this.choices,
+      items: this.menuItemsFor(this.state.panel),
+      settings: settingsOf(this.opts.config),
+      accounts: this.accounts.length,
+    }
+  }
+
+  private get configPath(): string {
+    return join(this.opts.home, 'config.yaml')
+  }
+
+  /**
+   * Write one setting, read the config back, and use it. A value the schema
+   * refuses is put back as it was, with the reason in the panel — never left
+   * in a file Wilco will not open next time.
+   */
+  private async saveSetting(panel: SettingsPanel, path: string, value: string): Promise<void> {
+    const setting = settingsOf(this.opts.config)
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === path)
+    const before = readFileSync(this.configPath, 'utf8')
     try {
-      await runScreen(
-        {
-          title: 'Settings',
-          context: [join(this.opts.home, 'config.yaml')],
-          terminal: this.terminal,
-        },
-        (ui) => editSettings(ui, join(this.opts.home, 'config.yaml')),
-      )
-    } catch (err) {
-      // ctrl+c closes the settings, not Wilco.
-      if (!(err instanceof ScreenCancelled)) {
-        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
+      if (setting?.type.kind === 'key') {
+        const check = checkTalkKey(value)
+        if (!check.ok) throw new Error(check.reason)
       }
-    } finally {
-      this.borrowed = false
-      this.tui.start()
+      if (path === 'orchestrator.model') {
+        // Chosen as provider/id; stored as the two keys the orchestrator reads.
+        const [provider, ...rest] = value.split('/')
+        writeSetting(
+          this.configPath,
+          'orchestrator.provider',
+          rest.length > 0 ? provider : undefined,
+        )
+        writeSetting(
+          this.configPath,
+          'orchestrator.model',
+          rest.length > 0 ? rest.join('/') : value || undefined,
+        )
+      } else {
+        const typed = setting ? parseSetting(setting, value) : value
+        if (value !== '' && typed === undefined)
+          throw new Error(`${setting?.title ?? path} needs a number above zero.`)
+        writeSetting(this.configPath, path, typed)
+      }
+      const loaded = await loadConfig(this.configPath)
+      if (!loaded.ok) {
+        writeFileSync(this.configPath, before)
+        throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
+      }
+      this.opts.config = loaded.config
+      const said =
+        setting?.live === false
+          ? `Saved. ${setting.title} applies when Wilco next starts.`
+          : 'Saved. It applies now.'
+      this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
+    } catch (err) {
+      this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }
+    }
+    this.draw()
+  }
+
+  /**
+   * Sign in to a provider: pi's own sign-in, in a terminal inside this one, and
+   * the list read again afterwards.
+   */
+  private async signIn(): Promise<void> {
+    const command = this.opts.signIn?.()
+    if (!command) {
+      this.state = notice(this.state, 'run pi and type /login to sign in')
+      this.draw()
+      return
+    }
+    await this.onScreenWith(async (ui) => {
+      ui.say('  Type /login, choose a provider, and follow pi. ctrl+] comes back here.')
+      await ui.run('pi', command.command, command.args)
+    })
+    await this.loadAccounts()
+  }
+
+  /**
+   * Listen for three seconds and show what is heard. Nothing is kept: the
+   * point is to find out whether this terminal may use the microphone at all,
+   * before the first time it matters.
+   */
+  private async testMicrophone(): Promise<void> {
+    const recorder = this.opts.recorder
+    const finish = (saved: string | null, error: string | null) => {
+      const panel = this.state.panel
+      if (panel?.kind === 'settings') {
+        this.state = { ...this.state, panel: { ...panel, testing: false, saved, error } }
+      }
       this.draw()
     }
-    return 'Settings closed. Changes apply next time Wilco starts.'
+    if (!recorder) {
+      finish(null, 'No recorder is set up. Speech to text needs one: ffmpeg, on most machines.')
+      return
+    }
+    try {
+      const recording = await recorder.start({ maxMs: 5_000 })
+      this.state = { ...this.state, levels: [] }
+      this.listenTo(recording)
+      await new Promise((resolve) => setTimeout(resolve, 3_000))
+      if (this.metering) clearInterval(this.metering)
+      this.metering = null
+      await recording.cancel()
+      const loudest = Math.max(0, ...this.state.levels)
+      finish(
+        loudest > 0.08 ? 'Heard you. The microphone works.' : null,
+        loudest > 0.08
+          ? null
+          : 'Nothing heard. Check that your terminal is allowed to use the microphone.',
+      )
+    } catch (err) {
+      finish(null, why(err))
+    }
+  }
+
+  private async loadAccounts(): Promise<void> {
+    this.accounts = (await this.opts.accounts?.().catch(() => [])) ?? []
+    this.models = (await this.opts.models?.().catch(() => [])) ?? this.models
+    this.draw()
   }
 
   /** What each command actually does, once it has a screen to ask on. */
@@ -1304,7 +1737,7 @@ export class App {
     switch (command) {
       case '/settings':
         await editSettings(ui, path)
-        return 'settings closed — changes apply next time Wilco starts'
+        return 'settings closed'
       case '/project': {
         const root = resolve(await ui.ask('repository path', this.opts.cwd ?? process.cwd()))
         if (!existsSync(join(root, '.git'))) throw new Error(`${root} is not a git repository`)
@@ -1360,6 +1793,32 @@ function vocabulary(tasks: readonly { task: string }[]): { tasks: string[]; proj
 function tilde(path: string): string {
   const home = process.env.HOME
   return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
+}
+
+/**
+ * Put text on the clipboard. The system's own tool where there is one, since
+ * Terminal.app ignores the escape sequence; the sequence everywhere else.
+ */
+async function copyText(text: string, write: (data: string) => void): Promise<boolean> {
+  const tool =
+    process.platform === 'darwin'
+      ? ['pbcopy']
+      : process.env.WAYLAND_DISPLAY
+        ? ['wl-copy']
+        : process.env.DISPLAY
+          ? ['xclip', '-selection', 'clipboard']
+          : null
+  if (tool) {
+    const copied = await new Promise<boolean>((resolve) => {
+      const child = spawn(tool[0] as string, tool.slice(1), { stdio: ['pipe', 'ignore', 'ignore'] })
+      child.once('error', () => resolve(false))
+      child.once('exit', (code) => resolve(code === 0))
+      child.stdin?.end(text)
+    })
+    if (copied) return true
+  }
+  write(`\x1b]52;c;${Buffer.from(text).toString('base64')}\x07`)
+  return true
 }
 
 function why(err: unknown): string {

@@ -11,6 +11,8 @@ import {
   readiness,
   wilcoHome,
 } from '@wilco/core'
+import { piBinary } from '@wilco/harnesses-pi/adapter'
+import { loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
 import { Orchestrator, ToolHost } from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
@@ -101,6 +103,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           home,
           cwd: process.cwd(),
           ...(canHear ? { recorder, transcriber } : {}),
+          // What an agent can be started on: the models you are signed in to.
+          models: () => usableModels(),
+          accounts: () => loggedInProviders(),
+          signIn: () => ({ command: process.execPath, args: [piBinary()] }),
         })
 
         // The orchestrator is a model in another process and takes a few

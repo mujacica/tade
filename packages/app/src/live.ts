@@ -173,6 +173,11 @@ export class Live {
   private readonly looking = new Set<string>()
   /** The branch each task was started from, as status last saw it. */
   private readonly bases = new Map<string, string>()
+  /** Each task's branch and how far ahead of its base, for removing it. */
+  private readonly facts = new Map<
+    string,
+    { project: string; branch: string; ahead: number | null }
+  >()
   /** Every `usage` event since midnight, which is what today's spend is. */
   private usage: WilcoEvent[] = []
   private timer: NodeJS.Timeout | null = null
@@ -277,6 +282,25 @@ export class Live {
     return seen?.changes ?? []
   }
 
+  /** A task's branch, its project, and how many commits it has that its base does not. */
+  factsOf(task: string): { project: string; branch: string; ahead: number | null } | null {
+    return this.facts.get(task) ?? null
+  }
+
+  /** One changed file's diff, from where the task branched. */
+  async diffOf(task: string, path: string): Promise<string | null> {
+    const root = this.worktrees.get(task)
+    if (!root) return null
+    const base = this.bases.get(task)
+    const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
+    const from = since?.ok ? since.stdout.trim() : 'HEAD'
+    const tracked = await git(root, ['diff', '--no-color', '-U3', from, '--', path])
+    if (tracked.ok && tracked.stdout.trim() !== '') return tracked.stdout
+    // Untracked: git has no diff for it, but it is all new.
+    const added = await git(root, ['diff', '--no-color', '-U3', '--no-index', '/dev/null', path])
+    return added.stdout
+  }
+
   /** The branch a task's changes are counted against: `main`, usually. */
   baseOf(task: string | null): string | null {
     return task ? (this.bases.get(task) ?? null) : null
@@ -374,6 +398,11 @@ export class Live {
         for (const task of project.tasks) {
           this.worktrees.set(task.id, task.worktree)
           if (task.git?.baseRef) this.bases.set(task.id, task.git.baseRef)
+          this.facts.set(task.id, {
+            project: project.name,
+            branch: task.branch,
+            ahead: task.git?.ahead ?? null,
+          })
         }
       }
       this.snapshots = snapshotsFrom(workspace, pending, lanes)

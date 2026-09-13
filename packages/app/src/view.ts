@@ -13,7 +13,7 @@ import {
   projects,
   tasksOf,
 } from './model.ts'
-import { drawPanel } from './panel-view.ts'
+import { drawPanel, type PanelContext } from './panel-view.ts'
 import { PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
@@ -66,6 +66,25 @@ export interface Frame {
   vitals?: { model: string | null; contextPercent: number | null } | null
   /** The Spend panel's view, when it is open. */
   spendView?: SpendView | null
+  /** What the open panel needs that the window does not: a menu, a diff, models. */
+  panel?: Partial<
+    Pick<
+      PanelContext,
+      | 'items'
+      | 'changes'
+      | 'ahead'
+      | 'branch'
+      | 'base'
+      | 'diff'
+      | 'choices'
+      | 'settings'
+      | 'accounts'
+      | 'configPath'
+      | 'releases'
+      | 'budgetWarnings'
+      | 'levels'
+    >
+  >
   /** The key you hold to talk, and whether there is anything to hear you. */
   voice?: { keys: readonly string[]; available: boolean }
   /** Wilco's home, as you would type it, for showing where worktrees go. */
@@ -134,7 +153,8 @@ export function draw(state: AppState, frame: Frame): Drawn {
 
   const window: Drawn = { rows, hits }
   if (!state.panel) return window
-  const panel = drawPanel(state.panel, {
+  const extra = frame.panel ?? {}
+  const drawing = drawPanel(state.panel, {
     width,
     height: rows.length,
     skin,
@@ -144,13 +164,59 @@ export function draw(state: AppState, frame: Frame): Drawn {
     spend: frame.spendView ?? null,
     panes: state.panes,
     project: state.project,
+    items: extra.items ?? [],
+    changes: extra.changes ?? frame.changes ?? [],
+    ahead: extra.ahead ?? null,
+    branch: extra.branch ?? null,
+    base: extra.base ?? frame.base ?? null,
+    diff: extra.diff ?? null,
+    choices: extra.choices ?? [],
+    settings: extra.settings ?? [],
+    accounts: extra.accounts ?? [],
+    configPath: extra.configPath ?? '~/.wilco/config.yaml',
+    releases: extra.releases ?? false,
+    budgetWarnings: extra.budgetWarnings ?? 0,
+    levels: extra.levels ?? state.levels,
   })
+  const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
-  const at = {
-    row: Math.max(1, Math.floor((rows.length - panel.rows.length) / 3)),
-    col: Math.max(0, Math.floor((width - panelWidth) / 2)),
+  const anchor = state.panel.kind === 'menu' ? state.panel.anchor : null
+  // A menu opens where it was asked for, over a window that stays bright; a
+  // panel that asks something takes the middle and fades the rest.
+  const at = anchor
+    ? {
+        row: Math.max(0, Math.min(anchor.row, rows.length - panel.rows.length)),
+        col: Math.max(0, Math.min(anchor.col, width - panelWidth)),
+      }
+    : {
+        row: Math.max(1, Math.floor((rows.length - panel.rows.length) / 3)),
+        col: Math.max(0, Math.floor((width - panelWidth) / 2)),
+      }
+  let drawn = overlay(window, panel, at, width, skin, !anchor)
+  if (anchor) {
+    // Not faded, but still a menu: a click anywhere else closes it.
+    drawn = {
+      rows: drawn.rows,
+      hits: [
+        ...drawn.rows.map((_, i) => rowHit(i, width, { kind: 'dismiss' })),
+        ...drawn.hits.filter((hit) => hit.target.kind !== 'dismiss').slice(window.hits.length),
+      ],
+    }
   }
-  return overlay(window, panel, at, width, skin, true)
+  for (const popup of drawing.popups) {
+    const row = at.row + popup.row
+    const col = Math.min(
+      at.col + popup.col,
+      Math.max(0, width - Math.max(0, ...popup.drawn.rows.map((r) => visibleWidth(r)))),
+    )
+    const room = Math.max(0, drawn.rows.length - row)
+    const clipped = {
+      rows: popup.drawn.rows.slice(0, room),
+      hits: popup.drawn.hits.filter((hit) => hit.row < room),
+    }
+    drawn = overlay(drawn, clipped, { row, col }, width, skin, false)
+  }
+  return drawn
 }
 
 // ── Top: projects, what needs you, and the key to talk ───────────────────────
@@ -263,7 +329,7 @@ function renderSidebar(
                 .text(state.focused ? 'nothing changed' : '—', skin.hint)
                 .build(),
             ]
-          : changes.map((change) => changeRow(row(), change, skin)),
+          : changes.map((change) => changeRow(row(), change, skin, state.focused)),
     },
     {
       id: 'files',
@@ -348,14 +414,22 @@ function taskRow(
   return { text: task.focused ? skin.selected(built.text) : built.text, hits }
 }
 
-function changeRow(row: Row, change: Change, skin: Skin): { text: string; hits: Hit[] } {
+function changeRow(
+  row: Row,
+  change: Change,
+  skin: Skin,
+  task: string | null,
+): { text: string; hits: Hit[] } {
   const mark =
     change.mark === 'A' || change.mark === '?'
       ? skin.done
       : change.mark === 'D' || change.mark === 'U'
         ? skin.bad
         : skin.waiting
-  const target: Target = { kind: 'file', path: change.path }
+  // A changed file shows its change; with no task to diff against, it opens.
+  const target: Target = task
+    ? { kind: 'change', task, path: change.path }
+    : { kind: 'file', path: change.path }
   const counts = [
     change.added ? `+${change.added}` : '',
     change.removed ? `−${change.removed}` : '',
