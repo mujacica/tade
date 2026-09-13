@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { git } from '@wilco/status'
 
 // Finding a project to open: the ones you have looked at lately, and any
-// folder, browsed by typing its path.
+// folder, browsed from your home folder or by typing its path.
 //
 // Recent projects are a convenience, like the pane the window reopens on:
 // written to `<home>/recent.json`, and harmless to lose. Folders are listed
@@ -116,7 +116,8 @@ export function listFolders(dir: string, prefix: string, limit = 30): Folder[] {
     })
 }
 
-function isRepo(path: string): boolean {
+/** Whether a folder is the top of a git repository. */
+export function isRepo(path: string): boolean {
   try {
     return existsSync(join(path, '.git')) && statSync(path).isDirectory()
   } catch {
@@ -148,7 +149,7 @@ export async function initialise(root: string): Promise<void> {
       'commit',
       '--allow-empty',
       '-m',
-      'First commit, so tasks have something to branch from',
+      'First commit, so agents have something to branch from',
     ],
   ]
   for (const args of steps) {

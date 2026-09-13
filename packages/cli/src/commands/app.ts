@@ -12,7 +12,7 @@ import {
   wilcoHome,
 } from '@wilco/core'
 import { piBinary } from '@wilco/harnesses-pi/adapter'
-import { loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
+import { credentials, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
 import { Orchestrator, ToolHost } from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
@@ -106,6 +106,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // What an agent can be started on: the models you are signed in to.
           models: () => usableModels(),
           accounts: () => loggedInProviders(),
+          // Signed in, or a key: which one is paying, said beside the model.
+          credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
         })
 

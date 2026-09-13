@@ -115,7 +115,13 @@ describe('the tabs', () => {
 
 describe('what is clickable', () => {
   it('puts a hit on every tab, task, file and button', () => {
-    const { rows, hits } = draw(state(), { ...frame(), files: ['src/', 'README.md'] })
+    const { rows, hits } = draw(state(), {
+      ...frame(),
+      files: [
+        { path: 'src', name: 'src', depth: 0, folder: true, open: false },
+        { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
+      ],
+    })
     // Counted by what they are, not by how many regions a control spans.
     const kinds = (kind: string) =>
       new Set(
@@ -123,7 +129,11 @@ describe('what is clickable', () => {
       )
     expect(kinds('project').size).toBe(2)
     expect(kinds('task').size).toBe(2)
-    expect(kinds('section').size).toBe(4)
+    // The headings in view: the sidebar scrolls, and a short one has notes below it.
+    for (const section of ['where', 'agents', 'changes', 'files']) {
+      expect(kinds('section').has(JSON.stringify({ kind: 'section', section }))).toBe(true)
+    }
+    expect(kinds('folder').size).toBe(1)
     for (const button of BUTTONS) {
       expect(kinds('action').has(JSON.stringify({ kind: 'action', name: button.action }))).toBe(
         true,
@@ -227,8 +237,8 @@ describe('the orchestrator strip', () => {
   })
 
   it('offers the commands as you type a slash', () => {
-    const rows = renderApp(setDictation(state(), '/t'), frame()).join('\n')
-    expect(rows).toContain('/task')
+    const rows = renderApp(setDictation(state(), '/n'), frame()).join('\n')
+    expect(rows).toContain('/new')
     // Narrowed: a list that does not shrink as you type is a list you scroll.
     expect(rows).not.toContain('/settings')
   })
@@ -237,7 +247,7 @@ describe('the orchestrator strip', () => {
     const empty = { ...state(), panes: [], focused: null }
     const rows = renderApp(empty, frame()).join('\n')
     // The window everybody sees first has to say what to do next.
-    expect(rows).toContain('[ + New task ]')
+    expect(rows).toContain('[ + New agent ]')
     expect(rows).toContain('[ Open project ]')
   })
 

@@ -1,26 +1,26 @@
- WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮░░░ 41% 
 ▌● strip│  search settings       │ Voice                                                                       │────────
  ○ refun│                        │ How you talk to Wilco, and how it talks back.                               │        
         │  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
- ▾ CHANG│  Models            │                                                            │                    │        
-  M pack│  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
-  A src/│  Approvals      byp│                                                            │                    │        
-  M src/│▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
-        │  Window            │                                                            │                    │        
- ▸ FILES│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
- ▸ NOTES│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
-        │  Keys              │                                                            │       ↻ on restart │        
-        │  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
-        │                    │ Never a key that types a character — you have to be        │                    │        
+ ▾ GIT  │  Models            │                                                            │                    │        
+   repo │  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
+   branc│  Approvals      byp│                                                            │                    │        
+   from │▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
+   workt│  Window            │                                                            │                    │        
+        │  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
+ ▾ CHANG│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
+  M pack│  Keys              │                                                            │       ↻ on restart │        
+  A src/│  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
+  M src/│                    │ Never a key that types a character — you have to be        │                    │        
         │                    │ able to type a space into your agent.                      │       ↻ on restart │        
-        │                    │                                                            │       ↻ on restart │        
-        │                    │                      ▐ Try another ▌ ▐ Use ctrl+r anyway ▌ │                    │        
-        │                    ╰────────────────────────────────────────────────────────────╯                    │        
-        │                        │                                                                             │        
-        │                        │                                                                             │        
-        │                        │                                                                             │        
+ ▾ FILES│                    │                                                            │       ↻ on restart │        
+   ▾ src│                    │                      ▐ Try another ▌ ▐ Use ctrl+r anyway ▌ │                    │        
+       w│                    ╰────────────────────────────────────────────────────────────╯                    │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │                                                                             │        
 ━ orches│                        │                                                                             │━━━━━━━━
         │                        │                                                                             │        
         │                        │                                                                             │        
@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

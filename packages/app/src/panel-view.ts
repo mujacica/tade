@@ -5,7 +5,6 @@ import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { type AgentPane, glyph } from './model.ts'
 import {
   ACCOUNTS,
-  branchPreview,
   type Choice,
   type ConfirmRemovePanel,
   choicesFor,
@@ -14,7 +13,6 @@ import {
   type MenuPanel,
   matchingChoices,
   matchingEntries,
-  type NewTaskPanel,
   nameFrom,
   type OpenProjectPanel,
   type OpenRow,
@@ -106,8 +104,6 @@ export interface PanelDrawing {
 
 export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
   switch (panel.kind) {
-    case 'new-task':
-      return newTask(panel, ctx)
     case 'spend':
       return { panel: spend(panel, ctx), popups: [] }
     case 'menu':
@@ -274,7 +270,7 @@ function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
 
 function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(74, ctx.width - 4)
+  const width = Math.min(100, ctx.width - 4)
   const inner = width - 2
   const pointer =
     ctx.pointer.hover || (panel.field !== 'init' && panel.field !== 'name')
@@ -282,124 +278,211 @@ function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
   const row = () => new Row(inner, skin, pointer)
   const rows: { text: string; hits: Hit[] }[] = []
+  const control = (id: string) => ({ kind: 'control' as const, id })
 
-  rows.push(
-    row()
-      .space()
-      .field(panel.query, 50, {
-        caret: panel.field === 'query',
-        target: { kind: 'control', id: 'query' },
-      })
-      .right((r) => r.text('a path, or a name', skin.hint).space())
-      .build(),
+  // ── back, forward, up, where you are, and a field to narrow or jump ──
+  const bar = row()
+    .space()
+    .button('‹', control('back'), panel.back.length > 0 ? 'rest' : 'off')
+    .button('›', control('forward'), panel.forward.length > 0 ? 'rest' : 'off')
+    .button('↑', control('up'), panel.dir !== '/' ? 'rest' : 'off')
+    .space(2)
+  const fieldWidth = Math.min(30, Math.max(16, Math.floor(inner / 3)))
+  const crumbs = crumbsOf(ctx.browsing ?? panel.dir, ctx.homeDir)
+  const room = inner - bar.used - fieldWidth - 3
+  // The end of the path is where you are; the start is what gives way.
+  let from = 0
+  const widthFrom = (at: number) =>
+    crumbs.slice(at).reduce((n, crumb) => n + crumb.label.length + 3, 0) + (at > 0 ? 2 : 0)
+  while (from < crumbs.length - 1 && widthFrom(from) > room) from++
+  if (from > 0) bar.text('… ', skin.hint)
+  crumbs.slice(from).forEach((crumb, i, shown) => {
+    const last = i === shown.length - 1
+    bar.text(crumb.label, last ? skin.you : skin.busy, control(`go:${crumb.path}`))
+    if (!last) bar.text(' / ', skin.hint)
+  })
+  bar.right((r) =>
+    r
+      .field(
+        panel.query === '' && panel.field !== 'query' ? 'filter, or a path' : panel.query,
+        fieldWidth,
+        {
+          caret: panel.field === 'query',
+          hint: panel.query === '',
+          target: control('query'),
+        },
+      )
+      .space(),
   )
+  rows.push(bar.build())
   rows.push(blank(inner))
 
-  const recent = ctx.openRows.filter((view) => view.row.kind === 'recent')
-  const folders = ctx.openRows.filter((view) => view.row.kind === 'folder')
-  const room = Math.max(4, Math.min(14, ctx.height - 18))
-  // Wide enough for the longest name shown, within reason.
-  const folderWidth = Math.min(28, Math.max(14, ...folders.map((view) => view.row.name.length + 3)))
-  const line = (view: OpenRowView) => {
-    const at = ctx.openRows.indexOf(view)
+  // ── recent projects on the left, this folder and its folders on the right ──
+  const left = Math.min(30, Math.max(22, Math.floor(inner * 0.32)))
+  const right = inner - left - 1
+  const views = ctx.openRows.map((view, at) => ({ view, at }))
+  const recent = views.filter(({ view }) => view.row.kind === 'recent')
+  const here = views.filter(({ view }) => view.row.kind !== 'recent')
+  // As tall as the window allows, whatever the folder holds: going into a
+  // folder with fewer in it must not move the back button out from under you.
+  const list = Math.max(6, Math.min(16, ctx.height - 18))
+
+  const recentRows: { text: string; hits: Hit[] }[] = [
+    new Row(left, skin).space().text('RECENT', skin.label).build(),
+  ]
+  for (const { view, at } of recent.slice(0, list - 1)) {
     const on = at === panel.index
-    const target = { kind: 'control' as const, id: `row:${at}` }
-    const r = new Row(inner, skin).text(on ? '▌' : ' ', skin.signal).space()
-    if (view.row.kind === 'recent') {
-      r.text(pad(view.row.name, 12), on ? skin.you : (t: string) => t)
-      r.text(pad(tildeOf(view.row.path, ctx.homeDir), 20))
-      r.text(pad(view.branch ?? '', 8), skin.hint)
-      if (view.tasks > 0) r.badge(view.tasks)
-      r.right((right) => right.text(view.when ?? '', skin.hint).space())
+    const r = new Row(left, skin)
+      .text(on ? '▌' : ' ', skin.signal)
+      .text(pad(view.row.name, 11), on ? skin.you : (t: string) => t)
+      .text(tildeOf(view.row.path, ctx.homeDir), skin.hint)
+    const built = r.build()
+    recentRows.push({
+      text: on ? skin.selected(built.text) : built.text,
+      hits: [{ row: 0, from: 0, to: left - 1, target: control(`row:${at}`) }],
+    })
+  }
+  if (recent.length === 0)
+    recentRows.push(new Row(left, skin).space().text('none yet', skin.hint).build())
+
+  const chosenAt = panel.index
+  const start = Math.max(0, Math.min(chosenAt - (list - 2), here.length - (list - 1)))
+  const folderRows: { text: string; hits: Hit[] }[] = []
+  const nameWidth = Math.min(30, Math.max(16, ...here.map(({ view }) => view.row.name.length + 4)))
+  for (const { view, at } of here.slice(start, start + list - 1)) {
+    const on = at === panel.index
+    const r = new Row(right, skin, pointer).text(on ? '▌' : ' ', skin.signal)
+    if (view.row.kind === 'here') {
+      r.text('◆ ', skin.signal).text(pad('this folder', nameWidth - 2), on ? skin.you : skin.label)
     } else {
-      r.text(pad(`${view.row.name}/`, folderWidth), skin.busy)
-      r.text(
-        view.row.git ? `git · ${view.branch ?? 'repository'}` : 'not a git repository',
-        view.row.git ? skin.hint : skin.waiting,
+      r.text('▸ ', skin.busy).text(
+        pad(`${view.row.name}/`, nameWidth - 2),
+        on ? skin.you : skin.busy,
       )
     }
-    const built = r.build()
-    return {
-      text: on ? skin.selected(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: inner - 1, target }],
+    r.text(
+      view.row.git ? `git · ${view.branch ?? '…'}` : 'no git',
+      view.row.git ? skin.done : skin.hint,
+    )
+    const hits: Hit[] = [{ row: 0, from: 0, to: right - 1, target: control(`row:${at}`) }]
+    if (view.row.kind === 'folder') {
+      r.right((g) => g.text(' › ', skin.hint, control(`into:${at}`)).space())
     }
+    const built = r.build()
+    hits.push(...built.hits)
+    folderRows.push({ text: on ? skin.selected(built.text) : built.text, hits })
   }
-
-  if (recent.length > 0) {
-    rows.push(row().space().text('RECENT', skin.label).build())
-    for (const view of recent.slice(0, room)) rows.push(line(view))
-    rows.push(blank(inner))
-  }
-  if (ctx.browsing !== null) {
-    rows.push(
-      row()
-        .space()
-        .text(`IN ${ctx.browsing}`, skin.label)
-        .right((r) => r.text('← up · → into', skin.hint).space())
+  if (here.length <= 1)
+    folderRows.push(
+      new Row(right, skin)
+        .space(3)
+        .text(panel.query ? 'no folder like that here' : 'no folders here', skin.hint)
         .build(),
     )
-    if (folders.length === 0) rows.push(row().space(3).text('no folders here', skin.hint).build())
-    for (const view of folders.slice(0, room)) rows.push(line(view))
-    rows.push(blank(inner))
+  const more = here.length - (start + list - 1)
+  const listRows = Math.max(recentRows.length, list)
+  for (let i = 0; i < listRows; i++) {
+    const l = recentRows[i] ?? blank(left)
+    const rr =
+      i === list - 1 && more > 0
+        ? new Row(right, skin)
+            .space(3)
+            .text(`${more} more — scroll, or type to narrow`, skin.hint)
+            .build()
+        : (folderRows[i] ?? blank(right))
+    rows.push({
+      text: `${fitRow(l.text, left)}${skin.chrome('│')}${fitRow(rr.text, right)}`,
+      hits: [
+        { row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } },
+        ...l.hits,
+        ...rr.hits.map((hit) => ({ ...hit, from: hit.from + left + 1, to: hit.to + left + 1 })),
+      ],
+    })
   }
-  if (recent.length === 0 && ctx.browsing === null) {
-    rows.push(
-      row().space().text('Nothing matches. Type a path to browse: ~/src/', skin.hint).build(),
-    )
-    rows.push(blank(inner))
-  }
+  rows.push(blank(inner))
 
+  // Always the same height, said or not: a panel that grew when a folder was
+  // chosen would move under the pointer, and the second click would land on
+  // the folder below the one you meant.
   const chosen = ctx.openRows[panel.index]?.row
-  if (chosen && !chosen.git) {
-    rows.push(
+  const notice: { text: string; hits: Hit[] }[] = []
+  if (panel.error) {
+    notice.push(row().space().text(`▲ ${panel.error}`, skin.waiting).build())
+  } else if (chosen && !chosen.git) {
+    notice.push(
       row()
         .space()
         .text('▲ ', skin.waiting)
-        .text(`${chosen.name} isn't a git repository. Tasks are git worktrees,`)
+        .text(
+          `${chosen.kind === 'here' ? 'This folder' : chosen.name} isn't a git repository. Agents work in git worktrees,`,
+        )
         .build(),
     )
-    rows.push(row().space(3).text('so Wilco needs one before it can start work there.').build())
-    rows.push(
+    notice.push(row().space(3).text('so Wilco needs one before it can start work there.').build())
+    notice.push(
       row()
         .space(3)
-        .check(panel.init, "git init, and commit what's there as the first commit", {
-          kind: 'control',
-          id: 'init',
-        })
+        .check(panel.init, "git init, and commit what's there as the first commit", control('init'))
         .build(),
     )
-    rows.push(blank(inner))
   }
-  if (panel.error) {
-    rows.push(row().space().text(`▲ ${panel.error}`, skin.waiting).build())
-    rows.push(blank(inner))
-  }
+  for (let i = 0; i < 4; i++) rows.push(notice[i] ?? blank(inner))
 
   const known = chosen?.kind === 'recent'
   const name = known ? chosen.name : (panel.name ?? (chosen ? nameFrom(chosen.path) : ''))
+  const label = panel.busy
+    ? 'Opening…'
+    : !chosen
+      ? 'Choose a folder'
+      : known
+        ? `Go to ${chosen.name}`
+        : `Open ${tildeOf(chosen.path, ctx.homeDir)}`
   rows.push(
     row()
       .space()
       .text('Name  ', skin.hint)
-      .field(name, 26, {
+      .field(chosen ? name : '', 24, {
         caret: panel.field === 'name' && !known,
-        hint: known,
-        target: { kind: 'control', id: 'name' },
+        hint: known || !chosen,
+        target: control('name'),
       })
       .right((r) =>
         r
-          .button('Cancel', { kind: 'control', id: 'cancel' })
+          .button('Cancel', control('cancel'))
           .space()
           .button(
-            panel.busy ? 'Opening…' : known ? 'Go to project' : 'Open project',
-            { kind: 'control', id: 'open' },
+            label.length > 34 ? `${label.slice(0, 33)}…` : label,
+            control('open'),
             panel.busy || !chosen || (!chosen.git && !panel.init) ? 'off' : 'primary',
           )
           .space(),
       )
       .build(),
   )
+  rows.push(
+    row()
+      .space()
+      .text('click to choose · click again or → to go in · ← up · enter opens', skin.hint)
+      .build(),
+  )
   return box('Open a project', rows, width, skin, { corner: 'esc' })
+}
+
+/** `/Users/me/src/pay` as the parts you can click back to: `~`, `src`, `pay`. */
+function crumbsOf(dir: string, home: string): { label: string; path: string }[] {
+  const typed = tildeOf(dir, home)
+  if (typed.startsWith('~')) {
+    const parts = typed.slice(1).split('/').filter(Boolean)
+    return [
+      { label: '~', path: home },
+      ...parts.map((label, i) => ({ label, path: `${home}/${parts.slice(0, i + 1).join('/')}` })),
+    ]
+  }
+  const parts = dir.split('/').filter(Boolean)
+  return [
+    { label: '/', path: '/' },
+    ...parts.map((label, i) => ({ label, path: `/${parts.slice(0, i + 1).join('/')}` })),
+  ]
 }
 
 function tildeOf(path: string, home: string): string {
@@ -1191,164 +1274,4 @@ function tokenCount(count: number, unit = true): string {
 
 function shortModel(model: string): string {
   return model.split('/').at(-1) ?? model
-}
-
-/** The control that has the keyboard looks the way it would under the pointer. */
-function pointerFor(ctx: PanelContext, focused: string | null): Pointer {
-  if (ctx.pointer.hover || !focused) return ctx.pointer
-  return { ...ctx.pointer, hover: { kind: 'control', id: focused } }
-}
-
-function newTask(panel: NewTaskPanel, ctx: PanelContext): PanelDrawing {
-  const { skin } = ctx
-  const width = Math.min(76, ctx.width - 4)
-  const inner = width - 2
-  const pointer = pointerFor(
-    ctx,
-    panel.field === 'cancel' || panel.field === 'go' ? panel.field : null,
-  )
-  const row = () => new Row(inner, skin, pointer)
-  const rows: { text: string; hits: Hit[] }[] = []
-
-  const projects = row().space().text('Project  ', skin.hint)
-  for (const project of panel.projects) {
-    projects.tab(project, { kind: 'control', id: `project:${project}` }, project === panel.project)
-  }
-  if (panel.field === 'project') projects.text('  ← →', skin.hint)
-  rows.push(projects.build())
-  rows.push(blank(inner))
-
-  rows.push(row().space().text('What needs doing?', skin.you).build())
-  rows.push(
-    row()
-      .space()
-      .field(panel.intent, inner - 2, {
-        caret: panel.field === 'intent',
-        hint: panel.intent === '' && panel.field !== 'intent',
-        target: { kind: 'control', id: 'intent' },
-      })
-      .build(),
-  )
-
-  const said = panel.intent.trim()
-  const slug = said ? branchPreview(said) : null
-  rows.push(
-    row()
-      .space()
-      .text('branch   ', skin.hint)
-      .text(slug ?? '—', slug ? (t) => t : skin.hint)
-      .build(),
-  )
-  rows.push(
-    row()
-      .space()
-      .text('worktree ', skin.hint)
-      .text(
-        slug && panel.project
-          ? `${ctx.home}/worktrees/${panel.project}-${slug.slice('wilco/'.length)}`
-          : '—',
-        skin.hint,
-      )
-      .build(),
-  )
-  rows.push(blank(inner))
-
-  const route = ctx.route
-  const agentRow = rows.length
-  const agent = row().space().text('Agent    ', skin.hint)
-  agent.field(
-    `${route?.harness ?? 'pi'} · ${panel.model ?? route?.model ?? 'its default model'}`,
-    40,
-    {
-      arrow: true,
-      target: { kind: 'control', id: 'model' },
-    },
-  )
-  agent.right((r) => {
-    r.check(panel.start, 'start now', { kind: 'control', id: 'start' }).space()
-  })
-  rows.push(agent.build())
-
-  rows.push(
-    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
-  )
-
-  rows.push(
-    row()
-      .right((r) =>
-        r
-          .button('Cancel', { kind: 'control', id: 'cancel' })
-          .space()
-          .button(
-            panel.busy ? 'Starting…' : 'Start task ⏎',
-            { kind: 'control', id: 'go' },
-            panel.busy ? 'off' : 'primary',
-          )
-          .space(),
-      )
-      .build(),
-  )
-
-  const drawn = box('New task', rows, width, skin, { corner: 'esc' })
-  const popups = panel.dropdown
-    ? [{ drawn: modelList(panel, ctx), row: agentRow + 2, col: 11 }]
-    : []
-  return { panel: drawn, popups }
-}
-
-/**
- * The models an agent can start on, grouped by provider, narrowed by typing.
- * Opens under the field it belongs to, and may reach past the panel's edge.
- */
-function modelList(panel: NewTaskPanel, ctx: PanelContext): Drawn {
-  const { skin } = ctx
-  const width = 48
-  const inner = width - 2
-  const query = panel.dropdown?.query ?? ''
-  const found = matchingChoices(ctx.choices, query)
-  const room = Math.max(4, Math.min(12, ctx.height - 16))
-  const rows: { text: string; hits: Hit[] }[] = [
-    new Row(inner, skin)
-      .space()
-      .field(query, inner - 2, { caret: true })
-      .build(),
-  ]
-  const current = panel.model ?? ctx.route?.model ?? null
-  let group = ''
-  let index = 0
-  for (const choice of found) {
-    if (rows.length >= room) break
-    if (choice.group !== group) {
-      group = choice.group
-      rows.push(new Row(inner, skin).space().text(group.toUpperCase(), skin.label).build())
-    }
-    const on = index === (panel.dropdown?.index ?? 0)
-    index++
-    const target = { kind: 'control' as const, id: `choice:${choice.value}` }
-    const r = new Row(inner, skin).text(on ? '▌' : ' ', skin.signal).space()
-    r.text(choice.label, on ? skin.you : (t: string) => t, target)
-    r.right((right) => {
-      if (choice.note) right.text(choice.note, skin.hint).space()
-      if (choice.value === current) right.text('✓', skin.done).space()
-    })
-    const built = r.build()
-    rows.push({
-      text: on ? skin.selected(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: inner - 1, target }],
-    })
-  }
-  if (found.length === 0) {
-    rows.push(
-      new Row(inner, skin)
-        .space()
-        .text(
-          ctx.choices.length === 0
-            ? 'No models found — sign in to a provider in pi.'
-            : 'Nothing matches that.',
-          skin.hint,
-        )
-        .build(),
-    )
-  }
-  return box('', rows, width, skin, { corner: '▴' })
 }

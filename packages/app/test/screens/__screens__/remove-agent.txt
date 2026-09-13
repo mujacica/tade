@@ -1,26 +1,26 @@
- WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                               │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
-  M package.json        +2 ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
+ ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
+   repo     ~/src/checkout ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
+   branch   wilco/stripe-v1│                                                                │                           
+   from     main           │ Its worktree has work that isn't merged:                       │                           
+   worktree …ckout-stripe-v│   M package.json                                               │                           
+                           │   A src/webhooks.test.ts                                       │                           
+ ▾ CHANGES  3         vs ma│   M src/webhooks.ts                                            │                           
+  M package.json        +2 │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
   A src/webhooks.test.ts  +│                                                                │                           
-  M src/webhooks.ts    +12 │ Its worktree has work that isn't merged:                       │                           
-                           │   M package.json                                               │                           
- ▸ FILES                   │   A src/webhooks.test.ts                                       │                           
- ▸ NOTES  4                │   M src/webhooks.ts                                            │                           
-                           │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
-                           │                                                                │                           
-                           │ Removing deletes the worktree and the branch. The agent's      │                           
+  M src/webhooks.ts    +12 │ Removing deletes the worktree and the branch. The agent's      │                           
                            │ conversation stays in pi's sessions.                           │                           
-                           │                                                                │                           
-                           │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
-                           ╰────────────────────────────────────────────────────────────────╯   │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-                              │  ╰──────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+ ▾ FILES                   │                                                                │                           
+   ▾ src/                  │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
+       webhooks.test.ts    ╰────────────────────────────────────────────────────────────────╯   │                       
+       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
+     package.json             │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

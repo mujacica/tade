@@ -1,34 +1,34 @@
- WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
-                       ╭─ Open a project ───────────────────────────────────────────────── esc ─╮                       
- ▾ CHANGES  3         v│  ~/src/pay▏                                          a path, or a name │                       
-  M package.json       │                                                                        │                       
-  A src/webhooks.test.t│ RECENT                                                                 │                       
-  M src/webhooks.ts    │  checkout    ~/src/checkout      main     3                     2h ago │                       
-                       │  search      ~/src/search        main     1                  yesterday │                       
- ▸ FILES               │  wilco       ~/wilco             main                       4 days ago │                       
- ▸ NOTES  4            │                                                                        │                       
-                       │ IN ~/src                                                 ← up · → into │                       
-                       │  payments/     git · main                                              │                       
-                       │▌ payroll/      not a git repository                                    │                       
-                       │                                                                        │                       
-                       │ ▲ payroll isn't a git repository. Tasks are git worktrees,             │                       
-                       │   so Wilco needs one before it can start work there.                   │                       
-                       │   ■ git init, and commit what's there as the first commit              │                       
-                       │                                                                        │                       
-                       │ Name   payroll                             ▐ Cancel ▌ ▐ Open project ▌ │                       
-                       ╰────────────────────────────────────────────────────────────────────────╯                       
-━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
+ ▾ AGENTS ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮░░░░░ 41% 
+▌● stripe-│ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │──────────
+ ○ refunds│                                                                                                  │          
+          │ RECENT                       │ ◆ this folder   no git                                            │          
+ ▾ GIT    │ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
+   repo   │ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
+   branch │                              │ ▸ search/       git · main                                     ›  │          
+   from   │                              │                                                                   │          
+   worktre│                              │                                                                   │          
+          │                              │                                                                   │          
+ ▾ CHANGES│                              │                                                                   │          
+  M packag│                              │                                                                   │          
+  A src/we│                              │                                                                   │          
+  M src/we│                              │                                                                   │          
+          │                              │                                                                   │          
+ ▾ FILES  │                              │                                                                   │          
+   ▾ src/ │                              │                                                                   │          
+       web│                              │                                                                   │          
+       web│                              │                                                                   │          
+   ▸ test/│                                                                                                  │          
+     packa│ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
+━ orchestr│   so Wilco needs one before it can start work there.                                             │━━━━━━━━━━
+          │   ■ git init, and commit what's there as the first commit                                        │          
+          │                                                                                                  │          
+          │ Name   payroll                                                 ▐ Cancel ▌ ▐ Open ~/src/payroll ▌ │          
+          │ click to choose · click again or → to go in · ← up · enter opens                                 │          
+          ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯          
                                                                                                                         
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

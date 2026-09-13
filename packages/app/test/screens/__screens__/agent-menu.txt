@@ -1,6 +1,6 @@
- WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○╭─ stripe-v15 ───────────────╮                                                                                        
   │▌ Open                enter │ ● Upgrading stripe to v15. The webhook signature API changed,                          
@@ -9,18 +9,18 @@
   │  Show changes      3 files │ ▸ Read src/webhooks.ts                                                                 
   │  Open in editor            │ ▸ Edit src/webhooks.ts  +12 −4                                                         
   │  Copy branch name          │ ▸ bash npm i stripe@15                                                                 
- ▸│────────────────────────────│                                                                                        
- ▸│  Park                      │                                                                                        
-  │  Remove task…              │                                                                                        
+  │────────────────────────────│                                                                                        
+ ▾│  Park                      │                                                                                        
+  │  Remove agent…             │                                                                                        
   ╰────────────────────────────╯                                                                                        
+  M src/webhooks.ts    +12 −4 │                                                                                         
                               │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
-                              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-                              │  │ bash  npm i stripe@15                                        │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-                              │  ╰──────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+ ▾ FILES                      │                                                                                         
+   ▾ src/                     │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+       webhooks.test.ts       │  │ bash  npm i stripe@15                                        │                       
+       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
+     package.json             │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

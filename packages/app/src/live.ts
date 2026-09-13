@@ -1,4 +1,5 @@
 import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   type Config,
   historyFrom,
@@ -18,7 +19,9 @@ import type { Workbench } from '@wilco/workbench'
 import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { LaneRecord } from '@wilco/workbench/registry'
 import type { PendingApproval } from '@wilco/workbench/workers'
+import { type FileEntry, type Listed, treeOf } from './files.ts'
 import type { TaskSnapshot } from './model.ts'
+import { branchOf } from './projects.ts'
 import type { Change } from './view.ts'
 
 // Where the app gets its facts.
@@ -30,11 +33,11 @@ import type { Change } from './view.ts'
 /** How much journal to keep for working out what recently moved. */
 const JOURNAL = 500
 
-/** How long a worktree listing is good for. */
+/** How long a folder listing is good for. */
 const LISTING_MS = 2_000
 
-/** No sidebar is long enough to be worth reading past this. */
-const LISTING_MAX = 200
+/** How long the branch a project's own checkout is on is good for. */
+const BRANCH_MS = 10_000
 
 /**
  * Fold what status, the lane registry and the approval queue each know into
@@ -166,8 +169,10 @@ export class Live {
   private snapshots: TaskSnapshot[] = []
   /** Where each task lives on disk, which is what parking one needs. */
   private readonly worktrees = new Map<string, string>()
-  /** The last listing of each worktree, so the sidebar is not a disk read. */
-  private readonly listings = new Map<string, { at: number; files: string[] }>()
+  /** The last listing of each folder, so the sidebar is not a disk read. */
+  private readonly listings = new Map<string, { at: number; entries: Listed[] }>()
+  /** The branch each project's checkout was last seen on, and whether a look is under way. */
+  private readonly branches = new Map<string, { at: number; branch: string | null }>()
   /** The last look at what each task has changed, and whether one is under way. */
   private readonly changed = new Map<string, { at: number; changes: Change[] }>()
   private readonly looking = new Set<string>()
@@ -236,33 +241,49 @@ export class Live {
   }
 
   /**
-   * The top of a task's worktree.
-   *
-   * Enough to see which repository you are standing in and what is in it, not
-   * a file browser: your editor is better at that, and a window that tried
-   * would be re-reading a tree every quarter second. One level, cached, and
-   * re-read no more often than the tasks are.
+   * The files under a folder — an agent's worktree, or the project itself when
+   * no agent is in front of you — with the folders you opened listed under
+   * themselves. Each folder is read at most once per `LISTING_MS`: the window
+   * draws four times a second, and must not read the disk every time it does.
    */
-  files(task: string | null): readonly string[] {
-    const root = task ? this.worktrees.get(task) : null
-    if (!task || !root) return []
-    const seen = this.listings.get(task)
-    if (seen && this.now() - seen.at < LISTING_MS) return seen.files
-    let files: string[] = []
+  files(root: string | null, expanded: readonly string[]): FileEntry[] {
+    if (!root) return []
+    return treeOf(expanded, (folder) => this.listing(join(root, folder)))
+  }
+
+  private listing(dir: string): Listed[] {
+    const seen = this.listings.get(dir)
+    if (seen && this.now() - seen.at < LISTING_MS) return seen.entries
+    let entries: Listed[] = []
     try {
-      const entries = readdirSync(root, { withFileTypes: true })
-        .filter((entry) => !entry.name.startsWith('.'))
-        .sort(
-          (a, b) =>
-            Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name),
-        )
-      files = entries.slice(0, LISTING_MAX).map((e) => (e.isDirectory() ? `${e.name}/` : e.name))
+      entries = readdirSync(dir, { withFileTypes: true }).map((entry) => ({
+        name: entry.name,
+        folder: entry.isDirectory(),
+      }))
     } catch {
-      // A worktree that has been removed under us is not worth a warning: the
-      // next status pass will stop listing the task at all.
+      // A worktree removed under us is not worth a warning: the next status
+      // pass stops listing its agent at all.
     }
-    this.listings.set(task, { at: this.now(), files })
-    return files
+    this.listings.set(dir, { at: this.now(), entries })
+    return entries
+  }
+
+  /**
+   * The branch a project's own checkout is on. Answers from the last look and
+   * looks again in the background, for the same reason `changes` does.
+   */
+  branchAt(root: string): string | null {
+    const seen = this.branches.get(root)
+    if (!seen || this.now() - seen.at >= BRANCH_MS) {
+      this.branches.set(root, { at: this.now(), branch: seen?.branch ?? null })
+      void branchOf(root)
+        .then((branch) => {
+          this.branches.set(root, { at: this.now(), branch })
+          if (branch !== seen?.branch) this.opts.onChange?.()
+        })
+        .catch(() => {})
+    }
+    return seen?.branch ?? null
   }
 
   /**

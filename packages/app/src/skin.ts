@@ -13,7 +13,16 @@
 // a form has, this one the roles a window has.
 
 /** A button's look. Hover and pressed are the pointer's; the rest are meaning. */
-export type Look = 'rest' | 'hover' | 'pressed' | 'primary' | 'attention' | 'danger' | 'off'
+export type Look =
+  | 'rest'
+  | 'hover'
+  | 'pressed'
+  | 'primary'
+  | 'attention'
+  | 'danger'
+  | 'off'
+  /** Makes another of something: a `+` that has to be found at a glance. */
+  | 'add'
 
 export interface Skin {
   readonly colour: boolean
@@ -94,6 +103,7 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   attention: [179, 233, true],
   danger: [167, 233, true],
   off: [236, 240, false],
+  add: [238, 80, true],
 }
 
 const identity = (text: string) => text

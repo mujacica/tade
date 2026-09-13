@@ -1,6 +1,7 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@wilco/voice-core'
 import { findOpenable } from './editor.ts'
+import type { FileEntry } from './files.ts'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import {
@@ -21,8 +22,8 @@ import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '
 // Drawing, as one pure function of state.
 //
 // The window is shaped like the thing it is showing. Projects are tabs along
-// the top, because you are in one at a time. The tasks of that project are down
-// the side with what they have changed under them, the middle is the agent you
+// the top, because you are in one at a time. The agents in that project are
+// down the side, with where they work and what they have changed, the middle is the agent you
 // are watching, and the orchestrator runs along the bottom, always there and
 // not closeable — it is how you know what Wilco heard. Money is bottom right,
 // what needs you and the key to talk with are top right, and a panel, when one
@@ -50,9 +51,20 @@ export interface Frame {
   screen: string
   /** The orchestrator's own screen, when it is running where you can see it. */
   orchestrator?: string
-  /** Top of the focused task's worktree. */
-  files?: readonly string[]
-  /** What the focused task has changed since it branched. */
+  /** The files of the focused agent's worktree, or of the project when there is none. */
+  files?: readonly FileEntry[]
+  /**
+   * Where the work is: the project's repository, the branch in front of you,
+   * and — for an agent — the branch it started from and the worktree it is in.
+   * Paths as you would type them.
+   */
+  where?: {
+    repo: string
+    branch: string | null
+    base: string | null
+    worktree: string | null
+  } | null
+  /** What the focused agent has changed since it branched. */
   changes?: readonly Change[]
   /** The branch those changes are counted against. */
   base?: string | null
@@ -60,8 +72,16 @@ export interface Frame {
   notes?: readonly string[]
   /** Today's spend, in total and by task. */
   spend?: Spend
-  /** What the agent you are looking at runs on, as configured. */
-  route?: { harness: string; model: string | null; provider: string | null }
+  /**
+   * What the agent you are looking at runs on, as configured, and how that
+   * provider is paid for: `signed in`, `API key`, `env API key`.
+   */
+  route?: {
+    harness: string
+    model: string | null
+    provider: string | null
+    credential?: string | null
+  }
   /** What it says it actually runs on, and how full its context is. */
   vitals?: { model: string | null; contextPercent: number | null } | null
   /** The Spend panel's view, when it is open. */
@@ -115,7 +135,7 @@ export interface Spend {
  * names an action the app carries out; none of them types a command for you.
  */
 export const BUTTONS: readonly { label: string; action: string; look?: 'primary' }[] = [
-  { label: '+ New task', action: 'new-task' },
+  { label: '+ New agent', action: 'new-agent' },
   { label: 'Open project', action: 'open-project' },
   { label: 'Settings', action: 'settings' },
 ]
@@ -319,7 +339,7 @@ function renderTop(
   for (const project of projects(state)) {
     row.tab(project, { kind: 'project', project }, project === state.project)
   }
-  row.text(' + ', skin.signal, { kind: 'action', name: 'open-project' })
+  row.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
 
   row.right((r) => {
     const waiting = state.panes.filter((pane) => pane.waiting || pane.state === 'blocked').length
@@ -371,7 +391,7 @@ function clock(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-// ── Side: agents, changes, files, notes ──────────────────────────────────────
+// ── Side: where, agents, changes, files, notes ───────────────────────────────
 
 interface Section {
   id: string
@@ -397,17 +417,25 @@ function renderSidebar(
   const notes = frame.notes ?? []
   const files = frame.files ?? []
   const spend = frame.spend?.byTask ?? {}
+  const where = frame.where ?? null
 
   const sections: Section[] = [
     {
       id: 'agents',
       label: 'AGENTS',
       count: tasks.length,
-      action: { label: '+', target: { kind: 'action', name: 'new-task' } },
+      action: { label: ' + ', target: { kind: 'action', name: 'new-agent' } },
       rows: (row) =>
         tasks.length === 0
           ? [row().space(3).text('none yet — + starts one', skin.hint).build()]
           : tasks.map((task) => taskRow(row(), task, spend[task.task], skin)),
+    },
+    {
+      id: 'where',
+      label: 'GIT',
+      count: null,
+      rows: (row) =>
+        where ? whereRows(row, where, skin) : [row().space(3).text('—', skin.hint).build()],
     },
     {
       id: 'changes',
@@ -419,7 +447,7 @@ function renderSidebar(
           ? [
               row()
                 .space(3)
-                .text(state.focused ? 'nothing changed' : '—', skin.hint)
+                .text(state.focused ? 'nothing changed' : 'open an agent to see', skin.hint)
                 .build(),
             ]
           : changes.map((change) => changeRow(row(), change, skin, state.focused)),
@@ -431,12 +459,7 @@ function renderSidebar(
       rows: (row) =>
         files.length === 0
           ? [row().space(3).text('—', skin.hint).build()]
-          : files.map((path) =>
-              row()
-                .space(3)
-                .text(path, path.endsWith('/') ? skin.busy : (t) => t, { kind: 'file', path })
-                .build(),
-            ),
+          : files.map((entry) => fileRow(row(), entry, skin)),
     },
     {
       id: 'notes',
@@ -444,7 +467,7 @@ function renderSidebar(
       count: notes.length,
       rows: (row) =>
         notes.length === 0
-          ? [row().space(3).text('nothing noted yet', skin.hint).build()]
+          ? [row().space(3).text('tell Wilco "remember …"', skin.hint).build()]
           : notes.map((text) => row().space(3).text(text, skin.hint).build()),
     },
   ]
@@ -453,7 +476,6 @@ function renderSidebar(
   const make = () => new Row(width, skin, pointer)
   let previousOpen = false
   sections.forEach((section, i) => {
-    if (out.length >= height) return
     if (i > 0 && previousOpen) out.push(blank(width))
     const open = !state.folded.includes(section.id)
     previousOpen = open
@@ -466,7 +488,7 @@ function renderSidebar(
     if (section.count !== null && section.count > 0) head.space().badge(section.count)
     if (section.action) {
       const action = section.action
-      head.right((r) => r.text(` ${action.label} `, skin.signal, action.target))
+      head.right((r) => r.button(action.label, action.target, 'add').space())
     } else if (section.note) {
       const note = section.note
       head.right((r) => r.text(note, skin.hint).space())
@@ -474,7 +496,49 @@ function renderSidebar(
     out.push(head.build())
     if (open) out.push(...section.rows(make))
   })
-  return stack(out.slice(0, height))
+  // Tailing is for screens that grow at the bottom; a sidebar is read from the
+  // top, so it scrolls, and never past its last row.
+  const scroll = Math.max(0, Math.min(state.scroll, out.length - height))
+  const shown = stack(out.slice(scroll, scroll + height))
+  const under = Array.from({ length: height }, (_, i) =>
+    rowHit(i, width, { kind: 'scroll', area: 'sidebar' }),
+  )
+  return { rows: shown.rows, hits: [...under, ...shown.hits] }
+}
+
+/** The repository, the branch in front of you, and the worktree an agent works in. */
+function whereRows(
+  row: () => Row,
+  where: NonNullable<Frame['where']>,
+  skin: Skin,
+): { text: string; hits: Hit[] }[] {
+  const line = (
+    label: string,
+    value: string,
+    paint: (text: string) => string = (t) => t,
+    path = true,
+  ) => {
+    const r = row().space(3).text(label.padEnd(9), skin.hint)
+    const room = Math.max(1, r.width - r.used - 1)
+    return r.text(path ? shortPath(value, room) : tailOf(value, room), paint).build()
+  }
+  const rows = [line('repo', where.repo)]
+  rows.push(line('branch', where.branch ?? 'unknown', where.branch ? skin.busy : skin.hint, false))
+  if (where.base) rows.push(line('from', where.base.replace(/^origin\//, ''), skin.hint, false))
+  if (where.worktree) rows.push(line('worktree', where.worktree))
+  return rows
+}
+
+/** A file or folder in the tree, indented by how deep it is. */
+function fileRow(row: Row, entry: FileEntry, skin: Skin): { text: string; hits: Hit[] } {
+  const target: Target = entry.folder
+    ? { kind: 'folder', path: entry.path }
+    : { kind: 'file', path: entry.path }
+  row.space(3 + entry.depth * 2)
+  if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, skin.busy)
+  else row.text(`  ${entry.name}`)
+  const built = row.build()
+  return { text: built.text, hits: [rowHit(0, row.width, target)] }
 }
 
 function taskRow(
@@ -544,6 +608,11 @@ function changeRow(
   return row.build()
 }
 
+/** The end of something too long, which for a branch is the part that names it. */
+function tailOf(text: string, room: number): string {
+  return text.length <= room ? text : `…${text.slice(-Math.max(1, room - 1))}`
+}
+
 /** `src/payments/webhooks.test.ts` → `…/webhooks.test.ts`: the name is the part you know. */
 export function shortPath(path: string, room: number): string {
   if (path.length <= room) return path
@@ -583,7 +652,7 @@ function renderMain(
   laneLabels(pane.lanes).forEach(({ id, label }) => {
     header.tab(label, { kind: 'lane', task: pane.task, lane: id }, id === shown)
   })
-  header.text(' + ', skin.signal, { kind: 'action', name: 'new-shell' })
+  header.space().button('+', { kind: 'action', name: 'new-shell' }, 'add')
   const route = frame.route
   const vitals = frame.vitals
   if (route || vitals) {
@@ -741,7 +810,7 @@ function renderWelcome(
     blank(width),
     new Row(width, skin, pointer)
       .space(3)
-      .button('+ New task', { kind: 'action', name: 'new-task' }, project ? 'primary' : 'off')
+      .button('+ New agent', { kind: 'action', name: 'new-agent' }, project ? 'primary' : 'off')
       .space()
       .button(
         'Open project',
@@ -888,23 +957,42 @@ function renderFoot(
 ): Drawn {
   const row = new Row(width, skin, pointer).space()
   for (const button of BUTTONS) {
-    const look = button.action === 'new-task' && !state.project ? 'off' : (button.look ?? 'rest')
+    const look = button.action === 'new-agent' && !state.project ? 'off' : (button.look ?? 'rest')
     row.button(button.label, { kind: 'action', name: button.action }, look).space()
   }
   const route = frame.route
   const spend = frame.spend
   const target: Target = { kind: 'action', name: 'spend' }
-  row.right((r) => {
-    const model = frame.vitals?.model ?? route?.model
-    r.text(model ? shortModel(model) : 'its default model', skin.hint, target)
-    if (route?.provider) r.text(` · ${route.provider}`, skin.hint, target)
-    if (spend && spend.tokens > 0) {
-      r.text(' │ ', skin.chrome, target).text(tokens(spend.tokens), skin.hint, target)
-      if (spend.hasCost)
-        r.text(' │ ', skin.chrome, target).text(dollars(spend.usd), skin.you, target)
+  const model = frame.vitals?.model ?? route?.model
+  const spent = spend && spend.tokens > 0
+  // Said in full where there is room, and shed from the left where there is
+  // not: what it costs is the part worth keeping on a small terminal.
+  const full = { model: true, account: true, tokens: true }
+  const tries = [
+    full,
+    { model: true, account: false, tokens: true },
+    { model: true, account: false, tokens: false },
+    { model: false, account: false, tokens: false },
+  ]
+  const status = (show: (typeof tries)[number]) => (r: Row) => {
+    if (show.model) {
+      r.text(model ? shortModel(model) : 'its default model', skin.hint, target)
+      if (show.account && route?.provider) r.text(` · ${route.provider}`, skin.hint, target)
+      if (show.account && route?.credential) r.text(` · ${route.credential}`, skin.hint, target)
+      r.text(' │ ', skin.chrome, target)
     }
-    r.text(' today ▾', skin.hint, target).space()
+    if (spent && show.tokens) {
+      r.text(tokens(spend.tokens), skin.hint, target).text(' │ ', skin.chrome, target)
+    }
+    if (spent && spend.hasCost) r.text(dollars(spend.usd), skin.you, target).space()
+    r.text(spent ? 'today ▾' : 'nothing spent today ▾', skin.hint, target).space()
+  }
+  const fits = tries.find((show) => {
+    const probe = new Row(width, skin)
+    status(show)(probe)
+    return row.used + 1 + probe.used <= width
   })
+  row.right(status(fits ?? tries[tries.length - 1] ?? full))
   return stack([{ text: skin.chrome('─'.repeat(width)), hits: [] }, row.build()])
 }
 

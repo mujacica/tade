@@ -14,6 +14,10 @@ export type Target =
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }
+  /** A folder in the FILES tree: clicking it opens or closes it. */
+  | { kind: 'folder'; path: string }
+  /** Somewhere the wheel scrolls, laid under what is drawn there. */
+  | { kind: 'scroll'; area: 'sidebar' | 'panel' }
   /** A file the task changed: clicking it shows the change. */
   | { kind: 'change'; task: string; path: string }
   /** A link on an agent's screen. */
@@ -36,6 +40,16 @@ export interface Hit {
   from: number
   to: number
   target: Target
+}
+
+/** The scrollable area under this cell, whatever is drawn over it. */
+export function scrollAt(hits: readonly Hit[], x: number, y: number): 'sidebar' | 'panel' | null {
+  let found: 'sidebar' | 'panel' | null = null
+  for (const hit of hits) {
+    if (hit.target.kind === 'scroll' && hit.row === y && x >= hit.from && x <= hit.to)
+      found = hit.target.area
+  }
+  return found
 }
 
 /** What is at this cell, if anything. Later hits win: they are drawn on top. */
@@ -65,7 +79,12 @@ export function sameTarget(a: Target | null, b: Target | null): boolean {
  */
 export function pressable(target: Target | null): boolean {
   if (!target) return false
-  return target.kind !== 'inert' && target.kind !== 'orchestrator' && target.kind !== 'dismiss'
+  return (
+    target.kind !== 'inert' &&
+    target.kind !== 'orchestrator' &&
+    target.kind !== 'dismiss' &&
+    target.kind !== 'scroll'
+  )
 }
 
 /** Move a region's hits to where the region was put. */

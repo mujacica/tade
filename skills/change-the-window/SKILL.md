@@ -17,7 +17,8 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `panels.ts` | What a panel holds and what a key or click does to it | a terminal |
 | `panel-view.ts` | How each panel is drawn, and the `PanelContext` it draws from | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
-| `projects.ts` | Recent projects, folder browsing, `git init` for Open project | a real disk and git |
+| `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
+| `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
@@ -25,8 +26,8 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
 | `screen.ts` | The screen Wilco asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
-**Work happens in the window.** A command that does something — start a task, start or stop an agent,
-watch one — takes the rest of the line as what it is for (`/task fix the double charge`) and acts,
+**Work happens in the window.** A command that does something — start, stop or open an agent — takes
+the rest of the line as what it is for (`/new fix the double charge`) and acts,
 leaving you looking at the result. It must not throw the screen away for a form: that is a strange
 thing for a window whose whole job is showing you what is running. Only the two commands that edit
 configuration borrow the terminal: `App.onScreen` stops the window, runs a `runScreen` flow, and
@@ -102,6 +103,15 @@ file and cannot be tested.
 - **Something that opens out of a panel and may pass its edge is a popup**: return it from
   `drawPanel` in `popups`, placed relative to the panel. `draw` lays popups over the panel and makes
   whatever they cover unclickable.
+- **Say "agent", not "task", on screen.** People think of the thing down the side as an agent
+  doing some work; the code calls the worktree a task because that is what the domain model is.
+  Labels, notices and menu items use the first word; identifiers keep the second.
+- **Don't ask when a sensible default exists.** **+ New agent** makes `agent-N` and opens pi at once
+  rather than opening a form — the agent's own prompt is where you say what it is for. A panel is
+  for a question only you can answer.
+- **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
+  (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
+  keeps `state.scroll`, a panel's list moves its own index.
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
   sentence, and `live: false` if Wilco only reads it at start — the panel draws the control and the
   *on restart* label from that.

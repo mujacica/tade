@@ -172,7 +172,8 @@ export class Row {
   private lookOf(target: Target, look: Look): Look {
     if (look === 'off') return look
     if (sameTarget(this.pointer.pressed, target)) return 'pressed'
-    if (look === 'rest' && sameTarget(this.pointer.hover, target)) return 'hover'
+    if ((look === 'rest' || look === 'add') && sameTarget(this.pointer.hover, target))
+      return 'hover'
     return look
   }
 }

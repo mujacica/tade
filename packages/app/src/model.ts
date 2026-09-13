@@ -76,6 +76,10 @@ export interface AppState {
   pressed: Target | null
   /** Sidebar sections folded shut. */
   folded: string[]
+  /** Folders opened in the FILES tree, relative to the folder it is of. */
+  expanded: string[]
+  /** How many rows the sidebar is scrolled down. */
+  scroll: number
   /** When the microphone opened, while it is open. */
   talkingSince: number | null
   /** What was said is being turned into words. */
@@ -91,7 +95,7 @@ export interface AppState {
 }
 
 /** Sections that start folded: the ones you look at on purpose, not all the time. */
-export const FOLDED_AT_START = ['files', 'notes']
+export const FOLDED_AT_START = ['notes']
 
 export function initialState(): AppState {
   return {
@@ -110,6 +114,8 @@ export function initialState(): AppState {
     hover: null,
     pressed: null,
     folded: [...FOLDED_AT_START],
+    expanded: [],
+    scroll: 0,
     talkingSince: null,
     hearing: false,
     levels: [],
@@ -177,7 +183,7 @@ export function projects(state: AppState): string[] {
  */
 export function selectProject(state: AppState, project: string): AppState {
   const first = state.panes.find((pane) => pane.project === project)
-  return { ...state, project, focused: first?.task ?? null, chose: true }
+  return { ...state, project, focused: first?.task ?? null, chose: true, scroll: 0 }
 }
 
 /** The tasks down the side: the selected project's, in the order they come. */
@@ -251,20 +257,21 @@ export function actions(state: AppState): Action[] {
   const focused = state.panes.find((pane) => pane.task === state.focused)
   const running = state.panes.filter((pane) => pane.lane !== null)
   return [
-    { name: '/task', about: 'start work: /task what needs doing', ready: true },
     {
-      name: '/agent',
-      about: focused ? `another agent on ${focused.name}` : 'start an agent on a task',
-      ready: state.panes.length > 0,
+      name: '/new',
+      about: focused
+        ? `a new agent beside ${focused.name}: /new what it should do`
+        : 'a new agent: /new what it should do',
+      ready: true,
     },
     {
       name: '/stop',
-      about: running.length > 0 ? 'stop an agent, keeping its task' : 'nothing is running',
+      about: running.length > 0 ? 'stop an agent, keeping its work' : 'nothing is running',
       ready: running.length > 0,
     },
     {
       name: '/open',
-      about: state.panes.length > 0 ? 'watch a task: /open name' : 'no tasks yet',
+      about: state.panes.length > 0 ? 'go to an agent: /open name' : 'no agents yet',
       ready: state.panes.length > 0,
     },
     { name: '/project', about: 'add a git repository Wilco can work in', ready: true },
@@ -277,8 +284,8 @@ export function actions(state: AppState): Action[] {
 /**
  * A typed command line: the word, and whatever was said after it.
  *
- * Most commands take the rest of the line as what they are for — `/task fix
- * the double charge` is a whole task, said in one go — so the two are split
+ * Most commands take the rest of the line as what they are for — `/new fix
+ * the double charge` is a whole piece of work, said in one go — so the two are split
  * once, here, rather than by each caller guessing.
  */
 export function parseCommand(typed: string): { name: string; rest: string } {
@@ -300,7 +307,7 @@ export function matchActions(state: AppState, typed: string): Action[] {
 }
 
 /**
- * Which project a new task belongs to, and what it is for.
+ * Which project a new agent belongs to, and what it is for.
  *
  * In order: a project named as the first word, the one you are looking at, or
  * the only one there is. Naming it is how you start work somewhere other than
@@ -331,6 +338,19 @@ export function laneShown(state: AppState, pane: AgentPane): string | null {
   const chosen = state.viewing[pane.task]
   if (chosen && pane.lanes.some((lane) => lane.id === chosen)) return chosen
   return pane.lane
+}
+
+/** Open or close a folder in the FILES tree. Closing one closes what is inside it too. */
+export function toggleFolder(state: AppState, path: string): AppState {
+  const expanded = state.expanded.includes(path)
+    ? state.expanded.filter((open) => open !== path && !open.startsWith(`${path}/`))
+    : [...state.expanded, path]
+  return { ...state, expanded }
+}
+
+/** Scroll the sidebar. `draw` keeps it from going past the end. */
+export function scrollSidebar(state: AppState, rows: number): AppState {
+  return { ...state, scroll: Math.max(0, state.scroll + rows) }
 }
 
 /** Fold or unfold a sidebar section. */

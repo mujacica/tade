@@ -1,26 +1,26 @@
- WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                               │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
-  M package.json        +2 −1╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
+ ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
+   repo     ~/src/checkout   ╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
+   branch   wilco/stripe-v15 │                                                            │                             
+   from     main             │ 2 agents are running inside this window.                   │                             
+   worktree …ckout-stripe-v15│                                                            │                             
+                             │ Agents here run under pty, so closing stops them. Their    │                             
+ ▾ CHANGES  3         vs main│ conversations are kept, and each one picks up where it     │                             
+  M package.json        +2 −1│ stopped the next time you open its task.                   │                             
   A src/webhooks.test.ts  +48│                                                            │                             
-  M src/webhooks.ts    +12 −4│ 2 agents are running inside this window.                   │                             
-                             │                                                            │                             
- ▸ FILES                     │ Agents here run under pty, so closing stops them. Their    │                             
- ▸ NOTES  4                  │ conversations are kept, and each one picks up where it     │                             
-                             │ stopped the next time you open its task.                   │                             
-                             │                                                            │                             
-                             │ Under tmux they would keep working after you close.        │                             
+  M src/webhooks.ts    +12 −4│ Under tmux they would keep working after you close.        │                             
                              │ Settings › Agents › Where agents run                       │                             
-                             │                                                            │                             
-                             │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
-                             ╰────────────────────────────────────────────────────────────╯     │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-                              │  ╰──────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+ ▾ FILES                     │                                                            │                             
+   ▾ src/                    │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
+       webhooks.test.ts      ╰────────────────────────────────────────────────────────────╯     │                       
+       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
+     package.json             │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

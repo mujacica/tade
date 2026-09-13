@@ -1,49 +1,16 @@
 import type { Setting, SettingGroup } from '@wilco/core'
-import { slugify } from '@wilco/voice-core'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 
 // Panels: the questions the window asks, floating over it.
 //
-// A click does the thing. When the thing needs more than a click — what a task
-// is for, which folder to open — it gets a panel with the fields in it, filled
+// A click does the thing. When the thing needs more than a click — which
+// folder to open, what to change — it gets a panel with the fields in it, filled
 // with the likely answers, and Enter runs it. Nothing types a half-written
 // command into a line for you to finish, and nothing takes the screen away:
 // the window keeps running underneath.
 //
 // Pure, like the rest of the model. What a key or a click does to a panel is
 // decided here; carrying it out is the app's job.
-
-export type NewTaskField = 'project' | 'intent' | 'start' | 'cancel' | 'go'
-
-const NEW_TASK_FIELDS: readonly NewTaskField[] = ['project', 'intent', 'start', 'cancel', 'go']
-
-export interface NewTaskPanel {
-  kind: 'new-task'
-  /** Every project a task could go in, in the order the tabs show them. */
-  projects: string[]
-  project: string | null
-  /** What needs doing, exactly as typed. It becomes the task's intent. */
-  intent: string
-  /** Start an agent on it straight away. */
-  start: boolean
-  /** Which control has the keyboard. */
-  field: NewTaskField
-  /** Why the last attempt did not happen, in words you can act on. */
-  error: string | null
-  /** Being carried out: a second Enter must not make a second task. */
-  busy: boolean
-  /** A model you picked over the project's own, as `provider/id`. */
-  model: string | null
-  /** The model list, while it is open. */
-  dropdown: Dropdown | null
-}
-
-/** A list opened from a field, narrowed by typing. */
-export interface Dropdown {
-  query: string
-  /** Which of the *matching* options the keyboard is on. */
-  index: number
-}
 
 /** One choice in a dropdown, grouped under a heading. */
 export interface Choice {
@@ -74,7 +41,7 @@ export interface SpendPanel {
   busy: false
 }
 
-/** A task's own menu, opened from its ≡ or a right-click, where it was clicked. */
+/** An agent's own menu, opened from its ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
   kind: 'menu'
   task: string
@@ -147,12 +114,24 @@ export interface SettingsPanel {
 
 export const ACCOUNTS = 'accounts'
 
-/** Opening a project: recent ones, any folder by path, and git for one without it. */
+/**
+ * Opening a project: a folder browser that starts in your home folder, with
+ * the projects you opened lately beside it, and git for a folder without it.
+ */
 export interface OpenProjectPanel {
   kind: 'open-project'
-  /** A name to find in the recent list, or a path to browse. */
+  /** The folder being looked in, as an absolute path. */
+  dir: string
+  /** Folders looked in before this one, and after it once you have gone back. */
+  back: string[]
+  forward: string[]
+  /** Narrows what is listed; starting with `~`, `/` or `.` it goes to that path instead. */
   query: string
-  /** Which row of the list is chosen. */
+  /**
+   * Which row is chosen — this folder, the folders in it, then the recent
+   * projects — or -1 before anything is. Nothing is chosen on arriving in a
+   * folder, so looking around never offers to open the place you walked through.
+   */
   index: number
   field: 'query' | 'init' | 'name'
   /** The name you typed, or null to use the folder's. */
@@ -165,7 +144,8 @@ export interface OpenProjectPanel {
 
 /** A row in the Open project list, as the app found it. */
 export interface OpenRow {
-  kind: 'recent' | 'folder'
+  /** A project opened before, the folder being looked in, or a folder inside it. */
+  kind: 'recent' | 'here' | 'folder'
   name: string
   path: string
   git: boolean
@@ -221,11 +201,14 @@ export function matchingEntries(entries: readonly PaletteEntry[], query: string)
   })
 }
 
-export function openProjectPanel(query = ''): OpenProjectPanel {
+export function openProjectPanel(dir: string, query = ''): OpenProjectPanel {
   return {
     kind: 'open-project',
+    dir,
+    back: [],
+    forward: [],
     query,
-    index: 0,
+    index: -1,
     field: 'query',
     name: null,
     init: true,
@@ -235,7 +218,6 @@ export function openProjectPanel(query = ''): OpenProjectPanel {
 }
 
 export type Panel =
-  | NewTaskPanel
   | SpendPanel
   | MenuPanel
   | ConfirmRemovePanel
@@ -359,7 +341,7 @@ export function menuItems(
       label: task.state === 'parked' ? 'Pick up again' : 'Park',
       divider: true,
     },
-    { id: 'remove', label: 'Remove task…', danger: true },
+    { id: 'remove', label: 'Remove agent…', danger: true },
   ]
 }
 
@@ -385,29 +367,6 @@ export interface PanelOutcome {
   choice?: string
 }
 
-/** The New task panel, on the project you are in. */
-export function newTaskPanel(projects: readonly string[], current: string | null): NewTaskPanel {
-  const project = current && projects.includes(current) ? current : (projects[0] ?? null)
-  return {
-    kind: 'new-task',
-    projects: [...projects],
-    project,
-    intent: '',
-    start: true,
-    // Straight to the words: the project is already the likely one.
-    field: 'intent',
-    error: project ? null : 'No projects yet. Open one first, with the + beside the tabs.',
-    busy: false,
-    model: null,
-    dropdown: null,
-  }
-}
-
-/** The branch a task would get, shown before it exists. */
-export function branchPreview(intent: string): string {
-  return `wilco/${slugify(intent)}`
-}
-
 const stay = (panel: Panel): PanelOutcome => ({ panel, submit: false })
 const close: PanelOutcome = { panel: null, submit: false }
 
@@ -423,7 +382,6 @@ export function panelKey(
   data: string,
   inputs: PanelInputs = {},
 ): PanelOutcome {
-  const choices = inputs.choices ?? []
   if (panel.kind === 'settings') return settingsKey(panel, key, data, inputs)
   if (panel.kind === 'open-project') return openKey(panel, key, data, inputs.rows ?? [])
   if (panel.kind === 'palette') return paletteKey(panel, key, data, inputs.entries ?? [])
@@ -440,32 +398,7 @@ export function panelKey(
   if (panel.kind === 'spend') return spendKey(panel, key)
   if (panel.kind === 'menu') return menuKey(panel, key, inputs.items ?? [])
   if (panel.kind === 'confirm-remove') return confirmKey(panel, key)
-  if (panel.kind === 'diff') return diffKey(panel, key)
-  if (panel.dropdown) return dropdownKey(panel, key, data, choices)
-  if (panel.busy) return key === 'escape' ? close : stay(panel)
-  if (key === 'escape') return close
-  if (key === 'tab' || key === 'down') return stay(moveField(panel, 1))
-  if (key === 'shift+tab' || key === 'up') return stay(moveField(panel, -1))
-
-  if (key === 'enter') {
-    if (panel.field === 'cancel') return close
-    if (panel.field === 'start') return stay({ ...panel, start: !panel.start })
-    return tryRun(panel)
-  }
-
-  switch (panel.field) {
-    case 'project':
-      if (key === 'left') return stay(cycleProject(panel, -1))
-      if (key === 'right') return stay(cycleProject(panel, 1))
-      return stay(panel)
-    case 'start':
-      if (key === 'space') return stay({ ...panel, start: !panel.start })
-      return stay(panel)
-    case 'intent':
-      return stay(editIntent(panel, key, data))
-    default:
-      return stay(panel)
-  }
+  return diffKey(panel, key)
 }
 
 /** A click on one of the panel's own controls. */
@@ -496,35 +429,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
     if (control === 'remove') return { panel: { ...panel, busy: true, error: null }, submit: true }
     return stay(panel)
   }
-  if (panel.kind === 'diff') return diffClick(panel, control)
-  if (control === 'model') {
-    return stay({ ...panel, dropdown: panel.dropdown ? null : { query: '', index: 0 } })
-  }
-  if (control.startsWith('choice:')) {
-    return stay({ ...panel, model: control.slice('choice:'.length), dropdown: null })
-  }
-  if (panel.dropdown) return stay({ ...panel, dropdown: null })
-  if (panel.busy) return stay(panel)
-  if (control === 'cancel') return close
-  if (control === 'go') return tryRun(panel)
-  if (control === 'start') return stay({ ...panel, start: !panel.start, field: 'start' })
-  if (control === 'intent') return stay({ ...panel, field: 'intent' })
-  if (control.startsWith('project:')) {
-    const project = control.slice('project:'.length)
-    if (panel.projects.includes(project)) {
-      return stay({ ...panel, project, field: 'project', error: null })
-    }
-  }
-  return stay(panel)
-}
-
-/** The panel is being carried out, or has failed and says why. */
-export function panelBusy(panel: NewTaskPanel): NewTaskPanel {
-  return { ...panel, busy: true, error: null }
-}
-
-export function panelFailed(panel: NewTaskPanel, error: string): NewTaskPanel {
-  return { ...panel, busy: false, error }
+  return diffClick(panel, control)
 }
 
 /** ← → move through the time windows, tab through the groupings. */
@@ -553,48 +458,6 @@ function spendClick(panel: SpendPanel, control: string): PanelOutcome {
 function cycle<T extends string>(options: readonly { id: T }[], current: T, delta: number): T {
   const at = options.findIndex((option) => option.id === current)
   return options[(at + delta + options.length) % options.length]?.id ?? current
-}
-
-function tryRun(panel: NewTaskPanel): PanelOutcome {
-  if (!panel.project) {
-    return stay({ ...panel, error: 'No projects yet. Open one first, with the + beside the tabs.' })
-  }
-  if (panel.intent.trim() === '') {
-    return stay({ ...panel, field: 'intent', error: 'Say what needs doing first.' })
-  }
-  return { panel: panelBusy(panel), submit: true }
-}
-
-function moveField(panel: NewTaskPanel, delta: number): NewTaskPanel {
-  const at = NEW_TASK_FIELDS.indexOf(panel.field)
-  const next = (at + delta + NEW_TASK_FIELDS.length) % NEW_TASK_FIELDS.length
-  return { ...panel, field: NEW_TASK_FIELDS[next] ?? 'intent' }
-}
-
-function cycleProject(panel: NewTaskPanel, delta: number): NewTaskPanel {
-  if (panel.projects.length === 0) return panel
-  const at = panel.project ? panel.projects.indexOf(panel.project) : -1
-  const next = (at + delta + panel.projects.length) % panel.projects.length
-  return { ...panel, project: panel.projects[next] ?? panel.project, error: null }
-}
-
-/** Backspace, clear, or type. A paste arrives whole and is kept whole. */
-function editIntent(panel: NewTaskPanel, key: string | undefined, data: string): NewTaskPanel {
-  if (key === 'backspace') return { ...panel, intent: [...panel.intent].slice(0, -1).join('') }
-  if (key === 'ctrl+u') return { ...panel, intent: '' }
-  if (key === 'space') return { ...panel, intent: `${panel.intent} `, error: null }
-  // Control sequences are keys, not words: an arrow must not type `[D`.
-  const text = data.startsWith('\x1b')
-    ? ''
-    : [...data].map((char) => (control(char) ? ' ' : char)).join('')
-  if (text === '') return panel
-  return { ...panel, intent: panel.intent + text, error: null }
-}
-
-/** A control character: never something a person meant to type into a sentence. */
-function control(char: string): boolean {
-  const code = char.charCodeAt(0)
-  return code < 32 || code === 127
 }
 
 /** Up and down through what can be done, enter to do it. */
@@ -652,40 +515,6 @@ function diffClick(panel: DiffPanel, control: string): PanelOutcome {
 function stepFile(panel: DiffPanel, delta: number): DiffPanel {
   const count = Math.max(1, panel.files.length)
   return { ...panel, file: (panel.file + delta + count) % count, scroll: 0 }
-}
-
-/** Typing narrows, arrows move, enter picks, escape closes the list and not the panel. */
-function dropdownKey(
-  panel: NewTaskPanel,
-  key: string | undefined,
-  data: string,
-  choices: readonly Choice[],
-): PanelOutcome {
-  const dropdown = panel.dropdown
-  if (!dropdown) return stay(panel)
-  const matching = matchingChoices(choices, dropdown.query).filter((choice) => !choice.off)
-  if (key === 'escape') return stay({ ...panel, dropdown: null })
-  if (key === 'down' || key === 'up') {
-    const step = key === 'down' ? 1 : -1
-    const index =
-      (dropdown.index + step + Math.max(1, matching.length)) % Math.max(1, matching.length)
-    return stay({ ...panel, dropdown: { ...dropdown, index } })
-  }
-  if (key === 'enter') {
-    const picked = matching[dropdown.index]
-    return stay(picked ? { ...panel, model: picked.value, dropdown: null } : panel)
-  }
-  if (key === 'backspace') {
-    return stay({
-      ...panel,
-      dropdown: { query: [...dropdown.query].slice(0, -1).join(''), index: 0 },
-    })
-  }
-  const text = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
-  if (text && ![...text].some(control)) {
-    return stay({ ...panel, dropdown: { query: dropdown.query + text, index: 0 } })
-  }
-  return stay(panel)
 }
 
 // ── Settings ────────────────────────────────────────────────────────────────
@@ -943,14 +772,72 @@ function settingsClick(panel: SettingsPanel, control: string, inputs: PanelInput
 
 // ── Open project ────────────────────────────────────────────────────────────
 
+/** A control character: never something a person meant to type. */
+function control(char: string): boolean {
+  const code = char.charCodeAt(0)
+  return code < 32 || code === 127
+}
+
 function typed(data: string, key: string | undefined): string {
   const text = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
   return text && ![...text].some(control) ? text : ''
 }
 
-/** A path as you would type it, with the home directory as `~`. */
-function asTyped(path: string, home: string): string {
-  return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
+/** Look in another folder, remembering this one for back. */
+function goTo(panel: OpenProjectPanel, dir: string): OpenProjectPanel {
+  if (dir === panel.dir && panel.query === '') return panel
+  return {
+    ...panel,
+    back: [...panel.back, panel.dir],
+    forward: [],
+    dir,
+    query: '',
+    index: -1,
+    name: null,
+    error: null,
+    field: 'query',
+  }
+}
+
+/** The folder above, or the folder itself at the top of the disk. */
+function parentOf(dir: string): string {
+  const trimmed = dir.replace(/\/+$/, '')
+  const at = trimmed.lastIndexOf('/')
+  return at <= 0 ? '/' : trimmed.slice(0, at)
+}
+
+/** Back, forward and up: what a folder browser's own buttons do. */
+function navigate(panel: OpenProjectPanel, where: string): OpenProjectPanel {
+  if (where === 'back') {
+    const previous = panel.back.at(-1)
+    if (previous === undefined) return panel
+    return {
+      ...panel,
+      back: panel.back.slice(0, -1),
+      forward: [panel.dir, ...panel.forward],
+      dir: previous,
+      query: '',
+      index: -1,
+      name: null,
+      error: null,
+    }
+  }
+  if (where === 'forward') {
+    const next = panel.forward[0]
+    if (next === undefined) return panel
+    return {
+      ...panel,
+      back: [...panel.back, panel.dir],
+      forward: panel.forward.slice(1),
+      dir: next,
+      query: '',
+      index: -1,
+      name: null,
+      error: null,
+    }
+  }
+  if (where === 'up') return goTo(panel, parentOf(panel.dir))
+  return panel
 }
 
 function openKey(
@@ -962,7 +849,6 @@ function openKey(
   if (panel.busy) return key === 'escape' ? close : stay(panel)
   if (key === 'escape') return close
   const chosen = rows[panel.index]
-  const home = typeof process !== 'undefined' ? (process.env.HOME ?? '') : ''
   if (key === 'enter')
     return chosen
       ? { panel: { ...panel, busy: true, error: null }, submit: true, choice: 'open' }
@@ -984,24 +870,23 @@ function openKey(
     return text ? stay({ ...panel, name: name + text.toLowerCase() }) : stay(panel)
   }
   if (key === 'down' || key === 'up') {
-    const index =
-      (panel.index + (key === 'down' ? 1 : -1) + Math.max(1, rows.length)) %
-      Math.max(1, rows.length)
+    if (rows.length === 0) return stay(panel)
+    const from = panel.index < 0 ? (key === 'down' ? -1 : 0) : panel.index
+    const index = (from + (key === 'down' ? 1 : -1) + rows.length) % rows.length
     return stay({ ...panel, index, name: null })
   }
-  if (key === 'right' && chosen?.kind === 'folder') {
-    return stay({ ...panel, query: `${asTyped(chosen.path, home)}/`, index: 0, name: null })
+  // → goes into the chosen folder, ← to the one above: the arrows a list of
+  // folders has everywhere else.
+  if (key === 'right' && (chosen?.kind === 'folder' || chosen?.kind === 'recent')) {
+    return stay(goTo(panel, chosen.path))
   }
-  if (key === 'left' && /[/~]/.test(panel.query)) {
-    const trimmed = panel.query.replace(/\/+$/, '')
-    const parent = trimmed.includes('/') ? trimmed.slice(0, trimmed.lastIndexOf('/') + 1) : '~/'
-    return stay({ ...panel, query: parent || '/', index: 0, name: null })
-  }
+  if (key === 'left' && panel.query === '') return stay(navigate(panel, 'up'))
+  if (key === 'backspace' && panel.query === '') return stay(navigate(panel, 'up'))
   if (key === 'backspace')
-    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0, name: null })
+    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: -1, name: null })
   const text = typed(data, key)
   return text
-    ? stay({ ...panel, query: panel.query + text, index: 0, name: null, error: null })
+    ? stay({ ...panel, query: panel.query + text, index: -1, name: null, error: null })
     : stay(panel)
 }
 
@@ -1011,7 +896,8 @@ function openClick(
   rows: readonly OpenRow[],
 ): PanelOutcome {
   if (panel.busy) return stay(panel)
-  const [verb, arg] = control.split(':')
+  const [verb, ...rest] = control.split(':')
+  const arg = rest.join(':')
   switch (verb) {
     case 'cancel':
       return close
@@ -1019,15 +905,22 @@ function openClick(
       return rows[panel.index]
         ? { panel: { ...panel, busy: true, error: null }, submit: true, choice: 'open' }
         : stay(panel)
+    case 'back':
+    case 'forward':
+    case 'up':
+      return stay(navigate(panel, verb))
+    case 'go':
+      return stay(goTo(panel, arg))
     case 'row': {
       const index = Number(arg)
       const row = rows[index]
       // A second click on a folder goes into it, as it would anywhere else.
-      if (row?.kind === 'folder' && index === panel.index) {
-        const home = process.env.HOME ?? ''
-        return stay({ ...panel, query: `${asTyped(row.path, home)}/`, index: 0, name: null })
-      }
-      return stay({ ...panel, index: Math.max(0, index), field: 'query', name: null })
+      if (row?.kind === 'folder' && index === panel.index) return stay(goTo(panel, row.path))
+      return stay({ ...panel, index: Math.max(-1, index), field: 'query', name: null })
+    }
+    case 'into': {
+      const row = rows[Number(arg)]
+      return row ? stay(goTo(panel, row.path)) : stay(panel)
     }
     case 'init':
       return stay({ ...panel, init: !panel.init, field: 'init' })

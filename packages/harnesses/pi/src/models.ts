@@ -51,6 +51,60 @@ export async function loggedInProviders(home = homedir()): Promise<string[]> {
 }
 
 /**
+ * How a provider is paid for, as far as anyone can tell from here: signed in
+ * through the provider (a subscription, usually), an API key the harness keeps,
+ * or a key in the environment. The difference is what a bill looks like, which
+ * is why the window says it next to the model.
+ */
+export type CredentialKind = 'signed-in' | 'api-key' | 'env-key'
+
+/** Where the harness looks in the environment for each provider's key. */
+const ENV_KEYS: Readonly<Record<string, readonly string[]>> = {
+  anthropic: ['ANTHROPIC_OAUTH_TOKEN', 'ANTHROPIC_API_KEY'],
+  openai: ['OPENAI_API_KEY'],
+  google: ['GEMINI_API_KEY'],
+  'google-vertex': ['GOOGLE_CLOUD_API_KEY'],
+  'azure-openai-responses': ['AZURE_OPENAI_API_KEY'],
+  'github-copilot': ['COPILOT_GITHUB_TOKEN'],
+  openrouter: ['OPENROUTER_API_KEY'],
+  'vercel-ai-gateway': ['AI_GATEWAY_API_KEY'],
+  groq: ['GROQ_API_KEY'],
+  cerebras: ['CEREBRAS_API_KEY'],
+  xai: ['XAI_API_KEY'],
+  mistral: ['MISTRAL_API_KEY'],
+  deepseek: ['DEEPSEEK_API_KEY'],
+  fireworks: ['FIREWORKS_API_KEY'],
+  together: ['TOGETHER_API_KEY'],
+  huggingface: ['HF_TOKEN'],
+  zai: ['ZAI_API_KEY'],
+  moonshotai: ['MOONSHOT_API_KEY'],
+  minimax: ['MINIMAX_API_KEY'],
+  nvidia: ['NVIDIA_API_KEY'],
+}
+
+/**
+ * Each provider with credentials, and what kind. What the harness stored wins
+ * over the environment, because that is the order the harness itself asks in.
+ */
+export async function credentials(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<Record<string, CredentialKind>> {
+  const out: Record<string, CredentialKind> = {}
+  for (const [provider, keys] of Object.entries(ENV_KEYS)) {
+    if (keys.some((key) => (env[key] ?? '') !== '')) out[provider] = 'env-key'
+  }
+  const raw = await readJson(join(piHome(home), 'auth.json'))
+  if (raw && typeof raw === 'object') {
+    for (const [provider, value] of Object.entries(raw as Record<string, unknown>)) {
+      const type = (value as { type?: unknown })?.type
+      out[provider] = type === 'api_key' ? 'api-key' : 'signed-in'
+    }
+  }
+  return out
+}
+
+/**
  * Models you can use right now, which is what the question is really asking:
  * a catalog entry for a provider you have no credentials for is a name that
  * will fail the first time an agent tries to use it.

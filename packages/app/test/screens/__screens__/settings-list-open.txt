@@ -1,26 +1,26 @@
- WILCO  ▐ checkout ▌  search    infra   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮░░░ 41% 
 ▌● strip│  search settings       │ Voice                                                                       │────────
  ○ refun│                        │ How you talk to Wilco, and how it talks back.                               │        
         │  Agents                │                                                                             │        
- ▾ CHANG│  Models                │ Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
-  M pack│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
-  A src/│  Approvals      bypass │                                                                             │        
-  M src/│▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
-        │  Window                │                                                                             │        
- ▸ FILES│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
- ▸ NOTES│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
-        │  Keys                  │ Microphone        │  ▏                                         │ on restart │        
-        │  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
-        │                        │ Spoken replies    │▌ whisper · base.en · on this machine     ✓ │            │        
+ ▾ GIT  │  Models                │ Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
+   repo │  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
+   branc│  Approvals      bypass │                                                                             │        
+   from │▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
+   workt│  Window                │                                                                             │        
+        │  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
+ ▾ CHANG│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
+  M pack│  Keys                  │ Microphone        │  ▏                                         │ on restart │        
+  A src/│  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
+  M src/│                        │ Spoken replies    │▌ whisper · base.en · on this machine     ✓ │            │        
         │                        │ Interruptions     │ IN THE CLOUD                   needs a key │ on restart │        
-        │                        │ Quiet hours       │  OpenAI · whisper-1                        │ on restart │        
-        │                        │                   │  Groq · whisper-large-v3                   │            │        
-        │                        │                   ╰────────────────────────────────────────────╯            │        
-        │                        │                                                                             │        
-        │                        │                                                                             │        
-        │                        │                                                                             │        
+ ▾ FILES│                        │ Quiet hours       │  OpenAI · whisper-1                        │ on restart │        
+   ▾ src│                        │                   │  Groq · whisper-large-v3                   │            │        
+       w│                        │                   ╰────────────────────────────────────────────╯            │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │                                                                             │        
 ━ orches│                        │                                                                             │━━━━━━━━
         │                        │                                                                             │        
         │                        │                                                                             │        
@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                      claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

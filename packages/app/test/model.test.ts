@@ -206,8 +206,8 @@ describe('which project you are in', () => {
 
 describe('a typed command', () => {
   it('is the first word, and everything after it is what the command is for', () => {
-    expect(parseCommand('/task fix the double charge')).toEqual({
-      name: '/task',
+    expect(parseCommand('/new fix the double charge')).toEqual({
+      name: '/new',
       rest: 'fix the double charge',
     })
     expect(parseCommand('  /quit  ')).toEqual({ name: '/quit', rest: '' })

@@ -18,7 +18,7 @@ describe('a row of controls', () => {
   it('puts each button where its label is drawn', () => {
     const { text, hits } = new Row(60, PLAIN)
       .space()
-      .button('New task', { kind: 'action', name: 'new-task' })
+      .button('New task', { kind: 'action', name: 'new-agent' })
       .space()
       .button('Settings', { kind: 'action', name: 'settings' })
       .build()
@@ -76,7 +76,7 @@ describe('a row of controls', () => {
   })
 
   it('looks pressed while held and hovered under the pointer', () => {
-    const target = { kind: 'action' as const, name: 'new-task' }
+    const target = { kind: 'action' as const, name: 'new-agent' }
     const rest = new Row(30, COLOUR).button('New task', target).build().text
     const hover = new Row(30, COLOUR, { hover: target, pressed: null })
       .button('New task', target)

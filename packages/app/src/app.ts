@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename, isAbsolute, join, resolve } from 'node:path'
 import {
   type Component,
@@ -39,7 +40,7 @@ import { Speaker } from '@wilco/voice-tts'
 import type { Workbench } from '@wilco/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
-import { type Hit, hitAt, pressable, sameTarget, type Target } from './hits.ts'
+import { type Hit, hitAt, pressable, sameTarget, scrollAt, type Target } from './hits.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
@@ -48,7 +49,6 @@ import {
   type AppState,
   addTurn,
   focusBy,
-  focusedProject,
   focusTask,
   glyph,
   initialState,
@@ -61,11 +61,13 @@ import {
   onEvent,
   parseCommand,
   projects,
+  scrollSidebar,
   selectProject,
   setDictation,
   setHeld,
   setListening,
   setQuestion,
+  toggleFolder,
   toggleSection,
   viewLane,
   whichProject,
@@ -81,7 +83,6 @@ import {
   menuItems,
   menuPanel,
   nameFrom,
-  newTaskPanel,
   type OpenProjectPanel,
   type OpenRow,
   openProjectPanel,
@@ -91,7 +92,6 @@ import {
   type PanelOutcome,
   palettePanel,
   panelClick,
-  panelFailed,
   panelKey,
   type SettingsPanel,
   settingsPanel,
@@ -103,6 +103,7 @@ import {
   browsing,
   initialise,
   isPath,
+  isRepo,
   listFolders,
   noteRecent,
   readRecents,
@@ -144,6 +145,7 @@ export type PointerEvent =
   | { kind: 'press'; target: Target | null }
   | { kind: 'release' }
   | { kind: 'click'; target: Target; button: 'left' | 'right'; x: number; y: number }
+  | { kind: 'wheel'; area: 'sidebar' | 'panel'; rows: number }
 
 class Window implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
@@ -183,6 +185,14 @@ class Window implements Component {
         if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
         this.onPointer({ kind: 'click', target, button: event.button, x: event.x, y: event.y })
         return { handled: true }
+      case 'wheel': {
+        const area = scrollAt(this.hits, event.x, event.y)
+        if (!area || !event.wheelDelta) return undefined
+        return {
+          handled: true,
+          render: this.onPointer({ kind: 'wheel', area, rows: Math.sign(event.wheelDelta) * 3 }),
+        }
+      }
       default:
         return undefined
     }
@@ -216,6 +226,8 @@ export interface AppOptions {
   models?: () => Promise<{ id: string; provider: string; name: string }[]>
   /** Providers the harness is signed in to. */
   accounts?: () => Promise<string[]>
+  /** How each provider with credentials is paid for: signed in, or a key. */
+  credentials?: () => Promise<Record<string, 'signed-in' | 'api-key' | 'env-key'>>
   /** The command that runs the harness interactively, for signing in. */
   signIn?: () => { command: string; args: string[] }
   now?: () => number
@@ -245,6 +257,8 @@ export class App {
   private readonly openedAt = Date.now()
   /** Tasks whose agent is being opened right now. */
   private readonly opening = new Set<string>()
+  /** A new agent is being made. */
+  private starting = false
   private screen = ''
   private recording: Recording | null = null
   /** The diff the diff panel is showing, once git has answered. */
@@ -253,8 +267,10 @@ export class App {
   private models: { id: string; provider: string; name: string }[] = []
   /** Providers the harness is signed in to, once read. */
   private accounts: string[] = []
-  /** The Open project list for the last query, and the branches found for its rows. */
-  private openCache: { query: string; rows: OpenRow[]; browsing: string | null } | null = null
+  /** How each provider is paid for, once read. */
+  private credentials: Record<string, 'signed-in' | 'api-key' | 'env-key'> = {}
+  /** The Open project list for the last folder and query, and the branches found for its rows. */
+  private openCache: { key: string; rows: OpenRow[]; browsing: string | null } | null = null
   private readonly branches = new Map<string, string | null>()
   private metering: NodeJS.Timeout | null = null
   /** Where you were last time, applied once the tasks are known. */
@@ -359,6 +375,27 @@ export class App {
     return pane ? menuItems(pane, this.live?.changes(panel.task).length ?? 0) : []
   }
 
+  /**
+   * Which provider a model is reached through: the one configured, or the one
+   * the model's own id names, or — for a bare name like `claude-opus-5` — the
+   * provider you have credentials for that offers it. The last is a reading of
+   * the catalog, which is what the harness itself does with a bare name.
+   */
+  private providerOf(model: string | null, configured: string | null): string | null {
+    if (configured) return configured
+    if (!model) return null
+    const exact = this.models.find((known) => known.id === model)
+    if (exact) return exact.provider
+    const named = model.includes('/') ? (model.split('/')[0] ?? null) : null
+    if (named && this.credentials[named]) return named
+    const offering = this.models.filter((known) => known.id.endsWith(`/${model}`))
+    return (
+      offering.find((known) => this.credentials[known.provider])?.provider ??
+      offering[0]?.provider ??
+      named
+    )
+  }
+
   /** What the open panel needs to draw that the window does not. */
   private panelFacts(live: Live): Frame['panel'] {
     const panel = this.state.panel
@@ -374,7 +411,6 @@ export class App {
       }
     }
     if (panel.kind === 'diff') return { diff: this.diff }
-    if (panel.kind === 'new-task') return { choices: this.choices }
     if (panel.kind === 'palette') return { entries: this.paletteEntries() }
     if (panel.kind === 'keys') {
       const talk = this.opts.config.surfaces.voice.talk
@@ -443,13 +479,28 @@ export class App {
             ),
           })
         : null
+    // The agent's worktree when one is in front of you, else the project itself.
+    const configured = this.state.project ? this.opts.config.projects[this.state.project] : null
+    const repo = configured ? expandHome(configured.root) : null
+    const worktree = focused ? live.worktreeOf(focused.task) : null
+    const facts = focused ? live.factsOf(focused.task) : null
+    const model = live.vitals(this.state.focused)?.model ?? route.model ?? null
+    const provider = this.providerOf(model, route.provider ?? null)
     return {
       width,
       height: Math.max(6, this.terminal.rows),
       screen: this.screen,
       layout: this.layout(),
       skin: this.skin,
-      files: live.files(this.state.focused),
+      files: live.files(worktree ?? repo, this.state.expanded),
+      where: repo
+        ? {
+            repo: tilde(repo),
+            branch: facts?.branch ?? live.branchAt(repo),
+            base: focused ? live.baseOf(focused.task) : null,
+            worktree: worktree ? tilde(worktree) : null,
+          }
+        : null,
       changes: live.changes(this.state.focused),
       notes: live.notes(this.state.project),
       base: live.baseOf(this.state.focused),
@@ -462,7 +513,8 @@ export class App {
       route: {
         harness: route.harness,
         model: route.model ?? null,
-        provider: route.provider ?? null,
+        provider,
+        credential: provider ? credentialLabel(this.credentials[provider]) : null,
       },
       vitals: live.vitals(this.state.focused),
       spendView,
@@ -483,6 +535,24 @@ export class App {
   private pointer(event: PointerEvent): boolean {
     if (this.stopped || this.borrowed) return false
     switch (event.kind) {
+      case 'wheel': {
+        const panel = this.state.panel
+        if (event.area === 'panel' && panel) {
+          const key = event.rows > 0 ? 'down' : 'up'
+          let outcome: PanelOutcome = { panel, submit: false }
+          for (let i = 0; i < Math.abs(event.rows); i++) {
+            if (!outcome.panel) break
+            outcome = panelKey(outcome.panel, key, '', this.panelInputs())
+          }
+          this.state = { ...this.state, panel: outcome.panel }
+          return true
+        }
+        if (event.area === 'sidebar' && !panel) {
+          this.state = scrollSidebar(this.state, event.rows)
+          return true
+        }
+        return false
+      }
       case 'move': {
         if (sameTarget(this.state.hover, event.target)) return false
         const was = pressable(this.state.hover)
@@ -717,7 +787,7 @@ export class App {
         // model, so this costs nothing until you type — which is what makes it
         // safe for a click, and not for tab, which passes over tasks on the
         // way to another.
-        if (pane && !pane.lane && pane.state !== 'parked') void this.newAgent('')
+        if (pane && !pane.lane && pane.state !== 'parked') void this.openAgent()
         break
       }
       case 'lane':
@@ -737,6 +807,9 @@ export class App {
       }
       case 'section':
         this.state = toggleSection(this.state, target.section)
+        break
+      case 'folder':
+        this.state = toggleFolder(this.state, target.path)
         break
       case 'orchestrator':
         this.state = { ...this.state, focused: null, chose: true }
@@ -770,12 +843,12 @@ export class App {
       return
     }
     switch (action) {
-      case 'new-task':
-        this.openNewTask()
+      case 'new-agent':
+        await this.newAgent('')
         return
       case 'open-project':
         this.openCache = null
-        this.state = { ...this.state, panel: openProjectPanel() }
+        this.state = { ...this.state, panel: openProjectPanel(homedir()) }
         this.draw()
         return
       case 'settings':
@@ -807,7 +880,7 @@ export class App {
         await this.decide(false)
         return
       case 'open-agent':
-        await this.newAgent('')
+        await this.openAgent()
         return
       default:
         await this.act(action)
@@ -895,7 +968,7 @@ export class App {
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
     const worktree = pane ? this.live?.worktreeOf(pane.task) : null
     if (!pane || !worktree) {
-      this.state = notice(this.state, 'open a task first: a shell starts in its worktree')
+      this.state = notice(this.state, 'open an agent first: a shell starts in its worktree')
       this.draw()
       return
     }
@@ -920,12 +993,6 @@ export class App {
     } catch (err) {
       this.state = notice(this.state, why(err))
     }
-    this.draw()
-  }
-
-  private openNewTask(): void {
-    const names = projects(this.state)
-    this.state = { ...this.state, panel: newTaskPanel(names, this.state.project) }
     this.draw()
   }
 
@@ -963,22 +1030,6 @@ export class App {
   /** Carry a panel out, and either close it or say in it why not. */
   private async submitPanel(panel: Panel, choice?: string): Promise<void> {
     switch (panel.kind) {
-      case 'new-task': {
-        if (!panel.project) return
-        try {
-          const id = await this.startTask(
-            panel.project,
-            panel.intent.trim(),
-            panel.start,
-            panel.model,
-          )
-          this.state = { ...this.state, panel: null }
-          this.state = focusTask(this.state, id)
-        } catch (err) {
-          this.state = { ...this.state, panel: panelFailed(panel, why(err)) }
-        }
-        break
-      }
       case 'menu':
         this.state = { ...this.state, panel: null }
         this.draw()
@@ -1068,7 +1119,7 @@ export class App {
       entries.push({
         id: `task:${pane.task}`,
         label: pane.project === this.state.project ? pane.name : pane.task,
-        kind: `task in ${pane.project}`,
+        kind: `agent in ${pane.project}`,
         mark: glyph(pane),
         tone: toneOf(pane),
         ...(pane.waiting ? { note: 'waiting on you' } : {}),
@@ -1096,7 +1147,7 @@ export class App {
       entries.push({
         id: `changes:${pane.task}`,
         label: `Show the changes in ${pane.name}`,
-        kind: 'task',
+        kind: 'agent',
         mark: '±',
       })
     }
@@ -1104,7 +1155,7 @@ export class App {
       entries.push({ id: `project:${project}`, label: project, kind: 'project', mark: '◇' })
     }
     for (const [id, label] of [
-      ['new-task', 'New task'],
+      ['new-agent', 'New agent'],
       ['open-project', 'Open project'],
       ['spend', 'Spend'],
       ['settings', 'Settings'],
@@ -1182,12 +1233,12 @@ export class App {
       case 'open': {
         this.state = focusTask(this.state, task)
         const pane = this.state.panes.find((p) => p.task === task)
-        if (pane && !pane.lane) await this.newAgent('')
+        if (pane && !pane.lane) await this.openAgent()
         break
       }
       case 'start':
         this.state = focusTask(this.state, task)
-        await this.newAgent('')
+        await this.openAgent()
         break
       case 'stop':
         await this.stopAgent(task)
@@ -1235,7 +1286,7 @@ export class App {
     if (!facts || !worktree || !root) {
       this.state = {
         ...this.state,
-        panel: { ...panel, busy: false, error: 'I cannot find where this task lives.' },
+        panel: { ...panel, busy: false, error: 'I cannot find where this agent works.' },
       }
       return
     }
@@ -1429,10 +1480,7 @@ export class App {
         this.state = notice(this.state, HELP)
         this.draw()
         return
-      case '/task':
-        await this.newTask(rest)
-        return
-      case '/agent':
+      case '/new':
         await this.newAgent(rest)
         return
       case '/stop':
@@ -1441,7 +1489,10 @@ export class App {
       case '/open': {
         const task = this.findTask(rest)
         if (!task) {
-          this.state = notice(this.state, rest ? `no task like ${rest}` : 'which task? /open name')
+          this.state = notice(
+            this.state,
+            rest ? `no agent like ${rest}` : 'which agent? /open name',
+          )
           this.prefill('/open ')
           return
         }
@@ -1455,87 +1506,74 @@ export class App {
   }
 
   /**
-   * Start work: a branch, a worktree, an agent in it, and your eyes on it.
-   *
-   * The project is the one you are looking at unless you name another, so the
-   * common case — watching a project, wanting another thing done in it — is
-   * one sentence with no questions asked back.
+   * A new agent in the project you are in: its own branch and worktree, pi in
+   * it, and your eyes on it. Nothing is asked first. It is named for what you
+   * said, or `agent-2` when you said nothing, and what you said — if anything —
+   * is the first thing it hears. Name another project first to start one there.
    */
-  private async newTask(said: string): Promise<void> {
+  private async newAgent(said: string): Promise<void> {
     const projects = Object.keys(this.opts.config.projects)
     if (projects.length === 0) {
-      this.state = notice(this.state, 'no projects yet — /project adds one')
+      this.state = notice(this.state, 'no projects yet — Open project adds one')
       this.draw()
       return
     }
-    const { project, intent } = whichProject(said, projects, focusedProject(this.state))
+    const { project, intent } = whichProject(said, projects, this.state.project)
     if (!project) {
-      this.state = notice(this.state, `which project? ${projects.join(' · ')}`)
-      this.prefill('/task ')
+      this.state = notice(this.state, `which project? /new ${projects.join(' · ')}`)
+      this.prefill('/new ')
       return
     }
-    if (intent === '') {
-      this.state = notice(this.state, `${project}: /task what needs doing`)
-      this.prefill('/task ')
-      return
-    }
-
-    this.state = notice(this.state, `starting ${project} · ${slugify(intent)}…`)
+    // A second click before the first agent exists must not make a second one.
+    if (this.starting) return
+    this.starting = true
+    this.state = notice(this.state, `starting a new agent in ${project}…`)
     this.draw()
     try {
-      const id = await this.startTask(project, intent, true)
-      this.state = focusTask(notice(this.state, `${id} — an agent is on it`), id)
+      const id = await this.startTask(project, intent)
+      this.state = focusTask(notice(this.state, `${id} is ready`), id)
     } catch (err) {
       this.state = notice(this.state, why(err))
+    } finally {
+      this.starting = false
     }
     this.draw()
   }
 
   /**
-   * A branch, a worktree, and — unless you said not to — an agent in it. The
-   * pane is refreshed before anything tries to focus it, because a pane you
-   * cannot see yet cannot take focus.
+   * A branch, a worktree and an agent in it. The name is the first free one:
+   * a branch left behind by an agent you removed still holds its name. The pane
+   * is refreshed before anything tries to focus it, because a pane you cannot
+   * see yet cannot take focus.
    */
-  private async startTask(
-    project: string,
-    intent: string,
-    start: boolean,
-    model: string | null = null,
-  ): Promise<string> {
-    const task = await this.opts.client.createTask({ project, slug: slugify(intent), intent })
-    if (start) {
-      const [provider, ...rest] = model?.split('/') ?? []
-      const chosen =
-        model && rest.length > 0
-          ? { provider: provider as string, id: rest.join('/') }
-          : model
-            ? { id: model }
-            : null
-      await this.opts.client.startAgent({
-        task: task.id,
-        cwd: task.worktree,
-        prompt: intent,
-        ...(chosen ? { model: chosen } : {}),
-      })
+  private async startTask(project: string, intent: string): Promise<string> {
+    const taken = new Set(
+      this.state.panes.filter((pane) => pane.project === project).map((pane) => pane.name),
+    )
+    const stem = (intent ? slugify(intent) : '') || 'agent'
+    for (let n = 1; n <= 100; n++) {
+      const slug = intent && n === 1 ? stem : `${stem}-${n}`
+      if (taken.has(slug)) continue
+      let task: Awaited<ReturnType<Workbench['createTask']>>
+      try {
+        task = await this.opts.client.createTask({ project, slug, intent })
+      } catch (err) {
+        if (why(err).includes('branch already exists')) continue
+        throw err
+      }
+      await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
+      await this.live?.refresh()
+      return task.id
     }
-    await this.live?.refresh()
-    return task.id
+    throw new Error(`every name like ${stem} is taken in ${project}`)
   }
 
-  /** Another agent on the task in front of you, or on one you name. */
-  private async newAgent(said: string): Promise<void> {
-    const { name, rest } = parseCommand(said)
-    const named = this.findTask(name)
-    const task = named ?? this.state.focused
-    const prompt = named ? rest : said
-    if (!task) {
-      this.state = notice(this.state, 'which task? /agent name what it should do')
-      this.prefill('/agent ')
-      return
-    }
+  /** Open the agent in front of you: the conversation picks up where it stopped. */
+  private async openAgent(task: string | null = this.state.focused): Promise<void> {
+    if (!task) return
     const worktree = this.live?.worktreeOf(task)
     if (!worktree) {
-      this.state = notice(this.state, `I do not know where ${task} lives`)
+      this.state = notice(this.state, `I do not know where ${task} works`)
       this.draw()
       return
     }
@@ -1543,10 +1581,9 @@ export class App {
     if (this.opening.has(task)) return
     this.opening.add(task)
     try {
-      await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt })
+      await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt: '' })
       await this.live?.refresh()
-      const said = prompt ? `an agent is working on ${task}` : `opened ${task} where it left off`
-      this.state = focusTask(notice(this.state, said), task)
+      this.state = focusTask(notice(this.state, `opened ${task} where it left off`), task)
     } catch (err) {
       this.state = notice(this.state, why(err))
     } finally {
@@ -1555,7 +1592,7 @@ export class App {
     this.draw()
   }
 
-  /** Stop the agent you are watching, or the one you name. The task stays. */
+  /** Stop the agent you are watching, or the one you name. Its work stays. */
   private async stopAgent(said: string): Promise<void> {
     const task = this.findTask(said) ?? this.state.focused
     if (!task) {
@@ -1566,7 +1603,7 @@ export class App {
     try {
       await this.opts.client.stopAgent(task)
       await this.live?.refresh()
-      this.state = notice(this.state, `${task} stopped — the task and its worktree stay`)
+      this.state = notice(this.state, `${task} stopped — its branch and worktree stay`)
     } catch (err) {
       this.state = notice(this.state, why(err))
     }
@@ -1814,41 +1851,43 @@ export class App {
   }
 
   /**
-   * The Open project list for what is typed: recent projects for a name,
-   * folders for a path. Read from disk once per query, not once per frame.
+   * The Open project list: the folder being looked in and the folders in it,
+   * then the recent projects. Typing narrows both; a typed path looks in that
+   * path instead. Read from disk once per folder and query, not once per frame.
    */
   private openRowsFor(panel: OpenProjectPanel): OpenRowView[] {
-    if (this.openCache?.query !== panel.query) {
-      const cwd = this.opts.cwd ?? process.cwd()
+    const key = `${panel.dir}\u0000${panel.query}`
+    if (this.openCache?.key !== key) {
       const path = isPath(panel.query)
-      // Recent projects stay in view while you browse: going back to one is
-      // the commonest reason to open this at all.
       const words = path ? [] : panel.query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      const matches = (text: string) => words.every((word) => text.toLowerCase().includes(word))
+      const { dir, prefix } = path
+        ? browsing(panel.query, panel.dir)
+        : { dir: panel.dir, prefix: '' }
+      const folders = listFolders(dir, prefix, 500)
+        .filter((folder) => matches(folder.name))
+        .map((folder) => ({
+          kind: 'folder' as const,
+          name: folder.name,
+          path: folder.path,
+          git: folder.git !== null,
+        }))
+      const here = {
+        kind: 'here' as const,
+        name: basename(dir) || dir,
+        path: dir,
+        git: isRepo(dir),
+      }
       const recent = recentProjects(readRecents(this.opts.home), this.opts.config.projects)
-        .filter((entry) =>
-          words.every((word) => `${entry.name} ${entry.root}`.toLowerCase().includes(word)),
-        )
-        .slice(0, path ? 5 : 12)
+        .filter((entry) => matches(`${entry.name} ${entry.root}`))
+        .slice(0, 12)
         .map((entry) => ({
           kind: 'recent' as const,
           name: entry.name,
           path: expandHome(entry.root),
           git: true,
         }))
-      if (path) {
-        const { dir, prefix } = browsing(panel.query, cwd)
-        const folders = listFolders(dir, prefix).map((folder) => ({
-          kind: 'folder' as const,
-          name: folder.name,
-          path: folder.path,
-          git: folder.git !== null,
-        }))
-        // Folders first in the list, though drawn below the recent ones: typing
-        // a path means you are looking for a folder, so Enter should open one.
-        this.openCache = { query: panel.query, rows: [...folders, ...recent], browsing: tilde(dir) }
-      } else {
-        this.openCache = { query: panel.query, rows: recent, browsing: null }
-      }
+      this.openCache = { key, rows: [here, ...folders, ...recent], browsing: dir }
       for (const row of this.openCache.rows) {
         if (row.git && !this.branches.has(row.path)) {
           this.branches.set(row.path, null)
@@ -1883,7 +1922,7 @@ export class App {
     const fail = (error: string) => {
       this.state = { ...this.state, panel: { ...panel, busy: false, error } }
     }
-    if (!chosen) return fail('Choose a project, or type a path to a folder.')
+    if (!chosen) return fail('Choose a folder, or a recent project.')
     if (chosen.kind === 'recent') {
       this.state = { ...selectProject(this.state, chosen.name), panel: null }
       noteRecent(this.opts.home, chosen.name, chosen.path, this.now())
@@ -2043,6 +2082,7 @@ export class App {
 
   private async loadAccounts(): Promise<void> {
     this.accounts = (await this.opts.accounts?.().catch(() => [])) ?? []
+    this.credentials = (await this.opts.credentials?.().catch(() => ({}))) ?? {}
     this.models = (await this.opts.models?.().catch(() => [])) ?? this.models
     this.draw()
   }
@@ -2144,4 +2184,12 @@ function why(err: unknown): string {
 /** Only some terminals report key releases, which is what holding a key needs. */
 function kittyActive(terminal: Terminal): boolean {
   return (terminal as { kittyProtocolActive?: boolean }).kittyProtocolActive === true
+}
+
+/** How a provider is paid for, the way the status bar says it. */
+function credentialLabel(kind: 'signed-in' | 'api-key' | 'env-key' | undefined): string | null {
+  if (kind === 'signed-in') return 'signed in'
+  if (kind === 'api-key') return 'API key'
+  if (kind === 'env-key') return 'env API key'
+  return null
 }

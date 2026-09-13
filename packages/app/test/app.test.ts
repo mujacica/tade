@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@wilco/core'
@@ -314,7 +314,7 @@ describe('the window, wired up', () => {
     terminal.press('\t')
     terminal.written = ''
     terminal.press('/')
-    await until('the command list', () => terminal.written.includes('/task'))
+    await until('the command list', () => terminal.written.includes('/new'))
     expect(terminal.written).toContain('/settings')
   })
 
@@ -343,42 +343,48 @@ describe('the window, wired up', () => {
     throw new Error(`"${label}" is not on screen`)
   }
 
-  it('opens New task from its button, and closes it again with esc', async () => {
+  it('starts a new agent from its button, asking nothing first', async () => {
     await start()
-    await until('the first frame', () => terminal.written.includes('New task'))
-    const button = find('+ New task')
-    terminal.written = ''
+    await until('the first frame', () => terminal.written.includes('New agent'))
+    const button = find('+ New agent')
     click(button.col + 2, button.row)
-    await until('the panel', () => terminal.written.includes('What needs doing?'))
-
-    terminal.written = ''
-    terminal.press('\x1b')
-    // The rows it covered are drawn again with the window that was under it.
-    await until('the window back', () => terminal.written.includes('FILES'))
-  })
-
-  it('starts a task from the panel without typing a command', async () => {
-    await start()
-    await until('the first frame', () => terminal.written.includes('New task'))
-    const button = find('+ New task')
-    click(button.col + 2, button.row)
-    await until('the panel', () => terminal.written.includes('What needs doing?'))
-
-    for (const char of 'tidy the readme') terminal.press(char)
-    // No agent in a test: tab to "start it now", untick it, then to Start.
-    terminal.press('\t')
-    terminal.press(' ')
-    terminal.press('\t')
-    terminal.press('\t')
-    terminal.press('\r')
     const deadline = Date.now() + 20_000
     while ((await client.events({ types: ['task_created'] })).length === 0) {
-      if (Date.now() > deadline) throw new Error('no task was created')
+      if (Date.now() > deadline) throw new Error('no agent was made')
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     const [created] = await client.events({ types: ['task_created'] })
-    expect(created?.detail.intent_spoken).toBe('tidy the readme')
+    // Named for nothing in particular, because nothing was said.
+    expect(created?.task).toBe('app/agent-1')
   }, 30_000)
+
+  it('opens a project from the + beside the tabs, looking in your home folder', async () => {
+    const folders = tmp('wilco-app-home-')
+    writeFileSync(join(folders, 'notes.txt'), 'not a folder')
+    mkdirSync(join(folders, 'payments'))
+    const was = process.env.HOME
+    process.env.HOME = folders
+    try {
+      await start()
+      await until('the first frame', () => terminal.written.includes('WILCO'))
+      const tabs = screenOf(terminal.written)[0] ?? ''
+      terminal.written = ''
+      click(tabs.indexOf('+'), 0)
+      await until('the panel', () => terminal.written.includes('Open a project'))
+      await until('the folders in home', () => terminal.written.includes('payments/'))
+      expect(terminal.written).toContain('RECENT')
+
+      // Once to choose it, and again to go in, the way folders work everywhere.
+      const folder = find('payments/')
+      click(folder.col, folder.row)
+      await until('it to be chosen', () => terminal.written.includes('Open ~/payments'))
+      terminal.written = ''
+      click(folder.col, folder.row)
+      await until('the folder to be opened', () => terminal.written.includes('no folders here'))
+    } finally {
+      process.env.HOME = was
+    }
+  })
 
   // The panels, opened the way a person opens them, through the whole window.
   // The screen tests draw each panel from a frame they build themselves; these
@@ -394,25 +400,26 @@ describe('the window, wired up', () => {
     expect(terminal.written).toContain('Accounts')
   })
 
-  it("opens a task's menu with a right-click, listing what can be done", async () => {
+  it("opens an agent's menu with a right-click, listing what can be done", async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
-    const task = find('refunds')
+    // With a space before it: the worktree's path under GIT says refunds too.
+    const task = find(' refunds')
     terminal.written = ''
     terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}M`)
     terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}m`)
-    await until('the menu', () => terminal.written.includes('Remove task'))
+    await until('the menu', () => terminal.written.includes('Remove agent'))
     expect(terminal.written).toContain('Copy branch name')
   })
 
-  it('goes to anything with ctrl+g, and finds the tasks there', async () => {
+  it('goes to anything with ctrl+g, and finds the agents there', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
     terminal.written = ''
     terminal.press('\x07')
     await until('the palette', () => terminal.written.includes('Go to anything'))
     for (const char of 'sear') terminal.press(char)
-    await until('the search task', () => terminal.written.includes('task in app'))
+    await until('the search agent', () => terminal.written.includes('agent in app'))
   })
 
   it('opens the Spend panel from the status bar', async () => {

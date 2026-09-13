@@ -34,7 +34,7 @@ interface PiContext {
   getContextUsage?(): { tokens: number | null; percent: number | null } | undefined
   /** The harness prices each message against its own model catalog. */
   sessionManager?: { getEntries?(): Array<{ usage?: PiUsage } | null> }
-  model?: { id?: string } | string
+  model?: { id?: string; provider?: string } | string
 }
 
 /** What the harness records per message. Everything optional: it is theirs. */
@@ -240,7 +240,11 @@ export default function wilcoExtension(pi: PiApi): void {
   }) as never)
 
   function modelOf(ctx: PiContext): string | null {
-    return typeof ctx.model === 'string' ? ctx.model : (ctx.model?.id ?? null)
+    if (typeof ctx.model === 'string') return ctx.model
+    const id = ctx.model?.id
+    if (!id) return null
+    // With its provider, so the window can say which account is paying for it.
+    return ctx.model?.provider ? `${ctx.model.provider}/${id}` : id
   }
 
   /** Everything the session has spent, from its own running totals. */

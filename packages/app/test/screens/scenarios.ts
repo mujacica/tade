@@ -16,10 +16,8 @@ import {
   diffPanel,
   menuItems,
   menuPanel,
-  newTaskPanel,
   openProjectPanel,
   palettePanel,
-  panelFailed,
   settingsPanel,
   spendPanel,
 } from '../../src/panels.ts'
@@ -86,7 +84,26 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
   skin: COLOUR,
   now: NOW,
   home: '~/.wilco',
-  files: ['src/', 'test/', 'package.json', 'README.md'],
+  files: [
+    { path: 'src', name: 'src', depth: 0, folder: true, open: true },
+    {
+      path: 'src/webhooks.test.ts',
+      name: 'webhooks.test.ts',
+      depth: 1,
+      folder: false,
+      open: false,
+    },
+    { path: 'src/webhooks.ts', name: 'webhooks.ts', depth: 1, folder: false, open: false },
+    { path: 'test', name: 'test', depth: 0, folder: true, open: false },
+    { path: 'package.json', name: 'package.json', depth: 0, folder: false, open: false },
+    { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
+  ],
+  where: {
+    repo: '~/src/checkout',
+    branch: 'wilco/stripe-v15',
+    base: 'main',
+    worktree: '~/.wilco/worktrees/checkout-stripe-v15',
+  },
   changes: [
     { path: 'package.json', mark: 'M', added: 2, removed: 1 },
     { path: 'src/webhooks.test.ts', mark: 'A', added: 48, removed: null },
@@ -108,7 +125,12 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
       'checkout/refunds': { tokens: 460_000, usd: 0.62 },
     },
   },
-  route: { harness: 'pi', model: 'anthropic/claude-opus-5', provider: 'anthropic' },
+  route: {
+    harness: 'pi',
+    model: 'anthropic/claude-opus-5',
+    provider: 'anthropic',
+    credential: 'signed in',
+  },
   vitals: { model: 'anthropic/claude-opus-5', contextPercent: 41 },
   voice: { keys: ['ctrl', 'space'], available: true },
   ...over,
@@ -173,13 +195,13 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'every-section-open',
-    about: 'Files and notes unfolded, as they are after a click on their headings.',
-    state: toggleSection(toggleSection(base(), 'files'), 'notes'),
+    about: 'Notes unfolded too, as they are after a click on the heading.',
+    state: toggleSection(base(), 'notes'),
     frame: frame(),
   },
   {
-    name: 'a-task-with-no-agent',
-    about: 'A task whose agent is not running: one button opens it again.',
+    name: 'an-agent-not-running',
+    about: 'An agent that is not running: one button opens it again.',
     state: focusTask(base(), 'search/pagination'),
     frame: frame({ screen: '', changes: [] }),
   },
@@ -206,34 +228,6 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({ screen: '' }),
   },
   {
-    name: 'new-task',
-    about: 'The New task panel over the faded window, half filled in.',
-    state: {
-      ...base(),
-      panel: {
-        ...newTaskPanel(['checkout', 'search', 'infra'], 'checkout'),
-        intent: 'refunds are charged twice when the webhook retries',
-      },
-    },
-    frame: frame(),
-  },
-  {
-    name: 'new-task-refused',
-    about: 'The New task panel saying why it did not start, in the panel rather than behind it.',
-    state: {
-      ...base(),
-      panel: panelFailed(
-        {
-          ...newTaskPanel(['checkout', 'search', 'infra'], 'checkout'),
-          intent: 'add a file',
-          field: 'go',
-        },
-        'branch already exists: wilco/add-a-file',
-      ),
-    },
-    frame: frame(),
-  },
-  {
     name: 'spend',
     about:
       'The Spend panel: the orchestrator and every agent today, and each project against its budget.',
@@ -250,7 +244,7 @@ export const SCENARIOS: Scenario[] = [
     }),
   },
   {
-    name: 'task-menu',
+    name: 'agent-menu',
     about: "A task's menu, opened from its ≡: what can be done, and why not where it cannot.",
     state: { ...base(), panel: menuPanel('checkout/stripe-v15', { row: 4, col: 2 }) },
     frame: frame({
@@ -260,7 +254,7 @@ export const SCENARIOS: Scenario[] = [
     }),
   },
   {
-    name: 'remove-task',
+    name: 'remove-agent',
     about: 'Removing a task asks first, and says exactly what would be lost.',
     state: { ...base(), panel: confirmRemovePanel('checkout/stripe-v15') },
     frame: frame({ panel: { ahead: 3, branch: 'wilco/stripe-v15', base: 'main' } }),
@@ -293,32 +287,6 @@ export const SCENARIOS: Scenario[] = [
             '     await refund(event)',
           ].join('\n'),
         ),
-      },
-    }),
-  },
-  {
-    name: 'choosing-a-model',
-    about: "New task's model list, open and narrowed by typing.",
-    state: {
-      ...base(),
-      panel: {
-        ...newTaskPanel(['checkout', 'search', 'infra'], 'checkout'),
-        intent: 'refunds are charged twice when the webhook retries',
-        dropdown: { query: 'opus', index: 0 },
-      },
-    },
-    frame: frame({
-      panel: {
-        choices: [
-          { value: 'anthropic/claude-opus-5', label: 'claude-opus-5', group: 'anthropic' },
-          { value: 'anthropic/claude-opus-4-8', label: 'claude-opus-4-8', group: 'anthropic' },
-          { value: 'anthropic/claude-sonnet-5', label: 'claude-sonnet-5', group: 'anthropic' },
-          {
-            value: 'openrouter/anthropic/claude-opus-5',
-            label: 'anthropic/claude-opus-5',
-            group: 'openrouter',
-          },
-        ],
       },
     }),
   },
@@ -357,30 +325,25 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'open-project',
     about:
-      'Opening a project: recent ones first, any folder by path, and git offered where there is none.',
-    state: { ...base(), panel: { ...openProjectPanel('~/src/pay'), index: 4 } },
+      'Opening a project: a folder browser from home, recent projects beside it, git offered where there is none.',
+    state: {
+      ...base(),
+      panel: {
+        ...openProjectPanel('/Users/me/src'),
+        back: ['/Users/me'],
+        index: 2,
+      },
+    },
     frame: frame({
       panel: {
-        browsing: '~/src',
+        browsing: '/Users/me/src',
         homeDir: '/Users/me',
         openRows: [
           {
-            row: { kind: 'recent', name: 'checkout', path: '/Users/me/src/checkout', git: true },
-            branch: 'main',
-            tasks: 3,
-            when: '2h ago',
-          },
-          {
-            row: { kind: 'recent', name: 'search', path: '/Users/me/src/search', git: true },
-            branch: 'main',
-            tasks: 1,
-            when: 'yesterday',
-          },
-          {
-            row: { kind: 'recent', name: 'wilco', path: '/Users/me/wilco', git: true },
-            branch: 'main',
+            row: { kind: 'here', name: 'src', path: '/Users/me/src', git: false },
+            branch: null,
             tasks: 0,
-            when: '4 days ago',
+            when: null,
           },
           {
             row: { kind: 'folder', name: 'payments', path: '/Users/me/src/payments', git: true },
@@ -393,6 +356,24 @@ export const SCENARIOS: Scenario[] = [
             branch: null,
             tasks: 0,
             when: null,
+          },
+          {
+            row: { kind: 'folder', name: 'search', path: '/Users/me/src/search', git: true },
+            branch: 'main',
+            tasks: 0,
+            when: null,
+          },
+          {
+            row: { kind: 'recent', name: 'checkout', path: '/Users/me/src/checkout', git: true },
+            branch: 'main',
+            tasks: 3,
+            when: '2h ago',
+          },
+          {
+            row: { kind: 'recent', name: 'wilco', path: '/Users/me/wilco', git: true },
+            branch: 'main',
+            tasks: 0,
+            when: '4 days ago',
           },
         ],
       },
@@ -408,7 +389,7 @@ export const SCENARIOS: Scenario[] = [
           {
             id: 'task:checkout/stripe-v15',
             label: 'stripe-v15',
-            kind: 'task in checkout',
+            kind: 'agent in checkout',
             mark: '●',
             tone: 'waiting',
             note: 'waiting on you',
@@ -424,7 +405,7 @@ export const SCENARIOS: Scenario[] = [
           {
             id: 'changes:checkout/stripe-v15',
             label: 'Show the changes in stripe-v15',
-            kind: 'task',
+            kind: 'agent',
             mark: '±',
           },
           {
@@ -479,12 +460,21 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'first-open',
-    about: 'A project and nothing running yet: what to do next, as buttons.',
+    about:
+      'A project and nothing running yet: its repository and files, and what to do next, as buttons.',
     state: withProjects(initialState(), ['checkout']),
     frame: frame({
       screen: '',
       changes: [],
       notes: [],
+      base: null,
+      where: { repo: '~/src/checkout', branch: 'main', base: null, worktree: null },
+      files: [
+        { path: 'src', name: 'src', depth: 0, folder: true, open: false },
+        { path: 'test', name: 'test', depth: 0, folder: true, open: false },
+        { path: 'package.json', name: 'package.json', depth: 0, folder: false, open: false },
+        { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },
+      ],
       spend: { tokens: 0, usd: 0, hasCost: false, byTask: {} },
     }),
   },
