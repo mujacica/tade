@@ -184,7 +184,11 @@ export class Workbench {
           approvals: config.approvals.mode,
         }),
         log,
-        approvals: { mode: config.approvals.mode, autoAllow: config.approvals.auto_allow },
+        approvals: {
+          mode: config.approvals.mode,
+          autoAllow: config.approvals.auto_allow,
+          rules: config.approvals.rules,
+        },
       })
 
       const workbench = new Workbench({

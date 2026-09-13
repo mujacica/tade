@@ -246,3 +246,56 @@ describe('inside', () => {
     expect(inside('/etc/hosts', null)).toBe(false)
   })
 })
+
+// Rules somebody wrote for their own machine.
+//
+// The thing under test is the direction they can move in: Wilco's own list is
+// a floor rather than a default, so yours can tighten it and never loosen it.
+
+describe('rules of your own', () => {
+  const facts = (command: string) => ({ tool: 'bash', input: { command }, worktree: '/wt' })
+
+  it('holds something only you know is dangerous here', () => {
+    const decided = classifyToolCall(facts('terraform apply -auto-approve'), {
+      rules: [{ match: 'terraform\\s+apply', tier: 'hard' as const, reason: 'changes production' }],
+    })
+    expect(decided).toMatchObject({ tier: 'hard', reason: 'changes production' })
+  })
+
+  it('names the pattern in the ledger, so a decision can be explained later', () => {
+    const decided = classifyToolCall(facts('terraform apply'), {
+      rules: [{ match: 'terraform', tier: 'hard' as const }],
+    })
+    expect(decided.rule).toBe('yours:terraform')
+  })
+
+  it('cannot loosen what Wilco already thinks is dangerous', () => {
+    // `soft` is written, but a force push is `hard` and stays `hard`. The way
+    // to loosen anything is `auto_allow`, which names exact tools on purpose.
+    const decided = classifyToolCall(facts('git push --force origin main'), {
+      rules: [{ match: 'git push', tier: 'soft' as const, reason: 'we do this all the time' }],
+    })
+    expect(decided).toMatchObject({ tier: 'hard', rule: 'force-push' })
+  })
+
+  it('takes the first of yours that applies', () => {
+    const decided = classifyToolCall(facts('deploy to production'), {
+      rules: [
+        { match: 'deploy', tier: 'soft' as const, reason: 'deploys' },
+        { match: 'production', tier: 'hard' as const, reason: 'production' },
+      ],
+    })
+    // The soft one is not stricter than `command`'s own soft, so it is skipped
+    // and the hard one decides: strictness wins over order.
+    expect(decided).toMatchObject({ tier: 'hard', reason: 'production' })
+  })
+
+  it('skips a pattern it cannot read rather than failing the turn', () => {
+    // A typo is reported by `wilco config --check`. An agent mid-turn is not
+    // the moment to discover one.
+    const decided = classifyToolCall(facts('ls'), {
+      rules: [{ match: '([unclosed', tier: 'hard' as const }],
+    })
+    expect(decided.tier).toBe('auto')
+  })
+})

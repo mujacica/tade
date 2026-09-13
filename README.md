@@ -309,6 +309,11 @@ worktree) still runs untouched, ordinary commands ask for a word, and a short li
 destructive ones — force push, history rewrite, `rm -rf` outside the worktree, credential access,
 publishing, database migrations — require you to hear the exact command first.
 
+**`approvals.rules` is for the things only you know are dangerous here** — `terraform apply`, a
+deploy script, a migration runner. They can only make Wilco stricter: there is no `auto` to write,
+and where one disagrees with a built-in the stricter wins. Loosening is `auto_allow`, which names
+exact tools and is a deliberate thing to type.
+
 **Workers can be contained; the orchestrator cannot.** Set `sandbox` on a route and workers on it
 run under `sandbox-exec` (macOS) or `bwrap` (Linux) with exactly one writable place: the task's own
 worktree, plus temp directories and build caches. Your other repositories, your dotfiles, your keys
@@ -484,9 +489,6 @@ work out whether it was an oversight.
 - **Nothing proposes a lesson on its own.** The orchestrator has a tool for writing one down and
   uses it when it notices something; there is no reflector watching finished tasks. Automatic
   proposals would mostly generate things to turn down.
-- **The approval policy is a classifier, not a rules file.** You can switch it on and list tools that
-  never ask, but adding "never `terraform apply` here" means editing `packages/core/src/policy.ts`.
-  A rules file is a good idea; it is not built.
 - **No wake word, and no transcription while you are still talking.** Push-to-talk is deliberate: a
   microphone that is always listening in a room where you take calls is a different product.
 - **One window per `WILCO_HOME` at a time.** Two would interleave in one journal. Questions —
@@ -507,6 +509,8 @@ workspace:
 approvals:
   mode: bypass             # bypass (default, never interrupts) | policy
   auto_allow: []           # tools that never ask when mode is policy
+  rules:                   # your own; they can only ever tighten things
+    - { match: 'terraform\s+apply', tier: hard, reason: changes production }
 orchestrator:
   provider: anthropic      # omit to use whatever the harness is logged in to
   model: claude-opus-5

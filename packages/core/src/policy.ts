@@ -32,9 +32,54 @@ export interface PolicyDecision {
   reason: string
 }
 
+/**
+ * A rule somebody wrote for their own machine.
+ *
+ * It can only ever make Wilco *stricter*: there is no `auto` to write, and
+ * where a rule disagrees with a built-in the stricter of the two wins. Wilco's
+ * own list is a floor, not a default — loosening is `auto_allow`, which names
+ * exact tools and is a deliberate thing to type.
+ */
+export interface PolicyRule {
+  /** Matched against the command, as a regular expression. */
+  match: string
+  tier: 'soft' | 'hard'
+  /** One clause to say out loud. Falls back to the pattern. */
+  reason?: string
+}
+
 export interface PolicyOptions {
   /** Per-project allowlist of tools that never ask. */
   autoAllow?: string[]
+  /** Extra rules from the config, which may only tighten things. */
+  rules?: readonly PolicyRule[]
+}
+
+const STRICTNESS: Record<Tier, number> = { auto: 0, soft: 1, hard: 2 }
+
+/**
+ * The first of your own rules that matches, if any is stricter than what Wilco
+ * decided on its own. Unreadable patterns are skipped rather than thrown over:
+ * `wilco config --check` is where a bad one is reported, and an agent mid-turn
+ * is not the moment to find out about a typo.
+ */
+function yours(command: string, decided: PolicyDecision, rules: readonly PolicyRule[]) {
+  for (const rule of rules) {
+    if (STRICTNESS[rule.tier] <= STRICTNESS[decided.tier]) continue
+    let pattern: RegExp
+    try {
+      pattern = new RegExp(rule.match)
+    } catch {
+      continue
+    }
+    if (!pattern.test(command)) continue
+    return {
+      tier: rule.tier as Tier,
+      rule: `yours:${rule.match}`,
+      reason: rule.reason ?? rule.match,
+    }
+  }
+  return null
 }
 
 /**
@@ -46,6 +91,7 @@ export type ApprovalMode = 'bypass' | 'policy'
 export interface ApprovalSettings {
   mode: ApprovalMode
   autoAllow?: string[]
+  rules?: readonly PolicyRule[]
 }
 
 export interface Approval extends PolicyDecision {
@@ -58,10 +104,10 @@ export interface Approval extends PolicyDecision {
  * when nothing asked you about it.
  */
 export function decideApproval(facts: ToolCallFacts, settings: ApprovalSettings): Approval {
-  const classified = classifyToolCall(
-    facts,
-    settings.autoAllow ? { autoAllow: settings.autoAllow } : {},
-  )
+  const classified = classifyToolCall(facts, {
+    ...(settings.autoAllow ? { autoAllow: settings.autoAllow } : {}),
+    ...(settings.rules ? { rules: settings.rules } : {}),
+  })
   if (settings.mode === 'bypass') return { ...classified, decision: 'allow' }
   return { ...classified, decision: classified.tier === Tier.auto ? 'allow' : 'ask' }
 }
@@ -158,7 +204,12 @@ export function classifyToolCall(
   if (command === null) {
     return { tier: Tier.soft, rule: 'unknown-tool', reason: `${facts.tool} is not a known tool` }
   }
+  const mine = classifyCommand(command, facts)
+  return yours(command, mine, options.rules ?? []) ?? mine
+}
 
+/** What Wilco makes of a command on its own, before your rules are consulted. */
+function classifyCommand(command: string, facts: ToolCallFacts): PolicyDecision {
   for (const rule of HARD_COMMANDS) {
     if (rule.test.test(command)) return { tier: Tier.hard, rule: rule.rule, reason: rule.reason }
   }

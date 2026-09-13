@@ -55,6 +55,16 @@ export const ProjectConfigSchema = z.strictObject({
     .optional(),
 })
 
+/** Whether a pattern compiles, so a typo is caught at `--check` time. */
+function isPattern(source: string): boolean {
+  try {
+    new RegExp(source)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export const ConfigSchema = z
   .strictObject({
     workspace: z
@@ -98,6 +108,23 @@ export const ConfigSchema = z
         mode: z.enum(['bypass', 'policy']).default('bypass'),
         /** Tools that never ask, when mode is `policy`. */
         auto_allow: z.array(z.string()).default([]),
+        /**
+         * Your own rules, for the things only you know are dangerous here.
+         * They can only make Wilco stricter — there is no `auto` to write, and
+         * where one disagrees with a built-in the stricter wins. Loosening is
+         * `auto_allow`, which names exact tools on purpose.
+         */
+        rules: z
+          .array(
+            z.strictObject({
+              /** A regular expression, matched against the command. */
+              match: z.string().min(1).refine(isPattern, 'not a usable regular expression'),
+              tier: z.enum(['soft', 'hard']),
+              /** One clause to say out loud. */
+              reason: z.string().optional(),
+            }),
+          )
+          .default([]),
       })
       .prefault({}),
     // Only keys that drive something. A setting Wilco accepts and ignores is
