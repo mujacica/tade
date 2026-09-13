@@ -124,6 +124,18 @@ export const ConfigSchema = z
               .prefault({}),
           })
           .prefault({}),
+        /**
+         * How the window is divided. Sizes are wishes: a sidebar wider than
+         * the terminal leaves nothing to watch, so they are fitted rather than
+         * obeyed. Which pane you were on is remembered separately, in
+         * `<home>/window.json`, because that is the part people notice.
+         */
+        window: z
+          .strictObject({
+            sidebar_width: z.int().positive().optional(),
+            strip_height: z.int().positive().optional(),
+          })
+          .prefault({}),
       })
       .prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),

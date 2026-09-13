@@ -213,6 +213,27 @@ describe('the window, wired up', () => {
     )
   })
 
+  it('comes back to the pane you were watching', async () => {
+    const first = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Focus starts on refunds; move it to search.
+    terminal.press('\t')
+    await until('the marker to move', () => /▸.?\s*search/.test(terminal.written))
+    await first.stop()
+
+    // A new window, same home: it should not dump you back on the first task.
+    terminal = new FakeTerminal()
+    await start()
+    await until('the window to come back', () => terminal.written.includes('search'))
+    expect(terminal.written).toMatch(/▸.?\s*search/)
+  })
+
+  it('opens on the first task when it has never been opened before', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    expect(terminal.written).toMatch(/▸.?\s*refunds/)
+  })
+
   it('stops cleanly, and stopping twice is safe', async () => {
     const started = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   type Component,
@@ -18,11 +18,13 @@ import {
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
 import { appKey } from './keys.ts'
+import { asRemembered, type LayoutPrefs, type RememberedWindow } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
 import {
   type AppState,
   addTurn,
   focusBy,
+  focusTask,
   initialState,
   keyAction,
   noteTyping,
@@ -54,15 +56,20 @@ const MAX_SPEECH_MS = 120_000
 const BACKSPACE = /^(\x7f|\b)$/
 
 class Window implements Component {
-  private readonly frame: () => { state: AppState; screen: string; height: number }
+  private readonly frame: () => {
+    state: AppState
+    screen: string
+    height: number
+    layout: LayoutPrefs
+  }
 
-  constructor(frame: () => { state: AppState; screen: string; height: number }) {
+  constructor(frame: Window['frame']) {
     this.frame = frame
   }
 
   render(width: number): string[] {
-    const { state, screen, height } = this.frame()
-    return renderApp(state, { width, height, screen })
+    const { state, screen, height, layout } = this.frame()
+    return renderApp(state, { width, height, screen, layout })
   }
 
   invalidate(): void {
@@ -97,6 +104,9 @@ export class App {
   private state: AppState = initialState()
   private screen = ''
   private recording: Recording | null = null
+  /** Where you were last time, applied once the tasks are known. */
+  private remembered: RememberedWindow | null = null
+  private restored = false
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -132,6 +142,7 @@ export class App {
     if (this.stopped) return
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
+    this.remember()
     this.release?.()
     this.tui.stop()
     await this.voice?.stop()
@@ -139,7 +150,41 @@ export class App {
     this.settle()
   }
 
+  /** Where the window writes down what it wants back next time. */
+  private get memoryFile(): string {
+    return join(this.opts.home, 'window.json')
+  }
+
+  private recall(): RememberedWindow | null {
+    try {
+      return asRemembered(JSON.parse(readFileSync(this.memoryFile, 'utf8')))
+    } catch {
+      // Never opened before, or a file we cannot read. Neither is a problem.
+      return null
+    }
+  }
+
+  private remember(): void {
+    try {
+      const kept: RememberedWindow = { focused: this.state.focused }
+      writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
+    } catch {
+      // Coming back to the same pane is a convenience, not a reason to fail
+      // on the way out.
+    }
+  }
+
+  /** Sizes from the config. The terminal has the last word on all of them. */
+  private layout(): LayoutPrefs {
+    const window = this.opts.config.surfaces.window
+    return {
+      ...(window.sidebar_width ? { sidebarWidth: window.sidebar_width } : {}),
+      ...(window.strip_height ? { stripHeight: window.strip_height } : {}),
+    }
+  }
+
   private async begin(): Promise<void> {
+    this.remembered = this.recall()
     // Held as a local as well as a field: the surface below closes over it, so
     // it never has to wonder whether there is one.
     const live = await Live.start({
@@ -150,6 +195,12 @@ export class App {
       ...(this.opts.now ? { now: this.opts.now } : {}),
       onTasks: (tasks) => {
         this.state = withTasks(this.state, tasks)
+        // Focus can only be restored once there are panes to restore it to,
+        // and only the first time: after that it is wherever you moved to.
+        if (!this.restored && this.remembered?.focused) {
+          this.state = focusTask(this.state, this.remembered.focused)
+          this.restored = this.state.panes.length > 0
+        }
         this.draw()
       },
       onEvent: (event) => {
@@ -190,6 +241,7 @@ export class App {
         state: this.state,
         screen: this.screen,
         height: Math.max(6, this.terminal.rows),
+        layout: this.layout(),
       })),
     )
     this.release = this.tui.addInputListener((data) => this.onInput(data))

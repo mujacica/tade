@@ -250,6 +250,18 @@ search            │ ⏵ wants approval: bash: npm i stripe@15
   flushed in order the moment they can't spell it, and what is held is shown while it waits.
 - **A pane raises itself when an agent needs you** — but never while you're mid-sentence somewhere
   else: nothing takes the screen out from under you until you've been idle for 30 seconds.
+- **It opens where you left it.** The pane you were watching is remembered in `~/.wilco/window.json`.
+  Sizes come from the config rather than from keys, because every key the window claims is one the
+  focused agent never receives — `[` and `]` would be a nice way to resize a sidebar and a terrible
+  way to lose a bracket:
+
+  ```yaml
+  surfaces:
+    window: { sidebar_width: 30, strip_height: 12 }
+  ```
+
+  Both are wishes rather than instructions: a sidebar wider than the terminal leaves nothing to
+  watch, so they are fitted to the window you actually have.
 - **Every exchange shows its reasoning** (`→ park · checkout/stripe-v15 · "you mentioned it last"`),
   so a wrong guess is obvious and can be corrected rather than silently obeyed.
 - `a` and `d` answer an approval, and only while that pane is actually waiting on one.

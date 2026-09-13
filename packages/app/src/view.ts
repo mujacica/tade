@@ -1,5 +1,6 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@wilco/voice-core'
+import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import { type AppState, glyph, headline, paneTitle, sidebar } from './model.ts'
 
 // Drawing, as one pure function of state.
@@ -12,27 +13,24 @@ import { type AppState, glyph, headline, paneTitle, sidebar } from './model.ts'
 // have to tail: an agent's newest output is the point, and a stack that clips
 // from the bottom would show you the top of the screen instead.
 
-export const SIDEBAR_WIDTH = 24
-/** Rows kept for the orchestrator, including its rule and title. */
-export const STRIP_HEIGHT = 9
-const MIN_STRIP = 4
-
 export interface Frame {
   width: number
   height: number
   /** The focused lane's screen, as captured. May carry ANSI. */
   screen: string
+  /** How to divide the window. Defaults when absent. */
+  layout?: LayoutPrefs
 }
 
-/** The whole window, one string per row, each exactly `width` wide. */
+/** The whole window, one string per row, each exactly as wide as the window. */
 export function renderApp(state: AppState, frame: Frame): string[] {
-  const width = Math.max(20, frame.width)
-  const height = Math.max(6, frame.height)
-  const stripHeight = Math.max(MIN_STRIP, Math.min(STRIP_HEIGHT, Math.floor(height / 3)))
-  // Everything above the strip's rule, less the footer.
-  const bodyHeight = height - stripHeight - 1
-  const sidebarWidth = Math.min(SIDEBAR_WIDTH, Math.max(12, Math.floor(width / 4)))
-  const mainWidth = width - sidebarWidth - 1
+  const { sidebarWidth, stripHeight, mainWidth, bodyHeight } = resolveLayout(
+    frame.layout ?? {},
+    frame,
+  )
+  // The clamped width, not the asked-for one: a terminal too narrow to hold a
+  // readable sidebar and a pane still gets whole rows, just wider than itself.
+  const width = sidebarWidth + mainWidth + 1
 
   const left = renderSidebar(state, sidebarWidth, bodyHeight)
   const right = renderMain(state, frame.screen, mainWidth, bodyHeight)
