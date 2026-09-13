@@ -102,6 +102,13 @@ export function testWorkspaceDriver(
       await driver.shutdown()
     })
 
+    it('says whether this machine can provide it', async () => {
+      // The suite is running, so it can: what matters is that the answer is
+      // shaped like one you could show somebody, not that it is true here.
+      const availability = await driver.available()
+      expect(availability.ok).toBe(true)
+    })
+
     it('declares an id and a full capability set', () => {
       expect(driver.id).toBeTruthy()
       for (const key of ['detach', 'remoteAttach', 'nativeTabs', 'focus', 'setTitle', 'adopt']) {

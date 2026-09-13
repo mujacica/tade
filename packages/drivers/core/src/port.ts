@@ -65,10 +65,20 @@ export interface CaptureOptions {
 export type LaneOutputListener = (chunk: Uint8Array) => void
 export type LaneExitListener = (exit: { code: number | null; signal: number | null }) => void
 
+/** Whether this machine can actually provide something, and why not. */
+export type Availability = { ok: true } | { ok: false; reason: string }
+
 export interface WorkspaceDriver {
   readonly id: string
   readonly capabilities: WorkspaceCapabilities
 
+  /**
+   * Whether this machine can run lanes here at all — `tmux` asked for on a
+   * machine with no tmux. Asked before anything is opened, so a driver that
+   * cannot be provided is a sentence you can act on rather than a failed spawn
+   * much later with no explanation attached.
+   */
+  available(): Promise<Availability>
   open(spec: LaneSpec): Promise<LaneHandle>
   write(lane: LaneId, data: Uint8Array): Promise<void>
   /** A rendered snapshot of the screen, not a soup of escape sequences. */

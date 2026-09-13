@@ -77,6 +77,44 @@ export interface RemoveTaskRequest {
   force?: boolean
 }
 
+/**
+ * The driver lanes will live in.
+ *
+ * A driver the machine cannot provide is not a dead end — `workspace.fallback`
+ * says where to go instead — but it is never silent: agents quietly losing the
+ * ability to outlive the window is the kind of thing you would discover at the
+ * worst possible moment. Set `fallback` to the same driver to refuse instead.
+ */
+export async function chooseDriver(opts: {
+  wanted: string
+  fallback: string
+  home: string
+  /** Injectable so the choice can be tested without uninstalling anything. */
+  registry?: Record<string, (home: string) => WorkspaceDriver>
+}): Promise<{ driver: WorkspaceDriver; warning: string }> {
+  const registry = opts.registry ?? drivers
+  const make = registry[opts.wanted]
+  if (!make) throw new Error(`unknown workspace driver: ${opts.wanted}`)
+  const driver = make(opts.home)
+  const availability = await driver.available()
+  if (availability.ok) return { driver, warning: '' }
+
+  const makeFallback = opts.fallback === opts.wanted ? undefined : registry[opts.fallback]
+  if (!makeFallback) {
+    throw new Error(`workspace.driver is ${opts.wanted}, and ${availability.reason}`)
+  }
+  const fallback = makeFallback(opts.home)
+  const second = await fallback.available()
+  if (!second.ok) throw new Error(`neither ${opts.wanted} nor ${opts.fallback} can run here`)
+  return {
+    driver: fallback,
+    warning:
+      `workspace.driver is ${opts.wanted}, and ${availability.reason}. ` +
+      `Using ${opts.fallback} instead` +
+      (fallback.capabilities.detach ? '.' : ', so agents will not outlive this window.'),
+  }
+}
+
 export class Workbench {
   readonly home: string
   readonly log: EventLog
@@ -122,12 +160,13 @@ export class Workbench {
       // where a typo gets reported, so here it degrades to defaults.
       const loaded = await loadConfig(join(opts.home, 'config.yaml'))
       const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
-      const driverName = opts.driver ?? config.workspace.driver
-      const makeDriver = drivers[driverName]
-      if (!makeDriver) throw new Error(`unknown workspace driver: ${driverName}`)
-
       const log = await EventLog.open({ path: join(opts.home, 'events.jsonl') })
-      const driver = makeDriver(opts.home)
+      const { driver, warning } = await chooseDriver({
+        wanted: opts.driver ?? config.workspace.driver,
+        fallback: config.workspace.fallback,
+        home: opts.home,
+      })
+      if (warning) await log.append({ type: 'warning', detail: { message: warning } })
       const registry = await LaneRegistry.open({ driver, log, path: join(opts.home, 'lanes.json') })
       if (!loaded.ok) {
         await log.append({
@@ -160,7 +199,7 @@ export class Workbench {
       })
       await log.append({
         type: 'wilco_opened',
-        detail: { pid: process.pid, driver: driverName, lanes: registry.list().length },
+        detail: { pid: process.pid, driver: driver.id, lanes: registry.list().length },
       })
       // Pick the agents that kept working back up: the channel first, so their
       // extensions can reconnect, then the spend that went unreported while

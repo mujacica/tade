@@ -219,6 +219,10 @@ wilco logs -f --min-urgency notable
   reopening walks back into the same windows rather than guessing at them. A lane another window
   opened is picked up the same way, and the journal says so (`lane_adopted`). You can attach to one
   from any terminal, over SSH, with no Wilco running at all.
+- **A driver this machine cannot provide is not a dead end.** `workspace.fallback` says where lanes
+  go instead, and it is never silent: the journal records what was asked for, why it could not be
+  had, and — the part that matters — whether agents can still outlive the window. Set `fallback` to
+  the same driver to refuse instead.
 - **A lane is alive only if the driver hands it back.** A pid in the process table proves something
   is running, not that Wilco can still drive it, so reopening asks the driver and takes its answer.
 - **The event log** is `~/.wilco/events.jsonl`, append-only and the source of truth, with a
@@ -496,6 +500,7 @@ work out whether it was an oversight.
 ```yaml
 workspace:
   driver: pty              # pty | tmux
+  fallback: pty            # where lanes go if `driver` is not on this machine
   adopt: true              # discover agent sessions started outside Wilco
 approvals:
   mode: bypass             # bypass (default, never interrupts) | policy

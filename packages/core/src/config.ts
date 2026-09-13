@@ -60,6 +60,14 @@ export const ConfigSchema = z
     workspace: z
       .strictObject({
         driver: DriverId.default('pty'),
+        /**
+         * Where lanes go when the driver above cannot be provided — tmux asked
+         * for on a machine without tmux. Reported loudly when it happens,
+         * because agents that quietly stop outliving the window is exactly the
+         * kind of thing you find out about at the worst moment. Set it to the
+         * same value as `driver` to refuse instead.
+         */
+        fallback: DriverId.default('pty'),
         adopt: z.boolean().default(true),
       })
       .prefault({}),

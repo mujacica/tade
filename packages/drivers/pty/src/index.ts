@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@wilco/core'
 import {
   type AdoptHint,
+  type Availability,
   type CaptureOptions,
   LaneClosedError,
   type LaneExitListener,
@@ -82,6 +83,11 @@ export class PtyDriver implements WorkspaceDriver {
       attachCommand: opts.attachCommand ?? ((lane) => `wilco attach ${lane}`),
       env: opts.env ?? process.env,
     }
+  }
+
+  /** Node and a pseudo-terminal, which is to say: always. */
+  async available(): Promise<Availability> {
+    return { ok: true }
   }
 
   async open(spec: LaneSpec): Promise<LaneHandle> {

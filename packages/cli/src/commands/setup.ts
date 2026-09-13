@@ -13,6 +13,7 @@ import {
 } from '@wilco/core'
 import { piBinary } from '@wilco/harnesses-pi'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
+import { drivers } from '@wilco/workbench'
 import type { Command } from 'commander'
 import { parse, stringify } from 'yaml'
 import { Exit, type Io } from '../io.ts'
@@ -192,15 +193,15 @@ function explainWorkspace(io: Io, facts: ReadinessFacts): void {
   io.out('  With pty they close when Wilco does; with tmux they keep working.')
 }
 
-/** Whether this machine can actually provide the configured driver. */
+/**
+ * Whether this machine can provide the configured driver. Asked of the driver
+ * itself, so there is one answer to it and `wilco setup --check` cannot drift
+ * from what opening the workbench will actually do.
+ */
 async function driverAvailable(driver: string): Promise<boolean> {
-  // Only tmux needs anything installed; pty is Node and a pseudo-terminal.
-  if (driver !== 'tmux') return true
-  return new Promise((done) => {
-    const child = spawn('tmux', ['-V'], { stdio: 'ignore' })
-    child.once('error', () => done(false))
-    child.once('exit', (code) => done(code === 0))
-  })
+  const make = drivers[driver]
+  if (!make) return false
+  return (await make(wilcoHome()).available()).ok
 }
 
 async function setUpVoice(rl: Interface, io: Io, facts: ReadinessFacts): Promise<void> {

@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@wilco/core'
 import {
   type AdoptHint,
+  type Availability,
   type CaptureOptions,
   LaneClosedError,
   type LaneExitListener,
@@ -114,6 +115,15 @@ export class TmuxDriver implements WorkspaceDriver {
       env: opts.env ?? process.env,
     }
     this.dir = mkdtempSync(join(tmpdir(), 'wilco-tmux-'))
+  }
+
+  async available(): Promise<Availability> {
+    try {
+      await this.tmux(['-V'])
+      return { ok: true }
+    } catch {
+      return { ok: false, reason: 'tmux is not installed (brew install tmux)' }
+    }
   }
 
   async open(spec: LaneSpec): Promise<LaneHandle> {
