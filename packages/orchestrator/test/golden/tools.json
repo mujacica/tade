@@ -295,5 +295,166 @@
       ],
       "additionalProperties": false
     }
+  },
+  {
+    "name": "wilco_terminal_close",
+    "description": "Close a terminal, ending whatever is running in it. Only when the human asked for that.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "which terminal: its name (\"tests\"), its number, or its id; leave it out when there is only one"
+        },
+        "project": {
+          "type": "string",
+          "description": "project name, as configured, when it is not obvious"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_terminal_list",
+    "description": "The terminals open along the bottom of the window, with their names, projects and folders.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "project name, as configured, when it is not obvious"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_terminal_open",
+    "description": "Open a terminal: a shell in the project's folder, or in the folder given (an agent's worktree, say). It appears along the bottom of the window.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "project name, as configured"
+        },
+        "name": {
+          "type": "string",
+          "description": "what to call it, like \"tests\" or \"server\""
+        },
+        "cwd": {
+          "type": "string",
+          "description": "folder to start in, when not the project itself"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_terminal_read",
+    "description": "What a terminal shows, with some of its scrollback: how to see what a command printed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "which terminal: its name (\"tests\"), its number, or its id; leave it out when there is only one"
+        },
+        "lines": {
+          "type": "number",
+          "description": "how many lines back, 200 unless said"
+        },
+        "project": {
+          "type": "string",
+          "description": "project name, as configured, when it is not obvious"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_terminal_rename",
+    "description": "Rename a terminal, so it can be found by what it is for: \"tests\", \"server\".",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "which terminal: its name (\"tests\"), its number, or its id; leave it out when there is only one"
+        },
+        "name": {
+          "type": "string",
+          "description": "its new name"
+        },
+        "project": {
+          "type": "string",
+          "description": "project name, as configured, when it is not obvious"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_terminal_run",
+    "description": "Run a command in a terminal, exactly as if the human typed it and pressed enter. They see it happen. Read the terminal afterwards to see what it printed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "which terminal: its name (\"tests\"), its number, or its id; leave it out when there is only one"
+        },
+        "command": {
+          "type": "string",
+          "description": "the command line, exactly"
+        },
+        "submit": {
+          "type": "boolean",
+          "description": "false to type it without running it"
+        },
+        "project": {
+          "type": "string",
+          "description": "project name, as configured, when it is not obvious"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_terminal_search",
+    "description": "Find lines in a terminal's scrollback containing some text, any case.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "terminal": {
+          "type": "string",
+          "description": "which terminal: its name (\"tests\"), its number, or its id; leave it out when there is only one"
+        },
+        "text": {
+          "type": "string",
+          "description": "what to look for"
+        },
+        "project": {
+          "type": "string",
+          "description": "project name, as configured, when it is not obvious"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    }
   }
 ]

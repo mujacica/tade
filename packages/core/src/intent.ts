@@ -20,6 +20,21 @@ export type Intent =
   | { kind: 'park'; task: string }
   | { kind: 'resume'; task: string }
   | { kind: 'remember'; text: string }
+  /**
+   * Something to do with a terminal along the bottom of the window. `name` is
+   * which one, as said (`tests`, `2`), or null for the one in front of you.
+   */
+  | {
+      kind: 'terminal'
+      action: 'open' | 'show' | 'close' | 'rename' | 'run' | 'search'
+      name: string | null
+      /** A new name, for rename. */
+      to?: string
+      /** The command line, exactly as said, for run. */
+      command?: string
+      /** What to look for, for search. */
+      text?: string
+    }
   /** Open the settings, so changing one never means closing Wilco. */
   | { kind: 'settings' }
   | { kind: 'free'; text: string }
@@ -44,6 +59,24 @@ const RESUME = /^(resume|unpark|pick up|pick)\s+(?<task>.+?)(\s+back up)?[?.]?$/
  */
 const REMEMBER =
   /^(remember|note to self|note down|note|make a note( of)?|write down|jot down|keep in mind|don'?t forget|do not forget|never forget|important|for the record)(\s+that)?\s*[:,\-–]?\s+(?<text>.+)$/
+// Terminals. Every one of these says the word "terminal", so an instruction
+// meant for an agent ("run the tests") is never mistaken for one.
+const NAMED = String.raw`(?:(?:the|my)\s+)?(?:(?<name>.+?)\s+)?terminal(?:\s+(?<after>(?!to\b)[\w-]+))?`
+const TERMINAL_OPEN =
+  /^(?:open|start|launch|create|new)(?:\s+up)?(?:\s+(?:a|another|a new|new))?\s+terminal(?:\s+(?:called|named)\s+(?<called>.+?))?[.!]?$/
+const TERMINAL_SHOW = new RegExp(
+  String.raw`^(?:show(?:\s+me)?|switch to|go to|bring up)\s+${NAMED}[.?]?$`,
+)
+const TERMINAL_CLOSE = new RegExp(String.raw`^(?:close|kill|end)\s+${NAMED}[.!]?$`)
+const TERMINAL_RENAME =
+  /^(?:rename|call)\s+(?:(?:the|my)\s+)?(?:(?<name>.+?)\s+)?terminal(?:\s+(?<after>(?!to\b)[\w-]+))?\s+(?:to\s+)?(?<to>.+?)[.!]?$/
+const TERMINAL_RUN = new RegExp(
+  String.raw`^(?:run|execute|type)\s+(?<command>.+?)\s+in(?:to)?\s+${NAMED}$`,
+)
+const TERMINAL_SEARCH = new RegExp(
+  String.raw`^(?:search|find|look)(?:\s+for)?\s+(?<text>.+?)\s+in\s+${NAMED}[.?]?$`,
+)
+
 const APPROVE = /^(yes|yep|yeah|go ahead|do it|approve|approved|sure|please do)[.!]?$/
 const DENY = /^(no|nope|don'?t|deny|denied|stop|cancel|refuse)[.!]?$/
 const CONFIRM = /^confirm\s+(?<phrase>.+?)[.!]?$/
@@ -109,6 +142,9 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
     return { kind: 'remember', text: original(text, remember.groups.text) }
   }
 
+  const terminal = parseTerminal(said, lower, text)
+  if (terminal) return terminal
+
   // Matched against lightly-normalised text, so the intent keeps the words as
   // they were said: it is stored verbatim and nothing else can reconstruct it.
   const start = START.exec(lower)
@@ -171,6 +207,54 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
   }
 
   return free
+}
+
+/** A sentence about a terminal, or null. A command or search keeps the casing it was said with. */
+function parseTerminal(said: string, lower: string, text: string): Intent | null {
+  const name = (groups: Record<string, string | undefined> | undefined): string | null => {
+    const spoken = (groups?.name ?? groups?.after ?? '').trim()
+    return spoken === '' || spoken === 'this' || spoken === 'that' ? null : spoken
+  }
+  const open = TERMINAL_OPEN.exec(said)
+  if (open) {
+    return {
+      kind: 'terminal',
+      action: 'open',
+      name: open.groups?.called ? span(text, open.groups.called) : null,
+    }
+  }
+  const run = TERMINAL_RUN.exec(lower)
+  if (run?.groups?.command) {
+    return {
+      kind: 'terminal',
+      action: 'run',
+      name: name(run.groups),
+      command: span(text, run.groups.command),
+    }
+  }
+  const search = TERMINAL_SEARCH.exec(lower)
+  if (search?.groups?.text) {
+    return {
+      kind: 'terminal',
+      action: 'search',
+      name: name(search.groups),
+      text: span(text, search.groups.text),
+    }
+  }
+  const rename = TERMINAL_RENAME.exec(said)
+  if (rename?.groups?.to) {
+    return {
+      kind: 'terminal',
+      action: 'rename',
+      name: name(rename.groups),
+      to: span(text, rename.groups.to),
+    }
+  }
+  const close = TERMINAL_CLOSE.exec(said)
+  if (close) return { kind: 'terminal', action: 'close', name: name(close.groups) }
+  const show = TERMINAL_SHOW.exec(said)
+  if (show) return { kind: 'terminal', action: 'show', name: name(show.groups) }
+  return null
 }
 
 /** The same span of the original text, with its casing intact. */

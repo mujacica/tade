@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                       ● 1 waiting  ○ 1 working   × voice off ▐ Set up ▌ 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
@@ -19,16 +19,16 @@
                               │  ╭─ wants approval ─────────────────────────────────────────────╮                       
  ▸ NOTES  4           ▐  +  ▌ │  │ bash  npm i stripe@15                                        │                       
  ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
-   branch   …lco/stripe-v15   │                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+   repo     ~/src/checkout    │  ╰───────────────────────────╭─ Find in tests ────────────────────────────────── esc ─╮ 
+   branch   …lco/stripe-v15   │                              │  assert▏                           1 of 2   ▐ ↑ ▌▐ ↓ ▌ │ 
+━   orchestrator   ▐ tests ▌× ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━╰────────────────────────────────────────────────────────╯━
+$ pnpm test                                                                                                             
+ ✓ src/ledger.test.ts (4 tests)                                                                                         
+ ✗ charges once                                                                                                         
+   AssertionError: expected 2 charges to be 1                                                                           
+ ✓ src/webhooks.test.ts (12 tests)                                                                                      
+ ✗ refunds once when the webhook retries                                                                                
+   AssertionError: expected 2 refunds to be 1                                                                           
+$                                                                                                                       
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

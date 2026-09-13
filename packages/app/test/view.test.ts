@@ -15,6 +15,7 @@ import {
   type TaskSnapshot,
   withProjects,
   withTasks,
+  withTerminals,
 } from '../src/model.ts'
 import { BUTTONS, draw, renderApp, renderTurn, wrapPath } from '../src/view.ts'
 
@@ -330,5 +331,49 @@ describe('an agent pane', () => {
     expect(
       body.slice(at + 1).every((row) => row.trim() === '' || row.includes('orchestrator')),
     ).toBe(true)
+  })
+})
+
+describe('the bottom panel and its handles', () => {
+  it('has a tab for the orchestrator and each terminal, + for another, and a rule to drag', () => {
+    const terminals = withTerminals(state(), [
+      { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+    ])
+    const { rows, hits } = draw(
+      { ...terminals, bottom: 'checkout/terminals/1' },
+      {
+        ...frame({ width: 120, height: 30 }),
+        terminal: { screen: '$ pnpm test\n ok' },
+      },
+    )
+    const tabs = hits
+      .filter((hit) => hit.target.kind === 'bottom-tab')
+      .map((hit) => JSON.stringify(hit.target))
+    expect(new Set(tabs)).toEqual(
+      new Set([
+        JSON.stringify({ kind: 'bottom-tab', tab: 'orchestrator' }),
+        JSON.stringify({ kind: 'bottom-tab', tab: 'checkout/terminals/1' }),
+      ]),
+    )
+    expect(hits.some((hit) => hit.target.kind === 'divider' && hit.target.edge === 'bottom')).toBe(
+      true,
+    )
+    expect(hits.some((hit) => hit.target.kind === 'divider' && hit.target.edge === 'sidebar')).toBe(
+      true,
+    )
+    expect(
+      hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'new-terminal'),
+    ).toBe(true)
+    // The terminal's screen is what shows, and clicking it is for typing into.
+    expect(rows.join('\n')).toContain('$ pnpm test')
+    expect(hits.some((hit) => hit.target.kind === 'terminal')).toBe(true)
+  })
+
+  it('folds to its tabs and fills the window when asked', () => {
+    const folded = draw({ ...state(), bottomMode: 'min' }, frame({ width: 120, height: 30 }))
+    const opened = draw(state(), frame({ width: 120, height: 30 }))
+    const tabRow = (rows: string[]) => rows.findIndex((row) => row.includes('orchestrator'))
+    expect(tabRow(folded.rows)).toBeGreaterThan(tabRow(opened.rows))
+    expect(tabRow(folded.rows)).toBe(30 - 3)
   })
 })

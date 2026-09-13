@@ -13,8 +13,10 @@
 export interface LayoutPrefs {
   /** Columns for the projects list. */
   sidebarWidth?: number
-  /** Rows for the orchestrator strip, including its rule. */
+  /** Rows for the bottom panel — orchestrator and terminals — including its tabs. */
   stripHeight?: number
+  /** Filling the window above the buttons, or folded to its row of tabs. */
+  bottom?: 'open' | 'max' | 'min'
 }
 
 export interface Layout {
@@ -38,6 +40,9 @@ export const CHROME = 4
 /** Below these the region stops being readable and starts being decoration. */
 export const MINIMUM = { sidebar: 12, strip: 4, main: 20, body: 1 }
 
+/** A dragged sidebar stops here: past it the pane is what gets squeezed. */
+export const SIDEBAR_MOST = 80
+
 /**
  * Fit the preferences to the terminal actually in front of you.
  *
@@ -52,37 +57,44 @@ export function resolveLayout(
   const width = Math.max(MINIMUM.sidebar + MINIMUM.main + 1, frame.width)
   const height = Math.max(MINIMUM.strip + MINIMUM.body + CHROME, frame.height)
 
-  // The strip never takes more than a third: it is context, not the view.
-  const stripHeight = clamp(
-    prefs.stripHeight ?? DEFAULTS.stripHeight,
-    MINIMUM.strip,
-    Math.max(MINIMUM.strip, Math.floor(height / 3)),
-  )
+  // Unasked, the bottom panel takes no more than a third: it is context, not the
+  // view. Dragged or maximised, it takes what you gave it, leaving the agent
+  // its title and a few rows; folded, it is only its tabs.
+  const most = Math.max(MINIMUM.strip, height - CHROME - 4)
+  const stripHeight =
+    prefs.bottom === 'min'
+      ? 1
+      : prefs.bottom === 'max'
+        ? most
+        : prefs.stripHeight !== undefined
+          ? clamp(prefs.stripHeight, MINIMUM.strip, most)
+          : clamp(
+              DEFAULTS.stripHeight,
+              MINIMUM.strip,
+              Math.max(MINIMUM.strip, Math.floor(height / 3)),
+            )
   const bodyHeight = height - stripHeight - CHROME
 
   // Unasked, the sidebar is a share of the window rather than a fixed 24: on a
   // wide terminal that is a thin ribbon beside an ocean, and task names are the
   // one thing in it that must stay readable.
   const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 4), DEFAULTS.sidebarWidth, 36)
-  const sidebarWidth = clamp(
-    wanted,
-    MINIMUM.sidebar,
-    Math.max(MINIMUM.sidebar, width - MINIMUM.main - 1),
-  )
+  const widest = Math.min(SIDEBAR_MOST, width - MINIMUM.main - 1)
+  const sidebarWidth = clamp(wanted, MINIMUM.sidebar, Math.max(MINIMUM.sidebar, widest))
   return { sidebarWidth, stripHeight, mainWidth: width - sidebarWidth - 1, bodyHeight }
 }
 
 /**
- * What is worth writing down when the window closes.
- *
- * Which pane you were on, and nothing else. Sizes are deliberately absent: they
- * come from the config and cannot be changed from inside the window, so
- * remembering them would mean writing back a copy of a file we are about to
- * read again — a second answer to a question that already has one.
+ * What is worth writing down when the window closes: which pane you were on,
+ * and the sizes you dragged the dividers to. The config says what a window
+ * starts at; a divider you moved is you saying otherwise, and losing that on
+ * every restart would be asking you to say it again.
  */
 export interface RememberedWindow {
   /** The task whose pane had focus. */
   focused: string | null
+  sidebarWidth?: number
+  stripHeight?: number
 }
 
 /**
@@ -94,7 +106,15 @@ export function asRemembered(value: unknown): RememberedWindow | null {
   // `typeof [] === 'object'`, and an array is not a remembered window.
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
   const raw = value as Record<string, unknown>
-  return { focused: typeof raw.focused === 'string' ? raw.focused : null }
+  const size = (key: string) =>
+    typeof raw[key] === 'number' && Number.isFinite(raw[key]) && (raw[key] as number) > 0
+      ? { [key]: Math.round(raw[key] as number) }
+      : {}
+  return {
+    focused: typeof raw.focused === 'string' ? raw.focused : null,
+    ...size('sidebarWidth'),
+    ...size('stripHeight'),
+  }
 }
 
 function clamp(value: number, low: number, high: number): number {

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema } from '@wilco/core'
@@ -486,6 +486,58 @@ describe('the window, wired up', () => {
     terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}m`)
     await until('the menu', () => terminal.written.includes('Copy relative path'))
   })
+
+  it('opens a terminal from the + beside the orchestrator, and types into it', async () => {
+    await start()
+    await until('the tabs', () =>
+      screenOf(terminal.written).some((row) => row.includes('orchestrator')),
+    )
+    const tabs = find('orchestrator')
+    const row = screenOf(terminal.written)[tabs.row] ?? ''
+    click(row.indexOf('+', tabs.col), tabs.row)
+    await until('a terminal', () => client.terminals('app').length === 1)
+    await until('its tab', () => terminal.written.includes('terminal 1'))
+    // The keyboard is in it now: typed keys are the shell's.
+    for (const char of 'echo wilco-$((6 * 7))') terminal.press(char)
+    terminal.press('\r')
+    const deadline = Date.now() + 20_000
+    while (!(await client.readTerminal('1', 50, 'app')).includes('wilco-42')) {
+      if (Date.now() > deadline) throw new Error('the command never ran')
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  }, 30_000)
+
+  it('opens and names a terminal when told to in words', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00') // opens the line you type into
+    for (const char of 'open a terminal called logs') terminal.press(char)
+    terminal.press('\r')
+    await until('the terminal', () => client.terminals('app').some((one) => one.name === 'logs'))
+    await until('its tab', () => terminal.written.includes('logs'))
+  }, 30_000)
+
+  it('moves the sidebar edge where it is dragged, and remembers it', async () => {
+    terminal.columns = 120
+    terminal.rows = 40
+    const running = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const lines = screenOf(terminal.written)
+    const row = lines.findIndex((line) => line.includes('AGENTS'))
+    const edge = (lines[row] ?? '').indexOf('│')
+    expect(edge).toBeGreaterThan(10)
+    // Press on the edge, move with the button held, let go.
+    terminal.press(`\x1b[<0;${edge + 1};${row + 1}M`)
+    terminal.press(`\x1b[<32;${edge + 11};${row + 1}M`)
+    terminal.press(`\x1b[<0;${edge + 11};${row + 1}m`)
+    await until('the new edge', () => {
+      const after = screenOf(terminal.written)[row] ?? ''
+      return after.indexOf('│') === edge + 10 || after.indexOf('┃') === edge + 10
+    })
+    await running.stop()
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.sidebarWidth).toBe(edge + 10)
+  }, 30_000)
 
   it('opens the Spend panel from the status bar', async () => {
     await start()

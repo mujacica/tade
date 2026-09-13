@@ -50,6 +50,8 @@ export type MenuSubject =
   /** A changed file; `task` is null for the project's own checkout. */
   | { kind: 'change'; task: string | null; path: string }
   | { kind: 'branch' }
+  /** A terminal's tab. */
+  | { kind: 'terminal'; id: string }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -169,7 +171,9 @@ export interface OpenRow {
  */
 export interface PromptPanel {
   kind: 'prompt'
-  purpose: 'note' | 'new-branch' | 'rename-branch'
+  purpose: 'note' | 'new-branch' | 'rename-branch' | 'rename-terminal' | 'run-command'
+  /** The terminal it is about, for renaming one or running a command in it. */
+  target?: string
   title: string
   /** What the field is, said before it. */
   label: string
@@ -178,6 +182,32 @@ export interface PromptPanel {
   everywhere: boolean
   busy: boolean
   error: string | null
+}
+
+/** Finding text in a terminal's scrollback, from the bottom up. */
+export interface FindPanel {
+  kind: 'find'
+  /** The terminal's lane id. */
+  terminal: string
+  query: string
+  /** Which match is shown, counting from the newest. */
+  index: number
+  busy: false
+}
+
+export function findPanel(terminal: string, query = '', index = 0): FindPanel {
+  return { kind: 'find', terminal, query, index, busy: false }
+}
+
+/** What can be done with a terminal, from its tab. */
+export function terminalMenuItems(): MenuItem[] {
+  return [
+    { id: 'run', label: 'Run a command…' },
+    { id: 'find', label: 'Find…' },
+    { id: 'rename', label: 'Rename…' },
+    { id: 'clear', label: 'Clear' },
+    { id: 'close', label: 'Close', danger: true, divider: true },
+  ]
 }
 
 /** Switching the project's checkout to another branch, or a new one. */
@@ -334,6 +364,7 @@ export type Panel =
   | PromptPanel
   | BranchPanel
   | ConfirmPanel
+  | FindPanel
   | KeysPanel
   | QuitPanel
 
@@ -369,6 +400,8 @@ export interface PanelInputs {
   lines?: number
   /** The project's branches, for switching. */
   branches?: readonly BranchRow[]
+  /** How many lines the find panel's query matches. */
+  found?: number
 }
 
 /** The settings a panel is showing: a category's, or everything matching the search. */
@@ -597,6 +630,7 @@ export function panelKey(
   if (panel.kind === 'spend') return spendKey(panel, key)
   if (panel.kind === 'menu') return menuKey(panel, key, inputs.items ?? [])
   if (panel.kind === 'prompt') return promptKey(panel, key, data)
+  if (panel.kind === 'find') return findKey(panel, key, data, inputs.found ?? 0)
   if (panel.kind === 'branch') return branchKey(panel, key, data, inputs.branches ?? [])
   if (panel.kind === 'confirm') return confirmKey(panel, key)
   if (panel.kind === 'confirm-remove') return confirmKey(panel, key)
@@ -622,6 +656,13 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
     return control.startsWith('item:')
       ? { panel, submit: true, choice: control.slice(5) }
       : stay(panel)
+  }
+  if (panel.kind === 'find') {
+    const count = Math.max(1, inputs.found ?? 0)
+    if (control === 'close') return close
+    if (control === 'older') return stay({ ...panel, index: (panel.index + 1) % count })
+    if (control === 'newer') return stay({ ...panel, index: (panel.index - 1 + count) % count })
+    return stay(panel)
   }
   if (panel.kind === 'prompt') {
     if (control === 'cancel') return close
@@ -698,12 +739,33 @@ function menuKey(
   return stay(panel)
 }
 
+/** Typing narrows; enter and ↑ go to an older match, ↓ to a newer one. */
+function findKey(
+  panel: FindPanel,
+  key: string | undefined,
+  data: string,
+  found: number,
+): PanelOutcome {
+  if (key === 'escape') return close
+  const count = Math.max(1, found)
+  if (key === 'enter' || key === 'up') return stay({ ...panel, index: (panel.index + 1) % count })
+  if (key === 'down') return stay({ ...panel, index: (panel.index - 1 + count) % count })
+  if (key === 'backspace')
+    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0 })
+  if (key === 'ctrl+u') return stay({ ...panel, query: '', index: 0 })
+  const text = typed(data, key)
+  return text ? stay({ ...panel, query: panel.query + text, index: 0 }) : stay(panel)
+}
+
 function savePrompt(panel: PromptPanel): PanelOutcome {
   if (panel.text.trim() === '') {
-    return stay({
-      ...panel,
-      error: panel.purpose === 'note' ? 'Write the note first.' : 'Give it a name.',
-    })
+    const said =
+      panel.purpose === 'note'
+        ? 'Write the note first.'
+        : panel.purpose === 'run-command'
+          ? 'Type the command first.'
+          : 'Give it a name.'
+    return stay({ ...panel, error: said })
   }
   return { panel: { ...panel, busy: true, error: null }, submit: true, choice: 'save' }
 }
@@ -722,7 +784,8 @@ function promptKey(panel: PromptPanel, key: string | undefined, data: string): P
     : [...data].map((char) => (control(char) ? ' ' : char)).join('')
   if (key === 'space') return stay({ ...panel, text: `${panel.text} `, error: null })
   // Branch names have no spaces, so a space typed into one is a dash.
-  const typedText = panel.purpose === 'note' ? text : text.replace(/\s/g, '-')
+  const branch = panel.purpose === 'new-branch' || panel.purpose === 'rename-branch'
+  const typedText = branch ? text.replace(/\s/g, '-') : text
   return typedText ? stay({ ...panel, text: panel.text + typedText, error: null }) : stay(panel)
 }
 

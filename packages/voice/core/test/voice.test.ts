@@ -2,7 +2,7 @@ import type { WilcoEvent } from '@wilco/core'
 import { Speaker } from '@wilco/voice-tts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { slugify, VoiceSurface, type VoiceWorkbench } from '../src/voice.ts'
+import { slugify, VoiceSurface, type VoiceTerminals, type VoiceWorkbench } from '../src/voice.ts'
 
 // The voice surface with a scripted workbench and a speaker that only records:
 // what is under test is which verb a sentence became, and what came back.
@@ -75,7 +75,7 @@ function fakeWilco() {
 
 async function surface(
   wilco: ReturnType<typeof fakeWilco>,
-  over: { ask?: (t: string) => Promise<string> } = {},
+  over: { ask?: (t: string) => Promise<string>; terminals?: VoiceTerminals } = {},
 ) {
   const said: string[] = []
   const tones: string[] = []
@@ -417,5 +417,64 @@ describe('slugify', () => {
     )
     expect(slugify('Fix the WEBHOOK!')).toBe('fix-the-webhook')
     expect(slugify('???')).toBe('task')
+  })
+})
+
+describe('terminals, by voice', () => {
+  function terminals() {
+    const calls: string[] = []
+    let typed: string | null = null
+    const control: VoiceTerminals = {
+      open: async (name) => {
+        calls.push(`open ${name ?? '-'}`)
+        return `Opened ${name ?? 'terminal 1'}.`
+      },
+      show: async (name) => `Showing ${name ?? '-'}.`,
+      close: async (name) => `Closed ${name ?? '-'}.`,
+      rename: async (name, to) => `Renamed ${name ?? '-'} to ${to}.`,
+      run: async (name, command) => {
+        typed = command
+        calls.push(`type ${name ?? '-'} ${command}`)
+        return `Typed ${command}.`
+      },
+      search: async (name, text) => `Looked for ${text} in ${name ?? '-'}.`,
+      confirm: async (phrase) => {
+        if (!typed || !phrase.split(' ').every((word) => typed?.includes(word))) return null
+        calls.push(`enter ${typed}`)
+        typed = null
+        return 'Ran it.'
+      },
+    }
+    return { control, calls }
+  }
+
+  it('opens, shows, renames, closes and searches the terminal it names', async () => {
+    const { control, calls } = terminals()
+    const { voice } = await surface(fakeWilco(), { terminals: control })
+    expect(await voice.handle('open a new terminal called tests')).toBe('Opened tests.')
+    expect(await voice.handle('show me the tests terminal')).toBe('Showing tests.')
+    expect(await voice.handle('rename terminal 2 to server')).toBe('Renamed 2 to server.')
+    expect(await voice.handle('find TypeError in the tests terminal')).toBe(
+      'Looked for TypeError in tests.',
+    )
+    expect(await voice.handle('close the server terminal')).toBe('Closed server.')
+    expect(calls).toEqual(['open tests'])
+  })
+
+  it('types a command it heard, and runs it only once its words are read back', async () => {
+    const wilco = fakeWilco()
+    const { control, calls } = terminals()
+    const { voice } = await surface(wilco, { terminals: control })
+    expect(await voice.handle('run npm test in the tests terminal')).toBe('Typed npm test.')
+    // A bare yes never runs a command: it could be anything, misheard.
+    expect(await voice.handle('yes')).toBe('Nothing is waiting.')
+    expect(calls).toEqual(['type tests npm test'])
+    expect(await voice.handle('confirm npm test')).toBe('Ran it.')
+    expect(calls.at(-1)).toBe('enter npm test')
+  })
+
+  it('says so where there are no terminals to control', async () => {
+    const { voice } = await surface(fakeWilco())
+    expect(await voice.handle('open a terminal')).toContain('no terminals here')
   })
 })

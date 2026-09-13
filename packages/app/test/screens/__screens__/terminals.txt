@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                       ● 1 waiting  ○ 1 working   × voice off ▐ Set up ▌ 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
@@ -21,14 +21,14 @@
  ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
    repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
    branch   …lco/stripe-v15   │                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator   ▐ tests ▌×   server   ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⌕ ▌ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+~/src/checkout (main) $ pnpm test src/webhooks                                                                          
                                                                                                                         
+ ✓ src/webhooks.test.ts (12 tests) 48ms                                                                                 
+ ✗ refunds once when the webhook retries                                                                                
+   AssertionError: expected 2 charges to be 1                                                                           
                                                                                                                         
+~/src/checkout (main) $                                                                                                 
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 

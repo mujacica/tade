@@ -21,7 +21,7 @@
    repo     ~/src/checkout    │  ▸ Read src/webhooks.ts                                                                 
    branch   …lco/stripe-v15   │  ▸ Edit src/webhooks.ts  +12 −4                                                         
    from     main              │  ▸ bash npm i stripe@15                                                                 
-━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
                                                                                                                         

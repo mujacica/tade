@@ -118,3 +118,27 @@ describe('tab', () => {
     expect(completed('anything', undefined)).toBe('anything')
   })
 })
+
+describe('lines in terminals', () => {
+  it('are found newest first, with which terminal printed them', () => {
+    const found = searchResults('#error', {
+      entries: [],
+      files: [],
+      matches: [],
+      terminals: [
+        {
+          id: 'app/terminals/1',
+          name: 'tests',
+          project: 'app',
+          text: 'Error: first\nfine\nTypeError: second',
+        },
+      ],
+    })
+    expect(found.map((entry) => [entry.kind, entry.label, entry.preview])).toEqual([
+      ['terminal', 'tests', 'TypeError: second'],
+      ['terminal', 'tests', 'Error: first'],
+    ])
+    // The id says which match, counting back from the newest, for the find box to open on.
+    expect(found[1]?.id.split('\0')).toEqual(['terminal', 'app/terminals/1', 'error', '1'])
+  })
+})

@@ -21,7 +21,7 @@
  ▾ GIT    │                              │                                                                   │          
    repo   │                                                                                                  │          
    branch │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
-━ orchestr│   so Wilco needs one before it can start work there.                                             │━━━━━━━━━━
+━ ▐ orches│   so Wilco needs one before it can start work there.                                             │ ▌ ▐ ▾ ▌ ━
           │   ■ git init, and commit what's there as the first commit                                        │          
           │                                                                                                  │          
           │ Name   payroll                                                 ▐ Cancel ▌ ▐ Open ~/src/payroll ▌ │          

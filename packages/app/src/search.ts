@@ -6,7 +6,15 @@ import type { Match, SearchRoot } from './finder.ts'
 // Pure. What the box holds and what matches it is decided here; listing files
 // and grepping them is `finder.ts`, and carrying a choice out is the app's.
 
-export type SearchKind = 'approval' | 'agent' | 'file' | 'match' | 'action' | 'project' | 'setting'
+export type SearchKind =
+  | 'approval'
+  | 'agent'
+  | 'file'
+  | 'match'
+  | 'terminal'
+  | 'action'
+  | 'project'
+  | 'setting'
 
 /** One thing search can go to. */
 export interface SearchEntry {
@@ -35,6 +43,7 @@ export const GROUPS: readonly { kind: SearchKind; title: string }[] = [
   { kind: 'agent', title: 'AGENTS' },
   { kind: 'file', title: 'FILES' },
   { kind: 'match', title: 'IN FILES' },
+  { kind: 'terminal', title: 'IN TERMINALS' },
   { kind: 'action', title: 'ACTIONS' },
   { kind: 'project', title: 'PROJECTS' },
   { kind: 'setting', title: 'SETTINGS' },
@@ -133,6 +142,8 @@ export interface SearchSources {
   files: readonly { root: SearchRoot; path: string }[]
   /** Lines found inside files for the text being searched, once git has answered. */
   matches: readonly Match[]
+  /** What each terminal has printed, as plain text, for finding lines in. */
+  terminals?: readonly { id: string; name: string; project: string; text: string }[]
 }
 
 /** How many of each kind to show when not narrowed to it. */
@@ -141,6 +152,7 @@ const SHOWN: Record<SearchKind, number> = {
   agent: 6,
   file: 12,
   match: 12,
+  terminal: 8,
   action: 5,
   project: 4,
   setting: 5,
@@ -160,7 +172,7 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
       case 'agents':
         return kind === 'agent' || kind === 'approval'
       case 'text':
-        return kind === 'match'
+        return kind === 'match' || kind === 'terminal'
       case 'actions':
         return kind === 'action' || kind === 'setting' || kind === 'project'
       default:
@@ -174,6 +186,12 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
     if (!wanted(group.kind)) continue
     if (group.kind === 'file') {
       out.push(...fileResults(query, sources.files, limit('file')))
+      continue
+    }
+    if (group.kind === 'terminal') {
+      if (query.text.length >= TEXT_MIN) {
+        out.push(...terminalResults(query.text, sources.terminals ?? [], limit('terminal')))
+      }
       continue
     }
     if (group.kind === 'match') {
@@ -235,6 +253,36 @@ function matchResults(text: string, matches: readonly Match[], limit: number): S
     preview: match.text.trim(),
     complete: `#${text}`,
   }))
+}
+
+/** Lines a terminal printed that contain the text, newest first: the latest run is the one you want. */
+function terminalResults(
+  text: string,
+  terminals: NonNullable<SearchSources['terminals']>,
+  limit: number,
+): SearchEntry[] {
+  const want = text.toLowerCase()
+  const out: SearchEntry[] = []
+  for (const terminal of terminals) {
+    const lines = terminal.text.split('\n')
+    // Which match, counting back from the newest, is what the find panel opens on.
+    let back = 0
+    for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
+      const line = lines[i] ?? ''
+      if (!line.toLowerCase().includes(want)) continue
+      out.push({
+        id: ['terminal', terminal.id, text, String(back)].join('\0'),
+        kind: 'terminal',
+        label: terminal.name,
+        detail: terminal.project,
+        mark: '›',
+        preview: line.trim(),
+        complete: `#${text}`,
+      })
+      back++
+    }
+  }
+  return out.slice(0, limit)
 }
 
 /** What opening a file at a place is called, for the app to take apart again. */

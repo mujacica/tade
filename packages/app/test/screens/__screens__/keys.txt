@@ -4,12 +4,12 @@
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                               │                                                                                         
- ▾ CHANGES  3         vs main │                                                                                         
-  M package.json        +2 ╭─ Keys ─────────────────────────────────────────────────── esc ─╮                           
-  A src/webhooks.test.ts  +│                                                                │                           
-  M src/webhooks.ts    +12 │ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
-                           │                                                                │                           
- ▾ FILES                   │ SEARCH           ▐ ctrl ▌+▐ k ▌  agents, files, lines in files │                           
+ ▾ CHANGES  3         vs ma╭─ Keys ─────────────────────────────────────────────────── esc ─╮                           
+  M package.json        +2 │                                                                │                           
+  A src/webhooks.test.ts  +│ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
+  M src/webhooks.ts    +12 │                                                                │                           
+                           │ SEARCH           ▐ ctrl ▌+▐ k ▌  agents, files, lines in files │                           
+ ▾ FILES                   │ TERMINAL         click into it to type; tab, ctrl+c and esc are│                           
    ▾ src/                  │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │,                          
        webhooks.test.ts    │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
        webhooks.ts         │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
@@ -21,7 +21,7 @@
  ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
    repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
    branch   …lco/stripe-v15   │                                                                                         
-━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
                                                                                                                         

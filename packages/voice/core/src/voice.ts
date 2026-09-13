@@ -65,6 +65,19 @@ export interface VoiceWorkbench {
   remember?(text: string, scope: string | null, by?: string): Awaitable<unknown>
 }
 
+/** What voice can do with terminals. `name` is as said, or null for the one in front of you. */
+export interface VoiceTerminals {
+  open(name: string | null): Promise<string>
+  show(name: string | null): Promise<string>
+  close(name: string | null): Promise<string>
+  rename(name: string | null, to: string): Promise<string>
+  /** Type a command in, unsent. */
+  run(name: string | null, command: string): Promise<string>
+  search(name: string | null, text: string): Promise<string>
+  /** Send a command typed by voice, if its words are the ones said; null when none is waiting. */
+  confirm(phrase: string): Promise<string | null>
+}
+
 /** What the surface did with something you said, for the app to show. */
 export interface Turn {
   utterance: string
@@ -100,6 +113,12 @@ export interface VoiceOptions {
   tasks?: () => Promise<KnownTask[]>
   /** The journal rolled up, so "it" can mean what just moved. */
   history?: () => Promise<WorkHistory>
+  /**
+   * The terminals along the bottom of the window. Each answers in a sentence.
+   * `run` types the command without pressing enter: a misheard command must
+   * never run on its own, so it waits for enter, or for "confirm" and its words.
+   */
+  terminals?: VoiceTerminals
   /** Anything the grammar doesn't recognise, if an orchestrator is running. */
   ask?: (text: string) => Promise<string>
   /** Called when the surface decides which agent you meant. */
@@ -324,6 +343,26 @@ export class VoiceSurface {
         return `Starting ${slug} in ${intent.project}.`
       }
 
+      case 'terminal': {
+        const terminals = this.opts.terminals
+        if (!terminals) return 'There are no terminals here: open the window to use them.'
+        switch (intent.action) {
+          case 'open':
+            return terminals.open(intent.name)
+          case 'show':
+            return terminals.show(intent.name)
+          case 'close':
+            return terminals.close(intent.name)
+          case 'rename':
+            return terminals.rename(intent.name, intent.to ?? '')
+          case 'run':
+            return terminals.run(intent.name, intent.command ?? '')
+          case 'search':
+            return terminals.search(intent.name, intent.text ?? '')
+        }
+        return "I didn't catch that."
+      }
+
       case 'settings': {
         // The window can open them in place; anywhere else, say the command.
         const opened = await this.opts.openSettings?.()
@@ -381,7 +420,12 @@ export class VoiceSurface {
       const summary = p.summary.toLowerCase()
       return words.length > 0 && words.every((word) => summary.includes(word))
     })
-    if (matches.length === 0) return `Nothing waiting matches "${phrase}".`
+    if (matches.length === 0) {
+      // Not an approval: perhaps the command voice typed into a terminal.
+      const sent = await this.opts.terminals?.confirm(phrase)
+      if (sent) return sent
+      return `Nothing waiting matches "${phrase}".`
+    }
     if (matches.length > 1) return `More than one thing matches "${phrase}". Say more of it.`
     const [request] = matches
     if (!request) return `Nothing waiting matches "${phrase}".`

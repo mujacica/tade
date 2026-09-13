@@ -22,9 +22,16 @@ export interface ToolHostOptions {
   wilco: Workbench
   /** Where the socket goes. One per host, so two windows never collide. */
   path: string
+  /** A terminal was opened or used, so the window can put it in front of you. */
+  onTerminal?: (terminal: string) => void
 }
 
 type Handler = (params: Record<string, unknown>) => unknown | Promise<unknown>
+
+/** Which terminal a call names, as said: an id, a name, a number, or nothing when there is one. */
+const said = (p: Record<string, unknown>): string => (p.terminal ? String(p.terminal) : '')
+const project = (p: Record<string, unknown>): string | undefined =>
+  p.project ? String(p.project) : undefined
 
 export class ToolHost {
   readonly path: string
@@ -81,6 +88,29 @@ export class ToolHost {
           p.by ? String(p.by) : 'wilco',
         ),
       'events/read': (p) => wilco.events(p as never),
+      'terminal/list': (p) => wilco.terminals(p.project ? String(p.project) : undefined),
+      'terminal/open': async (p) => {
+        const opened = await wilco.openTerminal({
+          project: String(p.project),
+          ...(p.name ? { name: String(p.name) } : {}),
+          ...(p.cwd ? { cwd: String(p.cwd) } : {}),
+        })
+        opts.onTerminal?.(opened.id)
+        return opened
+      },
+      'terminal/close': (p) => wilco.closeTerminal(said(p), project(p)),
+      'terminal/rename': (p) => wilco.renameTerminal(said(p), String(p.name), project(p)),
+      'terminal/run': async (p) => {
+        const ran = await wilco.runInTerminal(said(p), String(p.command), {
+          submit: p.submit !== false,
+          ...(project(p) ? { project: project(p) } : {}),
+        })
+        opts.onTerminal?.(ran.id)
+        return ran
+      },
+      'terminal/read': (p) =>
+        wilco.readTerminal(said(p), Number(p.lines) > 0 ? Number(p.lines) : 200, project(p)),
+      'terminal/search': (p) => wilco.searchTerminal(said(p), String(p.text), project(p)),
       'lane/write': async (p) => {
         await wilco.write(String(p.lane) as LaneId, String(p.data))
         return { ok: true }

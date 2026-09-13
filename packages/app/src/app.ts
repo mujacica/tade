@@ -36,9 +36,10 @@ import {
   slugify,
   type Transcriber,
   VoiceSurface,
+  type VoiceTerminals,
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
-import type { Workbench } from '@wilco/workbench'
+import { matchingLines, type Workbench } from '@wilco/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
@@ -49,6 +50,7 @@ import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
 import {
   type AppState,
+  activeTerminal,
   addTurn,
   focusBy,
   focusTask,
@@ -60,9 +62,11 @@ import {
   nextWaiting,
   noteTyping,
   notice,
+  ORCHESTRATOR_TAB,
   onEvent,
   parseCommand,
   projects,
+  resizeTo,
   scrollSidebar,
   selectProject,
   setDictation,
@@ -70,12 +74,15 @@ import {
   setListening,
   setQuestion,
   shownName,
+  showOrchestrator,
+  showTerminal,
   toggleFolder,
   toggleSection,
   viewLane,
   whichProject,
   withProjects,
   withTasks,
+  withTerminals,
 } from './model.ts'
 import { fileViewSize, type OpenRowView } from './panel-view.ts'
 import {
@@ -89,6 +96,7 @@ import {
   diffPanel,
   fileMenuItems,
   filePanel,
+  findPanel,
   type MenuSubject,
   menuItems,
   menuPanel,
@@ -107,6 +115,7 @@ import {
   searchPanel,
   settingsPanel,
   spendPanel,
+  terminalMenuItems,
 } from './panels.ts'
 import {
   ago,
@@ -159,11 +168,16 @@ export type PointerEvent =
   | { kind: 'release' }
   | { kind: 'click'; target: Target; button: 'left' | 'right'; x: number; y: number }
   | { kind: 'wheel'; area: 'sidebar' | 'panel'; rows: number }
+  /** A divider taken hold of, dragged to a cell, and let go. */
+  | { kind: 'grab'; edge: 'sidebar' | 'bottom' }
+  | { kind: 'drag'; x: number; y: number }
 
 class Window implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
   private readonly onPointer: (event: PointerEvent) => boolean
   private hits: readonly Hit[] = []
+  /** A divider is held: every movement until it is let go is a drag. */
+  private dragging = false
 
   constructor(frame: Window['frame'], onPointer: (event: PointerEvent) => boolean) {
     this.frame = frame
@@ -182,8 +196,16 @@ class Window implements Component {
     switch (event.type) {
       case 'move':
       case 'drag':
+        if (this.dragging) {
+          return { handled: true, render: this.onPointer({ kind: 'drag', x: event.x, y: event.y }) }
+        }
         return { handled: true, render: this.onPointer({ kind: 'move', target }) }
       case 'press':
+        // A divider taken hold of keeps every movement until it is let go.
+        if (event.button === 'left' && target?.kind === 'divider') {
+          this.dragging = true
+          return { capture: true, render: this.onPointer({ kind: 'grab', edge: target.edge }) }
+        }
         // A right-click is a click the moment it is pressed: the terminal
         // reports no click for it, and a menu should not wait for a release.
         if (event.button === 'right' && target) {
@@ -193,6 +215,7 @@ class Window implements Component {
         if (event.button !== 'left') return undefined
         return { handled: target !== null, render: this.onPointer({ kind: 'press', target }) }
       case 'release':
+        this.dragging = false
         return { handled: true, render: this.onPointer({ kind: 'release' }) }
       case 'click':
         if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
@@ -278,8 +301,16 @@ export class App {
   private readonly naming = new Set<string>()
   /** The project checkout's branches, for the Switch branch panel. */
   private branchRows: BranchRow[] = []
-  /** The focused lane's output, watched so the pane redraws as the agent types. */
-  private watching: { lane: string; stop: () => void } | null = null
+  /** The lanes in front — the agent's, and the terminal's — watched so they redraw as they print. */
+  private readonly watching = new Map<'pane' | 'terminal', { lane: string; stop: () => void }>()
+  /** The terminal in front, as last captured. */
+  private terminalScreen = ''
+  /** A terminal's scrollback, read for finding in it. */
+  private findText: { id: string; lines: string[] } | null = null
+  /** What each terminal has printed, read when search opens. */
+  private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
+  /** A command voice typed into a terminal, waiting for enter or "confirm". */
+  private typed: { id: string; name: string; command: string } | null = null
   private soon: NodeJS.Timeout | null = null
   private screen = ''
   private recording: Recording | null = null
@@ -368,7 +399,7 @@ export class App {
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
     if (this.soon) clearTimeout(this.soon)
-    this.watching?.stop()
+    for (const watched of this.watching.values()) watched.stop()
     this.remember()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
@@ -398,7 +429,7 @@ export class App {
 
   private remember(): void {
     try {
-      const kept: RememberedWindow = { focused: this.state.focused }
+      const kept: RememberedWindow = { focused: this.state.focused, ...this.state.sizes }
       writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
     } catch {
       // Coming back to the same pane is a convenience, not a reason to fail
@@ -442,6 +473,8 @@ export class App {
         const branch = focused ? (this.live?.factsOf(focused.task)?.branch ?? '') : ''
         return branchMenuItems({ agent: focused !== undefined, name: branch })
       }
+      case 'terminal':
+        return terminalMenuItems()
     }
   }
 
@@ -472,6 +505,13 @@ export class App {
     if (!panel) return {}
     if (panel.kind === 'menu') return { items: this.menuItemsFor(panel) }
     if (panel.kind === 'branch') return { branches: this.branchRows }
+    if (panel.kind === 'find') {
+      return {
+        found: this.findMatches().length,
+        terminalName:
+          this.state.terminals.find((one) => one.id === panel.terminal)?.name ?? 'terminal',
+      }
+    }
     if (panel.kind === 'confirm-remove') {
       const facts = live.factsOf(panel.task)
       return {
@@ -598,6 +638,7 @@ export class App {
         keys: keyCaps(this.opts.config.surfaces.voice.talk.key),
         available: this.opts.recorder !== undefined,
       },
+      terminal: { screen: this.terminalScreen, find: this.findView() },
       home: tilde(this.opts.home),
       now: this.now(),
     }
@@ -628,15 +669,29 @@ export class App {
         }
         return false
       }
+      case 'grab':
+        this.state = { ...this.state, resizing: event.edge }
+        return true
+      case 'drag':
+        if (!this.state.resizing) return false
+        this.state = resizeTo(this.state, event, { height: Math.max(6, this.terminal.rows) })
+        return true
       case 'move': {
         if (sameTarget(this.state.hover, event.target)) return false
-        const was = pressable(this.state.hover)
+        const shapeOf = (target: Target | null) =>
+          target?.kind === 'divider'
+            ? target.edge === 'sidebar'
+              ? 'ew-resize'
+              : 'ns-resize'
+            : pressable(target)
+              ? 'pointer'
+              : 'default'
+        const was = shapeOf(this.state.hover)
         this.state = { ...this.state, hover: event.target }
-        const now = pressable(event.target)
-        // A hand over what can be pressed, where the terminal can show one.
-        if (was !== now && this.pointerShapes) {
-          this.terminal.write(pointerSequence(now ? 'pointer' : 'default'))
-        }
+        const now = shapeOf(event.target)
+        // A hand over what can be pressed, arrows over what can be dragged,
+        // where the terminal can show one.
+        if (was !== now && this.pointerShapes) this.terminal.write(pointerSequence(now))
         return true
       }
       case 'press':
@@ -644,6 +699,12 @@ export class App {
         this.state = { ...this.state, pressed: event.target }
         return true
       case 'release':
+        if (this.state.resizing) {
+          // Where you let go is where it stays, this time and next.
+          this.state = { ...this.state, resizing: null }
+          this.remember()
+          return true
+        }
         if (this.state.pressed === null) return false
         this.state = { ...this.state, pressed: null }
         return true
@@ -655,16 +716,26 @@ export class App {
   }
 
   /** Sizes from the config. The terminal has the last word on all of them. */
+  /** The config's sizes, then the ones you dragged the dividers to, then how the bottom is shown. */
   private layout(): LayoutPrefs {
     const window = this.opts.config.surfaces.window
+    const sizes = this.state.sizes
+    const sidebarWidth = sizes.sidebarWidth ?? window.sidebar_width
+    const stripHeight = sizes.stripHeight ?? window.strip_height
     return {
-      ...(window.sidebar_width ? { sidebarWidth: window.sidebar_width } : {}),
-      ...(window.strip_height ? { stripHeight: window.strip_height } : {}),
+      ...(sidebarWidth ? { sidebarWidth } : {}),
+      ...(stripHeight ? { stripHeight } : {}),
+      bottom: this.state.bottomMode,
     }
   }
 
   private async begin(): Promise<void> {
     this.remembered = this.recall()
+    const { sidebarWidth, stripHeight } = this.remembered ?? {}
+    this.state = {
+      ...this.state,
+      sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
+    }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.loadAccounts()
     // Every project, before any of them has a task: an empty one is still a
@@ -699,6 +770,10 @@ export class App {
       },
       onChange: () => this.draw(),
       onWork: (task) => void this.nameAgent(task),
+      onTerminals: (terminals) => {
+        this.state = withTerminals(this.state, terminals)
+        this.draw()
+      },
     })
     this.live = live
     // Never an empty project: the one you open in gets an agent, ready to type to.
@@ -725,6 +800,7 @@ export class App {
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
       ask: (text: string) => this.ask(text),
+      terminals: this.voiceTerminals(),
       ...(this.opts.now ? { now: this.opts.now } : {}),
       // Typing at an agent is what mutes speech for that task.
       focusedTask: () => ({ task: this.state.focused, lastInputAt: this.state.lastInputAt }),
@@ -790,6 +866,9 @@ export class App {
         this.draw()
         return { consume: true }
       case 'talk-start':
+        // What you say goes to the orchestrator, so its tab comes to the front.
+        if (this.state.bottom !== ORCHESTRATOR_TAB)
+          this.state = { ...this.state, bottom: ORCHESTRATOR_TAB }
         void this.talkStart()
         return { consume: true }
       case 'talk-stop':
@@ -818,6 +897,13 @@ export class App {
         break
     }
 
+    // A terminal with the keyboard gets every keystroke Wilco did not keep.
+    const terminal = activeTerminal(this.state)
+    if (terminal && this.state.keyboard === 'terminal' && this.state.dictation === null) {
+      void this.opts.client.write(terminal.id as LaneId, data).catch(() => {})
+      this.soonTick()
+      return { consume: true }
+    }
     // Dictating: the line is being typed, not the agent.
     if (this.state.dictation !== null) {
       this.type(data)
@@ -895,6 +981,19 @@ export class App {
       case 'section':
         this.state = toggleSection(this.state, target.section)
         break
+      case 'bottom-tab':
+        this.state =
+          target.tab === ORCHESTRATOR_TAB
+            ? showOrchestrator(this.state)
+            : showTerminal(this.state, target.tab)
+        break
+      case 'terminal':
+        // Clicking into a terminal is choosing to type there.
+        this.state = { ...this.state, keyboard: 'terminal', dictation: null }
+        break
+      case 'pane':
+        this.state = { ...this.state, keyboard: 'pane', dictation: null }
+        break
       case 'folder':
         this.state = toggleFolder(this.state, target.path)
         break
@@ -926,6 +1025,15 @@ export class App {
   /** The actions buttons name. Each is exactly what its label says. */
   private async run(action: string): Promise<void> {
     const [verb, task] = action.split(':')
+    if (verb === 'close-terminal' && task) {
+      const closing = action.slice('close-terminal:'.length)
+      await this.opts.client.closeTerminal(closing).catch((err) => {
+        this.state = notice(this.state, why(err))
+      })
+      await this.live?.refresh()
+      this.draw()
+      return
+    }
     if (task && verb?.startsWith('toast-')) {
       this.state = { ...this.state, toasts: this.state.toasts.filter((t) => t.task !== task) }
       if (verb === 'toast-show') this.state = focusTask(this.state, task)
@@ -973,6 +1081,22 @@ export class App {
         return
       case 'open-agent':
         await this.openAgent()
+        return
+      case 'new-terminal':
+        await this.openTerminal()
+        return
+      case 'find-terminal': {
+        const terminal = activeTerminal(this.state)
+        if (terminal) await this.openFind(terminal.id)
+        return
+      }
+      case 'bottom-max':
+        this.state = { ...this.state, bottomMode: this.state.bottomMode === 'max' ? 'open' : 'max' }
+        this.draw()
+        return
+      case 'bottom-min':
+        this.state = { ...this.state, bottomMode: this.state.bottomMode === 'min' ? 'open' : 'min' }
+        this.draw()
         return
       case 'add-note':
         this.state = {
@@ -1314,6 +1438,7 @@ export class App {
       entries.push({ id, kind: 'action', label, mark, complete: `>${label}` })
     for (const [id, label] of [
       ['run:new-agent', 'New agent'],
+      ['run:new-terminal', 'New terminal'],
       ['run:open-project', 'Open project'],
       ['run:spend', 'Spend'],
       ['run:settings', 'Settings'],
@@ -1325,6 +1450,9 @@ export class App {
     for (const pane of panes) {
       if (pane.lane) action(`stop:${pane.task}`, `Stop ${pane.name}`, '■')
       action(`changes:${pane.task}`, `Show the changes in ${pane.name}`, '±')
+    }
+    for (const terminal of this.state.terminals) {
+      action(`show-terminal:${terminal.id}`, `Terminal: ${terminal.name}`, '›')
     }
     for (const project of projects(this.state)) {
       entries.push({ id: `project:${project}`, kind: 'project', label: project, mark: '▣' })
@@ -1363,6 +1491,17 @@ export class App {
   private openSearch(query = ''): void {
     this.state = { ...this.state, panel: searchPanel(query) }
     this.draw()
+    // What every terminal has printed, to find lines in.
+    void Promise.all(
+      this.state.terminals.map(async (terminal) => ({
+        ...terminal,
+        text: await this.opts.client.readTerminal(terminal.id, 5_000).catch(() => ''),
+      })),
+    ).then((texts) => {
+      this.terminalTexts = texts
+      this.results = null
+      this.draw()
+    })
     if (this.searchFiles && this.now() - this.searchFiles.at < 10_000) return
     const roots = this.searchRoots()
     void Promise.all(
@@ -1397,6 +1536,7 @@ export class App {
           entries: this.searchable(),
           files: this.searchFiles?.files ?? [],
           matches,
+          terminals: this.terminalTexts,
         }),
       }
     }
@@ -1443,6 +1583,11 @@ export class App {
       this.openFile(place.path, place.line)
       return
     }
+    if (id.startsWith('terminal\0')) {
+      const [, terminal, query, back] = id.split('\0')
+      if (terminal) await this.openFind(terminal, query ?? '', Number(back) || 0)
+      return
+    }
     const [verb, ...rest] = id.split(':')
     const arg = rest.join(':')
     this.state = { ...this.state, panel: null }
@@ -1468,6 +1613,9 @@ export class App {
         return
       case 'setting':
         await this.openSettings(arg)
+        return
+      case 'show-terminal':
+        await this.showTerminal(arg)
         return
       case 'run':
         if (arg === 'keys') this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
@@ -1495,7 +1643,9 @@ export class App {
           ? (focused
               ? this.live?.factsOf(focused.task)?.branch
               : this.live?.branchAt(this.hereOnDisk() ?? '')) || 'branch'
-          : (subject.path.split('/').at(-1) ?? subject.path)
+          : subject.kind === 'terminal'
+            ? (this.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal')
+            : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -1514,6 +1664,8 @@ export class App {
         return this.fromChangeMenu(subject.task, subject.path, item)
       case 'branch':
         return this.fromBranchMenu(item)
+      case 'terminal':
+        return this.fromTerminalMenu(subject.id, item)
     }
   }
 
@@ -1655,6 +1807,39 @@ export class App {
     this.draw()
   }
 
+  private async fromTerminalMenu(id: string, item: string): Promise<void> {
+    const name = this.state.terminals.find((one) => one.id === id)?.name ?? 'terminal'
+    switch (item) {
+      case 'run':
+        this.state = {
+          ...showTerminal(this.state, id),
+          panel: { ...promptPanel('run-command', `Run in ${name}`, 'COMMAND'), target: id },
+        }
+        break
+      case 'find':
+        await this.openFind(id)
+        return
+      case 'rename':
+        this.state = {
+          ...this.state,
+          panel: { ...promptPanel('rename-terminal', 'Rename terminal', 'NAME', name), target: id },
+        }
+        break
+      case 'clear':
+        await this.opts.client.write(id as LaneId, 'clear\r').catch(() => {})
+        break
+      case 'close':
+        await this.opts.client.closeTerminal(id).catch((err) => {
+          this.state = notice(this.state, why(err))
+        })
+        await this.live?.refresh()
+        break
+      default:
+        break
+    }
+    this.draw()
+  }
+
   /** Reveal a file in the system's file manager. */
   private async reveal(path: string, folder: boolean): Promise<void> {
     try {
@@ -1680,6 +1865,17 @@ export class App {
       this.state = { ...this.state, panel: { ...panel, busy: false, error } }
     }
     try {
+      if (panel.purpose === 'rename-terminal' && panel.target) {
+        await this.opts.client.renameTerminal(panel.target, text)
+        await this.live?.refresh()
+        this.state = notice({ ...this.state, panel: null }, `renamed to ${text}`)
+        return
+      }
+      if (panel.purpose === 'run-command' && panel.target) {
+        await this.opts.client.runInTerminal(panel.target, text)
+        this.state = { ...showTerminal(this.state, panel.target), panel: null }
+        return
+      }
       if (panel.purpose === 'note') {
         const scope = panel.everywhere ? null : this.state.project
         this.opts.client.remember(text, scope, 'window')
@@ -2321,9 +2517,173 @@ export class App {
     this.watch(lane)
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : null)
     const screen = await (this.live?.capture(lane, size.rows, this.skin.colour) ?? '')
-    if (screen !== this.screen || this.state.talkingSince !== null) {
+    const terminal = await this.captureTerminal()
+    if (screen !== this.screen || terminal || this.state.talkingSince !== null) {
       this.screen = screen
       this.draw()
+    }
+  }
+
+  /**
+   * Read the terminal in front of the bottom panel, sized to the panel. Says
+   * whether what it shows has changed. Nothing is read while the panel is
+   * folded or showing the orchestrator.
+   */
+  private async captureTerminal(): Promise<boolean> {
+    const terminal = activeTerminal(this.state)
+    const layout = resolveLayout(this.layout(), {
+      width: this.terminal.columns,
+      height: Math.max(6, this.terminal.rows),
+    })
+    if (!terminal || this.state.bottomMode === 'min') {
+      this.watch(null, 'terminal')
+      return false
+    }
+    const size = {
+      cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1),
+      rows: Math.max(1, layout.stripHeight - 1),
+    }
+    await this.fitLane(terminal.id, size)
+    this.watch(terminal.id, 'terminal')
+    const screen = await (this.live?.capture(terminal.id, size.rows, this.skin.colour) ?? '')
+    if (screen === this.terminalScreen) return false
+    this.terminalScreen = screen
+    return true
+  }
+
+  /** The scrollback the find box is looking through, and the line it is on. */
+  private findView(): NonNullable<Frame['terminal']>['find'] {
+    const panel = this.state.panel
+    if (panel?.kind !== 'find' || this.findText?.id !== panel.terminal) return null
+    const matches = this.findMatches()
+    return {
+      lines: this.findText.lines,
+      line: matches.length > 0 ? (matches[panel.index % matches.length] ?? null) : null,
+      query: panel.query,
+    }
+  }
+
+  /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
+  async showTerminal(id: string): Promise<void> {
+    if (!this.state.terminals.some((terminal) => terminal.id === id)) await this.live?.refresh()
+    this.state = showTerminal(this.state, id)
+    this.draw()
+  }
+
+  /** Open a terminal in a project — the one you are in unless told — and put it in front. */
+  private async openTerminal(name: string | null = null, cwd?: string): Promise<string | null> {
+    const project = this.state.project
+    if (!project) {
+      this.state = notice(this.state, 'open a project first: a terminal starts in its folder')
+      this.draw()
+      return null
+    }
+    const layout = resolveLayout(this.layout(), {
+      width: this.terminal.columns,
+      height: Math.max(6, this.terminal.rows),
+    })
+    try {
+      const opened = await this.opts.client.openTerminal({
+        project,
+        ...(name ? { name } : {}),
+        ...(cwd ? { cwd } : {}),
+        cols: layout.sidebarWidth + layout.mainWidth + 1,
+        rows: Math.max(4, layout.stripHeight - 1),
+      })
+      await this.showTerminal(opened.id)
+      return opened.name
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+      this.draw()
+      return null
+    }
+  }
+
+  /** Look for text in a terminal's scrollback, with the find box over it. */
+  private async openFind(id: string, query = '', index = 0): Promise<void> {
+    this.state = { ...showTerminal(this.state, id), panel: findPanel(id, query, index) }
+    const text = await this.opts.client.readTerminal(id, 5_000).catch(() => '')
+    this.findText = { id, lines: text.split('\n') }
+    this.draw()
+  }
+
+  /** The lines the find box matches, newest first, as line numbers into the scrollback read. */
+  private findMatches(): number[] {
+    const panel = this.state.panel
+    if (panel?.kind !== 'find' || this.findText?.id !== panel.terminal || panel.query === '')
+      return []
+    return matchingLines(this.findText.lines.join('\n'), panel.query, 10_000)
+      .map((match) => match.line - 1)
+      .reverse()
+  }
+
+  /** What voice does with terminals: each answers in the sentence it says back. */
+  private voiceTerminals(): VoiceTerminals {
+    const project = () => this.state.project ?? undefined
+    // Said with no name, it is the terminal in front, or the only one in the project.
+    const which = (name: string | null) => {
+      const front = activeTerminal(this.state)
+      if (!name && front) return this.opts.client.terminal(front.id)
+      return this.opts.client.terminal(name, project())
+    }
+    const attempt = async (act: () => Promise<string>) => {
+      try {
+        return await act()
+      } catch (err) {
+        return `${capitalise(why(err))}.`
+      }
+    }
+    return {
+      open: (name) =>
+        attempt(async () => {
+          const opened = await this.openTerminal(name)
+          return opened ? `Opened ${opened}.` : 'I could not open a terminal here.'
+        }),
+      show: (name) =>
+        attempt(async () => {
+          const terminal = which(name)
+          await this.showTerminal(terminal.id)
+          return `Showing ${terminal.name}.`
+        }),
+      close: (name) =>
+        attempt(async () => {
+          const closed = await this.opts.client.closeTerminal(which(name).id)
+          await this.live?.refresh()
+          return `Closed ${closed.name}.`
+        }),
+      rename: (name, to) =>
+        attempt(async () => {
+          const renamed = await this.opts.client.renameTerminal(which(name).id, to)
+          await this.live?.refresh()
+          return `Renamed it ${renamed.name}.`
+        }),
+      run: (name, command) =>
+        attempt(async () => {
+          const terminal = await this.opts.client.runInTerminal(which(name).id, command, {
+            submit: false,
+          })
+          this.typed = { id: terminal.id, name: terminal.name, command }
+          await this.showTerminal(terminal.id)
+          return `Typed ${command} into ${terminal.name}. Press enter, or say confirm and the command, to run it.`
+        }),
+      search: (name, text) =>
+        attempt(async () => {
+          const { terminal, matches } = await this.opts.client.searchTerminal(which(name).id, text)
+          await this.openFind(terminal.id, text)
+          return matches.length === 0
+            ? `Nothing in ${terminal.name} says ${text}.`
+            : `${matches.length} line${matches.length === 1 ? '' : 's'} in ${terminal.name} mention ${text}.`
+        }),
+      confirm: async (phrase) => {
+        const typed = this.typed
+        if (!typed) return null
+        const words = phrase.toLowerCase().split(/\s+/).filter(Boolean)
+        const command = typed.command.toLowerCase()
+        if (words.length === 0 || !words.every((word) => command.includes(word))) return null
+        this.typed = null
+        await this.opts.client.write(typed.id as LaneId, '\r')
+        return `Ran ${typed.command} in ${typed.name}.`
+      },
     }
   }
 
@@ -2332,17 +2692,17 @@ export class App {
    * rather than at the next quarter-second look. Typing waited for that look,
    * which is what made an agent feel slow to type into.
    */
-  private watch(lane: string | null): void {
-    if (this.watching?.lane === lane) return
-    this.watching?.stop()
-    this.watching = null
+  private watch(lane: string | null, slot: 'pane' | 'terminal' = 'pane'): void {
+    if (this.watching.get(slot)?.lane === lane) return
+    this.watching.get(slot)?.stop()
+    this.watching.delete(slot)
     if (!lane) return
     const watching = { lane, stop: () => {} }
-    this.watching = watching
+    this.watching.set(slot, watching)
     void this.opts.client
       .watch(lane as LaneId, () => this.soonTick(), { lines: 1 })
       .then((watched) => {
-        if (this.watching === watching) watching.stop = watched.stop
+        if (this.watching.get(slot) === watching) watching.stop = watched.stop
         else watched.stop()
       })
       .catch(() => {})
@@ -2575,6 +2935,7 @@ export class App {
       entries: this.searchEntries(),
       lines: this.fileLines(),
       branches: this.branchRows,
+      found: this.findMatches().length,
       rows:
         this.state.panel?.kind === 'open-project'
           ? this.openRowsFor(this.state.panel).map((view) => view.row)
@@ -2837,7 +3198,13 @@ function subjectOf(target: Target): MenuSubject | null {
       return { kind: 'branch' }
     case 'menu':
       return target.subject
+    case 'bottom-tab':
+      return target.tab === ORCHESTRATOR_TAB ? null : { kind: 'terminal', id: target.tab }
     default:
       return null
   }
+}
+
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }

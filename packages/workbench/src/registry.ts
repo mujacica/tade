@@ -42,7 +42,7 @@ export function tmuxSession(home: string): string {
 export const LaneRecord = z.object({
   id: z.string(),
   task: z.string(),
-  kind: z.enum(['agent', 'server', 'tests', 'shell']),
+  kind: z.enum(['agent', 'server', 'tests', 'shell', 'terminal']),
   spec: z.object({
     id: z.string(),
     cwd: z.string(),

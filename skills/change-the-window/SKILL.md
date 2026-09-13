@@ -132,6 +132,18 @@ file and cannot be tested.
 - **Redraw on output, not on a timer.** `App.watch` subscribes to the lane in front of you and asks
   for a look 16 ms after it prints; the quarter-second tick is only the fallback. Polling alone made
   every keystroke wait for the next tick.
+- **The keyboard has three places to go.** A panel, when one is open; the orchestrator's line, when
+  `dictation` is not null; otherwise `state.keyboard` — the agent pane or the terminal in front.
+  `keyAction` claims almost nothing while a terminal has it: a shell needs tab and ctrl+c. Moving
+  the keyboard is always a click (`pane`, `terminal`, `bottom-tab` targets), never a key a shell
+  would want.
+- **Terminals live in the workbench, not the window.** `Workbench.openTerminal`, `runInTerminal`,
+  `readTerminal`, `searchTerminal`… are what the window, the orchestrator's tools (`ToolHost`) and
+  voice (`VoiceTerminals`) all call. The window only draws the tabs it is told about by `Live`, so a
+  terminal the orchestrator opened appears the same way one you clicked open does.
+- **A divider is a hit, dragged.** Lay a `{ kind: 'divider', edge }` under the line; `Window` takes
+  the pointer's capture on press so every movement is a `drag`, and `resizeTo` turns a cell into a
+  size. `draw` clamps it through `resolveLayout`, and `App.remember` keeps it.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
   (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
   keeps `state.scroll`, a panel's list moves its own index.

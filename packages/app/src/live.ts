@@ -15,7 +15,7 @@ import {
   type Workspace,
 } from '@wilco/core'
 import { collectStatus, git } from '@wilco/status'
-import type { Workbench } from '@wilco/workbench'
+import { terminalsFrom, type Workbench } from '@wilco/workbench'
 import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { LaneRecord } from '@wilco/workbench/registry'
 import type { PendingApproval } from '@wilco/workbench/workers'
@@ -169,6 +169,8 @@ export interface LiveOptions {
    * listener's business.
    */
   onWork?: (task: { id: string; project: string; worktree: string; title: string }) => void
+  /** The terminals open now, whoever opened them: the window, the orchestrator, or voice. */
+  onTerminals?: (terminals: { id: string; project: string; name: string }[]) => void
 }
 
 export class Live {
@@ -493,6 +495,9 @@ export class Live {
           }
         }
       }
+      this.opts.onTerminals?.(
+        terminalsFrom(lanes).map(({ id, project, name }) => ({ id, project, name })),
+      )
       this.snapshots = snapshotsFrom(workspace, pending, lanes)
       this.opts.onTasks?.(this.snapshots)
     } catch (err) {

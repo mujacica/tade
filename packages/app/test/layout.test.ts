@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asRemembered, DEFAULTS, MINIMUM, resolveLayout } from '../src/layout.ts'
+import { asRemembered, CHROME, DEFAULTS, MINIMUM, resolveLayout } from '../src/layout.ts'
 
 // A preference is a wish, not an instruction. Everything here is about what
 // happens when the wish does not fit the terminal in front of you.
@@ -33,10 +33,21 @@ describe('resolveLayout', () => {
     expect(layout.sidebarWidth + layout.mainWidth + 1).toBe(100)
   })
 
-  it('keeps the strip to a third at most: it is context, not the view', () => {
+  it('keeps the bottom panel to a third unasked: it is context, not the view', () => {
+    expect(resolveLayout({}, { width: 120, height: 24 }).stripHeight).toBeLessThanOrEqual(8)
+  })
+
+  it('gives the bottom panel what you dragged it to, leaving the agent a few rows', () => {
     const layout = resolveLayout({ stripHeight: 50 }, { width: 120, height: 30 })
-    expect(layout.stripHeight).toBeLessThanOrEqual(10)
-    expect(layout.bodyHeight).toBeGreaterThanOrEqual(MINIMUM.body)
+    expect(layout.stripHeight).toBe(30 - CHROME - 4)
+    expect(layout.bodyHeight).toBe(4)
+  })
+
+  it('fills the window with the bottom panel, or folds it to its tabs', () => {
+    expect(resolveLayout({ bottom: 'max' }, { width: 120, height: 40 }).bodyHeight).toBe(4)
+    expect(
+      resolveLayout({ bottom: 'min', stripHeight: 12 }, { width: 120, height: 40 }).stripHeight,
+    ).toBe(1)
   })
 
   it('refuses to shrink a region into decoration', () => {
@@ -62,11 +73,14 @@ describe('asRemembered', () => {
     expect(asRemembered({ focused: 'checkout/refunds' })).toEqual({ focused: 'checkout/refunds' })
   })
 
-  it('ignores sizes it may find written down', () => {
-    // Sizes come from the config, so a copy of them here could only ever be a
-    // stale second answer to a question that already has one.
-    expect(asRemembered({ focused: 'checkout/refunds', sidebarWidth: 30 })).toEqual({
-      focused: 'checkout/refunds',
+  it('reads back the sizes you dragged the dividers to, and nothing that is not a size', () => {
+    expect(asRemembered({ focused: null, sidebarWidth: 30.4, stripHeight: 12 })).toEqual({
+      focused: null,
+      sidebarWidth: 30,
+      stripHeight: 12,
+    })
+    expect(asRemembered({ focused: null, sidebarWidth: -3, stripHeight: 'tall' })).toEqual({
+      focused: null,
     })
   })
 

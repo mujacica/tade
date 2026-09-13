@@ -201,6 +201,6 @@ export function pointerShapes(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 /** Ask for a pointer shape, by its CSS name. */
-export function pointerSequence(shape: 'pointer' | 'default'): string {
+export function pointerSequence(shape: 'pointer' | 'default' | 'ew-resize' | 'ns-resize'): string {
   return `\x1b]22;${shape}\x1b\\`
 }

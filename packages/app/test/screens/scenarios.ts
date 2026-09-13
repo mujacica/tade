@@ -10,6 +10,7 @@ import {
   toggleSection,
   withProjects,
   withTasks,
+  withTerminals,
 } from '../../src/model.ts'
 import {
   branchMenuItems,
@@ -19,6 +20,7 @@ import {
   diffPanel,
   fileMenuItems,
   filePanel,
+  findPanel,
   menuItems,
   menuPanel,
   openProjectPanel,
@@ -328,6 +330,76 @@ export const SCENARIOS: Scenario[] = [
     about: 'The pointer over a file in FILES: its row is shaded, so the click is plain.',
     state: { ...base(), hover: { kind: 'file', path: 'src/webhooks.ts' } },
     frame: frame(),
+  },
+  {
+    name: 'terminals',
+    about:
+      'Terminals along the bottom: a tab each beside the orchestrator, the one in front typed into.',
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+        { id: 'checkout/terminals/2', project: 'checkout', name: 'server' },
+      ]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal',
+    },
+    frame: frame({
+      terminal: {
+        screen: [
+          '~/src/checkout (main) $ pnpm test src/webhooks',
+          '',
+          ' ✓ src/webhooks.test.ts (12 tests) 48ms',
+          ' ✗ refunds once when the webhook retries',
+          '   AssertionError: expected 2 charges to be 1',
+          '',
+          '~/src/checkout (main) $ ',
+        ].join('\n'),
+      },
+    }),
+  },
+  {
+    name: 'finding-in-a-terminal',
+    about:
+      "Find in a terminal: its scrollback, the line found lit, and the box on the panel's edge.",
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+      ]),
+      bottom: 'checkout/terminals/1',
+      panel: findPanel('checkout/terminals/1', 'assert', 0),
+    },
+    frame: frame({
+      panel: { found: 2, terminalName: 'tests' },
+      terminal: {
+        screen: '',
+        find: {
+          query: 'assert',
+          line: 6,
+          lines: [
+            '$ pnpm test',
+            ' ✓ src/ledger.test.ts (4 tests)',
+            ' ✗ charges once',
+            '   AssertionError: expected 2 charges to be 1',
+            ' ✓ src/webhooks.test.ts (12 tests)',
+            ' ✗ refunds once when the webhook retries',
+            '   AssertionError: expected 2 refunds to be 1',
+            '$ ',
+          ],
+        },
+      },
+    }),
+  },
+  {
+    name: 'bottom-panel-folded',
+    about: 'The bottom panel folded to its tabs, giving the agent the height.',
+    state: { ...base(), bottomMode: 'min' },
+    frame: frame(),
+  },
+  {
+    name: 'dragging-the-sidebar',
+    about: 'A divider under the pointer lights up; dragged, the sidebar follows.',
+    state: { ...base(), resizing: 'sidebar', sizes: { sidebarWidth: 40 } },
+    frame: frame({ layout: { sidebarWidth: 40 } }),
   },
   {
     name: 'every-section-open',

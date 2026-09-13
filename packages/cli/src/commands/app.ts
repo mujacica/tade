@@ -85,9 +85,13 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // The way back for the orchestrator's own tools: it runs as pi in its
       // own process, so `wilco_run_start` has to reach us somehow. One socket,
       // named after this process, gone when the window is.
+      // A terminal the orchestrator opens or runs something in comes to the
+      // front of the window, which starts after the socket does.
+      let showTerminal: (terminal: string) => void = () => {}
       const tools = await ToolHost.listen({
         wilco: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
+        onTerminal: (terminal) => showTerminal(terminal),
       })
       // Held so it can be stopped on the way out, whenever it finishes coming
       // up. Typed explicitly: assigned only from inside a callback, which is
@@ -110,6 +114,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
         })
+        showTerminal = (terminal) => void app.showTerminal(terminal)
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty

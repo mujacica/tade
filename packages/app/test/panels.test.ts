@@ -6,11 +6,13 @@ import {
   changeMenuItems,
   fileMenuItems,
   filePanel,
+  findPanel,
   panelClick,
   panelKey,
   promptPanel,
   searchPanel,
   spendPanel,
+  terminalMenuItems,
 } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 
@@ -193,5 +195,30 @@ describe('switching branch', () => {
       submit: true,
       choice: 'switch:fix/refunds',
     })
+  })
+})
+
+describe('finding in a terminal', () => {
+  it('narrows as you type, goes older with enter or up and newer with down, wrapping', () => {
+    let panel = panelKey(findPanel('app/terminals/1'), undefined, 'Error', { found: 3 }).panel
+    expect(panel).toMatchObject({ query: 'Error', index: 0 })
+    panel = panel ? panelKey(panel, 'enter', '\r', { found: 3 }).panel : null
+    panel = panel ? panelKey(panel, 'up', '', { found: 3 }).panel : null
+    expect(panel).toMatchObject({ index: 2 })
+    panel = panel ? panelKey(panel, 'up', '', { found: 3 }).panel : null
+    expect(panel).toMatchObject({ index: 0 })
+    panel = panel ? panelKey(panel, 'down', '', { found: 3 }).panel : null
+    expect(panel).toMatchObject({ index: 2 })
+    expect(panel ? panelKey(panel, 'escape', '\x1b').panel : 'open').toBeNull()
+  })
+
+  it('offers a terminal what can be done with it, closing last', () => {
+    expect(terminalMenuItems().map((item) => item.id)).toEqual([
+      'run',
+      'find',
+      'rename',
+      'clear',
+      'close',
+    ])
   })
 })

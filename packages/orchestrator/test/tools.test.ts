@@ -96,6 +96,20 @@ describe('orchestrator tools', () => {
     expect(signals.some((s) => s.type === 'tool_call' && s.tool === 'wilco_run_list')).toBe(true)
   }, 90_000)
 
+  it('opens a terminal through the tool, and tells the window which', async () => {
+    const shown: string[] = []
+    await tools.close()
+    tools = await ToolHost.listen({
+      wilco,
+      path: join(home, 'tools.sock'),
+      onTerminal: (terminal) => shown.push(terminal),
+    })
+    await runWithTool({ name: 'wilco_terminal_open', arguments: { project: 'app', name: 'tests' } })
+    await until(() => wilco.terminals('app').length === 1 && shown.length === 1)
+    expect(wilco.terminals('app')[0]).toMatchObject({ id: 'app/terminals/1', name: 'tests' })
+    expect(shown).toEqual(['app/terminals/1'])
+  }, 90_000)
+
   it('creates a real task through the tool, with the intent kept verbatim', async () => {
     const intent = 'the refund flow double-charges when the webhook retries'
     await runWithTool({

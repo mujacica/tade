@@ -36,6 +36,13 @@ import {
   type TaskWorktree,
 } from './tasks.ts'
 import {
+  findTerminal,
+  matchingLines,
+  nextTerminal,
+  type TerminalInfo,
+  terminalsFrom,
+} from './terminals.ts'
+import {
   type PendingApproval,
   type RunVitals,
   type StartRunRequest,
@@ -362,6 +369,108 @@ export class Workbench {
 
   setTitle(lane: LaneId, title: string): Promise<void> {
     return this.registry.setTitle(lane, title)
+  }
+
+  // --- terminals
+
+  /** The terminals open now, in one project or all of them. */
+  terminals(project?: string): TerminalInfo[] {
+    return terminalsFrom(this.registry.list(), project)
+  }
+
+  /**
+   * Open a terminal: a login shell in the project's folder, or wherever you
+   * say. Called `terminal <n>` unless you name it.
+   */
+  async openTerminal(req: {
+    project: string
+    cwd?: string
+    name?: string
+    cols?: number
+    rows?: number
+  }): Promise<TerminalInfo> {
+    const configured = this.config.projects[req.project]
+    const cwd = req.cwd ?? (configured ? expandHome(configured.root) : undefined)
+    if (!cwd) throw new Error(`unknown project "${req.project}"`)
+    const next = nextTerminal(req.project, this.registry.list())
+    const name = req.name?.trim() || next.name
+    await this.registry.spawn({
+      id: next.id as LaneId,
+      task: `${req.project}/terminals`,
+      kind: 'terminal',
+      cwd,
+      command: process.env.SHELL ?? '/bin/sh',
+      args: ['-l'],
+      ...(req.cols ? { cols: req.cols } : {}),
+      ...(req.rows ? { rows: req.rows } : {}),
+      title: name,
+    })
+    const opened = this.terminals(req.project).find((terminal) => terminal.id === next.id)
+    if (!opened) throw new Error(`the terminal did not start in ${cwd}`)
+    return opened
+  }
+
+  /**
+   * The terminal somebody meant: an id, a name, a number — within a project
+   * when one is given. Throws with the choices when it could be several.
+   */
+  terminal(said: string | null | undefined, project?: string): TerminalInfo {
+    const all = this.terminals(project)
+    const exact = all.find((terminal) => terminal.id === said)
+    const found = exact ?? findTerminal(all, said)
+    if (found) return found
+    if (all.length === 0) throw new Error('no terminal is open')
+    throw new Error(`which terminal? ${all.map((terminal) => terminal.name).join(', ')}`)
+  }
+
+  async renameTerminal(said: string, name: string, project?: string): Promise<TerminalInfo> {
+    const terminal = this.terminal(said, project)
+    const text = name.trim()
+    if (!text) throw new Error('a terminal needs a name')
+    await this.registry.setTitle(terminal.id as LaneId, text)
+    return { ...terminal, name: text }
+  }
+
+  async closeTerminal(said: string, project?: string): Promise<TerminalInfo> {
+    const terminal = this.terminal(said, project)
+    await this.registry.close(terminal.id as LaneId)
+    return terminal
+  }
+
+  /**
+   * Type a command into a terminal, and press enter unless told not to. What
+   * runs is exactly what a person typing it would have run, in the shell
+   * they can see.
+   */
+  async runInTerminal(
+    said: string,
+    command: string,
+    opts: { submit?: boolean; project?: string } = {},
+  ): Promise<TerminalInfo> {
+    const terminal = this.terminal(said, opts.project)
+    const text = command.replace(/[\r\n]+$/, '')
+    await this.registry.write(
+      terminal.id as LaneId,
+      Buffer.from(opts.submit === false ? text : `${text}\r`, 'utf8'),
+    )
+    return terminal
+  }
+
+  /** What a terminal shows, and as much of its scrollback as asked for, as plain text. */
+  async readTerminal(said: string, lines = 200, project?: string): Promise<string> {
+    const terminal = this.terminal(said, project)
+    return this.registry.capture(terminal.id as LaneId, lines, false)
+  }
+
+  /** Lines in a terminal's scrollback containing some text. */
+  async searchTerminal(
+    said: string,
+    text: string,
+    project?: string,
+  ): Promise<{ terminal: TerminalInfo; matches: { line: number; text: string }[] }> {
+    const terminal = this.terminal(said, project)
+    const screen = await this.registry.capture(terminal.id as LaneId, 5_000, false)
+    return { terminal, matches: matchingLines(screen, text) }
   }
 
   /** Close a lane. To close the workbench itself, use `close()`. */

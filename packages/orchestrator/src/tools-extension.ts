@@ -257,6 +257,81 @@ export default function wilcoTools(pi: PiApi): void {
     },
   )
 
+  // Terminals: shells along the bottom of the window that belong to a project.
+  // The human sees everything typed into one, as it is typed.
+  const terminal = string(
+    'which terminal: its name ("tests"), its number, or its id; leave it out when there is only one',
+  )
+  const inProject = string('project name, as configured, when it is not obvious')
+
+  tool(
+    'wilco_terminal_list',
+    'The terminals open along the bottom of the window, with their names, projects and folders.',
+    object({ project: inProject }),
+    (p) => rpc('terminal/list', p.project ? { project: String(p.project) } : {}),
+  )
+
+  tool(
+    'wilco_terminal_open',
+    "Open a terminal: a shell in the project's folder, or in the folder given (an agent's worktree, say). It appears along the bottom of the window.",
+    object(
+      {
+        project: string('project name, as configured'),
+        name: string('what to call it, like "tests" or "server"'),
+        cwd: string('folder to start in, when not the project itself'),
+      },
+      ['project'],
+    ),
+    (p) => rpc('terminal/open', p),
+  )
+
+  tool(
+    'wilco_terminal_run',
+    'Run a command in a terminal, exactly as if the human typed it and pressed enter. They see it happen. Read the terminal afterwards to see what it printed.',
+    object(
+      {
+        terminal,
+        command: string('the command line, exactly'),
+        submit: { type: 'boolean', description: 'false to type it without running it' },
+        project: inProject,
+      },
+      ['command'],
+    ),
+    (p) => rpc('terminal/run', p),
+  )
+
+  tool(
+    'wilco_terminal_read',
+    'What a terminal shows, with some of its scrollback: how to see what a command printed.',
+    object({
+      terminal,
+      lines: { type: 'number', description: 'how many lines back, 200 unless said' },
+      project: inProject,
+    }),
+    (p) => rpc('terminal/read', p),
+  )
+
+  tool(
+    'wilco_terminal_search',
+    "Find lines in a terminal's scrollback containing some text, any case.",
+    object({ terminal, text: string('what to look for'), project: inProject }, ['text']),
+    (p) => rpc('terminal/search', p),
+  )
+
+  tool(
+    'wilco_terminal_rename',
+    'Rename a terminal, so it can be found by what it is for: "tests", "server".',
+    object({ terminal, name: string('its new name'), project: inProject }, ['name']),
+    (p) => rpc('terminal/rename', p),
+  )
+
+  tool(
+    'wilco_terminal_close',
+    'Close a terminal, ending whatever is running in it. Only when the human asked for that.',
+    object({ terminal, project: inProject }),
+    (p) => rpc('terminal/close', p),
+  )
+
   tool(
     'wilco_logs',
     'What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.',

@@ -15,16 +15,21 @@ import {
   onEvent,
   parseCommand,
   projects,
+  resizeTo,
   selectProject,
   setDictation,
   setListening,
+  showOrchestrator,
+  showTerminal,
   sidebar,
   type TaskSnapshot,
   TURN_HISTORY,
   tasksOf,
+  terminalsOf,
   whichProject,
   withProjects,
   withTasks,
+  withTerminals,
 } from '../src/model.ts'
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')
@@ -302,3 +307,44 @@ describe('keys the shell claims', () => {
 function turn(utterance: string): Turn {
   return { utterance, intent: 'status', reply: 'fine', at: NOW }
 }
+
+describe('the bottom panel', () => {
+  const tabs = [
+    { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+    { id: 'search/terminals/1', project: 'search', name: 'logs' },
+  ]
+
+  it('shows a terminal with the keyboard in it, and gives the front back when it goes', () => {
+    let current = showTerminal(withTerminals(state(), tabs), 'checkout/terminals/1')
+    expect(current).toMatchObject({
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal',
+      dictation: null,
+    })
+    expect(terminalsOf(current).map((t) => t.name)).toEqual(['tests'])
+    current = withTerminals(current, tabs.slice(1))
+    expect(current).toMatchObject({ bottom: 'orchestrator', keyboard: 'pane' })
+  })
+
+  it('leaves tab, ctrl+c and letters to a terminal with the keyboard, but keeps talk and search', () => {
+    const inTerminal = showTerminal(withTerminals(state(), tabs), 'checkout/terminals/1')
+    for (const key of ['tab', 'shift+tab', 'ctrl+c', 'a', 'd']) {
+      expect(keyAction(key, inTerminal).kind).toBe('none')
+    }
+    expect(keyAction('talk-down', inTerminal).kind).toBe('talk-start')
+    expect(keyAction('search', inTerminal).kind).toBe('search')
+    expect(keyAction('tab', showOrchestrator(inTerminal)).kind).toBe('focus-next')
+  })
+
+  it('follows a dragged divider', () => {
+    const sidebar = resizeTo({ ...state(), resizing: 'sidebar' }, { x: 40, y: 5 }, { height: 50 })
+    expect(sidebar.sizes).toEqual({ sidebarWidth: 40 })
+    const bottom = resizeTo(
+      { ...state(), resizing: 'bottom', bottomMode: 'min' },
+      { x: 0, y: 30 },
+      { height: 50 },
+    )
+    expect(bottom).toMatchObject({ sizes: { stripHeight: 18 }, bottomMode: 'open' })
+    expect(resizeTo(state(), { x: 1, y: 1 }, { height: 50 }).sizes).toEqual({})
+  })
+})

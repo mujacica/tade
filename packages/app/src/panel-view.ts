@@ -14,6 +14,7 @@ import {
   choicesFor,
   type DiffPanel,
   type FilePanel,
+  type FindPanel,
   type MenuItem,
   type MenuPanel,
   matchingChoices,
@@ -106,6 +107,10 @@ export interface PanelContext {
   branches: readonly BranchRow[]
   /** The branch the project's checkout is on. */
   checkout: string | null
+  /** How many lines of the terminal being searched match. */
+  found: number
+  /** What the terminal being searched is called. */
+  terminalName: string
 }
 
 export interface OpenRowView {
@@ -147,6 +152,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: branches(panel, ctx), popups: [] }
     case 'confirm':
       return { panel: confirm(panel, ctx), popups: [] }
+    case 'find':
+      return { panel: find(panel, ctx), popups: [] }
     case 'keys':
       return { panel: keysSheet(ctx), popups: [] }
     case 'quit':
@@ -459,6 +466,9 @@ function keysSheet(ctx: PanelContext): Drawn {
       .keys(['ctrl', 'k'])
       .space(2)
       .text('agents, files, lines in files', skin.hint)
+      .build(),
+    label('TERMINAL')
+      .text("click into it to type; tab, ctrl+c and esc are the shell's", skin.hint)
       .build(),
     label('NEXT AGENT').keys(['tab']).space(2).keys(['shift', 'tab']).build(),
     label('ANSWER')
@@ -1393,6 +1403,28 @@ function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
       .build(),
   )
   return box('Switch branch', rows, width, skin, { corner: 'esc' })
+}
+
+/** Finding in a terminal: the box, how many, and older and newer. */
+function find(panel: FindPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(58, ctx.width - 4)
+  const inner = width - 2
+  const count = ctx.found
+  const said =
+    panel.query === ''
+      ? ''
+      : count === 0
+        ? 'none'
+        : `${Math.min(panel.index + 1, count)} of ${count}`
+  const row = new Row(inner, skin, ctx.pointer)
+    .space()
+    .field(panel.query, inner - 22, { caret: true })
+    .space()
+    .text(said.padEnd(9), count === 0 && panel.query ? skin.waiting : skin.hint)
+    .button('↑', { kind: 'control', id: 'older' }, count > 1 ? 'rest' : 'off')
+    .button('↓', { kind: 'control', id: 'newer' }, count > 1 ? 'rest' : 'off')
+  return box(`Find in ${ctx.terminalName}`, [row.build()], width, skin, { corner: 'esc' })
 }
 
 /** Throwing a file's uncommitted changes away, asked first. */

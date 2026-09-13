@@ -300,7 +300,7 @@ This is an 80×24 terminal, exactly as drawn — it is one of the screens the te
  ▾ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
    ▾ src/                 │  ╰───────────────────────────────────────────────╯  
        webhooks.test.ts   │                                                     
-━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                 
                                                                                 
                                                                                 
@@ -373,6 +373,18 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   any of `remember …`, `note …`, `note to self …`, `make a note …`, `write down …`, `keep in mind …`,
   `don't forget …`, `important: …` or `for the record …` does the same. The orchestrator reads them
   when it starts, and `wilco notes` lists them.
+- **The bottom panel.** The orchestrator and your terminals share it, as tabs along its top edge.
+  **+** opens a terminal: a login shell in the project's folder, called `terminal 1` until renamed.
+  Click into one to type there — tab, ctrl+c and escape are the shell's while it has the keyboard,
+  and only your talk key and `ctrl+k` stay Wilco's; click the agent or the orchestrator to take the
+  keyboard back. A right-click on a terminal's tab, or its `×`, runs a command in it, finds, renames,
+  clears or closes it. `⌕` finds in its scrollback: typing narrows, enter or `↑` goes to an older
+  match, `↓` a newer one, and the line is lit where it is. `⤢` fills the window with the panel, `▾`
+  folds it to its tabs. Terminals are lanes like everything else, so under tmux they outlive the
+  window and come back with it. `ctrl+k` search looks through what every terminal has printed too.
+- **Resizing.** The line between the sidebar and the pane, and the bottom panel's top edge, are
+  handles: they light up under the pointer (with resize arrows, where the terminal can show them),
+  and dragging moves them. Where you let go is remembered in `~/.wilco/window.json`.
 - **Money.** The status bar is the model, the provider it goes through and how that is paid for
   (`signed in`, `API key`, or `env API key`), then today's tokens and dollars; a narrow terminal keeps
   the dollars. Click it for the orchestrator and
@@ -494,6 +506,28 @@ has no privileged path. If it's unavailable, nothing is lost but convenience.
 
 Speech and tones use what the OS already has (`say` + `afplay` on macOS, `spd-say` + `paplay` on
 Linux), so there is nothing to install.
+
+### Terminals, by voice and by the orchestrator
+
+The terminals along the bottom answer to words as well as clicks. Each of these works said or typed
+to Wilco, and each says "terminal", so an instruction for an agent is never taken for a shell:
+
+| Say | Does |
+|---|---|
+| *open a terminal*, *open a new terminal called tests* | opens one in the project you are in |
+| *show me the tests terminal*, *go to terminal 2* | puts it in front |
+| *rename terminal 2 to server* | renames it |
+| *close the server terminal* | closes it |
+| *find TypeError in the tests terminal* | opens find in it, on the newest match |
+| *run npm test in the tests terminal* | **types** the command, and waits |
+
+A command heard is typed, not run: a misheard one must never run by itself. Press enter, or say
+*confirm npm test* — the words read back — and it runs. A bare *yes* does not.
+
+The orchestrator has the same verbs as tools (`wilco_terminal_open`, `…_run`, `…_read`, `…_search`,
+`…_rename`, `…_close`, `…_list`). It runs what you ask it to — the tests, a dev server — and reads
+the terminal to see what happened; whatever it types there comes to the front of the window as it
+is typed.
 
 ### Talking to it
 

@@ -135,6 +135,16 @@ const cases: Case[] = [
   { said: 'note to self check the webhook retries', want: 'remember' },
   { said: 'for the record, main is protected', want: 'remember' },
 
+  // --- terminals
+  { said: 'open a terminal', want: 'terminal' },
+  { said: 'show me the tests terminal', want: 'terminal' },
+  { said: 'close terminal 2', want: 'terminal' },
+  { said: 'rename the tests terminal to Unit Tests', want: 'terminal' },
+  { said: 'run npm test in the tests terminal', want: 'terminal' },
+  { said: 'search for TypeError in the terminal', want: 'terminal' },
+  // Without the word, an instruction is for an agent or the orchestrator, never a shell.
+  { said: 'run the tests', want: 'free' },
+
   // --- near-misses
   // A known mishearing is corrected ("bark" → "park", above); one that is not
   // falls through rather than being bent into the nearest command.
@@ -307,5 +317,37 @@ describe('asking for the settings', () => {
     // request to open a screen.
     expect(parseUtterance('tell refunds to read the config', vocabulary).kind).toBe('steer')
     expect(parseUtterance('what about config', vocabulary).kind).not.toBe('settings')
+  })
+})
+
+describe('a sentence about a terminal', () => {
+  const vocabulary = { tasks: ['app/refunds'], projects: ['app'] }
+  const parse = (said: string) => parseUtterance(said, vocabulary)
+
+  it('keeps a command and a search exactly as said', () => {
+    expect(parse('run PORT=3000 pnpm dev in terminal 2')).toEqual({
+      kind: 'terminal',
+      action: 'run',
+      name: '2',
+      command: 'PORT=3000 pnpm dev',
+    })
+    expect(parse('find TypeError in the tests terminal')).toMatchObject({
+      action: 'search',
+      name: 'tests',
+      text: 'TypeError',
+    })
+  })
+
+  it('names the one meant, or none for the one in front of you', () => {
+    expect(parse('open a new terminal called Server')).toMatchObject({
+      action: 'open',
+      name: 'Server',
+    })
+    expect(parse('close the terminal')).toMatchObject({ action: 'close', name: null })
+    expect(parse('rename terminal to logs')).toMatchObject({
+      action: 'rename',
+      name: null,
+      to: 'logs',
+    })
   })
 })

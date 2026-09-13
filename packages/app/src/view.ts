@@ -11,9 +11,11 @@ import {
   isAction,
   laneShown,
   matchActions,
+  ORCHESTRATOR_TAB,
   projects,
   shownName,
   tasksOf,
+  terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
 import { PLAIN, type Skin } from './skin.ts'
@@ -52,6 +54,15 @@ export interface Frame {
   screen: string
   /** The orchestrator's own screen, when it is running where you can see it. */
   orchestrator?: string
+  /**
+   * The terminal in front of the bottom panel: its screen as captured, and —
+   * while finding in it — its scrollback as plain text, the line found, and
+   * what was looked for.
+   */
+  terminal?: {
+    screen: string
+    find?: { lines: readonly string[]; line: number | null; query: string } | null
+  }
   /** The files of the focused agent's worktree, or of the project when there is none. */
   files?: readonly FileEntry[]
   /** What git says about those files, by path: `M`, `A`, `D`, `R`, `U`, `!`. */
@@ -119,6 +130,8 @@ export interface Frame {
       | 'viewing'
       | 'branches'
       | 'checkout'
+      | 'found'
+      | 'terminalName'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
@@ -157,8 +170,9 @@ export function renderApp(state: AppState, frame: Frame): string[] {
 export function draw(state: AppState, frame: Frame): Drawn {
   const skin = frame.skin ?? PLAIN
   const pointer: Pointer = { hover: state.hover, pressed: state.pressed }
+  // The config's sizes, then the ones dragged to, then the bottom folded or filling.
   const { sidebarWidth, stripHeight, mainWidth, bodyHeight } = resolveLayout(
-    frame.layout ?? {},
+    { ...frame.layout, ...state.sizes, bottom: state.bottomMode },
     frame,
   )
   // The clamped width, not the asked-for one: a terminal too narrow to hold a
@@ -176,15 +190,31 @@ export function draw(state: AppState, frame: Frame): Drawn {
 
   const left = renderSidebar(state, frame, sidebarWidth, bodyHeight, skin, pointer)
   const right = renderMain(state, frame, mainWidth, bodyHeight, skin, pointer)
-  const body: Drawn = { rows: [], hits: [...left.hits, ...shift(right.hits, 0, sidebarWidth + 1)] }
+  // The line between them is a handle: it lights up under the pointer, and
+  // dragging it moves it.
+  const sidebarEdge: Target = { kind: 'divider', edge: 'sidebar' }
+  const edgeLit = state.resizing === 'sidebar' || sameTarget(state.hover, sidebarEdge)
+  const body: Drawn = {
+    rows: [],
+    hits: [
+      ...left.hits,
+      ...shift(right.hits, 0, sidebarWidth + 1),
+      ...Array.from({ length: bodyHeight }, (_, i) => ({
+        row: i,
+        from: sidebarWidth,
+        to: sidebarWidth,
+        target: sidebarEdge,
+      })),
+    ],
+  }
   for (let i = 0; i < bodyHeight; i++) {
     body.rows.push(
-      `${fit(left.rows[i] ?? '', sidebarWidth)}${skin.chrome('│')}${fit(right.rows[i] ?? '', mainWidth)}`,
+      `${fit(left.rows[i] ?? '', sidebarWidth)}${edgeLit ? skin.signal('┃') : skin.chrome('│')}${fit(right.rows[i] ?? '', mainWidth)}`,
     )
   }
   add(body)
 
-  add(renderStrip(state, frame, width, stripHeight, skin))
+  add(renderStrip(state, frame, width, stripHeight, skin, pointer))
   add(renderFoot(state, frame, width, skin, pointer))
 
   let window: Drawn = { rows, hits }
@@ -236,10 +266,18 @@ export function draw(state: AppState, frame: Frame): Drawn {
     viewing: extra.viewing ?? null,
     branches: extra.branches ?? [],
     checkout: extra.checkout ?? frame.where?.branch ?? null,
+    found: extra.found ?? 0,
+    terminalName: extra.terminalName ?? 'terminal',
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
-  const anchor = state.panel.kind === 'menu' ? state.panel.anchor : null
+  // Find sits on the bottom panel's top edge, over the terminal it searches.
+  const anchor =
+    state.panel.kind === 'menu'
+      ? state.panel.anchor
+      : state.panel.kind === 'find'
+        ? { row: 2 + bodyHeight - panel.rows.length + 1, col: width - panelWidth - 1 }
+        : null
   // A menu opens where it was asked for, over a window that stays bright; a
   // panel that asks something takes the middle and fades the rest.
   const at = anchor
@@ -815,6 +853,10 @@ function renderMain(
       for (const line of lines.slice(-room)) rows.push(screenRow(line, width, skin, pointer))
     }
   }
+  // Anywhere on the agent's screen gives it the keyboard back.
+  rows.forEach((row, i) => {
+    if (i >= 2) row.hits.unshift(rowHit(0, width, { kind: 'pane' }))
+  })
 
   while (rows.length < height) rows.push(blank(width))
   const drawn = stack(rows.slice(0, height))
@@ -966,10 +1008,13 @@ function renderStrip(
   width: number,
   height: number,
   skin: Skin,
+  pointer: Pointer,
 ): Drawn {
   const voice = frame.voice ?? { keys: ['ctrl', 'space'], available: false }
   let bar: string
+  let barHits: Hit[] = []
   const talking = state.listening && state.talkingSince !== null
+  const terminal = talking ? null : state.terminals.find((one) => one.id === state.bottom)
   if (talking) {
     const seconds = Math.max(0, Math.floor(((frame.now ?? 0) - (state.talkingSince ?? 0)) / 1000))
     const left = new Row(width, skin)
@@ -985,14 +1030,20 @@ function renderStrip(
     left.text(tail, skin.chrome)
     bar = left.build().text
   } else {
-    const here = state.focused === null || state.dictation !== null
-    const label = `━ orchestrator${here ? ' ── here' : ''} `
-    bar = skin.chrome(label + '━'.repeat(Math.max(0, width - label.length)))
+    const tabs = bottomTabs(state, width, skin, pointer)
+    bar = tabs.text
+    barHits = tabs.hits
   }
 
   const rows = [fit(bar, width)]
-  const hits: Hit[] = [rowHit(0, width, { kind: 'orchestrator' })]
+  const hits: Hit[] = talking ? [rowHit(0, width, { kind: 'orchestrator' })] : barHits
   const room = height - 1
+  if (room <= 0) return { rows: rows.slice(0, height), hits }
+
+  if (terminal) {
+    const drawn = terminalBody(frame.terminal, width, room, skin)
+    return { rows: [...rows, ...drawn.rows], hits: [...hits, ...shift(drawn.hits, 1)] }
+  }
 
   if (frame.orchestrator !== undefined && !isAction(state.dictation)) {
     for (const line of frame.orchestrator.split('\n').slice(-room)) {
@@ -1063,6 +1114,90 @@ function renderStrip(
   hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
   rows.push(prompt.build().text)
   return { rows: rows.slice(0, height), hits }
+}
+
+/**
+ * The bottom panel's row of tabs, drawn on its top edge: the orchestrator,
+ * each terminal of the project you are in, `+` for another, and on the right
+ * find, fill the window and fold away. The rule around them is the handle
+ * that resizes the panel.
+ */
+function bottomTabs(
+  state: AppState,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+): { text: string; hits: Hit[] } {
+  const edge: Target = { kind: 'divider', edge: 'bottom' }
+  const lit = state.resizing === 'bottom' || sameTarget(state.hover, edge)
+  const rule = lit ? skin.signal : skin.chrome
+  const line = '━'
+  const row = new Row(width, skin, pointer).text(`${line} `, rule)
+  const orchestrator: Target = { kind: 'bottom-tab', tab: ORCHESTRATOR_TAB }
+  row.tab('orchestrator', orchestrator, state.bottom === ORCHESTRATOR_TAB)
+  if (state.bottom === ORCHESTRATOR_TAB && (state.dictation !== null || state.focused === null)) {
+    row.text(' here', skin.hint, orchestrator)
+  }
+  for (const terminal of terminalsOf(state)) {
+    const on = terminal.id === state.bottom
+    const target: Target = { kind: 'bottom-tab', tab: terminal.id }
+    row.space().tab(terminal.name, target, on)
+    // The one in front can be closed from its tab.
+    if (on) row.text('×', skin.hint, { kind: 'action', name: `close-terminal:${terminal.id}` })
+  }
+  row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
+
+  const controls = (r: Row) => {
+    if (state.terminals.some((one) => one.id === state.bottom)) {
+      r.button('⌕', { kind: 'action', name: 'find-terminal' }).space()
+    }
+    r.button(state.bottomMode === 'max' ? '⤡' : '⤢', { kind: 'action', name: 'bottom-max' }).space()
+    r.button(state.bottomMode === 'min' ? '▴' : '▾', { kind: 'action', name: 'bottom-min' })
+    r.text(` ${line}`, rule)
+  }
+  const probe = new Row(width, skin)
+  controls(probe)
+  // One short of meeting them: a right-hand group needs a column of room to sit in.
+  const fill = width - row.used - probe.used - 1
+  if (fill > 0) row.text(line.repeat(fill), rule)
+  row.right(controls)
+  const built = row.build()
+  // Under everything: the rule itself, which is what a drag takes hold of.
+  return { text: built.text, hits: [rowHit(0, width, edge), ...built.hits] }
+}
+
+/**
+ * A terminal's screen, tailing like an agent's. While finding in it, its
+ * scrollback instead, with the line found in view and what matched lit.
+ */
+function terminalBody(terminal: Frame['terminal'], width: number, room: number, skin: Skin): Drawn {
+  const rows: string[] = []
+  const hits: Hit[] = []
+  const find = terminal?.find
+  if (find) {
+    const at = find.line ?? find.lines.length - 1
+    const start = Math.max(0, Math.min(at - Math.floor(room / 2), find.lines.length - room))
+    const want = find.query.toLowerCase()
+    find.lines.slice(start, start + room).forEach((line, offset) => {
+      const here = start + offset === find.line
+      const cut = fit(line, width)
+      const plain = stripTerminalSequences(cut)
+      const found = want ? plain.toLowerCase().indexOf(want) : -1
+      const text =
+        found >= 0
+          ? plain.slice(0, found) +
+            (here ? skin.transmit : skin.waiting)(plain.slice(found, found + want.length)) +
+            plain.slice(found + want.length)
+          : plain
+      rows.push(here ? skin.selected(text) : text)
+    })
+  } else {
+    const lines = (terminal?.screen ?? '').split('\n')
+    for (const line of lines.slice(-room)) rows.push(fit(line, width))
+  }
+  while (rows.length < room) rows.push(' '.repeat(width))
+  for (let i = 0; i < rows.length; i++) hits.push(rowHit(i, width, { kind: 'terminal' }))
+  return { rows, hits }
 }
 
 function renderFoot(

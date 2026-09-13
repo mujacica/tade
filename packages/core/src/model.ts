@@ -21,7 +21,7 @@ export const TaskState = z.enum([
 ])
 export type TaskState = z.infer<typeof TaskState>
 
-export const LaneKind = z.enum(['agent', 'server', 'tests', 'shell'])
+export const LaneKind = z.enum(['agent', 'server', 'tests', 'shell', 'terminal'])
 export type LaneKind = z.infer<typeof LaneKind>
 
 /** `<project>/<task>`, e.g. `checkout/stripe-v15`. */

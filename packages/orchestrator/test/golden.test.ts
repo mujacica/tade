@@ -61,6 +61,13 @@ describe('the tools the orchestrator has', () => {
       'wilco_status',
       'wilco_steer',
       'wilco_task_create',
+      'wilco_terminal_close',
+      'wilco_terminal_list',
+      'wilco_terminal_open',
+      'wilco_terminal_read',
+      'wilco_terminal_rename',
+      'wilco_terminal_run',
+      'wilco_terminal_search',
     ])
   })
 

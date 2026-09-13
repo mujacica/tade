@@ -18,6 +18,14 @@ export type Target =
   | { kind: 'file'; path: string }
   /** A folder in the FILES tree: clicking it opens or closes it. */
   | { kind: 'folder'; path: string }
+  /** A tab of the bottom panel: `orchestrator`, or a terminal's lane id. */
+  | { kind: 'bottom-tab'; tab: string }
+  /** A terminal's screen: clicking it gives it the keyboard. */
+  | { kind: 'terminal' }
+  /** The agent's screen: clicking it gives the keyboard back to the agent. */
+  | { kind: 'pane' }
+  /** A line between regions that can be dragged to resize them. */
+  | { kind: 'divider'; edge: 'sidebar' | 'bottom' }
   /** The branch under GIT: clicking it is its menu. */
   | { kind: 'branch' }
   /** A ≡ that opens something's menu. */
@@ -89,7 +97,10 @@ export function pressable(target: Target | null): boolean {
     target.kind !== 'inert' &&
     target.kind !== 'orchestrator' &&
     target.kind !== 'dismiss' &&
-    target.kind !== 'scroll'
+    target.kind !== 'scroll' &&
+    target.kind !== 'terminal' &&
+    target.kind !== 'pane' &&
+    target.kind !== 'divider'
   )
 }
 

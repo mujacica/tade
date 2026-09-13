@@ -21,7 +21,7 @@
    from     main        │                                                                      │                        
    worktree …ckout-strip│                                                                      │                        
    path     /Users/me/.w│ ↑↓ choose · enter switches · a new name creates it        ▐ Cancel ▌ │                        
-━ orchestrator ── here ━╰──────────────────────────────────────────────────────────────────────╯━━━━━━━━━━━━━━━━━━━━━━━━
+━ ▐ orchestrator ▌ here ╰──────────────────────────────────────────────────────────────────────╯━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
                                                                                                                         

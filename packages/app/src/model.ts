@@ -96,7 +96,29 @@ export interface AppState {
   viewing: Record<string, string>
   /** Agents elsewhere that asked for you while you were looking at something else. */
   toasts: { task: string; at: number }[]
+  /** The terminals open along the bottom, in every project. */
+  terminals: TerminalTab[]
+  /** Which tab of the bottom panel is in front: `orchestrator`, or a terminal's lane id. */
+  bottom: string
+  /** How the bottom panel is shown: at its size, filling the window, or folded to its tabs. */
+  bottomMode: 'open' | 'max' | 'min'
+  /** Where typing goes when no line is open: the agent in the middle, or the terminal below. */
+  keyboard: 'pane' | 'terminal'
+  /** Sizes you dragged the dividers to, over the ones the config gives. */
+  sizes: { sidebarWidth?: number; stripHeight?: number }
+  /** A divider being dragged. */
+  resizing: 'sidebar' | 'bottom' | null
 }
+
+/** A terminal, as its tab shows it. */
+export interface TerminalTab {
+  id: string
+  project: string
+  name: string
+}
+
+/** The orchestrator's tab in the bottom panel, which cannot be closed. */
+export const ORCHESTRATOR_TAB = 'orchestrator'
 
 /** Sections that start folded: the ones you look at on purpose, not all the time. */
 export const FOLDED_AT_START = ['notes']
@@ -126,6 +148,12 @@ export function initialState(): AppState {
     panel: null,
     viewing: {},
     toasts: [],
+    terminals: [],
+    bottom: ORCHESTRATOR_TAB,
+    bottomMode: 'open',
+    keyboard: 'pane',
+    sizes: {},
+    resizing: null,
   }
 }
 
@@ -356,6 +384,79 @@ export function laneShown(state: AppState, pane: AgentPane): string | null {
   return pane.lane
 }
 
+/**
+ * The terminals, as the registry has them now. A tab whose terminal has gone
+ * gives the front back to the orchestrator, and typing back to the agent.
+ */
+export function withTerminals(state: AppState, terminals: readonly TerminalTab[]): AppState {
+  const gone =
+    state.bottom !== ORCHESTRATOR_TAB && !terminals.some((one) => one.id === state.bottom)
+  return {
+    ...state,
+    terminals: [...terminals],
+    ...(gone ? { bottom: ORCHESTRATOR_TAB, keyboard: 'pane' as const } : {}),
+  }
+}
+
+/** The terminals of the project you are in, in the order their tabs were opened. */
+export function terminalsOf(state: AppState): TerminalTab[] {
+  return state.terminals.filter(
+    (terminal) => terminal.project === (state.project ?? terminal.project),
+  )
+}
+
+/** The terminal in front, if the bottom panel is showing one. */
+export function activeTerminal(state: AppState): TerminalTab | null {
+  return state.terminals.find((terminal) => terminal.id === state.bottom) ?? null
+}
+
+/**
+ * Put a terminal in front, with the keyboard in it: opening one is for typing
+ * into. Unfolds the panel if it was folded, and closes the orchestrator's line.
+ */
+export function showTerminal(state: AppState, id: string): AppState {
+  if (!state.terminals.some((terminal) => terminal.id === id)) return state
+  return {
+    ...state,
+    bottom: id,
+    keyboard: 'terminal',
+    dictation: null,
+    bottomMode: state.bottomMode === 'min' ? 'open' : state.bottomMode,
+  }
+}
+
+/** The orchestrator's tab in front, its line open to type on. */
+export function showOrchestrator(state: AppState): AppState {
+  return {
+    ...state,
+    bottom: ORCHESTRATOR_TAB,
+    keyboard: 'pane',
+    dictation: state.dictation ?? '',
+    bottomMode: state.bottomMode === 'min' ? 'open' : state.bottomMode,
+  }
+}
+
+/**
+ * Drag a divider to a cell. The sidebar is as wide as the column you let go
+ * at; the bottom panel as tall as the rows from there to the buttons. `draw`
+ * clamps both to what the window can hold.
+ */
+export function resizeTo(
+  state: AppState,
+  at: { x: number; y: number },
+  window: { height: number },
+): AppState {
+  if (state.resizing === 'sidebar') {
+    return { ...state, sizes: { ...state.sizes, sidebarWidth: Math.max(1, at.x) } }
+  }
+  if (state.resizing === 'bottom') {
+    // Two rows at the foot are the rule and the buttons.
+    const stripHeight = Math.max(1, window.height - 2 - at.y)
+    return { ...state, bottomMode: 'open', sizes: { ...state.sizes, stripHeight } }
+  }
+  return state
+}
+
 /** Open or close a folder in the FILES tree. Closing one closes what is inside it too. */
 export function toggleFolder(state: AppState, path: string): AppState {
   const expanded = state.expanded.includes(path)
@@ -522,6 +623,14 @@ export type KeyAction =
  * agent, so an agent's own keybindings keep working.
  */
 export function keyAction(key: string, state: AppState): KeyAction {
+  // A terminal with the keyboard gets tab for completion, ctrl+c to interrupt,
+  // and every letter: only talking and search stay Wilco's.
+  if (state.keyboard === 'terminal' && state.dictation === null && activeTerminal(state)) {
+    if (key === 'talk-down') return { kind: 'talk-start' }
+    if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
+    if (key === 'search') return { kind: 'search' }
+    return { kind: 'none' }
+  }
   if (key === 'tab') return { kind: 'focus-next' }
   if (key === 'shift+tab') return { kind: 'focus-previous' }
   // Push to talk is claimed even while an agent has focus: it must never be

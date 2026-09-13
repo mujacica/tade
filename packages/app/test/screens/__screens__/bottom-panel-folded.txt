@@ -10,25 +10,25 @@
   M src/webhooks.ts    +12 −4 │                                                                                         
                               │                                                                                         
  ▾ FILES                      │                                                                                         
-   ▾ src/                     │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-       webhooks.test.ts       │    so src/webhooks.ts needs the new constructEvent signature.                           
+   ▾ src/                     │                                                                                         
+       webhooks.test.ts       │                                                                                         
        webhooks.ts            │                                                                                         
-   ▸ test/                    │  ▸ Read src/webhooks.ts                                                                 
-     package.json             │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-     README.md                │  ▸ bash npm i stripe@15                                                                 
-                              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
- ▸ NOTES  4           ▐  +  ▌ │  │ bash  npm i stripe@15                                        │                       
- ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
+   ▸ test/                    │                                                                                         
+     package.json             │                                                                                         
+     README.md                │                                                                                         
+                              │                                                                                         
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
+ ▾ GIT                        │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+   repo     ~/src/checkout    │    so src/webhooks.ts needs the new constructEvent signature.                           
    branch   …lco/stripe-v15   │                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+   from     main              │  ▸ Read src/webhooks.ts                                                                 
+   worktree …ckout-stripe-v15 │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   path     /Users/me/.wilco/ │  ▸ bash npm i stripe@15                                                                 
+            worktrees/        │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+            checkout-stripe-v │  │ bash  npm i stripe@15                                        │                       
+            15                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▴ ▌ ━
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌         claude-opus-5 · anthropic · signed in │ 1.9M tok │ $2.66 today ▾ 
