@@ -5,13 +5,12 @@ import { fileURLToPath } from 'node:url'
 import type { LaneId } from '@wilco/core'
 import { DaemonClient } from '@wilco/daemon/client'
 import { Daemon } from '@wilco/daemon/server'
-import { until } from '@wilco/driver-conformance'
+import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
 import { spawn } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
-const echo = fileURLToPath(new URL('../../driver-conformance/src/echo-child.js', import.meta.url))
 
 /** Wait for the attach banner, reporting what the terminal actually showed. */
 async function awaitBanner(output: string[]): Promise<void> {
@@ -44,7 +43,7 @@ describe('wilco attach', () => {
       kind: 'shell',
       cwd: home,
       command: process.execPath,
-      args: [echo],
+      args: [ECHO_CHILD],
       cols: 80,
       rows: 24,
     })

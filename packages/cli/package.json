@@ -10,16 +10,18 @@
     "@wilco/app": "workspace:*",
     "@wilco/core": "workspace:*",
     "@wilco/daemon": "workspace:*",
-    "@wilco/harness-pi": "workspace:*",
+    "@wilco/harnesses-core": "workspace:*",
+    "@wilco/harnesses-pi": "workspace:*",
     "@wilco/orchestrator": "workspace:*",
-    "@wilco/probes": "workspace:*",
-    "@wilco/stt": "workspace:*",
-    "@wilco/surface-voice": "workspace:*",
+    "@wilco/status": "workspace:*",
+    "@wilco/voice-core": "workspace:*",
+    "@wilco/voice-stt": "workspace:*",
+    "@wilco/voice-tts": "workspace:*",
     "commander": "^15.0.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@wilco/driver-conformance": "workspace:*",
+    "@wilco/drivers-core": "workspace:*",
     "node-pty": "^1.1.0"
   }
 }

@@ -7,17 +7,16 @@ import {
   TuiAltScreen,
   type TuiInputListenerResult,
 } from '@earendil-works/pi-tui'
+import { type Config, describeWork, type LaneId } from '@wilco/core'
+import type { DaemonClient } from '@wilco/daemon/client'
 import {
   type AudioClip,
-  type Config,
-  describeWork,
-  type LaneId,
   type Recorder,
   type Recording,
   type Transcriber,
-} from '@wilco/core'
-import type { DaemonClient } from '@wilco/daemon/client'
-import { Speaker, VoiceSurface } from '@wilco/surface-voice'
+  VoiceSurface,
+} from '@wilco/voice-core'
+import { Speaker } from '@wilco/voice-tts'
 import { appKey } from './keys.ts'
 import { knownTasks, Live } from './live.ts'
 import {

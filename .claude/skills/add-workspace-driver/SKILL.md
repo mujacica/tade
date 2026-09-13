@@ -6,16 +6,16 @@ description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, c
 # Adding a WorkspaceDriver
 
 A driver decides **where a process physically lives**. It does not decide where you look at it.
-The port is `packages/core/src/ports/workspace.ts`; the reference implementation is
-`packages/driver-pty`.
+The port is `packages/drivers/core/src/port.ts`; the reference implementation is
+`packages/drivers/pty`.
 
 ## The job is: import the suite, run it, fix what's red
 
-1. `pnpm --filter @wilco/driver-<name> add @wilco/core` (plus whatever the backend needs) and
-   `-D @wilco/driver-conformance vitest`.
-2. `packages/driver-<name>/test/conformance.test.ts`:
+1. Create `packages/drivers/<name>` depending on `@wilco/core` and `@wilco/drivers-core` (plus
+   whatever the backend needs), with `vitest` as a dev dependency.
+2. `packages/drivers/<name>/test/conformance.test.ts`:
    ```ts
-   import { testWorkspaceDriver } from '@wilco/driver-conformance'
+   import { testWorkspaceDriver } from '@wilco/drivers-core/conformance'
    import { TmuxDriver } from '../src/index.ts'
    testWorkspaceDriver('tmux', () => new TmuxDriver())
    ```
@@ -45,7 +45,7 @@ The port is `packages/core/src/ports/workspace.ts`; the reference implementation
 
 ## What the second driver turned out to need
 
-`packages/driver-tmux` passed the suite once these were right. They are likely to matter for any
+`packages/drivers/tmux` passed the suite once these were right. They are likely to matter for any
 backend that is a separate program rather than a library:
 
 - **Order writes yourself.** `pty.write` is synchronous, so call order survives for free. Every tmux

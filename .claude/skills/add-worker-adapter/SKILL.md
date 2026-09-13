@@ -6,7 +6,7 @@ description: Add or change a worker adapter — the thing that runs a coding age
 # Adding a worker adapter
 
 The port is `packages/core/src/ports/worker.ts`. The reference implementation is
-`packages/harness-pi`. An adapter's job is to run an agent and answer two questions honestly:
+`packages/harnesses/pi`. An adapter's job is to run an agent and answer two questions honestly:
 **what is it doing, and may it do this?**
 
 ## The contract

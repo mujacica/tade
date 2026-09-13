@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { defaultConfigPath, loadConfig } from '@wilco/core'
 import { laneLiveness } from '@wilco/daemon/lane-liveness'
-import { collectStatus, writeTests } from '@wilco/probes'
+import { collectStatus, writeTests } from '@wilco/status'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 

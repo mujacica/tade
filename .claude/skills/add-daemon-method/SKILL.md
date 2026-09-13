@@ -25,7 +25,7 @@ The daemon speaks JSON-RPC 2.0 over a Unix socket. Three files move together:
    connection's `subscriptions` map. Everything in that map is cleaned up when the socket closes —
    a stream that isn't registered there leaks after a disconnect.
 5. Test it in `packages/daemon/test/daemon.test.ts` against a real daemon on a tmp socket
-   (`Daemon.start({ home, socket })`), not a mock. Use `until()` from `@wilco/driver-conformance`
+   (`Daemon.start({ home, socket })`), not a mock. Use `until()` from `@wilco/drivers-core/conformance`
    instead of sleeping.
 6. Expose it in the CLI if users need it (see the `add-cli-command` skill) and update `README.md`.
 

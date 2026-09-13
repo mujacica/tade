@@ -4,8 +4,8 @@ import { type BriefTask, composeBrief, defaultConfigPath, loadConfig, wilcoHome 
 import { DaemonClient } from '@wilco/daemon/client'
 import { laneLiveness } from '@wilco/daemon/lane-liveness'
 import { socketPath } from '@wilco/daemon/protocol'
-import { collectStatus } from '@wilco/probes'
-import { Speaker } from '@wilco/surface-voice'
+import { collectStatus } from '@wilco/status'
+import { Speaker } from '@wilco/voice-tts'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 

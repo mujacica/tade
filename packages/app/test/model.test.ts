@@ -1,5 +1,5 @@
 import type { WilcoEvent } from '@wilco/core'
-import type { Turn } from '@wilco/surface-voice'
+import type { Turn } from '@wilco/voice-core'
 import { describe, expect, it } from 'vitest'
 import {
   type AppState,

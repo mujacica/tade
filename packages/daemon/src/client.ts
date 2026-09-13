@@ -1,14 +1,7 @@
 import { createRequire } from 'node:module'
 import { connect, type Socket } from 'node:net'
-import type {
-  EventFilter,
-  LaneId,
-  Note,
-  PermissionDecision,
-  RunId,
-  WilcoEvent,
-  WorkerHandle,
-} from '@wilco/core'
+import type { EventFilter, LaneId, Note, WilcoEvent } from '@wilco/core'
+import type { PermissionDecision, RunId, WorkerHandle } from '@wilco/harnesses-core'
 import { type AttachResult, type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'
 import type { LaneRecord, SpawnRequest } from './registry.ts'
 import type { RemoveResult, TaskWorktree } from './tasks.ts'

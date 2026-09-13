@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { deriveState, type WorkerHandle } from '@wilco/core'
+import { deriveState } from '@wilco/core'
+import type { WorkerHandle } from '@wilco/harnesses-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { DaemonClient } from '../src/client.ts'

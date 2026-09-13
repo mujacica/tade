@@ -11,10 +11,11 @@
     "@earendil-works/pi-tui": "0.85.1",
     "@wilco/core": "workspace:*",
     "@wilco/daemon": "workspace:*",
-    "@wilco/probes": "workspace:*",
-    "@wilco/surface-voice": "workspace:*"
+    "@wilco/status": "workspace:*",
+    "@wilco/voice-core": "workspace:*",
+    "@wilco/voice-tts": "workspace:*"
   },
   "devDependencies": {
-    "@wilco/stt": "workspace:*"
+    "@wilco/voice-stt": "workspace:*"
   }
 }

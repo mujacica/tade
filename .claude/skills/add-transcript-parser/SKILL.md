@@ -5,7 +5,7 @@ description: Teach Wilco to adopt sessions from a new agent provider, or fix ado
 
 # Adding or fixing a transcript parser
 
-Adoption lives in `packages/probes/src/adoption.ts`. Each provider is one `TranscriptParser`
+Adoption lives in `packages/status/src/adoption.ts`. Each provider is one `TranscriptParser`
 object in the `parsers` array: `{ provider, version, dir, depth, parse(chunk) }`.
 
 ## Invariants (don't break these)
@@ -25,12 +25,12 @@ object in the `parsers` array: `{ provider, version, dir, depth, parse(chunk) }`
 2. Save it under `test/fixtures/transcripts/<provider>/<provider-version>/`, named for the
    scenario (`idle.jsonl`, `mid-tool.jsonl`, `approval.jsonl`, ...). If the provider encodes ids in
    file names (Codex: `rollout-...-<uuid>.jsonl`), keep that shape.
-3. Write failing tests in `packages/probes/test/adoption.test.ts`, one per fixture, asserting
+3. Write failing tests in `packages/status/test/adoption.test.ts`, one per fixture, asserting
    `sessionId`, `cwd`, `turn`, `pendingPermissions`, `consecutiveFailures`, `lastActivityAt`.
 4. Implement or adjust the parser. For a **format change**, bump `version` and keep the old
    fixtures passing if both formats are still in the wild; otherwise move the old fixtures to
    a folder named for the old provider version and delete them once that version is unsupported.
-5. For a **new provider**, also add its CLI to `PROVIDERS` in `packages/probes/src/processes.ts`
+5. For a **new provider**, also add its CLI to `PROVIDERS` in `packages/status/src/processes.ts`
    so a running process can prove liveness.
 6. `pnpm check`, then run `pnpm wilco status --json` on a machine with a live session and check it.
 7. Update the adoption bullet in `README.md` if the provider list changed.

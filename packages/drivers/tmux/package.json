@@ -1,0 +1,17 @@
+{
+  "name": "@wilco/drivers-tmux",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*",
+    "@wilco/drivers-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@wilco/drivers-core": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}

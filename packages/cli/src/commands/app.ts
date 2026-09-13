@@ -6,7 +6,7 @@ import { defaultConfigPath, isReady, loadConfig, readiness, wilcoHome } from '@w
 import { DaemonClient } from '@wilco/daemon/client'
 import { socketPath } from '@wilco/daemon/protocol'
 import { Orchestrator } from '@wilco/orchestrator'
-import { makeRecorder, makeTranscriber } from '@wilco/stt'
+import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { gather } from './setup.ts'

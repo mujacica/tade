@@ -32,16 +32,19 @@ importers:
       '@wilco/daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@wilco/probes':
+      '@wilco/status':
         specifier: workspace:*
-        version: link:../probes
-      '@wilco/surface-voice':
+        version: link:../status
+      '@wilco/voice-core':
         specifier: workspace:*
-        version: link:../surface-voice
+        version: link:../voice/core
+      '@wilco/voice-tts':
+        specifier: workspace:*
+        version: link:../voice/tts
     devDependencies:
-      '@wilco/stt':
+      '@wilco/voice-stt':
         specifier: workspace:*
-        version: link:../stt
+        version: link:../voice/stt
 
   packages/cli:
     dependencies:
@@ -54,21 +57,27 @@ importers:
       '@wilco/daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@wilco/harness-pi':
+      '@wilco/harnesses-core':
         specifier: workspace:*
-        version: link:../harness-pi
+        version: link:../harnesses/core
+      '@wilco/harnesses-pi':
+        specifier: workspace:*
+        version: link:../harnesses/pi
       '@wilco/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
-      '@wilco/probes':
+      '@wilco/status':
         specifier: workspace:*
-        version: link:../probes
-      '@wilco/stt':
+        version: link:../status
+      '@wilco/voice-core':
         specifier: workspace:*
-        version: link:../stt
-      '@wilco/surface-voice':
+        version: link:../voice/core
+      '@wilco/voice-stt':
         specifier: workspace:*
-        version: link:../surface-voice
+        version: link:../voice/stt
+      '@wilco/voice-tts':
+        specifier: workspace:*
+        version: link:../voice/tts
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -76,9 +85,9 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
     devDependencies:
-      '@wilco/driver-conformance':
+      '@wilco/drivers-core':
         specifier: workspace:*
-        version: link:../driver-conformance
+        version: link:../drivers/core
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -97,18 +106,24 @@ importers:
       '@wilco/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/driver-pty':
+      '@wilco/drivers-core':
         specifier: workspace:*
-        version: link:../driver-pty
-      '@wilco/driver-tmux':
+        version: link:../drivers/core
+      '@wilco/drivers-pty':
         specifier: workspace:*
-        version: link:../driver-tmux
-      '@wilco/harness-pi':
+        version: link:../drivers/pty
+      '@wilco/drivers-tmux':
         specifier: workspace:*
-        version: link:../harness-pi
-      '@wilco/probes':
+        version: link:../drivers/tmux
+      '@wilco/harnesses-core':
         specifier: workspace:*
-        version: link:../probes
+        version: link:../harnesses/core
+      '@wilco/harnesses-pi':
+        specifier: workspace:*
+        version: link:../harnesses/pi
+      '@wilco/status':
+        specifier: workspace:*
+        version: link:../status
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
@@ -121,23 +136,22 @@ importers:
       zod:
         specifier: ^4.6.2
         version: 4.6.2
-    devDependencies:
-      '@wilco/driver-conformance':
-        specifier: workspace:*
-        version: link:../driver-conformance
 
-  packages/driver-conformance:
+  packages/drivers/core:
     dependencies:
       '@wilco/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../core
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/driver-pty:
+  packages/drivers/pty:
     dependencies:
       '@wilco/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@wilco/drivers-core':
         specifier: workspace:*
         version: link:../core
       '@xterm/headless':
@@ -147,32 +161,41 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
-      '@wilco/driver-conformance':
-        specifier: workspace:*
-        version: link:../driver-conformance
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/driver-tmux:
+  packages/drivers/tmux:
     dependencies:
       '@wilco/core':
         specifier: workspace:*
+        version: link:../../core
+      '@wilco/drivers-core':
+        specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@wilco/driver-conformance':
-        specifier: workspace:*
-        version: link:../driver-conformance
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/harness-pi:
+  packages/harnesses/core:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.6.2
+        version: 4.6.2
+
+  packages/harnesses/pi:
     dependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 0.85.1
         version: 0.85.1(ws@8.21.3)(zod@4.6.2)
       '@wilco/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@wilco/harnesses-core':
         specifier: workspace:*
         version: link:../core
 
@@ -184,11 +207,14 @@ importers:
       '@wilco/daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@wilco/harness-pi':
+      '@wilco/harnesses-core':
         specifier: workspace:*
-        version: link:../harness-pi
+        version: link:../harnesses/core
+      '@wilco/harnesses-pi':
+        specifier: workspace:*
+        version: link:../harnesses/pi
 
-  packages/probes:
+  packages/status:
     dependencies:
       '@wilco/core':
         specifier: workspace:*
@@ -200,30 +226,38 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
 
-  packages/stt:
+  packages/voice/core:
     dependencies:
       '@wilco/core':
         specifier: workspace:*
+        version: link:../../core
+      '@wilco/daemon':
+        specifier: workspace:*
+        version: link:../../daemon
+      '@wilco/status':
+        specifier: workspace:*
+        version: link:../../status
+      '@wilco/voice-tts':
+        specifier: workspace:*
+        version: link:../tts
+
+  packages/voice/stt:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@wilco/voice-core':
+        specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@wilco/driver-conformance':
+      '@wilco/drivers-core':
         specifier: workspace:*
-        version: link:../driver-conformance
+        version: link:../../drivers/core
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
-  packages/surface-voice:
-    dependencies:
-      '@wilco/core':
-        specifier: workspace:*
-        version: link:../core
-      '@wilco/daemon':
-        specifier: workspace:*
-        version: link:../daemon
-      '@wilco/probes':
-        specifier: workspace:*
-        version: link:../probes
+  packages/voice/tts: {}
 
   test:
     dependencies:
@@ -1525,7 +1559,7 @@ snapshots:
       '@aws-sdk/types': 3.974.5
       '@smithy/core': 3.34.1
       '@smithy/fetch-http-handler': 5.8.0
-      '@smithy/node-http-handler': 4.7.3
+      '@smithy/node-http-handler': 4.12.1
       '@smithy/types': 4.18.0
       tslib: 2.8.1
 

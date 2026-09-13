@@ -1,8 +1,9 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Note, Unsubscribe, WorkerModel } from '@wilco/core'
+import type { Config, Note, Unsubscribe } from '@wilco/core'
 import { composePrompt, expandHome, orchestratorRoute } from '@wilco/core'
-import { PiAdapter } from '@wilco/harness-pi'
+import type { WorkerModel } from '@wilco/harnesses-core'
+import { PiAdapter } from '@wilco/harnesses-pi'
 import { activeExtensions } from './extensions.ts'
 
 // The thing you talk to. An agent like any other, except that its tools are

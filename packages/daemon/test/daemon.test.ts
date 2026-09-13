@@ -1,15 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { LaneId, WilcoEvent } from '@wilco/core'
-import { until } from '@wilco/driver-conformance'
+import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { DaemonClient } from '../src/client.ts'
 import { livenessFrom } from '../src/lane-liveness.ts'
 import { Daemon } from '../src/server.ts'
-
-const ECHO = fileURLToPath(new URL('../../driver-conformance/src/echo-child.js', import.meta.url))
 
 describe('daemon', () => {
   let home: string
@@ -24,7 +21,7 @@ describe('daemon', () => {
       kind,
       cwd: home,
       command: process.execPath,
-      args: [ECHO],
+      args: [ECHO_CHILD],
       cols: 80,
       rows: 24,
     })

@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { defaultConfigPath, loadConfig } from '@wilco/core'
 // Subpath imports: the CLI must not load the driver stack just to read status.
 import { laneLiveness } from '@wilco/daemon/lane-liveness'
-import { collectStatus } from '@wilco/probes'
+import { collectStatus } from '@wilco/status'
 import { Command, CommanderError } from 'commander'
 import { registerApp } from './commands/app.ts'
 import { registerBrief } from './commands/brief.ts'

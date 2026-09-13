@@ -119,7 +119,7 @@ pnpm wilco daemon stop
 bundled pi in once, or give it an API key:
 
 ```sh
-pnpm --filter @wilco/harness-pi exec pi   # then /login, and pick your provider
+pnpm --filter @wilco/harnesses-pi exec pi   # then /login, and pick your provider
 # or: export ANTHROPIC_API_KEY=...  (also OpenAI, OpenRouter, Ollama, ...)
 ```
 
@@ -464,15 +464,23 @@ Contributor conventions (including the rules every port implementation must foll
 
 ## Layout
 
-| Package | Role |
-|---|---|
-| `packages/core` | Config, object model, state machine, port interfaces |
-| `packages/probes` | git · liveness · adoption probes feeding `status` |
-| `packages/cli` | The `wilco` binary |
-| `packages/daemon` | `wilcod`: JSON-RPC socket, lane registry, event log + index |
-| `packages/driver-pty` | The default `WorkspaceDriver`: node-pty + a headless xterm per lane |
-| `packages/driver-tmux` | Lanes that live in tmux, so they outlive the daemon |
-| `packages/stt` | Speech: microphone capture and transcription, local or hosted |
-| `packages/driver-conformance` | The shared suite every driver must pass |
-| `packages/harness-pi` | Runs and supervises pi: adapter, supervision channel, the in-agent extension |
-| `packages/orchestrator` | The orchestrator: its tools, and how its prompt is composed |
+Anything swappable is a folder: `core` holds the port and the suite every implementation must pass,
+and the siblings are the implementations. Adding a second one means importing the suite and fixing
+what is red.
+
+```
+core/          the domain: tasks, state machine, config, policy, memory, prompts
+status/        observing reality: git · processes · adoption · tests
+daemon/        wilcod: the socket, the lane registry, the event log
+drivers/       core (port + suite) · pty · tmux          where lanes physically live
+harnesses/     core (port) · pi                          what runs an agent
+voice/         core (surface + ports) · stt · tts        hearing and speaking
+orchestrator/  the thing you talk to: its tools and its prompt
+app/           the window
+cli/           the wilco binary
+```
+
+`status/` is the one that needs a sentence: it is everything that *observes* the world — git,
+running processes, provider transcripts, recorded test results — and assembles the answer to
+`wilco status`. It never decides anything; `deriveState` in `core` does that, as a pure function of
+what `status` observed.

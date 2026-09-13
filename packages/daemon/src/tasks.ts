@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { TaskId } from '@wilco/core'
-import { git, parseStatusV2, resolveBaseRef } from '@wilco/probes'
+import { git, parseStatusV2, resolveBaseRef } from '@wilco/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
 // Task lifecycle: a branch, a worktree, and the sentence you said when you

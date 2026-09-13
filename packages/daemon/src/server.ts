@@ -9,13 +9,12 @@ import {
   expandHome,
   type LaneId,
   loadConfig,
-  type PermissionDecision,
-  type RunId,
   resolveRoute,
   type SandboxKind,
-  type WorkspaceDriver,
 } from '@wilco/core'
-import { PiAdapter } from '@wilco/harness-pi'
+import type { WorkspaceDriver } from '@wilco/drivers-core'
+import type { PermissionDecision, RunId } from '@wilco/harnesses-core'
+import { PiAdapter } from '@wilco/harnesses-pi'
 import { EventLog } from './events.ts'
 import { Memory } from './memory.ts'
 import { type DaemonInfo, Method, Notification, socketPath } from './protocol.ts'

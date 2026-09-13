@@ -9,16 +9,18 @@
   },
   "dependencies": {
     "@wilco/core": "workspace:*",
-    "@wilco/driver-pty": "workspace:*",
-    "@wilco/driver-tmux": "workspace:*",
-    "@wilco/harness-pi": "workspace:*",
-    "@wilco/probes": "workspace:*",
+    "@wilco/drivers-core": "workspace:*",
+    "@wilco/drivers-pty": "workspace:*",
+    "@wilco/drivers-tmux": "workspace:*",
+    "@wilco/harnesses-core": "workspace:*",
+    "@wilco/harnesses-pi": "workspace:*",
+    "@wilco/status": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "vscode-jsonrpc": "^9.0.2",
     "yaml": "^2.9.0",
     "zod": "^4.6.2"
   },
   "devDependencies": {
-    "@wilco/driver-conformance": "workspace:*"
+    "@wilco/drivers-core": "workspace:*"
   }
 }

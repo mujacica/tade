@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import type { Turn } from '@wilco/surface-voice'
+import type { Turn } from '@wilco/voice-core'
 import { describe, expect, it } from 'vitest'
 import {
   type AppState,

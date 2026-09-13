@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
-import { makeRecorder, makeTranscriber } from '@wilco/stt'
+import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 

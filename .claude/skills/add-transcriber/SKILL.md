@@ -17,11 +17,11 @@ different sentences, and the same recorder feeds every engine.
 
 ## Steps
 
-1. Implement the interface in `packages/stt/src/<name>.ts`.
-2. Add one entry to `transcribers` (or `recorders`) in `packages/stt/src/index.ts`. That map is the
+1. Implement the interface in `packages/voice/stt/src/<name>.ts`.
+2. Add one entry to `transcribers` (or `recorders`) in `packages/voice/stt/src/index.ts`. That map is the
    only place a config name becomes an implementation.
 3. Add the name to the `stt.driver` / `mic.driver` enum in `packages/core/src/config.ts`.
-4. Import the conformance suite in `packages/stt/test/conformance.test.ts`:
+4. Import the conformance suite in `packages/voice/stt/test/conformance.test.ts`:
    ```ts
    testTranscriber('my-engine', () => new MyTranscriber())
    ```

@@ -5,8 +5,8 @@ description: Add a new signal to `wilco status` (e.g. test results, context usag
 
 # Adding or changing a status probe
 
-`wilco status` = probes (I/O, in `packages/probes`) → `ProbeBundle` → `deriveState` (pure, in
-`packages/core/src/state.ts`). `collectStatus` in `packages/probes/src/status.ts` wires them.
+`wilco status` = probes (I/O, in `packages/status`) → `ProbeBundle` → `deriveState` (pure, in
+`packages/core/src/state.ts`). `collectStatus` in `packages/status/src/status.ts` wires them.
 
 ## Invariants
 
@@ -28,12 +28,12 @@ description: Add a new signal to `wilco status` (e.g. test results, context usag
 
 1. Add the fact's schema to `packages/core/src/model.ts` (e.g. a field on `GitSnapshot` or
    `AgentSignal`, or a new top-level signal).
-2. Implement the probe in `packages/probes/src/<name>.ts`, exported from `src/index.ts`. Make
+2. Implement the probe in `packages/status/src/<name>.ts`, exported from `src/index.ts`. Make
    external dependencies injectable through `StatusOptions` (see `processes`) so tests control them.
 3. Test it against **real** inputs: `test/fixtures/mkrepo.ts` for git (never mock git), checked-in
    fixtures for file formats.
 4. Feed it into `ProbeBundle` in `collectStatus`, then follow the `change-task-state` skill if it
    changes derivation.
-5. Add a never-throws case to `packages/probes/test/status.test.ts` (missing tool, bad data).
+5. Add a never-throws case to `packages/status/test/status.test.ts` (missing tool, bad data).
 6. Update the `wilco status` section in `README.md`.
 7. `pnpm check`.

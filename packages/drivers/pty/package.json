@@ -1,0 +1,19 @@
+{
+  "name": "@wilco/drivers-pty",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*",
+    "@wilco/drivers-core": "workspace:*",
+    "@xterm/headless": "^6.0.0",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@wilco/drivers-core": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}

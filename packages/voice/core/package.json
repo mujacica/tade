@@ -1,0 +1,16 @@
+{
+  "name": "@wilco/voice-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conformance": "./src/conformance.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*",
+    "@wilco/daemon": "workspace:*",
+    "@wilco/status": "workspace:*",
+    "@wilco/voice-tts": "workspace:*"
+  }
+}

@@ -1,5 +1,5 @@
 import type { TaskState, WilcoEvent } from '@wilco/core'
-import type { Turn } from '@wilco/surface-voice'
+import type { Turn } from '@wilco/voice-core'
 
 // What the app is showing, as data.
 //

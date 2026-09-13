@@ -23,14 +23,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 
 ## The four rules
 
-1. **R1: every port is an interface plus a registry.** Interfaces live in `packages/core/src/ports/`.
-   Implementations are registered by name in one registry map; call sites never `new` a concrete one.
+1. **R1: every port is an interface plus a registry.** A port lives with its subsystem —
+   `drivers/core`, `harnesses/core`, `voice/core` — next to the conformance suite its
+   implementations must pass. Implementations are registered by name in one registry map; call sites
+   never `new` a concrete one.
 2. **R2: no port interface uses an implementation's vocabulary.** It's `write(lane, bytes)`,
    never `sendKeys`. Check every method name against this before implementing.
 3. **R3: capabilities are declared, never sniffed.** Branch on `driver.capabilities.focus`, never on
    `driver.id === 'tmux'`. A Biome plugin (`biome/no-port-id-check.grit`) fails lint on this.
 4. **R4: conformance suites come first.** Each port has a shared suite in
-   `packages/driver-conformance`; every implementation must import and pass it.
+   `packages/drivers/core`; every implementation must import and pass it.
 
 ## Other invariants
 
@@ -78,17 +80,21 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 
 ## Where things go
 
+Each subsystem is a folder: `core` holds the port and the conformance suite, the siblings are
+implementations of it.
+
 | Path | Contents |
 |---|---|
-| `packages/core` | zod schemas, object model, state machine, port interfaces, config |
-| `packages/probes` | git · liveness · agent-events · adoption |
-| `packages/daemon` | `wilcod`: socket, lane registry, event log |
-| `packages/driver-*` | `WorkspaceDriver` implementations |
-| `packages/driver-conformance` | shared suites for every port |
-| `packages/orchestrator` | orchestrator extensions and prompt composition |
-| `packages/harness-pi` | the pi harness: worker adapter, signal channel, supervision extension |
-| `packages/surface-voice` | attention policy, intent grammar, earcons and spoken summaries |
-| `packages/stt` | speech: microphone capture and transcription, local or hosted |
+| `packages/core` | the domain: object model, state machine, config, policy, memory, prompts |
+| `packages/status` | observing reality: git · processes · adoption · tests · liveness |
+| `packages/daemon` | `wilcod`: socket, lane registry, event log, worker supervisor |
+| `packages/drivers/core` | the `WorkspaceDriver` port + the suite every driver passes |
+| `packages/drivers/{pty,tmux}` | where lanes physically live |
+| `packages/harnesses/core` | the `WorkerAdapter` port: what an agent tells us, how we answer |
+| `packages/harnesses/pi` | runs and supervises pi |
+| `packages/voice/core` | the voice surface + the speech ports |
+| `packages/voice/{stt,tts}` | speech in · speech out |
+| `packages/orchestrator` | the thing you talk to: its tools and its prompt |
 | `packages/app` | the window: project panes, orchestrator strip, push-to-talk |
 | `packages/cli` | the `wilco` binary |
 | `test/fixtures` | `mkrepo.ts`, provider transcript samples |

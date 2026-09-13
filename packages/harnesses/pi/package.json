@@ -1,0 +1,15 @@
+{
+  "name": "@wilco/harnesses-pi",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@wilco/core": "workspace:*",
+    "@wilco/harnesses-core": "workspace:*"
+  }
+}

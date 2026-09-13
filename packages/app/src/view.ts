@@ -1,5 +1,5 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
-import type { Turn } from '@wilco/surface-voice'
+import type { Turn } from '@wilco/voice-core'
 import { type AppState, glyph, headline, paneTitle, sidebar } from './model.ts'
 
 // Drawing, as one pure function of state.

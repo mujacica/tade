@@ -152,3 +152,6 @@ export const Workspace = z.object({
   warnings: z.array(z.string()),
 })
 export type Workspace = z.infer<typeof Workspace>
+
+/** Stop listening. Returned by anything that starts a subscription. */
+export type Unsubscribe = () => void

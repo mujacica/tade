@@ -12,7 +12,7 @@ import type { DaemonClient } from '@wilco/daemon/client'
 import { livenessFrom } from '@wilco/daemon/lane-liveness'
 import type { LaneRecord } from '@wilco/daemon/registry'
 import type { PendingApproval } from '@wilco/daemon/workers'
-import { collectStatus } from '@wilco/probes'
+import { collectStatus } from '@wilco/status'
 import type { TaskSnapshot } from './model.ts'
 
 // Where the app gets its facts.

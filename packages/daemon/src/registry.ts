@@ -1,15 +1,14 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import type { LaneId, LaneKind } from '@wilco/core'
 import {
   type LaneHandle,
-  type LaneId,
-  type LaneKind,
   LaneNotFoundError,
   type LaneSpec,
   type WorkspaceDriver,
-} from '@wilco/core'
-import { PtyDriver } from '@wilco/driver-pty'
-import { TmuxDriver } from '@wilco/driver-tmux'
+} from '@wilco/drivers-core'
+import { PtyDriver } from '@wilco/drivers-pty'
+import { TmuxDriver } from '@wilco/drivers-tmux'
 import { z } from 'zod'
 import type { EventLog } from './events.ts'
 

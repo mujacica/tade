@@ -1,5 +1,6 @@
 import { basename } from 'node:path'
-import type { AgentSignal, Lane, LivenessProbe, TaskId, WorkerHandle } from '@wilco/core'
+import type { AgentSignal, Lane, LivenessProbe, TaskId } from '@wilco/core'
+import type { WorkerHandle } from '@wilco/harnesses-core'
 import { DaemonClient } from './client.ts'
 import { socketPath } from './protocol.ts'
 import type { LaneRecord } from './registry.ts'

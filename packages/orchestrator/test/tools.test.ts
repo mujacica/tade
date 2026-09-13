@@ -1,9 +1,9 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { WorkerSignal } from '@wilco/core'
 import { Daemon } from '@wilco/daemon/server'
-import { PiAdapter } from '@wilco/harness-pi'
+import type { WorkerSignal } from '@wilco/harnesses-core'
+import { PiAdapter } from '@wilco/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,

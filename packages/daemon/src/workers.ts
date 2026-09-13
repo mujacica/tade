@@ -2,18 +2,20 @@ import { randomUUID } from 'node:crypto'
 import {
   type ApprovalSettings,
   decideApproval,
-  type PermissionDecision,
-  PermissionNotPendingError,
-  type RunId,
   type SandboxKind,
   type TaskId,
   type Tier,
+} from '@wilco/core'
+import {
+  type PermissionDecision,
+  PermissionNotPendingError,
+  type RunId,
   type WorkerAdapter,
   type WorkerHandle,
   type WorkerModel,
   WorkerNotFoundError,
   type WorkerSignal,
-} from '@wilco/core'
+} from '@wilco/harnesses-core'
 import type { EventLog } from './events.ts'
 
 // Runs agents and decides what they may do. Every tool call arrives here held;

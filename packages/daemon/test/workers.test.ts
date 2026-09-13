@@ -8,8 +8,8 @@ import type {
   WorkerSignal,
   WorkerSignalListener,
   WorkerSpec,
-} from '@wilco/core'
-import { PermissionNotPendingError } from '@wilco/core'
+} from '@wilco/harnesses-core'
+import { PermissionNotPendingError } from '@wilco/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
