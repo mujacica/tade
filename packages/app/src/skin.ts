@@ -66,6 +66,8 @@ export interface Skin {
 
   /** A whole row laid on the selection colour, resets and all. */
   selected(row: string): string
+  /** A whole row under the pointer: a shade lighter than the ground, and less than selected. */
+  hovered(row: string): string
   /** A whole row laid on a panel's surface. */
   surface(row: string): string
 }
@@ -131,6 +133,7 @@ export const PLAIN: Skin = {
   field: (text) => text,
   transmit: identity,
   selected: identity,
+  hovered: identity,
   surface: identity,
 }
 
@@ -165,6 +168,7 @@ export const COLOUR: Skin = {
   field: (text, hint) => paint(`${bg(236)}${fg(hint ? 244 : 255)}`)(text),
   transmit: paint(`${bg(203)}${fg(231)}${BOLD}`),
   selected: under(237),
+  hovered: under(236),
   surface: under(235),
 }
 

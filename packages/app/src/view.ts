@@ -534,11 +534,16 @@ function fileRow(row: Row, entry: FileEntry, skin: Skin): { text: string; hits: 
   const target: Target = entry.folder
     ? { kind: 'folder', path: entry.path }
     : { kind: 'file', path: entry.path }
+  // Lit under the pointer, so it is plain which one a click would open.
+  const hovered = sameTarget(row.pointer.hover, target)
   row.space(3 + entry.depth * 2)
   if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, skin.busy)
-  else row.text(`  ${entry.name}`)
+  else row.text(`  ${entry.name}`, hovered ? skin.you : (t) => t)
   const built = row.build()
-  return { text: built.text, hits: [rowHit(0, row.width, target)] }
+  return {
+    text: hovered ? skin.hovered(built.text) : built.text,
+    hits: [rowHit(0, row.width, target)],
+  }
 }
 
 function taskRow(

@@ -342,7 +342,8 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   and **Deny** (`a` and `d` too, only while one waits).
 - **Changes and files.** A changed file opens its diff from where the agent branched, read-only,
   `←`/`→` through the others. FILES is the agent's worktree, or the project itself when no agent is
-  in front of you, as a tree: click a folder to open it. The sidebar scrolls with the wheel. A file
+  in front of you, as a tree: the row under the pointer is shaded, and a click opens a folder or
+  the file. The sidebar scrolls with the wheel. A file
   under FILES, a link on an agent's screen, or a reference like
   `src/webhooks.ts:42:7` in its output opens in your editor at that line — the one you set, else the
   one whose terminal Wilco runs in (VS Code, Cursor, Windsurf, Zed, JetBrains, Neovim, Emacs), else

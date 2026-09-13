@@ -194,6 +194,12 @@ export const SCENARIOS: Scenario[] = [
     frame: frame(),
   },
   {
+    name: 'pointing-at-a-file',
+    about: 'The pointer over a file in FILES: its row is shaded, so the click is plain.',
+    state: { ...base(), hover: { kind: 'file', path: 'src/webhooks.ts' } },
+    frame: frame(),
+  },
+  {
     name: 'every-section-open',
     about: 'Notes unfolded too, as they are after a click on the heading.',
     state: toggleSection(base(), 'notes'),
