@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Unsubscribe, WorkerModel } from '@wilco/core'
-import { expandHome, orchestratorRoute } from '@wilco/core'
+import type { Config, Note, Unsubscribe, WorkerModel } from '@wilco/core'
+import { composePrompt, expandHome, orchestratorRoute } from '@wilco/core'
 import { PiAdapter } from '@wilco/harness-pi'
 import { activeExtensions } from './extensions.ts'
 
@@ -25,6 +25,11 @@ export interface OrchestratorOptions {
   /** Working directory for the session. */
   cwd?: string
   config?: Config
+  /**
+   * What you have told Wilco, for the prompt. Passed in rather than fetched so
+   * composing the prompt stays a pure function of facts.
+   */
+  notes?: readonly Note[]
   model?: WorkerModel
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
@@ -71,6 +76,17 @@ export class Orchestrator {
         '-e',
         TOOLS_EXTENSION,
         ...written.flatMap((path) => ['-e', path]),
+        // Appended rather than replacing pi's own prompt: this says what Wilco
+        // is and what is on this machine, not how to be a coding agent.
+        ...(opts.config
+          ? [
+              '--append-system-prompt',
+              composePrompt({
+                config: opts.config,
+                ...(opts.notes ? { notes: opts.notes } : {}),
+              }),
+            ]
+          : []),
         ...(opts.args ?? []),
       ],
       env: {

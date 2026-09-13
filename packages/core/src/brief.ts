@@ -54,8 +54,13 @@ export function composeBrief(tasks: readonly BriefTask[], opts: BriefOptions): B
   if (working > 0) clauses.push(`${working} still working`)
 
   if (clauses.length === 0) {
-    const parked = tasks.filter((t) => t.state === 'parked').length
-    clauses.push(parked > 0 ? `nothing running, ${parked} parked` : 'nothing running')
+    // Nothing is moving, but "nothing running" while three tasks sit waiting
+    // to be started is true and useless.
+    const idle = [
+      count(tasks, 'queued', 'waiting to start'),
+      count(tasks, 'parked', 'parked'),
+    ].filter((part) => part !== '')
+    clauses.push(idle.length > 0 ? `nothing running, ${idle.join(' and ')}` : 'nothing running')
   }
 
   // One proposal, and only when the brief is short enough to hear it out.
@@ -76,6 +81,11 @@ function describe(task: BriefTask): string {
     default:
       return `${name} is ${task.state}`
   }
+}
+
+function count(tasks: readonly BriefTask[], state: TaskState, label: string): string {
+  const n = tasks.filter((task) => task.state === state).length
+  return n > 0 ? `${n} ${label}` : ''
 }
 
 function greet(hour: number): string {

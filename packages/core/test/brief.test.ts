@@ -54,9 +54,20 @@ describe('composeBrief', () => {
 
   it('says plainly when there is nothing to say', () => {
     expect(composeBrief([], { localHour: 8 }).spoken).toBe('Morning. nothing running.')
-    expect(
-      composeBrief([task({ task: 'a/b', state: 'parked' })], { localHour: 8 }).spoken,
-    ).toContain('1 parked')
+  })
+
+  it('mentions what is waiting, rather than calling it nothing', () => {
+    // "Nothing running" while three tasks sit waiting to be started is true
+    // and useless.
+    const brief = composeBrief(
+      [
+        task({ task: 'a/b', state: 'queued' }),
+        task({ task: 'a/c', state: 'queued' }),
+        task({ task: 'a/d', state: 'parked' }),
+      ],
+      { localHour: 8 },
+    )
+    expect(brief.spoken).toBe('Morning. nothing running, 2 waiting to start and 1 parked.')
   })
 
   it('adds at most one proposal, and only when there is room', () => {

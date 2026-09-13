@@ -30,8 +30,18 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         return
       }
 
+      // Fetched and handed over, so composing the prompt stays pure.
+      const notes = await DaemonClient.connect(socket)
+        .then(async (client) => {
+          const all = await client.recallAll().catch(() => [])
+          await client.close().catch(() => {})
+          return all
+        })
+        .catch(() => [])
+
       const home = wilcoHome()
       const chat = await Orchestrator.start({
+        notes,
         home,
         socket,
         runDir: join(home, 'orchestrator'),

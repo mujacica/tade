@@ -28,7 +28,8 @@ Early prototype. What works today:
 | `wilco app`: one window over every project, with the orchestrator always on screen | ✅ |
 | Memory: what you tell it, kept verbatim and scoped to what it is about | ✅ |
 | Speech-to-text: local whisper.cpp by default, or any OpenAI-compatible API | ✅ |
-| Self-extension, skill promotion, morning brief, spend budgets | not started |
+| Guided setup, the morning brief, verified tests, self-written tools | ✅ |
+| Skill promotion with decay, spend budgets | not started |
 
 ## Requirements
 
@@ -40,11 +41,58 @@ Early prototype. What works today:
 
 ```sh
 pnpm install
-pnpm wilco --help
-pnpm wilco config --check        # validates ~/.wilco/config.yaml (missing file = defaults)
+pnpm wilco app
 ```
 
-`WILCO_HOME` overrides the state directory (default `~/.wilco`).
+That is the whole thing. On a machine that has never run Wilco, `wilco app` walks you through a
+project, a model and the daemon before it opens — it does not show you an empty window and let you
+work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup --check` reports
+what is missing without changing anything:
+
+```
+  ✓ A project to work on
+  · A model to think with — no provider is logged in and no API key is set
+  · The daemon running — not started
+  ○ Speech, if you want it — whisper.cpp is not installed (brew install whisper-cpp)
+```
+
+Speech is marked `○` because it is never required: without it, push-to-talk opens a line you type
+into instead. `WILCO_HOME` overrides the state directory (default `~/.wilco`).
+
+## How people use it
+
+**The first five minutes.** `wilco app` asks which repository, opens the harness so you can
+`/login`, starts the daemon, and opens the window. You say what you want done; a worktree and an
+agent appear; you watch it work in the middle pane.
+
+**Morning, one earbud, kettle boiling.** `wilco brief --speak` — *"Morning. stripe-v15 is blocked on
+`npm i stripe@15` and pagination is done and wants your eyes, and 2 still working."* Hold ctrl+space:
+*"park the migration, I'll look tonight."* Forty seconds, two decisions, no screen.
+
+**At the desk.** The window is open. Tab moves between agents. A pane raises itself when one needs
+you — but never while you are mid-sentence somewhere else. `a` approves what it is waiting on, `d`
+refuses it, and refusing once means it stops asking for the rest of that run.
+
+**Hands already on the keyboard.** You are typing at an agent's prompt and want Wilco, not the
+shell: start the line with `wilco ` — *"wilco park this"*. At most six characters are ever held back
+and you can see them while they wait.
+
+**A question with no verb.** *"why is refunds slow"* is not in the grammar, so it goes to the
+orchestrator, which can read the journal, the git state and your notes to answer it.
+
+**Before you merge.** `wilco check demo/refunds` runs the project's own `test_command` and records
+the result against the commit it ran on. `wilco status` then distinguishes "it stopped" from "it is
+green" — and a pass from three commits ago is treated as no result at all.
+
+**Teaching it something.** *"remember we pin major versions"* — filed against whatever you were just
+discussing, and it says which. The narrowest note wins, so a rule about one task beats a general one.
+
+**When it writes itself a tool.** It proposes; you read the file; `wilco extensions activate
+<name>`; it loads next time Wilco starts. If one of them breaks everything, `wilco --safe` starts
+with none of them.
+
+**Closing the laptop lid on it.** With `workspace.driver: tmux`, lanes belong to a tmux server
+rather than the daemon, so you can stop Wilco, start it again, and the agents are still working.
 
 ## Try it
 
@@ -85,7 +133,12 @@ something to think with.
 | `wilco status [--json] [--no-pr]` | Every task and its state, derived fresh from git, running processes and provider transcripts |
 | `wilco config` | Print the effective config (file merged with defaults) as JSON |
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
+| `wilco setup` / `setup --check` | Walk through what is missing; or just report it |
 | `wilco app` | The window: every project, the agent you're watching, and the orchestrator |
+| `wilco brief [--speak]` | Everything that matters, in one paragraph |
+| `wilco check <task>` | Run the project's `test_command` and record the result against its commit |
+| `wilco extensions [activate\|reject <name>]` | Tools Wilco wrote for itself: review and decide |
+| `wilco --safe <command>` | Start with none of the self-written tools loaded |
 | `wilco chat` | Talk to Wilco: it can answer about state and drive tasks, runs and approvals |
 | `wilco voice` | Whether Wilco can hear you, and what would fix it |
 | `wilco voice setup [--model base.en]` | Download a local speech model |

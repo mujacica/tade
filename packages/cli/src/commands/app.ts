@@ -74,6 +74,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         runDir: join(home, 'orchestrator'),
         cwd: process.cwd(),
         config: cfg.config,
+        // So it knows what you have told it, not just what it can do.
+        notes: await client.recallAll().catch(() => []),
         safe: program.opts().safe === true,
       }).catch(() => null)
 
