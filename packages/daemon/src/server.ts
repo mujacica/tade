@@ -17,7 +17,7 @@ import {
   startOfToday,
 } from '@wilco/core'
 import type { WorkspaceDriver } from '@wilco/drivers-core'
-import type { PermissionDecision, RunId } from '@wilco/harnesses-core'
+import type { PermissionDecision, RunId, WorkerModel } from '@wilco/harnesses-core'
 import { PiAdapter } from '@wilco/harnesses-pi'
 import { EventLog } from './events.ts'
 import { Memory } from './memory.ts'
@@ -206,6 +206,18 @@ export class Daemon {
     return resolveRoute(this.config, project ? { project } : {}).sandbox
   }
 
+  /**
+   * The model the task's route names. `projects.*.worker` picks a route and
+   * the route picks the model — which nothing was doing, so choosing a route
+   * changed the sandbox and nothing else.
+   */
+  private modelFor(task: string): WorkerModel | undefined {
+    const project = task.split('/')[0]
+    const route = resolveRoute(this.config, project ? { project } : {})
+    if (!route.model) return undefined
+    return { id: route.model, ...(route.provider ? { provider: route.provider } : {}) }
+  }
+
   private accept(socket: Socket): void {
     const connection = createMessageConnection(
       new SocketMessageReader(socket),
@@ -370,7 +382,13 @@ export class Daemon {
     connection.onRequest(Method.workerStart, async (req: StartRunRequest) => {
       this.guardParallel(req.task)
       await this.guardBudget(req.task)
-      return this.workers.start({ ...req, sandbox: req.sandbox ?? this.sandboxFor(req.task) })
+      return this.workers.start({
+        ...req,
+        // A project names a route; the route names the model. Asking for one
+        // explicitly still wins.
+        model: req.model ?? this.modelFor(req.task),
+        sandbox: req.sandbox ?? this.sandboxFor(req.task),
+      })
     })
     connection.onRequest(Method.workerList, () => this.workers.list())
     connection.onRequest(Method.workerPending, ({ task }: { task?: string } = {}) =>
