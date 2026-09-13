@@ -41,19 +41,38 @@ Early prototype. What works today:
 - Node **≥ 22.19** (Wilco runs TypeScript directly via Node's type stripping; there is no build step)
 - pnpm 10
 - git; optionally `gh` for PR state
+- `tmux`, if you want agents to keep working after you close the window
+
+## Install
+
+```sh
+git clone <this repo> wilco && cd wilco
+pnpm install
+```
+
+That is the install: there is nothing to build. Run it from the checkout with `pnpm wilco`, or put
+it on your `PATH` once:
+
+```sh
+cd packages/cli && pnpm link --global   # then: wilco, from anywhere
+```
+
+To remove it again, delete the shim — `rm $(which wilco)`. (`pnpm unlink --global` reports
+"Nothing to unlink" here, because the shim it writes points straight at your checkout rather than
+through the global store.)
+
+Either way it runs from the checkout, so `git pull` is all there is to updating.
 
 ## Quick start
 
 ```sh
-pnpm install
-pnpm wilco
+wilco
 ```
 
-That is the whole thing — `wilco` with no arguments opens the window. On a machine that has never
-run Wilco it walks you through a
-project, a model and somewhere to run agents before it opens — it does not show you an empty window
-and let you work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup --check` reports
-what is missing without changing anything:
+`wilco` with no arguments opens the window. On a machine that has never run it, it walks you through
+a project, a model and somewhere to run agents before opening — it does not show you an empty window
+and let you work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup
+--check` reports what is missing without changing anything:
 
 ```
   ✓ A project to work on

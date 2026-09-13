@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "wilco": "./src/bin.ts"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
