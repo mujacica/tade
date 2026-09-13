@@ -11,8 +11,11 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 |---|---|---|
 | `model.ts` | What is shown, as data: panes, projects, focus, key meanings | a terminal |
 | `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line | a terminal |
+| `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something | a terminal |
-| `skin.ts` | How the window is coloured, one function per role | a terminal |
+| `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
+| `panels.ts` | What a panel holds and what a key or click does to it | a terminal |
+| `panel-view.ts` | How each panel is drawn | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
@@ -71,6 +74,38 @@ file and cannot be tested.
 - **Every exchange shows its reasoning** (`→ verb · task · "why"`). A wrong guess must be visible and
   correctable, never silently obeyed.
 
+## Controls and panels
+
+- **Build rows with `Row`, never by concatenating strings.** `new Row(width, skin, pointer)` then
+  `.text()`, `.button()`, `.tab()`, `.keys()`, `.field()`, `.check()`… and `.right(r => …)` for the
+  group pinned to the right edge. Each control records its own hit while it draws, measured before
+  colour, so the hit map is the same with any skin. A row that does not fit drops its right group,
+  then its tail — never its width.
+- **Every control has the same width painted and plain.** Add a look to `skin.ts` for both `COLOUR`
+  and `PLAIN`; `test/hits.test.ts` compares the hits of the two.
+- **A button names an action; it never types a command.** Add the action to `App.run`. If it needs
+  more than a click, it opens a panel: add the panel's state and key/click rules to `panels.ts`
+  (tested in `test/panels.test.ts`), draw it in `panel-view.ts`, and carry it out in
+  `App.submitPanel`, putting any failure back into the panel rather than behind it.
+- **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
+  menu doing exactly that.
+
+## Keeping it looking right
+
+The window is drawn from state by a pure function, so how it looks is tested like anything else:
+
+1. **Golden screens.** `test/screens/scenarios.ts` lists named states drawn with fixed data;
+   `test/screens.test.ts` keeps each as plain text (the layout) and as exact ANSI (the look) under
+   `test/screens/__screens__/`, and checks geometry and hit placement for every one. Add a scenario
+   for any state worth protecting.
+2. **Look at them.** `pnpm screens [out.html]` draws every scenario in colour on one page, and where
+   a drawing no longer matches its golden file shows both, golden first. Look before accepting.
+3. **Accept on purpose.** `pnpm vitest run packages/app -u` rewrites the goldens. Commit them with
+   the change that made them, so the diff in review is the change in how Wilco looks.
+4. **Real input.** `test/app.test.ts` runs the whole window against a real workbench and presses
+   keys and clicks as a terminal sends them (`\x1b[<0;col;rowM`), finding labels on the rebuilt
+   screen the way a person would.
+
 ## Steps
 
 1. Add the state and its rules to `model.ts` as pure functions, with tests in `test/model.test.ts`.
@@ -86,7 +121,8 @@ file and cannot be tested.
    keys and keep what was drawn instead of drawing it. Poll for what should appear: rendering is
    batched, so asserting on the very next line is a flake. Point `home` at a tmp dir, or status reads
    the real machine's agent transcripts.
-7. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked`.
+7. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
+   Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
 8. Update the **window** section of `README.md`.
 9. `pnpm check`.
 

@@ -1,5 +1,7 @@
 import type { TaskState, WilcoEvent } from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
+import type { Target } from './hits.ts'
+import type { Panel } from './panels.ts'
 
 // What the app is showing, as data.
 //
@@ -27,6 +29,8 @@ export interface AgentPane {
   state: TaskState
   /** Something is waiting on a human here. */
   waiting: boolean
+  /** What it is waiting for, when that is an approval. */
+  approval: { tool: string; summary: string } | null
 }
 
 export interface AppState {
@@ -65,7 +69,21 @@ export interface AppState {
    * then the first task is a better opening view than an empty pane.
    */
   chose: boolean
+  /** What the pointer is over and what it is holding down, for hover and press. */
+  hover: Target | null
+  pressed: Target | null
+  /** Sidebar sections folded shut. */
+  folded: string[]
+  /** When the microphone opened, while it is open. */
+  talkingSince: number | null
+  /** What was said is being turned into words. */
+  hearing: boolean
+  /** The panel floating over the window, if one is. */
+  panel: Panel | null
 }
+
+/** Sections that start folded: the ones you look at on purpose, not all the time. */
+export const FOLDED_AT_START = ['files', 'notes']
 
 export function initialState(): AppState {
   return {
@@ -81,6 +99,12 @@ export function initialState(): AppState {
     held: null,
     notice: null,
     chose: false,
+    hover: null,
+    pressed: null,
+    folded: [...FOLDED_AT_START],
+    talkingSince: null,
+    hearing: false,
+    panel: null,
   }
 }
 
@@ -89,6 +113,7 @@ export interface TaskSnapshot {
   state: TaskState
   lane?: string | null
   waiting?: boolean
+  approval?: { tool: string; summary: string } | null
 }
 
 /**
@@ -103,6 +128,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     lane: task.lane ?? null,
     state: task.state,
     waiting: task.waiting ?? false,
+    approval: task.approval ?? null,
   }))
   const focused = refocus(state, panes)
   const project =
@@ -274,6 +300,22 @@ export function whichProject(
   const only = projects.length === 1 ? (projects[0] ?? null) : null
   const here = current && projects.includes(current) ? current : null
   return { project: here ?? only, intent: said.trim() }
+}
+
+/** Fold or unfold a sidebar section. */
+export function toggleSection(state: AppState, section: string): AppState {
+  const folded = state.folded.includes(section)
+    ? state.folded.filter((name) => name !== section)
+    : [...state.folded, section]
+  return { ...state, folded }
+}
+
+/** The next task waiting on you after the one in front of you, across projects. */
+export function nextWaiting(state: AppState): string | null {
+  const waiting = state.panes.filter((pane) => pane.waiting || pane.state === 'blocked')
+  if (waiting.length === 0) return null
+  const at = waiting.findIndex((pane) => pane.task === state.focused)
+  return waiting[(at + 1) % waiting.length]?.task ?? null
 }
 
 /** The project you are looking at, if you are looking at anything. */

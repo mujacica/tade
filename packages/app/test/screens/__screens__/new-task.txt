@@ -1,0 +1,34 @@
+ WILCO  ▐ checkout ▌  infra    search   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            + │ checkout › stripe-v15  ▐ agent ▌                                         pi · claude-opus-5 
+▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds        $0.62   │                                                                                             
+                          │  ● Upgrading stripe to v15. The webhook signature API changed,                              
+ ▾ CHANGES  3             │    so src/webhooks.ts needs the new constructEvent signature.                               
+  M package.json    +2╭─ New task in checkout ───────────────────────────────────────────── esc ─╮                      
+  A …ebhooks.test.ts  │ Project  ▐ checkout ▌  infra    search                                   │                      
+  M …/webhooks.ts  +12│                                                                          │                      
+                      │ What needs doing?                                                        │                      
+ ▸ FILES              │  refunds are charged twice when the webhook retries▏                     │                      
+                      │ branch   wilco/refunds-are-charged-twice                                 │                      
+ ▸ NOTES  2           │ worktree ~/.wilco/worktrees/checkout-refunds-are-charged-twice           │                      
+                      │                                                                          │                      
+                      │ Agent    pi · anthropic/claude-opus-5                     ■ start it now │                      
+                      │                                                                          │                      
+                      │                                              ▐ Cancel ▌ ▐ Start task ⏎ ▌ │──╮                   
+                      ╰──────────────────────────────────────────────────────────────────────────╯  │                   
+                          │  │                                                                      │                   
+                          │  │ ▐ Allow once ▌ ▐ Deny ▌                                        a · d │                   
+                          │  ╰──────────────────────────────────────────────────────────────────────╯                   
+                          │                                                                                             
+━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                        claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today 

@@ -2,7 +2,9 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import {
   type Component,
+  isKeyRelease,
   ProcessTerminal,
+  parseKey,
   type Terminal,
   TuiAltScreen,
   type TuiInputListenerResult,
@@ -15,20 +17,23 @@ import {
   describeWork,
   type LaneId,
   needsReflection,
+  orchestratorRoute,
   parseQuietHours,
   reflectionPrompt,
+  resolveRoute,
 } from '@wilco/core'
 import {
   type AudioClip,
   type Recorder,
   type Recording,
+  slugify,
   type Transcriber,
   VoiceSurface,
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
 import type { Workbench } from '@wilco/workbench'
-import { type Hit, hitAt, type Target } from './hits.ts'
-import { appKey } from './keys.ts'
+import { type Hit, hitAt, pressable, sameTarget, type Target } from './hits.ts'
+import { appKey, TALK } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
@@ -41,24 +46,35 @@ import {
   initialState,
   keyAction,
   matchActions,
+  nextWaiting,
   noteTyping,
   notice,
   onEvent,
   parseCommand,
+  projects,
   selectProject,
   setDictation,
   setHeld,
   setListening,
   setQuestion,
+  toggleSection,
   whichProject,
   withProjects,
   withTasks,
 } from './model.ts'
+import {
+  newTaskPanel,
+  type Panel,
+  type PanelOutcome,
+  panelClick,
+  panelFailed,
+  panelKey,
+} from './panels.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { addProject, editSettings } from './settings.ts'
-import { type Skin, skinFor } from './skin.ts'
-import { draw } from './view.ts'
+import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
+import { draw, type Frame } from './view.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -83,53 +99,48 @@ function printable(data: string): boolean {
   return data.length === 1 && data >= ' ' && data !== '\x7f'
 }
 
-/** A short, filesystem-safe name from what somebody said they wanted done. */
-function slugify(intent: string): string {
-  const words = intent
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-  return words.split('-').slice(0, 3).join('-') || 'task'
-}
+/** What the pointer did, reduced to what the window cares about. */
+export type PointerEvent =
+  | { kind: 'move'; target: Target | null }
+  | { kind: 'press'; target: Target | null }
+  | { kind: 'release' }
+  | { kind: 'click'; target: Target; button: 'left' | 'right' }
 
-/**
- * The window as the TUI sees it: one component that draws everything, and
- * knows what is under the pointer.
- *
- * The hit map comes out of the same pass that drew the rows and is kept from
- * the last frame, so a click lands on what is actually on the screen rather
- * than on a second, re-derived idea of where things went.
- */
 class Window implements Component {
-  private readonly frame: () => {
-    state: AppState
-    screen: string
-    height: number
-    layout: LayoutPrefs
-    files: readonly string[]
-    skin: Skin
-  }
-  private readonly onClick: (target: Target) => void
+  private readonly frame: (width: number) => { state: AppState; frame: Frame }
+  private readonly onPointer: (event: PointerEvent) => boolean
   private hits: readonly Hit[] = []
 
-  constructor(frame: Window['frame'], onClick: (target: Target) => void) {
+  constructor(frame: Window['frame'], onPointer: (event: PointerEvent) => boolean) {
     this.frame = frame
-    this.onClick = onClick
+    this.onPointer = onPointer
   }
 
   render(width: number): string[] {
-    const { state, screen, height, layout, files, skin } = this.frame()
-    const drawn = draw(state, { width, height, screen, layout, files, skin })
+    const { state, frame } = this.frame(width)
+    const drawn = draw(state, frame)
     this.hits = drawn.hits
     return drawn.rows
   }
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    if (event.type !== 'click' || event.button !== 'left') return undefined
     const target = hitAt(this.hits, event.x, event.y)
-    if (!target) return undefined
-    this.onClick(target)
-    return { handled: true }
+    switch (event.type) {
+      case 'move':
+      case 'drag':
+        return { handled: true, render: this.onPointer({ kind: 'move', target }) }
+      case 'press':
+        if (event.button !== 'left') return undefined
+        return { handled: target !== null, render: this.onPointer({ kind: 'press', target }) }
+      case 'release':
+        return { handled: true, render: this.onPointer({ kind: 'release' }) }
+      case 'click':
+        if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
+        this.onPointer({ kind: 'click', target, button: event.button })
+        return { handled: true }
+      default:
+        return undefined
+    }
   }
 
   invalidate(): void {
@@ -172,6 +183,7 @@ export class App {
    */
   private thinker: AppOptions['thinker'] | null = null
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
+  private readonly pointerShapes = pointerShapes(process.env)
   private screen = ''
   private recording: Recording | null = null
   /** Where you were last time, applied once the tasks are known. */
@@ -234,6 +246,7 @@ export class App {
     if (this.timer) clearInterval(this.timer)
     this.remember()
     this.release?.()
+    if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
     this.tui.stop()
     // Leave the terminal as it was found. The alternate screen is restored by
     // the TUI, but whatever was painted before it goes back is a half-window
@@ -265,6 +278,72 @@ export class App {
     } catch {
       // Coming back to the same pane is a convenience, not a reason to fail
       // on the way out.
+    }
+  }
+
+  /** Everything the drawing needs that is not the app's own state. */
+  private frameFor(live: Live, width: number): Frame {
+    const focused = this.state.panes.find((pane) => pane.task === this.state.focused)
+    const route = focused
+      ? resolveRoute(this.opts.config, { project: focused.project })
+      : orchestratorRoute(this.opts.config)
+    const spend = live.spendToday()
+    return {
+      width,
+      height: Math.max(6, this.terminal.rows),
+      screen: this.screen,
+      layout: this.layout(),
+      skin: this.skin,
+      files: live.files(this.state.focused),
+      changes: live.changes(this.state.focused),
+      notes: live.notes(this.state.project),
+      spend: {
+        tokens: spend.total.tokens,
+        usd: spend.total.usd,
+        hasCost: spend.total.hasCost,
+        byTask: spend.byTask,
+      },
+      route: {
+        harness: route.harness,
+        model: route.model ?? null,
+        provider: route.provider ?? null,
+      },
+      voice: { keys: TALK.split('+'), available: this.opts.recorder !== undefined },
+      home: tilde(this.opts.home),
+      now: this.now(),
+    }
+  }
+
+  /**
+   * The pointer moved, pressed, let go or clicked. Returns whether anything
+   * visible changed, so moving across empty space costs no redraw.
+   */
+  private pointer(event: PointerEvent): boolean {
+    if (this.stopped || this.borrowed) return false
+    switch (event.kind) {
+      case 'move': {
+        if (sameTarget(this.state.hover, event.target)) return false
+        const was = pressable(this.state.hover)
+        this.state = { ...this.state, hover: event.target }
+        const now = pressable(event.target)
+        // A hand over what can be pressed, where the terminal can show one.
+        if (was !== now && this.pointerShapes) {
+          this.terminal.write(pointerSequence(now ? 'pointer' : 'default'))
+        }
+        return true
+      }
+      case 'press':
+        if (!pressable(event.target)) return false
+        this.state = { ...this.state, pressed: event.target }
+        return true
+      case 'release':
+        if (this.state.pressed === null) return false
+        this.state = { ...this.state, pressed: null }
+        return true
+      case 'click':
+        this.state = { ...this.state, pressed: null }
+        this.clicked(event.target, event.button)
+        return true
     }
   }
 
@@ -309,6 +388,7 @@ export class App {
         this.state = notice(this.state, message)
         this.draw()
       },
+      onChange: () => this.draw(),
     })
     this.live = live
 
@@ -344,15 +424,8 @@ export class App {
 
     this.tui.addChild(
       new Window(
-        () => ({
-          state: this.state,
-          screen: this.screen,
-          height: Math.max(6, this.terminal.rows),
-          layout: this.layout(),
-          files: live.files(this.state.focused),
-          skin: this.skin,
-        }),
-        (target) => this.clicked(target),
+        (width) => ({ state: this.state, frame: this.frameFor(live, width) }),
+        (event) => this.pointer(event),
       ),
     )
     this.release = this.tui.addInputListener((data) => this.onInput(data))
@@ -369,6 +442,18 @@ export class App {
    */
   private onInput(data: string): TuiInputListenerResult {
     if (this.stopped) return undefined
+    // A panel has the keyboard while it is open: nothing typed into a form
+    // should reach an agent. ctrl+c still closes Wilco, as it does everywhere.
+    if (this.state.panel) {
+      const key = parseKey(data)
+      if (key === 'ctrl+c') {
+        void this.stop()
+        return { consume: true }
+      }
+      if (isKeyRelease(data)) return { consume: true }
+      this.applyPanel(panelKey(this.state.panel, key, data))
+      return { consume: true }
+    }
     const kitty = kittyActive(this.terminal)
     const key = appKey(data, { kitty, listening: this.state.listening })
     const action = key ? keyAction(key, this.state) : { kind: 'none' as const }
@@ -427,37 +512,116 @@ export class App {
   /**
    * Something was clicked.
    *
-   * Every target is something you could also have typed, which is the point:
-   * the mouse is a shortcut into the same commands, never a second way of
-   * driving Wilco that behaves differently. A button whose command wants words
-   * puts the half-written line in front of you instead of guessing them.
+   * Every target is something you could also have typed or said, which is the
+   * point: the mouse is a shortcut into the same actions, never a second way of
+   * driving Wilco that behaves differently. Nothing here types a command for
+   * you to finish — what needs more than a click opens a panel.
    */
-  private clicked(target: Target): void {
+  private clicked(target: Target, button: 'left' | 'right' = 'left'): void {
+    if (this.state.panel) {
+      this.clickPanel(target)
+      return
+    }
     switch (target.kind) {
       case 'task':
         this.state = focusTask(this.state, target.task)
-        this.draw()
-        return
+        break
+      case 'task-menu':
+        // The menu itself comes with the rest of the panels; until then the
+        // task is at least put in front of you.
+        this.state = focusTask(this.state, target.task)
+        break
       case 'project':
         this.state = selectProject(this.state, target.project)
-        this.draw()
-        return
+        break
+      case 'section':
+        this.state = toggleSection(this.state, target.section)
+        break
       case 'orchestrator':
         this.state = { ...this.state, focused: null, chose: true }
         if (this.state.dictation === null) this.state = setDictation(this.state, '')
-        this.draw()
-        return
+        break
       case 'file':
-        // Saying where you are is all a window owes you here; opening files is
-        // your editor's job, and the agent's.
         this.state = notice(this.state, target.path)
+        break
+      case 'action':
+        void this.run(target.name)
+        return
+      default:
+        break
+    }
+    void button
+    this.draw()
+  }
+
+  /** The actions buttons name. Each is exactly what its label says. */
+  private async run(action: string): Promise<void> {
+    switch (action) {
+      case 'new-task':
+        this.openNewTask()
+        return
+      case 'open-project':
+        await this.onScreen('/project')
+        return
+      case 'settings':
+      case 'voice':
+        await this.openSettings()
+        return
+      case 'next-waiting': {
+        const next = nextWaiting(this.state)
+        if (next) this.state = focusTask(this.state, next)
         this.draw()
         return
-      case 'action':
-        if (target.name.endsWith(' ')) this.prefill(target.name)
-        else void this.act(target.name)
+      }
+      case 'approve':
+        await this.decide(true)
         return
+      case 'deny':
+        await this.decide(false)
+        return
+      case 'open-agent':
+        await this.newAgent('')
+        return
+      default:
+        await this.act(action)
     }
+  }
+
+  private openNewTask(): void {
+    const names = projects(this.state)
+    this.state = { ...this.state, panel: newTaskPanel(names, this.state.project) }
+    this.draw()
+  }
+
+  private clickPanel(target: Target): void {
+    const panel = this.state.panel
+    if (!panel) return
+    if (target.kind === 'dismiss') {
+      this.state = { ...this.state, panel: panel.busy ? panel : null }
+    } else if (target.kind === 'control') {
+      this.applyPanel(panelClick(panel, target.id))
+      return
+    }
+    this.draw()
+  }
+
+  private applyPanel(outcome: PanelOutcome): void {
+    this.state = { ...this.state, panel: outcome.panel }
+    this.draw()
+    if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel)
+  }
+
+  /** Carry a panel out, and either close it or say in it why not. */
+  private async submitPanel(panel: Panel): Promise<void> {
+    if (panel.kind !== 'new-task' || !panel.project) return
+    try {
+      const id = await this.startTask(panel.project, panel.intent.trim(), panel.start)
+      this.state = { ...this.state, panel: null }
+      this.state = focusTask(this.state, id)
+    } catch (err) {
+      this.state = { ...this.state, panel: panelFailed(panel, why(err)) }
+    }
+    this.draw()
   }
 
   /**
@@ -472,6 +636,7 @@ export class App {
       this.draw()
       return
     }
+    this.state = { ...this.state, talkingSince: this.now() }
     try {
       this.recording = await recorder.start({ maxMs: MAX_SPEECH_MS })
       this.state = setListening(notice(this.state, 'listening'), true)
@@ -491,7 +656,7 @@ export class App {
       return
     }
 
-    this.state = setListening(notice(this.state, 'transcribing'), false)
+    this.state = { ...setListening(this.state, false), talkingSince: null, hearing: true }
     this.draw()
     let clip: AudioClip | null = null
     try {
@@ -501,11 +666,11 @@ export class App {
       const heard = await transcriber.transcribe(clip, {
         vocabulary: [...words.tasks, ...words.projects],
       })
-      this.state = notice(this.state, heard.text ? null : 'nothing heard')
+      this.state = { ...notice(this.state, heard.text ? null : 'nothing heard'), hearing: false }
       this.draw()
       this.say(heard.text)
     } catch (err) {
-      this.state = notice(this.state, why(err))
+      this.state = { ...notice(this.state, why(err)), hearing: false, talkingSince: null }
       this.draw()
     } finally {
       if (clip) rmSync(clip.path, { force: true })
@@ -628,16 +793,26 @@ export class App {
     this.state = notice(this.state, `starting ${project} · ${slugify(intent)}…`)
     this.draw()
     try {
-      const task = await this.opts.client.createTask({ project, slug: slugify(intent), intent })
-      await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
-      // Refresh before focusing: a pane you cannot see yet cannot take focus,
-      // and the point of starting work here is landing in it.
-      await this.live?.refresh()
-      this.state = focusTask(notice(this.state, `${task.id} — an agent is on it`), task.id)
+      const id = await this.startTask(project, intent, true)
+      this.state = focusTask(notice(this.state, `${id} — an agent is on it`), id)
     } catch (err) {
       this.state = notice(this.state, why(err))
     }
     this.draw()
+  }
+
+  /**
+   * A branch, a worktree, and — unless you said not to — an agent in it. The
+   * pane is refreshed before anything tries to focus it, because a pane you
+   * cannot see yet cannot take focus.
+   */
+  private async startTask(project: string, intent: string, start: boolean): Promise<string> {
+    const task = await this.opts.client.createTask({ project, slug: slugify(intent), intent })
+    if (start) {
+      await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
+    }
+    await this.live?.refresh()
+    return task.id
   }
 
   /** Another agent on the task in front of you, or on one you name. */
@@ -804,7 +979,7 @@ export class App {
     if (this.stopped) return
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
     const screen = await (this.live?.capture(pane?.lane ?? null, this.terminal.rows) ?? '')
-    if (screen !== this.screen) {
+    if (screen !== this.screen || this.state.talkingSince !== null) {
       this.screen = screen
       this.draw()
     }
@@ -958,6 +1133,12 @@ function vocabulary(tasks: readonly { task: string }[]): { tasks: string[]; proj
   const projects = new Set<string>()
   for (const task of tasks) projects.add(task.task.split('/')[0] ?? task.task)
   return { tasks: tasks.map((t) => t.task), projects: [...projects] }
+}
+
+/** A path the way you would type it. */
+function tilde(path: string): string {
+  const home = process.env.HOME
+  return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
 }
 
 function why(err: unknown): string {

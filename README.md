@@ -275,36 +275,56 @@ wilco logs -f --min-urgency notable
 ### The window
 
 `wilco` with no arguments is one window over everything: your projects as tabs along the top, the
-tasks of the one you're in down the side, the agent you're watching in the middle, and the
-orchestrator along the bottom, where it cannot be closed — it is how you see what Wilco heard and
-what it did about it.
+tasks of the one you're in down the side with what they have changed under them, the agent you're
+watching in the middle, and the orchestrator along the bottom, where it cannot be closed — it is how
+you see what Wilco heard and what it did about it. What needs you and the key you talk with are top
+right; what today has cost is bottom right.
+
+This is an 80×24 terminal, exactly as drawn — it is one of the screens the tests keep:
 
 ```
- WILCO   checkout   search   infra   +                             1 waiting
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- AGENTS           │ checkout · stripe-v15 · agent          ● waiting on you
-▌ ● stripe-v15    │ ───────────────────────────────────────────────────────
-  ○ refunds       │ $ npm i stripe@15
-                  │ ⏵ wants approval: bash: npm i stripe@15
- FILES            │
-  src/            │
-  package.json    │
-━ orchestrator ─────────────────────────── ctrl+space talks · / commands ━━━
- ❯ what's going on with checkout
-   → status · checkout · "you asked about it by name"
-   3 tasks, 1 working, 1 waiting on you.
-────────────────────────────────────────────────────────────────────────────
-  new task   agent   open   settings   help   quit
+ WILCO  ▐ checkout ▌  infra    search   +          ● 1  ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            + │ checkout › stripe-v15  ▐ agent ▌ pi · claude-opus-5 
+▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
+ ○ refunds        $0.62   │                                                     
+                          │  ● Upgrading stripe to v15. The webhook signature AP
+ ▾ CHANGES  3             │    so src/webhooks.ts needs the new constructEvent s
+  M package.json    +2 −1 │                                                     
+  A …ebhooks.test.ts  +48 │  ╭─ wants approval ──────────────────────────────╮  
+  M …/webhooks.ts  +12 −4 │  │ bash  npm i stripe@15                         │  
+                          │  │                                               │  
+ ▸ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                 a · d │  
+                          │  ╰───────────────────────────────────────────────╯  
+ ▸ NOTES  2               │                                                     
+━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+ ›                                             type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                                   
 ```
 
 - **Tab** moves between agents *and the orchestrator*, which is a place you can be: it is where you
   type to Wilco. Everything the window doesn't claim is typed straight into the agent you're
   watching, so its own keybindings keep working.
-- **It is clickable.** A project tab moves you to that project, a task down the side puts its agent
-  in front of you, `+` and the buttons along the foot start the command they name. Every target is
-  something you could also have typed — the mouse is a shortcut into the same commands, never a
-  second way of driving Wilco — and the map of what is where comes out of the same pass that drew
-  the rows, so a button cannot end up clickable somewhere other than where it is written.
+- **It is clickable, and a click does the thing.** A project tab moves you to that project, a task
+  puts its agent in front of you, a section heading folds it, and **Allow once** / **Deny** answer
+  the approval drawn where the agent asked. **+ New task** — or the `+` beside AGENTS — opens a panel
+  over the faded window with the project already chosen, the branch and worktree shown before they
+  exist, and Enter to start; nothing types a half-written command for you to finish. Buttons light
+  up under the pointer and look pressed while held. Where the terminal lets a program choose the
+  pointer (kitty, foot, xterm, WezTerm, Ghostty) you get a hand over what can be pressed; elsewhere
+  the hover colour does that job. Every target is something you could also have typed, and the map
+  of what is where comes out of the same pass that drew the rows, so a button cannot be clickable
+  anywhere other than where it is drawn.
+- **Colour where the terminal shows it.** The window uses xterm's 256 colours, which Terminal.app
+  shows and true colour it does not. `NO_COLOR`, a dumb terminal or a pipe get the same layout
+  unpainted: a button is `▐ label ▌` in colour and `[ label ]` without, the same width either way.
 - **Type `/` to see what Wilco can do** — start work, start or stop an agent, add a project, open
   the settings. Unavailable ones are still listed, with the reason (*"nothing is running"*), because
   a menu that changes shape is one you re-read every time.
@@ -314,8 +334,10 @@ what it did about it.
   (`/task search pagination is off by one`). The two commands that edit configuration — `/settings`
   and `/project` — still take the terminal for a moment, because a YAML editor does not fit in
   three rows.
-- **Ctrl+space** talks. Where the terminal reports key releases it is hold-to-talk; elsewhere it
-  toggles. Space is never claimed, because you have to be able to type one.
+- **Ctrl+space** talks, and the key is always on screen, top right, as key caps. While the
+  microphone is open that corner turns red — `● TX 0:04` — and so does the orchestrator strip. Where
+  the terminal reports key releases it is hold-to-talk; elsewhere it toggles. Space is never
+  claimed, because you have to be able to type one.
 - **Say something to Wilco without leaving the agent you're typing at.** Begin a line with `wilco ` —
   *"wilco park this"* — and it goes to Wilco instead of the shell in front of you. Only at the start
   of a line, so `echo wilco` is just a word; at most six characters are ever held back, they are

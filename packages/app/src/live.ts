@@ -3,18 +3,23 @@ import {
   type Config,
   historyFrom,
   type KnownTask,
+  type Note,
+  type SpendReport,
+  spendFrom,
+  startOfToday,
   summariseWork,
   type WilcoEvent,
   type WorkHistory,
   type WorkSummary,
   type Workspace,
 } from '@wilco/core'
-import { collectStatus } from '@wilco/status'
+import { collectStatus, git } from '@wilco/status'
 import type { Workbench } from '@wilco/workbench'
 import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { LaneRecord } from '@wilco/workbench/registry'
 import type { PendingApproval } from '@wilco/workbench/workers'
 import type { TaskSnapshot } from './model.ts'
+import type { Change } from './view.ts'
 
 // Where the app gets its facts.
 //
@@ -53,10 +58,82 @@ export function snapshotsFrom(
         state: task.state,
         lane: lane?.id ?? null,
         waiting: pending.some((approval) => approval.task === task.id),
+        approval: approvalOf(pending, task.id),
       })
     }
   }
   return snapshots.sort((a, b) => a.task.localeCompare(b.task))
+}
+
+/** The oldest approval a task is waiting on, which is the one to answer first. */
+function approvalOf(
+  pending: readonly PendingApproval[],
+  task: string,
+): { tool: string; summary: string } | null {
+  const first = pending.filter((approval) => approval.task === task).sort((a, b) => a.at - b.at)[0]
+  return first ? { tool: first.tool, summary: first.summary } : null
+}
+
+/**
+ * What a worktree has changed, from `git status --porcelain=v2 -z` and
+ * `git diff --numstat -z HEAD`. Pure, so the parsing is tested against real
+ * git output rather than trusted.
+ */
+export function changesFrom(status: string, numstat: string): Change[] {
+  const counts = new Map<string, { added: number | null; removed: number | null }>()
+  const stats = numstat.split('\0')
+  for (let i = 0; i < stats.length; i++) {
+    const entry = stats[i]
+    if (!entry) continue
+    const [added, removed, path] = entry.split('\t')
+    const count = (value: string | undefined) =>
+      value === undefined || value === '-' ? null : Number(value)
+    if (path === '') {
+      // A rename: the old and new paths follow as their own fields.
+      const to = stats[i + 2]
+      if (to) counts.set(to, { added: count(added), removed: count(removed) })
+      i += 2
+    } else if (path !== undefined) {
+      counts.set(path, { added: count(added), removed: count(removed) })
+    }
+  }
+
+  const out: Change[] = []
+  const fields = status.split('\0')
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i]
+    if (!field || field.startsWith('#')) continue
+    const parts = field.split(' ')
+    const kind = field[0]
+    let mark: string
+    let path: string
+    if (kind === '1') {
+      mark = pick(parts[1])
+      path = parts.slice(8).join(' ')
+    } else if (kind === '2') {
+      mark = 'R'
+      path = parts.slice(9).join(' ')
+      i++ // the original path is the next field
+    } else if (kind === 'u') {
+      mark = 'U'
+      path = parts.slice(10).join(' ')
+    } else if (kind === '?') {
+      mark = '?'
+      path = field.slice(2)
+    } else {
+      continue
+    }
+    const count = counts.get(path)
+    out.push({ path, mark, added: count?.added ?? null, removed: count?.removed ?? null })
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path))
+}
+
+/** `XY` from porcelain v2: the worktree's letter where it has one, else the index's. */
+function pick(xy: string | undefined): string {
+  const [index, tree] = [xy?.[0] ?? '.', xy?.[1] ?? '.']
+  const letter = tree !== '.' ? tree : index
+  return letter === '.' ? 'M' : letter
 }
 
 /** The same tasks, as the resolver wants them. */
@@ -79,6 +156,8 @@ export interface LiveOptions {
   onTasks?: (tasks: TaskSnapshot[]) => void
   onEvent?: (event: WilcoEvent) => void
   onWarning?: (message: string) => void
+  /** Something drawn from a background look has changed. */
+  onChange?: () => void
 }
 
 export class Live {
@@ -89,6 +168,11 @@ export class Live {
   private readonly worktrees = new Map<string, string>()
   /** The last listing of each worktree, so the sidebar is not a disk read. */
   private readonly listings = new Map<string, { at: number; files: string[] }>()
+  /** The last look at what each task has changed, and whether one is under way. */
+  private readonly changed = new Map<string, { at: number; changes: Change[] }>()
+  private readonly looking = new Set<string>()
+  /** Every `usage` event since midnight, which is what today's spend is. */
+  private usage: WilcoEvent[] = []
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
 
@@ -101,6 +185,12 @@ export class Live {
     // Recent history first, so "park it" works the moment the window opens.
     const past = await opts.client.events({ limit: JOURNAL }).catch(() => [])
     live.journal.push(...past)
+    // Spend is read on its own: the journal above is the last 500 events, and
+    // a busy morning is more than that.
+    const since = startOfToday(live.now())
+    live.usage = (await opts.client.events({ types: ['usage'] }).catch(() => [])).filter(
+      (event) => Date.parse(event.ts) >= since,
+    )
     await opts.client.subscribe((event) => live.record(event))
     await live.refresh()
     live.timer = setInterval(() => void live.refresh(), opts.pollMs ?? 2_000)
@@ -161,6 +251,53 @@ export class Live {
     return files
   }
 
+  /**
+   * What a task has changed. Answers from the last look at once, and looks
+   * again in the background when that is stale: the window draws four times a
+   * second and must never wait on git to do it.
+   */
+  changes(task: string | null): readonly Change[] {
+    const root = task ? this.worktrees.get(task) : null
+    if (!task || !root) return []
+    const seen = this.changed.get(task)
+    if ((!seen || this.now() - seen.at >= LISTING_MS) && !this.looking.has(task)) {
+      this.looking.add(task)
+      void Promise.all([
+        git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all']),
+        git(root, ['diff', '--numstat', '-z', 'HEAD']),
+      ])
+        .then(([status, numstat]) => {
+          if (!status.ok) return
+          this.changed.set(task, {
+            at: this.now(),
+            changes: changesFrom(status.stdout, numstat.ok ? numstat.stdout : ''),
+          })
+          this.opts.onChange?.()
+        })
+        .catch(() => {})
+        .finally(() => this.looking.delete(task))
+    }
+    return seen?.changes ?? []
+  }
+
+  /** What you have told Wilco that applies to a project, newest first. */
+  notes(project: string | null): string[] {
+    const all: readonly Note[] = this.opts.client.recallAll()
+    return all
+      .filter(
+        (note) =>
+          note.scope === null || note.scope === project || note.scope?.startsWith(`${project}/`),
+      )
+      .slice()
+      .reverse()
+      .map((note) => note.text)
+  }
+
+  /** What has been spent since midnight, in total and by task. */
+  spendToday(): SpendReport {
+    return spendFrom(this.usage, { since: startOfToday(this.now()) })
+  }
+
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */
   async capture(lane: string | null, lines: number): Promise<string> {
     if (!lane) return ''
@@ -212,6 +349,7 @@ export class Live {
 
   private record(event: WilcoEvent): void {
     this.journal.push(event)
+    if (event.type === 'usage') this.usage.push(event)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)
   }

@@ -1,0 +1,34 @@
+ WILCO  ▐ checkout ▌  infra    search   +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            + │                                                                                             
+ ● stripe-v15     $1.26   │   Nothing is running in checkout.                                                           
+ ○ refunds        $0.62   │                                                                                             
+                          │   ▐ + New task ▌ ▐ Open project ▌                                                           
+ ▾ CHANGES  3             │                                                                                             
+  M package.json    +2 −1 │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                    
+  A …ebhooks.test.ts  +48 │                                                                                             
+  M …/webhooks.ts  +12 −4 │                                                                                             
+                          │                                                                                             
+ ▸ FILES                  │                                                                                             
+                          │                                                                                             
+ ▸ NOTES  2               │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+━ orchestrator ── here ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ › what is going on with checkout▏                                                                                      
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                        claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today 

@@ -17,7 +17,7 @@ describe('resolveLayout', () => {
     // Task names are the one thing in that column that has to stay readable,
     // and a fixed 24 beside 200 columns of agent is a ribbon.
     expect(resolveLayout({}, big).sidebarWidth).toBeGreaterThan(DEFAULTS.sidebarWidth)
-    expect(resolveLayout({}, { width: 400, height: 60 }).sidebarWidth).toBeLessThanOrEqual(34)
+    expect(resolveLayout({}, { width: 400, height: 60 }).sidebarWidth).toBeLessThanOrEqual(36)
   })
 
   it('honours a preference that fits', () => {

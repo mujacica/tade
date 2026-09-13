@@ -1,0 +1,34 @@
+ WILCO    checkout    infra  ▐ search ▌ +                            ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  1            + │ search › pagination  ▐ agent ▌                                           pi · claude-opus-5 
+▌◆ pagination           ≡ │─────────────────────────────────────────────────────────────────────────────────────────────
+                          │                                                                                             
+ ▾ CHANGES                │  Ready for review, and no agent is running.                                                 
+   nothing changed        │                                                                                             
+                          │  ▐ Open its agent ▌ picks the conversation up where it stopped                              
+ ▸ FILES                  │                                                                                             
+                          │                                                                                             
+ ▸ NOTES  2               │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+                          │                                                                                             
+━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                        claude-opus-5 · anthropic │ 1.9M tok │ $2.66 today 

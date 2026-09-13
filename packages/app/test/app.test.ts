@@ -50,6 +50,51 @@ class FakeTerminal implements Terminal {
   setProgress(): void {}
 }
 
+/**
+ * The screen as rows of text, rebuilt from what the renderer wrote: cursor
+ * moves place the text, so this is what a person would see, not the byte
+ * stream. Enough of a terminal for finding a label, not a replacement for one.
+ */
+function screenOf(written: string): string[] {
+  // Built from a character code, as elsewhere: an escape in a regex literal is
+  // usually a mistake, and here it is the whole point.
+  const esc = String.fromCharCode(27)
+  const bel = String.fromCharCode(7)
+  const token = new RegExp(
+    `(${esc}\\[[0-9;?]*[A-Za-z]|${esc}\\][^${bel}]*${bel}|${esc}[<>=][0-9;]*[A-Za-z]?|\\r|\\n)`,
+  )
+  const moveTo = new RegExp(`^${esc}\\[(\\d+);(\\d+)H$`)
+  const upDown = new RegExp(`^${esc}\\[(\\d*)([AB])$`)
+  const rows: string[][] = []
+  let row = 0
+  let col = 0
+  for (const part of written.split(token)) {
+    if (!part) continue
+    const move = moveTo.exec(part)
+    const step = upDown.exec(part)
+    if (move) {
+      row = Number(move[1]) - 1
+      col = Number(move[2]) - 1
+    } else if (step) {
+      row += (step[2] === 'B' ? 1 : -1) * Number(step[1] || 1)
+    } else if (part === '\r') {
+      col = 0
+    } else if (part === '\n') {
+      row++
+    } else if (part === `${esc}[H`) {
+      row = 0
+      col = 0
+    } else if (part === `${esc}[2K`) {
+      rows[row] = []
+    } else if (!part.startsWith(esc)) {
+      const line = rows[row] ?? []
+      rows[row] = line
+      for (const char of part) line[col++] = char
+    }
+  }
+  return rows.map((line) => Array.from(line, (char) => char ?? ' ').join(''))
+}
+
 /** Wait for something to become true, rather than for a fixed time. */
 async function until(what: string, ok: () => boolean, ms = 5_000): Promise<void> {
   const deadline = Date.now() + ms
@@ -214,20 +259,20 @@ describe('the window, wired up', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     // Focus starts on refunds; move it to search.
     terminal.press('\t')
-    await until('the marker to move', () => /▌ \S search/.test(terminal.written))
+    await until('the marker to move', () => /▌\S search/.test(terminal.written))
     await first.stop()
 
     // A new window, same home: it should not dump you back on the first task.
     terminal = new FakeTerminal()
     await start()
     await until('the window to come back', () => terminal.written.includes('search'))
-    expect(terminal.written).toMatch(/▌ \S search/)
+    expect(terminal.written).toMatch(/▌\S search/)
   })
 
   it('opens on the first task when it has never been opened before', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
-    expect(terminal.written).toMatch(/▌ \S refunds/)
+    expect(terminal.written).toMatch(/▌\S refunds/)
   })
 
   it('moves the pane when you ask to be shown something', async () => {
@@ -236,7 +281,7 @@ describe('the window, wired up', () => {
     await start({ transcriber, recorder })
     await until('the first frame', () => terminal.written.includes('refunds'))
     // Focus starts on the first task.
-    expect(terminal.written).toMatch(/▌ \S refunds/)
+    expect(terminal.written).toMatch(/▌\S refunds/)
     terminal.written = ''
 
     terminal.press('\x00')
@@ -245,7 +290,7 @@ describe('the window, wired up', () => {
 
     // Asking to be shown something has to actually show it, rather than
     // telling you which command would.
-    await until('the marker to move', () => /▌ \S search/.test(terminal.written))
+    await until('the marker to move', () => /▌\S search/.test(terminal.written))
     expect(terminal.written).not.toContain('run wilco attach')
   })
 
@@ -281,4 +326,57 @@ describe('the window, wired up', () => {
     // Whoever is waiting on the window is released, or this never resolves.
     await started.wait()
   })
+
+  /** A left click, as a terminal in SGR mouse mode sends it: press, then release. */
+  function click(col: number, row: number): void {
+    terminal.press(`\x1b[<0;${col + 1};${row + 1}M`)
+    terminal.press(`\x1b[<0;${col + 1};${row + 1}m`)
+  }
+
+  /** Where a label is on the last full frame, found the way a person would. */
+  function find(label: string): { col: number; row: number } {
+    const lines = screenOf(terminal.written)
+    for (let row = lines.length - 1; row >= 0; row--) {
+      const col = lines[row]?.indexOf(label) ?? -1
+      if (col >= 0) return { col, row }
+    }
+    throw new Error(`"${label}" is not on screen`)
+  }
+
+  it('opens New task from its button, and closes it again with esc', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('New task'))
+    const button = find('+ New task')
+    terminal.written = ''
+    click(button.col + 2, button.row)
+    await until('the panel', () => terminal.written.includes('New task in app'))
+
+    terminal.written = ''
+    terminal.press('\x1b')
+    // The rows it covered are drawn again with the window that was under it.
+    await until('the window back', () => terminal.written.includes('FILES'))
+  })
+
+  it('starts a task from the panel without typing a command', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('New task'))
+    const button = find('+ New task')
+    click(button.col + 2, button.row)
+    await until('the panel', () => terminal.written.includes('What needs doing?'))
+
+    for (const char of 'tidy the readme') terminal.press(char)
+    // No agent in a test: tab to "start it now", untick it, then to Start.
+    terminal.press('\t')
+    terminal.press(' ')
+    terminal.press('\t')
+    terminal.press('\t')
+    terminal.press('\r')
+    const deadline = Date.now() + 20_000
+    while ((await client.events({ types: ['task_created'] })).length === 0) {
+      if (Date.now() > deadline) throw new Error('no task was created')
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    const [created] = await client.events({ types: ['task_created'] })
+    expect(created?.detail.intent_spoken).toBe('tidy the readme')
+  }, 30_000)
 })

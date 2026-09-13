@@ -116,11 +116,19 @@ describe('the tabs', () => {
 describe('what is clickable', () => {
   it('puts a hit on every tab, task, file and button', () => {
     const { rows, hits } = draw(state(), { ...frame(), files: ['src/', 'README.md'] })
-    const at = (target: string) => hits.filter((hit) => hit.target.kind === target)
-    expect(at('project').length).toBe(2)
-    expect(at('task').length).toBe(2)
-    expect(at('file').length).toBe(2)
-    expect(at('action').length).toBeGreaterThan(BUTTONS.length - 1)
+    // Counted by what they are, not by how many regions a control spans.
+    const kinds = (kind: string) =>
+      new Set(
+        hits.filter((hit) => hit.target.kind === kind).map((hit) => JSON.stringify(hit.target)),
+      )
+    expect(kinds('project').size).toBe(2)
+    expect(kinds('task').size).toBe(2)
+    expect(kinds('section').size).toBe(4)
+    for (const button of BUTTONS) {
+      expect(kinds('action').has(JSON.stringify({ kind: 'action', name: button.action }))).toBe(
+        true,
+      )
+    }
     // Every hit has to land on a row that exists, or it is a click into space.
     for (const hit of hits) expect(hit.row).toBeLessThan(rows.length)
   })
@@ -156,12 +164,12 @@ describe('the focused agent', () => {
 
   it('says so when there is no screen to show', () => {
     const text = renderApp(focusTask(state(), 'search/pagination'), frame()).join('\n')
-    expect(text).toContain('no screen attached')
+    expect(text).toContain('no agent is running')
   })
 
   it('says when it is waiting on you', () => {
     const text = renderApp(state(), frame()).join('\n')
-    expect(text).toContain('waiting on you')
+    expect(text).toContain('● 1')
   })
 })
 
@@ -169,7 +177,8 @@ describe('the orchestrator strip', () => {
   it('is always there, even with nothing said yet', () => {
     const text = renderApp(state(), frame()).join('\n')
     expect(text).toContain('orchestrator')
-    expect(text).toContain('ctrl+space')
+    // The key you talk with, as keys you press.
+    expect(text).toContain('[ ctrl ]+[ space ]')
   })
 
   it('shows what was heard, where it went and why', () => {
@@ -207,7 +216,7 @@ describe('the orchestrator strip', () => {
   })
 
   it('shows the line the moment it opens, before anything is said', () => {
-    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('❯')
+    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('› ▏')
   })
 
   it('marks the line differently while the microphone is open', () => {
@@ -228,8 +237,8 @@ describe('the orchestrator strip', () => {
     const empty = { ...state(), panes: [], focused: null }
     const rows = renderApp(empty, frame()).join('\n')
     // The window everybody sees first has to say what to do next.
-    expect(rows).toContain('/task')
-    expect(rows).not.toContain('nothing to show')
+    expect(rows).toContain('[ + New task ]')
+    expect(rows).toContain('[ Open project ]')
   })
 
   it('shows keystrokes held back at an agent prompt', () => {
@@ -240,7 +249,9 @@ describe('the orchestrator strip', () => {
   })
 
   it('shows that it is listening', () => {
-    expect(renderApp(setListening(state(), true), frame()).join('\n')).toContain('listening')
+    expect(renderApp(setListening(setDictation(state(), ''), true), frame()).join('\n')).toContain(
+      '◉',
+    )
   })
 
   it('shows the latest news', () => {

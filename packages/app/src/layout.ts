@@ -25,7 +25,7 @@ export interface Layout {
   bodyHeight: number
 }
 
-export const DEFAULTS = { sidebarWidth: 24, stripHeight: 9 }
+export const DEFAULTS = { sidebarWidth: 26, stripHeight: 9 }
 
 /**
  * Rows the window spends on itself: the project tabs, the rule under them, and
@@ -63,7 +63,7 @@ export function resolveLayout(
   // Unasked, the sidebar is a share of the window rather than a fixed 24: on a
   // wide terminal that is a thin ribbon beside an ocean, and task names are the
   // one thing in it that must stay readable.
-  const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 6), DEFAULTS.sidebarWidth, 34)
+  const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 5), DEFAULTS.sidebarWidth, 36)
   const sidebarWidth = clamp(
     wanted,
     MINIMUM.sidebar,

@@ -65,8 +65,8 @@ describe('snapshotsFrom', () => {
       [],
     )
     expect(snapshots).toEqual([
-      { task: 'checkout/refunds', state: 'working', lane: null, waiting: false },
-      { task: 'checkout/stripe-v15', state: 'blocked', lane: null, waiting: false },
+      { task: 'checkout/refunds', state: 'working', lane: null, waiting: false, approval: null },
+      { task: 'checkout/stripe-v15', state: 'blocked', lane: null, waiting: false, approval: null },
     ])
   })
 

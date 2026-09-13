@@ -9,10 +9,18 @@
 
 export type Target =
   | { kind: 'task'; task: string }
+  | { kind: 'task-menu'; task: string }
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }
+  | { kind: 'section'; section: string }
   | { kind: 'action'; name: string }
+  /** A panel's own control, named by the panel. */
+  | { kind: 'control'; id: string }
+  /** Outside an open panel: clicking here closes it. */
+  | { kind: 'dismiss' }
+  /** Inside a panel but on nothing: swallows the click so it cannot fall through. */
+  | { kind: 'inert' }
 
 export interface Hit {
   /** Inclusive row, zero-based from the top of the window. */
@@ -37,34 +45,28 @@ export function rowHit(row: number, width: number, target: Target): Hit {
   return { row, from: 0, to: Math.max(0, width - 1), target }
 }
 
-/** One thing you can click along a row: a tab, or a button. */
-export interface Chip {
-  label: string
-  target: Target
+/** The same thing on screen: compared by what it is, not by which object. */
+export function sameTarget(a: Target | null, b: Target | null): boolean {
+  if (a === null || b === null) return a === b
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 /**
- * Lay chips out along a row, and say where each one landed.
- *
- * Position is worked out from the label alone and the painting is applied
- * afterwards, so colour cannot move a hit: the two come from one loop, and a
- * chip can never be clickable somewhere other than where it is written.
+ * Whether pointing at this is pointing at something you can press. Rows of
+ * transcript are clickable in the sense that they focus the strip, but they
+ * are not buttons, and asking for a hand over them would be a lie.
  */
-export function chips(
-  row: number,
-  items: readonly Chip[],
-  width: number,
-  paint: (label: string, item: Chip) => string = (label) => label,
-): { text: string; hits: Hit[]; width: number } {
-  const hits: Hit[] = []
-  let text = ''
-  let at = 0
-  for (const item of items) {
-    const label = ` ${item.label} `
-    if (at + 1 + label.length > width) break
-    text += ` ${paint(label, item)}`
-    hits.push({ row, from: at + 1, to: at + label.length, target: item.target })
-    at += 1 + label.length
-  }
-  return { text, hits, width: at }
+export function pressable(target: Target | null): boolean {
+  if (!target) return false
+  return target.kind !== 'inert' && target.kind !== 'orchestrator' && target.kind !== 'dismiss'
+}
+
+/** Move a region's hits to where the region was put. */
+export function shift(hits: readonly Hit[], rows: number, cols = 0): Hit[] {
+  return hits.map((hit) => ({
+    ...hit,
+    row: hit.row + rows,
+    from: hit.from + cols,
+    to: hit.to + cols,
+  }))
 }
