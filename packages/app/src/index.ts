@@ -29,6 +29,9 @@ export {
 export { initialRouter, PREFIX, pending, type Routed, type RouterState, route } from './router.ts'
 export {
   initialScreen,
+  type Palette,
+  PLAIN,
+  paletteFor,
   renderScreen,
   runScreen,
   ScreenCancelled,
@@ -36,4 +39,5 @@ export {
   type ScreenState,
   type Ui,
 } from './screen.ts'
+export { editSettings } from './settings.ts'
 export { type Frame, renderApp, renderTurn } from './view.ts'

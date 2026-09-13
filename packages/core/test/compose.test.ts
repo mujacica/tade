@@ -78,3 +78,43 @@ describe('composePrompt', () => {
     expect(composePrompt({ config: config() })).toContain('Proposals do nothing')
   })
 })
+
+describe('what it is told about this machine', () => {
+  it('says whether agents survive the window closing', () => {
+    const tmux = composePrompt({ config: ConfigSchema.parse({ workspace: { driver: 'tmux' } }) })
+    expect(tmux).toContain('keep working after Wilco is closed')
+    // The other way round is the one worth warning about: somebody is about to
+    // close a laptop expecting work to carry on.
+    const pty = composePrompt({ config: ConfigSchema.parse({ workspace: { driver: 'pty' } }) })
+    expect(pty).toContain('stop when it closes')
+  })
+
+  it('says whether anything will stop to ask', () => {
+    const on = composePrompt({ config: ConfigSchema.parse({ approvals: { mode: 'policy' } }) })
+    expect(on).toContain('held until a human answers')
+    const off = composePrompt({ config: ConfigSchema.parse({}) })
+    expect(off).toContain('nothing is ever held up')
+  })
+
+  it('says what a project may spend, where there is a limit', () => {
+    const prompt = composePrompt({
+      config: ConfigSchema.parse({
+        projects: { checkout: { root: '/src/checkout', budget: { usd_per_day: 20 } } },
+      }),
+    })
+    expect(prompt).toContain('checkout may spend $20.00 a day')
+  })
+
+  it('says nothing about budgets where none are set', () => {
+    // A prompt that lists every absent setting is one that stops being read.
+    const prompt = composePrompt({
+      config: ConfigSchema.parse({ projects: { checkout: { root: '/src/checkout' } } }),
+    })
+    expect(prompt).not.toContain('may spend')
+  })
+
+  it('tells it what it cannot do, and what does it instead', () => {
+    // Otherwise "turn approvals on" gets either a flat refusal or a pretence.
+    expect(composePrompt({ config: ConfigSchema.parse({}) })).toContain('wilco config')
+  })
+})

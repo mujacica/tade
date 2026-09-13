@@ -91,6 +91,11 @@ export interface VoiceOptions {
    * to be shown something can only be answered with directions.
    */
   show?: (task: string) => Promise<string>
+  /**
+   * Open the settings in place. Without it — `wilco chat`, a test — asking for
+   * them is answered with the command that opens them.
+   */
+  openSettings?: () => Promise<string>
   /** Live tasks with their states. Without it, names are taken literally. */
   tasks?: () => Promise<KnownTask[]>
   /** The journal rolled up, so "it" can mean what just moved. */
@@ -317,6 +322,12 @@ export class VoiceSurface {
         })
         this.lastAddressed = created.id
         return `Starting ${slug} in ${intent.project}.`
+      }
+
+      case 'settings': {
+        // The window can open them in place; anywhere else, say the command.
+        const opened = await this.opts.openSettings?.()
+        return opened ?? 'Run `wilco config` to change settings.'
       }
 
       case 'remember': {

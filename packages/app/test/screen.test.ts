@@ -2,7 +2,15 @@ import type { Terminal } from '@earendil-works/pi-tui'
 import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
 import { PtyDriver } from '@wilco/drivers-pty'
 import { afterEach, describe, expect, it } from 'vitest'
-import { initialScreen, renderScreen, runScreen, ScreenCancelled, type Ui } from '../src/screen.ts'
+import {
+  initialScreen,
+  PLAIN,
+  paletteFor,
+  renderScreen,
+  runScreen,
+  ScreenCancelled,
+  type Ui,
+} from '../src/screen.ts'
 
 // The first minute, drawn rather than printed.
 //
@@ -47,6 +55,28 @@ class FakeTerminal implements Terminal {
 
 describe('the setup screen', () => {
   const frame = { width: 70, height: 20 }
+
+  it('colours the marks, and reads the same without colour', () => {
+    const state = initialScreen('Setting up', context)
+    const coloured = renderScreen(state, { ...frame, palette: paletteFor({ TERM: 'xterm' }) })
+    expect(coloured.join('\n')).toContain('\x1b[32m')
+
+    // Colour is decoration. Everything has to say the same thing without it,
+    // because pipes, CI logs and plenty of terminals will never show it.
+    // Built rather than written as a literal: the linter is right that an
+    // escape character in a regular expression is usually a mistake.
+    const ansi = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
+    const strip = (rows: string[]) => rows.join('\n').replace(ansi, '')
+    expect(strip(coloured)).toBe(strip(renderScreen(state, frame)))
+  })
+
+  it('shows no colour where somebody has asked for none', () => {
+    for (const env of [{ NO_COLOR: '1', TERM: 'xterm' }, { TERM: 'dumb' }, {}]) {
+      expect(paletteFor(env)).toBe(PLAIN)
+    }
+    // And never into a pipe, where escape codes are worse than plain text.
+    expect(paletteFor({ TERM: 'xterm' }, false)).toBe(PLAIN)
+  })
 
   it('keeps the banner, the standing context and the keys all on screen', () => {
     const rows = renderScreen(initialScreen('Setting up', context), frame).join('\n')

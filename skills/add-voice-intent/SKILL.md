@@ -28,7 +28,8 @@ Four files, in this order. The first two are pure and hold the judgement; the la
    and the tests have no window: without the hook the verb must still answer honestly rather than
    claiming something happened.
 5. Add utterances to the corpus in `packages/core/test/intent.test.ts`, including the ways people
-   actually say it and the homophones a transcriber will produce (`bark` for `park`).
+   actually say it, the homophones a transcriber will produce (`bark` for `park`), and — just as
+   important — a sentence that merely *mentions* the word and must not match it.
 
 ## Rules
 

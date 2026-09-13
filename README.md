@@ -110,7 +110,14 @@ shell: start the line with `wilco ` — *"wilco park this"*. At most six charact
 and you can see them while they wait.
 
 **A question with no verb.** *"why is refunds slow"* is not in the grammar, so it goes to the
-orchestrator, which can read the journal, the git state and your notes to answer it.
+orchestrator, which can read the journal, the git state and your notes to answer it. It is told what
+Wilco is, what it may and may not do, what your projects are, what you have told it — and the
+posture this machine is in, so *"will that keep running if I close this?"* has a true answer rather
+than a plausible one.
+
+**Changing a setting.** *"wilco settings"* from inside the window, or `wilco config` from a
+terminal: the same screen either way. Needing to close Wilco to change a Wilco setting is how people
+end up with a second terminal open forever.
 
 **Before you merge.** `wilco check demo/refunds` runs the project's own `test_command` and records
 the result against the commit it ran on. `wilco status` then distinguishes "it stopped" from "it is

@@ -281,3 +281,25 @@ describe('approval safety', () => {
     })
   })
 })
+
+describe('asking for the settings', () => {
+  it('understands the ways people ask', () => {
+    for (const said of [
+      'settings',
+      'open settings',
+      'show settings',
+      'preferences',
+      'config',
+      'change configuration',
+    ]) {
+      expect(parseUtterance(said, vocabulary).kind).toBe('settings')
+    }
+  })
+
+  it('does not swallow a sentence that merely mentions them', () => {
+    // "tell refunds to read the config" is an instruction to an agent, not a
+    // request to open a screen.
+    expect(parseUtterance('tell refunds to read the config', vocabulary).kind).toBe('steer')
+    expect(parseUtterance('what about config', vocabulary).kind).not.toBe('settings')
+  })
+})

@@ -44,6 +44,9 @@ importers:
       '@wilco/workbench':
         specifier: workspace:*
         version: link:../workbench
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@wilco/drivers-core':
         specifier: workspace:*

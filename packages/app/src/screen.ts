@@ -5,6 +5,7 @@ import {
   TuiAltScreen,
   type TuiInputListenerResult,
   truncateToWidth,
+  visibleWidth,
 } from '@earendil-works/pi-tui'
 import type { LaneId } from '@wilco/core'
 import { PtyDriver } from '@wilco/drivers-pty'
@@ -31,6 +32,64 @@ const LOGO = [
 ]
 /** Below this the banner is taking room the questions need. */
 const ROOM_FOR_LOGO = { width: 46, height: 24 }
+
+/**
+ * How the screen is coloured.
+ *
+ * A function per role rather than a table of codes, so the plain palette is
+ * the identity function and everything downstream stays a string. Colour is
+ * decoration: every screen has to read correctly without it, because plenty of
+ * terminals, pipes and CI logs will never show it.
+ */
+export interface Palette {
+  title(text: string): string
+  rule(text: string): string
+  done(text: string): string
+  todo(text: string): string
+  optional(text: string): string
+  cursor(text: string): string
+  hint(text: string): string
+  said(text: string): string
+}
+
+const plain = (text: string) => text
+export const PLAIN: Palette = {
+  title: plain,
+  rule: plain,
+  done: plain,
+  todo: plain,
+  optional: plain,
+  cursor: plain,
+  hint: plain,
+  said: plain,
+}
+
+const paint = (code: string) => (text: string) => `\x1b[${code}m${text}\x1b[0m`
+const COLOUR: Palette = {
+  title: paint('1;36'),
+  rule: paint('2;36'),
+  done: paint('32'),
+  todo: paint('33'),
+  optional: paint('2'),
+  cursor: paint('1;36'),
+  hint: paint('2'),
+  said: paint('2'),
+}
+
+/**
+ * Colour, where the terminal is one that shows it.
+ *
+ * `NO_COLOR` is honoured because people who set it mean it, and a `dumb`
+ * terminal or a pipe gets nothing: escape codes in a log file are worse than
+ * plain text, and this is the one decision that cannot be made from inside the
+ * renderer, which is pure.
+ */
+export function paletteFor(env: NodeJS.ProcessEnv = process.env, tty = true): Palette {
+  if (!tty) return PLAIN
+  if (env.NO_COLOR !== undefined && env.NO_COLOR !== '') return PLAIN
+  if (env.TERM === 'dumb' || !env.TERM) return PLAIN
+  return COLOUR
+}
 
 export interface Prompt {
   question: string
@@ -97,32 +156,45 @@ export class ScreenCancelled extends Error {
  */
 export function renderScreen(
   state: ScreenState,
-  frame: { width: number; height: number },
+  frame: { width: number; height: number; palette?: Palette },
 ): string[] {
   const width = Math.max(30, frame.width)
   const height = Math.max(10, frame.height)
-  const rule = '─'.repeat(width)
+  const paint = frame.palette ?? PLAIN
+  const rule = paint.rule('─'.repeat(width))
 
   const head: string[] = []
   if (width >= ROOM_FOR_LOGO.width && height >= ROOM_FOR_LOGO.height) {
     LOGO.forEach((row, i) => {
-      head.push(`  ${row}${i === 2 ? `   ${state.title}` : ''}`)
+      head.push(`  ${paint.cursor(row)}${i === 2 ? `   ${paint.title(state.title)}` : ''}`)
     })
     head.push('')
   } else {
-    head.push(`  W I L C O · ${state.title}`)
+    head.push(`  ${paint.cursor('W I L C O')} · ${paint.title(state.title)}`)
   }
   head.push(rule)
-  for (const line of state.context) head.push(`  ${line}`)
+  for (const line of state.context) head.push(`  ${colourContext(line, paint)}`)
   if (state.context.length > 0) head.push(rule)
 
-  const foot = [rule, `  ${keys(state)}`]
-  const body = renderBody(state, Math.max(1, height - head.length - foot.length))
+  const foot = [rule, `  ${paint.hint(keys(state))}`]
+  const body = renderBody(state, Math.max(1, height - head.length - foot.length), paint)
 
   // Clamped to what the terminal actually has, not to the minimum this layout
   // wants: drawing one row more than there is scrolls the screen out from
   // under itself, and a cramped window is somebody's split pane, not a bug.
   return [...head, ...body, ...foot].slice(0, frame.height).map((row) => pad(row, width))
+}
+
+/**
+ * The context lines are somebody else's strings — a checklist, a path — and
+ * the marks at the front are the only part with a meaning worth colouring.
+ */
+function colourContext(line: string, paint: Palette): string {
+  const mark = line.trimStart().slice(0, 1)
+  if (mark === '✓') return paint.done(line)
+  if (mark === '·' || mark === '▸') return paint.todo(line)
+  if (mark === '○') return paint.optional(line)
+  return line
 }
 
 function keys(state: ScreenState): string {
@@ -132,9 +204,9 @@ function keys(state: ScreenState): string {
   return 'ctrl+c quit'
 }
 
-function renderBody(state: ScreenState, height: number): string[] {
+function renderBody(state: ScreenState, height: number, paint: Palette): string[] {
   if (state.running) {
-    const rows = [`  ${state.running.title}`, '']
+    const rows = [`  ${paint.title(state.running.title)}`, '']
     const screen = state.running.screen.split('\n')
     // Tail it: what a program just printed is what you need to answer.
     for (const line of screen.slice(Math.max(0, screen.length - (height - 2)))) {
@@ -145,9 +217,10 @@ function renderBody(state: ScreenState, height: number): string[] {
 
   if (state.menu) {
     const menu = state.menu
-    const rows = [`  ${menu.question}`, '']
+    const rows = [`  ${paint.title(menu.question)}`, '']
     menu.options.forEach((option, i) => {
-      rows.push(`  ${i === menu.index ? '▸' : ' '} ${option}`)
+      const here = i === menu.index
+      rows.push(here ? `  ${paint.cursor(`▸ ${option}`)}` : `    ${paint.said(option)}`)
     })
     return fill(rows, height)
   }
@@ -155,15 +228,15 @@ function renderBody(state: ScreenState, height: number): string[] {
   // The transcript, newest last, cropped to whatever is left after the
   // question — which is always on screen, because it is the thing to answer.
   const spare = Math.max(0, height - (state.prompt ? 3 : 1))
-  const rows = state.said.slice(-spare).map((said) => `  ${said}`)
+  const rows = state.said.slice(-spare).map((said) => `  ${paint.said(said)}`)
   const before = fill(rows, spare)
   if (state.prompt) {
     const shown = state.prompt.confirm
       ? `${state.prompt.question} [${state.prompt.fallback === 'y' ? 'Y/n' : 'y/N'}]`
       : `${state.prompt.question}${state.prompt.fallback ? ` [${state.prompt.fallback}]` : ''}`
-    return [...before, '', `  ❯ ${shown}: ${state.typed}`, ''].slice(0, height)
+    return [...before, '', `  ${paint.cursor('❯')} ${shown}: ${state.typed}`, ''].slice(0, height)
   }
-  if (state.finished) return [...before, `  ${state.finished}`].slice(0, height)
+  if (state.finished) return [...before, `  ${paint.done(state.finished)}`].slice(0, height)
   return before
 }
 
@@ -173,7 +246,11 @@ function fill(rows: string[], height: number): string[] {
 }
 
 function pad(text: string, width: number): string {
-  return truncateToWidth(text, width).padEnd(width, ' ')
+  // By what it looks like, not by how long the string is: `padEnd` counts the
+  // bytes in a colour code, so a coloured row would come out short and the
+  // whole screen ragged down one side.
+  const clipped = truncateToWidth(text, width)
+  return clipped + ' '.repeat(Math.max(0, width - visibleWidth(clipped)))
 }
 
 /** What a flow can do to the screen. */
@@ -204,6 +281,8 @@ export interface ScreenOptions {
   cwd?: string
   /** How often an embedded terminal is re-read. */
   frameMs?: number
+  /** Defaults to colour where the terminal shows it. */
+  palette?: Palette
 }
 
 /** ctrl+] — the way out of an embedded program, as telnet has always had it. */
@@ -230,7 +309,8 @@ export async function runScreen(
   let state = initialScreen(opts.title, opts.context ?? [])
 
   const draw = () => tui.requestRender()
-  tui.addChild(new Screen(() => ({ state, height: Math.max(10, terminal.rows) })))
+  const palette = opts.palette ?? paletteFor(opts.env ?? process.env, true)
+  tui.addChild(new Screen(() => ({ state, height: Math.max(10, terminal.rows), palette })))
 
   /** Whoever is waiting on a keystroke right now. */
   let answer: ((text: string) => void) | null = null
@@ -415,15 +495,15 @@ function stringly(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 class Screen implements Component {
-  private readonly frame: () => { state: ScreenState; height: number }
+  private readonly frame: () => { state: ScreenState; height: number; palette: Palette }
 
   constructor(frame: Screen['frame']) {
     this.frame = frame
   }
 
   render(width: number): string[] {
-    const { state, height } = this.frame()
-    return renderScreen(state, { width, height })
+    const { state, height, palette } = this.frame()
+    return renderScreen(state, { width, height, palette })
   }
 
   invalidate(): void {

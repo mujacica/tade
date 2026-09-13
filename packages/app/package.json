@@ -14,7 +14,8 @@
     "@wilco/status": "workspace:*",
     "@wilco/voice-core": "workspace:*",
     "@wilco/voice-tts": "workspace:*",
-    "@wilco/drivers-pty": "workspace:*"
+    "@wilco/drivers-pty": "workspace:*",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@wilco/voice-stt": "workspace:*",

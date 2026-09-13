@@ -46,6 +46,8 @@ import {
   withTasks,
 } from './model.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
+import { runScreen, ScreenCancelled } from './screen.ts'
+import { editSettings } from './settings.ts'
 import { renderApp } from './view.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -118,6 +120,8 @@ export class App {
   private restored = false
   /** Tasks being looked back at right now, so two polls cannot double up. */
   private readonly reflecting = new Set<string>()
+  /** The settings have the terminal, so this window must not draw over them. */
+  private settingsOpen = false
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -242,6 +246,7 @@ export class App {
       status: async (scope) => this.describe(scope),
       worktreeOf: async (task) => live.worktreeOf(task),
       show: async (task) => this.show(task),
+      openSettings: async () => this.openSettings(),
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
       ...(this.opts.thinker
@@ -531,6 +536,40 @@ export class App {
     }
   }
 
+  /**
+   * Hand the terminal to the settings screen, then take it back.
+   *
+   * Needing to close Wilco to change a Wilco setting is how people end up with
+   * a second terminal open forever. The window stops drawing while the other
+   * screen has the keyboard — two things drawing at once is the bug this whole
+   * design exists to avoid — and starts again where it left off.
+   */
+  private async openSettings(): Promise<string> {
+    if (this.settingsOpen) return 'Settings are already open.'
+    this.settingsOpen = true
+    this.tui.stop()
+    try {
+      await runScreen(
+        {
+          title: 'Settings',
+          context: [join(this.opts.home, 'config.yaml')],
+          terminal: this.terminal,
+        },
+        (ui) => editSettings(ui, join(this.opts.home, 'config.yaml')),
+      )
+    } catch (err) {
+      // ctrl+c closes the settings, not Wilco.
+      if (!(err instanceof ScreenCancelled)) {
+        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
+      }
+    } finally {
+      this.settingsOpen = false
+      this.tui.start()
+      this.draw()
+    }
+    return 'Settings closed. Changes apply next time Wilco starts.'
+  }
+
   private describe(scope: string | null): string {
     const live = this.live
     const tasks = live?.tasks ?? []
@@ -553,7 +592,7 @@ export class App {
   }
 
   private draw(): void {
-    if (!this.stopped) this.tui.requestRender()
+    if (!this.stopped && !this.settingsOpen) this.tui.requestRender()
   }
 
   private now(): number {

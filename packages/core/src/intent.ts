@@ -20,6 +20,8 @@ export type Intent =
   | { kind: 'park'; task: string }
   | { kind: 'resume'; task: string }
   | { kind: 'remember'; text: string }
+  /** Open the settings, so changing one never means closing Wilco. */
+  | { kind: 'settings' }
   | { kind: 'free'; text: string }
 
 export interface Vocabulary {
@@ -34,6 +36,7 @@ const FOCUS = /^(show me|pull up|open|bring up)\s+(?<task>.+?)[?.]?$/
 const STEER = /^(tell|ask)\s+(?<rest>.+)$/
 const START = /^(start|kick off|begin)\s+(?<rest>.+)$/
 const PARK = /^(park|pause|set aside)\s+(?<task>.+?)[?.]?$/
+const SETTINGS = /^((open|show|change)\s+)?(settings|preferences|config(uration)?)[?.]?$/
 const RESUME = /^(resume|unpark|pick up|pick)\s+(?<task>.+?)(\s+back up)?[?.]?$/
 const REMEMBER = /^(remember|note|keep in mind)(\s+that)?\s+(?<text>.+)$/
 const APPROVE = /^(yes|yep|yeah|go ahead|do it|approve|approved|sure|please do)[.!]?$/
@@ -83,6 +86,8 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
 
   if (APPROVE.test(said)) return { kind: 'approve' }
   if (DENY.test(said)) return { kind: 'deny' }
+
+  if (SETTINGS.test(said)) return { kind: 'settings' }
 
   if (STATUS.test(said)) return { kind: 'status', scope: null }
   const scoped = STATUS_SCOPED.exec(said)
