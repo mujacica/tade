@@ -1,3 +1,4 @@
+export * from './authored.ts'
 export * from './event-index.ts'
 export * from './events.ts'
 export * from './lane-liveness.ts'

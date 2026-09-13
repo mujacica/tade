@@ -57,6 +57,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
   The orchestrator is never sandboxed; it has to drive your terminal.
+- **What Wilco writes for itself is under git** (`recordAuthored`), committed as `Wilco` and never
+  as the user. That is the fourth safety rail, with `--safe`, inert proposals and no hot reload: the
+  other three let you stop an unwelcome change, and this is what lets you see and undo one. Losing
+  the history is never a reason to refuse the change itself.
 - **No hot reload of extensions.** Wilco writes proposals into `extensions/proposed/` and they do
   nothing until a human moves them; an activated one loads the next time Wilco starts. `--safe`
   loads none of them and must keep working with a broken one sitting in `active/` — safe mode that

@@ -21,6 +21,7 @@ import {
 import type { WorkspaceCapabilities, WorkspaceDriver } from '@wilco/drivers-core'
 import type { PermissionDecision, RunId, WorkerHandle, WorkerModel } from '@wilco/harnesses-core'
 import { noUsage, PiAdapter, usageOfTask } from '@wilco/harnesses-pi'
+import { recordAuthored } from './authored.ts'
 import { EventLog } from './events.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
@@ -204,6 +205,13 @@ export class Workbench {
       // Pick the agents that kept working back up: the channel first, so their
       // extensions can reconnect, then the spend that went unreported while
       // there was nothing for them to report to. Neither is fatal.
+      // Anything an agent wrote for itself while nobody was looking gets a
+      // commit now, so it is reviewable rather than merely present.
+      await recordAuthored(
+        expandHome(config.orchestrator.extensions),
+        'tools proposed since Wilco was last open',
+      )
+      await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Wilco was last open')
       await workbench.resupervise().catch(() => {})
       await workbench.reconcileSpend().catch(() => {})
       return workbench

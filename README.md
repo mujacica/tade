@@ -95,7 +95,9 @@ discussing, and it says which. The narrowest note wins, so a rule about one task
 
 **When it writes itself a tool.** It proposes; you read the file; `wilco extensions activate
 <name>`; it loads next time Wilco starts. If one of them breaks everything, `wilco --safe` starts
-with none of them.
+with none of them. Everything Wilco writes for itself is a git repository, committed as `Wilco`
+rather than as you, so *"when did this appear, and what did I agree to"* has an answer months
+later.
 
 **Closing the laptop lid on it.** With `workspace.driver: tmux`, lanes belong to a tmux server
 rather than to Wilco, so you can close it, open it again, and the agents are still working — Wilco

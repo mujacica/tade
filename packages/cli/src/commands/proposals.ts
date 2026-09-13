@@ -15,6 +15,7 @@ import {
   wilcoHome,
 } from '@wilco/core'
 import { activeSkills } from '@wilco/orchestrator'
+import { recordAuthored } from '@wilco/workbench'
 import { readJournal } from '@wilco/workbench/events'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
@@ -142,6 +143,10 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
         const target = to === 'active' ? dirs.active : dirs.rejected
         mkdirSync(target, { recursive: true })
         renameSync(source, join(target, `${name}${kind.ext}`))
+        // A decision about what Wilco may do to itself is worth a commit: the
+        // question later is never "what is active" — the directory says that —
+        // but "when did this start, and what was going on when I agreed".
+        await recordAuthored(dirs.root, `${verb} ${kind.one} ${name}`)
         io.out(`${name} — ${done}`)
       })
   }
