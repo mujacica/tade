@@ -115,6 +115,19 @@ export const ConfigSchema = z
                 binary: z.string().optional(),
               })
               .prefault({}),
+            /**
+             * What Wilco is willing to interrupt you for. The engine decides
+             * per event; these are the two parts that are personal rather
+             * than structural.
+             */
+            attention: z
+              .strictObject({
+                /** Spoken interruptions per hour. Beyond it, things wait. */
+                budget: z.int().nonnegative().optional(),
+                /** Local quiet hours, like `22:00-08:00`. Omit for none. */
+                quiet: z.string().optional(),
+              })
+              .prefault({}),
             /** Where the speech comes from. */
             mic: z
               .strictObject({

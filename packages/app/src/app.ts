@@ -7,7 +7,13 @@ import {
   TuiAltScreen,
   type TuiInputListenerResult,
 } from '@earendil-works/pi-tui'
-import { type Config, describeWork, type LaneId } from '@wilco/core'
+import {
+  type Config,
+  DEFAULT_ATTENTION,
+  describeWork,
+  type LaneId,
+  parseQuietHours,
+} from '@wilco/core'
 import {
   type AudioClip,
   type Recorder,
@@ -214,8 +220,16 @@ export class App {
     })
     this.live = live
 
+    const attention = this.opts.config.surfaces.voice.attention
     this.voice = await VoiceSurface.start({
       wilco: this.opts.client,
+      // Yours, where it is a matter of taste. Everything else about what is
+      // worth interrupting you for is the engine's, and not a setting.
+      settings: {
+        ...DEFAULT_ATTENTION.voice,
+        ...(attention.budget === undefined ? {} : { budget: attention.budget }),
+        quiet: parseQuietHours(attention.quiet) ?? DEFAULT_ATTENTION.voice.quiet,
+      },
       speaker:
         this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
       vocabulary: async () => vocabulary(live.tasks),

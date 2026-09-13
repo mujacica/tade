@@ -401,7 +401,15 @@ surfaces:
   voice:
     stt: { driver: whisper-cpp }        # or: { driver: groq, language: en }
     mic: { driver: ffmpeg, device: ":1" }   # `ffmpeg -f avfoundation -list_devices true -i ""`
+    attention:
+      budget: 6                            # spoken interruptions per hour
+      quiet: "22:00-08:00"                 # omit for none
 ```
+
+**What it is willing to interrupt you for** is mostly the engine's business — urgency, whether you
+are mid-sentence somewhere else, whether the same thing has already been said — and two parts of it
+are yours: how often it may speak in an hour, and when it may not speak at all. Beyond the budget
+nothing is dropped; it waits and comes back as one sentence.
 
 Task and project names are handed to the engine as expected vocabulary, because *"stripe-v15"* is
 exactly the kind of word a general model mishears.

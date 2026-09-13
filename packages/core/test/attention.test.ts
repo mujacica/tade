@@ -4,6 +4,7 @@ import {
   type Channel,
   DEFAULT_ATTENTION,
   decideAttention,
+  parseQuietHours,
   type Surface,
   summarise,
 } from '../src/attention.ts'
@@ -204,5 +205,31 @@ describe('summarise', () => {
     // One sentence, joined properly, rather than three.
     expect(text.split('.').filter((s) => s.trim()).length).toBe(2)
     expect(text).toContain(' and ')
+  })
+})
+
+describe('quiet hours, as a person writes them', () => {
+  it('reads a range', () => {
+    expect(parseQuietHours('22:00-08:00')).toEqual({ from: 22, to: 8 })
+    expect(parseQuietHours('22-8')).toEqual({ from: 22, to: 8 })
+  })
+
+  it('is no quiet hours when there are none', () => {
+    expect(parseQuietHours(undefined)).toBeNull()
+    expect(parseQuietHours('')).toBeNull()
+  })
+
+  it('ignores what it cannot read rather than refusing to start', () => {
+    // A preference, not a boundary: nobody should be locked out of their own
+    // window by a typo in one.
+    for (const bad of ['evening', '25:00-08:00', '22:00', 'from 10 to 2']) {
+      expect(parseQuietHours(bad)).toBeNull()
+    }
+  })
+
+  it('treats the same hour twice as meaning nothing', () => {
+    // It would otherwise mean either always or never, and neither is what
+    // anybody writing it twice intended.
+    expect(parseQuietHours('22:00-22:00')).toBeNull()
   })
 })

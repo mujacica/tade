@@ -12,7 +12,6 @@
     "@wilco/voice-core": "workspace:*"
   },
   "devDependencies": {
-    "@wilco/drivers-core": "workspace:*",
     "vitest": "^5.0.0"
   }
 }

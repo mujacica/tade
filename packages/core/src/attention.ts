@@ -27,6 +27,28 @@ export interface AttentionSettings {
   focusWindowMs: number
 }
 
+/**
+ * Read quiet hours written the way a person writes them: `22:00-08:00`.
+ *
+ * Only the hour is kept, because a spoken interruption at 21:58 and one at
+ * 22:00 are the same interruption, and a policy that pretends to minute
+ * precision invites people to tune it instead of trusting it. Anything
+ * unreadable means no quiet hours rather than an error: it is a preference,
+ * not a boundary, and nobody should be unable to open the window over one.
+ */
+export function parseQuietHours(
+  text: string | null | undefined,
+): { from: number; to: number } | null {
+  if (!text) return null
+  const found = /^\s*(\d{1,2})(?::\d{2})?\s*-\s*(\d{1,2})(?::\d{2})?\s*$/.exec(text)
+  const from = Number(found?.[1])
+  const to = Number(found?.[2])
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from > 23 || to > 23) return null
+  // Equal bounds would mean either always or never; neither is what anybody
+  // means by writing the same hour twice.
+  return from === to ? null : { from, to }
+}
+
 export const DEFAULT_ATTENTION: Record<Surface, AttentionSettings> = {
   voice: { ceiling: 'speak', budget: 6, quiet: { from: 22, to: 8 }, focusWindowMs: 30_000 },
   watch: { ceiling: 'speak', budget: 12, quiet: null, focusWindowMs: 30_000 },
