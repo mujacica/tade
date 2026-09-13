@@ -111,8 +111,21 @@ export function decideAttention(
   return { channel, reason }
 }
 
+/**
+ * Money is worth saying out loud.
+ *
+ * A warning that a project is near what it may spend today is the one kind of
+ * `warning` nobody should be able to miss: an earcon says "something
+ * happened", and by the time you go and look the budget is spent. Everything
+ * else about a warning is ordinary.
+ */
+function aboutSpending(event: WilcoEvent): boolean {
+  return event.type === 'warning' && String(event.detail.message ?? '').includes('near its budget')
+}
+
 function baseChannel(event: WilcoEvent): Channel {
   if (event.urgency === 'blocking') return Channel.speak
+  if (aboutSpending(event)) return Channel.speak
   if (event.type === 'state_change' && SPOKEN_STATES.has(String(event.detail.state))) {
     return Channel.speak
   }
@@ -122,6 +135,7 @@ function baseChannel(event: WilcoEvent): Channel {
 
 function baseReason(event: WilcoEvent): string {
   if (event.urgency === 'blocking') return 'waiting on you'
+  if (aboutSpending(event)) return 'close to what it may spend today'
   if (event.type === 'state_change' && SPOKEN_STATES.has(String(event.detail.state))) {
     return `task is ${String(event.detail.state)}`
   }

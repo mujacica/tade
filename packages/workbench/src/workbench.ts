@@ -623,6 +623,8 @@ export class Workbench {
       await this.log.append({
         type: 'warning',
         task,
+        // Said out loud, not just journalled: by the time an earcon sends you
+        // to look, the budget is spent.
         detail: { message: `${project} is near its budget: ${state.reason}` },
       })
     }

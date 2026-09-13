@@ -233,3 +233,49 @@ describe('quiet hours, as a person writes them', () => {
     expect(parseQuietHours('22:00-22:00')).toBeNull()
   })
 })
+
+describe('money', () => {
+  const budgetWarning = (): WilcoEvent => ({
+    seq: 1,
+    ts: new Date(NOW).toISOString(),
+    type: 'warning',
+    urgency: 'notable',
+    task: 'checkout/refunds',
+    lane: null,
+    run: null,
+    detail: { message: 'checkout is near its budget: 82% of $20.00 today' },
+  })
+
+  it('is said out loud, not left to an earcon', () => {
+    // An earcon says "something happened". By the time you go and look, the
+    // budget is spent — which is the one outcome the warning exists to avoid.
+    // The hour is supplied, never read off the clock: 14:00 UTC is the middle
+    // of the night in some timezones, and a test that passes where it was
+    // written is not a test.
+    const decided = decideAttention(budgetWarning(), {
+      now: NOW,
+      surface: 'voice',
+      spokenInLastHour: 0,
+      localHour: 14,
+    })
+    expect(decided.channel).toBe('speak')
+    expect(decided.reason).toContain('spend')
+  })
+
+  it('still yields to quiet hours, like everything else', () => {
+    // Loud enough to interrupt is not the same as loud enough to wake you.
+    const decided = decideAttention(budgetWarning(), {
+      now: NOW,
+      surface: 'voice',
+      spokenInLastHour: 0,
+      localHour: 3,
+    })
+    expect(decided.channel).toBe('earcon')
+  })
+
+  it('leaves every other warning where it was', () => {
+    const other = { ...budgetWarning(), detail: { message: 'config.yaml is invalid' } }
+    const context = { now: NOW, surface: 'voice' as const, spokenInLastHour: 0, localHour: 14 }
+    expect(decideAttention(other, context).channel).toBe('earcon')
+  })
+})
