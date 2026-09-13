@@ -86,6 +86,11 @@ export interface VoiceOptions {
   status: (scope: string | null) => Promise<string>
   /** Where a task lives on disk, for parking it. */
   worktreeOf: (task: string) => Promise<string | null>
+  /**
+   * Put a task in front of the human, and say how it went. Without it, asking
+   * to be shown something can only be answered with directions.
+   */
+  show?: (task: string) => Promise<string>
   /** Live tasks with their states. Without it, names are taken literally. */
   tasks?: () => Promise<KnownTask[]>
   /** The journal rolled up, so "it" can mean what just moved. */
@@ -273,10 +278,13 @@ export class VoiceSurface {
         await this.opts.wilco.steerAgent(task, intent.message)
         return `Told ${short(task)}.`
       }
-      case 'focus':
-        // Raising a window is the workspace driver's job, and the default one
-        // cannot do it, so say where to look instead of pretending.
-        return `${short(task)}: run wilco attach ${task}`
+      case 'focus': {
+        // Showing you something is the surface's job: the window can move its
+        // own pane, and a driver whose lanes are real windows can raise one.
+        // With neither, say where to look rather than pretending it happened.
+        const shown = await this.opts.show?.(task)
+        return shown ?? `${short(task)}: run wilco attach ${task}`
+      }
       default:
         return `I can't do that to ${short(task)}.`
     }

@@ -95,9 +95,11 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 ## Keeping the repo maintainable
 
 - `README.md` describes what works today. Update it in the same change as the behaviour.
-- `.claude/skills/` holds step-by-step recipes for recurring changes (new CLI command, config key,
-  state rule, transcript parser, ...). Use the matching skill, and add or update one when you create
-  a new extension point.
+- **`skills/` holds step-by-step recipes** for recurring changes (new CLI command, config key, state
+  rule, transcript parser, ...). Use the matching skill, and add or update one when you create a new
+  extension point. They live at the repo root, not under any one agent's directory, so every agent
+  working on Wilco can read them — `.claude/skills` is a symlink to it. Do not confuse them with
+  `<WILCO_HOME>/skills`, which is what Wilco itself has learned.
 
 ## Where things go
 

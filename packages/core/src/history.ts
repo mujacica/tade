@@ -46,6 +46,20 @@ export interface WorkHistory {
 }
 
 /**
+ * When each project and task was last touched, which is what decides whether a
+ * lesson about one still applies.
+ */
+export function activityFrom(
+  history: WorkHistory,
+  known: readonly string[],
+): { lastSeenAt: Record<string, number>; known: readonly string[] } {
+  const lastSeenAt: Record<string, number> = {}
+  for (const task of history.tasks) lastSeenAt[task.task] = task.lastEventAt
+  for (const project of history.projects) lastSeenAt[project.project] = project.lastEventAt
+  return { lastSeenAt, known }
+}
+
+/**
  * What each task is waiting on a human for, in the words the request used.
  *
  * Derived from the journal rather than asked of whoever is supervising, so it

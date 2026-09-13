@@ -221,6 +221,7 @@ export class App {
       vocabulary: async () => vocabulary(live.tasks),
       status: async (scope) => this.describe(scope),
       worktreeOf: async (task) => live.worktreeOf(task),
+      show: async (task) => this.show(task),
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
       ...(this.opts.thinker
@@ -449,6 +450,33 @@ export class App {
     if (screen !== this.screen) {
       this.screen = screen
       this.draw()
+    }
+  }
+
+  /**
+   * Put a task in front of you.
+   *
+   * Two things, because there are two kinds of window. The pane is always
+   * moved — that is this window's own business and works under every driver.
+   * Raising the *terminal's* window is the driver's, and only some can: the
+   * capability says which, never the driver's name, and when it cannot the
+   * answer says where to look instead of pretending.
+   */
+  private async show(task: string): Promise<string> {
+    const known = this.state.panes.some((pane) => pane.task === task)
+    if (!known) return `I don't have a pane for ${task}.`
+    this.state = focusTask(this.state, task)
+    this.draw()
+
+    const lane = `${task}/agent` as LaneId
+    if (!this.opts.client.driver.capabilities.focus) return `Showing ${task}.`
+    try {
+      await this.opts.client.focusLane(lane)
+      return `Showing ${task}.`
+    } catch {
+      // The lane may not exist, or the terminal may have moved on. The pane
+      // moved either way, which is the part this window can promise.
+      return `Showing ${task}.`
     }
   }
 

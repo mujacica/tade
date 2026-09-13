@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
+import { activityFrom, defaultConfigPath, historyFrom, loadConfig, wilcoHome } from '@wilco/core'
 import { Orchestrator, ToolHost } from '@wilco/orchestrator'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
 import type { Command } from 'commander'
@@ -45,6 +45,10 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
       const chat = await Orchestrator.start({
         // Fetched and handed over, so composing the prompt stays pure.
         notes: wilco.recallAll(),
+        activity: activityFrom(
+          historyFrom(await wilco.events({ limit: 2_000 }), Date.now()),
+          Object.keys(cfg.config.projects),
+        ),
         home,
         socket: tools.path,
         runDir: join(home, 'orchestrator'),

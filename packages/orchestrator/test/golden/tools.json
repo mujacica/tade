@@ -138,6 +138,10 @@
         "text": {
           "type": "string",
           "description": "the lesson, in markdown, in your own words"
+        },
+        "about": {
+          "type": "string",
+          "description": "the project or task it is about, like checkout or checkout/refunds. Leave it off only when the lesson is about working here in general: a lesson scoped to something stops being mentioned once that thing goes quiet, and an unscoped one is repeated forever."
         }
       },
       "required": [

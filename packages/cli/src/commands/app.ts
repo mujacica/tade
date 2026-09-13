@@ -2,7 +2,15 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
-import { defaultConfigPath, isReady, loadConfig, readiness, wilcoHome } from '@wilco/core'
+import {
+  activityFrom,
+  defaultConfigPath,
+  historyFrom,
+  isReady,
+  loadConfig,
+  readiness,
+  wilcoHome,
+} from '@wilco/core'
 import { Orchestrator, ToolHost } from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
@@ -90,6 +98,11 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         config: cfg.config,
         // So it knows what you have told it, not just what it can do.
         notes: client.recallAll(),
+        // And which of its own lessons still apply.
+        activity: activityFrom(
+          historyFrom(await client.events({ limit: 2_000 }), Date.now()),
+          Object.keys(cfg.config.projects),
+        ),
         safe: program.opts().safe === true,
       }).catch(() => null)
 

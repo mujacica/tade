@@ -8,6 +8,7 @@ import {
   waitingOn,
   wilcoHome,
 } from '@wilco/core'
+import { proposedSkills } from '@wilco/orchestrator'
 import { collectStatus } from '@wilco/status'
 import { Speaker } from '@wilco/voice-tts'
 import { readJournal } from '@wilco/workbench/events'
@@ -56,7 +57,16 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
             reason: task.reason,
           })),
         )
-        const brief = composeBrief(tasks, { localHour: new Date().getHours() })
+        // At most one lesson waiting to be read, and only if the brief is
+        // short enough to hear it out: the parameter existed and nothing ever
+        // filled it, so Wilco proposed things nobody was ever told about.
+        const [waitingSkill] = proposedSkills(join(home, 'skills'))
+        const brief = composeBrief(tasks, {
+          localHour: new Date().getHours(),
+          ...(waitingSkill
+            ? { proposal: `I wrote down a lesson called ${waitingSkill.name} — worth a look.` }
+            : {}),
+        })
         io.out(brief.spoken)
         if (opts.speak) {
           const speaker = await Speaker.create({ soundDir: join(wilcoHome(), 'sounds') })

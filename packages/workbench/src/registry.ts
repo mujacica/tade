@@ -285,6 +285,12 @@ export class LaneRegistry {
     await this.save()
   }
 
+  /** Raise this lane on screen, for a driver whose lanes are real windows. */
+  async focus(id: LaneId): Promise<void> {
+    this.requireAlive(id)
+    await this.driver.focus(id)
+  }
+
   async setTitle(id: LaneId, title: string): Promise<void> {
     this.requireAlive(id)
     await this.driver.setTitle(id, title)

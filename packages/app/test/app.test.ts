@@ -230,6 +230,25 @@ describe('the window, wired up', () => {
     expect(terminal.written).toMatch(/▸.?\s*refunds/)
   })
 
+  it('moves the pane when you ask to be shown something', async () => {
+    const transcriber = new ScriptedTranscriber(['show me search'])
+    const recorder = new ScriptedRecorder()
+    await start({ transcriber, recorder })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Focus starts on the first task.
+    expect(terminal.written).toMatch(/▸.?\s*refunds/)
+    terminal.written = ''
+
+    terminal.press('\x00')
+    await until('recording to start', () => recorder.started.length === 1)
+    terminal.press('\x00')
+
+    // Asking to be shown something has to actually show it, rather than
+    // telling you which command would.
+    await until('the marker to move', () => /▸.?\s*search/.test(terminal.written))
+    expect(terminal.written).not.toContain('run wilco attach')
+  })
+
   it('stops cleanly, and stopping twice is safe', async () => {
     const started = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

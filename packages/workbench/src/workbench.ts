@@ -283,6 +283,15 @@ export class Workbench {
   }
 
   /**
+   * Raise a lane's own window, where the driver has real windows to raise.
+   * Throws `UnsupportedCapabilityError` where it does not: check
+   * `driver.capabilities.focus` first rather than calling it hopefully.
+   */
+  focusLane(lane: LaneId): Promise<void> {
+    return this.registry.focus(lane)
+  }
+
+  /**
    * Watch a lane: the rendered screen as it is now, then every byte after.
    * The snapshot comes first so a new watcher sees what it missed rather than
    * an empty pane until the agent next says something.

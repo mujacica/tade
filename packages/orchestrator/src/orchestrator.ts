@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Note, Unsubscribe } from '@wilco/core'
-import { composePrompt, expandHome, orchestratorRoute } from '@wilco/core'
+import type { Config, Note, SkillActivity, Unsubscribe } from '@wilco/core'
+import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@wilco/core'
 import type { WorkerModel } from '@wilco/harnesses-core'
 import { PiAdapter } from '@wilco/harnesses-pi'
 import { activeExtensions, activeSkills } from './extensions.ts'
@@ -36,6 +36,14 @@ export interface OrchestratorOptions {
    * composing the prompt stays a pure function of facts.
    */
   notes?: readonly Note[]
+  /**
+   * What has happened lately, which decides which lessons still apply. Without
+   * it nothing has happened anywhere, so every lesson about something in
+   * particular is treated as quiet.
+   */
+  activity?: SkillActivity
+  /** Supplied so the same facts always compose the same prompt. */
+  now?: number
   model?: WorkerModel
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
@@ -90,7 +98,13 @@ export class Orchestrator {
               composePrompt({
                 config: opts.config,
                 ...(opts.notes ? { notes: opts.notes } : {}),
-                skills: activeSkills(skillsRoot(opts)),
+                // Only the lessons that still apply: one about a project
+                // nobody has touched in a month is noise in every prompt.
+                skills: livingSkills(
+                  activeSkills(skillsRoot(opts)),
+                  opts.activity ?? { lastSeenAt: {}, known: Object.keys(opts.config.projects) },
+                  opts.now ?? Date.now(),
+                ),
               }),
             ]
           : []),

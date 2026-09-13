@@ -1,16 +1,21 @@
 import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import {
+  activityFrom,
   defaultConfigPath,
   expandHome,
   extensionDirs,
+  historyFrom,
   isExtensionName,
   loadable,
   loadableSkills,
   loadConfig,
   skillDirs,
+  skillStanding,
   wilcoHome,
 } from '@wilco/core'
+import { activeSkills } from '@wilco/orchestrator'
+import { readJournal } from '@wilco/workbench/events'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -26,7 +31,7 @@ interface Kind {
   noun: string
   one: string
   ext: '.ts' | '.md'
-  dirs: (root: string) => { active: string; proposed: string; rejected: string }
+  dirs: (root: string) => { root: string; active: string; proposed: string; rejected: string }
   list: (files: string[]) => string[]
   root: (configured: string | undefined) => string
   activated: string
@@ -83,6 +88,23 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
       const show = (label: string, found: string[]) =>
         io.out(`${label.padEnd(10)}${found.length > 0 ? found.join(', ') : '—'}`)
       show('active', names(dirs.active, kind))
+      // A lesson about something nobody has touched in a month is still
+      // approved; it just is not said. Show which, and why, or it looks like
+      // Wilco quietly forgot.
+      if (kind.noun === 'skills') {
+        const cfg = await loadConfig(opts.config)
+        const quiet = skillStanding(
+          activeSkills(dirs.root),
+          activityFrom(
+            historyFrom(await readJournal(wilcoHome(), { limit: 5_000 }), Date.now()),
+            cfg.ok ? Object.keys(cfg.config.projects) : [],
+          ),
+          Date.now(),
+        ).filter((standing) => standing.dormant)
+        for (const standing of quiet) {
+          io.out(`  ${standing.skill.name}: not being said — ${standing.reason}`)
+        }
+      }
       const proposed = names(dirs.proposed, kind)
       show('proposed', proposed)
       show('rejected', names(dirs.rejected, kind))

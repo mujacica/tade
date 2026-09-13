@@ -233,6 +233,9 @@ export default function wilcoTools(pi: PiApi): void {
       {
         name: string('short name, lowercase with dashes'),
         text: string('the lesson, in markdown, in your own words'),
+        about: string(
+          'the project or task it is about, like checkout or checkout/refunds. Leave it off only when the lesson is about working here in general: a lesson scoped to something stops being mentioned once that thing goes quiet, and an unscoped one is repeated forever.',
+        ),
       },
       ['name', 'text'],
     ),
@@ -241,10 +244,15 @@ export default function wilcoTools(pi: PiApi): void {
       if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) {
         throw new Error(`${name} is not a usable name: lowercase letters, digits and dashes`)
       }
+      const about = p.about ? String(p.about).trim().toLowerCase() : ''
       const dir = join(skillsRoot(), 'proposed')
       await mkdir(dir, { recursive: true })
       const path = join(dir, `${name}.md`)
-      await writeFile(path, `${String(p.text).trim()}\n`)
+      // The subject goes on its own line at the top, which is where it is read
+      // back from: a lesson is written by a model and reviewed by a human, so
+      // the file has to stay something a person can read.
+      const header = about ? `about: ${about}\n\n` : ''
+      await writeFile(path, `${header}${String(p.text).trim()}\n`)
       return `Proposed ${name}. It is not in use: a human activates it with \`wilco skills activate ${name}\` after reading ${path}.`
     },
   )
