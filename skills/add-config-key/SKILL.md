@@ -29,6 +29,15 @@ Schema: `ConfigSchema` in `packages/core/src/config.ts` (zod 4).
 1. Add the key to the schema with a default.
 2. Add cases to `packages/core/test/config.test.ts`: the default, a valid value, and an invalid
    value asserting the exact `issues[0].path`.
-3. Use it via `loadConfig()` in the consumer.
-4. Document it in the **Configuration** block of `README.md` if users are expected to set it.
-5. `pnpm check`.
+3. Use it via `loadConfig()` in the consumer. In the window, read it from `this.opts.config` at the
+   moment it is needed rather than copying it at start: Settings replaces that object when a value
+   changes, which is what makes a setting apply at once.
+4. If people will want to change it, add it to `settingsOf` in `packages/core/src/settings.ts`, in
+   the group they would look for it in: a `title`, a `means` sentence saying what changing it does,
+   a `kind` (`choice`, `flag`, `number` with a `unit`, `text`, `hours`, `key`, `model`), and
+   `live: false` if it is only read when Wilco starts — the panel labels it *on restart*.
+5. Document it in the **Configuration** block of `README.md` if users are expected to set it.
+6. `pnpm check`.
+
+Writing config: always edit the YAML **document** (`parseDocument`, `setIn`, `deleteIn`), never
+`parse` then `stringify` — that drops every comment in a file somebody wrote by hand.

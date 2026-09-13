@@ -274,29 +274,30 @@ wilco logs -f --min-urgency notable
 
 ### The window
 
-`wilco` with no arguments is one window over everything: your projects as tabs along the top, the
-tasks of the one you're in down the side with what they have changed under them, the agent you're
-watching in the middle, and the orchestrator along the bottom, where it cannot be closed — it is how
-you see what Wilco heard and what it did about it. What needs you and the key you talk with are top
-right; what today has cost is bottom right.
+`wilco` with no arguments is one window over everything. Your projects are tabs along the top; the
+tasks of the one you're in are down the side, with what each has changed since it branched under
+them; the agent you're watching fills the middle, drawn in its own colours; and the orchestrator runs
+along the bottom, where it cannot be closed — it is how you see what Wilco heard and what it did
+about it. What needs you and the key you talk with are top right; what today has cost is bottom
+right.
 
 This is an 80×24 terminal, exactly as drawn — it is one of the screens the tests keep:
 
 ```
- WILCO  ▐ checkout ▌  infra    search   +          ● 1  ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   +          ● 1  ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            + │ checkout › stripe-v15  ▐ agent ▌ pi · claude-opus-5 
+ ▾ AGENTS  2            + │ checkout › stripe-v15  ▐ agent ▌  shell   +         
 ▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
  ○ refunds        $0.62   │                                                     
                           │  ● Upgrading stripe to v15. The webhook signature AP
- ▾ CHANGES  3             │    so src/webhooks.ts needs the new constructEvent s
+ ▾ CHANGES  3     vs main │    so src/webhooks.ts needs the new constructEvent s
   M package.json    +2 −1 │                                                     
-  A …ebhooks.test.ts  +48 │  ╭─ wants approval ──────────────────────────────╮  
-  M …/webhooks.ts  +12 −4 │  │ bash  npm i stripe@15                         │  
-                          │  │                                               │  
- ▸ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                 a · d │  
-                          │  ╰───────────────────────────────────────────────╯  
- ▸ NOTES  2               │                                                     
+  A …ebhooks.test.ts  +48 │  ▸ Read src/webhooks.ts                             
+  M …/webhooks.ts  +12 −4 │  ╭─ wants approval ──────────────────────────────╮  
+                          │  │ bash  npm i stripe@15                         │  
+ ▸ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
+ ▸ NOTES  4               │  ╰───────────────────────────────────────────────╯  
+                          │                                                     
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                 
                                                                                 
@@ -309,79 +310,59 @@ This is an 80×24 terminal, exactly as drawn — it is one of the screens the te
  ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                                   
 ```
 
-- **Tab** moves between agents *and the orchestrator*, which is a place you can be: it is where you
-  type to Wilco. Everything the window doesn't claim is typed straight into the agent you're
-  watching, so its own keybindings keep working.
-- **It is clickable, and a click does the thing.** A project tab moves you to that project, a task
-  puts its agent in front of you, a section heading folds it, and **Allow once** / **Deny** answer
-  the approval drawn where the agent asked. **+ New task** — or the `+` beside AGENTS — opens a panel
-  over the faded window with the project already chosen, the branch and worktree shown before they
-  exist, and Enter to start; nothing types a half-written command for you to finish. Buttons light
-  up under the pointer and look pressed while held. Where the terminal lets a program choose the
-  pointer (kitty, foot, xterm, WezTerm, Ghostty) you get a hand over what can be pressed; elsewhere
-  the hover colour does that job. Every target is something you could also have typed, and the map
-  of what is where comes out of the same pass that drew the rows, so a button cannot be clickable
-  anywhere other than where it is drawn.
-- **Colour where the terminal shows it.** The window uses xterm's 256 colours, which Terminal.app
-  shows and true colour it does not. `NO_COLOR`, a dumb terminal or a pipe get the same layout
-  unpainted: a button is `▐ label ▌` in colour and `[ label ]` without, the same width either way.
-- **Type `/` to see what Wilco can do** — start work, start or stop an agent, add a project, open
-  the settings. Unavailable ones are still listed, with the reason (*"nothing is running"*), because
-  a menu that changes shape is one you re-read every time.
-- **Work happens in the window.** `/task fix the double charge on refunds` makes the branch, the
-  worktree and an agent in it, and leaves you watching that agent — no form, no full screen, no
-  questions asked back. The project is the one whose tab you are on unless you name another first
-  (`/task search pagination is off by one`). The two commands that edit configuration — `/settings`
-  and `/project` — still take the terminal for a moment, because a YAML editor does not fit in
-  three rows.
-- **Ctrl+space** talks, and the key is always on screen, top right, as key caps. While the
-  microphone is open that corner turns red — `● TX 0:04` — and so does the orchestrator strip. Where
-  the terminal reports key releases it is hold-to-talk; elsewhere it toggles. Space is never
-  claimed, because you have to be able to type one.
-- **Say something to Wilco without leaving the agent you're typing at.** Begin a line with `wilco ` —
-  *"wilco park this"* — and it goes to Wilco instead of the shell in front of you. Only at the start
-  of a line, so `echo wilco` is just a word; at most six characters are ever held back, they are
-  flushed in order the moment they can't spell it, and what is held is shown while it waits.
-- **A pane raises itself when an agent needs you** — but never while you're mid-sentence somewhere
-  else: nothing takes the screen out from under you until you've been idle for 30 seconds.
-- **It opens where you left it.** The pane you were watching is remembered in `~/.wilco/window.json`.
-  Sizes come from the config rather than from keys, because every key the window claims is one the
-  focused agent never receives — `[` and `]` would be a nice way to resize a sidebar and a terrible
-  way to lose a bracket:
+**A click does the thing.** Everything in the window is clickable, and nothing types a half-written
+command for you to finish. Buttons light up under the pointer and look pressed while held; where the
+terminal lets a program choose the pointer (kitty, foot, xterm, WezTerm, Ghostty) you get a hand over
+what can be pressed. Every target is something you could also have typed, and the map of what is
+where comes out of the same pass that drew the rows, so nothing is clickable anywhere it is not drawn.
+Colour is xterm's 256, which Terminal.app shows; `NO_COLOR`, a dumb terminal or a pipe get the same
+layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same width either way.
 
-  ```yaml
-  surfaces:
-    window: { sidebar_width: 30, strip_height: 12 }
-  ```
-
-  Both are wishes rather than instructions: a sidebar wider than the terminal leaves nothing to
-  watch, so they are fitted to the window you actually have.
-- **Clicking a task opens it.** If its agent is running, the pane shows it; if not, pi opens in the
-  task's worktree on the task's own session, so the conversation picks up where it stopped.
-  Opening a session sends nothing to the model — it costs nothing until you type — which is what
-  makes it safe for a click (tab passes over tasks, so it only shows them). The agent is drawn in
-  its own colours, its terminal is sized to the pane so its layout fits, and the terminal window's
-  title says which task you are in.
-- **Click a file to open it, and a link to follow it.** A file under CHANGES or FILES, a link on an
-  agent's screen, or a reference like `src/webhooks.ts:42:7` in its output opens in your editor at
-  that line — underlined while you point at it. The editor is, in order: the one you set, the one
-  whose terminal Wilco is running in (VS Code, Cursor, Windsurf, Zed, JetBrains, Neovim, Emacs are
-  recognised), `$VISUAL` or `$EDITOR`, then whatever the system opens that kind of file with. A
-  terminal editor such as vim opens inside Wilco's screen and hands the window back when you quit
-  it, rather than fighting it for the keyboard.
-
-  ```yaml
-  surfaces:
-    window: { editor: cursor }   # code, cursor, windsurf, zed, idea, subl, nvim, vim, emacs, system
-  ```
+- **Tabs.** A project tab goes to that project. `+` after them opens a project: the ones you used
+  lately first, and any folder by typing its path (`←` up, `→` into). A folder that is not a git
+  repository opens too — Wilco offers `git init` and commits what is there as the first commit, as
+  Wilco — and the tab appears at once.
+- **Tasks.** Clicking one opens it: if its agent is running you see it; if not, pi opens in the
+  task's worktree on the task's own session, picking up where it stopped. Opening a session sends
+  nothing to the model, so a click costs nothing until you type. The agent's terminal is sized to the
+  pane and the terminal window is titled with the task. `≡` on the task you are on, or a right-click
+  on any, is its menu: open, start or stop its agent, show its changes, open it in your editor, copy
+  its branch, park it, or remove it — which asks first and lists exactly what is unmerged.
+- **New task.** `+` beside AGENTS or **+ New task** opens a panel on the project you are in. What you
+  type is kept word for word; the branch and worktree are shown before they exist; the agent field
+  opens the models you are signed in to.
+- **The pane.** Tabs along its top: the agent, any shell opened beside it with `+`, each drawn and
+  typed into on its own. On the right, the model the agent says it runs on and a context meter that
+  turns amber, then red, as it fills. An approval appears where the agent asked, with **Allow once**
+  and **Deny** (`a` and `d` too, only while one waits).
+- **Changes and files.** A changed file opens its diff from where the task branched, read-only,
+  `←`/`→` through the others. A file under FILES, a link on an agent's screen, or a reference like
+  `src/webhooks.ts:42:7` in its output opens in your editor at that line — the one you set, else the
+  one whose terminal Wilco runs in (VS Code, Cursor, Windsurf, Zed, JetBrains, Neovim, Emacs), else
+  `$VISUAL`/`$EDITOR`, else the system's. A terminal editor opens inside Wilco's screen rather than
+  fighting it for the keyboard.
+- **Money.** The status bar is today's model, tokens and dollars; click it for the orchestrator and
+  every agent, for today, this window or seven days, by agent, project or model, and each project
+  against its daily budget.
+- **Talking.** The key is yours — `ctrl+space` unless you choose another — and always on screen as
+  key caps. While the microphone is open the corner and the strip turn red with a clock, and the strip
+  shows a meter of what the microphone actually hears. Hold where the terminal reports key releases,
+  press to start and stop elsewhere or if you prefer. With nothing to hear you, the chip says voice is
+  off and offers setup. Space is never claimed; nor is any key that types a character.
+- **Go to anything.** `ctrl+g` finds any task (what needs you first), waiting approval, agent to stop,
+  change to look at, project, action or setting by name. The Keys sheet is in there too.
+- **Somewhere else needs you.** An agent in a project you are not looking at that wants approval gets
+  a toast under the tabs, answerable where it appears. A pane you are looking at raises itself only
+  when you have been idle for 30 seconds.
+- **Closing.** `ctrl+c` closes Wilco. Under `pty`, where closing would stop your agents, it asks
+  first and says so; under tmux they carry on and it just closes.
+- **Tab** moves between agents *and the orchestrator*, where you type to Wilco. `/` lists what Wilco
+  can do; `/task fix the double charge on refunds` starts work in one line. Begin a line at an agent
+  with `wilco ` and it goes to Wilco instead. Everything the window doesn't claim goes to the agent,
+  so its own keybindings keep working.
 - **Every exchange shows its reasoning** (`→ park · checkout/stripe-v15 · "you mentioned it last"`),
   so a wrong guess is obvious and can be corrected rather than silently obeyed.
-- `a` and `d` answer an approval, and only while that pane is actually waiting on one.
-
-- **Ask to be shown something and it shows you.** *"show me pagination"* moves the pane. Under a
-  driver whose lanes are real windows it raises that window too — `capabilities.focus` decides,
-  never the driver's name — and where neither is possible it tells you where to look instead of
-  pretending it happened.
+- **It opens where you left it**: the pane you were watching is remembered in `~/.wilco/window.json`.
 
 ### Agents and models
 
@@ -604,11 +585,13 @@ work out whether it was an oversight.
 
 ## Configuration
 
-**`wilco config` is a screen**: every setting, grouped, showing what it is now — or its default in
-brackets when you have not chosen — and a sentence on what changing it does, because the name of a
-key almost never answers that. Changes are written as you make them, and the file stays yours: it is
-read, changed and written back, so your comments and your key order survive everything except the one
-line you changed.
+**Settings is a panel over the window** (the **Settings** button, `ctrl+g`, or `wilco config` from a
+shell): categories down the side, and every setting as a real control — key caps, radios, toggles,
+steppers, time ranges, lists that open under their field — with a sentence on what changing it does.
+Changes are written as you make them and used at once; a setting read only when Wilco starts says
+*on restart*. The file stays yours: the document is edited, not reprinted, so your comments and key
+order survive everything but the line you changed. **Accounts** lists the providers pi is signed in to
+and signs in to another with pi's own sign-in, inside the window; **Voice** can try the microphone.
 
 `~/.wilco/config.yaml`. Every key is optional and unknown keys are rejected. Editing it by hand is
 still the same file.
@@ -633,12 +616,21 @@ workers:
     cheap:        { provider: openrouter, model: deepseek/deepseek-v3 }
     subscription: { provider: anthropic, model: claude-opus-5 }
     local:        { provider: ollama, model: qwen2.5-coder, sandbox: seatbelt }
+surfaces:
+  voice:
+    talk: { key: ctrl+space, mode: hold }   # any key that does not type a character; hold | toggle
+    speak: true            # say replies and news out loud; off keeps the sounds and the text
+  window:
+    editor: cursor         # code, cursor, windsurf, zed, idea, subl, nvim, vim, emacs, system
+    sidebar_width: 30      # wishes: fitted to the terminal you actually have
+    strip_height: 9
 projects:
   checkout:
     root: ~/src/checkout
     brief: "Payments service. Stripe, Postgres, Node."
     worker: subscription   # names a route above
     max_parallel: 2
+    budget: { usd_per_day: 5 }   # agents are warned at 80% and refused past it
 ```
 
 The schema lives in [packages/core/src/config.ts](packages/core/src/config.ts).
@@ -682,6 +674,13 @@ can *choose* the right tool from the descriptions we wrote, since the fake one
 is told what to call. `WILCO_LIVE=1` is the one test that can: it costs money,
 needs credentials, and is meant for before a release rather than the inner
 loop. `WILCO_LIVE_MODEL` picks the model.
+
+**How the window looks is tested like anything else.** Named screens drawn from fixed data are kept as
+golden plain text and exact ANSI under `packages/app/test/screens/__screens__/`, with checks that every
+row fills the terminal and nothing is clickable where nothing is drawn; the app tests open the panels
+through the whole window with real key and mouse sequences. `pnpm screens [out.html]` draws every
+screen in colour — old and new side by side where they differ — for a person to look at before
+accepting a change with `pnpm vitest run packages/app -u`.
 
 `pnpm install` runs `scripts/fix-pty-permissions.mjs`, which restores the executable bit on
 node-pty's `spawn-helper`. Package extraction drops it, and without it every lane fails to start

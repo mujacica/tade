@@ -15,7 +15,11 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `hits.ts` | What is where on the screen, so a click can mean something | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
 | `panels.ts` | What a panel holds and what a key or click does to it | a terminal |
-| `panel-view.ts` | How each panel is drawn | a terminal |
+| `panel-view.ts` | How each panel is drawn, and the `PanelContext` it draws from | a terminal |
+| `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
+| `projects.ts` | Recent projects, folder browsing, `git init` for Open project | a real disk and git |
+| `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
+| `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
@@ -88,7 +92,25 @@ file and cannot be tested.
   (tested in `test/panels.test.ts`), draw it in `panel-view.ts`, and carry it out in
   `App.submitPanel`, putting any failure back into the panel rather than behind it.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
-  menu doing exactly that.
+  menu doing exactly that, and controls left clickable under a popup.
+- **A panel draws only from its `PanelContext`.** Anything it needs that the app state does not hold
+  (menu items, settings, models, a diff) goes through `Frame.panel`, filled in `App.panelFacts`, and
+  anything its keys or clicks need goes through `PanelInputs` from `App.panelInputs`. **Add the fact
+  to both, and add an app test that opens the panel through the whole window.** The screen tests build
+  frames by hand, so they will pass while the real window hands the panel nothing — which is how the
+  Spend panel, the task menu and Settings all once opened empty.
+- **Something that opens out of a panel and may pass its edge is a popup**: return it from
+  `drawPanel` in `popups`, placed relative to the panel. `draw` lays popups over the panel and makes
+  whatever they cover unclickable.
+- **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
+  sentence, and `live: false` if Wilco only reads it at start — the panel draws the control and the
+  *on restart* label from that.
+
+## Checking it against a design
+
+When a screen is designed first, compare it line for line rather than by eye: draw the scenario with
+`stripTerminalSequences` and put it next to the mockup's text. Screenshots hide a column off here and
+a word there; plain text does not.
 
 ## Keeping it looking right
 
