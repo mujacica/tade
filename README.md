@@ -496,9 +496,12 @@ work out whether it was an oversight.
   microphone that is always listening in a room where you take calls is a different product.
 - **One window per `WILCO_HOME` at a time.** Two would interleave in one journal. Questions —
   `status`, `logs`, `notes`, `summary`, `spend` — never take the lock and always answer.
-- **An agent adopted from a previous window can be typed at, but not gated.** Its extension had a
-  channel to the window that opened it and does not reconnect, so approvals and steering fall back
-  to the terminal until it is restarted. Its spend is still recovered, from pi's own session.
+- **No `MemoryStore` or `Surface` port.** Notes are one append-only file and there is no second
+  implementation to swap in; the CLI, the window and voice each need genuinely different things from
+  Wilco. A port with one implementation behind it is indirection, not a seam.
+- **No golden transcript of what a model chooses.** The tool surface and the composed prompt are
+  golden-tested, but "given this request, which tool" needs a model that chooses — the scripted one
+  is told. `WILCO_LIVE=1` is where that is checked instead.
 
 ## Configuration
 

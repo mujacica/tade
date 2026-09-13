@@ -64,7 +64,9 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
         const brief = composeBrief(tasks, {
           localHour: new Date().getHours(),
           ...(waitingSkill
-            ? { proposal: `I wrote down a lesson called ${waitingSkill.name} — worth a look.` }
+            ? // No full stop: the brief joins its clauses and ends the sentence
+              // itself, and two in a row is the sort of thing you hear.
+              { proposal: `I wrote down a lesson called ${waitingSkill.name}, worth a look` }
             : {}),
         })
         io.out(brief.spoken)
