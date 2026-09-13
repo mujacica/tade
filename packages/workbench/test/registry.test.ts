@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LaneId } from '@wilco/core'
 import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
@@ -146,6 +146,54 @@ describe('the lane registry, across a restart', () => {
       const saved = JSON.parse(readFileSync(path, 'utf8'))
       expect(saved.driver).toBe('pty')
       expect(saved.lanes.map((l: { id: string }) => l.id)).toEqual(['app/refunds/agent'])
+    })
+  })
+
+  describe('when the ground moves under a lane', () => {
+    it('survives its working directory being deleted', async () => {
+      const registry = await session(new PtyDriver({ scrollback: 200 }))
+      const worktree = tmp('wilco-vanishing-')
+      await registry.spawn({
+        id: 'app/vanishes/agent' as LaneId,
+        task: 'app/vanishes',
+        kind: 'agent',
+        cwd: worktree,
+        command: process.execPath,
+        args: [ECHO_CHILD],
+      })
+      await until(
+        async () => (await registry.capture('app/vanishes/agent' as LaneId, 20)).length > 0,
+      )
+
+      // Somebody ran `git worktree remove` while an agent was working in it.
+      rmSync(worktree, { recursive: true, force: true })
+
+      // Wilco is not what breaks: the lane is the driver's, the process has
+      // its own idea of where it is, and status is derived from git, which
+      // will simply stop finding the task.
+      expect(registry.get('app/vanishes/agent' as LaneId)?.alive).toBe(true)
+      await expect(registry.capture('app/vanishes/agent' as LaneId, 20)).resolves.toBeTypeOf(
+        'string',
+      )
+      await expect(
+        registry.write('app/vanishes/agent' as LaneId, new TextEncoder().encode('hello\n')),
+      ).resolves.toBeUndefined()
+    })
+
+    it('reports a lane whose command does not exist instead of inventing one', async () => {
+      const registry = await session(new PtyDriver({ scrollback: 200 }))
+      await expect(
+        registry.spawn({
+          id: 'app/ghost/agent' as LaneId,
+          task: 'app/ghost',
+          kind: 'agent',
+          cwd: home,
+          command: 'definitely-not-a-real-command',
+        }),
+      ).rejects.toThrow()
+      // A phantom lane is worse than a failed spawn: it would be reported as
+      // an agent working on something forever.
+      expect(registry.get('app/ghost/agent' as LaneId)).toBeNull()
     })
   })
 })

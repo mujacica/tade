@@ -227,13 +227,8 @@ export class WorkerSupervisor {
   async stop(run: RunId): Promise<void> {
     const state = this.runs.get(run)
     if (!state) return
-    state.stop()
-    this.runs.delete(run)
-    for (const key of [...this.pendingApprovals.keys()]) {
-      if (key.startsWith(`${run}:`)) this.pendingApprovals.delete(key)
-    }
-    // A refusal is scoped to the run it was given in.
-    this.refused.delete(run)
+    // A refusal is scoped to the run it was given in, so this drops that too.
+    this.forget(run)
     await this.adapter.stop(run)
     await this.log.append({ type: 'run_exited', task: state.task, run, detail: { stopped: true } })
   }
@@ -251,6 +246,17 @@ export class WorkerSupervisor {
     await this.adapter.shutdown()
   }
 
+  /** Drop everything held on behalf of a run: it is not coming back. */
+  private forget(run: RunId): void {
+    for (const key of [...this.pendingApprovals.keys()]) {
+      if (key.startsWith(`${run}:`)) this.pendingApprovals.delete(key)
+    }
+    this.refused.delete(run)
+    const state = this.runs.get(run)
+    state?.stop()
+    this.runs.delete(run)
+  }
+
   private async onSignal(run: RunId, signal: WorkerSignal): Promise<void> {
     const state = this.runs.get(run)
     const task = state?.task ?? null
@@ -265,6 +271,10 @@ export class WorkerSupervisor {
         await this.log.append({ type: 'failed', task, run, detail: { error: signal.error } })
         return
       case 'exited':
+        // An agent that has gone is waiting for nothing. Approvals left
+        // standing would sit there looking like something needs you, and would
+        // keep the task `blocked` against an agent that cannot act on a yes.
+        this.forget(run)
         await this.log.append({ type: 'run_exited', task, run, detail: { code: signal.code } })
         return
       case 'usage':

@@ -370,4 +370,102 @@ describe('WorkerSupervisor', () => {
     await supervisor.steer('r1', 'also update the docs')
     expect(adapter.steered).toEqual([{ run: 'r1', message: 'also update the docs' }])
   })
+
+  // Scenarios the build plan named and nobody had written. Each is a thing
+  // that happens to real agents, and each used to be answered by hoping.
+
+  describe('when things go wrong', () => {
+    it('holds a second request while the first is still waiting', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'p1',
+        'bash',
+        { command: 'git push --force origin main' },
+        'git push --force origin main',
+      )
+      adapter.askPermission('r1', 'p2', 'bash', { command: 'rm -rf /etc' }, 'rm -rf /etc')
+      await until(() => supervisor.pending().length === 2)
+
+      // Answering one must not answer the other: they are separate decisions
+      // about separate commands, and a yes is never transferable.
+      await supervisor.decide('r1', 'p1', { allow: true })
+      const left = supervisor.pending()
+      expect(left.map((p) => p.requestId)).toEqual(['p2'])
+      expect(adapter.decisions.map((d) => d.requestId)).toEqual(['p1'])
+    })
+
+    it('forgets what an agent was waiting on when it dies', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'p1',
+        'bash',
+        { command: 'git push --force origin main' },
+        'git push --force origin main',
+      )
+      await until(() => supervisor.pending().length === 1)
+
+      // Killed from outside: nobody told us, the process simply ended.
+      adapter.emit('r1', { type: 'exited', code: 137 })
+      // Wait for the journal rather than the in-memory state: it is the slower
+      // of the two, so seeing it means both have happened.
+      await until(async () => (await logged(log, 'run_exited')).length > 0)
+      // An approval for an agent that no longer exists would sit there forever
+      // looking like something is waiting on you — and would keep the task
+      // `blocked` against an agent that cannot act on a yes.
+      expect(supervisor.pending()).toEqual([])
+    })
+
+    it('reports a run that failed rather than dropping it', async () => {
+      const { log, adapter } = await setup('bypass')
+      close = () => log.close()
+      // A crash mid-turn: pi says what happened before going away.
+      adapter.emit('r1', { type: 'failed', error: 'harness exited unexpectedly' })
+      adapter.emit('r1', { type: 'exited', code: 1 })
+      await until(async () => (await logged(log, 'failed')).length > 0)
+      const [failure] = await logged(log, 'failed')
+      expect(failure?.detail.error).toBe('harness exited unexpectedly')
+    })
+
+    it('ignores a signal it cannot make sense of', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      // Malformed output from the agent — a version skew, a half-written line.
+      // The rule is the same as for transcripts: skip it, never throw over it.
+      adapter.emit('r1', { type: 'nonsense-from-the-future' } as never)
+      adapter.askPermission(
+        'r1',
+        'p1',
+        'bash',
+        { command: 'git push --force origin main' },
+        'git push --force origin main',
+      )
+      await until(() => supervisor.pending().length === 1)
+      expect(supervisor.pending()).toHaveLength(1)
+    })
+
+    it('answers an approval for an agent that has gone, without throwing', async () => {
+      const { log, adapter, supervisor } = await setup('policy')
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'p1',
+        'bash',
+        { command: 'git push --force origin main' },
+        'git push --force origin main',
+      )
+      await until(() => supervisor.pending().length === 1)
+      adapter.emit('r1', { type: 'exited', code: 0 })
+      await until(() => supervisor.pending().length === 0)
+
+      // You said yes a moment after it died. That is an answer to a question
+      // nobody is asking any more, not an error worth a stack trace.
+      await expect(supervisor.decide('r1', 'p1', { allow: true })).rejects.toThrow(
+        PermissionNotPendingError,
+      )
+    })
+  })
 })
