@@ -403,7 +403,7 @@ describe('the window, wired up', () => {
   it("opens an agent's menu with a right-click, listing what can be done", async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
-    // With a space before it: the worktree's path under GIT says refunds too.
+    // With a space before it: the worktree's path under GIT can say refunds too.
     const task = find(' refunds')
     terminal.written = ''
     terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}M`)

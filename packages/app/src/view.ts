@@ -431,13 +431,6 @@ function renderSidebar(
           : tasks.map((task) => taskRow(row(), task, spend[task.task], skin)),
     },
     {
-      id: 'where',
-      label: 'GIT',
-      count: null,
-      rows: (row) =>
-        where ? whereRows(row, where, skin) : [row().space(3).text('—', skin.hint).build()],
-    },
-    {
       id: 'changes',
       label: 'CHANGES',
       count: changes.length,
@@ -469,6 +462,13 @@ function renderSidebar(
         notes.length === 0
           ? [row().space(3).text('tell Wilco "remember …"', skin.hint).build()]
           : notes.map((text) => row().space(3).text(text, skin.hint).build()),
+    },
+    {
+      id: 'where',
+      label: 'GIT',
+      count: null,
+      rows: (row) =>
+        where ? whereRows(row, where, skin) : [row().space(3).text('—', skin.hint).build()],
     },
   ]
 

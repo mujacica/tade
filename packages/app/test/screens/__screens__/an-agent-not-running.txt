@@ -3,15 +3,9 @@
  ▾ AGENTS  1          ▐  +  ▌ │ search › pagination  ▐ agent ▌ ▐ + ▌              pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌◆ pagination               ≡ │─────────────────────────────────────────────────────────────────────────────────────────
                               │                                                                                         
- ▾ GIT                        │  Ready for review, and no agent is running.                                             
-   repo     ~/src/checkout    │                                                                                         
-   branch   wilco/stripe-v15  │  ▐ Open its agent ▌ picks the conversation up where it stopped                          
-   from     main              │                                                                                         
-   worktree …ckout-stripe-v15 │                                                                                         
-                              │                                                                                         
- ▾ CHANGES            vs main │                                                                                         
+ ▾ CHANGES            vs main │  Ready for review, and no agent is running.                                             
    nothing changed            │                                                                                         
-                              │                                                                                         
+                              │  ▐ Open its agent ▌ picks the conversation up where it stopped                          
  ▾ FILES                      │                                                                                         
    ▾ src/                     │                                                                                         
        webhooks.test.ts       │                                                                                         
@@ -21,6 +15,12 @@
      README.md                │                                                                                         
                               │                                                                                         
  ▸ NOTES  4                   │                                                                                         
+ ▾ GIT                        │                                                                                         
+   repo     ~/src/checkout    │                                                                                         
+   branch   wilco/stripe-v15  │                                                                                         
+   from     main              │                                                                                         
+   worktree …ckout-stripe-v15 │                                                                                         
+                              │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

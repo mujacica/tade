@@ -9,18 +9,18 @@
   │  Show changes      3 files │ ▸ Read src/webhooks.ts                                                                 
   │  Open in editor            │ ▸ Edit src/webhooks.ts  +12 −4                                                         
   │  Copy branch name          │ ▸ bash npm i stripe@15                                                                 
-  │────────────────────────────│                                                                                        
- ▾│  Park                      │                                                                                        
+ ▾│────────────────────────────│                                                                                        
+  │  Park                      │                                                                                        
   │  Remove agent…             │                                                                                        
   ╰────────────────────────────╯                                                                                        
-  M src/webhooks.ts    +12 −4 │                                                                                         
-                              │                                                                                         
- ▾ FILES                      │                                                                                         
-   ▾ src/                     │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-       webhooks.test.ts       │  │ bash  npm i stripe@15                                        │                       
-       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
+   ▸ test/                    │                                                                                         
      package.json             │                                                                                         
+     README.md                │                                                                                         
+                              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+ ▸ NOTES  4                   │  │ bash  npm i stripe@15                                        │                       
+ ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
+   branch   wilco/stripe-v15  │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

@@ -4,23 +4,23 @@
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                               │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
-   repo     ~/src/checkout ╭─ Keys ─────────────────────────────────────────────────── esc ─╮                           
-   branch   wilco/stripe-v1│                                                                │                           
-   from     main           │ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
-   worktree …ckout-stripe-v│                                                                │                           
-                           │ GO TO ANYTHING   ▐ ctrl ▌+▐ g ▌                                │                           
- ▾ CHANGES  3         vs ma│ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │                           
-  M package.json        +2 │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
-  A src/webhooks.test.ts  +│ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
-  M src/webhooks.ts    +12 │ QUIT             ▐ ctrl ▌+▐ c ▌                                │                           
+ ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+  M package.json        +2 ╭─ Keys ─────────────────────────────────────────────────── esc ─╮                           
+  A src/webhooks.test.ts  +│                                                                │                           
+  M src/webhooks.ts    +12 │ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
                            │                                                                │                           
- ▾ FILES                   │ Everything else goes to the agent you're watching.             │                           
-   ▾ src/                  │                                               ▐ Change keys… ▌ │───╮                       
-       webhooks.test.ts    ╰────────────────────────────────────────────────────────────────╯   │                       
-       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
-     package.json             │                                                                                         
+ ▾ FILES                   │ GO TO ANYTHING   ▐ ctrl ▌+▐ g ▌                                │                           
+   ▾ src/                  │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │                           
+       webhooks.test.ts    │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
+       webhooks.ts         │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
+   ▸ test/                 │ QUIT             ▐ ctrl ▌+▐ c ▌                                │                           
+     package.json          │                                                                │                           
+     README.md             │ Everything else goes to the agent you're watching.             │                           
+                           │                                               ▐ Change keys… ▌ │───╮                       
+ ▸ NOTES  4                ╰────────────────────────────────────────────────────────────────╯   │                       
+ ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
+   branch   wilco/stripe-v15  │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

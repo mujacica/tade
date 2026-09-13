@@ -4,14 +4,14 @@
 ▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
  ○ refunds        $0.62   │                                                     
                           │  ● Upgrading stripe to v15. The webhook signature AP
- ▾ GIT                    │    so src/webhooks.ts needs the new constructEvent s
-   repo     …/checkout    │                                                     
-   branch   …o/stripe-v15 │  ▸ Read src/webhooks.ts                             
-   from     main          │  ╭─ wants approval ──────────────────────────────╮  
-   worktree …t-stripe-v15 │  │ bash  npm i stripe@15                         │  
-                          │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
- ▾ CHANGES  3     vs main │  ╰───────────────────────────────────────────────╯  
+ ▾ CHANGES  3     vs main │    so src/webhooks.ts needs the new constructEvent s
   M package.json    +2 −1 │                                                     
+  A …ebhooks.test.ts  +48 │  ▸ Read src/webhooks.ts                             
+  M …/webhooks.ts  +12 −4 │  ╭─ wants approval ──────────────────────────────╮  
+                          │  │ bash  npm i stripe@15                         │  
+ ▾ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
+   ▾ src/                 │  ╰───────────────────────────────────────────────╯  
+       webhooks.test.ts   │                                                     
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                 
                                                                                 

@@ -275,8 +275,8 @@ wilco logs -f --min-urgency notable
 ### The window
 
 `wilco` with no arguments is one window over everything. Your projects are tabs along the top; the
-agents in the one you're in are down the side, with the repository, branch and worktree in front of
-you, what has changed since it branched, and its files under them; the agent you're watching fills the middle, drawn in its own colours; and the orchestrator runs
+agents in the one you're in are down the side, with what has changed since it branched, its files,
+your notes, and the repository, branch and worktree under them; the agent you're watching fills the middle, drawn in its own colours; and the orchestrator runs
 along the bottom, where it cannot be closed — it is how you see what Wilco heard and what it did
 about it. What needs you and the key you talk with are top right; what today has cost is bottom
 right.
@@ -290,14 +290,14 @@ This is an 80×24 terminal, exactly as drawn — it is one of the screens the te
 ▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
  ○ refunds        $0.62   │                                                     
                           │  ● Upgrading stripe to v15. The webhook signature AP
- ▾ GIT                    │    so src/webhooks.ts needs the new constructEvent s
-   repo     …/checkout    │                                                     
-   branch   …o/stripe-v15 │  ▸ Read src/webhooks.ts                             
-   from     main          │  ╭─ wants approval ──────────────────────────────╮  
-   worktree …t-stripe-v15 │  │ bash  npm i stripe@15                         │  
-                          │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
- ▾ CHANGES  3     vs main │  ╰───────────────────────────────────────────────╯  
+ ▾ CHANGES  3     vs main │    so src/webhooks.ts needs the new constructEvent s
   M package.json    +2 −1 │                                                     
+  A …ebhooks.test.ts  +48 │  ▸ Read src/webhooks.ts                             
+  M …/webhooks.ts  +12 −4 │  ╭─ wants approval ──────────────────────────────╮  
+                          │  │ bash  npm i stripe@15                         │  
+ ▾ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
+   ▾ src/                 │  ╰───────────────────────────────────────────────╯  
+       webhooks.test.ts   │                                                     
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                 
                                                                                 
@@ -334,7 +334,7 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   titled with it. `≡` on the agent you are on, or a right-click on any, is its menu: open, start or
   stop it, show its changes, open it in your editor, copy its branch, park it, or remove it — which
   asks first and lists exactly what is unmerged.
-- **Git.** Under the agents: the project's repository and the branch it is on, or — for the agent
+- **Git.** At the bottom of the sidebar: the project's repository and the branch it is on, or — for the agent
   in front of you — its branch, the branch it started from, and its worktree.
 - **The pane.** Tabs along its top: the agent, any shell opened beside it with `+`, each drawn and
   typed into on its own. On the right, the model the agent says it runs on and a context meter that

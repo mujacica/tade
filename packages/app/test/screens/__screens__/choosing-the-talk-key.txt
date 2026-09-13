@@ -4,23 +4,23 @@
 ▌● strip│  search settings       │ Voice                                                                       │────────
  ○ refun│                        │ How you talk to Wilco, and how it talks back.                               │        
         │  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
- ▾ GIT  │  Models            │                                                            │                    │        
-   repo │  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
-   branc│  Approvals      byp│                                                            │                    │        
-   from │▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
-   workt│  Window            │                                                            │                    │        
-        │  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
- ▾ CHANG│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
-  M pack│  Keys              │                                                            │       ↻ on restart │        
-  A src/│  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
-  M src/│                    │ Never a key that types a character — you have to be        │                    │        
-        │                    │ able to type a space into your agent.                      │       ↻ on restart │        
- ▾ FILES│                    │                                                            │       ↻ on restart │        
-   ▾ src│                    │                      ▐ Try another ▌ ▐ Use ctrl+r anyway ▌ │                    │        
-       w│                    ╰────────────────────────────────────────────────────────────╯                    │        
-       w│                        │                                                                             │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │                                                                             │        
+ ▾ CHANG│  Models            │                                                            │                    │        
+  M pack│  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
+  A src/│  Approvals      byp│                                                            │                    │        
+  M src/│▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
+        │  Window            │                                                            │                    │        
+ ▾ FILES│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
+   ▾ src│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
+       w│  Keys              │                                                            │       ↻ on restart │        
+       w│  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
+   ▸ tes│                    │ Never a key that types a character — you have to be        │                    │        
+     pac│                    │ able to type a space into your agent.                      │       ↻ on restart │        
+     REA│                    │                                                            │       ↻ on restart │        
+        │                    │                      ▐ Try another ▌ ▐ Use ctrl+r anyway ▌ │                    │        
+ ▸ NOTES│                    ╰────────────────────────────────────────────────────────────╯                    │        
+ ▾ GIT  │                        │                                                                             │        
+   repo │                        │                                                                             │        
+   branc│                        │                                                                             │        
 ━ orches│                        │                                                                             │━━━━━━━━
         │                        │                                                                             │        
         │                        │                                                                             │        

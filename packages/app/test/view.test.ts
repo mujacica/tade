@@ -129,8 +129,8 @@ describe('what is clickable', () => {
       )
     expect(kinds('project').size).toBe(2)
     expect(kinds('task').size).toBe(2)
-    // The headings in view: the sidebar scrolls, and a short one has notes below it.
-    for (const section of ['where', 'agents', 'changes', 'files']) {
+    // The headings in view: the sidebar scrolls, and a short one has notes and git below it.
+    for (const section of ['agents', 'changes', 'files']) {
       expect(kinds('section').has(JSON.stringify({ kind: 'section', section }))).toBe(true)
     }
     expect(kinds('folder').size).toBe(1)

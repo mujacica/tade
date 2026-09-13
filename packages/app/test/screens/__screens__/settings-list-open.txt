@@ -4,23 +4,23 @@
 ▌● strip│  search settings       │ Voice                                                                       │────────
  ○ refun│                        │ How you talk to Wilco, and how it talks back.                               │        
         │  Agents                │                                                                             │        
- ▾ GIT  │  Models                │ Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
-   repo │  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
-   branc│  Approvals      bypass │                                                                             │        
-   from │▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
-   workt│  Window                │                                                                             │        
-        │  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
- ▾ CHANG│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
-  M pack│  Keys                  │ Microphone        │  ▏                                         │ on restart │        
-  A src/│  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
-  M src/│                        │ Spoken replies    │▌ whisper · base.en · on this machine     ✓ │            │        
-        │                        │ Interruptions     │ IN THE CLOUD                   needs a key │ on restart │        
- ▾ FILES│                        │ Quiet hours       │  OpenAI · whisper-1                        │ on restart │        
-   ▾ src│                        │                   │  Groq · whisper-large-v3                   │            │        
-       w│                        │                   ╰────────────────────────────────────────────╯            │        
-       w│                        │                                                                             │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │                                                                             │        
+ ▾ CHANG│  Models                │ Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
+  M pack│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
+  A src/│  Approvals      bypass │                                                                             │        
+  M src/│▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
+        │  Window                │                                                                             │        
+ ▾ FILES│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
+   ▾ src│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
+       w│  Keys                  │ Microphone        │  ▏                                         │ on restart │        
+       w│  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
+   ▸ tes│                        │ Spoken replies    │▌ whisper · base.en · on this machine     ✓ │            │        
+     pac│                        │ Interruptions     │ IN THE CLOUD                   needs a key │ on restart │        
+     REA│                        │ Quiet hours       │  OpenAI · whisper-1                        │ on restart │        
+        │                        │                   │  Groq · whisper-large-v3                   │            │        
+ ▸ NOTES│                        │                   ╰────────────────────────────────────────────╯            │        
+ ▾ GIT  │                        │                                                                             │        
+   repo │                        │                                                                             │        
+   branc│                        │                                                                             │        
 ━ orches│                        │                                                                             │━━━━━━━━
         │                        │                                                                             │        
         │                        │                                                                             │        

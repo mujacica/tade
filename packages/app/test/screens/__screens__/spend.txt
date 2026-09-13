@@ -4,23 +4,23 @@
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                        ╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
- ▾ GIT                 │ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
-   repo     ~/src/check│                                                                        │                       
-   branch   wilco/strip│ by ▐ Agent ▌  Project    Model                                         │                       
-   from     main       │                                                                        │                       
-   worktree …ckout-stri│ WHO                 MODEL            TOKENS  SHARE           COST      │                       
-                       │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
- ▾ CHANGES  3         v│ ● stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
-  M package.json       │ ○ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
-  A src/webhooks.test.t│ ◆ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
+ ▾ CHANGES  3         v│ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
+  M package.json       │                                                                        │                       
+  A src/webhooks.test.t│ by ▐ Agent ▌  Project    Model                                         │                       
   M src/webhooks.ts    │                                                                        │                       
-                       │ BUDGETS                                                                │                       
- ▾ FILES               │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
-   ▾ src/              │ search     $0.20                    no budget — set one                │                       
-       webhooks.test.ts│                                                                        │                       
-       webhooks.ts     │ Prices as pi reports them.                                             │                       
-   ▸ test/             ╰────────────────────────────────────────────────────────────────────────╯                       
-     package.json             │                                                                                         
+                       │ WHO                 MODEL            TOKENS  SHARE           COST      │                       
+ ▾ FILES               │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
+   ▾ src/              │ ● stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
+       webhooks.test.ts│ ○ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
+       webhooks.ts     │ ◆ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
+   ▸ test/             │                                                                        │                       
+     package.json      │ BUDGETS                                                                │                       
+     README.md         │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
+                       │ search     $0.20                    no budget — set one                │                       
+ ▸ NOTES  4            │                                                                        │                       
+ ▾ GIT                 │ Prices as pi reports them.                                             │                       
+   repo     ~/src/check╰────────────────────────────────────────────────────────────────────────╯                       
+   branch   wilco/stripe-v15  │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

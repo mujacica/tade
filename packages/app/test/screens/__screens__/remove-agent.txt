@@ -4,23 +4,23 @@
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                               │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
-   repo     ~/src/checkout ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
-   branch   wilco/stripe-v1│                                                                │                           
-   from     main           │ Its worktree has work that isn't merged:                       │                           
-   worktree …ckout-stripe-v│   M package.json                                               │                           
-                           │   A src/webhooks.test.ts                                       │                           
- ▾ CHANGES  3         vs ma│   M src/webhooks.ts                                            │                           
-  M package.json        +2 │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
+ ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+  M package.json        +2 ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
   A src/webhooks.test.ts  +│                                                                │                           
-  M src/webhooks.ts    +12 │ Removing deletes the worktree and the branch. The agent's      │                           
-                           │ conversation stays in pi's sessions.                           │                           
- ▾ FILES                   │                                                                │                           
-   ▾ src/                  │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
-       webhooks.test.ts    ╰────────────────────────────────────────────────────────────────╯   │                       
-       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
-     package.json             │                                                                                         
+  M src/webhooks.ts    +12 │ Its worktree has work that isn't merged:                       │                           
+                           │   M package.json                                               │                           
+ ▾ FILES                   │   A src/webhooks.test.ts                                       │                           
+   ▾ src/                  │   M src/webhooks.ts                                            │                           
+       webhooks.test.ts    │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
+       webhooks.ts         │                                                                │                           
+   ▸ test/                 │ Removing deletes the worktree and the branch. The agent's      │                           
+     package.json          │ conversation stays in pi's sessions.                           │                           
+     README.md             │                                                                │                           
+                           │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
+ ▸ NOTES  4                ╰────────────────────────────────────────────────────────────────╯   │                       
+ ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
+   branch   wilco/stripe-v15  │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

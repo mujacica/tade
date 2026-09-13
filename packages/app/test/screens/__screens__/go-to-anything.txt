@@ -4,23 +4,23 @@
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
                               │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
-   repo     ~/src/check╭─ Go to anything ────────────────────────────────────────────── ctrl+g ─╮                       
-   branch   wilco/strip│  stri▏                                                                 │                       
-   from     main       │                                                                        │                       
-   worktree …ckout-stri│▌● stripe-v15           agent in checkout                waiting on you │                       
-                       │ ▸ Allow once: npm i stripe@15                                 approval │                       
- ▾ CHANGES  3         v│ ■ Stop stripe-v15                                                agent │                       
-  M package.json       │ ± Show the changes in stripe-v15                                 agent │                       
-  A src/webhooks.test.t│ ◇ Settings › Approvals › strict tools                          setting │                       
+ ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+  M package.json       ╭─ Go to anything ────────────────────────────────────────────── ctrl+g ─╮                       
+  A src/webhooks.test.t│  stri▏                                                                 │                       
   M src/webhooks.ts    │                                                                        │                       
-                       │ ↑↓ move · enter go · type to narrow                                    │                       
- ▾ FILES               ╰────────────────────────────────────────────────────────────────────────╯                       
-   ▾ src/                     │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-       webhooks.test.ts       │  │ bash  npm i stripe@15                                        │                       
-       webhooks.ts            │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   ▸ test/                    │  ╰──────────────────────────────────────────────────────────────╯                       
-     package.json             │                                                                                         
+                       │▌● stripe-v15           agent in checkout                waiting on you │                       
+ ▾ FILES               │ ▸ Allow once: npm i stripe@15                                 approval │                       
+   ▾ src/              │ ■ Stop stripe-v15                                                agent │                       
+       webhooks.test.ts│ ± Show the changes in stripe-v15                                 agent │                       
+       webhooks.ts     │ ◇ Settings › Approvals › strict tools                          setting │                       
+   ▸ test/             │                                                                        │                       
+     package.json      │ ↑↓ move · enter go · type to narrow                                    │                       
+     README.md         ╰────────────────────────────────────────────────────────────────────────╯                       
+                              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+ ▸ NOTES  4                   │  │ bash  npm i stripe@15                                        │                       
+ ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
+   branch   wilco/stripe-v15  │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         
