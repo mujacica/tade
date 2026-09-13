@@ -5,7 +5,7 @@ import { join } from 'node:path'
 // Self-extension is the point, but a half-broken tool loaded into a running
 // orchestrator is an evening lost, so the rails are: written extensions land
 // in `proposed/` and do nothing until a human moves them; activating one needs
-// a daemon restart, never a hot reload; and `--safe` boots with none of them,
+// a restart, never a hot reload; and `--safe` boots with none of them,
 // which is the way back when one of them is what broke.
 //
 // Pure: a listing in, the files that load out.

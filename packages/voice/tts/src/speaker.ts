@@ -10,7 +10,7 @@ import { join } from 'node:path'
 // and can then track several agents through one earbud without hearing a
 // single sentence.
 //
-// Nothing here may ever throw into the daemon. A machine with no audio should
+// Nothing here may ever throw into the window. A machine with no audio should
 // lose the sound and keep the work.
 
 export type Tone = 'blocked' | 'review' | 'failed'

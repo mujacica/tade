@@ -6,7 +6,7 @@ import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { withWorkbench } from '../with-workbench.ts'
 
-// Tasks and the agents working on them. Thin over the daemon: parse, call,
+// Tasks and the agents working on them. Thin over the workbench: parse, call,
 // format.
 
 export function registerTasks(program: Command, io: Io, setExit: (code: number) => void): void {

@@ -4,7 +4,7 @@ import { z } from 'zod'
 // of a Task: the CLI, the RPC layer and the orchestrator's tool definitions
 // all derive from them.
 //
-//   Workspace  one machine, one daemon
+//   Workspace  one machine, one WILCO_HOME
 //   └ Project  a repo root + brief + preferences
 //     └ Task   an intent + branch + worktree   ← what you talk about
 //       └ Lane one PTY: agent | server | tests | shell

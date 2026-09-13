@@ -5,7 +5,7 @@ import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Tasks and runs over the socket: the path the CLI and the orchestrator both
-// take. Uses a real repository and a real daemon; only the agent's model is
+// take. Uses a real repository and a real workbench; only the agent's model is
 // absent, so runs start but are never prompted.
 
 const INTENT = 'the refund flow double-charges when the webhook retries'

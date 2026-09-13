@@ -22,7 +22,7 @@ const { Terminal } = createRequire(import.meta.url)(
 
 type XTerm = InstanceType<typeof Terminal>
 
-// The default driver: the daemon owns the PTYs and your terminal is just a
+// The default driver: Wilco owns the PTYs and your terminal is just a
 // viewer. Imposes nothing on the user's terminal setup.
 //
 // A headless xterm keeps a real screen buffer per lane, so `capture()` returns

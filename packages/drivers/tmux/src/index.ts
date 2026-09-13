@@ -22,11 +22,11 @@ import {
 // command and the pipe-pane redirect through sh — both are shell-quoted below.
 const run = promisify(execFile)
 
-// Lanes that live in tmux rather than in the daemon.
+// Lanes that live in tmux rather than inside Wilco.
 //
-// The reason to want this is that they outlive the daemon: kill wilcod, start
-// it again, and the agents are still running. It also means you can attach to
-// one from any terminal, over SSH, with no Wilco running at all.
+// The reason to want this is that they outlive it: close Wilco, open it again,
+// and the agents are still running. It also means you can attach to one from
+// any terminal, over SSH, with no Wilco running at all.
 //
 // It runs on its own tmux server (`-L wilco`), so nothing here disturbs the
 // sessions you are using yourself, and one window per lane with the lane id
@@ -81,8 +81,8 @@ const SPEC_OPTION = '@wilco-spec'
 export class TmuxDriver implements WorkspaceDriver {
   readonly id = 'tmux'
   readonly capabilities: WorkspaceCapabilities = {
-    // The point of this driver: lanes are the tmux server's children, not the
-    // daemon's, so restarting Wilco leaves every agent running.
+    // The point of this driver: lanes are the tmux server's children rather
+    // than Wilco's, so closing Wilco leaves every agent running.
     detach: true,
     remoteAttach: true,
     nativeTabs: true,
@@ -172,7 +172,7 @@ export class TmuxDriver implements WorkspaceDriver {
     }
     this.lanes.set(spec.id, lane)
 
-    // Remembered on the window itself, so a later daemon can pick it back up.
+    // Remembered on the window itself, so a later window can pick it back up.
     await this.tmux(['set-option', '-w', '-t', window, LANE_OPTION, spec.id]).catch(() => {})
     await this.tmux([
       'set-option',
@@ -247,7 +247,7 @@ export class TmuxDriver implements WorkspaceDriver {
     return lane && !lane.closed ? { ...lane.handle } : null
   }
 
-  /** Pick up lanes already running, after a restart or from another daemon. */
+  /** Pick up lanes already running, after a restart or from another window. */
   async adopt(hint: AdoptHint): Promise<LaneHandle[]> {
     if (!(await this.sessionExists())) return []
     this.start()

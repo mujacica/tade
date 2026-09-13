@@ -113,7 +113,7 @@ describe('livenessFrom', () => {
     expect(await probe.lanes('app/other')).toEqual([])
   })
 
-  it('returns nothing rather than failing when the daemon goes away', async () => {
+  it('returns nothing rather than failing when the workbench goes away', async () => {
     const probe = livenessFrom(client)
     await client.close()
     expect(await probe.lanes('app/refunds')).toEqual([])

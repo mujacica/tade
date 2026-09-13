@@ -36,7 +36,7 @@ export interface WorkerSpec {
 
 /**
  * Everything a worker tells us. This is the wire format between an in-session
- * agent and the daemon, so it is a schema rather than a bare type.
+ * agent and Wilco, so it is a schema rather than a bare type.
  */
 export const WorkerSignal = z.discriminatedUnion('type', [
   z.object({

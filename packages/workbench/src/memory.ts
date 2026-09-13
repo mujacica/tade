@@ -8,7 +8,7 @@ import { allNotes, type Note, NoteSchema, note, recall } from '@wilco/core'
 // A note is the one kind of fact no probe could ever recover, so losing them
 // to a half-written line would be losing them for good. A line that cannot be
 // read is skipped rather than thrown over, exactly like a provider transcript:
-// one bad record must never stop the daemon from starting.
+// one bad record must never stop Wilco from starting.
 
 const FILE = 'memory.jsonl'
 

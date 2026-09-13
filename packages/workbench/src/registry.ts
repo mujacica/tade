@@ -233,7 +233,7 @@ export class LaneRegistry {
     return record
   }
 
-  /** Relaunch a lane from its stored spec (after a daemon restart). */
+  /** Relaunch a lane from its stored spec, after it went away. */
   async relaunch(id: LaneId): Promise<LaneRecord> {
     const record = this.require(id)
     if (record.alive) return record

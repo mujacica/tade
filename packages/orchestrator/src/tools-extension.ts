@@ -18,10 +18,10 @@ function skillsRoot(): string {
 // Wilco's tools, as seen by the orchestrator.
 //
 // pi loads this file directly, so like the supervision extension it is
-// SELF-CONTAINED: no imports from the Wilco workspace, and the daemon's
+// SELF-CONTAINED: no imports from the Wilco workspace, and the host's
 // JSON-RPC framing is implemented here rather than pulled in.
 //
-// Tools that change something go to the daemon. "Where are we" shells out to
+// Tools that change something call back to Wilco. "Where are we" shells out to
 // `wilco status`, so there is exactly one implementation of how status is
 // derived, and the orchestrator sees precisely what a human would.
 

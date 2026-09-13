@@ -22,7 +22,7 @@ describe('Memory', () => {
     const memory = Memory.open(home)
     memory.remember('the staging key rotates on the 1st', 'checkout', 'test', NOW)
 
-    // A new daemon, the same file: this is the only copy there is.
+    // A new window, the same file: this is the only copy there is.
     const reopened = Memory.open(home)
     expect(reopened.all().map((n) => n.text)).toEqual(['the staging key rotates on the 1st'])
     expect(reopened.recall('checkout/refunds').map((n) => n.text)).toEqual([

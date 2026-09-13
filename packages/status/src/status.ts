@@ -151,7 +151,7 @@ async function buildTask(
     ...derived,
     git: g.snapshot,
     agents: agents.sort((a, b) => cmp(a.sessionId, b.sessionId)),
-    // This reported an empty list while the daemon was tracking lanes the
+    // This reported an empty list while Wilco was tracking lanes the
     // whole time, so `wilco status --json` never showed anything to attach to.
     lanes: (await liveness.records?.(id)) ?? [],
   }

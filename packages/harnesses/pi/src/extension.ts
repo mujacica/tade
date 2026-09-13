@@ -178,7 +178,7 @@ export default function wilcoExtension(pi: PiApi): void {
    * What this turn cost, in tokens and dollars.
    *
    * The session carries running totals, so each turn reports the difference
-   * since the last one and the daemon can simply add them up. Prices come from
+   * since the last one and Wilco can simply add them up. Prices come from
    * the harness's own model catalog: it is the only thing that knows what was
    * actually charged, and a table we kept ourselves would be wrong the first
    * time a provider changed anything.
