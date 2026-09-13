@@ -19,7 +19,7 @@ import {
 } from '@wilco/core'
 import type { WorkspaceCapabilities, WorkspaceDriver } from '@wilco/drivers-core'
 import type { PermissionDecision, RunId, WorkerHandle, WorkerModel } from '@wilco/harnesses-core'
-import { PiAdapter } from '@wilco/harnesses-pi'
+import { noUsage, PiAdapter, usageOfTask } from '@wilco/harnesses-pi'
 import { EventLog } from './events.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
@@ -40,6 +40,12 @@ export interface WorkbenchOptions {
   /** Overrides `workspace.driver`. Mostly for tests. */
   driver?: string
   version?: string
+  /**
+   * Where the harness keeps its sessions, for reading back what an agent spent
+   * while nobody was watching. Defaults to the harness's own location, which
+   * is where agents write because Wilco deliberately does not move them.
+   */
+  sessionsRoot?: string
 }
 
 export interface WorkbenchInfo {
@@ -80,6 +86,7 @@ export class Workbench {
   private readonly memory: Memory
   private readonly lock: HomeLock
   private readonly version: string
+  private readonly sessionsRoot: string | undefined
   private readonly openedAt = Date.now()
   private closing: Promise<void> | null = null
 
@@ -92,8 +99,10 @@ export class Workbench {
     workers: WorkerSupervisor
     config: Config
     lock: HomeLock
+    sessionsRoot?: string
   }) {
     this.home = opts.home
+    this.sessionsRoot = opts.sessionsRoot
     this.version = opts.version
     this.driver = opts.driver
     this.log = opts.log
@@ -145,15 +154,66 @@ export class Workbench {
         workers,
         config,
         lock,
+        ...(opts.sessionsRoot ? { sessionsRoot: opts.sessionsRoot } : {}),
       })
       await log.append({
         type: 'wilco_opened',
         detail: { pid: process.pid, driver: driverName, lanes: registry.list().length },
       })
+      // What the agents spent while we were away. Never fatal: an unreadable
+      // session is a gap in the accounting, not a reason to refuse to open.
+      await workbench.reconcileSpend().catch(() => {})
       return workbench
     } catch (err) {
       await lock.release()
       throw err
+    }
+  }
+
+  /**
+   * Account for what the agents spent while nobody was watching.
+   *
+   * The supervision extension reports each turn as it happens, but only while
+   * Wilco is there to be told — and under a driver whose lanes outlive the
+   * window, it often is not. pi writes every priced message to its own session
+   * regardless, so on opening we compare what that says against what the
+   * journal already knows and record the difference. The session file is the
+   * ledger; the journal is a copy of it that can fall behind.
+   *
+   * Best effort by design: a session we cannot read leaves the accounting
+   * short, which is a worse answer than the truth and a far better one than
+   * refusing to open.
+   */
+  private async reconcileSpend(): Promise<void> {
+    const journalled = spendFrom(await this.log.read({ types: ['usage'] }).catch(() => []))
+    for (const lane of this.registry.list()) {
+      if (lane.kind !== 'agent') continue
+      const session = await usageOfTask(lane.task, {
+        ...(this.sessionsRoot ? { root: this.sessionsRoot } : {}),
+      }).catch(() => noUsage())
+      if (session.messages === 0) continue
+      const known = journalled.byTask[lane.task] ?? noSpend()
+      const missing = {
+        input: session.input - known.input,
+        output: session.output - known.output,
+        cacheRead: session.cacheRead - known.cacheRead,
+        cacheWrite: session.cacheWrite - known.cacheWrite,
+        tokens: session.tokens - known.tokens,
+        usd: session.usd - known.usd,
+      }
+      // Only ever forward. The journal knowing more than the session means the
+      // session was trimmed or replaced, and inventing a negative charge to
+      // make the two agree would corrupt every total that reads it.
+      if (missing.tokens <= 0 && missing.usd <= 0) continue
+      await this.log.append({
+        type: 'usage',
+        task: lane.task,
+        detail: {
+          ...missing,
+          source: 'session',
+          reason: 'spent while Wilco was closed',
+        },
+      })
     }
   }
 

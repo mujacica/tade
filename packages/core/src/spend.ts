@@ -52,11 +52,17 @@ export interface SpendWindow {
 export interface SpendReport {
   total: Spend
   byProject: Record<string, Spend>
+  /** Per task, which is what reconciling against an agent's session needs. */
+  byTask: Record<string, Spend>
   byModel: Record<string, Spend>
 }
 
-export function spendFrom(events: readonly WilcoEvent[], window: SpendWindow): SpendReport {
-  const report: SpendReport = { total: noSpend(), byProject: {}, byModel: {} }
+/** No window at all means everything ever recorded. */
+export function spendFrom(
+  events: readonly WilcoEvent[],
+  window: SpendWindow = { since: 0 },
+): SpendReport {
+  const report: SpendReport = { total: noSpend(), byProject: {}, byTask: {}, byModel: {} }
   for (const event of events) {
     if (event.type !== 'usage') continue
     const at = Date.parse(event.ts)
@@ -64,11 +70,14 @@ export function spendFrom(events: readonly WilcoEvent[], window: SpendWindow): S
 
     const project = (event.task ?? '').split('/')[0] || 'elsewhere'
     const model = String(event.detail.model ?? 'unknown')
-    report.byProject[project] ??= noSpend()
-    report.byModel[model] ??= noSpend()
-    for (const bucket of [report.total, report.byProject[project], report.byModel[model]]) {
-      add(bucket, event)
-    }
+    const task = event.task ?? ''
+    const buckets = [
+      report.total,
+      (report.byProject[project] ??= noSpend()),
+      (report.byModel[model] ??= noSpend()),
+      ...(task ? [(report.byTask[task] ??= noSpend())] : []),
+    ]
+    for (const bucket of buckets) add(bucket, event)
   }
   return report
 }

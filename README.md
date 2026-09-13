@@ -319,13 +319,25 @@ are a job for the approval tiers); and asking for a sandbox the machine cannot p
 rather than quietly starting an agent unconfined. The orchestrator is never sandboxed: it has to be
 able to drive your terminal.
 
-Supervision works the same whether the agent is visible in a lane or headless: Wilco loads a small
-extension into pi, which streams structured signals back over a per-run Unix socket
-(`turn_started`, `tool_call`, `turn_done`, `idle`, context usage) and **holds every tool call until
-Wilco answers**. That gate is why approvals can be trusted: the exact command is known before it
-runs, rather than scraped off a terminal. If Wilco becomes unreachable mid-request the agent
-refuses rather than proceeding unsupervised, and with no supervision socket set the extension is
-inert, so running plain `pi` is unaffected.
+**An agent is pi in a lane**, in the task's worktree, talking in a session named after the task.
+That name never changes, so starting an agent and coming back to one are the same command: pi
+creates the session the first time and continues it every time after. The sessions stay where pi
+puts them, which means you can `cd` into the worktree, run `pi` yourself, and be in the same
+conversation Wilco was having.
+
+Wilco loads a small extension into pi, which streams structured signals back over a per-run Unix
+socket (`turn_started`, `tool_call`, `turn_done`, `idle`, context usage). What it does when Wilco is
+not reachable depends on the mode it was launched in, because under `tmux` an agent outliving the
+window is ordinary rather than a fault:
+
+- **`bypass` (the default) never holds anything.** Losing Wilco costs the journal an entry and never
+  the work. Nothing is lost for good: pi records every priced message in its own session, so opening
+  Wilco again reads what was spent while nobody was watching and catches the journal up.
+- **`policy` holds every tool call until Wilco answers**, and refuses when it cannot ask. That gate
+  is why approvals can be trusted: the exact command is known before it runs, rather than scraped off
+  a terminal. Quietly falling back to ungated would be the one outcome nobody asked for.
+
+With no supervision socket set the extension is inert, so running plain `pi` is unaffected.
 
 ### Voice
 
