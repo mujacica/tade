@@ -5,7 +5,11 @@ import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { type AgentPane, glyph } from './model.ts'
 import {
   ACCOUNTS,
+  type BranchPanel,
+  type BranchRow,
+  branchChoices,
   type Choice,
+  type ConfirmPanel,
   type ConfirmRemovePanel,
   choicesFor,
   type DiffPanel,
@@ -17,6 +21,7 @@ import {
   type OpenProjectPanel,
   type OpenRow,
   type Panel,
+  type PromptPanel,
   type QuitPanel,
   type SearchPanel,
   type SettingsPanel,
@@ -97,6 +102,10 @@ export interface PanelContext {
   talkMode: 'hold' | 'toggle'
   /** Agents that closing would stop. */
   running: number
+  /** The project's branches, for switching its checkout. */
+  branches: readonly BranchRow[]
+  /** The branch the project's checkout is on. */
+  checkout: string | null
 }
 
 export interface OpenRowView {
@@ -132,6 +141,12 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: search(panel, ctx), popups: [] }
     case 'file':
       return { panel: fileView(panel, ctx), popups: [] }
+    case 'prompt':
+      return { panel: prompt(panel, ctx), popups: [] }
+    case 'branch':
+      return { panel: branches(panel, ctx), popups: [] }
+    case 'confirm':
+      return { panel: confirm(panel, ctx), popups: [] }
     case 'keys':
       return { panel: keysSheet(ctx), popups: [] }
     case 'quit':
@@ -1231,7 +1246,15 @@ function fitTo(text: string, width: number): string {
 
 function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = 30
+  // As wide as its longest item and what is said beside it, within reason.
+  const width = Math.min(
+    46,
+    Math.max(
+      30,
+      panel.title.length + 8,
+      ...ctx.items.map((item) => item.label.length + (item.off ?? item.note ?? '').length + 6),
+    ),
+  )
   const inner = width - 2
   const rows: { text: string; hits: Hit[] }[] = []
   ctx.items.forEach((item, at) => {
@@ -1251,8 +1274,158 @@ function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
       hits: built.hits.map((hit) => ({ ...hit, from: 0, to: inner - 1 })),
     })
   })
-  const name = panel.task.split('/').at(-1) ?? panel.task
-  return box(name, rows, width, skin)
+  return box(panel.title, rows, width, skin)
+}
+
+/** One line asked for: a note, with whether it is about everything, or a branch name. */
+function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(72, ctx.width - 4)
+  const inner = width - 2
+  const row = () => new Row(inner, skin, ctx.pointer)
+  const rows: { text: string; hits: Hit[] }[] = [
+    blank(inner),
+    row().space().text(panel.label, skin.label).build(),
+    row()
+      .space()
+      .field(panel.text, inner - 2, { caret: true })
+      .build(),
+  ]
+  if (panel.purpose === 'note') {
+    rows.push(blank(inner))
+    rows.push(
+      row()
+        .space()
+        .radio(!panel.everywhere, `About ${ctx.project ?? 'this project'}`, {
+          kind: 'control',
+          id: 'everywhere',
+        })
+        .space(3)
+        .radio(panel.everywhere, 'About everything', { kind: 'control', id: 'everywhere' })
+        .build(),
+    )
+    rows.push(
+      row()
+        .space()
+        .text('Kept word for word. Saying "remember …" to Wilco does the same.', skin.hint)
+        .build(),
+    )
+  }
+  rows.push(
+    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+  )
+  rows.push(
+    row()
+      .right((r) =>
+        r
+          .button('Cancel', { kind: 'control', id: 'cancel' })
+          .space()
+          .button(
+            panel.busy ? 'Saving…' : panel.purpose === 'note' ? 'Save note ⏎' : 'Save ⏎',
+            { kind: 'control', id: 'save' },
+            panel.busy ? 'off' : 'primary',
+          )
+          .space(),
+      )
+      .build(),
+  )
+  return box(panel.title, rows, width, skin, { corner: 'esc' })
+}
+
+/** The project's branches, narrowed by typing, with a new one offered for a name nobody has. */
+function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(72, ctx.width - 4)
+  const inner = width - 2
+  const choices = branchChoices(ctx.branches, panel.query)
+  const room = Math.max(4, Math.min(12, ctx.height - 12))
+  const rows: { text: string; hits: Hit[] }[] = [
+    new Row(inner, skin)
+      .space()
+      .field(panel.query, inner - 2, { caret: true })
+      .build(),
+    new Row(inner, skin)
+      .space()
+      .text(`on ${ctx.checkout ?? 'no branch'} now`, skin.hint)
+      .build(),
+    blank(inner),
+  ]
+  const start = Math.max(0, Math.min(panel.index - room + 1, choices.length - room))
+  choices.slice(start, start + room).forEach((choice, offset) => {
+    const at = start + offset
+    const on = at === panel.index
+    const r = new Row(inner, skin).text(on ? '▌' : ' ', skin.signal).space()
+    if (choice.create) {
+      r.text('+ ', skin.signal)
+        .text('Create ', on ? skin.you : (t: string) => t)
+        .text(choice.name, skin.busy)
+    } else {
+      r.text(choice.row?.current ? '● ' : '  ', skin.done).text(
+        choice.name,
+        on ? skin.you : skin.busy,
+      )
+      const when = choice.row?.when ?? ''
+      r.right((g) => g.text(choice.row?.current ? 'current' : when, skin.hint).space())
+    }
+    const built = r.build()
+    rows.push({
+      text: on ? skin.selected(built.text) : built.text,
+      hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'control', id: `row:${at}` } }],
+    })
+  })
+  if (choices.length === 0)
+    rows.push(new Row(inner, skin).space().text('No branch like that.', skin.hint).build())
+  for (let gap = room - Math.min(room, Math.max(1, choices.length)); gap > 0; gap--)
+    rows.push(blank(inner))
+  rows.push(
+    panel.error
+      ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
+      : blank(inner),
+  )
+  rows.push(
+    new Row(inner, skin, ctx.pointer)
+      .space()
+      .text(
+        panel.busy ? 'Switching…' : '↑↓ choose · enter switches · a new name creates it',
+        skin.hint,
+      )
+      .right((r) => r.button('Cancel', { kind: 'control', id: 'cancel' }).space())
+      .build(),
+  )
+  return box('Switch branch', rows, width, skin, { corner: 'esc' })
+}
+
+/** Throwing a file's uncommitted changes away, asked first. */
+function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(66, ctx.width - 4)
+  const inner = width - 2
+  const pointer = ctx.pointer.hover
+    ? ctx.pointer
+    : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
+  const row = () => new Row(inner, skin, pointer)
+  const rows: { text: string; hits: Hit[] }[] = [
+    blank(inner),
+    row().space().text(panel.path, skin.you).build(),
+    blank(inner),
+    row().space().text('Its uncommitted changes go back to the last commit. A file').build(),
+    row().space().text('nobody has committed yet is deleted. This cannot be undone.').build(),
+    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+    row()
+      .right((r) =>
+        r
+          .button('Keep them', { kind: 'control', id: 'keep' })
+          .space()
+          .button(
+            panel.busy ? 'Discarding…' : 'Discard',
+            { kind: 'control', id: 'remove' },
+            panel.busy ? 'off' : 'danger',
+          )
+          .space(),
+      )
+      .build(),
+  ]
+  return box('Discard changes?', rows, width, skin, { corner: 'esc' })
 }
 
 function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {

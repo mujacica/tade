@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Listed, treeOf } from '../src/files.ts'
+import { folderMark, type Listed, marksFrom, treeOf } from '../src/files.ts'
 import { initialState, toggleFolder } from '../src/model.ts'
 
 // The FILES tree, from a made-up disk: what is listed, in what order, how deep.
@@ -54,5 +54,38 @@ describe('the FILES tree', () => {
     state = toggleFolder(state, 'src/panels')
     expect(state.expanded).toEqual(['src', 'src/panels'])
     expect(toggleFolder(state, 'src').expanded).toEqual([])
+  })
+})
+
+describe('marks from git', () => {
+  it('reads what git status says about each file, and leaves Wilco out', () => {
+    const status = [
+      '1 .M N... 100644 100644 100644 abc abc src/app.ts',
+      '1 A. N... 000000 100644 100644 000 abc src/new.ts',
+      '1 D. N... 100644 000000 000000 abc 000 old.ts',
+      '2 R. N... 100644 100644 100644 abc abc R100 src/renamed.ts',
+      'src/before.ts',
+      'u UU N... 100644 100644 100644 100644 a b c src/conflict.ts',
+      '? notes/draft.md',
+      '? .wilco/task.yaml',
+      '',
+    ].join('\0')
+    expect(marksFrom(status)).toEqual({
+      'src/app.ts': 'M',
+      'src/new.ts': 'A',
+      'old.ts': 'D',
+      'src/renamed.ts': 'R',
+      'src/conflict.ts': '!',
+      'notes/draft.md': 'U',
+    })
+  })
+
+  it('marks a folder by the most pressing thing inside it', () => {
+    expect(folderMark('src', { 'src/a.ts': 'U', 'src/deep/b.ts': 'M' })).toBe('M')
+    expect(folderMark('notes', { 'notes/draft.md': 'U' })).toBe('U')
+    expect(folderMark('src', { 'src/x.ts': 'M', 'src/y.ts': '!' })).toBe('!')
+    expect(folderMark('test', { 'src/a.ts': 'M' })).toBeNull()
+    // `src` is not inside `sr`.
+    expect(folderMark('sr', { 'src/a.ts': 'M' })).toBeNull()
   })
 })

@@ -12,12 +12,17 @@ import {
   withTasks,
 } from '../../src/model.ts'
 import {
+  branchMenuItems,
+  branchPanel,
+  changeMenuItems,
   confirmRemovePanel,
   diffPanel,
+  fileMenuItems,
   filePanel,
   menuItems,
   menuPanel,
   openProjectPanel,
+  promptPanel,
   searchPanel,
   settingsPanel,
   spendPanel,
@@ -376,11 +381,120 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'agent-menu',
-    about: "A task's menu, opened from its ≡: what can be done, and why not where it cannot.",
-    state: { ...base(), panel: menuPanel('checkout/stripe-v15', { row: 4, col: 2 }) },
+    about: "An agent's menu, opened from its ≡: what can be done, and why not where it cannot.",
+    state: {
+      ...base(),
+      panel: menuPanel({ kind: 'task', task: 'checkout/stripe-v15' }, 'stripe-v15', {
+        row: 4,
+        col: 2,
+      }),
+    },
     frame: frame({
       panel: {
         items: menuItems({ lane: 'checkout/stripe-v15/agent', state: 'blocked' }, 3),
+      },
+    }),
+  },
+  {
+    name: 'file-menu',
+    about:
+      'A file in FILES, right-clicked: open it here or in your editor, ask the agent, copy, reveal.',
+    state: {
+      ...base(),
+      hover: { kind: 'file', path: 'src/webhooks.ts' },
+      panel: menuPanel({ kind: 'file', path: 'src/webhooks.ts', folder: false }, 'webhooks.ts', {
+        row: 19,
+        col: 6,
+      }),
+    },
+    frame: frame({
+      panel: {
+        items: fileMenuItems({
+          folder: false,
+          open: false,
+          changed: true,
+          agent: true,
+          platform: 'darwin',
+        }),
+      },
+    }),
+  },
+  {
+    name: 'change-menu',
+    about:
+      'A changed file, right-clicked: its diff, the file, and discarding what is not committed.',
+    state: {
+      ...base(),
+      panel: menuPanel(
+        { kind: 'change', task: 'checkout/stripe-v15', path: 'src/webhooks.ts' },
+        'webhooks.ts',
+        { row: 13, col: 4 },
+      ),
+    },
+    frame: frame({ panel: { items: changeMenuItems({ uncommitted: true, agent: true }) } }),
+  },
+  {
+    name: 'branch-menu',
+    about: "The project's branch under GIT: switch it, make a new one, pull.",
+    state: {
+      ...withProjects(initialState(), ['checkout']),
+      panel: menuPanel({ kind: 'branch' }, 'main', { row: 18, col: 4 }),
+    },
+    frame: frame({
+      screen: '',
+      changes: [],
+      where: {
+        repo: '~/src/checkout',
+        branch: 'main',
+        base: null,
+        worktree: null,
+        path: '/Users/me/src/checkout',
+      },
+      panel: { items: branchMenuItems({ agent: false, name: 'main' }) },
+    }),
+  },
+  {
+    name: 'switching-branch',
+    about: 'Switching the checkout: branches newest first, and a new one for a name nobody has.',
+    state: {
+      ...withProjects(initialState(), ['checkout']),
+      panel: { ...branchPanel(), query: 'fix' },
+    },
+    frame: frame({
+      screen: '',
+      changes: [],
+      panel: {
+        checkout: 'main',
+        branches: [
+          { name: 'main', current: true, when: '2 hours ago' },
+          { name: 'fix/refund-retries', current: false, when: '3 days ago' },
+          { name: 'fix/webhook-signature', current: false, when: '2 weeks ago' },
+          { name: 'spike/ledger', current: false, when: '5 weeks ago' },
+        ],
+      },
+    }),
+  },
+  {
+    name: 'adding-a-note',
+    about: 'The + beside NOTES: a note, about this project or everything, kept word for word.',
+    state: {
+      ...base(),
+      panel: {
+        ...promptPanel('note', 'New note', 'NOTE ABOUT CHECKOUT'),
+        text: 'The staging key rotates on the 1st',
+      },
+    },
+    frame: frame(),
+  },
+  {
+    name: 'files-marked-by-git',
+    about: 'FILES coloured the way git sees them: changed, new, and the folders they are in.',
+    state: toggleSection(toggleSection(base(), 'changes'), 'agents'),
+    frame: frame({
+      fileMarks: {
+        'src/webhooks.ts': 'M',
+        'src/webhooks.test.ts': 'U',
+        'test/refunds.test.ts': 'M',
       },
     }),
   },

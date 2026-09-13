@@ -11,16 +11,16 @@
                               │                                                                                         
  ▾ FILES                      │                                                                                         
    ▾ src/                     │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-       webhooks.test.ts       │    so src/webhooks.ts needs the new constructEvent signature.                           
-       webhooks.ts            │                                                                                         
-   ▸ test/                    │  ▸ Read src/webhooks.ts                                                                 
-     package.json             │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-     README.md                │  ▸ bash npm i stripe@15                                                                 
-                              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
- ▾ NOTES  4           ▐  +  ▌ │  │ bash  npm i stripe@15                                        │                       
-   the staging key rotates on │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   we pin major versions      │  ╰──────────────────────────────────────────────────────────────╯                       
-   refunds go through the ledg│                                                                                         
+    ╭─ webhooks.ts ──────────────╮ so src/webhooks.ts needs the new constructEvent signature.                           
+    │▌ Show changes        click │                                                                                      
+   ▸│  Open file                 │ Read src/webhooks.ts                                                                 
+    │  Open in editor            │ Edit src/webhooks.ts  +12 −4                                                         
+    │  Ask the agent about it    │ bash npm i stripe@15                                                                 
+    │────────────────────────────│─ wants approval ─────────────────────────────────────────────╮                       
+ ▸ N│  Copy path                 │ bash  npm i stripe@15                                        │                       
+ ▾ G│────────────────────────────│ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   r│  Discard changes…          │──────────────────────────────────────────────────────────────╯                       
+   b╰────────────────────────────╯                                                                                      
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

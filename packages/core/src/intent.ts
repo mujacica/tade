@@ -38,7 +38,12 @@ const START = /^(start|kick off|begin)\s+(?<rest>.+)$/
 const PARK = /^(park|pause|set aside)\s+(?<task>.+?)[?.]?$/
 const SETTINGS = /^((open|show|change)\s+)?(settings|preferences|config(uration)?)[?.]?$/
 const RESUME = /^(resume|unpark|pick up|pick)\s+(?<task>.+?)(\s+back up)?[?.]?$/
-const REMEMBER = /^(remember|note|keep in mind)(\s+that)?\s+(?<text>.+)$/
+/**
+ * Everything people say when they want something written down. `note` and
+ * `important` lead a lot of sentences, so each needs something after it.
+ */
+const REMEMBER =
+  /^(remember|note to self|note down|note|make a note( of)?|write down|jot down|keep in mind|don'?t forget|do not forget|never forget|important|for the record)(\s+that)?\s*[:,\-–]?\s+(?<text>.+)$/
 const APPROVE = /^(yes|yep|yeah|go ahead|do it|approve|approved|sure|please do)[.!]?$/
 const DENY = /^(no|nope|don'?t|deny|denied|stop|cancel|refuse)[.!]?$/
 const CONFIRM = /^confirm\s+(?<phrase>.+?)[.!]?$/

@@ -50,6 +50,11 @@ export const TaskFile = z.object({
     .optional(),
   parked: z.boolean().default(false),
   lanes: z.array(z.string()).default([]),
+  /**
+   * What the agent's work is called, once there is something to call it: the
+   * name you gave its session, or the start of the first thing you asked it.
+   */
+  title: z.string().optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
 
@@ -122,7 +127,10 @@ export const Task = z.object({
   id: TaskId,
   project: z.string(),
   intent_spoken: z.string(),
+  /** Empty until an agent that started without a branch changes something. */
   branch: z.string(),
+  /** What the work is called, when the agent has said. */
+  title: z.string().optional(),
   worktree: z.string(),
   created: z.string(),
   state: TaskState,

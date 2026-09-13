@@ -3,24 +3,24 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
-                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+                              │                                                                                         
+ ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
   A src/webhooks.test.ts  +48│                                                            │                             
   M src/webhooks.ts    +12 −4│ 2 agents are running inside this window.                   │                             
                              │                                                            │                             
  ▾ FILES                     │ Agents here run under pty, so closing stops them. Their    │                             
-   ▾ src/                    │ conversations are kept, and each one picks up where it     │                             
-       webhooks.test.ts      │ stopped the next time you open its task.                   │                             
+   ▾ src/                    │ conversations are kept, and each one picks up where it     │ed,                          
+       webhooks.test.ts      │ stopped the next time you open its task.                   │e.                           
        webhooks.ts           │                                                            │                             
    ▸ test/                   │ Under tmux they would keep working after you close.        │                             
      package.json            │ Settings › Agents › Where agents run                       │                             
      README.md               │                                                            │                             
                              │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
- ▸ NOTES  4                  ╰────────────────────────────────────────────────────────────╯     │                       
+ ▸ NOTES  4           ▐  +  ▌╰────────────────────────────────────────────────────────────╯     │                       
  ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
    repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
-   branch   wilco/stripe-v15  │                                                                                         
+   branch   …lco/stripe-v15   │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

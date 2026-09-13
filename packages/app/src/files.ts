@@ -58,3 +58,56 @@ export function treeOf(
   walk('', 0)
   return out
 }
+
+/**
+ * What git says about each file in a worktree, from `git status --porcelain=v2
+ * -z`, as the letter VS Code shows beside it: `M`odified, `A`dded, `D`eleted,
+ * `R`enamed, `U`ntracked, or `!` for a conflict. Wilco's own record is left out.
+ */
+export function marksFrom(status: string): Record<string, string> {
+  const marks: Record<string, string> = {}
+  const fields = status.split('\0')
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i]
+    if (!field) continue
+    const parts = field.split(' ')
+    let path: string | null = null
+    let mark = 'M'
+    switch (field[0]) {
+      case '1': {
+        path = parts.slice(8).join(' ')
+        const xy = parts[1] ?? '..'
+        mark = xy.includes('A') ? 'A' : xy.includes('D') ? 'D' : 'M'
+        break
+      }
+      case '2':
+        path = parts.slice(9).join(' ')
+        mark = 'R'
+        i++ // the original path is the next field
+        break
+      case 'u':
+        path = parts.slice(10).join(' ')
+        mark = '!'
+        break
+      case '?':
+        path = field.slice(2)
+        mark = 'U'
+        break
+    }
+    if (path && path !== '.wilco' && !path.startsWith('.wilco/')) marks[path] = mark
+  }
+  return marks
+}
+
+/**
+ * The mark a folder takes from what is inside it: a conflict first, then a
+ * change, then only new files — the one that most needs looking at.
+ */
+export function folderMark(folder: string, marks: Readonly<Record<string, string>>): string | null {
+  const inside = Object.entries(marks).filter(([path]) => path.startsWith(`${folder}/`))
+  if (inside.length === 0) return null
+  const has = (mark: string) => inside.some(([, one]) => one === mark)
+  if (has('!')) return '!'
+  if (has('M') || has('R') || has('D')) return 'M'
+  return 'U'
+}

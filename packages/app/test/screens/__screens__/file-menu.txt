@@ -12,21 +12,21 @@
  ▾ FILES                      │                                                                                         
    ▾ src/                     │  ● Upgrading stripe to v15. The webhook signature API changed,                          
        webhooks.test.ts       │    so src/webhooks.ts needs the new constructEvent signature.                           
-       webhooks.ts            │                                                                                         
+       webhooks.ts          ≡ │                                                                                         
    ▸ test/                    │  ▸ Read src/webhooks.ts                                                                 
      package.json             │  ▸ Edit src/webhooks.ts  +12 −4                                                         
      README.md                │  ▸ bash npm i stripe@15                                                                 
                               │  ╭─ wants approval ─────────────────────────────────────────────╮                       
- ▾ NOTES  4           ▐  +  ▌ │  │ bash  npm i stripe@15                                        │                       
-   the staging key rotates on │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   we pin major versions      │  ╰──────────────────────────────────────────────────────────────╯                       
-   refunds go through the ledg│                                                                                         
-━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
+ ▸ NOT╭─ webhooks.ts ──────────────╮ash  npm i stripe@15                                        │                       
+ ▾ GIT│▌ Open                click │ Allow once ▌ ▐ Deny ▌                                      │                       
+   rep│  Open in editor            │────────────────────────────────────────────────────────────╯                       
+   bra│  Show changes              │                                                                                    
+━ orch│  Ask the agent about it    │━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      │────────────────────────────│                                                                                    
+      │  Copy path                 │                                                                                    
+      │  Copy relative path        │                                                                                    
+      │  Reveal in Finder          │                                                                                    
+      ╰────────────────────────────╯                                                                                    
                                                                                                                         
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 

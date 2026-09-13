@@ -26,7 +26,15 @@ import { EventLog } from './events.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
-import { createTask, type RemoveResult, removeTask, setParked, type TaskWorktree } from './tasks.ts'
+import {
+  createTask,
+  nameTask,
+  type RemoveResult,
+  removeTask,
+  setParked,
+  setTitle,
+  type TaskWorktree,
+} from './tasks.ts'
 import {
   type PendingApproval,
   type RunVitals,
@@ -74,6 +82,8 @@ export interface CreateTaskRequest {
   /** Defaults to the project's configured root. */
   root?: string
   base?: string
+  /** No branch until there is work to name it after. */
+  detached?: boolean
 }
 
 export interface RemoveTaskRequest {
@@ -193,6 +203,11 @@ export class Workbench {
           mode: config.approvals.mode,
           autoAllow: config.approvals.auto_allow,
           rules: config.approvals.rules,
+        },
+        // Written into the task, not held: the branch may be named long after,
+        // by a window opened later.
+        onTitle: (_task, worktree, title, named) => {
+          void setTitle(worktree, title, named).catch(() => {})
         },
       })
 
@@ -411,6 +426,7 @@ export class Workbench {
       intent: req.intent,
       worktreeRoot: join(this.home, 'worktrees'),
       ...(req.base ? { base: req.base } : {}),
+      ...(req.detached ? { detached: true } : {}),
     })
     await this.log.append({
       type: 'task_created',
@@ -424,6 +440,25 @@ export class Workbench {
       },
     })
     return task
+  }
+
+  /**
+   * Give an agent that started without a branch one, named for its work. Said
+   * in the journal, because a branch appearing is something you may look for.
+   */
+  async nameTask(req: {
+    task: string
+    root: string
+    worktree: string
+    title: string
+  }): Promise<string> {
+    const branch = await nameTask(req)
+    await this.log.append({
+      type: 'task_named',
+      task: req.task,
+      detail: { branch, title: req.title },
+    })
+    return branch
   }
 
   /** Remove a task. Refuses to destroy uncommitted or unmerged work. */

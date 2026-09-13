@@ -48,6 +48,8 @@ interface PiUsage {
 }
 interface PiApi {
   on(event: string, handler: (event: never, ctx: PiContext) => unknown): void
+  /** The name given to the session with `/name`, if one was. */
+  getSessionName?(): string | undefined
   sendUserMessage?(
     content: string,
     options?: { deliverAs?: 'steer' | 'followUp' },
@@ -231,6 +233,32 @@ export default function wilcoExtension(pi: PiApi): void {
   }) as never)
   pi.on('model_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
 
+  /**
+   * What the work is called, so Wilco can name the agent's branch when it
+   * first changes something: the session's name when you gave it one, else the
+   * start of the first thing you asked. Commands and shell lines are not a
+   * description of anything.
+   */
+  let titled: string | null = null
+  const sayName = () => {
+    const name = pi.getSessionName?.()?.trim()
+    if (name && name !== titled) {
+      titled = name
+      send({ type: 'titled', title: name, named: true })
+    }
+  }
+  pi.on('session_start', (() => sayName()) as never)
+  pi.on('turn_start', (() => sayName()) as never)
+  pi.on('input', ((event: { text?: string }) => {
+    sayName()
+    const text = (event.text ?? '').trim()
+    if (titled === null && text !== '' && !text.startsWith('/') && !text.startsWith('!')) {
+      titled = text
+      send({ type: 'titled', title: firstWords(text), named: false })
+    }
+    return { action: 'continue' }
+  }) as never)
+
   pi.on('turn_end', ((_event: unknown, ctx: PiContext) => {
     latest = ctx
     send({ type: 'turn_done', status: 'ok' })
@@ -363,4 +391,10 @@ export function describeToolCall(event: ToolCallEvent): string {
 function truncate(text: string, limit = 120): string {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > limit ? `${flat.slice(0, limit - 1)}…` : flat
+}
+
+/** The start of a request, short enough to be a name: its first line, eight words at most. */
+export function firstWords(text: string): string {
+  const line = text.split('\n').find((part) => part.trim() !== '') ?? ''
+  return line.trim().split(/\s+/).slice(0, 8).join(' ').slice(0, 60)
 }

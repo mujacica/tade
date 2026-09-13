@@ -1,7 +1,7 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@wilco/voice-core'
 import { findOpenable } from './editor.ts'
-import type { FileEntry } from './files.ts'
+import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import {
@@ -12,6 +12,7 @@ import {
   laneShown,
   matchActions,
   projects,
+  shownName,
   tasksOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
@@ -53,6 +54,8 @@ export interface Frame {
   orchestrator?: string
   /** The files of the focused agent's worktree, or of the project when there is none. */
   files?: readonly FileEntry[]
+  /** What git says about those files, by path: `M`, `A`, `D`, `R`, `U`, `!`. */
+  fileMarks?: Readonly<Record<string, string>>
   /**
    * Where the work is: the project's repository, the branch in front of you,
    * and — for an agent — the branch it started from and the worktree it is in.
@@ -114,6 +117,8 @@ export interface Frame {
       | 'running'
       | 'searching'
       | 'viewing'
+      | 'branches'
+      | 'checkout'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
@@ -229,6 +234,8 @@ export function draw(state: AppState, frame: Frame): Drawn {
     running: extra.running ?? state.panes.reduce((n, pane) => n + pane.lanes.length, 0),
     searching: extra.searching ?? false,
     viewing: extra.viewing ?? null,
+    branches: extra.branches ?? [],
+    checkout: extra.checkout ?? frame.where?.branch ?? null,
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
@@ -295,7 +302,7 @@ function toastFor(
   const inner = cardWidth - 2
   const seconds = Math.max(0, Math.floor(((frame.now ?? toast.at) - toast.at) / 1000))
   const card = box(
-    `${skin.waiting('●')} ${pane.project} › ${pane.name}`,
+    `${skin.waiting('●')} ${pane.project} › ${shownName(pane)}`,
     [
       new Row(inner, skin)
         .space()
@@ -458,12 +465,13 @@ function renderSidebar(
       rows: (row) =>
         files.length === 0
           ? [row().space(3).text('—', skin.hint).build()]
-          : files.map((entry) => fileRow(row(), entry, skin)),
+          : files.map((entry) => fileRow(row(), entry, skin, frame.fileMarks ?? {})),
     },
     {
       id: 'notes',
       label: 'NOTES',
       count: notes.length,
+      action: { label: ' + ', target: { kind: 'action', name: 'add-note' } },
       rows: (row) =>
         notes.length === 0
           ? [row().space(3).text('tell Wilco "remember …"', skin.hint).build()]
@@ -474,7 +482,9 @@ function renderSidebar(
       label: 'GIT',
       count: null,
       rows: (row) =>
-        where ? whereRows(row, where, skin) : [row().space(3).text('—', skin.hint).build()],
+        where
+          ? whereRows(row, where, skin, state.focused !== null)
+          : [row().space(3).text('—', skin.hint).build()],
     },
   ]
 
@@ -517,6 +527,7 @@ function whereRows(
   row: () => Row,
   where: NonNullable<Frame['where']>,
   skin: Skin,
+  agent: boolean,
 ): { text: string; hits: Hit[] }[] {
   const line = (
     label: string,
@@ -529,7 +540,22 @@ function whereRows(
     return r.text(path ? shortPath(value, room) : tailOf(value, room), paint).build()
   }
   const rows = [line('repo', where.repo)]
-  rows.push(line('branch', where.branch ?? 'unknown', where.branch ? skin.busy : skin.hint, false))
+  // The branch is its menu: switch the project's, or rename an agent's.
+  const branch: Target = { kind: 'branch' }
+  const pointed = sameTarget(row().pointer.hover, branch)
+  const said = where.branch || (agent ? 'named at first change' : 'unknown')
+  const branchLine = row().space(3).text('branch'.padEnd(9), skin.hint)
+  const branchRoom = Math.max(1, branchLine.width - branchLine.used - 3)
+  branchLine.text(
+    tailOf(said, branchRoom),
+    where.branch ? (pointed ? skin.link : skin.busy) : skin.hint,
+  )
+  branchLine.right((r) => r.text(pointed ? '≡' : ' ', skin.signal).space())
+  const builtBranch = branchLine.build()
+  rows.push({
+    text: pointed ? skin.hovered(builtBranch.text) : builtBranch.text,
+    hits: [rowHit(0, branchLine.width, branch)],
+  })
   if (where.base) rows.push(line('from', where.base.replace(/^origin\//, ''), skin.hint, false))
   if (where.worktree) rows.push(line('worktree', where.worktree))
   // The whole path, never shortened — it is the one to paste into another
@@ -566,20 +592,45 @@ export function wrapPath(path: string, width: number): string[] {
 }
 
 /** A file or folder in the tree, indented by how deep it is. */
-function fileRow(row: Row, entry: FileEntry, skin: Skin): { text: string; hits: Hit[] } {
+function fileRow(
+  row: Row,
+  entry: FileEntry,
+  skin: Skin,
+  marks: Readonly<Record<string, string>>,
+): { text: string; hits: Hit[] } {
   const target: Target = entry.folder
     ? { kind: 'folder', path: entry.path }
     : { kind: 'file', path: entry.path }
+  const menu: Target = {
+    kind: 'menu',
+    subject: { kind: 'file', path: entry.path, folder: entry.folder },
+  }
   // Lit under the pointer, so it is plain which one a click would open.
-  const hovered = sameTarget(row.pointer.hover, target)
+  const hovered = sameTarget(row.pointer.hover, target) || sameTarget(row.pointer.hover, menu)
+  // Coloured the way git sees it, as an editor would: changed amber, new
+  // green, conflicted red, and a folder by the most pressing thing inside.
+  const mark = entry.folder ? folderMark(entry.path, marks) : (marks[entry.path] ?? null)
+  const tone = markTone(mark, skin)
   row.space(3 + entry.depth * 2)
-  if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, skin.busy)
-  else row.text(`  ${entry.name}`, hovered ? skin.you : (t) => t)
+  if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, tone ?? skin.busy)
+  else row.text(`  ${entry.name}`, tone ?? (hovered ? skin.you : (t) => t))
+  row.right((r) => {
+    if (hovered) r.text('≡', skin.signal, menu).space()
+    if (mark) r.text(entry.folder ? '•' : mark, tone ?? skin.hint).space()
+    else if (!hovered) r.space(2)
+  })
   const built = row.build()
   return {
     text: hovered ? skin.hovered(built.text) : built.text,
-    hits: [rowHit(0, row.width, target)],
+    hits: [rowHit(0, row.width, target), ...built.hits.filter((hit) => hit.target.kind === 'menu')],
   }
+}
+
+function markTone(mark: string | null, skin: Skin): ((text: string) => string) | null {
+  if (mark === 'M' || mark === 'R') return skin.waiting
+  if (mark === 'A' || mark === 'U') return skin.done
+  if (mark === 'D' || mark === '!') return skin.bad
+  return null
 }
 
 function taskRow(
@@ -593,7 +644,7 @@ function taskRow(
   const hovered = hover !== null && 'task' in hover && hover.task === task.task
   row.text(task.focused ? '▌' : ' ', skin.signal, target)
   row.text(glyph(task), toneOf(task, skin), target).space()
-  row.text(task.name, task.focused ? skin.you : (t) => t, target)
+  row.text(shownName(task), task.focused ? skin.you : (t) => t, target)
   row.right((r) => {
     if (spent && (spent.usd > 0 || spent.tokens > 0)) {
       r.text(spent.usd > 0 ? dollars(spent.usd) : tokens(spent.tokens), skin.hint, target).space()
@@ -634,19 +685,26 @@ function changeRow(
   ]
     .filter(Boolean)
     .join(' ')
-  const room = row.width - 5 - (counts ? counts.length + 2 : 0)
+  const menu: Target = { kind: 'menu', subject: { kind: 'change', task, path: change.path } }
+  const hovered = sameTarget(row.pointer.hover, target) || sameTarget(row.pointer.hover, menu)
+  const room = row.width - 5 - (counts ? counts.length + 2 : 0) - (hovered ? 2 : 0)
   row
     .space(2)
-    .text(change.mark, mark, target)
+    .text(change.mark, mark)
     .space()
-    .text(shortPath(change.path, room), (t) => t, target)
+    .text(shortPath(change.path, room), hovered ? skin.you : (t) => t)
   row.right((r) => {
+    if (hovered) r.text('≡', skin.signal, menu).space()
     if (change.added) r.text(`+${change.added}`, skin.done)
     if (change.added && change.removed) r.space()
     if (change.removed) r.text(`−${change.removed}`, skin.bad)
     r.space()
   })
-  return row.build()
+  const built = row.build()
+  return {
+    text: hovered ? skin.hovered(built.text) : built.text,
+    hits: [rowHit(0, row.width, target), ...built.hits.filter((hit) => hit.target.kind === 'menu')],
+  }
 }
 
 /** The end of something too long, which for a branch is the part that names it. */
@@ -686,7 +744,7 @@ function renderMain(
   const shown = laneShown(state, pane)
   const header = new Row(width, skin, pointer)
     .space()
-    .text(`${pane.project} › ${pane.name}`, skin.you)
+    .text(`${pane.project} › ${shownName(pane)}`, skin.you)
     .space(2)
   // A tab per lane — the agent, and any shell beside it — and + for another.
   if (pane.lanes.length === 0) header.tab('agent', { kind: 'task', task: pane.task }, true)
@@ -741,7 +799,21 @@ function renderMain(
     )
   } else {
     const lines = frame.screen.split('\n')
-    for (const line of lines.slice(-room)) rows.push(screenRow(line, width, skin, pointer))
+    // pi draws from the top of a terminal and stops where its prompt is, which
+    // in a tall pane leaves the prompt stranded half way down. An agent's
+    // screen is read from the bottom, like a conversation, so it sits there;
+    // a shell is left where it draws, because full-screen programs count rows.
+    const kind = pane.lanes.find((lane) => lane.id === shown)?.kind
+    if (kind === 'agent') {
+      while (lines.length > 0 && stripTerminalSequences(lines.at(-1) ?? '').trim() === '')
+        lines.pop()
+      // An approval card sits at the bottom; the conversation ends above it.
+      const reading = pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
+      for (let gap = reading - lines.length; gap > 0; gap--) rows.push(blank(width))
+      for (const line of lines.slice(-reading)) rows.push(screenRow(line, width, skin, pointer))
+    } else {
+      for (const line of lines.slice(-room)) rows.push(screenRow(line, width, skin, pointer))
+    }
   }
 
   while (rows.length < height) rows.push(blank(width))
@@ -788,6 +860,9 @@ function screenRow(
   }
   return { text, hits }
 }
+
+/** How tall the approval card is: its border and two rows. */
+const APPROVAL_ROWS = 4
 
 /** A waiting approval, where the agent asked for it, answerable by click. */
 function withApproval(
@@ -910,7 +985,8 @@ function renderStrip(
     left.text(tail, skin.chrome)
     bar = left.build().text
   } else {
-    const label = `━ orchestrator${state.focused === null ? ' ── here' : ''} `
+    const here = state.focused === null || state.dictation !== null
+    const label = `━ orchestrator${here ? ' ── here' : ''} `
     bar = skin.chrome(label + '━'.repeat(Math.max(0, width - label.length)))
   }
 

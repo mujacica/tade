@@ -2,11 +2,11 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2      ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌     
 ▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
- ○ refunds        $0.62   │                                                     
-                          │  ● Upgrading stripe to v15. The webhook signature AP
- ▾ CHANGES  3     vs main │    so src/webhooks.ts needs the new constructEvent s
-  M package.json    +2 −1 │                                                     
-  A …ebhooks.test.ts  +48 │  ▸ Read src/webhooks.ts                             
+ ○ refunds        $0.62   │    so src/webhooks.ts needs the new constructEvent s
+                          │                                                     
+ ▾ CHANGES  3     vs main │  ▸ Read src/webhooks.ts                             
+  M package.json    +2 −1 │  ▸ Edit src/webhooks.ts  +12 −4                     
+  A …ebhooks.test.ts  +48 │  ▸ bash npm i stripe@15                             
   M …/webhooks.ts  +12 −4 │  ╭─ wants approval ──────────────────────────────╮  
                           │  │ bash  npm i stripe@15                         │  
  ▾ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  

@@ -443,6 +443,50 @@ describe('the window, wired up', () => {
     await until('the line inside the file', () => terminal.written.includes('ledger.ts:1'))
   })
 
+  it('keeps a note added with the + beside NOTES, word for word, about the project', async () => {
+    terminal.rows = 60
+    await start()
+    await until('the notes heading', () =>
+      screenOf(terminal.written).some((row) => row.includes('NOTES')),
+    )
+    const heading = find('NOTES')
+    const plus = (screenOf(terminal.written)[heading.row] ?? '').indexOf('+', heading.col)
+    terminal.written = ''
+    click(plus, heading.row)
+    await until('the note panel', () => terminal.written.includes('New note'))
+    for (const char of 'Staging key rotates on the 1st') terminal.press(char)
+    terminal.press('\r')
+    await until('the note kept', () => client.recallAll().length === 1)
+    expect(client.recallAll()[0]).toMatchObject({
+      text: 'Staging key rotates on the 1st',
+      scope: 'app',
+    })
+  })
+
+  it('types to the orchestrator when clicked, and leaves the agent in view', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const strip = find('orchestrator')
+    terminal.written = ''
+    click(strip.col + 2, strip.row)
+    await until('the line to open', () => terminal.written.includes('here'))
+    // The pane still says whose agent it is.
+    expect(screenOf(terminal.written).join('\n')).not.toContain('Nothing is running')
+  })
+
+  it("opens a file's menu with a right-click in FILES", async () => {
+    terminal.rows = 60
+    await start()
+    await until('the files', () =>
+      screenOf(terminal.written).some((row) => row.includes('README.md')),
+    )
+    const file = find('README.md')
+    terminal.written = ''
+    terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}M`)
+    terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}m`)
+    await until('the menu', () => terminal.written.includes('Copy relative path'))
+  })
+
   it('opens the Spend panel from the status bar', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('today'))
@@ -451,4 +495,53 @@ describe('the window, wired up', () => {
     click(status.col + 1, status.row)
     await until('the spend panel', () => terminal.written.includes('BUDGETS'))
   })
+})
+
+describe('a project with nothing in it', () => {
+  it('gets an agent on opening, with no branch until it changes something', async () => {
+    const repo = mkrepo()
+    repo.commit('first')
+    const home = tmp('wilco-app-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  empty:\n    root: ${repo.root}\n`)
+    const client = await Workbench.open({ home })
+    const terminal = new FakeTerminal()
+    const speaker = await Speaker.create({
+      soundDir: tmp('wilco-app-sound-'),
+      platform: 'darwin',
+      run: async () => {},
+    })
+    const app = await App.start({
+      client,
+      config: ConfigSchema.parse({ projects: { empty: { root: repo.root } } }),
+      home,
+      cwd: repo.root,
+      terminal,
+      speaker,
+      frameMs: 50,
+    })
+    try {
+      const made = async () => (await client.events({ types: ['task_created'] }))[0]
+      const deadline = Date.now() + 20_000
+      while (!(await made())) {
+        if (Date.now() > deadline) throw new Error('no agent was opened')
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      const created = await made()
+      expect(created).toMatchObject({ task: 'empty/agent-1', detail: { branch: '' } })
+
+      // Its first change is what gives it a branch.
+      const worktree = String(created?.detail.worktree)
+      writeFileSync(join(worktree, 'refunds.ts'), 'export const once = true\n')
+      const named = Date.now() + 20_000
+      while ((await client.events({ types: ['task_named'] })).length === 0) {
+        if (Date.now() > named) throw new Error('the branch was never named')
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      const [event] = await client.events({ types: ['task_named'] })
+      expect(event).toMatchObject({ task: 'empty/agent-1', detail: { branch: 'wilco/agent-1' } })
+    } finally {
+      await app.stop().catch(() => {})
+      await client.close().catch(() => {})
+    }
+  }, 60_000)
 })

@@ -128,6 +128,12 @@ const cases: Case[] = [
   { said: 'pick refunds back up', want: 'resume' },
   { said: 'keep in mind we deploy on fridays', want: 'remember' },
   { said: 'note the webhook retries twice', want: 'remember' },
+  { said: 'important: never deploy on fridays', want: 'remember' },
+  { said: "don't forget the staging key rotates", want: 'remember' },
+  { said: 'make a note that refunds go through the ledger', want: 'remember' },
+  { said: 'write down we pin major versions', want: 'remember' },
+  { said: 'note to self check the webhook retries', want: 'remember' },
+  { said: 'for the record, main is protected', want: 'remember' },
 
   // --- near-misses
   // A known mishearing is corrected ("bark" → "park", above); one that is not

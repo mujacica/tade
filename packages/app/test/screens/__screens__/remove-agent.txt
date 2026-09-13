@@ -3,24 +3,24 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
-                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+                              │                                                                                         
+ ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
   A src/webhooks.test.ts  +│                                                                │                           
   M src/webhooks.ts    +12 │ Its worktree has work that isn't merged:                       │                           
                            │   M package.json                                               │                           
  ▾ FILES                   │   A src/webhooks.test.ts                                       │                           
-   ▾ src/                  │   M src/webhooks.ts                                            │                           
+   ▾ src/                  │   M src/webhooks.ts                                            │,                          
        webhooks.test.ts    │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
        webhooks.ts         │                                                                │                           
    ▸ test/                 │ Removing deletes the worktree and the branch. The agent's      │                           
      package.json          │ conversation stays in pi's sessions.                           │                           
      README.md             │                                                                │                           
                            │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
- ▸ NOTES  4                ╰────────────────────────────────────────────────────────────────╯   │                       
+ ▸ NOTES  4           ▐  + ╰────────────────────────────────────────────────────────────────╯   │                       
  ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
    repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
-   branch   wilco/stripe-v15  │                                                                                         
+   branch   …lco/stripe-v15   │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

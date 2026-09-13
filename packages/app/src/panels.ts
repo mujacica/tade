@@ -42,10 +42,21 @@ export interface SpendPanel {
   busy: false
 }
 
-/** An agent's own menu, opened from its ≡ or a right-click, where it was clicked. */
+/** What a menu is for: an agent, a file or folder in FILES, a changed file, or the branch. */
+export type MenuSubject =
+  | { kind: 'task'; task: string }
+  /** Relative to the folder FILES is showing. */
+  | { kind: 'file'; path: string; folder: boolean }
+  /** A changed file; `task` is null for the project's own checkout. */
+  | { kind: 'change'; task: string | null; path: string }
+  | { kind: 'branch' }
+
+/** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
   kind: 'menu'
-  task: string
+  subject: MenuSubject
+  /** Said along its top: the agent's or the file's name. */
+  title: string
   /** Which item the keyboard is on. */
   index: number
   /** The screen cell it was opened from, so it appears there. */
@@ -152,6 +163,90 @@ export interface OpenRow {
   git: boolean
 }
 
+/**
+ * One line of text asked for: a note, a branch name. What it is for decides
+ * what the words become, and a note can be about this project or everything.
+ */
+export interface PromptPanel {
+  kind: 'prompt'
+  purpose: 'note' | 'new-branch' | 'rename-branch'
+  title: string
+  /** What the field is, said before it. */
+  label: string
+  text: string
+  /** A note that is about every project, not the one you are in. */
+  everywhere: boolean
+  busy: boolean
+  error: string | null
+}
+
+/** Switching the project's checkout to another branch, or a new one. */
+export interface BranchPanel {
+  kind: 'branch'
+  /** Narrows the branches; a name nobody has offers to create it. */
+  query: string
+  index: number
+  busy: boolean
+  error: string | null
+}
+
+/** One of the project's branches, as git lists them. */
+export interface BranchRow {
+  name: string
+  current: boolean
+  /** When it last had a commit, said the way people say it. */
+  when: string
+}
+
+/** Asked before throwing work away. */
+export interface ConfirmPanel {
+  kind: 'confirm'
+  purpose: 'discard'
+  task: string | null
+  path: string
+  /** Keep is where the keyboard starts; the other button is the one that throws work away. */
+  field: 'keep' | 'remove'
+  busy: boolean
+  error: string | null
+}
+
+export function promptPanel(
+  purpose: PromptPanel['purpose'],
+  title: string,
+  label: string,
+  text = '',
+): PromptPanel {
+  return {
+    kind: 'prompt',
+    purpose,
+    title,
+    label,
+    text,
+    everywhere: false,
+    busy: false,
+    error: null,
+  }
+}
+
+export function branchPanel(): BranchPanel {
+  return { kind: 'branch', query: '', index: 0, busy: false, error: null }
+}
+
+/** The branches matching what was typed, and a new one when none is called that. */
+export function branchChoices(
+  rows: readonly BranchRow[],
+  query: string,
+): { name: string; create: boolean; row: BranchRow | null }[] {
+  const want = query.trim().toLowerCase()
+  const found = rows
+    .filter((row) => row.name.toLowerCase().includes(want))
+    .map((row) => ({ name: row.name, create: false, row }))
+  const exact = rows.some((row) => row.name === query.trim())
+  return want && !exact && /^[\w./-]+$/.test(query.trim())
+    ? [{ name: query.trim(), create: true, row: null }, ...found]
+    : found
+}
+
 /** Search: agents, files in every worktree, lines inside them, actions and settings. */
 export interface SearchPanel {
   kind: 'search'
@@ -236,6 +331,9 @@ export type Panel =
   | OpenProjectPanel
   | SearchPanel
   | FilePanel
+  | PromptPanel
+  | BranchPanel
+  | ConfirmPanel
   | KeysPanel
   | QuitPanel
 
@@ -269,6 +367,8 @@ export interface PanelInputs {
   entries?: readonly SearchEntry[]
   /** How many lines the file panel has to scroll through. */
   lines?: number
+  /** The project's branches, for switching. */
+  branches?: readonly BranchRow[]
 }
 
 /** The settings a panel is showing: a category's, or everything matching the search. */
@@ -323,8 +423,93 @@ export function writeOf(path: string, value: string): string {
   return `write:${path}\u0000${value}`
 }
 
-export function menuPanel(task: string, anchor: MenuPanel['anchor'] = null): MenuPanel {
-  return { kind: 'menu', task, index: 0, anchor, busy: false }
+export function menuPanel(
+  subject: MenuSubject,
+  title: string,
+  anchor: MenuPanel['anchor'] = null,
+): MenuPanel {
+  return { kind: 'menu', subject, title, index: 0, anchor, busy: false }
+}
+
+/** What can be done with a file or folder in FILES. */
+export function fileMenuItems(file: {
+  folder: boolean
+  open: boolean
+  /** git says it has uncommitted changes. */
+  changed: boolean
+  /** An agent is in front of you, so there is someone to ask and a change to show. */
+  agent: boolean
+  platform: string
+}): MenuItem[] {
+  const reveal = file.platform === 'darwin' ? 'Reveal in Finder' : 'Show in its folder'
+  if (file.folder) {
+    return [
+      { id: 'toggle', label: file.open ? 'Collapse' : 'Expand', note: 'click' },
+      { id: 'search', label: 'Search in this folder' },
+      { id: 'editor', label: 'Open in editor' },
+      { id: 'copy-path', label: 'Copy path', divider: true },
+      { id: 'copy-relative', label: 'Copy relative path' },
+      { id: 'reveal', label: reveal },
+    ]
+  }
+  return [
+    { id: 'open', label: 'Open', note: 'click' },
+    { id: 'editor', label: 'Open in editor' },
+    {
+      id: 'changes',
+      label: 'Show changes',
+      ...(file.changed ? {} : { off: 'unchanged' }),
+    },
+    {
+      id: 'ask',
+      label: 'Ask the agent about it',
+      ...(file.agent ? {} : { off: 'no agent' }),
+    },
+    { id: 'copy-path', label: 'Copy path', divider: true },
+    { id: 'copy-relative', label: 'Copy relative path' },
+    { id: 'reveal', label: reveal },
+  ]
+}
+
+/** What can be done with a changed file. Discarding asks first, and only touches what is not committed. */
+export function changeMenuItems(change: { uncommitted: boolean; agent: boolean }): MenuItem[] {
+  return [
+    { id: 'diff', label: 'Show changes', note: 'click' },
+    { id: 'open', label: 'Open file' },
+    { id: 'editor', label: 'Open in editor' },
+    { id: 'ask', label: 'Ask the agent about it', ...(change.agent ? {} : { off: 'no agent' }) },
+    { id: 'copy-path', label: 'Copy path', divider: true },
+    {
+      id: 'discard',
+      label: 'Discard changes…',
+      danger: true,
+      divider: true,
+      ...(change.uncommitted ? {} : { off: 'committed' }),
+    },
+  ]
+}
+
+/**
+ * What can be done with the branch under GIT. The project's own checkout can
+ * be switched; an agent's branch is where its work is, so it is renamed rather
+ * than switched out from under it.
+ */
+export function branchMenuItems(branch: { agent: boolean; name: string }): MenuItem[] {
+  if (branch.agent) {
+    return [
+      { id: 'rename', label: branch.name ? 'Rename branch…' : 'Name the branch now…' },
+      { id: 'copy', label: 'Copy branch name', ...(branch.name ? {} : { off: 'none yet' }) },
+      { id: 'changes', label: 'Show changes' },
+      { id: 'copy-path', label: 'Copy worktree path', divider: true },
+    ]
+  }
+  return [
+    { id: 'switch', label: 'Switch branch…' },
+    { id: 'new', label: 'New branch…' },
+    { id: 'pull', label: 'Pull', note: 'fast-forward' },
+    { id: 'copy', label: 'Copy branch name', divider: true },
+    { id: 'copy-path', label: 'Copy path' },
+  ]
 }
 
 /**
@@ -411,6 +596,9 @@ export function panelKey(
   }
   if (panel.kind === 'spend') return spendKey(panel, key)
   if (panel.kind === 'menu') return menuKey(panel, key, inputs.items ?? [])
+  if (panel.kind === 'prompt') return promptKey(panel, key, data)
+  if (panel.kind === 'branch') return branchKey(panel, key, data, inputs.branches ?? [])
+  if (panel.kind === 'confirm') return confirmKey(panel, key)
   if (panel.kind === 'confirm-remove') return confirmKey(panel, key)
   return diffKey(panel, key)
 }
@@ -435,7 +623,25 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
       ? { panel, submit: true, choice: control.slice(5) }
       : stay(panel)
   }
-  if (panel.kind === 'confirm-remove') {
+  if (panel.kind === 'prompt') {
+    if (control === 'cancel') return close
+    if (control === 'save') return savePrompt(panel)
+    if (control === 'everywhere') return stay({ ...panel, everywhere: !panel.everywhere })
+    return stay(panel)
+  }
+  if (panel.kind === 'branch') {
+    if (control === 'cancel') return close
+    const choice = branchChoices(inputs.branches ?? [], panel.query)[Number(control.slice(4))]
+    if (control.startsWith('row:') && choice) {
+      return {
+        panel: { ...panel, busy: true, error: null },
+        submit: true,
+        choice: `${choice.create ? 'create' : 'switch'}:${choice.name}`,
+      }
+    }
+    return stay(panel)
+  }
+  if (panel.kind === 'confirm-remove' || panel.kind === 'confirm') {
     if (control === 'keep') return close
     if (control === 'remove') return { panel: { ...panel, busy: true, error: null }, submit: true }
     return stay(panel)
@@ -492,7 +698,69 @@ function menuKey(
   return stay(panel)
 }
 
-function confirmKey(panel: ConfirmRemovePanel, key: string | undefined): PanelOutcome {
+function savePrompt(panel: PromptPanel): PanelOutcome {
+  if (panel.text.trim() === '') {
+    return stay({
+      ...panel,
+      error: panel.purpose === 'note' ? 'Write the note first.' : 'Give it a name.',
+    })
+  }
+  return { panel: { ...panel, busy: true, error: null }, submit: true, choice: 'save' }
+}
+
+/** Typing, and enter to keep it. A paste arrives whole; tab turns a note's scope. */
+function promptKey(panel: PromptPanel, key: string | undefined, data: string): PanelOutcome {
+  if (panel.busy) return key === 'escape' ? close : stay(panel)
+  if (key === 'escape') return close
+  if (key === 'enter') return savePrompt(panel)
+  if (key === 'tab' && panel.purpose === 'note')
+    return stay({ ...panel, everywhere: !panel.everywhere })
+  if (key === 'backspace') return stay({ ...panel, text: [...panel.text].slice(0, -1).join('') })
+  if (key === 'ctrl+u') return stay({ ...panel, text: '' })
+  const text = data.startsWith('\x1b')
+    ? ''
+    : [...data].map((char) => (control(char) ? ' ' : char)).join('')
+  if (key === 'space') return stay({ ...panel, text: `${panel.text} `, error: null })
+  // Branch names have no spaces, so a space typed into one is a dash.
+  const typedText = panel.purpose === 'note' ? text : text.replace(/\s/g, '-')
+  return typedText ? stay({ ...panel, text: panel.text + typedText, error: null }) : stay(panel)
+}
+
+function branchKey(
+  panel: BranchPanel,
+  key: string | undefined,
+  data: string,
+  rows: readonly BranchRow[],
+): PanelOutcome {
+  if (panel.busy) return key === 'escape' ? close : stay(panel)
+  if (key === 'escape') return close
+  const choices = branchChoices(rows, panel.query)
+  if (key === 'down' || key === 'up') {
+    const count = Math.max(1, choices.length)
+    return stay({ ...panel, index: (panel.index + (key === 'down' ? 1 : -1) + count) % count })
+  }
+  if (key === 'enter') {
+    const choice = choices[panel.index]
+    return choice
+      ? {
+          panel: { ...panel, busy: true, error: null },
+          submit: true,
+          choice: `${choice.create ? 'create' : 'switch'}:${choice.name}`,
+        }
+      : stay(panel)
+  }
+  if (key === 'backspace')
+    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0 })
+  const text = typed(data, key)
+  return text && !/\s/.test(text)
+    ? stay({ ...panel, query: panel.query + text, index: 0 })
+    : stay(panel)
+}
+
+function confirmKey(
+  panel: ConfirmRemovePanel | ConfirmPanel,
+  key: string | undefined,
+): PanelOutcome {
   if (panel.busy) return stay(panel)
   if (key === 'escape') return close
   if (key === 'tab' || key === 'shift+tab' || key === 'left' || key === 'right') {

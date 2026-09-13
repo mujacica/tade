@@ -1,26 +1,26 @@
- WILCO    checkout  ▐ search ▌  infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  1          ▐  +  ▌ │ search › pagination  ▐ agent ▌ ▐ + ▌              pi · claude-opus-5 · ctx ███░░░░░ 41% 
-▌◆ pagination               ≡ │─────────────────────────────────────────────────────────────────────────────────────────
-                              │                                                                                         
- ▾ CHANGES            vs main │  Ready for review, and no agent is running.                                             
-   nothing changed            │                                                                                         
-                              │  ▐ Open its agent ▌ picks the conversation up where it stopped                          
+ ▸ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
+ ▸ CHANGES  3         vs main │─────────────────────────────────────────────────────────────────────────────────────────
  ▾ FILES                      │                                                                                         
-   ▾ src/                     │                                                                                         
-       webhooks.test.ts       │                                                                                         
-       webhooks.ts            │                                                                                         
-   ▸ test/                    │                                                                                         
+   ▾ src/                   • │                                                                                         
+       webhooks.test.ts     U │                                                                                         
+       webhooks.ts          M │                                                                                         
+   ▸ test/                  • │                                                                                         
      package.json             │                                                                                         
      README.md                │                                                                                         
                               │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▾ GIT                        │                                                                                         
+ ▸ NOTES  4           ▐  +  ▌ │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
    repo     ~/src/checkout    │                                                                                         
-   branch   …lco/stripe-v15   │                                                                                         
-   from     main              │                                                                                         
-   worktree …ckout-stripe-v15 │                                                                                         
-   path     /Users/me/.wilco/ │                                                                                         
+   branch   …lco/stripe-v15   │  ▸ Read src/webhooks.ts                                                                 
+   from     main              │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   worktree …ckout-stripe-v15 │  ▸ bash npm i stripe@15                                                                 
+   path     /Users/me/.wilco/ │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+            worktrees/        │  │ bash  npm i stripe@15                                        │                       
+            checkout-stripe-v │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+            15                │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

@@ -26,6 +26,8 @@ export const EventType = z.enum([
   'input',
   // tasks
   'task_created',
+  /** An agent that started without a branch got one, named for its work. */
+  'task_named',
   'task_removed',
   'state_change',
   // agents
@@ -56,6 +58,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   output: 'trace',
   input: 'trace',
   task_created: 'notable',
+  task_named: 'notable',
   task_removed: 'notable',
   state_change: 'notable',
   run_started: 'notable',

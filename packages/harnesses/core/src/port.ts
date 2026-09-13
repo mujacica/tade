@@ -47,6 +47,17 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     model: z.string().nullable().default(null),
   }),
   z.object({ type: z.literal('turn_started'), run: RunId, at: z.number() }),
+  /**
+   * What the work is called: the name you gave the session (`named`), or the
+   * start of the first thing you asked. Wilco names the agent's branch from it.
+   */
+  z.object({
+    type: z.literal('titled'),
+    run: RunId,
+    at: z.number(),
+    title: z.string(),
+    named: z.boolean().default(false),
+  }),
   z.object({ type: z.literal('message'), run: RunId, at: z.number(), text: z.string() }),
   z.object({
     type: z.literal('tool_call'),

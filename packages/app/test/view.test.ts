@@ -317,3 +317,18 @@ describe('the path under GIT', () => {
     ).toBe(true)
   })
 })
+
+describe('an agent pane', () => {
+  it('sits at the bottom, like a conversation, however little the agent has drawn', () => {
+    const screen = ['pi v0.85', '', '> fix the refunds', '', '', ''].join('\n')
+    const { rows } = draw(state(), { ...frame({ height: 30 }), screen })
+    const body = rows.slice(4, 26).map((row) => row.split('│')[1] ?? '')
+    const last = body.map((row) => row.trim()).filter((row) => row !== '')
+    expect(last.at(-1)).toContain('> fix the refunds')
+    // Nothing drawn under it: the blank lines pi left below were not kept.
+    const at = body.findIndex((row) => row.includes('> fix the refunds'))
+    expect(
+      body.slice(at + 1).every((row) => row.trim() === '' || row.includes('orchestrator')),
+    ).toBe(true)
+  })
+})

@@ -22,6 +22,10 @@ export async function git(dir: string, args: string[], timeoutMs = 5_000): Promi
     reject: false,
     env: GIT_ENV,
     timeout: timeoutMs,
+    // In its own process group, so the terminal Wilco runs in never takes git
+    // for the program in front of it: Terminal.app retitles the window after
+    // whatever is, and status runs git every couple of seconds.
+    detached: true,
     stripFinalNewline: false,
   })
   return {

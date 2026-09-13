@@ -58,6 +58,8 @@ export interface WorkerSupervisorOptions {
   adapter: WorkerAdapter
   log: EventLog
   approvals: ApprovalSettings
+  /** An agent said what its work is called. */
+  onTitle?: (task: TaskId, worktree: string, title: string, named: boolean) => void
 }
 
 interface RunState {
@@ -78,6 +80,7 @@ export class WorkerSupervisor {
   private readonly adapter: WorkerAdapter
   private readonly log: EventLog
   private readonly approvals: ApprovalSettings
+  private readonly onTitle: WorkerSupervisorOptions['onTitle']
   private readonly runs = new Map<string, RunState>()
   private readonly pendingApprovals = new Map<string, PendingApproval>()
   /** By task: what each agent last said about its model and context. */
@@ -93,6 +96,7 @@ export class WorkerSupervisor {
     this.adapter = opts.adapter
     this.log = opts.log
     this.approvals = opts.approvals
+    this.onTitle = opts.onTitle
   }
 
   /**
@@ -290,6 +294,9 @@ export class WorkerSupervisor {
       case 'started':
       case 'context':
         if (task) this.noteVitals(task, signal)
+        return
+      case 'titled':
+        if (state) this.onTitle?.(state.task, state.worktree, signal.title, signal.named)
         return
       case 'usage':
         if (task && signal.model) this.noteVitals(task, { type: 'started', model: signal.model })

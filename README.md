@@ -218,7 +218,9 @@ elsewhere: 1 session: codex idle (~/src/search)
 
 - **Projects** come from `projects:` in the config. With none configured, the git repo you're
   standing in is the project.
-- **Tasks** are worktrees on a `wilco/*` branch that contain `.wilco/task.yaml`.
+- **Tasks** are worktrees that contain `.wilco/task.yaml`: on a `wilco/*` branch, or — for an agent that
+  has not changed anything yet — on no branch at all. Their id comes from that file, so naming the
+  branch later changes nothing else.
 - **Adoption**: Claude Code (`~/.claude/projects`) and Codex (`~/.codex/sessions`) transcripts
   modified in the last 24h are read and matched to tasks by working directory. Sessions in a
   project but outside any task show as `+ N sessions … outside Wilco`; active sessions outside
@@ -288,11 +290,11 @@ This is an 80×24 terminal, exactly as drawn — it is one of the screens the te
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2      ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌     
 ▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
- ○ refunds        $0.62   │                                                     
-                          │  ● Upgrading stripe to v15. The webhook signature AP
- ▾ CHANGES  3     vs main │    so src/webhooks.ts needs the new constructEvent s
-  M package.json    +2 −1 │                                                     
-  A …ebhooks.test.ts  +48 │  ▸ Read src/webhooks.ts                             
+ ○ refunds        $0.62   │    so src/webhooks.ts needs the new constructEvent s
+                          │                                                     
+ ▾ CHANGES  3     vs main │  ▸ Read src/webhooks.ts                             
+  M package.json    +2 −1 │  ▸ Edit src/webhooks.ts  +12 −4                     
+  A …ebhooks.test.ts  +48 │  ▸ bash npm i stripe@15                             
   M …/webhooks.ts  +12 −4 │  ╭─ wants approval ──────────────────────────────╮  
                           │  │ bash  npm i stripe@15                         │  
  ▾ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
@@ -325,26 +327,39 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   `←` up); type to narrow, or type a path to go there. A folder that is not a git repository opens
   too — Wilco offers `git init` and commits what is there as the first commit, as Wilco — and the tab
   appears at once.
-- **Agents.** Each agent works on its own `wilco/*` branch in its own worktree. **+ New agent**, or
-  the `+` beside AGENTS, makes one in the project you are in and opens pi in it straight away — no
-  questions; it is called `agent-1`, `agent-2`, … and you tell it what to do in its own prompt.
+- **Agents.** Each agent works in its own worktree. **+ New agent**, or the `+` beside AGENTS, makes
+  one in the project you are in and opens pi in it straight away — no questions. A project you open
+  with no agents gets one by itself, so there is always somewhere to type. A new agent has **no
+  branch** until it changes something: looking around leaves nothing in `git branch`. At its first
+  change Wilco gives it one, named for its work — the name you gave the session with pi's `/name`,
+  else the first words of the first thing you asked it — and shows that name in the sidebar instead
+  of `agent-1`.
   Clicking an agent opens it: if it is running you see it; if not, pi opens in its worktree on its
   own session, picking up where it stopped. Opening a session sends nothing to the model, so a click
   costs nothing until you type. The agent's terminal is sized to the pane and the terminal window is
-  titled with it. `≡` on the agent you are on, or a right-click on any, is its menu: open, start or
-  stop it, show its changes, open it in your editor, copy its branch, park it, or remove it — which
-  asks first and lists exactly what is unmerged.
+  titled with it. pi is drawn from the bottom of its pane, like a conversation, so its prompt is
+  always at the foot however little it has said, and the pane redraws the moment the agent prints
+  rather than on the next look. `≡` on the agent you are on, or a right-click on any, is its menu:
+  open, start or stop it, show its changes, open it in your editor, copy its branch, park it, or
+  remove it — which asks first and lists exactly what is unmerged.
 - **Git.** At the bottom of the sidebar: the project's repository and the branch it is on, or — for the agent
   in front of you — its branch, the branch it started from, and its worktree; and the full path on
-  this machine, wrapped rather than shortened, which a click copies.
+  this machine, wrapped rather than shortened, which a click copies. The branch is a menu: for the
+  project, **Switch branch…** (typing narrows, a new name creates it), **New branch…**, **Pull**; for
+  an agent, **Rename branch…** (or **Name the branch now…** before it has one) and its changes.
 - **The pane.** Tabs along its top: the agent, any shell opened beside it with `+`, each drawn and
   typed into on its own. On the right, the model the agent says it runs on and a context meter that
   turns amber, then red, as it fills. An approval appears where the agent asked, with **Allow once**
   and **Deny** (`a` and `d` too, only while one waits).
 - **Changes and files.** A changed file opens its diff from where the agent branched, read-only,
   `←`/`→` through the others. FILES is the agent's worktree, or the project itself when no agent is
-  in front of you, as a tree: the row under the pointer is shaded, and a click opens a folder or
-  the file. The sidebar scrolls with the wheel.
+  in front of you, as a tree coloured the way git sees it, as an editor would: changed files amber
+  with `M`, new ones green with `U` or `A`, conflicts red, and a folder marked by what is inside it.
+  The row under the pointer is shaded, and a click opens a folder or the file. A right-click, or the
+  `≡` on the row under the pointer, is a menu — for a file: open it here or in your editor, show its
+  changes, ask the agent about it, copy its path or relative path, reveal it in Finder; for a
+  folder: search in it; for a changed file: its diff, the file, and **Discard changes…**, which asks
+  first and only touches what is not committed. The sidebar scrolls with the wheel.
 - **Reading a file.** A file under FILES, a search result, or a reference like `src/webhooks.ts:42:7`
   on an agent's screen opens in the viewer, over the window: coloured by highlight.js (what pi
   colours code with), numbered, at the line with it marked. Markdown opens laid out, with its source
@@ -353,8 +368,10 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   one whose terminal Wilco runs in (VS Code, Cursor, Windsurf, Zed, JetBrains, Neovim, Emacs), else
   `$VISUAL`/`$EDITOR`, else the system's. A terminal editor opens inside Wilco's screen rather than
   fighting it for the keyboard.
-- **Notes.** What you told Wilco to remember (`remember the staging key rotates on the 1st`), kept
-  word for word in `~/.wilco/memory.jsonl`, for the project you are in. The orchestrator reads them
+- **Notes.** What you told Wilco to remember, kept word for word in `~/.wilco/memory.jsonl`. The `+`
+  beside NOTES writes one, about the project you are in or about everything. Said or typed to Wilco,
+  any of `remember …`, `note …`, `note to self …`, `make a note …`, `write down …`, `keep in mind …`,
+  `don't forget …`, `important: …` or `for the record …` does the same. The orchestrator reads them
   when it starts, and `wilco notes` lists them.
 - **Money.** The status bar is the model, the provider it goes through and how that is paid for
   (`signed in`, `API key`, or `env API key`), then today's tokens and dollars; a narrow terminal keeps
@@ -378,7 +395,8 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   when you have been idle for 30 seconds.
 - **Closing.** `ctrl+c` closes Wilco. Under `pty`, where closing would stop your agents, it asks
   first and says so; under tmux they carry on and it just closes.
-- **Tab** moves between agents *and the orchestrator*, where you type to Wilco. `/` lists what Wilco
+- **Tab** moves between agents *and the orchestrator*, where you type to Wilco. Clicking the
+  orchestrator, or tabbing to it, opens its line and leaves the agent you were watching in view. `/` lists what Wilco
   can do; `/new fix the double charge on refunds` starts an agent on it in one line. Begin a line at an agent
   with `wilco ` and it goes to Wilco instead. Everything the window doesn't claim goes to the agent,
   so its own keybindings keep working.
@@ -667,8 +685,9 @@ Workspace   one machine, one WILCO_HOME
       └ pi  one session, named after the task, for as long as the task lives
 ```
 
-A task is a git worktree on a `wilco/*` branch containing `.wilco/task.yaml`, which records your
-original request verbatim as `intent_spoken`. Task states:
+A task is a git worktree containing `.wilco/task.yaml`, on a `wilco/*` branch or not yet on one, which
+records your original request verbatim as `intent_spoken`, and what the work is called as `title`
+once the agent has said. Task states:
 
 | State | Means |
 |---|---|

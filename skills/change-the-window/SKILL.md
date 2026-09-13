@@ -122,6 +122,16 @@ file and cannot be tested.
 - **Don't import a library's types if they bring the DOM.** highlight.js's definitions pull in the
   browser's lib and change `ReadableStream` in unrelated packages; `highlight.ts` loads it with
   `createRequire` behind a small interface of its own.
+- **A menu is a subject and its items.** `MenuSubject` says what was right-clicked (an agent, a
+  file, a changed file, the branch); `*MenuItems` in `panels.ts` list what can be done, with `off`
+  saying why not; `App.fromMenu` carries each out. A row with a menu shows `≡` under the pointer as a
+  `{ kind: 'menu', subject }` hit, and `subjectOf` maps a right-click to the same subject.
+- **An agent's screen is read from the bottom.** pi draws from the top of its terminal and stops at
+  its prompt, so `renderMain` drops trailing blank rows of an `agent` lane and pads above. Never do
+  that to a shell: full-screen programs count rows.
+- **Redraw on output, not on a timer.** `App.watch` subscribes to the lane in front of you and asks
+  for a look 16 ms after it prints; the quarter-second tick is only the fallback. Polling alone made
+  every keystroke wait for the next tick.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
   (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
   keeps `state.scroll`, a panel's list moves its own index.

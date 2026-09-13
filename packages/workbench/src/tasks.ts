@@ -23,6 +23,12 @@ export interface CreateTaskOptions {
   worktreeRoot: string
   /** Defaults to the repository's own base branch. */
   base?: string
+  /**
+   * Start without a branch: the worktree is on the base commit, detached, and
+   * `nameTask` gives it a branch when there is work to name. An agent opened
+   * to look around leaves no `wilco/*` branch behind.
+   */
+  detached?: boolean
   now?: Date
 }
 
@@ -58,9 +64,16 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
   const id = `${opts.project}/${opts.slug}`
   if (!TaskId.safeParse(id).success) throw new Error(`invalid task id: ${id}`)
 
-  const branch = `${TASK_BRANCH_PREFIX}${opts.slug}`
-  const exists = await git(opts.root, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])
-  if (exists.ok) throw new Error(`branch already exists: ${branch}`)
+  const branch = opts.detached ? '' : `${TASK_BRANCH_PREFIX}${opts.slug}`
+  if (branch) {
+    const exists = await git(opts.root, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${branch}`,
+    ])
+    if (exists.ok) throw new Error(`branch already exists: ${branch}`)
+  }
 
   const baseRef = opts.base ?? (await resolveBaseRef(opts.root))
   if (!baseRef) throw new Error(`no base branch found in ${opts.root}`)
@@ -70,7 +83,13 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
 
   const worktree = join(opts.worktreeRoot, `${opts.project}-${opts.slug}`)
   await mkdir(opts.worktreeRoot, { recursive: true })
-  const added = await git(opts.root, ['worktree', 'add', '-b', branch, worktree, baseRef], 30_000)
+  const added = await git(
+    opts.root,
+    branch
+      ? ['worktree', 'add', '-b', branch, worktree, baseRef]
+      : ['worktree', 'add', '--detach', worktree, baseRef],
+    30_000,
+  )
   if (!added.ok) throw new Error(`git worktree add failed: ${firstLine(added.stderr)}`)
 
   const task: TaskWorktree = { id, project: opts.project, branch, worktree, base, baseRef }
@@ -114,7 +133,8 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
       }
     }
     const baseRef = await resolveBaseRef(opts.root)
-    if (baseRef) {
+    // No branch means nothing was ever committed to one: only the worktree to check.
+    if (baseRef && opts.branch) {
       const merged = await git(opts.root, ['merge-base', '--is-ancestor', opts.branch, baseRef])
       if (!merged.ok) {
         return { removed: false, reason: `${opts.branch} has commits not merged into ${baseRef}` }
@@ -128,9 +148,82 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
   const removed = await git(opts.root, ['worktree', 'remove', '--force', opts.worktree], 30_000)
   if (!removed.ok) throw new Error(`git worktree remove failed: ${firstLine(removed.stderr)}`)
 
+  if (!opts.branch) return { removed: true, branchDeleted: false }
   // -d refuses to delete unmerged work; -D is only reached when forced.
   const deleted = await git(opts.root, ['branch', opts.force ? '-D' : '-d', opts.branch])
   return { removed: true, branchDeleted: deleted.ok }
+}
+
+/**
+ * A branch name from what the work is called: `Fix the double charge on
+ * retries!` becomes `fix-the-double-charge-on`. Short, because it is typed and
+ * read far more often than it is written.
+ */
+export function branchSlug(title: string): string {
+  const words = title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/[\s-]+/)
+    .filter(Boolean)
+  let slug = ''
+  for (const word of words) {
+    const next = slug ? `${slug}-${word}` : word
+    if (next.length > 40) break
+    slug = next
+  }
+  return slug || 'work'
+}
+
+export interface NameTaskOptions {
+  root: string
+  worktree: string
+  /** What the work is called. Falls back to the task's own name. */
+  title: string
+}
+
+/**
+ * Give an agent that started without a branch one, named for its work, where
+ * it stands — uncommitted changes and any commits come along. The first free
+ * name wins: a branch someone already has is never touched.
+ */
+export async function nameTask(opts: NameTaskOptions): Promise<string> {
+  const current = await git(opts.worktree, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+  if (current.ok && current.stdout.trim()) return current.stdout.trim()
+  const slug = branchSlug(opts.title)
+  for (let n = 1; n <= 50; n++) {
+    const branch = `${TASK_BRANCH_PREFIX}${n === 1 ? slug : `${slug}-${n}`}`
+    const taken = await git(opts.root, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`])
+    if (taken.ok) continue
+    const made = await git(opts.worktree, ['switch', '-c', branch])
+    if (!made.ok) throw new Error(`git switch -c ${branch} failed: ${firstLine(made.stderr)}`)
+    await updateTaskFile(opts.worktree, (file) => {
+      if (typeof file.title !== 'string' || file.title === '') file.title = opts.title
+    })
+    return branch
+  }
+  throw new Error(`every branch like ${TASK_BRANCH_PREFIX}${slug} is taken`)
+}
+
+/**
+ * Say what an agent's work is called. A name you gave it replaces whatever was
+ * there; a title taken from the first thing you asked only fills a blank.
+ */
+export async function setTitle(worktree: string, title: string, named: boolean): Promise<void> {
+  const text = title.replace(/\s+/g, ' ').trim()
+  if (!text) return
+  await updateTaskFile(worktree, (file) => {
+    if (named || typeof file.title !== 'string' || file.title === '') file.title = text
+  })
+}
+
+async function updateTaskFile(
+  worktree: string,
+  change: (file: Record<string, unknown>) => void,
+): Promise<void> {
+  const path = join(worktree, '.wilco', 'task.yaml')
+  const file = (parseYaml(await readFile(path, 'utf8')) ?? {}) as Record<string, unknown>
+  change(file)
+  await writeFile(path, stringify(file))
 }
 
 export interface ParkResult {

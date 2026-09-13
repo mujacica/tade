@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, runGit, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { createTask, removeTask } from '../src/tasks.ts'
+import { branchSlug, createTask, nameTask, removeTask, setTitle } from '../src/tasks.ts'
 
 const INTENT =
   "the refund flow double-charges when the webhook retries, I think it's not idempotent"
@@ -170,5 +170,83 @@ describe('removeTask', () => {
     expect(
       (await removeTask({ root: repo.root, worktree: task.worktree, branch: task.branch })).removed,
     ).toBe(true)
+  })
+})
+
+describe('an agent that starts without a branch', () => {
+  async function detached() {
+    const { repo, worktreeRoot } = setup()
+    const task = await createTask({
+      project: 'checkout',
+      root: repo.root,
+      slug: 'agent-1',
+      intent: '',
+      worktreeRoot,
+      detached: true,
+    })
+    return { repo, task }
+  }
+
+  it('gets a worktree and no branch, so looking around leaves nothing behind', async () => {
+    const { repo, task } = await detached()
+    expect(task).toMatchObject({ id: 'checkout/agent-1', branch: '' })
+    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('HEAD')
+    expect(runGit(repo.root, 'branch', '--list', 'wilco/*').trim()).toBe('')
+  })
+
+  it('is named for its work when it has some, keeping what it changed', async () => {
+    const { repo, task } = await detached()
+    writeFileSync(join(task.worktree, 'refund.ts'), 'export const once = true\n')
+    await setTitle(task.worktree, 'Fix the double charge on refund retries!', false)
+    const branch = await nameTask({
+      root: repo.root,
+      worktree: task.worktree,
+      title: 'Fix the double charge on refund retries!',
+    })
+    expect(branch).toBe('wilco/fix-the-double-charge-on-refund-retries')
+    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe(branch)
+    expect(existsSync(join(task.worktree, 'refund.ts'))).toBe(true)
+    // Its id does not change with its branch: lanes and the session are keyed by it.
+    const file = parse(readFileSync(join(task.worktree, '.wilco', 'task.yaml'), 'utf8'))
+    expect(file).toMatchObject({
+      id: 'checkout/agent-1',
+      title: 'Fix the double charge on refund retries!',
+    })
+    // Asked again, it is already named.
+    expect(await nameTask({ root: repo.root, worktree: task.worktree, title: 'other' })).toBe(
+      branch,
+    )
+  })
+
+  it('never takes a branch somebody already has', async () => {
+    const { repo, task } = await detached()
+    runGit(repo.root, 'branch', 'wilco/tidy-up')
+    expect(await nameTask({ root: repo.root, worktree: task.worktree, title: 'tidy up' })).toBe(
+      'wilco/tidy-up-2',
+    )
+  })
+
+  it('takes a name you gave it over one taken from what you first asked', async () => {
+    const { task } = await detached()
+    await setTitle(task.worktree, 'look at the logs', false)
+    await setTitle(task.worktree, 'something else it was asked', false)
+    const read = () => parse(readFileSync(join(task.worktree, '.wilco', 'task.yaml'), 'utf8')).title
+    expect(read()).toBe('look at the logs')
+    await setTitle(task.worktree, 'Refund retries', true)
+    expect(read()).toBe('Refund retries')
+  })
+
+  it('removes cleanly when it never did anything', async () => {
+    const { repo, task } = await detached()
+    const result = await removeTask({ root: repo.root, worktree: task.worktree, branch: '' })
+    expect(result).toEqual({ removed: true, branchDeleted: false })
+    expect(existsSync(task.worktree)).toBe(false)
+  })
+
+  it('makes short branch names from long titles', () => {
+    expect(branchSlug('Fix: the double-charge when Stripe retries the webhook')).toBe(
+      'fix-the-double-charge-when-stripe',
+    )
+    expect(branchSlug('!!!')).toBe('work')
   })
 })

@@ -7,6 +7,8 @@
 //
 // Pure, like the drawing it comes from.
 
+import type { MenuSubject } from './panels.ts'
+
 export type Target =
   | { kind: 'task'; task: string }
   | { kind: 'task-menu'; task: string }
@@ -16,6 +18,10 @@ export type Target =
   | { kind: 'file'; path: string }
   /** A folder in the FILES tree: clicking it opens or closes it. */
   | { kind: 'folder'; path: string }
+  /** The branch under GIT: clicking it is its menu. */
+  | { kind: 'branch' }
+  /** A ≡ that opens something's menu. */
+  | { kind: 'menu'; subject: MenuSubject }
   /** Somewhere the wheel scrolls, laid under what is drawn there. */
   | { kind: 'scroll'; area: 'sidebar' | 'panel' }
   /** A file the task changed: clicking it shows the change. */

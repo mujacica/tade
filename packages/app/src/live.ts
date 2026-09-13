@@ -19,7 +19,7 @@ import type { Workbench } from '@wilco/workbench'
 import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { LaneRecord } from '@wilco/workbench/registry'
 import type { PendingApproval } from '@wilco/workbench/workers'
-import { type FileEntry, type Listed, treeOf } from './files.ts'
+import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
 import type { Change } from './view.ts'
@@ -59,6 +59,8 @@ export function snapshotsFrom(
       snapshots.push({
         task: task.id,
         state: task.state,
+        title: task.title ?? null,
+        branch: task.branch,
         lane: lane?.id ?? null,
         waiting: pending.some((approval) => approval.task === task.id),
         approval: approvalOf(pending, task.id),
@@ -161,6 +163,12 @@ export interface LiveOptions {
   onWarning?: (message: string) => void
   /** Something drawn from a background look has changed. */
   onChange?: () => void
+  /**
+   * An agent that started without a branch has changed something, so its work
+   * now needs one. Said on every look until it has one; acting once is the
+   * listener's business.
+   */
+  onWork?: (task: { id: string; project: string; worktree: string; title: string }) => void
 }
 
 export class Live {
@@ -171,6 +179,8 @@ export class Live {
   private readonly worktrees = new Map<string, string>()
   /** The last listing of each folder, so the sidebar is not a disk read. */
   private readonly listings = new Map<string, { at: number; entries: Listed[] }>()
+  /** What git says about the files of each folder the tree is showing, as last looked. */
+  private readonly marks = new Map<string, { at: number; marks: Record<string, string> }>()
   /** The branch each project's checkout was last seen on, and whether a look is under way. */
   private readonly branches = new Map<string, { at: number; branch: string | null }>()
   /** The last look at what each task has changed, and whether one is under way. */
@@ -266,6 +276,48 @@ export class Live {
     }
     this.listings.set(dir, { at: this.now(), entries })
     return entries
+  }
+
+  /**
+   * What git says about each file under a folder — changed, new, conflicted —
+   * for marking them in the tree. From the last look; looks again in the
+   * background, like everything else drawn four times a second.
+   */
+  marksAt(root: string | null): Readonly<Record<string, string>> {
+    if (!root) return {}
+    const seen = this.marks.get(root)
+    if (!seen || this.now() - seen.at >= LISTING_MS) {
+      this.marks.set(root, { at: this.now(), marks: seen?.marks ?? {} })
+      void git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all'])
+        .then((out) => {
+          if (!out.ok) return
+          const marks = marksFrom(out.stdout)
+          const was = JSON.stringify(seen?.marks ?? {})
+          this.marks.set(root, { at: this.now(), marks })
+          if (JSON.stringify(marks) !== was) this.opts.onChange?.()
+        })
+        .catch(() => {})
+    }
+    return seen?.marks ?? {}
+  }
+
+  /** The project checkout's branches, newest first, and the one it is on. */
+  async branchesOf(root: string): Promise<{ name: string; current: boolean; when: string }[]> {
+    const out = await git(root, [
+      'for-each-ref',
+      '--sort=-committerdate',
+      '--format=%(HEAD)%00%(refname:short)%00%(committerdate:relative)',
+      'refs/heads',
+    ])
+    if (!out.ok) return []
+    return out.stdout
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [head, name, when] = line.split('\0')
+        return { name: name ?? '', current: head === '*', when: when ?? '' }
+      })
+      .filter((row) => row.name !== '')
   }
 
   /**
@@ -430,6 +482,15 @@ export class Live {
             branch: task.branch,
             ahead: task.git?.ahead ?? null,
           })
+          const worked = (task.git?.dirty.length ?? 0) > 0 || (task.git?.ahead ?? 0) > 0
+          if (!task.branch && worked) {
+            this.opts.onWork?.({
+              id: task.id,
+              project: project.name,
+              worktree: task.worktree,
+              title: task.title ?? task.id.split('/').at(-1) ?? task.id,
+            })
+          }
         }
       }
       this.snapshots = snapshotsFrom(workspace, pending, lanes)

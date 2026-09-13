@@ -94,6 +94,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **An agent is a lane with pi in it**, named `<task>/agent`, talking in a pi session named after
   the task. That session id never changes, which is what makes reopening ordinary: the same command
   line starts the conversation the first time and continues it every time after.
+- **A task's id is in its `.wilco/task.yaml`, not its branch.** An agent opened from the window
+  starts on no branch (a detached worktree) and is given `wilco/<its title>` at its first change;
+  its lanes and session keep the id it was made with. Status finds a branchless worktree only by that
+  file, and never renames a branch it did not make.
 - **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
   lane output never goes in the log (it lives in the lane's scrollback), only sampled byte counts.
 - Under subscriber backpressure, `trace` events are dropped first and `blocking` events never.

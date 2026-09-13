@@ -77,7 +77,9 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     if (baseRef === null) warnings.push(`${ref.name}: no base branch (main/master) found`)
 
     for (const wt of list) {
-      if (!wt.branch?.startsWith(TASK_BRANCH_PREFIX)) continue
+      // A `wilco/*` branch, or a worktree with no branch at all: an agent that
+      // has not changed anything yet has nothing to name one after.
+      if (wt.branch ? !wt.branch.startsWith(TASK_BRANCH_PREFIX) : wt.bare) continue
       const task = await buildTask(ref, wt, baseRef, opts, liveness, sessions, claimed, warnings)
       if (task) tasks.push(task)
     }
@@ -111,19 +113,24 @@ async function buildTask(
   claimed: Set<Located>,
   warnings: string[],
 ): Promise<Task | null> {
-  const branch = wt.branch!
-  const slug = branch.slice(TASK_BRANCH_PREFIX.length).replaceAll('/', '-')
-  const id = `${ref.name}/${slug}`
+  const branch = wt.branch ?? ''
+  const file = await readTaskFile(wt.path)
+  // Without a branch, only Wilco's own record says this worktree is a task.
+  if (!branch && file.kind !== 'ok') return null
+  const tf = file.kind === 'ok' ? file.value : null
+
+  // The id the task was made with, which never changes: a branch can be given
+  // a name after the fact, and an agent's lanes and session are keyed by this.
+  const fromBranch = `${ref.name}/${branch.slice(TASK_BRANCH_PREFIX.length).replaceAll('/', '-')}`
+  const id = tf?.id?.startsWith(`${ref.name}/`) ? tf.id : fromBranch
   if (!TaskId.safeParse(id).success) {
     warnings.push(`${ref.name}: branch ${branch} does not make a valid task id`)
     return null
   }
 
-  const file = await readTaskFile(wt.path)
   if (file.kind === 'absent' && !wt.prunable) return null // a wilco/* branch without a task
   if (file.kind === 'invalid') warnings.push(`${id}: .wilco/task.yaml: ${file.error}`)
   if (file.kind === 'absent') warnings.push(`${id}: worktree directory is missing`)
-  const tf = file.kind === 'ok' ? file.value : null
 
   const g = await probeGit(wt.path, { baseRef, taskBase: tf?.base, pr: opts.pr })
   warnings.push(...g.warnings)
@@ -146,6 +153,7 @@ async function buildTask(
     project: ref.name,
     intent_spoken: tf?.intent_spoken ?? '',
     branch,
+    ...(tf?.title ? { title: tf.title } : {}),
     worktree: wt.path,
     created: tf ? tf.created.toISOString() : '',
     ...derived,

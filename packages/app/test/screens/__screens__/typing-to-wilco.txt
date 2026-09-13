@@ -17,10 +17,10 @@
      package.json             │                                                                                         
      README.md                │                                                                                         
                               │                                                                                         
- ▸ NOTES  4                   │                                                                                         
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
  ▾ GIT                        │                                                                                         
    repo     ~/src/checkout    │                                                                                         
-   branch   wilco/stripe-v15  │                                                                                         
+   branch   …lco/stripe-v15   │                                                                                         
 ━ orchestrator ── here ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

@@ -24,6 +24,10 @@ export interface AgentPane {
   project: string
   /** The task's own name, which is what people say out loud. */
   name: string
+  /** What the work is called, once the agent has said: shown in place of the name. */
+  title: string | null
+  /** Its branch; empty until an agent that started without one changes something. */
+  branch: string
   /** Lane whose screen this pane draws, when the agent has one. */
   lane: string | null
   state: TaskState
@@ -128,6 +132,8 @@ export function initialState(): AppState {
 export interface TaskSnapshot {
   task: string
   state: TaskState
+  title?: string | null
+  branch?: string
   lane?: string | null
   waiting?: boolean
   approval?: { tool: string; summary: string } | null
@@ -143,6 +149,8 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     task: task.task,
     project: task.task.split('/')[0] ?? task.task,
     name: task.task.split('/').at(-1) ?? task.task,
+    title: task.title ?? null,
+    branch: task.branch ?? '',
     lane: task.lane ?? null,
     state: task.state,
     waiting: task.waiting ?? false,
@@ -229,13 +237,21 @@ export function focusTask(state: AppState, task: string): AppState {
  * everybody sees first.
  */
 export function focusBy(state: AppState, delta: number): AppState {
-  // `null` is the orchestrator, and it is always there.
+  // `null` is the orchestrator, and it is always there. Being at it means its
+  // line is open; the agent you were watching stays in view behind it.
   const ring: Array<string | null> = [...state.panes.map((pane) => pane.task), null]
-  const at = ring.indexOf(state.focused)
+  const here = state.dictation !== null ? null : state.focused
+  const at = ring.indexOf(here)
   const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length
   const focused = ring[next] ?? null
+  if (focused === null) return { ...state, dictation: state.dictation ?? '' }
   const project = state.panes.find((pane) => pane.task === focused)?.project ?? state.project
-  return { ...state, focused, project }
+  return { ...state, focused, project, dictation: null }
+}
+
+/** What an agent is shown as: what its work is called, once it has said, else its name. */
+export function shownName(pane: { name: string; title: string | null }): string {
+  return pane.title ?? pane.name
 }
 
 /** What you can ask for by name, rather than by remembering a phrase. */

@@ -72,6 +72,8 @@ describe('snapshotsFrom', () => {
       {
         task: 'checkout/refunds',
         state: 'working',
+        title: null,
+        branch: expect.any(String),
         lane: null,
         waiting: false,
         approval: null,
@@ -80,6 +82,8 @@ describe('snapshotsFrom', () => {
       {
         task: 'checkout/stripe-v15',
         state: 'blocked',
+        title: null,
+        branch: expect.any(String),
         lane: null,
         waiting: false,
         approval: null,

@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { filePanel, panelClick, panelKey, searchPanel, spendPanel } from '../src/panels.ts'
+import {
+  branchChoices,
+  branchMenuItems,
+  branchPanel,
+  changeMenuItems,
+  fileMenuItems,
+  filePanel,
+  panelClick,
+  panelKey,
+  promptPanel,
+  searchPanel,
+  spendPanel,
+} from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 
 // What a key or a click does to a panel, without a terminal.
@@ -80,5 +92,106 @@ describe('the file viewer', () => {
     expect(panelKey(at, 'e', 'e')).toMatchObject({ submit: true, choice: 'editor' })
     expect(panelClick(at, 'editor')).toMatchObject({ submit: true, choice: 'editor' })
     expect(panelKey(at, 'escape', '\x1b').panel).toBeNull()
+  })
+})
+
+describe('menus beside the agents', () => {
+  it('offer a file what can be done with it, and say why not', () => {
+    const items = fileMenuItems({
+      folder: false,
+      open: false,
+      changed: false,
+      agent: false,
+      platform: 'darwin',
+    })
+    expect(items.map((item) => item.id)).toEqual([
+      'open',
+      'editor',
+      'changes',
+      'ask',
+      'copy-path',
+      'copy-relative',
+      'reveal',
+    ])
+    expect(items.find((item) => item.id === 'changes')?.off).toBe('unchanged')
+    expect(items.find((item) => item.id === 'reveal')?.label).toBe('Reveal in Finder')
+  })
+
+  it('offer a folder a search inside it', () => {
+    const items = fileMenuItems({
+      folder: true,
+      open: true,
+      changed: false,
+      agent: true,
+      platform: 'linux',
+    })
+    expect(items[0]?.label).toBe('Collapse')
+    expect(items.some((item) => item.id === 'search')).toBe(true)
+  })
+
+  it('only discard what is not committed', () => {
+    expect(
+      changeMenuItems({ uncommitted: false, agent: true }).find((i) => i.id === 'discard')?.off,
+    ).toBe('committed')
+  })
+
+  it("switch the project, but rename an agent's branch rather than switch it out from under it", () => {
+    expect(branchMenuItems({ agent: false, name: 'main' }).map((i) => i.id)).toContain('switch')
+    const agent = branchMenuItems({ agent: true, name: '' })
+    expect(agent.map((i) => i.id)).not.toContain('switch')
+    expect(agent[0]?.label).toBe('Name the branch now…')
+  })
+})
+
+describe('a note', () => {
+  it('is typed word for word, turned to everything with tab, and saved on enter', () => {
+    let panel = panelKey(
+      promptPanel('note', 'New note', 'NOTE'),
+      undefined,
+      'Staging Key rotates',
+    ).panel
+    expect(panel).toMatchObject({ text: 'Staging Key rotates' })
+    panel = panel ? panelKey(panel, 'tab', '\t').panel : null
+    expect(panel).toMatchObject({ everywhere: true })
+    const saved = panel ? panelKey(panel, 'enter', '\r') : null
+    expect(saved).toMatchObject({ submit: true, choice: 'save', panel: { busy: true } })
+  })
+
+  it('refuses to save nothing', () => {
+    const outcome = panelKey(promptPanel('note', 'New note', 'NOTE'), 'enter', '\r')
+    expect(outcome.submit).toBe(false)
+    expect(outcome.panel).toMatchObject({ error: 'Write the note first.' })
+  })
+
+  it('turns a space in a branch name into a dash', () => {
+    const panel = panelKey(
+      promptPanel('new-branch', 'New branch', 'NAME'),
+      undefined,
+      'fix refunds',
+    ).panel
+    expect(panel).toMatchObject({ text: 'fix-refunds' })
+  })
+})
+
+describe('switching branch', () => {
+  const rows = [
+    { name: 'main', current: true, when: 'now' },
+    { name: 'fix/refunds', current: false, when: 'yesterday' },
+  ]
+
+  it('narrows, and offers to create a name nobody has', () => {
+    expect(branchChoices(rows, 'fix').map((c) => [c.name, c.create])).toEqual([
+      ['fix', true],
+      ['fix/refunds', false],
+    ])
+    expect(branchChoices(rows, 'main').map((c) => c.create)).toEqual([false])
+  })
+
+  it('switches to the chosen branch on enter', () => {
+    const panel = { ...branchPanel(), query: 'refunds', index: 1 }
+    expect(panelKey(panel, 'enter', '\r', { branches: rows })).toMatchObject({
+      submit: true,
+      choice: 'switch:fix/refunds',
+    })
   })
 })

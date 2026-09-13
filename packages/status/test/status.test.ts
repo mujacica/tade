@@ -131,6 +131,28 @@ describe('collectStatus', () => {
     })
   })
 
+  it('finds an agent that has no branch yet, and keeps its id once it has one', async () => {
+    const r = mkrepo()
+    const wt = join(r.root, '..', 'agent-1')
+    r.git('worktree', 'add', '-q', '--detach', wt, 'main')
+    mkdirSync(join(wt, '.wilco'), { recursive: true })
+    writeFileSync(
+      join(wt, '.wilco', 'task.yaml'),
+      'id: app/agent-1\nproject: app\nintent_spoken: ""\ncreated: 2026-09-11T11:00:00Z\ntitle: refund retries\n',
+    )
+    // A detached worktree Wilco did not make is nobody's task.
+    r.git('worktree', 'add', '-q', '--detach', join(r.root, '..', 'somebody'), 'main')
+
+    let ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    expect(ws.projects[0]?.tasks.map((t) => [t.id, t.branch, t.title])).toEqual([
+      ['app/agent-1', '', 'refund retries'],
+    ])
+
+    r.git('-C', wt, 'switch', '-q', '-c', 'wilco/refund-retries')
+    ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    expect(task(ws, 'app/agent-1')?.branch).toBe('wilco/refund-retries')
+  })
+
   describe('never throws', () => {
     it('corrupt .git', async () => {
       const r = mkrepo()

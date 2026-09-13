@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   type Component,
   isKeyRelease,
@@ -28,6 +28,7 @@ import {
   resolveRoute,
   settingsOf,
 } from '@wilco/core'
+import { git } from '@wilco/status'
 import {
   type AudioClip,
   type Recorder,
@@ -68,6 +69,7 @@ import {
   setHeld,
   setListening,
   setQuestion,
+  shownName,
   toggleFolder,
   toggleSection,
   viewLane,
@@ -77,11 +79,17 @@ import {
 } from './model.ts'
 import { fileViewSize, type OpenRowView } from './panel-view.ts'
 import {
+  type BranchRow,
+  branchMenuItems,
+  branchPanel,
   type Choice,
   type ConfirmRemovePanel,
+  changeMenuItems,
   confirmRemovePanel,
   diffPanel,
+  fileMenuItems,
   filePanel,
+  type MenuSubject,
   menuItems,
   menuPanel,
   nameFrom,
@@ -91,8 +99,10 @@ import {
   type Panel,
   type PanelInputs,
   type PanelOutcome,
+  type PromptPanel,
   panelClick,
   panelKey,
+  promptPanel,
   type SettingsPanel,
   searchPanel,
   settingsPanel,
@@ -262,6 +272,15 @@ export class App {
   private readonly opening = new Set<string>()
   /** A new agent is being made. */
   private starting = false
+  /** Projects this window has already opened an agent in on its own. */
+  private readonly opened = new Set<string>()
+  /** Agents whose branch is being named, so a slow git is not asked twice. */
+  private readonly naming = new Set<string>()
+  /** The project checkout's branches, for the Switch branch panel. */
+  private branchRows: BranchRow[] = []
+  /** The focused lane's output, watched so the pane redraws as the agent types. */
+  private watching: { lane: string; stop: () => void } | null = null
+  private soon: NodeJS.Timeout | null = null
   private screen = ''
   private recording: Recording | null = null
   /** The diff the diff panel is showing, once git has answered. */
@@ -348,6 +367,8 @@ export class App {
     if (this.stopped) return
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
+    if (this.soon) clearTimeout(this.soon)
+    this.watching?.stop()
     this.remember()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
@@ -385,11 +406,43 @@ export class App {
     }
   }
 
-  /** The items of an open task menu, from what is true of the task now. */
+  /** The items of an open menu, from what is true of its subject now. */
   private menuItemsFor(panel: Panel | null) {
     if (panel?.kind !== 'menu') return []
-    const pane = this.state.panes.find((p) => p.task === panel.task)
-    return pane ? menuItems(pane, this.live?.changes(panel.task).length ?? 0) : []
+    const subject = panel.subject
+    const focused = this.state.panes.find((p) => p.task === this.state.focused)
+    const agent = focused?.lane != null
+    switch (subject.kind) {
+      case 'task': {
+        const pane = this.state.panes.find((p) => p.task === subject.task)
+        return pane ? menuItems(pane, this.live?.changes(subject.task).length ?? 0) : []
+      }
+      case 'file': {
+        const marks = this.live?.marksAt(this.hereOnDisk()) ?? {}
+        return fileMenuItems({
+          folder: subject.folder,
+          open: this.state.expanded.includes(subject.path),
+          changed:
+            focused !== undefined &&
+            (this.live?.changes(focused.task) ?? []).some((change) => change.path === subject.path),
+          agent,
+          platform: process.platform,
+        }).map((item) =>
+          // A file with uncommitted changes can always show them, agent or not.
+          item.id === 'changes' && marks[subject.path] && focused
+            ? { id: item.id, label: item.label }
+            : item,
+        )
+      }
+      case 'change': {
+        const marks = this.live?.marksAt(this.hereOnDisk()) ?? {}
+        return changeMenuItems({ uncommitted: marks[subject.path] !== undefined, agent })
+      }
+      case 'branch': {
+        const branch = focused ? (this.live?.factsOf(focused.task)?.branch ?? '') : ''
+        return branchMenuItems({ agent: focused !== undefined, name: branch })
+      }
+    }
   }
 
   /**
@@ -418,6 +471,7 @@ export class App {
     const panel = this.state.panel
     if (!panel) return {}
     if (panel.kind === 'menu') return { items: this.menuItemsFor(panel) }
+    if (panel.kind === 'branch') return { branches: this.branchRows }
     if (panel.kind === 'confirm-remove') {
       const facts = live.factsOf(panel.task)
       return {
@@ -512,6 +566,7 @@ export class App {
       layout: this.layout(),
       skin: this.skin,
       files: live.files(worktree ?? repo, this.state.expanded),
+      fileMarks: live.marksAt(worktree ?? repo),
       where: repo
         ? {
             repo: tilde(repo),
@@ -643,8 +698,11 @@ export class App {
         this.draw()
       },
       onChange: () => this.draw(),
+      onWork: (task) => void this.nameAgent(task),
     })
     this.live = live
+    // Never an empty project: the one you open in gets an agent, ready to type to.
+    this.ensureAgent(this.state.project)
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice = await VoiceSurface.start({
@@ -793,10 +851,13 @@ export class App {
       this.clickPanel(target)
       return
     }
-    // A right-click on a task is its menu, as it is on anything else you own.
-    if (button === 'right' && (target.kind === 'task' || target.kind === 'task-menu')) {
-      this.openMenu(target.task, at)
-      return
+    // A right-click is the menu of whatever it is on, as it is everywhere else.
+    if (button === 'right') {
+      const subject = subjectOf(target)
+      if (subject) {
+        this.openMenu(subject, at)
+        return
+      }
     }
     switch (target.kind) {
       case 'task': {
@@ -813,7 +874,13 @@ export class App {
         this.state = viewLane(this.state, target.task, target.lane)
         break
       case 'task-menu':
-        this.openMenu(target.task, at)
+        this.openMenu({ kind: 'task', task: target.task }, at)
+        return
+      case 'menu':
+        this.openMenu(target.subject, at)
+        return
+      case 'branch':
+        this.openMenu({ kind: 'branch' }, at)
         return
       case 'change':
         void this.openDiff(target.task, target.path)
@@ -822,6 +889,7 @@ export class App {
         this.state = selectProject(this.state, target.project)
         const root = this.opts.config.projects[target.project]?.root
         if (root) noteRecent(this.opts.home, target.project, root, this.now())
+        this.ensureAgent(target.project)
         break
       }
       case 'section':
@@ -831,7 +899,8 @@ export class App {
         this.state = toggleFolder(this.state, target.path)
         break
       case 'orchestrator':
-        this.state = { ...this.state, focused: null, chose: true }
+        // The keyboard goes to the orchestrator's line; the agent you were
+        // watching stays in view behind it, a click away.
         if (this.state.dictation === null) this.state = setDictation(this.state, '')
         break
       case 'file':
@@ -904,6 +973,17 @@ export class App {
         return
       case 'open-agent':
         await this.openAgent()
+        return
+      case 'add-note':
+        this.state = {
+          ...this.state,
+          panel: promptPanel(
+            'note',
+            'New note',
+            `NOTE ABOUT ${(this.state.project ?? 'THIS PROJECT').toUpperCase()}`,
+          ),
+        }
+        this.draw()
         return
       case 'copy-path': {
         const path = this.hereOnDisk()
@@ -1104,8 +1184,17 @@ export class App {
       case 'menu':
         this.state = { ...this.state, panel: null }
         this.draw()
-        await this.fromMenu(panel.task, choice ?? '')
+        await this.fromMenu(panel.subject, choice ?? '')
         return
+      case 'prompt':
+        await this.savePrompt(panel)
+        break
+      case 'branch':
+        await this.switchBranch(choice ?? '')
+        break
+      case 'confirm':
+        await this.discard(panel.task, panel.path)
+        break
       case 'confirm-remove':
         await this.removeTask(panel)
         break
@@ -1391,17 +1480,290 @@ export class App {
     this.draw()
   }
 
-  /** A task's menu, opened where you clicked, just below and to the left. */
-  private openMenu(task: string, at: { x: number; y: number }): void {
+  /** Something's menu, opened where you clicked, just below and to the left. */
+  private openMenu(subject: MenuSubject, at: { x: number; y: number }): void {
+    const base = subject.kind === 'task' ? focusTask(this.state, subject.task) : this.state
+    const pane =
+      subject.kind === 'task' ? this.state.panes.find((p) => p.task === subject.task) : null
+    const focused = this.state.panes.find((p) => p.task === this.state.focused)
+    const title =
+      subject.kind === 'task'
+        ? pane
+          ? shownName(pane)
+          : subject.task
+        : subject.kind === 'branch'
+          ? (focused
+              ? this.live?.factsOf(focused.task)?.branch
+              : this.live?.branchAt(this.hereOnDisk() ?? '')) || 'branch'
+          : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
-      ...focusTask(this.state, task),
-      panel: menuPanel(task, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
+      ...base,
+      panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
     }
     this.draw()
   }
 
   /** What a menu item does. Each is exactly what it says. */
-  private async fromMenu(task: string, item: string): Promise<void> {
+  private async fromMenu(subject: MenuSubject, item: string): Promise<void> {
+    switch (subject.kind) {
+      case 'task':
+        return this.fromTaskMenu(subject.task, item)
+      case 'file':
+        return this.fromFileMenu(subject.path, subject.folder, item)
+      case 'change':
+        return this.fromChangeMenu(subject.task, subject.path, item)
+      case 'branch':
+        return this.fromBranchMenu(item)
+    }
+  }
+
+  private async copy(text: string): Promise<void> {
+    const copied = await copyText(text, (data) => this.terminal.write(data))
+    this.state = notice(this.state, copied ? `copied ${text}` : text)
+    this.draw()
+  }
+
+  private async fromFileMenu(path: string, folder: boolean, item: string): Promise<void> {
+    const full = this.resolvePath(path)
+    const focused = this.state.panes.find((p) => p.task === this.state.focused)
+    switch (item) {
+      case 'open':
+        this.openFile(full)
+        return
+      case 'toggle':
+        this.state = toggleFolder(this.state, path)
+        break
+      case 'search':
+        this.openSearch(`${path}/`)
+        return
+      case 'editor':
+        await this.openPlace({ path: full })
+        return
+      case 'changes':
+        if (focused) await this.openDiff(focused.task, path)
+        return
+      case 'ask':
+        if (focused) await this.askAbout(focused.task, path)
+        break
+      case 'copy-path':
+        await this.copy(full)
+        return
+      case 'copy-relative':
+        await this.copy(path)
+        return
+      case 'reveal':
+        await this.reveal(full, folder)
+        return
+      default:
+        break
+    }
+    this.draw()
+  }
+
+  private async fromChangeMenu(task: string | null, path: string, item: string): Promise<void> {
+    const full = this.resolvePath(path)
+    switch (item) {
+      case 'diff':
+        if (task) await this.openDiff(task, path)
+        return
+      case 'open':
+        this.openFile(full)
+        return
+      case 'editor':
+        await this.openPlace({ path: full })
+        return
+      case 'ask':
+        if (task) await this.askAbout(task, path)
+        break
+      case 'copy-path':
+        await this.copy(full)
+        return
+      case 'discard':
+        this.state = {
+          ...this.state,
+          panel: {
+            kind: 'confirm',
+            purpose: 'discard',
+            task,
+            path,
+            field: 'keep',
+            busy: false,
+            error: null,
+          },
+        }
+        break
+      default:
+        break
+    }
+    this.draw()
+  }
+
+  private async fromBranchMenu(item: string): Promise<void> {
+    const focused = this.state.panes.find((p) => p.task === this.state.focused)
+    const here = this.hereOnDisk()
+    const branch = focused
+      ? (this.live?.factsOf(focused.task)?.branch ?? '')
+      : (this.live?.branchAt(here ?? '') ?? '')
+    switch (item) {
+      case 'switch': {
+        this.branchRows = here ? await (this.live?.branchesOf(here) ?? []) : []
+        this.state = { ...this.state, panel: branchPanel() }
+        break
+      }
+      case 'new':
+        this.state = {
+          ...this.state,
+          panel: promptPanel('new-branch', 'New branch', 'BRANCH NAME'),
+        }
+        break
+      case 'rename':
+        this.state = {
+          ...this.state,
+          panel: promptPanel(
+            'rename-branch',
+            branch ? 'Rename branch' : 'Name the branch',
+            'BRANCH NAME',
+            branch ? branch.replace(/^wilco\//, '') : '',
+          ),
+        }
+        break
+      case 'pull': {
+        if (!here) break
+        const out = await git(here, ['pull', '--ff-only'], 60_000)
+        this.state = notice(
+          this.state,
+          out.ok ? `pulled ${branch || 'the branch'}` : `pull failed: ${out.stderr.split('\n')[0]}`,
+        )
+        break
+      }
+      case 'copy':
+        if (branch) await this.copy(branch)
+        return
+      case 'copy-path':
+        if (here) await this.copy(here)
+        return
+      case 'changes': {
+        if (!focused) break
+        const first = this.live?.changes(focused.task)[0]
+        if (first) await this.openDiff(focused.task, first.path)
+        else this.state = notice(this.state, `${shownName(focused)} has not changed anything yet`)
+        break
+      }
+      default:
+        break
+    }
+    this.draw()
+  }
+
+  /** Reveal a file in the system's file manager. */
+  private async reveal(path: string, folder: boolean): Promise<void> {
+    try {
+      if (process.platform === 'darwin') {
+        await launch({ kind: 'detached', command: 'open', args: folder ? [path] : ['-R', path] })
+      } else {
+        await launch({
+          kind: 'detached',
+          command: 'xdg-open',
+          args: [folder ? path : dirname(path)],
+        })
+      }
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+      this.draw()
+    }
+  }
+
+  /** Carry out a one-line panel: keep a note, or make or rename a branch. */
+  private async savePrompt(panel: PromptPanel): Promise<void> {
+    const text = panel.text.trim()
+    const fail = (error: string) => {
+      this.state = { ...this.state, panel: { ...panel, busy: false, error } }
+    }
+    try {
+      if (panel.purpose === 'note') {
+        const scope = panel.everywhere ? null : this.state.project
+        this.opts.client.remember(text, scope, 'window')
+        this.state = notice({ ...this.state, panel: null }, 'noted')
+        return
+      }
+      const here = this.hereOnDisk()
+      if (!here) return fail('There is no checkout here to make a branch in.')
+      if (panel.purpose === 'new-branch') {
+        const out = await git(here, ['switch', '-c', text])
+        if (!out.ok) return fail(out.stderr.split('\n')[0] ?? 'git would not make it')
+        this.state = notice({ ...this.state, panel: null }, `on ${text}`)
+        return
+      }
+      const focused = this.state.panes.find((p) => p.task === this.state.focused)
+      if (!focused) return fail('Open the agent whose branch this is.')
+      const current = this.live?.factsOf(focused.task)?.branch ?? ''
+      const root = this.opts.config.projects[focused.project]?.root
+      if (!current) {
+        if (!root) return fail('I cannot find the project this agent belongs to.')
+        const made = await this.opts.client.nameTask({
+          task: focused.task,
+          root: expandHome(root),
+          worktree: here,
+          title: text,
+        })
+        this.state = notice({ ...this.state, panel: null }, `on ${made}`)
+      } else {
+        const name = text.startsWith('wilco/') ? text : `wilco/${text}`
+        const out = await git(here, ['branch', '-m', current, name])
+        if (!out.ok) return fail(out.stderr.split('\n')[0] ?? 'git would not rename it')
+        this.state = notice({ ...this.state, panel: null }, `renamed to ${name}`)
+      }
+      await this.live?.refresh()
+    } catch (err) {
+      fail(why(err))
+    }
+  }
+
+  /** Switch the project's checkout to a branch, or to a new one. */
+  private async switchBranch(choice: string): Promise<void> {
+    const panel = this.state.panel
+    const [verb, ...rest] = choice.split(':')
+    const name = rest.join(':')
+    const here = this.hereOnDisk()
+    if (!here || !name || panel?.kind !== 'branch') return
+    const out = await git(
+      here,
+      verb === 'create' ? ['switch', '-c', name] : ['switch', name],
+      30_000,
+    )
+    if (!out.ok) {
+      // Git's own words: an unstaged change in the way is a reason worth reading.
+      this.state = {
+        ...this.state,
+        panel: { ...panel, busy: false, error: out.stderr.split('\n')[0] ?? 'git refused' },
+      }
+      return
+    }
+    this.state = notice({ ...this.state, panel: null }, `on ${name}`)
+    await this.live?.refresh()
+  }
+
+  /** Throw away a file's uncommitted changes: back to the last commit, or gone if never committed. */
+  private async discard(task: string | null, path: string): Promise<void> {
+    const panel = this.state.panel
+    const root = task ? this.live?.worktreeOf(task) : this.hereOnDisk()
+    if (!root || panel?.kind !== 'confirm') return
+    const marks = this.live?.marksAt(root) ?? {}
+    const out =
+      marks[path] === 'U'
+        ? await git(root, ['clean', '-f', '--', path])
+        : await git(root, ['restore', '--staged', '--worktree', '--source=HEAD', '--', path])
+    if (!out.ok) {
+      this.state = {
+        ...this.state,
+        panel: { ...panel, busy: false, error: out.stderr.split('\n')[0] ?? 'git refused' },
+      }
+      return
+    }
+    this.state = notice({ ...this.state, panel: null }, `discarded ${path}`)
+  }
+
+  private async fromTaskMenu(task: string, item: string): Promise<void> {
     const facts = this.live?.factsOf(task)
     const worktree = this.live?.worktreeOf(task)
     switch (item) {
@@ -1725,15 +2087,18 @@ export class App {
     const taken = new Set(
       this.state.panes.filter((pane) => pane.project === project).map((pane) => pane.name),
     )
+    // Said without words, it is an agent to look around with: no branch until
+    // it changes something, and then one named for what it did.
+    const detached = intent === ''
     const stem = (intent ? slugify(intent) : '') || 'agent'
     for (let n = 1; n <= 100; n++) {
       const slug = intent && n === 1 ? stem : `${stem}-${n}`
       if (taken.has(slug)) continue
       let task: Awaited<ReturnType<Workbench['createTask']>>
       try {
-        task = await this.opts.client.createTask({ project, slug, intent })
+        task = await this.opts.client.createTask({ project, slug, intent, detached })
       } catch (err) {
-        if (why(err).includes('branch already exists')) continue
+        if (/branch already exists|already exists/.test(why(err))) continue
         throw err
       }
       await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
@@ -1741,6 +2106,47 @@ export class App {
       return task.id
     }
     throw new Error(`every name like ${stem} is taken in ${project}`)
+  }
+
+  /**
+   * An agent in a project you open, so there is always somewhere to type. Once
+   * per project per window, and only where there is none: it costs a worktree
+   * and no branch, and pi opening sends nothing to a model until you type.
+   */
+  private ensureAgent(project: string | null): void {
+    if (!project || !this.live || this.opened.has(project)) return
+    if (!this.opts.config.projects[project]) return
+    this.opened.add(project)
+    if (this.state.panes.some((pane) => pane.project === project)) return
+    void this.newAgent('')
+  }
+
+  /**
+   * An agent that started without a branch has changed something: give it one,
+   * named for its work. Once — a failure is said, not retried every two seconds.
+   */
+  private async nameAgent(task: {
+    id: string
+    project: string
+    worktree: string
+    title: string
+  }): Promise<void> {
+    const root = this.opts.config.projects[task.project]?.root
+    if (!root || this.naming.has(task.id)) return
+    this.naming.add(task.id)
+    try {
+      const branch = await this.opts.client.nameTask({
+        task: task.id,
+        root: expandHome(root),
+        worktree: task.worktree,
+        title: task.title,
+      })
+      await this.live?.refresh()
+      this.state = notice(this.state, `${task.title} is working on ${branch}`)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
   }
 
   /** Open the agent in front of you: the conversation picks up where it stopped. */
@@ -1912,12 +2318,43 @@ export class App {
     const lane = pane ? laneShown(this.state, pane) : null
     const size = this.paneSize()
     if (lane) await this.fitLane(lane, size)
-    this.title(pane ? `${pane.project} › ${pane.name}` : null)
+    this.watch(lane)
+    this.title(pane ? `${pane.project} › ${shownName(pane)}` : null)
     const screen = await (this.live?.capture(lane, size.rows, this.skin.colour) ?? '')
     if (screen !== this.screen || this.state.talkingSince !== null) {
       this.screen = screen
       this.draw()
     }
+  }
+
+  /**
+   * Watch the lane in front of you, so what it prints is on screen at once
+   * rather than at the next quarter-second look. Typing waited for that look,
+   * which is what made an agent feel slow to type into.
+   */
+  private watch(lane: string | null): void {
+    if (this.watching?.lane === lane) return
+    this.watching?.stop()
+    this.watching = null
+    if (!lane) return
+    const watching = { lane, stop: () => {} }
+    this.watching = watching
+    void this.opts.client
+      .watch(lane as LaneId, () => this.soonTick(), { lines: 1 })
+      .then((watched) => {
+        if (this.watching === watching) watching.stop = watched.stop
+        else watched.stop()
+      })
+      .catch(() => {})
+  }
+
+  /** Look at the lane again in a moment: the terminal emulator parses what arrived first. */
+  private soonTick(): void {
+    if (this.soon || this.stopped) return
+    this.soon = setTimeout(() => {
+      this.soon = null
+      void this.tick()
+    }, 16)
   }
 
   /** The agent's part of the window: the pane, less its title and rule. */
@@ -2100,6 +2537,7 @@ export class App {
     if (!chosen) return fail('Choose a folder, or a recent project.')
     if (chosen.kind === 'recent') {
       this.state = { ...selectProject(this.state, chosen.name), panel: null }
+      this.ensureAgent(chosen.name)
       noteRecent(this.opts.home, chosen.name, chosen.path, this.now())
       return
     }
@@ -2124,6 +2562,8 @@ export class App {
       noteRecent(this.opts.home, name, tilde(chosen.path), this.now())
       this.state = withProjects(this.state, Object.keys(loaded.config.projects))
       this.state = notice({ ...selectProject(this.state, name), panel: null }, `opened ${name}`)
+      await this.live?.refresh()
+      this.ensureAgent(name)
     } catch (err) {
       fail(why(err))
     }
@@ -2134,6 +2574,7 @@ export class App {
     return {
       entries: this.searchEntries(),
       lines: this.fileLines(),
+      branches: this.branchRows,
       rows:
         this.state.panel?.kind === 'open-project'
           ? this.openRowsFor(this.state.panel).map((view) => view.row)
@@ -2378,4 +2819,25 @@ function credentialLabel(kind: 'signed-in' | 'api-key' | 'env-key' | undefined):
   if (kind === 'api-key') return 'API key'
   if (kind === 'env-key') return 'env API key'
   return null
+}
+
+/** Whose menu a right-click on this would open, if it has one. */
+function subjectOf(target: Target): MenuSubject | null {
+  switch (target.kind) {
+    case 'task':
+    case 'task-menu':
+      return { kind: 'task', task: target.task }
+    case 'file':
+      return { kind: 'file', path: target.path, folder: false }
+    case 'folder':
+      return { kind: 'file', path: target.path, folder: true }
+    case 'change':
+      return { kind: 'change', task: target.task, path: target.path }
+    case 'branch':
+      return { kind: 'branch' }
+    case 'menu':
+      return target.subject
+    default:
+      return null
+  }
 }

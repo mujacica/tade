@@ -17,10 +17,10 @@
      package.json      │ BUDGETS                                                                │                       
      README.md         │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
                        │ search     $0.20                    no budget — set one                │                       
- ▸ NOTES  4            │                                                                        │                       
+ ▸ NOTES  4           ▐│                                                                        │                       
  ▾ GIT                 │ Prices as pi reports them.                                             │                       
    repo     ~/src/check╰────────────────────────────────────────────────────────────────────────╯                       
-   branch   wilco/stripe-v15  │                                                                                         
+   branch   …lco/stripe-v15   │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         
