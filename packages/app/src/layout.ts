@@ -60,12 +60,17 @@ export function resolveLayout(
   return { sidebarWidth, stripHeight, mainWidth: width - sidebarWidth - 1, bodyHeight }
 }
 
-/** What is worth writing down when the window closes. */
+/**
+ * What is worth writing down when the window closes.
+ *
+ * Which pane you were on, and nothing else. Sizes are deliberately absent: they
+ * come from the config and cannot be changed from inside the window, so
+ * remembering them would mean writing back a copy of a file we are about to
+ * read again — a second answer to a question that already has one.
+ */
 export interface RememberedWindow {
   /** The task whose pane had focus. */
   focused: string | null
-  sidebarWidth?: number
-  stripHeight?: number
 }
 
 /**
@@ -77,16 +82,7 @@ export function asRemembered(value: unknown): RememberedWindow | null {
   // `typeof [] === 'object'`, and an array is not a remembered window.
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
   const raw = value as Record<string, unknown>
-  const focused = typeof raw.focused === 'string' ? raw.focused : null
-  return {
-    focused,
-    ...(positive(raw.sidebarWidth) ? { sidebarWidth: raw.sidebarWidth as number } : {}),
-    ...(positive(raw.stripHeight) ? { stripHeight: raw.stripHeight as number } : {}),
-  }
-}
-
-function positive(value: unknown): boolean {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0
+  return { focused: typeof raw.focused === 'string' ? raw.focused : null }
 }
 
 function clamp(value: number, low: number, high: number): number {

@@ -51,10 +51,15 @@ describe('resolveLayout', () => {
 })
 
 describe('asRemembered', () => {
-  it('reads back what was written', () => {
+  it('reads back which pane you were on', () => {
+    expect(asRemembered({ focused: 'checkout/refunds' })).toEqual({ focused: 'checkout/refunds' })
+  })
+
+  it('ignores sizes it may find written down', () => {
+    // Sizes come from the config, so a copy of them here could only ever be a
+    // stale second answer to a question that already has one.
     expect(asRemembered({ focused: 'checkout/refunds', sidebarWidth: 30 })).toEqual({
       focused: 'checkout/refunds',
-      sidebarWidth: 30,
     })
   })
 

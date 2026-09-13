@@ -29,13 +29,12 @@ Early prototype. What works today:
 | Orchestrator tools: an agent can drive Wilco itself | ✅ |
 | `wilco chat` | ✅ |
 | Voice: attention policy, intent grammar, earcons and speech, summaries | ✅ |
-| `wilco app`: one window over every project, with the orchestrator always on screen | ✅ |
+| `wilco`: one window over every project, with the orchestrator always on screen | ✅ |
 | Memory: what you tell it, kept verbatim and scoped to what it is about | ✅ |
 | Speech-to-text: local whisper.cpp by default, or any OpenAI-compatible API | ✅ |
 | Guided setup, the morning brief, verified tests, self-written tools | ✅ |
 | Spend in tokens and dollars, with per-project daily budgets | ✅ |
-| Skills: lessons Wilco proposes and you approve | ✅ |
-| Automatic decay of unused skills | not started |
+| Skills: lessons Wilco proposes and you approve, and stop being said when their subject goes quiet | ✅ |
 
 ## Requirements
 
@@ -47,10 +46,11 @@ Early prototype. What works today:
 
 ```sh
 pnpm install
-pnpm wilco app
+pnpm wilco
 ```
 
-That is the whole thing. On a machine that has never run Wilco, `wilco app` walks you through a
+That is the whole thing — `wilco` with no arguments opens the window. On a machine that has never
+run Wilco it walks you through a
 project, a model and somewhere to run agents before it opens — it does not show you an empty window
 and let you work out the rest. `wilco setup` runs the same wizard on its own, and `wilco setup --check` reports
 what is missing without changing anything:
@@ -67,7 +67,7 @@ into instead. `WILCO_HOME` overrides the state directory (default `~/.wilco`).
 
 ## How people use it
 
-**The first five minutes.** `wilco app` asks which repository, opens the harness so you can
+**The first five minutes.** `wilco` asks which repository, opens the harness so you can
 `/login`, and opens the window. You say what you want done; a worktree and an
 agent appear; you watch it work in the middle pane.
 
@@ -144,7 +144,7 @@ something to think with.
 | `wilco config` | Print the effective config (file merged with defaults) as JSON |
 | `wilco config --check [-c path]` | Validate the config; on error, prints each bad key and exits `2` |
 | `wilco setup` / `setup --check` | Walk through what is missing; or just report it |
-| `wilco app` | The window: every project, the agent you're watching, and the orchestrator |
+| `wilco` (no arguments) | The window: every project, the agent you're watching, and the orchestrator |
 | `wilco brief [--speak]` | Everything that matters, in one paragraph |
 | `wilco check <task>` | Run the project's `test_command` and record the result against its commit |
 | `wilco extensions [activate\|reject <name>]` | Tools Wilco wrote for itself: review and decide |
@@ -235,7 +235,7 @@ wilco logs -f --min-urgency notable
 
 ### The window
 
-`wilco app` is one window over everything: your projects down the left, the agent you're currently
+`wilco` with no arguments is one window over everything: your projects down the left, the agent you're currently
 watching in the middle, and the orchestrator along the bottom, where it cannot be closed — it is how
 you see what Wilco heard and what it did about it.
 
@@ -278,8 +278,10 @@ search            │ ⏵ wants approval: bash: npm i stripe@15
   so a wrong guess is obvious and can be corrected rather than silently obeyed.
 - `a` and `d` answer an approval, and only while that pane is actually waiting on one.
 
-Speech-to-text is not wired in yet: the dictation line is typed today, and a transcriber will fill
-the same line later, through the same path.
+- **Ask to be shown something and it shows you.** *"show me pagination"* moves the pane. Under a
+  driver whose lanes are real windows it raises that window too — `capabilities.focus` decides,
+  never the driver's name — and where neither is possible it tells you where to look instead of
+  pretending it happened.
 
 ### Agents and models
 
@@ -369,7 +371,7 @@ Linux), so there is nothing to install.
 
 ### Talking to it
 
-Hold **ctrl+space** in `wilco app`, say something, let go. What you said is transcribed, resolved
+Hold **ctrl+space** in the window, say something, let go. What you said is transcribed, resolved
 against the same grammar that typing uses, and shown in the orchestrator strip with what it decided
 and why.
 
@@ -434,13 +436,34 @@ what counts, however recently the other was said. Each note records where it cam
 They live in `~/.wilco/memory.jsonl`, append-only like the journal; a line that can't be read is
 skipped rather than costing you the rest of the file.
 
+### What it has learned
+
+A **skill** is a lesson Wilco wrote for itself — *"every time a task touched payments you made me
+run the integration suite first"* — and the judgement about what was learned belongs to the thing
+doing the work, so it proposes and you decide:
+
+```sh
+wilco skills                      # active, proposed, turned down
+wilco skills activate payments-suite
+```
+
+The morning brief raises at most one waiting proposal, so something it wrote down is never something
+you were never told about. A turned-down lesson is kept, so the same idea is not proposed twice.
+
+**A lesson stops being said when its subject goes quiet.** Each one says what it is about, and one
+about a project nobody has touched in a month is left out of the prompt — otherwise every lesson
+ever approved competes for the same context, and having ten is indistinguishable from having none.
+Nothing is moved or deleted: `wilco skills` lists what has gone quiet and why, and the day that
+project moves again the lesson is back with nothing to do. A lesson about working here in general
+never decays, because there is nothing that could have gone quiet.
+
 ## Configuration
 
 `~/.wilco/config.yaml`. Every key is optional and unknown keys are rejected.
 
 ```yaml
 workspace:
-  driver: pty              # pty | tmux | ghostty | kitty | wezterm | zellij
+  driver: pty              # pty | tmux
   adopt: true              # discover agent sessions started outside Wilco
 approvals:
   mode: bypass             # bypass (default, never interrupts) | policy
@@ -500,7 +523,8 @@ node-pty's `spawn-helper`. Package extraction drops it, and without it every lan
 with `posix_spawnp failed`.
 
 Contributor conventions (including the rules every port implementation must follow) are in
-[AGENTS.md](AGENTS.md). Recipes for recurring changes are in [.claude/skills/](.claude/skills/).
+[AGENTS.md](AGENTS.md). Recipes for recurring changes are in [skills/](skills/) — at the repo root,
+not under any one agent's directory, so whichever agent you are working with can read them.
 
 ## Layout
 

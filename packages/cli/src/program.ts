@@ -29,7 +29,10 @@ function version(): string {
 
 export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   const program = new Command('wilco')
-    .description('A voice-first workbench for running coding agents on your own machine.')
+    .description(
+      'A voice-first control room for running coding agents on your own machine.\n' +
+        'Run it with no arguments to open the window.',
+    )
     .version(version())
     // The way back when a self-written tool is what broke. It must not depend
     // on any of them, so it is a flag on the root and nothing else.
