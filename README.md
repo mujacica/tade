@@ -465,6 +465,30 @@ Nothing is moved or deleted: `wilco skills` lists what has gone quiet and why, a
 project moves again the lesson is back with nothing to do. A lesson about working here in general
 never decays, because there is nothing that could have gone quiet.
 
+## What it deliberately doesn't do
+
+Each of these was considered and left out. They are written down so the next person does not have to
+work out whether it was an oversight.
+
+- **No ACP surface.** Wilco does not speak the Agent Client Protocol in either direction, so editors
+  and chat bridges do not come free. One harness (pi) covers subscriptions, API keys and local
+  models, and that turned out to be the part that mattered.
+- **No web dashboard.** The window is the surface. A second one would need its own answer to every
+  question about focus and attention, for the same information.
+- **Nothing proposes a lesson on its own.** The orchestrator has a tool for writing one down and
+  uses it when it notices something; there is no reflector watching finished tasks. Automatic
+  proposals would mostly generate things to turn down.
+- **The approval policy is a classifier, not a rules file.** You can switch it on and list tools that
+  never ask, but adding "never `terraform apply` here" means editing `packages/core/src/policy.ts`.
+  A rules file is a good idea; it is not built.
+- **No wake word, and no transcription while you are still talking.** Push-to-talk is deliberate: a
+  microphone that is always listening in a room where you take calls is a different product.
+- **One window per `WILCO_HOME` at a time.** Two would interleave in one journal. Questions —
+  `status`, `logs`, `notes`, `summary`, `spend` — never take the lock and always answer.
+- **An agent adopted from a previous window can be typed at, but not gated.** Its extension had a
+  channel to the window that opened it and does not reconnect, so approvals and steering fall back
+  to the terminal until it is restarted. Its spend is still recovered, from pi's own session.
+
 ## Configuration
 
 `~/.wilco/config.yaml`. Every key is optional and unknown keys are rejected.
