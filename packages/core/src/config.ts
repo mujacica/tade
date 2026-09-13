@@ -41,6 +41,17 @@ export const ProjectConfigSchema = z.strictObject({
    * "finished and clean" rather than "finished, clean and verified".
    */
   test_command: z.string().min(1).optional(),
+  /**
+   * What this project may spend in a day. Checked before a run starts, with a
+   * warning at 80%. Tokens are there for subscription providers, which report
+   * no money at all.
+   */
+  budget: z
+    .strictObject({
+      usd_per_day: z.number().positive().optional(),
+      tokens_per_day: z.int().positive().optional(),
+    })
+    .optional(),
 })
 
 export const ConfigSchema = z

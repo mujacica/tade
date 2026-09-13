@@ -14,6 +14,7 @@ import { registerExtensions } from './commands/extensions.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
 import { registerSetup } from './commands/setup.ts'
+import { registerSpend } from './commands/spend.ts'
 import { registerSummary } from './commands/summary.ts'
 import { registerTasks } from './commands/tasks.ts'
 import { registerVoice } from './commands/voice.ts'
@@ -102,6 +103,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)
   registerNotes(program, io, setExit)
+  registerSpend(program, io, setExit)
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)
   registerExtensions(program, io, setExit)

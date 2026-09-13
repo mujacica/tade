@@ -23,7 +23,7 @@ async function runSetup(): Promise<number> {
 
 export function registerApp(program: Command, io: Io, setExit: (code: number) => void): void {
   program
-    .command('app')
+    .command('app', { isDefault: true })
     .description('The window: every project, the agent you are watching, and the orchestrator')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action(async (opts: { config: string }) => {

@@ -5,12 +5,16 @@ import { dirname, join } from 'node:path'
 import {
   type Config,
   ConfigSchema,
+  checkBudget,
   type EventFilter,
   expandHome,
   type LaneId,
   loadConfig,
+  noSpend,
   resolveRoute,
   type SandboxKind,
+  spendFrom,
+  startOfToday,
 } from '@wilco/core'
 import type { WorkspaceDriver } from '@wilco/drivers-core'
 import type { PermissionDecision, RunId } from '@wilco/harnesses-core'
@@ -152,11 +156,6 @@ export class Daemon {
   }
 
   /**
-   * How the task's route says to contain a worker. Deliberately not caught: a
-   * route that cannot be resolved fails the run rather than quietly starting
-   * an agent with the whole disk writable.
-   */
-  /**
    * Refuse to run more agents on a project than it allows. The setting existed
    * and nothing enforced it, so a project configured for one agent would
    * happily get five.
@@ -173,6 +172,35 @@ export class Daemon {
     }
   }
 
+  /**
+   * Refuse to start a run that would take a project past what it may spend in
+   * a day, and say so before it gets close. A long run that dies at 100% with
+   * no warning is how people lose work.
+   */
+  private async guardBudget(task: string): Promise<void> {
+    const project = task.split('/')[0] ?? ''
+    const budget = this.config.projects[project]?.budget
+    if (!budget) return
+    const events = await this.log.read({ types: ['usage'] }).catch(() => [])
+    const spent = spendFrom(events, { since: startOfToday(Date.now()) }).byProject[project]
+    const state = checkBudget(spent ?? noSpend(), budget)
+    if (state.verdict === 'over') {
+      throw new Error(`${project} has spent its budget for today: ${state.reason}`)
+    }
+    if (state.verdict === 'warn') {
+      await this.log.append({
+        type: 'warning',
+        task,
+        detail: { message: `${project} is near its budget: ${state.reason}` },
+      })
+    }
+  }
+
+  /**
+   * How the task's route says to contain a worker. Deliberately not caught: a
+   * route that cannot be resolved fails the run rather than quietly starting
+   * an agent with the whole disk writable.
+   */
   private sandboxFor(task: string): SandboxKind {
     const project = task.split('/')[0]
     return resolveRoute(this.config, project ? { project } : {}).sandbox
@@ -339,8 +367,9 @@ export class Daemon {
       scope === undefined ? this.memory.all() : this.memory.recall(scope),
     )
 
-    connection.onRequest(Method.workerStart, (req: StartRunRequest) => {
+    connection.onRequest(Method.workerStart, async (req: StartRunRequest) => {
       this.guardParallel(req.task)
+      await this.guardBudget(req.task)
       return this.workers.start({ ...req, sandbox: req.sandbox ?? this.sandboxFor(req.task) })
     })
     connection.onRequest(Method.workerList, () => this.workers.list())

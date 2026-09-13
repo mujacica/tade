@@ -35,6 +35,8 @@ export const EventType = z.enum([
   'permission_denied',
   'turn_done',
   'failed',
+  /** What a turn consumed, in tokens and money. */
+  'usage',
   // daemon
   'daemon_started',
   'daemon_stopping',
@@ -59,6 +61,9 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   permission_denied: 'routine',
   turn_done: 'notable',
   failed: 'blocking',
+  // Routine rather than trace: spend is read back out of the journal, and
+  // trace is the first thing dropped when a subscriber falls behind.
+  usage: 'routine',
   daemon_started: 'notable',
   daemon_stopping: 'notable',
   warning: 'notable',

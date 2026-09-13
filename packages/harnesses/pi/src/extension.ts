@@ -32,6 +32,19 @@ interface PiContext {
   shutdown(): void
   isIdle(): boolean
   getContextUsage?(): { tokens: number | null; percent: number | null } | undefined
+  /** The harness prices each message against its own model catalog. */
+  sessionManager?: { getEntries?(): Array<{ usage?: PiUsage } | null> }
+  model?: { id?: string } | string
+}
+
+/** What the harness records per message. Everything optional: it is theirs. */
+interface PiUsage {
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite?: number
+  totalTokens?: number
+  cost?: { total?: number }
 }
 interface PiApi {
   on(event: string, handler: (event: never, ctx: PiContext) => unknown): void
@@ -44,6 +57,9 @@ interface PiApi {
 type Json = Record<string, unknown>
 
 const SOCKET = process.env.WILCO_RUN_SOCKET
+
+/** Session totals as last reported, so each turn sends only the difference. */
+let spent = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
 const RUN = process.env.WILCO_RUN_ID ?? 'unknown'
 
 export default function wilcoExtension(pi: PiApi): void {
@@ -142,7 +158,46 @@ export default function wilcoExtension(pi: PiApi): void {
     send({ type: 'turn_done', status: 'ok' })
     const usage = ctx.getContextUsage?.()
     if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
+    reportSpend(ctx)
   }) as never)
+
+  /**
+   * What this turn cost, in tokens and dollars.
+   *
+   * The session carries running totals, so each turn reports the difference
+   * since the last one and the daemon can simply add them up. Prices come from
+   * the harness's own model catalog: it is the only thing that knows what was
+   * actually charged, and a table we kept ourselves would be wrong the first
+   * time a provider changed anything.
+   */
+  function reportSpend(ctx: PiContext): void {
+    const entries = ctx.sessionManager?.getEntries?.() ?? []
+    const total = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
+    for (const entry of entries) {
+      const usage = entry?.usage
+      if (!usage) continue
+      total.input += usage.input ?? 0
+      total.output += usage.output ?? 0
+      total.cacheRead += usage.cacheRead ?? 0
+      total.cacheWrite += usage.cacheWrite ?? 0
+      total.tokens += usage.totalTokens ?? 0
+      total.usd += usage.cost?.total ?? 0
+    }
+    const since = {
+      input: total.input - spent.input,
+      output: total.output - spent.output,
+      cacheRead: total.cacheRead - spent.cacheRead,
+      cacheWrite: total.cacheWrite - spent.cacheWrite,
+      tokens: total.tokens - spent.tokens,
+      usd: total.usd - spent.usd,
+    }
+    // Nothing new to say — a subscription-billed provider reports no cost at
+    // all, and a turn that used no tokens is not worth an event.
+    if (since.tokens <= 0 && since.usd <= 0) return
+    spent = total
+    const model = typeof ctx.model === 'string' ? ctx.model : (ctx.model?.id ?? null)
+    send({ type: 'usage', model, ...since })
+  }
 
   pi.on('agent_settled', ((_event: unknown, ctx: PiContext) => {
     latest = ctx

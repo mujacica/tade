@@ -222,6 +222,24 @@ export class WorkerSupervisor {
       case 'exited':
         await this.log.append({ type: 'run_exited', task, run, detail: { code: signal.code } })
         return
+      case 'usage':
+        // What the turn cost, as the harness priced it. The journal is where
+        // spend is read back from, so it goes in whether or not anyone asked.
+        await this.log.append({
+          type: 'usage',
+          task,
+          run,
+          detail: {
+            model: signal.model,
+            input: signal.input,
+            output: signal.output,
+            cacheRead: signal.cacheRead,
+            cacheWrite: signal.cacheWrite,
+            tokens: signal.tokens,
+            usd: signal.usd,
+          },
+        })
+        return
       default:
         // Turn starts, streamed messages and tool results are noise in the
         // journal; tool calls are recorded when they are decided.

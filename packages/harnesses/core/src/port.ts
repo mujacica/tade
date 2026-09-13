@@ -99,6 +99,25 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     tokens: z.number().nullable(),
     percent: z.number().nullable(),
   }),
+  /**
+   * What a turn consumed, in tokens and money. The harness prices it against
+   * its own model catalog, which is the only place that knows what was
+   * actually charged — a table we kept ourselves would be out of date the
+   * first time a provider changed anything.
+   */
+  z.object({
+    type: z.literal('usage'),
+    run: RunId,
+    at: z.number(),
+    model: z.string().nullable().default(null),
+    input: z.number().default(0),
+    output: z.number().default(0),
+    cacheRead: z.number().default(0),
+    cacheWrite: z.number().default(0),
+    tokens: z.number().default(0),
+    /** US dollars, as the harness computed them. */
+    usd: z.number().default(0),
+  }),
   z.object({
     type: z.literal('exited'),
     run: RunId,
