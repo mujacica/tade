@@ -69,8 +69,22 @@ describe('snapshotsFrom', () => {
       [],
     )
     expect(snapshots).toEqual([
-      { task: 'checkout/refunds', state: 'working', lane: null, waiting: false, approval: null },
-      { task: 'checkout/stripe-v15', state: 'blocked', lane: null, waiting: false, approval: null },
+      {
+        task: 'checkout/refunds',
+        state: 'working',
+        lane: null,
+        waiting: false,
+        approval: null,
+        lanes: [],
+      },
+      {
+        task: 'checkout/stripe-v15',
+        state: 'blocked',
+        lane: null,
+        waiting: false,
+        approval: null,
+        lanes: [],
+      },
     ])
   })
 
@@ -136,10 +150,13 @@ describe('knownTasks', () => {
 })
 
 describe('changesFrom', () => {
-  it('reads what a real worktree has changed, with line counts', async () => {
+  it('reads everything a task changed since it branched, committed or not', async () => {
     const repo = mkrepo()
     repo.commit('first', { 'keep.ts': 'a\nb\nc\n', 'gone.ts': 'x\n', 'old name.ts': 'same\n' })
+    const base = repo.head()
 
+    // Committed on the task's branch: plain `git status` would show none of this.
+    repo.commit('agent work', { 'committed.ts': 'one\ntwo\n' })
     repo.write({
       'keep.ts': 'a\nB\nc\nd\n',
       'new file.ts': 'hello\n',
@@ -149,21 +166,21 @@ describe('changesFrom', () => {
     renameSync(join(repo.root, 'old name.ts'), join(repo.root, 'new name.ts'))
     repo.git('add', '-A', 'new name.ts', 'old name.ts')
 
-    const status = await git(repo.root, ['status', '--porcelain=v2', '-z', '--untracked-files=all'])
-    const numstat = await git(repo.root, ['diff', '--numstat', '-z', 'HEAD'])
-    const changes = changesFrom(status.stdout, numstat.stdout)
+    const run = async (args: string[]) => (await git(repo.root, args)).stdout
+    const changes = changesFrom(
+      await run(['diff', '--name-status', '-z', base]),
+      await run(['diff', '--numstat', '-z', base]),
+      await run(['status', '--porcelain=v2', '-z', '--untracked-files=all']),
+    )
+    const at = (path: string) => changes.find((change) => change.path === path)
 
-    expect(changes.find((c) => c.path === 'keep.ts')).toEqual({
-      path: 'keep.ts',
-      mark: 'M',
-      added: 2,
-      removed: 1,
-    })
-    expect(changes.find((c) => c.path === 'gone.ts')?.mark).toBe('D')
+    expect(at('committed.ts')).toEqual({ path: 'committed.ts', mark: 'A', added: 2, removed: 0 })
+    expect(at('keep.ts')).toEqual({ path: 'keep.ts', mark: 'M', added: 2, removed: 1 })
+    expect(at('gone.ts')?.mark).toBe('D')
     // Paths with spaces survive, because the output is NUL-separated.
-    expect(changes.find((c) => c.path === 'new file.ts')?.mark).toBe('?')
-    expect(changes.find((c) => c.path === 'new name.ts')?.mark).toBe('R')
+    expect(at('new file.ts')?.mark).toBe('?')
+    expect(at('new name.ts')?.mark).toBe('R')
     // Wilco's own record of the task is not a change anybody made.
-    expect(changes.some((c) => c.path.startsWith('.wilco'))).toBe(false)
+    expect(changes.some((change) => change.path.startsWith('.wilco'))).toBe(false)
   })
 })

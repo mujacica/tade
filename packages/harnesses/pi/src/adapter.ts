@@ -518,6 +518,42 @@ export class PiAdapter implements WorkerAdapter {
       })
       return
     }
+    // What a message cost. A supervised run is told by the extension, which
+    // counts across the whole session; without one, each finished assistant
+    // message carries its own usage, and a run nobody counts is money nobody
+    // sees — the orchestrator is exactly that run.
+    if (!this.opts.supervise && message.type === 'message_end') {
+      const said = message.message as
+        | {
+            role?: string
+            model?: string
+            usage?: {
+              input?: number
+              output?: number
+              cacheRead?: number
+              cacheWrite?: number
+              totalTokens?: number
+              cost?: { total?: number }
+            }
+          }
+        | undefined
+      const usage = said?.role === 'assistant' ? said.usage : undefined
+      if (usage && ((usage.totalTokens ?? 0) > 0 || (usage.cost?.total ?? 0) > 0)) {
+        this.dispatch(run.handle.run, {
+          type: 'usage',
+          run: run.handle.run,
+          at: Date.now(),
+          model: typeof said?.model === 'string' ? said.model : null,
+          input: usage.input ?? 0,
+          output: usage.output ?? 0,
+          cacheRead: usage.cacheRead ?? 0,
+          cacheWrite: usage.cacheWrite ?? 0,
+          tokens: usage.totalTokens ?? 0,
+          usd: usage.cost?.total ?? 0,
+        })
+      }
+      return
+    }
     if (!this.opts.supervise && message.type === 'agent_settled') {
       this.dispatch(run.handle.run, { type: 'idle', run: run.handle.run, at: Date.now() })
       return

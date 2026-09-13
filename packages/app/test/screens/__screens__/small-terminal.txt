@@ -1,17 +1,17 @@
- WILCO  ▐ checkout ▌  infra    search   +          ● 1  ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   +          ● 1  ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            + │ checkout › stripe-v15  ▐ agent ▌ pi · claude-opus-5 
+ ▾ AGENTS  2            + │ checkout › stripe-v15  ▐ agent ▌  shell   +         
 ▌● stripe-v15     $1.26 ≡ │─────────────────────────────────────────────────────
  ○ refunds        $0.62   │                                                     
                           │  ● Upgrading stripe to v15. The webhook signature AP
- ▾ CHANGES  3             │    so src/webhooks.ts needs the new constructEvent s
+ ▾ CHANGES  3     vs main │    so src/webhooks.ts needs the new constructEvent s
   M package.json    +2 −1 │                                                     
-  A …ebhooks.test.ts  +48 │  ╭─ wants approval ──────────────────────────────╮  
-  M …/webhooks.ts  +12 −4 │  │ bash  npm i stripe@15                         │  
-                          │  │                                               │  
- ▸ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                 a · d │  
-                          │  ╰───────────────────────────────────────────────╯  
- ▸ NOTES  2               │                                                     
+  A …ebhooks.test.ts  +48 │  ▸ Read src/webhooks.ts                             
+  M …/webhooks.ts  +12 −4 │  ╭─ wants approval ──────────────────────────────╮  
+                          │  │ bash  npm i stripe@15                         │  
+ ▸ FILES                  │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
+ ▸ NOTES  4               │  ╰───────────────────────────────────────────────╯  
+                          │                                                     
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                 
                                                                                 

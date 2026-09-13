@@ -27,7 +27,12 @@ import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { createTask, type RemoveResult, removeTask, setParked, type TaskWorktree } from './tasks.ts'
-import { type PendingApproval, type StartRunRequest, WorkerSupervisor } from './workers.ts'
+import {
+  type PendingApproval,
+  type RunVitals,
+  type StartRunRequest,
+  WorkerSupervisor,
+} from './workers.ts'
 
 // The workbench: everything Wilco is holding while it is open — the lanes, the
 // journal, the agents under supervision, the notes.
@@ -553,6 +558,11 @@ export class Workbench {
   }
 
   /** The agents working right now. */
+  /** The model and context an agent last reported. Null until it has said. */
+  vitals(task: string): RunVitals | null {
+    return this.workers.vitals(task)
+  }
+
   runs(): WorkerHandle[] {
     return this.workers.list()
   }

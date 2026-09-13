@@ -182,11 +182,11 @@ describe('which project you are in', () => {
     expect(focusTask(state(), 'search/pagination').project).toBe('search')
   })
 
-  it('lists a project that has no tasks in it yet', () => {
+  it('lists a project that has no tasks in it yet, in the order the config gives', () => {
     // It is still somewhere you can stand, and standing there is how the first
-    // task in it gets made.
-    const known = withProjects(state(), ['checkout', 'search', 'infra'])
-    expect(projects(known)).toEqual(['checkout', 'infra', 'search'])
+    // task in it gets made. The order is yours: the tabs follow the config.
+    const known = withProjects(state(), ['search', 'infra', 'checkout'])
+    expect(projects(known)).toEqual(['search', 'infra', 'checkout'])
   })
 
   it('shows only the tasks of that project down the side', () => {

@@ -67,12 +67,21 @@ interface RunState {
   stop: () => void
 }
 
+/** What an agent is running on right now, as it last said. Never journalled. */
+export interface RunVitals {
+  model: string | null
+  contextTokens: number | null
+  contextPercent: number | null
+}
+
 export class WorkerSupervisor {
   private readonly adapter: WorkerAdapter
   private readonly log: EventLog
   private readonly approvals: ApprovalSettings
   private readonly runs = new Map<string, RunState>()
   private readonly pendingApprovals = new Map<string, PendingApproval>()
+  /** By task: what each agent last said about its model and context. */
+  private readonly vitalsByTask = new Map<string, RunVitals>()
   /**
    * Hard-tier requests you have already refused, per run. Asking again for the
    * same thing is refused without troubling you; asking for something else is
@@ -275,9 +284,15 @@ export class WorkerSupervisor {
         // standing would sit there looking like something needs you, and would
         // keep the task `blocked` against an agent that cannot act on a yes.
         this.forget(run)
+        if (task) this.vitalsByTask.delete(task)
         await this.log.append({ type: 'run_exited', task, run, detail: { code: signal.code } })
         return
+      case 'started':
+      case 'context':
+        if (task) this.noteVitals(task, signal)
+        return
       case 'usage':
+        if (task && signal.model) this.noteVitals(task, { type: 'started', model: signal.model })
         // What the turn cost, as the harness priced it. The journal is where
         // spend is read back from, so it goes in whether or not anyone asked.
         await this.log.append({
@@ -300,6 +315,33 @@ export class WorkerSupervisor {
         // journal; tool calls are recorded when they are decided.
         return
     }
+  }
+
+  /**
+   * What an agent last said it is running on. Kept in memory, not the journal:
+   * it is a reading, like a lane's screen, and a stale one is worse than none.
+   */
+  vitals(task: string): RunVitals | null {
+    return this.vitalsByTask.get(task) ?? null
+  }
+
+  private noteVitals(
+    task: string,
+    signal:
+      | { type: 'started'; model: string | null }
+      | { type: 'context'; tokens: number | null; percent: number | null },
+  ): void {
+    const was = this.vitalsByTask.get(task) ?? {
+      model: null,
+      contextTokens: null,
+      contextPercent: null,
+    }
+    this.vitalsByTask.set(
+      task,
+      signal.type === 'started'
+        ? { ...was, model: signal.model ?? was.model }
+        : { ...was, contextTokens: signal.tokens, contextPercent: signal.percent },
+    )
   }
 
   private async onPermissionRequest(

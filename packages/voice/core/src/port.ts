@@ -64,6 +64,12 @@ export interface Recording {
   stop(): Promise<AudioClip>
   /** Give up. Nothing is transcribed and the audio is deleted. */
   cancel(): Promise<void>
+  /**
+   * How loud the last moment was, 0 to 1, for a meter that shows the
+   * microphone is really hearing you. Absent where a recorder cannot tell —
+   * and then nothing pretends to know.
+   */
+  level?(): number
 }
 
 export interface RecorderOptions {

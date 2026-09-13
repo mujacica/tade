@@ -63,7 +63,7 @@ export function resolveLayout(
   // Unasked, the sidebar is a share of the window rather than a fixed 24: on a
   // wide terminal that is a thin ribbon beside an ocean, and task names are the
   // one thing in it that must stay readable.
-  const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 5), DEFAULTS.sidebarWidth, 36)
+  const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 4), DEFAULTS.sidebarWidth, 36)
   const sidebarWidth = clamp(
     wanted,
     MINIMUM.sidebar,

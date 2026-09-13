@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolveCommand, stringEnv } from '@wilco/core'
@@ -132,6 +132,9 @@ export class FfmpegRecorder implements Recorder {
         await settle(child, 1_000)
         cleanup()
       },
+      // ffmpeg writes the file as it records, so the newest tenth of a second
+      // is always at its end.
+      level: () => levelOf(tailOf(path, Math.round(sampleRate / 10) * 2)),
     }
   }
 }
@@ -154,6 +157,41 @@ async function settle(child: ChildProcess, ms: number): Promise<void> {
       child.kill('SIGKILL')
       await exited
     }
+  }
+}
+
+/**
+ * Loudness of little-endian 16-bit PCM, 0 to 1: the RMS, lifted so that
+ * speech at a normal distance fills most of a meter instead of a sliver of it.
+ */
+export function levelOf(pcm: Buffer): number {
+  const samples = Math.floor(pcm.length / 2)
+  if (samples === 0) return 0
+  let sum = 0
+  for (let i = 0; i < samples; i++) {
+    const value = pcm.readInt16LE(i * 2) / 32768
+    sum += value * value
+  }
+  const rms = Math.sqrt(sum / samples)
+  return Math.min(1, Math.sqrt(rms) * 1.6)
+}
+
+/** The last `bytes` of the audio after the header, aligned to whole samples. */
+function tailOf(path: string, bytes: number): Buffer {
+  const size = sizeOf(path)
+  const available = Math.max(0, size - EMPTY_WAV)
+  const length = Math.min(bytes, available) & ~1
+  if (length <= 0) return Buffer.alloc(0)
+  const buffer = Buffer.alloc(length)
+  let fd: number | null = null
+  try {
+    fd = openSync(path, 'r')
+    readSync(fd, buffer, 0, length, EMPTY_WAV + ((available - length) & ~1))
+    return buffer
+  } catch {
+    return Buffer.alloc(0)
+  } finally {
+    if (fd !== null) closeSync(fd)
   }
 }
 

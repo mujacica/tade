@@ -160,7 +160,7 @@ export default function wilcoExtension(pi: PiApi): void {
     socket.on('connect', () => {
       connected = true
       buffer = ''
-      send({ type: 'started', sessionId: null, model: null })
+      send({ type: 'started', sessionId: null, model: latest ? modelOf(latest) : null })
     })
     socket.on('data', (chunk: Buffer) => {
       buffer += chunk.toString('utf8')
@@ -210,6 +210,27 @@ export default function wilcoExtension(pi: PiApi): void {
     send({ type: 'turn_started' })
   }) as never)
 
+  /**
+   * Which model this session runs on, and how full its context is — said as
+   * soon as the session opens and again whenever the model changes, so the
+   * window shows what the agent actually has rather than what the config hoped
+   * for. A resumed session is also the moment to take the spend baseline.
+   */
+  const sayVitals = (ctx: PiContext) => {
+    latest = ctx
+    send({ type: 'started', sessionId: null, model: modelOf(ctx) })
+    const usage = ctx.getContextUsage?.()
+    if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
+  }
+  pi.on('session_start', ((_event: unknown, ctx: PiContext) => {
+    if (!seeded) {
+      spent = sessionTotals(ctx)
+      seeded = true
+    }
+    sayVitals(ctx)
+  }) as never)
+  pi.on('model_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
+
   pi.on('turn_end', ((_event: unknown, ctx: PiContext) => {
     latest = ctx
     send({ type: 'turn_done', status: 'ok' })
@@ -217,6 +238,10 @@ export default function wilcoExtension(pi: PiApi): void {
     if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
     reportSpend(ctx)
   }) as never)
+
+  function modelOf(ctx: PiContext): string | null {
+    return typeof ctx.model === 'string' ? ctx.model : (ctx.model?.id ?? null)
+  }
 
   /** Everything the session has spent, from its own running totals. */
   function sessionTotals(ctx: PiContext): typeof spent {
@@ -259,8 +284,7 @@ export default function wilcoExtension(pi: PiApi): void {
     // all, and a turn that used no tokens is not worth an event.
     if (since.tokens <= 0 && since.usd <= 0) return
     spent = total
-    const model = typeof ctx.model === 'string' ? ctx.model : (ctx.model?.id ?? null)
-    send({ type: 'usage', model, ...since })
+    send({ type: 'usage', model: modelOf(ctx), ...since })
   }
 
   pi.on('agent_settled', ((_event: unknown, ctx: PiContext) => {

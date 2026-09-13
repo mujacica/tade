@@ -8,12 +8,14 @@ import {
   type AppState,
   glyph,
   isAction,
+  laneShown,
   matchActions,
   projects,
   tasksOf,
 } from './model.ts'
 import { drawPanel } from './panel-view.ts'
 import { PLAIN, type Skin } from './skin.ts'
+import type { SpendView } from './spend.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
 
 // Drawing, as one pure function of state.
@@ -50,14 +52,20 @@ export interface Frame {
   orchestrator?: string
   /** Top of the focused task's worktree. */
   files?: readonly string[]
-  /** What the focused task has changed. */
+  /** What the focused task has changed since it branched. */
   changes?: readonly Change[]
+  /** The branch those changes are counted against. */
+  base?: string | null
   /** What you have told Wilco about this project, newest first. */
   notes?: readonly string[]
   /** Today's spend, in total and by task. */
   spend?: Spend
-  /** What the agent you are looking at runs on. */
+  /** What the agent you are looking at runs on, as configured. */
   route?: { harness: string; model: string | null; provider: string | null }
+  /** What it says it actually runs on, and how full its context is. */
+  vitals?: { model: string | null; contextPercent: number | null } | null
+  /** The Spend panel's view, when it is open. */
+  spendView?: SpendView | null
   /** The key you hold to talk, and whether there is anything to hear you. */
   voice?: { keys: readonly string[]; available: boolean }
   /** Wilco's home, as you would type it, for showing where worktrees go. */
@@ -133,6 +141,9 @@ export function draw(state: AppState, frame: Frame): Drawn {
     pointer,
     home: frame.home ?? '~/.wilco',
     route: frame.route ?? null,
+    spend: frame.spendView ?? null,
+    panes: state.panes,
+    project: state.project,
   })
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
   const at = {
@@ -210,6 +221,8 @@ interface Section {
   /** Rows when unfolded. At least one, so an open section never looks broken. */
   rows: (row: () => Row) => { text: string; hits: Hit[] }[]
   action?: { label: string; target: Target }
+  /** Said quietly at the right of the heading: what the section is measured against. */
+  note?: string
 }
 
 function renderSidebar(
@@ -241,6 +254,7 @@ function renderSidebar(
       id: 'changes',
       label: 'CHANGES',
       count: changes.length,
+      ...(frame.base ? { note: `vs ${frame.base.replace(/^origin\//, '')}` } : {}),
       rows: (row) =>
         changes.length === 0
           ? [
@@ -278,10 +292,12 @@ function renderSidebar(
 
   const out: { text: string; hits: Hit[] }[] = []
   const make = () => new Row(width, skin, pointer)
+  let previousOpen = false
   sections.forEach((section, i) => {
     if (out.length >= height) return
-    if (i > 0) out.push(blank(width))
+    if (i > 0 && previousOpen) out.push(blank(width))
     const open = !state.folded.includes(section.id)
+    previousOpen = open
     const head = make()
       .space()
       .text(`${open ? '▾' : '▸'} ${section.label}`, skin.label, {
@@ -292,6 +308,9 @@ function renderSidebar(
     if (section.action) {
       const action = section.action
       head.right((r) => r.text(` ${action.label} `, skin.signal, action.target))
+    } else if (section.note) {
+      const note = section.note
+      head.right((r) => r.text(note, skin.hint).space())
     }
     out.push(head.build())
     if (open) out.push(...section.rows(make))
@@ -387,18 +406,35 @@ function renderMain(
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane) return renderWelcome(state, frame, width, height, skin, pointer)
 
+  const shown = laneShown(state, pane)
   const header = new Row(width, skin, pointer)
     .space()
-    .text(pane.project, skin.hint)
-    .text(' › ', skin.hint)
-    .text(pane.name, skin.you)
+    .text(`${pane.project} › ${pane.name}`, skin.you)
     .space(2)
-    .tab('agent', { kind: 'task', task: pane.task }, true)
+  // A tab per lane — the agent, and any shell beside it — and + for another.
+  if (pane.lanes.length === 0) header.tab('agent', { kind: 'task', task: pane.task }, true)
+  laneLabels(pane.lanes).forEach(({ id, label }) => {
+    header.tab(label, { kind: 'lane', task: pane.task, lane: id }, id === shown)
+  })
+  header.text(' + ', skin.signal, { kind: 'action', name: 'new-shell' })
   const route = frame.route
-  if (route) {
+  const vitals = frame.vitals
+  if (route || vitals) {
     header.right((r) => {
-      const model = route.model ? shortModel(route.model) : 'default model'
-      r.text(`${route.harness} · ${model}`, skin.hint).space()
+      // What the agent says it runs on beats what the config hoped for.
+      const model = vitals?.model ?? route?.model
+      r.text(
+        `${route?.harness ?? 'pi'} · ${model ? shortModel(model) : 'its default model'}`,
+        skin.hint,
+      )
+      if (vitals?.contextPercent !== null && vitals?.contextPercent !== undefined) {
+        const percent = vitals.contextPercent
+        const tone = percent >= 85 ? skin.bad : percent >= 60 ? skin.waiting : skin.busy
+        r.text(' · ctx ', skin.hint)
+          .meter(percent / 100, 8, tone)
+          .text(` ${Math.round(percent)}%`, skin.hint)
+      }
+      r.space()
     })
   }
 
@@ -409,7 +445,7 @@ function renderMain(
   const room = height - rows.length
   if (room <= 0) return stack(rows.slice(0, height))
 
-  if (!pane.lane) {
+  if (!shown) {
     rows.push(blank(width))
     rows.push(
       new Row(width, skin)
@@ -485,7 +521,7 @@ function withApproval(
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
-  const cardWidth = Math.min(width - 4, 72)
+  const cardWidth = Math.min(width - 4, 64)
   if (cardWidth < 30) return pane
   const inner = cardWidth - 2
   const card = box(
@@ -497,18 +533,16 @@ function withApproval(
         .space(2)
         .text(approval.summary)
         .build(),
-      blank(inner),
       new Row(inner, skin, pointer)
         .space()
         .button('Allow once', { kind: 'action', name: 'approve' }, 'attention')
         .space()
         .button('Deny', { kind: 'action', name: 'deny' })
-        .right((r) => r.text('a · d', skin.hint).space())
         .build(),
     ],
     cardWidth,
     skin,
-    { tone: skin.waiting },
+    { tone: skin.chrome, title: skin.waiting, surface: false },
   )
   // Not modal: the agent's screen stays readable around it.
   return overlay(
@@ -583,14 +617,21 @@ function renderStrip(
 ): Drawn {
   const voice = frame.voice ?? { keys: ['ctrl', 'space'], available: false }
   let bar: string
-  if (state.listening && state.talkingSince !== null) {
-    bar = new Row(width, skin)
+  const talking = state.listening && state.talkingSince !== null
+  if (talking) {
+    const seconds = Math.max(0, Math.floor(((frame.now ?? 0) - (state.talkingSince ?? 0)) / 1000))
+    const left = new Row(width, skin)
       .text('━ ', skin.chrome)
       .text(' ● TX ', skin.transmit)
       .space()
       .text('listening', skin.you)
-      .right((r) => r.text(' release to send · esc cancels ━', skin.chrome))
-      .build().text
+      .space()
+      .text(clock(seconds), skin.hint)
+      .space()
+    const tail = ' release to send · esc cancels ━'
+    left.text('━'.repeat(Math.max(0, width - left.used - tail.length)), skin.chrome)
+    left.text(tail, skin.chrome)
+    bar = left.build().text
   } else {
     const label = `━ orchestrator${state.focused === null ? ' ── here' : ''} `
     bar = skin.chrome(label + '━'.repeat(Math.max(0, width - label.length)))
@@ -606,6 +647,25 @@ function renderStrip(
       rows.push(fit(line, width))
     }
     while (rows.length < height) rows.push(' '.repeat(width))
+    return { rows: rows.slice(0, height), hits }
+  }
+
+  if (talking) {
+    // What the microphone hears, as it hears it — only where the recorder can
+    // tell. A meter that moves on its own would be a lie about the one thing
+    // you need to trust while talking.
+    const meter = state.levels.length > 0 ? levelMeter(state.levels, Math.min(width - 6, 48)) : null
+    const lines = [
+      ' '.repeat(width),
+      meter ? `   ${skin.busy(meter.heard)}${skin.chrome(meter.rest)}` : ' '.repeat(width),
+      ' '.repeat(width),
+      `${skin.transmit(' ◉ ')} ${skin.hint('speak — Wilco hears you until you let go')}`,
+    ]
+    for (let gap = room - lines.length; gap > 0; gap--) rows.push(' '.repeat(width))
+    for (const line of lines.slice(-room)) {
+      hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
+      rows.push(fit(line, width))
+    }
     return { rows: rows.slice(0, height), hits }
   }
 
@@ -666,17 +726,17 @@ function renderFoot(
   }
   const route = frame.route
   const spend = frame.spend
+  const target: Target = { kind: 'action', name: 'spend' }
   row.right((r) => {
-    if (route) {
-      r.text(route.model ? shortModel(route.model) : 'default model', skin.hint)
-      if (route.provider) r.text(` · ${route.provider}`, skin.hint)
-    }
+    const model = frame.vitals?.model ?? route?.model
+    r.text(model ? shortModel(model) : 'its default model', skin.hint, target)
+    if (route?.provider) r.text(` · ${route.provider}`, skin.hint, target)
     if (spend && spend.tokens > 0) {
-      r.text(' │ ', skin.chrome).text(tokens(spend.tokens), skin.hint)
-      if (spend.hasCost) r.text(' │ ', skin.chrome).text(dollars(spend.usd), skin.you)
-      r.text(' today', skin.hint)
+      r.text(' │ ', skin.chrome, target).text(tokens(spend.tokens), skin.hint, target)
+      if (spend.hasCost)
+        r.text(' │ ', skin.chrome, target).text(dollars(spend.usd), skin.you, target)
     }
-    r.space()
+    r.text(' today ▾', skin.hint, target).space()
   })
   return stack([{ text: skin.chrome('─'.repeat(width)), hits: [] }, row.build()])
 }
@@ -693,6 +753,34 @@ export function renderTurn(turn: Turn, width: number, skin: Skin = PLAIN): strin
   lines.push(skin.hint(fit(`   → ${parts.join(' · ')}`, width).trimEnd()))
   if (turn.reply) lines.push(fit(`   ${turn.reply}`, width).trimEnd())
   return lines
+}
+
+/**
+ * Recent loudness as a row of bars, newest on the right, padded on the left
+ * with the floor so the meter keeps its width from the first moment.
+ */
+export function levelMeter(
+  levels: readonly number[],
+  cells: number,
+): { heard: string; rest: string } {
+  const bars = '▁▂▃▄▅▆▇█'
+  const recent = levels.slice(-cells)
+  const heard = recent
+    .map((level) => bars[Math.max(0, Math.min(7, Math.round(level * 7)))])
+    .join('')
+  return { heard, rest: '▁'.repeat(Math.max(0, cells - recent.length)) }
+}
+
+/** Tab names for a task's lanes: `agent`, `shell`, `shell 2`. */
+export function laneLabels(
+  lanes: readonly { id: string; kind: string }[],
+): { id: string; label: string }[] {
+  const seen = new Map<string, number>()
+  return lanes.map((lane) => {
+    const n = (seen.get(lane.kind) ?? 0) + 1
+    seen.set(lane.kind, n)
+    return { id: lane.id, label: n === 1 ? lane.kind : `${lane.kind} ${n}` }
+  })
 }
 
 // ── Numbers, the way people read them ────────────────────────────────────────

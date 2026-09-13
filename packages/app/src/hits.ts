@@ -10,6 +10,7 @@
 export type Target =
   | { kind: 'task'; task: string }
   | { kind: 'task-menu'; task: string }
+  | { kind: 'lane'; task: string; lane: string }
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }

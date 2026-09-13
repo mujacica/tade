@@ -31,6 +31,8 @@ export interface AgentPane {
   waiting: boolean
   /** What it is waiting for, when that is an approval. */
   approval: { tool: string; summary: string } | null
+  /** Every live lane the task has: its agent, and any shells beside it. */
+  lanes: { id: string; kind: string }[]
 }
 
 export interface AppState {
@@ -78,8 +80,12 @@ export interface AppState {
   talkingSince: number | null
   /** What was said is being turned into words. */
   hearing: boolean
+  /** How loud the microphone heard you, a tenth of a second apart, while you talk. */
+  levels: number[]
   /** The panel floating over the window, if one is. */
   panel: Panel | null
+  /** By task: the lane tab you chose, when it is not the agent. */
+  viewing: Record<string, string>
 }
 
 /** Sections that start folded: the ones you look at on purpose, not all the time. */
@@ -104,7 +110,9 @@ export function initialState(): AppState {
     folded: [...FOLDED_AT_START],
     talkingSince: null,
     hearing: false,
+    levels: [],
     panel: null,
+    viewing: {},
   }
 }
 
@@ -114,6 +122,7 @@ export interface TaskSnapshot {
   lane?: string | null
   waiting?: boolean
   approval?: { tool: string; summary: string } | null
+  lanes?: { id: string; kind: string }[]
 }
 
 /**
@@ -129,6 +138,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     state: task.state,
     waiting: task.waiting ?? false,
     approval: task.approval ?? null,
+    lanes: task.lanes ?? (task.lane ? [{ id: task.lane, kind: 'agent' }] : []),
   }))
   const focused = refocus(state, panes)
   const project =
@@ -141,15 +151,18 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
 
 /** The projects from the config, which is the only place empty ones exist. */
 export function withProjects(state: AppState, names: readonly string[]): AppState {
-  const known = [...names].sort((a, b) => a.localeCompare(b))
+  const known = [...names]
   return { ...state, known, project: state.project ?? known[0] ?? null }
 }
 
-/** Every project, whether it came from the config or from a task. */
+/**
+ * Every project, in the order your config lists them — the tabs are yours to
+ * arrange — then any a task belongs to that the config does not name.
+ */
 export function projects(state: AppState): string[] {
-  const names = new Set(state.known)
-  for (const pane of state.panes) names.add(pane.project)
-  return [...names].sort((a, b) => a.localeCompare(b))
+  const extra = new Set<string>()
+  for (const pane of state.panes) if (!state.known.includes(pane.project)) extra.add(pane.project)
+  return [...state.known, ...[...extra].sort((a, b) => a.localeCompare(b))]
 }
 
 /**
@@ -300,6 +313,21 @@ export function whichProject(
   const only = projects.length === 1 ? (projects[0] ?? null) : null
   const here = current && projects.includes(current) ? current : null
   return { project: here ?? only, intent: said.trim() }
+}
+
+/** Look at one of a task's lanes. */
+export function viewLane(state: AppState, task: string, lane: string): AppState {
+  return { ...focusTask(state, task), viewing: { ...state.viewing, [task]: lane } }
+}
+
+/**
+ * The lane a pane draws: the tab you chose while it is still alive, else the
+ * agent. A shell you closed does not leave you looking at nothing.
+ */
+export function laneShown(state: AppState, pane: AgentPane): string | null {
+  const chosen = state.viewing[pane.task]
+  if (chosen && pane.lanes.some((lane) => lane.id === chosen)) return chosen
+  return pane.lane
 }
 
 /** Fold or unfold a sidebar section. */

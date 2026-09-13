@@ -349,7 +349,7 @@ describe('the window, wired up', () => {
     const button = find('+ New task')
     terminal.written = ''
     click(button.col + 2, button.row)
-    await until('the panel', () => terminal.written.includes('New task in app'))
+    await until('the panel', () => terminal.written.includes('What needs doing?'))
 
     terminal.written = ''
     terminal.press('\x1b')

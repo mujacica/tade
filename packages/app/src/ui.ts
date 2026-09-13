@@ -197,6 +197,10 @@ export interface BoxOptions {
   corner?: string
   /** A border in the colour of what the box is about, rather than the usual edge. */
   tone?: (text: string) => string
+  /** The title's own colour, when it says more than the border does. */
+  title?: (text: string) => string
+  /** Lay the box on the panel surface. Off for a card drawn into a pane. */
+  surface?: boolean
 }
 
 /**
@@ -217,15 +221,17 @@ export function box(
   const head = ` ${title} `
   const corner = opts.corner ? ` ${opts.corner} ` : ''
   const run = Math.max(0, room - 1 - visibleWidth(head) - visibleWidth(corner) - 1)
-  const top = `${edge('╭─')}${skin.you(head)}${edge('─'.repeat(run))}${skin.hint(corner)}${edge('─╮')}`
+  const titled = opts.title ?? skin.you
+  const lay = opts.surface === false ? (row: string) => row : skin.surface
+  const top = `${edge('╭─')}${titled(head)}${edge('─'.repeat(run))}${skin.hint(corner)}${edge('─╮')}`
 
-  const rows = [skin.surface(top)]
+  const rows = [lay(top)]
   const hits: Hit[] = []
   for (const row of inner) {
-    rows.push(skin.surface(`${edge('│')}${fit(row.text, room)}${edge('│')}`))
+    rows.push(lay(`${edge('│')}${fit(row.text, room)}${edge('│')}`))
     hits.push(...shift(row.hits, rows.length - 1, 1))
   }
-  rows.push(skin.surface(edge(`╰${'─'.repeat(room)}╯`)))
+  rows.push(lay(edge(`╰${'─'.repeat(room)}╯`)))
   const cover = rows.map((_, i) => rowHit(i, width, { kind: 'inert' }))
   return { rows, hits: [...cover, ...hits] }
 }

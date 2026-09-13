@@ -83,6 +83,8 @@ export class ScriptedRecorder implements Recorder {
   /** Recordings that were started, whether or not they were stopped. */
   readonly started: RecorderOptions[] = []
   cancelled = 0
+  /** Loudness to report while recording, one step per tenth of a second. */
+  levels: number[] = [0.2, 0.5, 0.8, 0.5]
 
   async available(): Promise<Availability> {
     return { ok: true }
@@ -101,6 +103,8 @@ export class ScriptedRecorder implements Recorder {
         writeFileSync(path, emptyWav())
         return { path, sampleRate: opts.sampleRate ?? 16_000, durationMs: Date.now() - at }
       },
+      level: () =>
+        this.levels[Math.floor((Date.now() - at) / 100) % Math.max(1, this.levels.length)] ?? 0,
       cancel: async () => {
         this.cancelled += 1
         rmSync(dir, { recursive: true, force: true })

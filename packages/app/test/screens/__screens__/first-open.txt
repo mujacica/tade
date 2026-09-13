@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌ +                                                                          ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS               + │                                                                                             
-   none yet — + starts one│   Nothing is running in checkout.                                                           
-                          │                                                                                             
- ▾ CHANGES                │   ▐ + New task ▌ ▐ Open project ▌                                                           
-   —                      │                                                                                             
-                          │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                    
- ▸ FILES                  │                                                                                             
-                          │                                                                                             
- ▸ NOTES                  │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
-                          │                                                                                             
+ ▾ AGENTS                   + │                                                                                         
+   none yet — + starts one    │   Nothing is running in checkout.                                                       
+                              │                                                                                         
+ ▾ CHANGES            vs main │   ▐ + New task ▌ ▐ Open project ▌                                                       
+   —                          │                                                                                         
+                              │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
+ ▸ FILES                      │                                                                                         
+ ▸ NOTES                      │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
 ━ orchestrator ── here ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
                                                                                                                         
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                                                 claude-opus-5 · anthropic 
+ ▐ + New task ▌ ▐ Open project ▌ ▐ Settings ▌                                         claude-opus-5 · anthropic today ▾ 

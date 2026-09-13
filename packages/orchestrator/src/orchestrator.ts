@@ -53,6 +53,21 @@ export interface OrchestratorOptions {
    * back when one of them is what broke, so it must not depend on any of them.
    */
   safe?: boolean
+  /**
+   * What each of its own turns cost. The orchestrator is a model like any
+   * agent, and spend that is not recorded is spend the window cannot show.
+   */
+  onUsage?: (usage: OrchestratorUsage) => void
+}
+
+export interface OrchestratorUsage {
+  model: string | null
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  tokens: number
+  usd: number
 }
 
 export class Orchestrator {
@@ -133,6 +148,9 @@ export class Orchestrator {
         for (const listener of orchestrator.toolListeners) listener(signal.tool)
       } else if (signal.type === 'idle') {
         for (const listener of orchestrator.idleListeners) listener()
+      } else if (signal.type === 'usage') {
+        const { type: _type, run: _run, at: _at, ...usage } = signal
+        opts.onUsage?.(usage)
       }
     })
 

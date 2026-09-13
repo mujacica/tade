@@ -47,6 +47,7 @@ import {
   focusTask,
   initialState,
   keyAction,
+  laneShown,
   matchActions,
   nextWaiting,
   noteTyping,
@@ -60,6 +61,7 @@ import {
   setListening,
   setQuestion,
   toggleSection,
+  viewLane,
   whichProject,
   withProjects,
   withTasks,
@@ -71,11 +73,13 @@ import {
   panelClick,
   panelFailed,
   panelKey,
+  spendPanel,
 } from './panels.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { addProject, editSettings } from './settings.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
+import { spendView as spendViewOf } from './spend.ts'
 import { draw, type Frame } from './view.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -189,10 +193,13 @@ export class App {
   /** The size each lane was last made, so resizing happens once per change. */
   private readonly fitted = new Map<string, string>()
   private titled = ''
+  /** When this window opened: the start of "This window" in the Spend panel. */
+  private readonly openedAt = Date.now()
   /** Tasks whose agent is being opened right now. */
   private readonly opening = new Set<string>()
   private screen = ''
   private recording: Recording | null = null
+  private metering: NodeJS.Timeout | null = null
   /** Where you were last time, applied once the tasks are known. */
   private remembered: RememberedWindow | null = null
   private restored = false
@@ -295,6 +302,23 @@ export class App {
       ? resolveRoute(this.opts.config, { project: focused.project })
       : orchestratorRoute(this.opts.config)
     const spend = live.spendToday()
+    const panel = this.state.panel
+    const spendView =
+      panel?.kind === 'spend'
+        ? spendViewOf(live.spending, {
+            window: panel.window,
+            by: panel.by,
+            now: this.now(),
+            openedAt: this.openedAt,
+            projects: projects(this.state),
+            budgets: Object.fromEntries(
+              Object.entries(this.opts.config.projects).map(([name, project]) => [
+                name,
+                project.budget,
+              ]),
+            ),
+          })
+        : null
     return {
       width,
       height: Math.max(6, this.terminal.rows),
@@ -304,6 +328,7 @@ export class App {
       files: live.files(this.state.focused),
       changes: live.changes(this.state.focused),
       notes: live.notes(this.state.project),
+      base: live.baseOf(this.state.focused),
       spend: {
         tokens: spend.total.tokens,
         usd: spend.total.usd,
@@ -540,6 +565,9 @@ export class App {
         if (pane && !pane.lane && pane.state !== 'parked') void this.newAgent('')
         break
       }
+      case 'lane':
+        this.state = viewLane(this.state, target.task, target.lane)
+        break
       case 'task-menu':
         // The menu itself comes with the rest of the panels; until then the
         // task is at least put in front of you.
@@ -584,6 +612,13 @@ export class App {
       case 'settings':
       case 'voice':
         await this.openSettings()
+        return
+      case 'spend':
+        this.state = { ...this.state, panel: spendPanel() }
+        this.draw()
+        return
+      case 'new-shell':
+        await this.openShell()
         return
       case 'next-waiting': {
         const next = nextWaiting(this.state)
@@ -678,6 +713,42 @@ export class App {
     }
   }
 
+  /**
+   * A shell in the task's worktree, as a tab beside its agent: the place to
+   * run the tests yourself, or look at what it did, without leaving the task.
+   */
+  private async openShell(): Promise<void> {
+    const pane = this.state.panes.find((p) => p.task === this.state.focused)
+    const worktree = pane ? this.live?.worktreeOf(pane.task) : null
+    if (!pane || !worktree) {
+      this.state = notice(this.state, 'open a task first: a shell starts in its worktree')
+      this.draw()
+      return
+    }
+    const taken = new Set(pane.lanes.map((lane) => lane.id))
+    let id = `${pane.task}/shell`
+    for (let n = 2; taken.has(id); n++) id = `${pane.task}/shell-${n}`
+    const size = this.paneSize()
+    try {
+      await this.opts.client.spawn({
+        id: id as LaneId,
+        task: pane.task as never,
+        kind: 'shell',
+        cwd: worktree,
+        command: process.env.SHELL ?? '/bin/sh',
+        args: ['-l'],
+        cols: size.cols,
+        rows: size.rows,
+        title: `${pane.name} shell`,
+      })
+      await this.live?.refresh()
+      this.state = viewLane(this.state, pane.task, id)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
   private openNewTask(): void {
     const names = projects(this.state)
     this.state = { ...this.state, panel: newTaskPanel(names, this.state.project) }
@@ -730,7 +801,8 @@ export class App {
     this.state = { ...this.state, talkingSince: this.now() }
     try {
       this.recording = await recorder.start({ maxMs: MAX_SPEECH_MS })
-      this.state = setListening(notice(this.state, 'listening'), true)
+      this.state = { ...setListening(this.state, true), levels: [] }
+      this.listenTo(this.recording)
     } catch (err) {
       // Say why, once, then fall back to typing rather than swallowing it.
       this.state = setListening(setDictation(notice(this.state, why(err)), ''), true)
@@ -738,10 +810,24 @@ export class App {
     this.draw()
   }
 
+  /** Sample how loud the microphone is hearing you, for the meter. */
+  private listenTo(recording: Recording): void {
+    if (!recording.level) return
+    this.metering = setInterval(() => {
+      const level = recording.level?.() ?? 0
+      this.state = { ...this.state, levels: [...this.state.levels, level].slice(-64) }
+      this.draw()
+    }, 100)
+    this.metering.unref?.()
+  }
+
   private async talkStop(): Promise<void> {
     const recording = this.recording
     const transcriber = this.opts.transcriber
     this.recording = null
+    if (this.metering) clearInterval(this.metering)
+    this.metering = null
+    this.state = { ...this.state, levels: [] }
     if (!recording || !transcriber) {
       this.submit()
       return
@@ -1046,8 +1132,9 @@ export class App {
     this.router = routed.state
     this.state = setHeld(this.state, pending(this.router))
 
-    if (routed.toLane !== '' && pane?.lane) {
-      void this.opts.client.write(pane.lane as LaneId, routed.toLane).catch(() => {})
+    const lane = pane ? laneShown(this.state, pane) : null
+    if (routed.toLane !== '' && lane) {
+      void this.opts.client.write(lane as LaneId, routed.toLane).catch(() => {})
     }
     if (routed.toWilco !== null) this.say(routed.toWilco)
     this.draw()
@@ -1075,10 +1162,11 @@ export class App {
   private async tick(): Promise<void> {
     if (this.stopped) return
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
+    const lane = pane ? laneShown(this.state, pane) : null
     const size = this.paneSize()
-    if (pane?.lane) await this.fitLane(pane.lane, size)
+    if (lane) await this.fitLane(lane, size)
     this.title(pane ? `${pane.project} › ${pane.name}` : null)
-    const screen = await (this.live?.capture(pane?.lane ?? null, size.rows, this.skin.colour) ?? '')
+    const screen = await (this.live?.capture(lane, size.rows, this.skin.colour) ?? '')
     if (screen !== this.screen || this.state.talkingSince !== null) {
       this.screen = screen
       this.draw()

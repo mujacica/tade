@@ -123,6 +123,11 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             Object.keys(cfg.config.projects),
           ),
           safe: program.opts().safe === true,
+          onUsage: (usage) => {
+            void client.log
+              .append({ type: 'usage', task: null, detail: { by: 'orchestrator', ...usage } })
+              .catch(() => {})
+          },
         })
           .then((started) => {
             orchestrator = started

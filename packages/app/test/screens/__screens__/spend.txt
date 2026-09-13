@@ -3,23 +3,23 @@
  ▾ AGENTS  2                + │ checkout › stripe-v15  ▐ agent ▌  shell   +       pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○ refunds            $0.62   │                                                                                         
-                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
-  M package.json      ╭─ New task ───────────────────────────────────────────────────────── esc ─╮                      
-  A src/webhooks.test.│ Project  ▐ checkout ▌  search    infra                                   │                      
-  M src/webhooks.ts   │                                                                          │                      
-                      │ What needs doing?                                                        │                      
- ▸ FILES              │  refunds are charged twice when the webhook retries▏                     │                      
- ▸ NOTES  4           │ branch   wilco/refunds-are-charged-twice                                 │                      
-                      │ worktree ~/.wilco/worktrees/checkout-refunds-are-charged-twice           │                      
-                      │                                                                          │                      
-                      │ Agent     pi · anthropic/claude-opus-5         ▾             ■ start now │                      
-                      │                                                                          │                      
-                      │                                              ▐ Cancel ▌ ▐ Start task ⏎ ▌ │                      
-                      ╰──────────────────────────────────────────────────────────────────────────╯                      
-                              │  │ bash  npm i stripe@15                                        │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-                              │  ╰──────────────────────────────────────────────────────────────╯                       
+                       ╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
+ ▾ CHANGES  3         v│ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
+  M package.json       │                                                                        │                       
+  A src/webhooks.test.t│ by ▐ Agent ▌  Project    Model                                         │                       
+  M src/webhooks.ts    │                                                                        │                       
+                       │ WHO                 MODEL            TOKENS  SHARE           COST      │                       
+ ▸ FILES               │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
+ ▸ NOTES  4            │ ● stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
+                       │ ○ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
+                       │ ◆ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
+                       │                                                                        │                       
+                       │ BUDGETS                                                                │                       
+                       │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
+                       │ search     $0.20                    no budget — set one                │                       
+                       │                                                                        │                       
+                       │ Prices as pi reports them.                                             │                       
+                       ╰────────────────────────────────────────────────────────────────────────╯                       
                               │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
