@@ -1,4 +1,3 @@
-import type { Note } from './memory.ts'
 import type { TaskState } from './model.ts'
 
 // The morning brief: everything that matters, in one paragraph, before the
@@ -24,8 +23,6 @@ export interface BriefOptions {
   localHour: number
   /** At most one, and only when there is room for it. */
   proposal?: string | null
-  /** Things you told it that are worth repeating back. */
-  notes?: readonly Note[]
 }
 
 export interface Brief {

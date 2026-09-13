@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  allNotes,
-  appliesTo,
-  describeNotes,
-  type Note,
-  NoteSchema,
-  note,
-  recall,
-} from '../src/memory.ts'
+import { allNotes, appliesTo, type Note, NoteSchema, note, recall } from '../src/memory.ts'
 
 // Notes are the one thing Wilco knows that it could not have worked out for
 // itself, so the rules about what applies where are the whole substance.
@@ -122,23 +114,5 @@ describe('allNotes', () => {
   it('is everything, newest first, whatever it is about', () => {
     const notes = [at('2026-09-10T10:00:00.000Z', 'a'), at('2026-09-12T10:00:00.000Z', 'b')]
     expect(allNotes(notes).map((n) => n.scope)).toEqual(['b', 'a'])
-  })
-})
-
-describe('describeNotes', () => {
-  it('says nothing rather than pretending', () => {
-    expect(describeNotes([])).toBe('Nothing yet.')
-  })
-
-  it('reads as a sentence', () => {
-    expect(describeNotes([at('x', null, 'the webhook retries twice')])).toBe(
-      'the webhook retries twice.',
-    )
-  })
-
-  it('counts the rest instead of reciting them', () => {
-    // Speech is expensive; a list of nine things down an earbud is unusable.
-    const many = Array.from({ length: 9 }, (_, i) => at('x', null, `thing ${i}`))
-    expect(describeNotes(many)).toBe('thing 0. thing 1. thing 2. And 6 more.')
   })
 })

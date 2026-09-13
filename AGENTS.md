@@ -53,7 +53,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
   The orchestrator is never sandboxed; it has to drive your terminal.
-- No hot reload of extensions. Activation requires a daemon restart.
+- **No hot reload of extensions.** Wilco writes proposals into `extensions/proposed/` and they do
+  nothing until a human moves them; an activated one loads the next time Wilco starts. `--safe`
+  loads none of them and must keep working with a broken one sitting in `active/` — safe mode that
+  only works when nothing is wrong is not a recovery path. Wilco's own tools always load first, so a
+  self-written one can never shadow `status` or `approve`.
+- **A setting Wilco accepts and ignores is worse than one it doesn't have**, because it reads like a
+  promise. If a config key has no reader, either wire it or delete it.
 - **Under the `pty` driver lanes are the daemon's children**, so they die with it; under `tmux` they
   do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
   never report a lane as alive without evidence, and keep its spec so it can be relaunched.

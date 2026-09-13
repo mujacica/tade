@@ -35,7 +35,6 @@ projects:
     if (!r.ok) return
     expect(r.config.projects.checkout?.max_parallel).toBe(2)
     expect(r.config.workers.routes.subscription?.sandbox).toBe('seatbelt')
-    expect(r.config.orchestrator.mode).toBe('headless')
   })
 
   it('names a bad enum value by its dotted key', () => {

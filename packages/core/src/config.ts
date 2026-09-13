@@ -57,7 +57,6 @@ export const ConfigSchema = z
         // The harness renders either its own terminal UI or a machine protocol,
         // never both; Wilco renders the orchestrator itself so voice and chat can
         // share one session.
-        mode: z.literal('headless').default('headless'),
         provider: z.string().optional(),
         model: z.string().optional(),
         extensions: z.string().default('~/.wilco/extensions'),

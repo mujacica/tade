@@ -109,15 +109,6 @@ export function historyFrom(events: readonly WilcoEvent[], now: number): WorkHis
   }
 }
 
-/** A short spoken account of a task's recent life. */
-export function describeActivity(activity: TaskActivity, now: number): string {
-  const parts = [activity.task.split('/').at(-1) ?? activity.task]
-  if (activity.state) parts.push(`is ${activity.state}`)
-  if (activity.waiting) parts.push('and is waiting on you')
-  parts.push(`— last moved ${ago(now - activity.lastEventAt)}`)
-  return parts.join(' ')
-}
-
 export function ago(ms: number): string {
   const minutes = Math.floor(ms / 60_000)
   if (minutes < 1) return 'just now'

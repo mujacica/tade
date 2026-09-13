@@ -64,15 +64,3 @@ export function recall(notes: readonly Note[], scope: string | null): Note[] {
 export function allNotes(notes: readonly Note[]): Note[] {
   return [...notes].sort((a, b) => b.at.localeCompare(a.at))
 }
-
-/**
- * What is known, as a sentence. Speech is expensive, so this says the most
- * recent few and then how many more there are.
- */
-export function describeNotes(notes: readonly Note[], limit = 3): string {
-  if (notes.length === 0) return 'Nothing yet.'
-  const said = notes.slice(0, limit).map((entry) => entry.text.replace(/\.$/, ''))
-  const rest = notes.length - said.length
-  const sentence = said.join('. ')
-  return rest > 0 ? `${sentence}. And ${rest} more.` : `${sentence}.`
-}
