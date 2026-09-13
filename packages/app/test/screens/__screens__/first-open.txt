@@ -16,8 +16,8 @@
  ▾ GIT                        │                                                                                         
    repo     ~/src/checkout    │                                                                                         
    branch   main              │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
+   path     /Users/me/src/    │                                                                                         
+            checkout          │                                                                                         
                               │                                                                                         
                               │                                                                                         
                               │                                                                                         

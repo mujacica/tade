@@ -16,7 +16,7 @@ import {
   withProjects,
   withTasks,
 } from '../src/model.ts'
-import { BUTTONS, draw, renderApp, renderTurn } from '../src/view.ts'
+import { BUTTONS, draw, renderApp, renderTurn, wrapPath } from '../src/view.ts'
 
 /** The same row without its colour, for comparing positions against columns. */
 const plain = (row: string) =>
@@ -285,5 +285,35 @@ describe('renderTurn', () => {
       ' ❯ park the stripe one',
       '   → park',
     ])
+  })
+})
+
+describe('the path under GIT', () => {
+  it('breaks after a slash, and inside a name only when the name is longer than a line', () => {
+    expect(wrapPath('/Users/me/src/checkout', 14)).toEqual(['/Users/me/src/', 'checkout'])
+    expect(wrapPath('/a/averyveryverylongname', 8)).toEqual([
+      '/a/',
+      'averyver',
+      'yverylon',
+      'gname',
+    ])
+  })
+
+  it('is whole, and copies when clicked', () => {
+    const where = {
+      repo: '~/wilco',
+      branch: 'main',
+      base: null,
+      worktree: null,
+      path: '/Users/me/wilco',
+    }
+    const { rows, hits } = draw(
+      { ...state(), folded: ['agents', 'changes', 'files', 'notes'] },
+      { ...frame({ width: 140 }), where },
+    )
+    expect(rows.join('\n')).toContain('/Users/me/wilco')
+    expect(
+      hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'copy-path'),
+    ).toBe(true)
   })
 })

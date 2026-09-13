@@ -44,6 +44,9 @@ importers:
       '@wilco/workbench':
         specifier: workspace:*
         version: link:../workbench
+      highlight.js:
+        specifier: 10.7.3
+        version: 10.7.3
       yaml:
         specifier: ^2.9.0
         version: 2.9.0

@@ -497,7 +497,7 @@ export type KeyAction =
   | { kind: 'approve' }
   | { kind: 'deny' }
   | { kind: 'help' }
-  | { kind: 'palette' }
+  | { kind: 'search' }
   | { kind: 'quit' }
   | { kind: 'none' }
 
@@ -513,7 +513,7 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (key === 'talk-down') return { kind: 'talk-start' }
   if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
   if (key === 'ctrl+c') return { kind: 'quit' }
-  if (key === 'ctrl+g') return { kind: 'palette' }
+  if (key === 'search') return { kind: 'search' }
   // Answering an approval is a single key only while one is actually waiting.
   const focused = state.panes.find((pane) => pane.task === state.focused)
   if (focused?.waiting && key === 'a') return { kind: 'approve' }

@@ -63,6 +63,8 @@ export interface Frame {
     branch: string | null
     base: string | null
     worktree: string | null
+    /** Where that is on this machine, in full: the worktree, or the repository. */
+    path: string
   } | null
   /** What the focused agent has changed since it branched. */
   changes?: readonly Change[]
@@ -110,6 +112,8 @@ export interface Frame {
       | 'talkKey'
       | 'talkMode'
       | 'running'
+      | 'searching'
+      | 'viewing'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
@@ -223,6 +227,8 @@ export function draw(state: AppState, frame: Frame): Drawn {
     talkKey: extra.talkKey ?? (frame.voice?.keys ?? ['ctrl', 'space']).join('+'),
     talkMode: extra.talkMode ?? 'hold',
     running: extra.running ?? state.panes.reduce((n, pane) => n + pane.lanes.length, 0),
+    searching: extra.searching ?? false,
+    viewing: extra.viewing ?? null,
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
@@ -526,7 +532,37 @@ function whereRows(
   rows.push(line('branch', where.branch ?? 'unknown', where.branch ? skin.busy : skin.hint, false))
   if (where.base) rows.push(line('from', where.base.replace(/^origin\//, ''), skin.hint, false))
   if (where.worktree) rows.push(line('worktree', where.worktree))
+  // The whole path, never shortened — it is the one to paste into another
+  // terminal — so it wraps under its label, and a click copies it.
+  const copy: Target = { kind: 'action', name: 'copy-path' }
+  const hovered = sameTarget(row().pointer.hover, copy)
+  const first = row().space(3).text('path'.padEnd(9), skin.hint)
+  const room = Math.max(8, first.width - first.used - 1)
+  wrapPath(where.path, room).forEach((piece, i) => {
+    const r = i === 0 ? first : row().space(12)
+    r.text(piece, hovered ? skin.link : (t) => t)
+    rows.push({ text: r.build().text, hits: [rowHit(0, r.width, copy)] })
+  })
   return rows
+}
+
+/** A path in lines of a width, broken after a slash where it can be, and anywhere where it cannot. */
+export function wrapPath(path: string, width: number): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const part of path.split(/(?<=\/)/)) {
+    if (line !== '' && line.length + part.length > width) {
+      lines.push(line)
+      line = ''
+    }
+    line += part
+    while (line.length > width) {
+      lines.push(line.slice(0, width))
+      line = line.slice(width)
+    }
+  }
+  if (line !== '' || lines.length === 0) lines.push(line)
+  return lines
 }
 
 /** A file or folder in the tree, indented by how deep it is. */

@@ -91,17 +91,26 @@ export class Row {
   field(
     value: string,
     width: number,
-    opts: { caret?: boolean; arrow?: boolean; hint?: boolean; target?: Target } = {},
+    opts: {
+      caret?: boolean
+      arrow?: boolean
+      hint?: boolean
+      target?: Target
+      ghost?: string
+    } = {},
   ): this {
     const inner = Math.max(1, width - 2)
     const tail = opts.arrow ? ' ▾' : ''
     let body = value + (opts.caret ? '▏' : '')
     const room = inner - tail.length
     if (visibleWidth(body) > room) body = `…${[...body].slice(-(room - 1)).join('')}`
-    const padded = body + ' '.repeat(Math.max(0, room - visibleWidth(body))) + tail
-    const drawn = this.skin.colour
-      ? this.skin.field(` ${padded} `, opts.hint === true)
-      : `[${padded}]`
+    // What tab would complete to, said quietly after the caret, where it fits.
+    const ghost = [...(opts.ghost ?? '')].slice(0, Math.max(0, room - visibleWidth(body))).join('')
+    const pad = ' '.repeat(Math.max(0, room - visibleWidth(body) - visibleWidth(ghost))) + tail
+    if (!this.skin.colour) return this.put(`[${body}${ghost}${pad}]`, inner + 2, opts.target)
+    const drawn = ghost
+      ? `${this.skin.field(` ${body}`, opts.hint === true)}${this.skin.field(ghost, true)}${this.skin.field(`${pad} `, false)}`
+      : this.skin.field(` ${body}${pad} `, opts.hint === true)
     return this.put(drawn, inner + 2, opts.target)
   }
 

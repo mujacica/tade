@@ -20,7 +20,7 @@
    branch   wilco/stripe-v15  │                                                                                         
    from     main              │                                                                                         
    worktree …ckout-stripe-v15 │                                                                                         
-                              │                                                                                         
+   path     /Users/me/.wilco/ │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

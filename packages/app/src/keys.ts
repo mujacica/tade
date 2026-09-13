@@ -45,7 +45,10 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   // Releases of anything else are protocol noise: the shell acts on presses.
   if (released) return null
 
-  if (key === 'tab' || key === 'shift+tab' || key === 'ctrl+c' || key === 'ctrl+g') return key
+  if (key === 'tab' || key === 'shift+tab' || key === 'ctrl+c') return key
+  // Search. Cmd+K arrives as super+k only where the terminal reports the Cmd
+  // key at all; Terminal.app and most others keep Cmd for themselves.
+  if (key === 'ctrl+k' || key === 'super+k') return 'search'
   // Only ever claimed while a pane is actually waiting, which the model knows.
   if (key === 'a' || key === 'd') return key
   return null
@@ -63,7 +66,7 @@ const TAKEN: Record<string, string> = {
   'ctrl+r': 'pi and most shells search history with ctrl+r',
   'ctrl+a': 'shells jump to the start of the line with ctrl+a',
   'ctrl+e': 'shells jump to the end of the line with ctrl+e',
-  'ctrl+k': 'shells delete to the end of the line with ctrl+k',
+  'ctrl+k': 'Wilco opens Search with ctrl+k',
   'ctrl+u': 'shells delete to the start of the line with ctrl+u',
   'ctrl+w': 'shells delete the word before the cursor with ctrl+w',
   'ctrl+l': 'shells clear the screen with ctrl+l',

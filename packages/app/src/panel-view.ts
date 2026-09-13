@@ -9,26 +9,27 @@ import {
   type ConfirmRemovePanel,
   choicesFor,
   type DiffPanel,
+  type FilePanel,
   type MenuItem,
   type MenuPanel,
   matchingChoices,
-  matchingEntries,
   nameFrom,
   type OpenProjectPanel,
   type OpenRow,
-  type PaletteEntry,
-  type PalettePanel,
   type Panel,
   type QuitPanel,
+  type SearchPanel,
   type SettingsPanel,
   type SpendPanel,
   usesDropdown,
   visibleSettings,
 } from './panels.ts'
+import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
 import { blank, box, type Drawn, fit as fitRow, type Pointer, Row } from './ui.ts'
 import type { Change } from './view.ts'
+import { bytes, type ViewedFile } from './viewer.ts'
 
 // How each panel looks. The model of what a panel holds and what a key does to
 // it is in `panels.ts`; this only draws it, and names each control so a click
@@ -78,8 +79,19 @@ export interface PanelContext {
   browsing: string | null
   /** Your home directory, which paths are shown relative to. */
   homeDir: string
-  /** Everything the palette can go to. */
-  entries: readonly PaletteEntry[]
+  /** What search shows for the query as it stands. */
+  entries: readonly SearchEntry[]
+  /** Search is still looking inside files for the text typed. */
+  searching: boolean
+  /**
+   * The file the viewer is showing, once read: its source coloured line by
+   * line, and — for Markdown — laid out at the width `fileViewSize` gives.
+   */
+  viewing: {
+    file: ViewedFile
+    source: readonly string[]
+    formatted: readonly string[] | null
+  } | null
   /** The key you talk with, and how. */
   talkKey: string
   talkMode: 'hold' | 'toggle'
@@ -116,8 +128,10 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return settings(panel, ctx)
     case 'open-project':
       return { panel: openProject(panel, ctx), popups: [] }
-    case 'palette':
-      return { panel: palette(panel, ctx), popups: [] }
+    case 'search':
+      return { panel: search(panel, ctx), popups: [] }
+    case 'file':
+      return { panel: fileView(panel, ctx), popups: [] }
     case 'keys':
       return { panel: keysSheet(ctx), popups: [] }
     case 'quit':
@@ -125,52 +139,287 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
   }
 }
 
-function palette(panel: PalettePanel, ctx: PanelContext): Drawn {
+function search(panel: SearchPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(74, ctx.width - 4)
+  const width = Math.min(100, ctx.width - 4)
   const inner = width - 2
-  const found = matchingEntries(ctx.entries, panel.query)
-  const room = Math.max(4, Math.min(14, ctx.height - 10))
+  const entries = ctx.entries
+  const query = parseQuery(panel.query)
+  const chosen = entries[panel.index]
+  const suggestion = completed(panel.query, chosen)
+  const ghost =
+    suggestion !== panel.query && suggestion.toLowerCase().startsWith(panel.query.toLowerCase())
+      ? suggestion.slice(panel.query.length)
+      : ''
+
   const rows: { text: string; hits: Hit[] }[] = [
     new Row(inner, skin)
       .space()
-      .field(panel.query, inner - 2, { caret: true })
+      .text('⌕', skin.signal)
+      .field(panel.query, inner - 4, { caret: true, ghost })
       .build(),
-    blank(inner),
   ]
-  const start = Math.max(0, Math.min(panel.index - room + 1, found.length - room))
-  found.slice(start, start + room).forEach((entry, offset) => {
-    const at = start + offset
-    const on = at === panel.index
-    const target = { kind: 'control' as const, id: `entry:${entry.id}` }
-    const tone = entry.tone ? skin[entry.tone] : skin.tab
-    const r = new Row(inner, skin)
-      .text(on ? '▌' : ' ', skin.signal)
-      .text(entry.mark, tone)
-      .space()
-    if (entry.note) {
-      // A task that needs you says where it is beside its name, and why at the edge.
-      r.text(pad(entry.label, 20), on ? skin.you : (t: string) => t)
+  const chips = new Row(inner, skin, ctx.pointer).space(3)
+  for (const scope of SCOPES) {
+    chips.tab(
+      `${scope.prefix} ${scope.label}`,
+      { kind: 'control', id: `scope:${scope.prefix}` },
+      query.scope === scope.scope,
+    )
+    chips.space()
+  }
+  chips.right((r) =>
+    r.text(ctx.searching ? 'looking in files…' : 'file:42 goes to a line', skin.hint).space(),
+  )
+  rows.push(chips.build())
+  rows.push(blank(inner))
+
+  // Headings between the groups, and every result a row: the list is laid out
+  // whole, then the part around the chosen result is shown.
+  const lines: { text: string; hits: Hit[]; at: number | null }[] = []
+  for (const group of GROUPS) {
+    const members = entries
+      .map((entry, at) => ({ entry, at }))
+      .filter(({ entry }) => entry.kind === group.kind)
+    if (members.length === 0) continue
+    lines.push({
+      ...new Row(inner, skin)
         .space()
-        .text(entry.kind, skin.hint)
-      r.right((right) => right.text(entry.note ?? '', skin.waiting).space())
-    } else {
-      r.text(entry.label, on ? skin.you : (t: string) => t)
-      r.right((right) => right.text(entry.kind, skin.hint).space())
-    }
-    const built = r.build()
-    rows.push({
-      text: on ? skin.selected(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: inner - 1, target }],
+        .text(group.title, skin.label)
+        .space()
+        .badge(members.length)
+        .build(),
+      at: null,
     })
-  })
-  if (found.length === 0)
-    rows.push(new Row(inner, skin).space().text('Nothing by that name.', skin.hint).build())
+    for (const { entry, at } of members)
+      lines.push({ ...resultRow(entry, at, at === panel.index, inner, query.text, ctx), at })
+  }
+  const room = Math.max(6, Math.min(22, ctx.height - 12))
+  const chosenLine = Math.max(
+    0,
+    lines.findIndex((line) => line.at === panel.index),
+  )
+  // Keep the chosen result in view, with its group's heading where there is room.
+  const start = Math.max(0, Math.min(chosenLine - room + 2, lines.length - room))
+  for (const line of lines.slice(start, start + room)) {
+    rows.push({
+      text: line.text,
+      hits: [
+        { row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } },
+        ...line.hits,
+      ],
+    })
+  }
+  if (entries.length === 0) {
+    rows.push(
+      new Row(inner, skin)
+        .space()
+        .text(
+          query.scope === 'text' && query.text.length < 3
+            ? 'Type at least three letters to look inside files.'
+            : ctx.searching
+              ? 'Looking…'
+              : 'Nothing matches.',
+          skin.hint,
+        )
+        .build(),
+    )
+  }
+  for (
+    let gap = room - Math.min(room, lines.length) - (entries.length === 0 ? 1 : 0);
+    gap > 0;
+    gap--
+  )
+    rows.push(blank(inner))
   rows.push(blank(inner))
   rows.push(
-    new Row(inner, skin).space().text('↑↓ move · enter go · type to narrow', skin.hint).build(),
+    new Row(inner, skin)
+      .space()
+      .text('↑↓ move · tab completes · enter opens · esc closes', skin.hint)
+      .build(),
   )
-  return box('Go to anything', rows, width, skin, { corner: 'ctrl+g' })
+  return box('Search', rows, width, skin, { corner: 'ctrl+k' })
+}
+
+/** One result: its mark, its name with what matched lit, where it is, and why at the edge. */
+function resultRow(
+  entry: SearchEntry,
+  at: number,
+  on: boolean,
+  width: number,
+  text: string,
+  ctx: PanelContext,
+): { text: string; hits: Hit[] } {
+  const { skin } = ctx
+  const tone = entry.tone
+    ? skin[entry.tone]
+    : entry.kind === 'file' || entry.kind === 'match'
+      ? skin.busy
+      : skin.tab
+  const r = new Row(width, skin)
+    .text(on ? '▌' : ' ', skin.signal)
+    .space()
+    .text(entry.mark, tone)
+    .space()
+  const hits = new Set(entry.hits ?? [])
+  const label = [...entry.label]
+  // Runs of matched and unmatched characters, painted as runs.
+  let run = ''
+  let lit = false
+  const flush = () => {
+    if (run) r.text(run, lit ? skin.waiting : on ? skin.you : (t: string) => t)
+    run = ''
+  }
+  label.forEach((char, i) => {
+    const hit = hits.has(i)
+    if (hit !== lit) {
+      flush()
+      lit = hit
+    }
+    run += char
+  })
+  flush()
+  if (entry.detail) r.space(2).text(entry.detail, skin.hint)
+  if (entry.preview !== undefined) {
+    r.space(2)
+    const preview = entry.preview
+    const found = text ? preview.toLowerCase().indexOf(text.toLowerCase()) : -1
+    // The line from a little before what matched, so the match is in view.
+    const from = found > 24 ? found - 20 : 0
+    const shown = (from > 0 ? '…' : '') + preview.slice(from)
+    const hit = found >= 0 ? found - from + (from > 0 ? 1 : 0) : -1
+    if (hit >= 0) {
+      r.text(shown.slice(0, hit), skin.hint)
+        .text(shown.slice(hit, hit + text.length), skin.waiting)
+        .text(shown.slice(hit + text.length), skin.hint)
+    } else {
+      r.text(shown, skin.hint)
+    }
+  }
+  if (entry.note) {
+    const note = entry.note
+    r.right((right) =>
+      right.text(note, entry.tone === 'waiting' ? skin.waiting : skin.hint).space(),
+    )
+  }
+  const built = r.build()
+  return {
+    text: on ? skin.selected(built.text) : built.text,
+    hits: [{ row: 0, from: 0, to: width - 1, target: { kind: 'control', id: `entry:${at}` } }],
+  }
+}
+
+/** How big the file viewer is in a window this size, and how wide its text is. */
+export function fileViewSize(
+  width: number,
+  height: number,
+): { width: number; height: number; text: number } {
+  const w = Math.max(40, Math.min(160, width - 4))
+  return { width: w, height: Math.max(10, height - 2), text: w - 2 - 9 }
+}
+
+function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const size = fileViewSize(ctx.width, ctx.height)
+  const inner = size.width - 2
+  const viewing = ctx.viewing?.file.path === panel.path ? ctx.viewing : null
+  const file = viewing?.file ?? null
+  const markdown = viewing?.formatted !== null && viewing !== null
+  const formatted = markdown && panel.formatted
+  const lines = formatted ? (viewing?.formatted ?? []) : (viewing?.source ?? [])
+  const control = (id: string) => ({ kind: 'control' as const, id })
+
+  const head = new Row(inner, skin, ctx.pointer)
+    .space()
+    .text(tildeOf(panel.path, ctx.homeDir), skin.you)
+  if (file && !file.error) {
+    const facts = [
+      file.language ?? (file.binary ? 'binary' : 'text'),
+      file.binary ? null : `${lines.length} line${lines.length === 1 ? '' : 's'}`,
+      bytes(file.size),
+      file.truncated ? 'first 1 MB' : null,
+    ].filter(Boolean)
+    head.space(2).text(facts.join(' · '), skin.hint)
+  }
+  if (markdown) {
+    head.right((r) =>
+      r
+        .tab('Formatted', control('formatted'), panel.formatted)
+        .tab('Source', control('source'), !panel.formatted)
+        .space(),
+    )
+  }
+  const rows: { text: string; hits: Hit[] }[] = [
+    head.build(),
+    { text: skin.chrome('─'.repeat(inner)), hits: [] },
+  ]
+
+  const body = size.height - 2 - 4
+  if (!viewing) {
+    rows.push(new Row(inner, skin).space(2).text('Reading…', skin.hint).build())
+  } else if (file?.error || file?.binary) {
+    rows.push(blank(inner))
+    rows.push(
+      new Row(inner, skin)
+        .space(2)
+        .text(
+          file.error ?? `A binary file, ${bytes(file.size)}. Open it in its own app to see it.`,
+          skin.hint,
+        )
+        .build(),
+    )
+  } else {
+    const digits = Math.max(3, String(lines.length).length)
+    const scroll = Math.max(0, Math.min(panel.scroll, lines.length - body))
+    lines.slice(scroll, scroll + body).forEach((line, offset) => {
+      const number = scroll + offset + 1
+      const marked = !formatted && panel.line === number
+      const gutter = formatted ? '' : `${marked ? '▶' : ' '}${String(number).padStart(digits)} │ `
+      const text = fitRow(line.replaceAll('\t', '  '), Math.max(1, inner - visibleCells(gutter)))
+      const row = `${formatted ? '' : marked ? skin.signal(gutter.slice(0, 1)) + skin.you(gutter.slice(1, -2)) + skin.chrome('│ ') : skin.hint(gutter.slice(0, -2)) + skin.chrome('│ ')}${text}`
+      rows.push({
+        text: marked ? skin.selected(row) : row,
+        hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } }],
+      })
+    })
+  }
+  while (rows.length < 2 + body)
+    rows.push({
+      text: ' '.repeat(inner),
+      hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } }],
+    })
+  rows.push({ text: skin.chrome('─'.repeat(inner)), hits: [] })
+  const shownTo = Math.min(
+    lines.length,
+    Math.max(0, Math.min(panel.scroll, lines.length - body)) + body,
+  )
+  const foot = new Row(inner, skin, ctx.pointer).space()
+  // The buttons are what the footer is for; where they are position is said,
+  // and the keys only where there is room for them too.
+  const buttons = 'Copy path'.length + 'Open in editor'.length + 'Close'.length + 12 + 3
+  if (lines.length > 0) {
+    const from = Math.max(0, Math.min(panel.scroll, lines.length - body)) + 1
+    const where = `${formatted ? 'rows' : 'lines'} ${from}–${shownTo} of ${lines.length}`
+    const keys = '  ↑↓ scroll · space a page · e editor'
+    if (1 + where.length + buttons + 2 <= inner) foot.text(where, skin.hint)
+    if (1 + where.length + keys.length + buttons + 2 <= inner) foot.text(keys, skin.hint)
+  }
+  foot.right((r) =>
+    r
+      .button('Copy path', control('copy-path'))
+      .space()
+      .button('Open in editor', control('editor'), 'primary')
+      .space()
+      .button('Close', control('close'))
+      .space(),
+  )
+  rows.push(foot.build())
+  return box('File', rows, size.width, skin, { corner: 'esc' })
+}
+
+/** Columns a plain string takes. */
+function visibleCells(text: string): number {
+  return [...text].length
 }
 
 function keysSheet(ctx: PanelContext): Drawn {
@@ -191,7 +440,11 @@ function keysSheet(ctx: PanelContext): Drawn {
       )
       .build(),
     blank(inner),
-    label('GO TO ANYTHING').keys(['ctrl', 'g']).build(),
+    label('SEARCH')
+      .keys(['ctrl', 'k'])
+      .space(2)
+      .text('agents, files, lines in files', skin.hint)
+      .build(),
     label('NEXT AGENT').keys(['tab']).space(2).keys(['shift', 'tab']).build(),
     label('ANSWER')
       .keys(['a'])

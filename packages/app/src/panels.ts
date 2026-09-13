@@ -1,4 +1,5 @@
 import type { Setting, SettingGroup } from '@wilco/core'
+import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 
 // Panels: the questions the window asks, floating over it.
@@ -151,27 +152,30 @@ export interface OpenRow {
   git: boolean
 }
 
-/** Every task, action, setting and approval, found by name. */
-export interface PalettePanel {
-  kind: 'palette'
+/** Search: agents, files in every worktree, lines inside them, actions and settings. */
+export interface SearchPanel {
+  kind: 'search'
   query: string
+  /** Which result the keyboard is on. */
   index: number
   busy: false
 }
 
-/** One thing the palette can go to. */
-export interface PaletteEntry {
-  /** What choosing it does, for the app to carry out. */
-  id: string
-  label: string
-  /** What kind of thing it is, said quietly: `task in checkout`, `setting`. */
-  kind: string
-  /** A mark before it: a task's state, or what an action is. */
-  mark: string
-  /** Colour of the mark: `waiting`, `busy`, `done`, `bad`, or plain. */
-  tone?: 'waiting' | 'busy' | 'done' | 'bad' | 'hint'
-  /** Said at the right: `waiting on you`. */
-  note?: string
+/**
+ * A file, read inside the window: coloured, with line numbers, and a button
+ * for the editor. Markdown can be read formatted or as its source.
+ */
+export interface FilePanel {
+  kind: 'file'
+  /** Absolute. */
+  path: string
+  /** The line you went to, marked and kept in view. */
+  line: number | null
+  /** The first line shown, counting from 0. */
+  scroll: number
+  /** Markdown laid out rather than shown as source. */
+  formatted: boolean
+  busy: false
 }
 
 /** The keys Wilco keeps, and the way to change the one that is yours. */
@@ -187,18 +191,24 @@ export interface QuitPanel {
   busy: false
 }
 
-export function palettePanel(): PalettePanel {
-  return { kind: 'palette', query: '', index: 0, busy: false }
+export function searchPanel(query = ''): SearchPanel {
+  return { kind: 'search', query, index: 0, busy: false }
 }
 
-/** Entries matching what was typed: every word, somewhere in the label or its kind. */
-export function matchingEntries(entries: readonly PaletteEntry[], query: string): PaletteEntry[] {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return [...entries]
-  return entries.filter((entry) => {
-    const haystack = `${entry.label} ${entry.kind}`.toLowerCase()
-    return words.every((word) => haystack.includes(word))
-  })
+/**
+ * A file, opened at a line when there is one: a few lines of what comes before
+ * stay in view, so the line is read in its place. A line asked for means the
+ * source, since formatted Markdown has no line numbers to go to.
+ */
+export function filePanel(path: string, line: number | null = null, markdown = false): FilePanel {
+  return {
+    kind: 'file',
+    path,
+    line,
+    scroll: line ? Math.max(0, line - 6) : 0,
+    formatted: markdown && line === null,
+    busy: false,
+  }
 }
 
 export function openProjectPanel(dir: string, query = ''): OpenProjectPanel {
@@ -224,7 +234,8 @@ export type Panel =
   | DiffPanel
   | SettingsPanel
   | OpenProjectPanel
-  | PalettePanel
+  | SearchPanel
+  | FilePanel
   | KeysPanel
   | QuitPanel
 
@@ -254,8 +265,10 @@ export interface PanelInputs {
   accounts?: number
   /** The Open project list, as it stands for the query. */
   rows?: readonly OpenRow[]
-  /** Everything the palette can go to. */
-  entries?: readonly PaletteEntry[]
+  /** What search shows for the query as it stands. */
+  entries?: readonly SearchEntry[]
+  /** How many lines the file panel has to scroll through. */
+  lines?: number
 }
 
 /** The settings a panel is showing: a category's, or everything matching the search. */
@@ -384,7 +397,8 @@ export function panelKey(
 ): PanelOutcome {
   if (panel.kind === 'settings') return settingsKey(panel, key, data, inputs)
   if (panel.kind === 'open-project') return openKey(panel, key, data, inputs.rows ?? [])
-  if (panel.kind === 'palette') return paletteKey(panel, key, data, inputs.entries ?? [])
+  if (panel.kind === 'search') return searchKey(panel, key, data, inputs.entries ?? [])
+  if (panel.kind === 'file') return fileKey(panel, key, inputs.lines ?? 0)
   if (panel.kind === 'keys') return key === 'escape' || key === 'enter' ? close : stay(panel)
   if (panel.kind === 'quit') {
     if (key === 'escape') return close
@@ -405,11 +419,8 @@ export function panelKey(
 export function panelClick(panel: Panel, control: string, inputs: PanelInputs = {}): PanelOutcome {
   if (panel.kind === 'settings') return settingsClick(panel, control, inputs)
   if (panel.kind === 'open-project') return openClick(panel, control, inputs.rows ?? [])
-  if (panel.kind === 'palette') {
-    return control.startsWith('entry:')
-      ? { panel, submit: true, choice: control.slice(6) }
-      : stay(panel)
-  }
+  if (panel.kind === 'search') return searchClick(panel, control, inputs.entries ?? [])
+  if (panel.kind === 'file') return fileClick(panel, control)
   if (panel.kind === 'keys')
     return control === 'change-keys' ? { panel, submit: true, choice: 'change-keys' } : stay(panel)
   if (panel.kind === 'quit') {
@@ -944,21 +955,93 @@ export function nameFrom(path: string): string {
   )
 }
 
-function paletteKey(
-  panel: PalettePanel,
+function searchClick(
+  panel: SearchPanel,
+  control: string,
+  entries: readonly SearchEntry[],
+): PanelOutcome {
+  const [verb, arg] = control.split(':')
+  if (verb === 'entry') {
+    const entry = entries[Number(arg)]
+    return entry ? { panel, submit: true, choice: entry.id } : stay(panel)
+  }
+  if (verb === 'scope') {
+    // A scope chip replaces the one typed, keeping the words.
+    const bare = SCOPES.some((one) => panel.query.startsWith(one.prefix))
+      ? panel.query.slice(1)
+      : panel.query
+    const prefix = SCOPES.find((one) => one.prefix === control.slice('scope:'.length))?.prefix ?? ''
+    return stay({ ...panel, query: `${prefix}${bare}`, index: 0 })
+  }
+  return stay(panel)
+}
+
+/** Reading: the arrows a line, page keys and space a screen, `e` or enter to the editor. */
+function fileKey(panel: FilePanel, key: string | undefined, lines: number): PanelOutcome {
+  const last = Math.max(0, lines - 1)
+  const to = (scroll: number) => stay({ ...panel, scroll: Math.max(0, Math.min(last, scroll)) })
+  switch (key) {
+    case 'escape':
+    case 'q':
+      return close
+    case 'down':
+      return to(panel.scroll + 1)
+    case 'up':
+      return to(panel.scroll - 1)
+    case 'pageDown':
+    case 'space':
+      return to(panel.scroll + 20)
+    case 'pageUp':
+      return to(panel.scroll - 20)
+    case 'home':
+      return to(0)
+    case 'end':
+      return to(last)
+    case 'enter':
+    case 'e':
+      return { panel, submit: true, choice: 'editor' }
+    case 'm':
+      return stay({ ...panel, formatted: !panel.formatted, scroll: 0 })
+    default:
+      return stay(panel)
+  }
+}
+
+function fileClick(panel: FilePanel, control: string): PanelOutcome {
+  switch (control) {
+    case 'close':
+      return close
+    case 'editor':
+    case 'copy-path':
+      return { panel, submit: true, choice: control }
+    case 'formatted':
+      return stay({ ...panel, formatted: true, scroll: 0 })
+    case 'source':
+      return stay({ ...panel, formatted: false, scroll: 0 })
+    default:
+      return stay(panel)
+  }
+}
+
+function searchKey(
+  panel: SearchPanel,
   key: string | undefined,
   data: string,
-  entries: readonly PaletteEntry[],
+  entries: readonly SearchEntry[],
 ): PanelOutcome {
   if (key === 'escape') return close
-  const found = matchingEntries(entries, panel.query)
-  if (key === 'down' || key === 'up' || key === 'tab' || key === 'shift+tab') {
-    const step = key === 'down' || key === 'tab' ? 1 : -1
-    const index = (panel.index + step + Math.max(1, found.length)) % Math.max(1, found.length)
+  if (key === 'down' || key === 'up') {
+    const count = Math.max(1, entries.length)
+    const index = (panel.index + (key === 'down' ? 1 : -1) + count) % count
     return stay({ ...panel, index })
   }
+  // Tab completes, as it does in a shell: the chosen result's name into the box.
+  if (key === 'tab') {
+    const query = completed(panel.query, entries[panel.index])
+    return stay({ ...panel, query, index: 0 })
+  }
   if (key === 'enter') {
-    const entry = found[panel.index]
+    const entry = entries[panel.index]
     return entry ? { panel, submit: true, choice: entry.id } : stay(panel)
   }
   if (key === 'backspace')

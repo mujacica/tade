@@ -14,16 +14,19 @@ import {
 import {
   confirmRemovePanel,
   diffPanel,
+  filePanel,
   menuItems,
   menuPanel,
   openProjectPanel,
-  palettePanel,
+  searchPanel,
   settingsPanel,
   spendPanel,
 } from '../../src/panels.ts'
+import { type SearchEntry, searchResults } from '../../src/search.ts'
 import { COLOUR } from '../../src/skin.ts'
 import { spendView } from '../../src/spend.ts'
 import type { Frame } from '../../src/view.ts'
+import { formattedLines, sourceLines, type ViewedFile } from '../../src/viewer.ts'
 
 // The screens the window must keep looking like.
 //
@@ -103,6 +106,7 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
     branch: 'wilco/stripe-v15',
     base: 'main',
     worktree: '~/.wilco/worktrees/checkout-stripe-v15',
+    path: '/Users/me/.wilco/worktrees/checkout-stripe-v15',
   },
   changes: [
     { path: 'package.json', mark: 'M', added: 2, removed: 1 },
@@ -178,6 +182,127 @@ function settingsFacts() {
     releases: true,
     budgetWarnings: 1,
   }
+}
+
+const webhooksFile: ViewedFile = {
+  path: '/Users/me/src/checkout/src/webhooks.ts',
+  size: 1_184,
+  binary: false,
+  truncated: false,
+  language: 'typescript',
+  error: null,
+  text: [
+    "import Stripe from 'stripe'",
+    "import { refund } from './ledger.ts'",
+    '',
+    '/** Every event Stripe sends us, checked before anything acts on it. */',
+    'export async function handle(body: string, sig: string): Promise<void> {',
+    '  const key = process.env.STRIPE_WEBHOOK_SECRET',
+    "  if (!key) throw new Error('no webhook secret')",
+    '  const cryptoProvider = Stripe.createSubtleCryptoProvider()',
+    '  const event = await stripe.webhooks.constructEventAsync(',
+    '    body, sig, key, undefined, cryptoProvider,',
+    '  )',
+    "  if (event.type === 'charge.refunded') {",
+    '    await refund(event)',
+    '  }',
+    '}',
+    '',
+  ].join('\n'),
+}
+
+const readmeFile: ViewedFile = {
+  path: '/Users/me/src/checkout/README.md',
+  size: 412,
+  binary: false,
+  truncated: false,
+  language: 'markdown',
+  error: null,
+  text: [
+    '# checkout',
+    '',
+    'Takes the **money**, and gives it back when it has to.',
+    '',
+    '## Running it',
+    '',
+    '- `pnpm dev` starts it against the Stripe test keys',
+    '- `pnpm test` runs everything, webhooks included',
+    '',
+    '```ts',
+    'const event = await stripe.webhooks.constructEventAsync(body, sig, key)',
+    '```',
+    '',
+    '> Never force-push to main.',
+    '',
+  ].join('\n'),
+}
+
+function viewing(file: ViewedFile, width?: number) {
+  return {
+    file,
+    source: sourceLines(file, false),
+    formatted: width ? formattedLines(file, width, false) : null,
+  }
+}
+
+const checkout = { path: '/Users/me/src/checkout', label: 'checkout', task: null }
+const stripeTree = {
+  path: '/Users/me/.wilco/worktrees/checkout-stripe-v15',
+  label: 'checkout › stripe-v15',
+  task: 'checkout/stripe-v15',
+}
+
+/** What search shows for a query, from the same function the window uses. */
+function searched(query: string): SearchEntry[] {
+  const agents: SearchEntry[] = [
+    {
+      id: 'approve:checkout/stripe-v15',
+      kind: 'approval',
+      label: 'Allow once: npm i stripe@15',
+      detail: 'stripe-v15',
+      mark: '▲',
+      tone: 'waiting',
+    },
+    {
+      id: 'task:checkout/stripe-v15',
+      kind: 'agent',
+      label: 'stripe-v15',
+      detail: 'in checkout',
+      mark: '●',
+      tone: 'waiting',
+      note: 'waiting on you',
+      complete: '@stripe-v15',
+    },
+    { id: 'run:new-agent', kind: 'action', label: 'New agent', mark: '›' },
+    {
+      id: 'setting:approvals',
+      kind: 'setting',
+      label: 'Approvals › Tools that always ask',
+      mark: '◇',
+    },
+  ]
+  const files = ['src/webhooks.ts', 'src/webhooks.test.ts', 'src/ledger.ts', 'README.md']
+  return searchResults(query, {
+    entries: agents,
+    files: [
+      ...files.map((path) => ({ root: checkout, path })),
+      ...files.map((path) => ({ root: stripeTree, path })),
+    ],
+    matches: [
+      {
+        root: stripeTree,
+        path: 'src/webhooks.ts',
+        line: 9,
+        text: '  const event = await stripe.webhooks.constructEventAsync(',
+      },
+      {
+        root: checkout,
+        path: 'README.md',
+        line: 7,
+        text: '- `pnpm test` runs everything, webhooks included',
+      },
+    ],
+  })
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -386,43 +511,35 @@ export const SCENARIOS: Scenario[] = [
     }),
   },
   {
-    name: 'go-to-anything',
-    about: 'ctrl+g: every task, approval, action and setting, narrowed by what you type.',
-    state: { ...base(), panel: { ...palettePanel(), query: 'stri' } },
-    frame: frame({
-      panel: {
-        entries: [
-          {
-            id: 'task:checkout/stripe-v15',
-            label: 'stripe-v15',
-            kind: 'agent in checkout',
-            mark: '●',
-            tone: 'waiting',
-            note: 'waiting on you',
-          },
-          {
-            id: 'approve:checkout/stripe-v15',
-            label: 'Allow once: npm i stripe@15',
-            kind: 'approval',
-            mark: '▸',
-            tone: 'waiting',
-          },
-          { id: 'stop:checkout/stripe-v15', label: 'Stop stripe-v15', kind: 'agent', mark: '■' },
-          {
-            id: 'changes:checkout/stripe-v15',
-            label: 'Show the changes in stripe-v15',
-            kind: 'agent',
-            mark: '±',
-          },
-          {
-            id: 'setting:approvals',
-            label: 'Settings › Approvals › strict tools',
-            kind: 'setting',
-            mark: '◇',
-          },
-        ],
-      },
-    }),
+    name: 'searching',
+    about:
+      'ctrl+k: agents, files in every worktree and lines inside them, grouped, with what matched lit.',
+    state: { ...base(), panel: { ...searchPanel('webhook'), index: 1 } },
+    frame: frame({ panel: { entries: searched('webhook'), searching: false } }),
+  },
+  {
+    name: 'searching-to-a-line',
+    about: 'A file and a line: tab completes the name, enter opens it there.',
+    state: { ...base(), panel: searchPanel('hooks.ts:42') },
+    frame: frame({ panel: { entries: searched('hooks.ts:42'), searching: false } }),
+  },
+  {
+    name: 'reading-a-file',
+    about: 'A file opened from FILES or search: coloured, numbered, at the line asked for.',
+    state: {
+      ...base(),
+      panel: filePanel('/Users/me/src/checkout/src/webhooks.ts', 9),
+    },
+    frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),
+  },
+  {
+    name: 'reading-markdown',
+    about: 'Markdown laid out as it reads, with its source a tab away.',
+    state: {
+      ...base(),
+      panel: filePanel('/Users/me/src/checkout/README.md', null, true),
+    },
+    frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(readmeFile, 112) } }),
   },
   {
     name: 'keys',
@@ -474,7 +591,13 @@ export const SCENARIOS: Scenario[] = [
       changes: [],
       notes: [],
       base: null,
-      where: { repo: '~/src/checkout', branch: 'main', base: null, worktree: null },
+      where: {
+        repo: '~/src/checkout',
+        branch: 'main',
+        base: null,
+        worktree: null,
+        path: '/Users/me/src/checkout',
+      },
       files: [
         { path: 'src', name: 'src', depth: 0, folder: true, open: false },
         { path: 'test', name: 'test', depth: 0, folder: true, open: false },

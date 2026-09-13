@@ -335,7 +335,8 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   stop it, show its changes, open it in your editor, copy its branch, park it, or remove it — which
   asks first and lists exactly what is unmerged.
 - **Git.** At the bottom of the sidebar: the project's repository and the branch it is on, or — for the agent
-  in front of you — its branch, the branch it started from, and its worktree.
+  in front of you — its branch, the branch it started from, and its worktree; and the full path on
+  this machine, wrapped rather than shortened, which a click copies.
 - **The pane.** Tabs along its top: the agent, any shell opened beside it with `+`, each drawn and
   typed into on its own. On the right, the model the agent says it runs on and a context meter that
   turns amber, then red, as it fills. An approval appears where the agent asked, with **Allow once**
@@ -343,9 +344,12 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
 - **Changes and files.** A changed file opens its diff from where the agent branched, read-only,
   `←`/`→` through the others. FILES is the agent's worktree, or the project itself when no agent is
   in front of you, as a tree: the row under the pointer is shaded, and a click opens a folder or
-  the file. The sidebar scrolls with the wheel. A file
-  under FILES, a link on an agent's screen, or a reference like
-  `src/webhooks.ts:42:7` in its output opens in your editor at that line — the one you set, else the
+  the file. The sidebar scrolls with the wheel.
+- **Reading a file.** A file under FILES, a search result, or a reference like `src/webhooks.ts:42:7`
+  on an agent's screen opens in the viewer, over the window: coloured by highlight.js (what pi
+  colours code with), numbered, at the line with it marked. Markdown opens laid out, with its source
+  a tab away. `↑`/`↓`, space and page keys scroll; a binary file says so; past 1 MB it shows the start
+  and says that too. **Open in editor** (or `e`) opens it at that line in your editor — the one you set, else the
   one whose terminal Wilco runs in (VS Code, Cursor, Windsurf, Zed, JetBrains, Neovim, Emacs), else
   `$VISUAL`/`$EDITOR`, else the system's. A terminal editor opens inside Wilco's screen rather than
   fighting it for the keyboard.
@@ -362,8 +366,13 @@ layout unpainted — `▐ label ▌` in colour, `[ label ]` without, the same wi
   shows a meter of what the microphone actually hears. Hold where the terminal reports key releases,
   press to start and stop elsewhere or if you prefer. With nothing to hear you, the chip says voice is
   off and offers setup. Space is never claimed; nor is any key that types a character.
-- **Go to anything.** `ctrl+g` finds any agent (what needs you first), waiting approval, agent to stop,
-  change to look at, project, action or setting by name. The Keys sheet is in there too.
+- **Search.** `ctrl+k` (Cmd+K too, in terminals that pass Cmd on, such as kitty and Ghostty) is one
+  box for everything, grouped with a mark for each kind: what is waiting on you, agents, files by
+  name across the project and every agent's worktree (fuzzy, with what matched lit), lines inside
+  those files, actions, projects and settings. `file:42` goes to a line; `@` narrows to agents, `#` to
+  text inside files, `>` to actions and settings. Tab completes to the chosen result, shown greyed
+  after what you typed. Files come from `git ls-files` and lines from `git grep`, so what git ignores
+  is never searched. `ctrl+k` is taken from agents and shells, where it deletes to the end of the line.
 - **Somewhere else needs you.** An agent in a project you are not looking at that wants approval gets
   a toast under the tabs, answerable where it appears. A pane you are looking at raises itself only
   when you have been idle for 30 seconds.
@@ -598,7 +607,7 @@ work out whether it was an oversight.
 
 ## Configuration
 
-**Settings is a panel over the window** (the **Settings** button, `ctrl+g`, or `wilco config` from a
+**Settings is a panel over the window** (the **Settings** button, `ctrl+k`, or `wilco config` from a
 shell): categories down the side, and every setting as a real control — key caps, radios, toggles,
 steppers, time ranges, lists that open under their field — with a sentence on what changing it does.
 Changes are written as you make them and used at once; a setting read only when Wilco starts says

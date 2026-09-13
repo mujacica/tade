@@ -40,6 +40,7 @@ import { Speaker } from '@wilco/voice-tts'
 import type { Workbench } from '@wilco/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
+import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
 import { type Hit, hitAt, pressable, sameTarget, scrollAt, type Target } from './hits.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
@@ -74,26 +75,26 @@ import {
   withProjects,
   withTasks,
 } from './model.ts'
-import type { OpenRowView } from './panel-view.ts'
+import { fileViewSize, type OpenRowView } from './panel-view.ts'
 import {
   type Choice,
   type ConfirmRemovePanel,
   confirmRemovePanel,
   diffPanel,
+  filePanel,
   menuItems,
   menuPanel,
   nameFrom,
   type OpenProjectPanel,
   type OpenRow,
   openProjectPanel,
-  type PaletteEntry,
   type Panel,
   type PanelInputs,
   type PanelOutcome,
-  palettePanel,
   panelClick,
   panelKey,
   type SettingsPanel,
+  searchPanel,
   settingsPanel,
   spendPanel,
 } from './panels.ts'
@@ -111,10 +112,12 @@ import {
 } from './projects.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
+import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } from './search.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
 import { draw, type Frame } from './view.ts'
+import { formattable, formattedLines, readForView, sourceLines, type ViewedFile } from './viewer.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -263,6 +266,20 @@ export class App {
   private recording: Recording | null = null
   /** The diff the diff panel is showing, once git has answered. */
   private diff: ParsedDiff | null = null
+  /** The file the viewer is showing, its coloured source, and its Markdown laid out at a width. */
+  private viewed: {
+    file: ViewedFile
+    source: string[]
+    formatted: { width: number; lines: string[] } | null
+  } | null = null
+  /** Every file in every place search looks, and when they were listed. */
+  private searchFiles: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
+  /** Lines found inside files, for the text they were found for. */
+  private grepped: { text: string; matches: Match[] } = { text: '', matches: [] }
+  private grepping: string | null = null
+  private grepTimer: NodeJS.Timeout | null = null
+  /** Search's results for the last query, so a redraw does not rank every file again. */
+  private results: { key: string; entries: SearchEntry[] } | null = null
   /** The models an agent can be started on, once they have been read. */
   private models: { id: string; provider: string; name: string }[] = []
   /** Providers the harness is signed in to, once read. */
@@ -397,7 +414,7 @@ export class App {
   }
 
   /** What the open panel needs to draw that the window does not. */
-  private panelFacts(live: Live): Frame['panel'] {
+  private panelFacts(live: Live, width: number): Frame['panel'] {
     const panel = this.state.panel
     if (!panel) return {}
     if (panel.kind === 'menu') return { items: this.menuItemsFor(panel) }
@@ -411,7 +428,9 @@ export class App {
       }
     }
     if (panel.kind === 'diff') return { diff: this.diff }
-    if (panel.kind === 'palette') return { entries: this.paletteEntries() }
+    if (panel.kind === 'search')
+      return { entries: this.searchEntries(), searching: this.grepping !== null }
+    if (panel.kind === 'file') return { viewing: this.viewingAt(width) }
     if (panel.kind === 'keys') {
       const talk = this.opts.config.surfaces.voice.talk
       return { talkKey: talk.key, talkMode: talk.mode, releases: kittyActive(this.terminal) }
@@ -499,6 +518,7 @@ export class App {
             branch: facts?.branch ?? live.branchAt(repo),
             base: focused ? live.baseOf(focused.task) : null,
             worktree: worktree ? tilde(worktree) : null,
+            path: worktree ?? repo,
           }
         : null,
       changes: live.changes(this.state.focused),
@@ -518,7 +538,7 @@ export class App {
       },
       vitals: live.vitals(this.state.focused),
       spendView,
-      panel: this.panelFacts(live),
+      panel: this.panelFacts(live, width),
       voice: {
         keys: keyCaps(this.opts.config.surfaces.voice.talk.key),
         available: this.opts.recorder !== undefined,
@@ -730,9 +750,8 @@ export class App {
         )
         this.draw()
         return { consume: true }
-      case 'palette':
-        this.state = { ...this.state, panel: palettePanel() }
-        this.draw()
+      case 'search':
+        this.openSearch()
         return { consume: true }
       case 'quit':
         this.quit()
@@ -817,7 +836,11 @@ export class App {
         break
       case 'file':
       case 'place':
-        void this.openPlace(target)
+        // Read here first; the viewer has the button for your editor.
+        this.openFile(
+          this.resolvePath(target.path),
+          'line' in target ? (target.line ?? null) : null,
+        )
         return
       case 'link':
         void this.openLink(target.url)
@@ -882,6 +905,14 @@ export class App {
       case 'open-agent':
         await this.openAgent()
         return
+      case 'copy-path': {
+        const path = this.hereOnDisk()
+        if (!path) return
+        const copied = await copyText(path, (data) => this.terminal.write(data))
+        this.state = notice(this.state, copied ? `copied ${path}` : path)
+        this.draw()
+        return
+      }
       default:
         await this.act(action)
     }
@@ -892,13 +923,7 @@ export class App {
    * Relative paths are the agent's, so they resolve in its worktree.
    */
   private async openPlace(target: { path: string; line?: number; column?: number }): Promise<void> {
-    const focused = this.state.panes.find((pane) => pane.task === this.state.focused)
-    const root =
-      (focused && this.live?.worktreeOf(focused.task)) ??
-      (this.state.project ? this.opts.config.projects[this.state.project]?.root : undefined) ??
-      this.opts.cwd ??
-      process.cwd()
-    const file = isAbsolute(target.path) ? target.path : resolve(expandHome(root), target.path)
+    const file = this.resolvePath(target.path)
     const { editor } = chooseEditor(this.opts.config.surfaces.window.editor, process.env)
     const opener = openerFor(
       editor,
@@ -929,6 +954,51 @@ export class App {
       this.state = notice(this.state, why(err))
     }
     this.draw()
+  }
+
+  /**
+   * Where a path someone clicked is: relative ones are the agent's, so they
+   * resolve in its worktree, or in the project when no agent is in front of you.
+   */
+  private resolvePath(path: string): string {
+    return isAbsolute(path)
+      ? path
+      : resolve(this.hereOnDisk() ?? this.opts.cwd ?? process.cwd(), path)
+  }
+
+  /** The folder you are looking at on disk: the focused agent's worktree, or the project's. */
+  private hereOnDisk(): string | null {
+    const focused = this.state.panes.find((pane) => pane.task === this.state.focused)
+    const worktree = focused ? this.live?.worktreeOf(focused.task) : null
+    if (worktree) return worktree
+    const root = this.state.project
+      ? this.opts.config.projects[this.state.project]?.root
+      : undefined
+    return root ? expandHome(root) : null
+  }
+
+  /** Read a file into the viewer, at a line if there is one. */
+  private openFile(path: string, line: number | null = null): void {
+    const file = readForView(path)
+    this.viewed = { file, source: sourceLines(file, !this.skin.colour), formatted: null }
+    this.state = { ...this.state, panel: filePanel(path, line, formattable(file)) }
+    this.draw()
+  }
+
+  /** What the viewer draws, with Markdown laid out for the width it has now. */
+  private viewingAt(width: number): NonNullable<Frame['panel']>['viewing'] {
+    const viewed = this.viewed
+    if (!viewed) return null
+    if (!formattable(viewed.file))
+      return { file: viewed.file, source: viewed.source, formatted: null }
+    const room = fileViewSize(width, this.terminal.rows).width - 4
+    if (viewed.formatted?.width !== room) {
+      viewed.formatted = {
+        width: room,
+        lines: formattedLines(viewed.file, room, !this.skin.colour),
+      }
+    }
+    return { file: viewed.file, source: viewed.source, formatted: viewed.formatted.lines }
   }
 
   private async openLink(url: string): Promise<void> {
@@ -1023,6 +1093,7 @@ export class App {
         void this.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
       }
     }
+    if (outcome.panel?.kind === 'search') this.lookInFiles()
     this.draw()
     if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel, outcome.choice)
   }
@@ -1041,9 +1112,20 @@ export class App {
       case 'open-project':
         await this.openProject(panel)
         break
-      case 'palette':
-        await this.fromPalette(choice ?? '')
+      case 'search':
+        await this.fromSearch(choice ?? '')
         return
+      case 'file':
+        if (choice === 'editor') {
+          this.state = { ...this.state, panel: null }
+          await this.openPlace({ path: panel.path, ...(panel.line ? { line: panel.line } : {}) })
+          return
+        }
+        if (choice === 'copy-path') {
+          const copied = await copyText(panel.path, (data) => this.terminal.write(data))
+          this.state = notice(this.state, copied ? `copied ${panel.path}` : panel.path)
+        }
+        break
       case 'keys':
         await this.openSettings('keys')
         return
@@ -1101,11 +1183,11 @@ export class App {
     void this.stop()
   }
 
-  /** Everything the palette can go to, what needs you first. */
-  private paletteEntries(): PaletteEntry[] {
-    const entries: PaletteEntry[] = []
+  /** Everything search knows without looking at the disk, what needs you first. */
+  private searchable(): SearchEntry[] {
+    const entries: SearchEntry[] = []
     const panes = [...this.state.panes].sort((a, b) => Number(b.waiting) - Number(a.waiting))
-    const toneOf = (pane: (typeof panes)[number]): PaletteEntry['tone'] =>
+    const toneOf = (pane: (typeof panes)[number]): SearchEntry['tone'] =>
       pane.waiting || pane.state === 'blocked'
         ? 'waiting'
         : pane.state === 'failed'
@@ -1116,60 +1198,54 @@ export class App {
               ? 'busy'
               : 'hint'
     for (const pane of panes) {
-      entries.push({
-        id: `task:${pane.task}`,
-        label: pane.project === this.state.project ? pane.name : pane.task,
-        kind: `agent in ${pane.project}`,
-        mark: glyph(pane),
-        tone: toneOf(pane),
-        ...(pane.waiting ? { note: 'waiting on you' } : {}),
-      })
-    }
-    for (const pane of panes) {
       if (pane.approval) {
         entries.push({
           id: `approve:${pane.task}`,
-          label: `Allow once: ${pane.approval.summary}`,
           kind: 'approval',
-          mark: '▸',
+          label: `Allow once: ${pane.approval.summary}`,
+          detail: pane.name,
+          mark: '▲',
           tone: 'waiting',
         })
       }
     }
     for (const pane of panes) {
-      if (pane.lane)
-        entries.push({
-          id: `stop:${pane.task}`,
-          label: `Stop ${pane.name}`,
-          kind: 'agent',
-          mark: '■',
-        })
       entries.push({
-        id: `changes:${pane.task}`,
-        label: `Show the changes in ${pane.name}`,
+        id: `task:${pane.task}`,
         kind: 'agent',
-        mark: '±',
+        label: pane.name,
+        detail: `in ${pane.project}`,
+        mark: glyph(pane),
+        tone: toneOf(pane),
+        complete: `@${pane.name}`,
+        ...(pane.waiting ? { note: 'waiting on you' } : {}),
       })
     }
-    for (const project of projects(this.state)) {
-      entries.push({ id: `project:${project}`, label: project, kind: 'project', mark: '◇' })
-    }
+    const action = (id: string, label: string, mark = '›') =>
+      entries.push({ id, kind: 'action', label, mark, complete: `>${label}` })
     for (const [id, label] of [
-      ['new-agent', 'New agent'],
-      ['open-project', 'Open project'],
-      ['spend', 'Spend'],
-      ['settings', 'Settings'],
-      ['keys', 'Keys'],
-      ['quit', 'Quit'],
+      ['run:new-agent', 'New agent'],
+      ['run:open-project', 'Open project'],
+      ['run:spend', 'Spend'],
+      ['run:settings', 'Settings'],
+      ['run:keys', 'Keys'],
+      ['run:quit', 'Quit'],
     ] as const) {
-      entries.push({ id: `run:${id}`, label, kind: 'action', mark: '›' })
+      action(id, label)
+    }
+    for (const pane of panes) {
+      if (pane.lane) action(`stop:${pane.task}`, `Stop ${pane.name}`, '■')
+      action(`changes:${pane.task}`, `Show the changes in ${pane.name}`, '±')
+    }
+    for (const project of projects(this.state)) {
+      entries.push({ id: `project:${project}`, kind: 'project', label: project, mark: '▣' })
     }
     for (const group of settingsOf(this.opts.config)) {
       for (const setting of group.settings) {
         entries.push({
           id: `setting:${group.id}`,
-          label: `Settings › ${group.title} › ${setting.title}`,
           kind: 'setting',
+          label: `${group.title} › ${setting.title}`,
           mark: '◇',
         })
       }
@@ -1177,8 +1253,107 @@ export class App {
     return entries
   }
 
-  /** Where a palette entry goes. */
-  private async fromPalette(id: string): Promise<void> {
+  /** Every place an agent works, and every project, for search to look in. */
+  private searchRoots(): SearchRoot[] {
+    const roots: SearchRoot[] = Object.entries(this.opts.config.projects).map(
+      ([name, project]) => ({
+        path: expandHome(project.root),
+        label: name,
+        task: null,
+      }),
+    )
+    for (const pane of this.state.panes) {
+      const worktree = this.live?.worktreeOf(pane.task)
+      if (worktree)
+        roots.push({ path: worktree, label: `${pane.project} › ${pane.name}`, task: pane.task })
+    }
+    return roots
+  }
+
+  /** Open search, listing the files it looks through again when that list is old. */
+  private openSearch(query = ''): void {
+    this.state = { ...this.state, panel: searchPanel(query) }
+    this.draw()
+    if (this.searchFiles && this.now() - this.searchFiles.at < 10_000) return
+    const roots = this.searchRoots()
+    void Promise.all(
+      roots.map(async (root) =>
+        (await listFiles(root.path).catch(() => [])).map((path) => ({ root, path })),
+      ),
+    ).then((lists) => {
+      this.searchFiles = { at: this.now(), files: lists.flat() }
+      this.results = null
+      this.draw()
+    })
+  }
+
+  /** What search shows for the query in the box. */
+  private searchEntries(): SearchEntry[] {
+    const panel = this.state.panel
+    if (panel?.kind !== 'search') return []
+    const text = parseQuery(panel.query).text
+    const matches = this.grepped.text === text ? this.grepped.matches : []
+    const key = [
+      panel.query,
+      this.searchFiles?.at ?? 0,
+      this.grepped.text,
+      matches.length,
+      this.state.panes.length,
+      this.state.panes.map((pane) => `${pane.task}${pane.state}${pane.waiting}`).join(),
+    ].join('\0')
+    if (this.results?.key !== key) {
+      this.results = {
+        key,
+        entries: searchResults(panel.query, {
+          entries: this.searchable(),
+          files: this.searchFiles?.files ?? [],
+          matches,
+        }),
+      }
+    }
+    return this.results.entries
+  }
+
+  /**
+   * Look inside files for what is typed, a moment after typing stops: every
+   * keystroke starting git grep across every worktree would be most of the work
+   * the machine does while you type.
+   */
+  private lookInFiles(): void {
+    const panel = this.state.panel
+    if (panel?.kind !== 'search') return
+    const query = parseQuery(panel.query)
+    const text = query.text
+    if (
+      query.scope === 'agents' ||
+      query.scope === 'actions' ||
+      text.length < TEXT_MIN ||
+      query.line
+    )
+      return
+    if (text === this.grepped.text || text === this.grepping) return
+    if (this.grepTimer) clearTimeout(this.grepTimer)
+    this.grepTimer = setTimeout(() => {
+      this.grepping = text
+      this.draw()
+      const roots = this.searchRoots()
+      void Promise.all(roots.map((root) => grep(root, text, 50).catch(() => []))).then((found) => {
+        if (this.grepping !== text) return
+        this.grepped = { text, matches: found.flat() }
+        this.grepping = null
+        this.results = null
+        this.draw()
+      })
+    }, 150)
+  }
+
+  /** Where a search result goes. */
+  private async fromSearch(id: string): Promise<void> {
+    const place = parseOpenId(id)
+    if (place) {
+      this.openFile(place.path, place.line)
+      return
+    }
     const [verb, ...rest] = id.split(':')
     const arg = rest.join(':')
     this.state = { ...this.state, panel: null }
@@ -1957,7 +2132,8 @@ export class App {
   /** What panels need to know that they do not hold. */
   private panelInputs(): PanelInputs {
     return {
-      entries: this.state.panel?.kind === 'palette' ? this.paletteEntries() : [],
+      entries: this.searchEntries(),
+      lines: this.fileLines(),
       rows:
         this.state.panel?.kind === 'open-project'
           ? this.openRowsFor(this.state.panel).map((view) => view.row)
@@ -1967,6 +2143,16 @@ export class App {
       settings: settingsOf(this.opts.config),
       accounts: this.accounts.length,
     }
+  }
+
+  /** How many lines the viewer has to scroll through, as it is showing the file now. */
+  private fileLines(): number {
+    const panel = this.state.panel
+    if (panel?.kind !== 'file' || !this.viewed) return 0
+    const viewing = this.viewingAt(this.terminal.columns)
+    return panel.formatted && viewing?.formatted
+      ? viewing.formatted.length
+      : this.viewed.source.length
   }
 
   private get configPath(): string {

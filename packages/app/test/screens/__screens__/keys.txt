@@ -9,7 +9,7 @@
   A src/webhooks.test.ts  +│                                                                │                           
   M src/webhooks.ts    +12 │ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
                            │                                                                │                           
- ▾ FILES                   │ GO TO ANYTHING   ▐ ctrl ▌+▐ g ▌                                │                           
+ ▾ FILES                   │ SEARCH           ▐ ctrl ▌+▐ k ▌  agents, files, lines in files │                           
    ▾ src/                  │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │                           
        webhooks.test.ts    │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
        webhooks.ts         │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           

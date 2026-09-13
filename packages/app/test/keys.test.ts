@@ -33,14 +33,17 @@ describe('keys the shell claims', () => {
     expect(appKey('\t', held)).toBe('tab')
     expect(appKey('\x1b[Z', held)).toBe('shift+tab')
     expect(appKey('\x03', held)).toBe('ctrl+c')
-    expect(appKey('\x07', held)).toBe('ctrl+g')
+    // Search: ctrl+k, and Cmd+K where the terminal reports Cmd (kitty protocol).
+    expect(appKey('\x0b', held)).toBe('search')
+    expect(appKey('\x1b[107;9u', held)).toBe('search')
     expect(appKey('a', held)).toBe('a')
     expect(appKey('d', held)).toBe('d')
   })
 
   it('leaves ordinary typing alone', () => {
     // `?` included: it is a character, and a question to an agent ends in one.
-    for (const data of ['x', 'hello', '?', '\r', '\x1b[A', '\x1b']) {
+    // ctrl+g too, now that search has a key of its own: pi opens your editor with it.
+    for (const data of ['x', 'hello', '?', '\r', '\x1b[A', '\x1b', '\x07']) {
       expect(appKey(data, held)).toBeNull()
     }
   })

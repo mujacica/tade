@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-tui": "0.85.1",
+    "highlight.js": "10.7.3",
     "@wilco/core": "workspace:*",
     "@wilco/workbench": "workspace:*",
     "@wilco/status": "workspace:*",

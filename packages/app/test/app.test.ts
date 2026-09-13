@@ -412,14 +412,35 @@ describe('the window, wired up', () => {
     expect(terminal.written).toContain('Copy branch name')
   })
 
-  it('goes to anything with ctrl+g, and finds the agents there', async () => {
+  it('searches with ctrl+k, finding agents and files, and opens a file to read', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
     terminal.written = ''
-    terminal.press('\x07')
-    await until('the palette', () => terminal.written.includes('Go to anything'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
     for (const char of 'sear') terminal.press(char)
-    await until('the search agent', () => terminal.written.includes('agent in app'))
+    await until('the search agent', () => terminal.written.includes('in app'))
+
+    // A file in the repository, by part of its name, opened where it is read.
+    terminal.press('\x15')
+    for (const char of 'readme') terminal.press(char)
+    // Its mark as well as its name: the sidebar lists README.md too.
+    await until('the file', () => terminal.written.includes('□ README.md'))
+    terminal.written = ''
+    terminal.press('\r')
+    await until('the viewer', () => terminal.written.includes('Open in editor'))
+    await until('what the file says', () => terminal.written.includes('fixture'))
+  })
+
+  it('looks inside files for what you type', async () => {
+    writeFileSync(join(repo.root, 'ledger.ts'), 'export const refundTwice = false\n')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x0b')
+    await until('search', () => terminal.written.includes('Search'))
+    for (const char of '#refundtwice') terminal.press(char)
+    // Case does not matter, and the line is said with the file.
+    await until('the line inside the file', () => terminal.written.includes('ledger.ts:1'))
   })
 
   it('opens the Spend panel from the status bar', async () => {

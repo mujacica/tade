@@ -19,6 +19,10 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
+| `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion | a disk or git |
+| `finder.ts` | What search looks through: `git ls-files` and `git grep`, and parsing both | — (a real repo) |
+| `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
+| `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out | a terminal (not a disk) |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
@@ -109,6 +113,15 @@ file and cannot be tested.
 - **Don't ask when a sensible default exists.** **+ New agent** makes `agent-N` and opens pi at once
   rather than opening a form — the agent's own prompt is where you say what it is for. A panel is
   for a question only you can answer.
+- **A panel keeps its height while you use it.** Panels are centred, so one that grows by a row
+  moves under the pointer and the next click lands on the row below. Reserve the space for a
+  warning, and give a list a fixed number of rows — Open project did both after a double-click
+  went into the wrong folder.
+- **Footer buttons outlive footer hints.** A row that does not fit drops its right-hand group, so
+  put buttons there only after measuring: say keys and positions only where there is room.
+- **Don't import a library's types if they bring the DOM.** highlight.js's definitions pull in the
+  browser's lib and change `ReadableStream` in unrelated packages; `highlight.ts` loads it with
+  `createRequire` behind a small interface of its own.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
   (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
   keeps `state.scroll`, a panel's list moves its own index.
