@@ -162,13 +162,33 @@ export class Workbench {
         type: 'wilco_opened',
         detail: { pid: process.pid, driver: driverName, lanes: registry.list().length },
       })
-      // What the agents spent while we were away. Never fatal: an unreadable
-      // session is a gap in the accounting, not a reason to refuse to open.
+      // Pick the agents that kept working back up: the channel first, so their
+      // extensions can reconnect, then the spend that went unreported while
+      // there was nothing for them to report to. Neither is fatal.
+      await workbench.resupervise().catch(() => {})
       await workbench.reconcileSpend().catch(() => {})
       return workbench
     } catch (err) {
       await lock.release()
       throw err
+    }
+  }
+
+  /**
+   * Open the channel again for agents that were already working.
+   *
+   * An agent whose window closed has an extension dialling for a socket that
+   * is no longer there. Putting it back is what makes reopening whole rather
+   * than partial: without it a surviving agent can be typed at and nothing
+   * else — no journal, no spend as it happens, and under `policy` a gate with
+   * nobody at the other end, which refuses everything.
+   */
+  private async resupervise(): Promise<void> {
+    for (const lane of this.registry.list()) {
+      if (lane.kind !== 'agent' || !lane.alive) continue
+      await this.workers
+        .resume({ task: lane.task as never, run: lane.id as RunId, cwd: lane.spec.cwd, prompt: '' })
+        .catch(() => null)
     }
   }
 
@@ -591,7 +611,9 @@ export class Workbench {
 
   private async doClose(): Promise<void> {
     await this.log.append({ type: 'wilco_closing', detail: { pid: process.pid } })
-    await this.workers.shutdown()
+    // Let go of both, ending neither: saying `shutdown` to an agent because a
+    // window closed would stop exactly the work the tmux driver keeps alive.
+    await this.workers.detach()
     await this.registry.detach()
     await this.log.close()
     await this.lock.release()

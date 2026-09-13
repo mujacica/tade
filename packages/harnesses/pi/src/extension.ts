@@ -69,6 +69,12 @@ const SOCKET = process.env.WILCO_RUN_SOCKET
  */
 const GATED = process.env.WILCO_APPROVALS === 'policy'
 
+/**
+ * How long to wait before looking for Wilco again. Long enough that a closed
+ * window costs nothing, short enough that reopening feels immediate.
+ */
+const RETRY_MS = 2_000
+
 /** Session totals as last reported, so each turn sends only the difference. */
 let spent = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
 const RUN = process.env.WILCO_RUN_ID ?? 'unknown'
@@ -79,6 +85,8 @@ export default function wilcoExtension(pi: PiApi): void {
   const pending = new Map<string, (result: ToolCallResult) => void>()
   let socket: Socket | null = null
   let connected = false
+  /** Set when pi is going away, so we stop trying to find Wilco. */
+  let stopped = false
   let buffer = ''
   let latest: PiContext | null = null
   let counter = 0
@@ -123,36 +131,59 @@ export default function wilcoExtension(pi: PiApi): void {
         latest?.abort()
         return
       case 'shutdown':
+        stopped = true
         latest?.shutdown()
         return
     }
   }
 
-  socket = connect(SOCKET)
-  socket.on('connect', () => {
-    connected = true
-    send({ type: 'started', sessionId: null, model: null })
-  })
-  socket.on('data', (chunk: Buffer) => {
-    buffer += chunk.toString('utf8')
-    // Strict LF framing: JSON strings may contain other separators.
-    let index = buffer.indexOf('\n')
-    while (index >= 0) {
-      handle(buffer.slice(0, index).replace(/\r$/, ''))
-      buffer = buffer.slice(index + 1)
-      index = buffer.indexOf('\n')
-    }
-  })
+  /**
+   * Connect, and keep trying.
+   *
+   * An agent outlives the window under a driver whose lanes do, so Wilco going
+   * away and coming back is the ordinary course of a long task, not a fault.
+   * Without this the agent would run on for days reporting to nobody: no
+   * journal, no spend, and — worse — no gate, because a gate with nothing at
+   * the other end refuses everything. The socket path is derived from the run
+   * id, so the window that reopens puts it back exactly where this is looking.
+   */
+  const dial = (): void => {
+    if (stopped) return
+    socket = connect(SOCKET)
+    socket.on('connect', () => {
+      connected = true
+      buffer = ''
+      send({ type: 'started', sessionId: null, model: null })
+    })
+    socket.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8')
+      // Strict LF framing: JSON strings may contain other separators.
+      let index = buffer.indexOf('\n')
+      while (index >= 0) {
+        handle(buffer.slice(0, index).replace(/\r$/, ''))
+        buffer = buffer.slice(index + 1)
+        index = buffer.indexOf('\n')
+      }
+    })
+    socket.on('close', drop)
+    socket.on('error', drop)
+    socket.unref()
+  }
+
   const drop = () => {
+    const wasConnected = connected
     connected = false
     // Wilco gone mid-flight. Only a gate has anything to say about that: with
     // approvals off, nothing was waiting on it, and failing a call that was
     // never going to be held would break work for no reason.
-    if (GATED) failPending('Wilco is not reachable, and approvals are on')
+    if (GATED && wasConnected) failPending('Wilco is not reachable, and approvals are on')
+    if (stopped) return
+    // Unref'd, so waiting to be picked up again never keeps pi alive by itself.
+    const timer = setTimeout(dial, RETRY_MS)
+    timer.unref?.()
   }
-  socket.on('close', drop)
-  socket.on('error', drop)
-  socket.unref()
+
+  dial()
 
   const remember = (_event: unknown, ctx: PiContext) => {
     latest = ctx

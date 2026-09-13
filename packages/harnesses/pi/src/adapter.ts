@@ -395,6 +395,22 @@ export class PiAdapter implements WorkerAdapter {
     return [...this.runs.values()].map((r) => ({ ...r.handle }))
   }
 
+  /**
+   * Close the channels and forget the runs, saying nothing to the agents.
+   *
+   * The distinction matters exactly as much as it does for lanes: `stop()`
+   * tells an agent to shut down, and sending that because a window closed
+   * would end every agent the tmux driver just went to the trouble of keeping
+   * alive. Their extensions dial back when a window opens again.
+   */
+  async detach(): Promise<void> {
+    for (const run of [...this.runs.values()]) {
+      await run.channel?.close()
+      run.pendingRpc.clear()
+    }
+    this.runs.clear()
+  }
+
   async shutdown(): Promise<void> {
     for (const run of [...this.runs.keys()]) await this.stop(run)
   }

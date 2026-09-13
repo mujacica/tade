@@ -92,6 +92,37 @@ export class WorkerSupervisor {
    * called this, with `adapter.launchSpec()` — placing the process is the
    * driver's business, and supervising it is ours.
    */
+  /**
+   * Take charge of an agent that was already working when we opened.
+   *
+   * The same supervision, minus the claim that it started now: it did not, and
+   * the journal already says when it did. Its extension is dialling for this
+   * socket on a timer, so this is what lets an agent adopted from a closed
+   * window be gated and steered again rather than only typed at.
+   */
+  async resume(request: StartRunRequest): Promise<WorkerHandle | null> {
+    const run = request.run ?? ''
+    if (!run || this.runs.has(run)) return null
+    const stop = this.adapter.onSignal(run, (signal) => {
+      void this.onSignal(run, signal)
+    })
+    try {
+      const handle = await this.adapter.supervise({
+        run,
+        task: request.task,
+        cwd: request.cwd,
+        prompt: '',
+      })
+      this.runs.set(run, { handle, task: request.task, worktree: request.cwd, stop })
+      return handle
+    } catch {
+      // A channel we cannot open means an agent we cannot gate. It carries on
+      // working either way, and the journal catches up from the session file.
+      stop()
+      return null
+    }
+  }
+
   async start(request: StartRunRequest): Promise<WorkerHandle> {
     const run = request.run ?? `r_${randomUUID().slice(0, 8)}`
     if (this.runs.has(run)) throw new Error(`run already exists: ${run}`)
@@ -205,6 +236,14 @@ export class WorkerSupervisor {
     this.refused.delete(run)
     await this.adapter.stop(run)
     await this.log.append({ type: 'run_exited', task: state.task, run, detail: { stopped: true } })
+  }
+
+  /** Close the window: let go of every agent, ending none of them. */
+  async detach(): Promise<void> {
+    for (const run of this.runs.values()) run.stop()
+    this.runs.clear()
+    this.pendingApprovals.clear()
+    await this.adapter.detach()
   }
 
   async shutdown(): Promise<void> {

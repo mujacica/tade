@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import type { WorkerSignal } from '@wilco/harnesses-core'
+import { spawn as openPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { EXTENSION_PATH, PiAdapter } from '../src/adapter.ts'
@@ -273,5 +274,73 @@ describe('approval gate', () => {
     // It ran. Losing Wilco costs the journal an entry, never the work.
     await until(() => existsSync(marker))
     expect(existsSync(marker)).toBe(true)
+  }, 90_000)
+
+  // A long task outlives the window under a driver whose lanes do, so Wilco
+  // going away and coming back is ordinary. Without reconnection the agent
+  // runs on reporting to nobody — and under `policy`, a gate with nothing at
+  // the other end refuses everything it is asked.
+  it('finds Wilco again after the window that started it went away', async () => {
+    const runDir = tmp('wilco-gate-')
+    const cwd = tmp('wilco-gate-work-')
+    const marker = join(cwd, 'the-command-ran')
+    model = await fakeModel(`touch ${marker}`)
+
+    const make = () =>
+      new PiAdapter({
+        runDir,
+        approvals: 'policy',
+        args: ['-e', writeProviderExtension(runDir)],
+        env: { ...process.env, WILCO_TEST_BASE_URL: model?.url ?? '' },
+      })
+
+    // The window that starts it, then goes away without stopping the agent.
+    adapter = make()
+    const first: WorkerSignal[] = []
+    adapter.onSignal('gate-reconnect', (s) => first.push(s))
+    const launch = adapter.launchSpec({
+      run: 'gate-reconnect',
+      task: 'app/gate',
+      cwd,
+      prompt: '',
+    })
+    await adapter.supervise({ run: 'gate-reconnect', task: 'app/gate', cwd, prompt: '' })
+
+    // In a real terminal, because that is where an agent lives: pi renders its
+    // own interface, and without a tty it has nothing to draw to and exits.
+    const agent = openPty(launch.command, launch.args, {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      cwd,
+      env: launch.env as Record<string, string>,
+    })
+    let alive = true
+    agent.onExit(() => {
+      alive = false
+    })
+    try {
+      await until(() => first.some((s) => s.type === 'started'))
+      // The window closes. The socket goes with it; the agent does not — so
+      // this detaches rather than shutting down, which is what closing a
+      // window does everywhere else too.
+      await adapter.detach()
+      adapter = null
+
+      // A new window, same run, same derived socket path.
+      const reopened = make()
+      adapter = reopened
+      const second: WorkerSignal[] = []
+      reopened.onSignal('gate-reconnect', (s) => second.push(s))
+      await reopened.supervise({ run: 'gate-reconnect', task: 'app/gate', cwd, prompt: '' })
+
+      // It dialled back on its own: nobody told it where to look.
+      await until(() => {
+        if (!alive) throw new Error('the agent exited, so there was nothing to reconnect')
+        return second.some((s) => s.type === 'started')
+      }, 30_000)
+    } finally {
+      agent.kill()
+    }
   }, 90_000)
 })

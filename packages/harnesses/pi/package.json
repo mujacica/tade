@@ -11,5 +11,8 @@
     "@earendil-works/pi-coding-agent": "0.85.1",
     "@wilco/core": "workspace:*",
     "@wilco/harnesses-core": "workspace:*"
+  },
+  "devDependencies": {
+    "node-pty": "^1.1.0"
   }
 }

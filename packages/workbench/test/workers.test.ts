@@ -79,6 +79,8 @@ class FakeAdapter implements WorkerAdapter {
   async list(): Promise<WorkerHandle[]> {
     return [...this.handles.values()]
   }
+  /** Letting go must be distinguishable from stopping, so it records neither. */
+  async detach(): Promise<void> {}
   async shutdown(): Promise<void> {}
 
   /** Deliver a signal as the agent would. */

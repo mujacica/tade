@@ -240,6 +240,13 @@ export interface WorkerAdapter {
   stop(run: RunId): Promise<void>
   onSignal(run: RunId, listener: WorkerSignalListener): Unsubscribe
   list(): Promise<WorkerHandle[]>
+  /**
+   * Let go of every agent without ending it: close the channels, leave the
+   * work running. This is the window closing, and under a driver whose lanes
+   * outlive it the agents carry on — so this must never say `shutdown` to one.
+   */
+  detach(): Promise<void>
+  /** End every agent we are running, and release everything. */
   shutdown(): Promise<void>
 }
 

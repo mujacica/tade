@@ -162,6 +162,10 @@ importers:
       '@wilco/harnesses-core':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
 
   packages/orchestrator:
     dependencies:
