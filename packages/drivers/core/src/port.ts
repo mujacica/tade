@@ -86,7 +86,20 @@ export interface WorkspaceDriver {
   /** Live output. Replays the buffered scrollback first when `replay` is set. */
   onOutput(lane: LaneId, listener: LaneOutputListener, opts?: { replay?: boolean }): Unsubscribe
   onExit(lane: LaneId, listener: LaneExitListener): Unsubscribe
-  /** Release every lane and resource. Lanes may or may not survive, per `capabilities.detach`. */
+  /**
+   * Let go of every lane without ending it: stop watching, release resources,
+   * leave what is running running. This is Wilco closing, which is the
+   * ordinary way a session ends and must never be what stops your agents.
+   *
+   * Whether they actually survive is `capabilities.detach`. Where they cannot
+   * — lanes that are this process's own children — this is still the right
+   * call; it simply has nothing left to promise.
+   */
+  detach(): Promise<void>
+  /**
+   * End every lane and release everything. This is "stop the work", not
+   * "close the window", and it applies regardless of `capabilities.detach`.
+   */
   shutdown(): Promise<void>
 }
 

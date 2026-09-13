@@ -17,6 +17,24 @@ export interface ConformanceOptions {
 const utf8 = new TextEncoder()
 const line = (s: string) => utf8.encode(`${s}\n`)
 
+/** Is this process still there? EPERM means yes, and not ours to signal. */
+export function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+function kill(pid: number): void {
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    // Already gone, which is the outcome we wanted.
+  }
+}
+
 /** Wait until `check` passes, polling. Beats fixed sleeps in PTY tests. */
 export async function until<T>(
   check: () => T | Promise<T>,
@@ -38,15 +56,28 @@ export async function until<T>(
   }
 }
 
+/**
+ * Make a driver attached to a named workspace.
+ *
+ * The name is the whole point: two calls with the same name must produce two
+ * instances looking at the same lanes, because that is what closing Wilco and
+ * opening it again is. A factory that invents a fresh workspace every call
+ * makes adoption untestable, and adoption is how anything survives a restart.
+ */
+export type DriverFactory = (workspace: string) => WorkspaceDriver | Promise<WorkspaceDriver>
+
 export function testWorkspaceDriver(
   name: string,
-  make: () => WorkspaceDriver | Promise<WorkspaceDriver>,
+  make: DriverFactory,
   opts: ConformanceOptions = {},
 ): void {
   describe(`WorkspaceDriver: ${name}`, () => {
     let driver: WorkspaceDriver
+    let workspace: string
     let n = 0
     const prefix = opts.laneIdPrefix ?? 'conf/t'
+    /** A second window onto the same lanes: Wilco started again. */
+    const reopen = () => make(workspace)
 
     const spec = (over: Partial<LaneSpec> = {}): LaneSpec => ({
       id: `${prefix}/l${++n}` as LaneId,
@@ -63,7 +94,9 @@ export function testWorkspaceDriver(
       until(async () => (await capture(id)).includes(text))
 
     beforeEach(async () => {
-      driver = await make()
+      // Fresh per test, so one test's lanes are never another's.
+      workspace = `conf-${Math.random().toString(36).slice(2, 10)}`
+      driver = await make(workspace)
     })
     afterEach(async () => {
       await driver.shutdown()
@@ -282,6 +315,89 @@ export function testWorkspaceDriver(
       const few = await capture(s.id, 3)
       expect(few.split('\n').filter((l) => l.trim()).length).toBeLessThanOrEqual(3)
       expect(few).toContain('got:n11')
+    })
+
+    // Closing Wilco and opening it again is the ordinary case, not the
+    // exceptional one, so a driver whose lanes outlive us has to be able to
+    // walk back into them: finding a lane is worth nothing if the handle it
+    // returns cannot then be written to.
+    it('a new instance adopts lanes it did not open, and can drive them', async () => {
+      if (!driver.capabilities.adopt) return
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+
+      // Deliberately not `shutdown()`: this is Wilco going away, not the
+      // lanes being closed.
+      const reopened = await reopen()
+      try {
+        const found = await reopened.adopt({})
+        expect(found.map((h) => h.id)).toContain(s.id)
+        // The spec survives the round trip, or a relaunch has nothing to use.
+        const handle = found.find((h) => h.id === s.id)!
+        expect(handle.spec.command).toBe(s.command)
+        expect(handle.alive).toBe(true)
+
+        await reopened.write(s.id, line('after'))
+        await until(async () => (await reopened.capture(s.id, { lines: 50 })).includes('got:after'))
+      } finally {
+        await reopened.shutdown()
+      }
+    })
+
+    // `detach: true` is a promise to the user that closing Wilco does not stop
+    // their agents. This is where that promise is kept or broken.
+    it('detach lets go of lanes without ending them', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const pid = (await driver.get(s.id))?.pid ?? null
+
+      await driver.detach()
+      try {
+        if (!driver.capabilities.detach) return
+        expect(pid).not.toBeNull()
+        // Still running, and not because we are still holding it: this is a
+        // process that outlived the thing that started it.
+        expect(isRunning(pid!)).toBe(true)
+
+        const reopened = await reopen()
+        try {
+          const found = await reopened.adopt({})
+          expect(found.map((h) => h.id)).toContain(s.id)
+        } finally {
+          await reopened.shutdown()
+        }
+      } finally {
+        // Detaching means nothing owns this lane any more, so the test has to
+        // clean up after itself rather than leaving a process behind.
+        if (pid) kill(pid)
+      }
+    })
+
+    it('shutdown ends lanes, unlike detach', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const pid = (await driver.get(s.id))?.pid
+      await driver.shutdown()
+      if (pid) await until(() => !isRunning(pid))
+    })
+
+    it('adopting twice does not produce the same lane twice', async () => {
+      if (!driver.capabilities.adopt) return
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const reopened = await reopen()
+      try {
+        await reopened.adopt({})
+        // The second pass has nothing new to report: the lane is already held.
+        expect((await reopened.adopt({})).map((h) => h.id)).not.toContain(s.id)
+        expect((await reopened.list()).filter((h) => h.id === s.id)).toHaveLength(1)
+      } finally {
+        await reopened.shutdown()
+      }
     })
 
     it('unsupported capabilities fail loudly rather than silently', async () => {

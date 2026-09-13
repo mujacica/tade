@@ -59,10 +59,13 @@ const DEFAULTS = {
 export class PtyDriver implements WorkspaceDriver {
   readonly id = 'pty'
   readonly capabilities: WorkspaceCapabilities = {
-    // Lanes are children of the daemon, so they outlive any client that
-    // attaches, but not the daemon itself. See the note in the README.
-    detach: true,
-    remoteAttach: true,
+    // Lanes are Wilco's own children: close Wilco and they go with it. That
+    // is the whole trade this driver makes — nothing to install, nothing left
+    // running. Use tmux when the agents should outlive the window.
+    detach: false,
+    // Nothing here is reachable from another machine; a lane exists only
+    // inside the process that opened it.
+    remoteAttach: false,
     nativeTabs: false,
     focus: false,
     setTitle: true,
@@ -233,6 +236,19 @@ export class PtyDriver implements WorkspaceDriver {
     }
     lane.exits.add(listener)
     return () => lane.exits.delete(listener)
+  }
+
+  /**
+   * Let go, which here means end them.
+   *
+   * `detach: false` and `adopt: false` together say there is nothing to let
+   * go into: these lanes are this process's children, nothing else can reach
+   * them, and they die when it exits anyway. Leaving them running unwatched
+   * in the meantime would mean processes nobody can see, drive or stop — so
+   * the honest reading of "release everything" is the same as shutdown.
+   */
+  async detach(): Promise<void> {
+    await this.shutdown()
   }
 
   async shutdown(): Promise<void> {

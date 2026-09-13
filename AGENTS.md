@@ -62,9 +62,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   self-written one can never shadow `status` or `approve`.
 - **A setting Wilco accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
-- **Under the `pty` driver lanes are the daemon's children**, so they die with it; under `tmux` they
+- **Under the `pty` driver lanes are Wilco's own children**, so they die with it; under `tmux` they
   do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
   never report a lane as alive without evidence, and keep its spec so it can be relaunched.
+- **`detach()` closes the window; `shutdown()` stops the work.** Closing Wilco must never be what
+  stops your agents, so the ordinary exit path detaches. Where lanes cannot outlive us and cannot be
+  found again (`detach: false`, `adopt: false`), releasing them *is* ending them — leaving processes
+  nobody can see, drive or stop is the one outcome worse than both.
+- **A lane is alive only if the driver hands it back.** A live pid proves something is running, not
+  that this driver can drive it: a fresh driver knows nothing about a window it did not open. Ask
+  the driver on open (`list` for what it already holds, `adopt` for what it can find) and take its
+  answer over the process table.
 - **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
   lane output never goes in the log (it lives in the lane's scrollback), only sampled byte counts.
 - Under subscriber backpressure, `trace` events are dropped first and `blocking` events never.

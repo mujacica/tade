@@ -94,7 +94,8 @@ discussing, and it says which. The narrowest note wins, so a rule about one task
 with none of them.
 
 **Closing the laptop lid on it.** With `workspace.driver: tmux`, lanes belong to a tmux server
-rather than the daemon, so you can stop Wilco, start it again, and the agents are still working.
+rather than to Wilco, so you can close it, open it again, and the agents are still working — Wilco
+finds the windows it left and walks back into them.
 
 ## Try it
 
@@ -204,15 +205,18 @@ wilco logs -f --min-urgency notable
 
 - **Attach from as many terminals as you like.** Every attacher sees the same session, gets a
   rendered snapshot of what it missed, and resizing your window resizes the lane.
-- **Lanes outlive clients, not the daemon** — with the default driver. They are the daemon's
-  children, so restarting it kills them. Wilco then reports them as dead (never as alive) and keeps
-  enough detail to relaunch: `wilco daemon start && wilco lanes` shows them exited, and `relaunch`
-  restarts one.
-- **Unless they live in tmux.** Set `workspace.driver: tmux` and lanes belong to a tmux server
-  instead: stop the daemon, start it again, and the agents are still running, mid-task. Wilco runs
-  its own tmux server (`tmux -L wilco`), so your own sessions are untouched, and it records the lane
-  id on each window, so lanes are recovered exactly rather than guessed at. You can attach to one
+- **With the default driver, lanes do not outlive Wilco.** They are its own children, so closing it
+  closes them. Wilco then reports them as dead (never as alive) and keeps enough detail to put the
+  work back: `wilco lanes` shows them exited, and `relaunch` restarts one. Nothing to install and
+  nothing left running, which is the trade this driver makes.
+- **Set `workspace.driver: tmux` and they do.** Lanes belong to a tmux server instead: close Wilco,
+  open it again, and the agents are still running, mid-task. Wilco runs its own tmux server
+  (`tmux -L wilco`), so your own sessions are untouched, and records the lane id on each window, so
+  reopening walks back into the same windows rather than guessing at them. A lane another window
+  opened is picked up the same way, and the journal says so (`lane_adopted`). You can attach to one
   from any terminal, over SSH, with no Wilco running at all.
+- **A lane is alive only if the driver hands it back.** A pid in the process table proves something
+  is running, not that Wilco can still drive it, so reopening asks the driver and takes its answer.
 - **The event log** is `~/.wilco/events.jsonl`, append-only and the source of truth, with a
   rebuildable SQLite index beside it. Events carry an urgency (`blocking`, `notable`, `routine`,
   `trace`); slow subscribers lose `trace` events first and `blocking` events never.

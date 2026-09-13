@@ -475,7 +475,9 @@ export class Daemon {
     // Supervised agents are the daemon's children too: stop them before the
     // log closes, so their exits are recorded.
     await this.workers.shutdown()
-    await this.registry.shutdown()
+    // Let go rather than tear down: under a driver whose lanes outlive us,
+    // stopping Wilco must not stop the agents.
+    await this.registry.detach()
     await this.log.close()
     await rm(this.socketPath, { force: true })
   }

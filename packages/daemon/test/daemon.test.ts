@@ -41,7 +41,8 @@ describe('daemon', () => {
   it('reports its own identity and declared capabilities', async () => {
     const info = await client.info()
     expect(info).toMatchObject({ version: '9.9.9', driver: 'pty', lanes: 0, socket })
-    expect(info.capabilities.detach).toBe(true)
+    // Under pty the lanes are our own children: they go when we go.
+    expect(info.capabilities.detach).toBe(false)
   })
 
   it('spawns a lane, writes to it and captures rendered output', async () => {

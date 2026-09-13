@@ -1,13 +1,10 @@
 import { testWorkspaceDriver } from '@wilco/drivers-core/conformance'
 import { TmuxDriver } from '../src/index.ts'
 
-// On its own tmux server, with a fresh session per test, so a run never
-// touches the sessions you are actually using.
+// On its own tmux server, so a run never touches the sessions you are
+// actually using. The session name is the workspace: the suite reuses it to
+// build a second driver onto the same lanes, which is Wilco being reopened.
 testWorkspaceDriver(
   'tmux',
-  () =>
-    new TmuxDriver({
-      socket: `wilco-test-${process.pid}`,
-      session: `conf-${Math.random().toString(36).slice(2, 10)}`,
-    }),
+  (workspace) => new TmuxDriver({ socket: `wilco-test-${process.pid}`, session: workspace }),
 )

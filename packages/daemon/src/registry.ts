@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { LaneId, LaneKind } from '@wilco/core'
+import { type LaneId, LaneKind } from '@wilco/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
@@ -100,26 +100,86 @@ export class LaneRegistry {
   }
 
   /**
-   * Lanes are children of the daemon, so a daemon restart kills them. Rather
-   * than pretend they are alive, mark them dead and keep their spec so they
-   * can be relaunched.
+   * Come back to the lanes that are still there, and be honest about the rest.
+   *
+   * Surviving is not the same as being reachable. A pid in the process table
+   * proves only that something is running; it says nothing about whether this
+   * driver can write to it, and a fresh driver knows nothing about a lane it
+   * did not open. So the driver is asked, and its answer is the whole answer:
+   * a lane it cannot hand back is gone however alive its pid looks. That is
+   * the difference between `capabilities.detach` — whether lanes outlive us —
+   * and `capabilities.adopt`, whether we can find them again afterwards.
    */
+  private async reachable(): Promise<Map<string, LaneHandle>> {
+    // Two questions, because they answer different things: `list` is what this
+    // driver instance already holds, `adopt` is what it can go and find. A
+    // driver that survived in-process answers the first; a brand new one
+    // answers the second.
+    const found: LaneHandle[] = []
+    for (const ask of [
+      () => this.driver.list(),
+      () => (this.driver.capabilities.adopt ? this.driver.adopt({}) : Promise.resolve([])),
+    ]) {
+      // A driver that cannot answer is a driver with nothing running: the
+      // tmux server is not up, and reporting that as an error on open would
+      // put a stack trace between you and an empty workbench.
+      found.push(...(await ask().catch(() => [])))
+    }
+    return new Map(found.map((handle) => [handle.id as string, handle]))
+  }
+
   private async reconcile(): Promise<void> {
+    const reachable = await this.reachable()
     const parsed = LaneFile.safeParse(await readJson(this.path))
-    if (!parsed.success) return
-    for (const lane of parsed.data.lanes) {
-      const alive = lane.alive && lane.pid !== null && isRunning(lane.pid)
-      this.lanes.set(lane.id, { ...lane, alive })
-      if (lane.alive && !alive) {
+    for (const lane of parsed.success ? parsed.data.lanes : []) {
+      const handle = reachable.get(lane.id)
+      reachable.delete(lane.id)
+      // Keep the stored spec when the lane is gone: it is how `relaunch` puts
+      // the work back. When it is here, the driver's handle is fresher.
+      const record: LaneRecord = handle
+        ? { ...lane, spec: handle.spec, pid: handle.pid, title: handle.title, alive: handle.alive }
+        : { ...lane, alive: false }
+      this.lanes.set(lane.id, record)
+      if (record.alive) await this.readopt(record)
+      else if (lane.alive) {
         await this.log.append({
           type: 'lane_exited',
           lane: lane.id,
           task: lane.task,
-          detail: { reason: 'not running after daemon restart', pid: lane.pid },
+          detail: { reason: this.lostReason(), pid: lane.pid },
         })
       }
     }
+
+    // Lanes the driver knows and we do not: opened by another window, or ours
+    // from before the registry file was lost. The id carries the task, so
+    // nothing about them has to be guessed.
+    for (const handle of reachable.values()) {
+      if (handle.alive) await this.readopt(adoptedRecord(handle))
+    }
     await this.save()
+  }
+
+  /**
+   * Take up a lane that was already running. Journalled either way: whether
+   * the file knew about it changes nothing about what happened, which is that
+   * work carried on while nobody was watching and is being watched again now.
+   */
+  private async readopt(record: LaneRecord): Promise<void> {
+    this.lanes.set(record.id, record)
+    this.watch(record)
+    await this.log.append({
+      type: 'lane_adopted',
+      lane: record.id,
+      task: record.task,
+      detail: { command: record.spec.command, cwd: record.spec.cwd, pid: record.pid },
+    })
+  }
+
+  private lostReason(): string {
+    return this.driver.capabilities.detach
+      ? 'gone: the driver could not find it again'
+      : 'gone: lanes do not outlive Wilco under this driver'
   }
 
   async spawn(req: SpawnRequest): Promise<LaneRecord> {
@@ -235,14 +295,30 @@ export class LaneRegistry {
     await this.save()
   }
 
+  /**
+   * Close the window. Lanes are left exactly as they are and the file keeps
+   * saying they were alive, because next time `reconcile` asks the driver
+   * rather than trusting the file.
+   */
+  async detach(): Promise<void> {
+    this.release()
+    await this.driver.detach()
+    await this.saving
+  }
+
+  /** Stop the work, not just the watching. */
   async shutdown(): Promise<void> {
+    this.release()
+    await this.driver.shutdown()
+    await this.saving
+  }
+
+  private release(): void {
     for (const id of this.lanes.keys()) {
       this.flushOutput(id as LaneId)
       for (const un of this.unsubscribes.get(id) ?? []) un()
     }
     this.unsubscribes.clear()
-    await this.driver.shutdown()
-    await this.saving
   }
 
   private watch(record: LaneRecord): void {
@@ -314,12 +390,28 @@ export class LaneRegistry {
   }
 }
 
-function isRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (err) {
-    return (err as NodeJS.ErrnoException).code === 'EPERM'
+/**
+ * A record for a lane we found rather than opened.
+ *
+ * Lane ids are `<project>/<task>/<lane>`, which makes them self-describing:
+ * an adopted lane can say which task it belongs to without anyone having
+ * written that down. The last segment is the kind when it names one, which is
+ * what `wilco spawn <project>/<task>` produces.
+ */
+function adoptedRecord(handle: LaneHandle): LaneRecord {
+  const parts = (handle.id as string).split('/')
+  const tail = parts[2]
+  return {
+    id: handle.id,
+    task: parts.slice(0, 2).join('/'),
+    kind: LaneKind.safeParse(tail).data ?? 'shell',
+    spec: handle.spec,
+    pid: handle.pid,
+    startedAt: handle.startedAt,
+    title: handle.title,
+    alive: handle.alive,
+    exitCode: handle.exitCode,
+    lastOutputAt: handle.lastOutputAt,
   }
 }
 

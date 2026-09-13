@@ -18,6 +18,8 @@ export const URGENCY_RANK: Record<Urgency, number> = {
 export const EventType = z.enum([
   // lanes
   'lane_opened',
+  /** Picked up again on open, still running from a previous window. */
+  'lane_adopted',
   'lane_exited',
   'lane_closed',
   'output',
@@ -46,6 +48,7 @@ export type EventType = z.infer<typeof EventType>
 
 export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   lane_opened: 'notable',
+  lane_adopted: 'notable',
   lane_exited: 'notable',
   lane_closed: 'routine',
   output: 'trace',

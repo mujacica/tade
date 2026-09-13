@@ -338,6 +338,25 @@ export class TmuxDriver implements WorkspaceDriver {
     return () => lane.exits.delete(listener)
   }
 
+  /**
+   * Let go of the session without ending it. This is the whole reason to run
+   * lanes in tmux: Wilco closes, the windows stay, and opening it again
+   * adopts them back. Output piping is left in place — the pipe files are
+   * this instance's, but tmux keeps writing until the window dies, and the
+   * next instance sets up its own.
+   */
+  async detach(): Promise<void> {
+    if (this.timer) clearInterval(this.timer)
+    this.timer = null
+    for (const lane of this.lanes.values()) {
+      lane.outputs.clear()
+      lane.exits.clear()
+    }
+    this.lanes.clear()
+    this.started = false
+    rmSync(this.dir, { recursive: true, force: true })
+  }
+
   async shutdown(): Promise<void> {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
