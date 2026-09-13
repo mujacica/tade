@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
 import { defaultConfigPath, isReady, loadConfig, readiness, wilcoHome } from '@wilco/core'
 import { DaemonClient } from '@wilco/daemon/client'
 import { socketPath } from '@wilco/daemon/protocol'
+import { Orchestrator } from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/stt'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
@@ -62,13 +64,29 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const canHear = (await recorder.available()).ok && (await transcriber.available()).ok
 
       const client = await DaemonClient.connect(socket)
+      // Anything the grammar does not recognise goes to the orchestrator. If
+      // it cannot start — no model configured yet — the window still works and
+      // free text is simply not understood, which is the honest outcome.
+      const home = wilcoHome()
+      const orchestrator = await Orchestrator.start({
+        home,
+        socket,
+        runDir: join(home, 'orchestrator'),
+        cwd: process.cwd(),
+        config: cfg.config,
+        safe: program.opts().safe === true,
+      }).catch(() => null)
+
       try {
         const app = await App.start({
           client,
           config: cfg.config,
-          home: wilcoHome(),
+          home,
           cwd: process.cwd(),
           ...(canHear ? { recorder, transcriber } : {}),
+          ...(orchestrator
+            ? { thinker: { ask: (text: string) => orchestrator.askFor(text) } }
+            : {}),
         })
         // Leaving the terminal in raw mode would outlive us, so stop on a
         // signal the same way as on quitting.
@@ -85,6 +103,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         io.err(err instanceof Error ? err.message : String(err))
         setExit(Exit.error)
       } finally {
+        await orchestrator?.stop().catch(() => {})
         await client.close()
       }
     })

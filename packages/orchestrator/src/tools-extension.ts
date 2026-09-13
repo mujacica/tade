@@ -1,5 +1,14 @@
 import { execFile } from 'node:child_process'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
+import { join } from 'node:path'
+
+/** Where proposals are written. Set by the orchestrator that launched us. */
+function extensionsRoot(): string {
+  const configured = process.env.WILCO_EXTENSIONS
+  if (configured) return configured
+  return join(process.env.WILCO_HOME ?? process.cwd(), 'extensions')
+}
 
 // Wilco's tools, as seen by the orchestrator.
 //
@@ -83,6 +92,33 @@ export default function wilcoTools(pi: PiApi): void {
     'Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.',
     object({}),
     async () => runCli(['status', '--json']),
+  )
+
+  tool(
+    'wilco_propose_extension',
+    'Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `wilco extensions activate`. Never assume a proposed tool is available.',
+    object(
+      {
+        name: string('short name, lowercase with dashes'),
+        source: string('the extension source: a pi extension module'),
+        why: string('what it is for, in one sentence'),
+      },
+      ['name', 'source', 'why'],
+    ),
+    async (p) => {
+      const name = String(p.name)
+      if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) {
+        throw new Error(`${name} is not a usable name: lowercase letters, digits and dashes`)
+      }
+      const dir = join(extensionsRoot(), 'proposed')
+      await mkdir(dir, { recursive: true })
+      const path = join(dir, `${name}.ts`)
+      // The reason it was written goes in the file, because the review happens
+      // days later and a tool with no stated purpose gets turned down.
+      const header = `// ${String(p.why)}\n// Proposed by Wilco on ${new Date().toISOString()}.\n\n`
+      await writeFile(path, header + String(p.source))
+      return `Proposed ${name}. It is not running: a human activates it with \`wilco extensions activate ${name}\` after reading ${path}.`
+    },
   )
 
   tool(

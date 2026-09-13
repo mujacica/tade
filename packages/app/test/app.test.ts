@@ -188,6 +188,31 @@ describe('the window, wired up', () => {
     await until('the dictation line', () => terminal.written.includes('◉'))
   })
 
+  it('sends anything it does not recognise to the orchestrator', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'because the webhook retries twice'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+
+    terminal.press('\x00') // opens the line you type into
+    for (const char of 'why is refunds slow') terminal.press(char)
+    terminal.press('\r')
+
+    // The grammar has no verb for this, so it goes to the thing that can think.
+    await until('the orchestrator to be asked', () => asked.length === 1)
+    expect(asked[0]).toBe('why is refunds slow')
+    await until('the answer on screen', () =>
+      terminal.written.includes('because the webhook retries twice'),
+    )
+  })
+
   it('stops cleanly, and stopping twice is safe', async () => {
     const started = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

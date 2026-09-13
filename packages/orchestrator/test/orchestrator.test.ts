@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Daemon } from '@wilco/daemon/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -44,7 +44,10 @@ describe('Orchestrator', () => {
     model = null
   })
 
-  async function start(options: Parameters<typeof startFakeModel>[0]) {
+  async function start(
+    options: Parameters<typeof startFakeModel>[0],
+    over: { safe?: boolean } = {},
+  ) {
     model = await startFakeModel(options)
     const runDir = tmp('wilco-chat-run-')
     orchestrator = await Orchestrator.start({
@@ -55,6 +58,7 @@ describe('Orchestrator', () => {
       model: { provider: 'wilco-test', id: 'fake' },
       args: ['-e', writeProviderExtension(runDir)],
       env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      ...over,
     })
     return orchestrator
   }
@@ -73,6 +77,27 @@ describe('Orchestrator', () => {
     expect(said[0]).toBe('Nothing is running.')
     // Without this a surface would never know it could speak again.
     await until(() => idle)
+  }, 90_000)
+
+  it('waits for the whole answer when asked to', async () => {
+    // Surfaces that speak in turns need the reply, not a stream of parts.
+    const chat = await start({ finalText: 'Two tasks, nothing blocked.' })
+    expect(await chat.askFor('where are we')).toBe('Two tasks, nothing blocked.')
+  }, 90_000)
+
+  it('starts with none of the self-written tools when asked to', async () => {
+    // Safe mode is the way back when one of them is what broke, so it must
+    // start with a thoroughly broken one sitting in the active directory.
+    const active = join(home, 'extensions', 'active')
+    mkdirSync(active, { recursive: true })
+    writeFileSync(join(active, 'broken.ts'), 'this is not valid typescript at all !!!\n')
+
+    const said: string[] = []
+    const chat = await start({ finalText: 'Still here.' }, { safe: true })
+    chat.onMessage((text) => said.push(text))
+    await chat.ask('where are we')
+    await until(() => said.length > 0)
+    expect(said[0]).toBe('Still here.')
   }, 90_000)
 
   it("reaches for Wilco's own tools and reports which one", async () => {

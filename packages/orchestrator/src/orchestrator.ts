@@ -1,7 +1,9 @@
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Config, Unsubscribe, WorkerModel } from '@wilco/core'
-import { orchestratorRoute } from '@wilco/core'
+import { expandHome, orchestratorRoute } from '@wilco/core'
 import { PiAdapter } from '@wilco/harness-pi'
+import { activeExtensions } from './extensions.ts'
 
 // The thing you talk to. An agent like any other, except that its tools are
 // Wilco's own and nobody supervises it: it is the interface, not the work.
@@ -27,6 +29,11 @@ export interface OrchestratorOptions {
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
+  /**
+   * Start with none of the self-written extensions loaded. This is the way
+   * back when one of them is what broke, so it must not depend on any of them.
+   */
+  safe?: boolean
 }
 
 export class Orchestrator {
@@ -47,16 +54,34 @@ export class Orchestrator {
         ? { id: route.model, ...(route.provider ? { provider: route.provider } : {}) }
         : undefined)
 
+    // Wilco's own tools always load. The ones it wrote for itself load after
+    // them, so a self-written tool can never shadow `status` or `approve`.
+    const written = opts.safe
+      ? []
+      : activeExtensions(
+          expandHome(opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions')),
+        )
+
     const adapter = new PiAdapter({
       runDir: opts.runDir,
       // Wilco's own interface: gating its tool calls on approval would mean
       // asking permission to answer "where are we".
       supervise: false,
-      args: ['-e', TOOLS_EXTENSION, ...(opts.args ?? [])],
+      args: [
+        '-e',
+        TOOLS_EXTENSION,
+        ...written.flatMap((path) => ['-e', path]),
+        ...(opts.args ?? []),
+      ],
       env: {
         ...(opts.env ?? process.env),
         WILCO_SOCKET: opts.socket,
         WILCO_HOME: opts.home,
+        // Where proposals are written, so the tool does not have to guess at
+        // a path the config may have moved.
+        WILCO_EXTENSIONS: expandHome(
+          opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
+        ),
         WILCO_CLI: process.execPath,
         WILCO_CLI_ARGS: CLI_BIN,
       },
@@ -86,6 +111,35 @@ export class Orchestrator {
   /** Say something. Replies arrive through `onMessage`. */
   async ask(text: string): Promise<void> {
     await this.adapter.prompt(ORCHESTRATOR_RUN, text)
+  }
+
+  /**
+   * Say something and wait for the answer, for surfaces that speak in turns.
+   *
+   * Bounded on purpose: a surface that waits forever on a thinking agent is a
+   * surface that has hung, and saying so is better than looking broken.
+   */
+  async askFor(text: string, timeoutMs = 120_000): Promise<string> {
+    const parts: string[] = []
+    const offMessage = this.onMessage((part) => parts.push(part))
+    let offIdle: Unsubscribe = () => {}
+    const settled = new Promise<void>((resolve) => {
+      offIdle = this.onIdle(resolve)
+    })
+    try {
+      await this.ask(text)
+      const timer = new Promise<'slow'>((resolve) => {
+        const handle = setTimeout(() => resolve('slow'), timeoutMs)
+        handle.unref?.()
+      })
+      if ((await Promise.race([settled.then(() => 'done' as const), timer])) === 'slow') {
+        return parts.join(' ').trim() || 'Still thinking about that one.'
+      }
+      return parts.join(' ').trim()
+    } finally {
+      offMessage()
+      offIdle()
+    }
   }
 
   onMessage(listener: (text: string) => void): Unsubscribe {

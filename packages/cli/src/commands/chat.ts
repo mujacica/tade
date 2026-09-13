@@ -37,6 +37,8 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         runDir: join(home, 'orchestrator'),
         cwd: process.cwd(),
         config: cfg.config,
+        // `wilco --safe chat` loads none of the self-written tools.
+        safe: program.opts().safe === true,
       })
 
       chat.onMessage((text) => io.out(text))

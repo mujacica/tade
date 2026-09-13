@@ -10,6 +10,7 @@ import { registerBrief } from './commands/brief.ts'
 import { registerChat } from './commands/chat.ts'
 import { registerCheck } from './commands/check.ts'
 import { registerDaemon } from './commands/daemon.ts'
+import { registerExtensions } from './commands/extensions.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
 import { registerSetup } from './commands/setup.ts'
@@ -30,6 +31,9 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   const program = new Command('wilco')
     .description('A voice-first workbench for running coding agents on your own machine.')
     .version(version())
+    // The way back when a self-written tool is what broke. It must not depend
+    // on any of them, so it is a flag on the root and nothing else.
+    .option('--safe', 'start with none of the self-written extensions loaded')
     .exitOverride()
     .configureOutput({
       writeOut: (s) => io.out(s.trimEnd()),
@@ -100,6 +104,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerNotes(program, io, setExit)
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)
+  registerExtensions(program, io, setExit)
   registerDaemon(program, io, setExit)
   return program
 }

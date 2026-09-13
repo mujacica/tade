@@ -82,6 +82,11 @@ export interface AppOptions {
   /** Push-to-talk becomes speech when both of these are given. */
   transcriber?: Transcriber
   recorder?: Recorder
+  /**
+   * Where anything the grammar does not recognise goes. Without it, free text
+   * gets "I didn't catch that", which is a poor answer to a real question.
+   */
+  thinker?: { ask(text: string): Promise<string> }
   now?: () => number
   frameMs?: number
 }
@@ -168,6 +173,9 @@ export class App {
       worktreeOf: async (task) => live.worktreeOf(task),
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
+      ...(this.opts.thinker
+        ? { ask: (text: string) => this.opts.thinker?.ask(text) ?? Promise.resolve('') }
+        : {}),
       ...(this.opts.now ? { now: this.opts.now } : {}),
       // Typing at an agent is what mutes speech for that task.
       focusedTask: () => ({ task: this.state.focused, lastInputAt: this.state.lastInputAt }),
