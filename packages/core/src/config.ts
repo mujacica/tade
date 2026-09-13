@@ -65,6 +65,22 @@ function isPattern(source: string): boolean {
   }
 }
 
+/** The editors Wilco knows how to open a file at a line in. */
+export const EDITORS = [
+  'code',
+  'cursor',
+  'windsurf',
+  'zed',
+  'idea',
+  'subl',
+  'nvim',
+  'vim',
+  'emacs',
+  'system',
+] as const
+
+export type EditorName = (typeof EDITORS)[number]
+
 export const ConfigSchema = z
   .strictObject({
     workspace: z
@@ -189,6 +205,12 @@ export const ConfigSchema = z
           .strictObject({
             sidebar_width: z.int().positive().optional(),
             strip_height: z.int().positive().optional(),
+            /**
+             * Where a file opens when you click it. Unset means: the editor
+             * whose terminal Wilco is running in, then $VISUAL or $EDITOR,
+             * then whatever the system opens that kind of file with.
+             */
+            editor: z.enum(EDITORS).optional(),
           })
           .prefault({}),
       })

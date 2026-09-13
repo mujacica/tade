@@ -331,8 +331,9 @@ export class Workbench {
     return this.registry.write(lane, typeof data === 'string' ? Buffer.from(data, 'utf8') : data)
   }
 
-  capture(lane: LaneId, lines = 100): Promise<string> {
-    return this.registry.capture(lane, lines)
+  /** The lane's screen. `styled` keeps its colour, for drawing it the way it looks. */
+  capture(lane: LaneId, lines = 100, styled = false): Promise<string> {
+    return this.registry.capture(lane, lines, styled)
   }
 
   resize(lane: LaneId, cols: number, rows: number): Promise<void> {

@@ -44,6 +44,17 @@ projects:
     expect(r.issues[0]?.path).toBe('workspace.driver')
   })
 
+  it('takes an editor by name, and only one it knows how to open', () => {
+    const none = parseConfig('')
+    expect(none.ok && none.config.surfaces.window.editor).toBeUndefined()
+    const cursor = parseConfig('surfaces:\n  window:\n    editor: cursor\n')
+    expect(cursor.ok && cursor.config.surfaces.window.editor).toBe('cursor')
+    const notepad = parseConfig('surfaces:\n  window:\n    editor: notepad\n')
+    expect(notepad.ok).toBe(false)
+    if (notepad.ok) return
+    expect(notepad.issues[0]?.path).toBe('surfaces.window.editor')
+  })
+
   it('names an unknown (typo) key', () => {
     const r = parseConfig('workspace:\n  drivr: pty\n')
     expect(r.ok).toBe(false)

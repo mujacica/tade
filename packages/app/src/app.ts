@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { basename, isAbsolute, join, resolve } from 'node:path'
 import {
   type Component,
   isKeyRelease,
@@ -15,6 +15,7 @@ import {
   type Config,
   DEFAULT_ATTENTION,
   describeWork,
+  expandHome,
   type LaneId,
   needsReflection,
   orchestratorRoute,
@@ -32,9 +33,10 @@ import {
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
 import type { Workbench } from '@wilco/workbench'
+import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { type Hit, hitAt, pressable, sameTarget, type Target } from './hits.ts'
 import { appKey, TALK } from './keys.ts'
-import { asRemembered, type LayoutPrefs, type RememberedWindow } from './layout.ts'
+import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
 import {
@@ -184,6 +186,11 @@ export class App {
   private thinker: AppOptions['thinker'] | null = null
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
+  /** The size each lane was last made, so resizing happens once per change. */
+  private readonly fitted = new Map<string, string>()
+  private titled = ''
+  /** Tasks whose agent is being opened right now. */
+  private readonly opening = new Set<string>()
   private screen = ''
   private recording: Recording | null = null
   /** Where you were last time, applied once the tasks are known. */
@@ -523,9 +530,16 @@ export class App {
       return
     }
     switch (target.kind) {
-      case 'task':
+      case 'task': {
         this.state = focusTask(this.state, target.task)
+        const pane = this.state.panes.find((p) => p.task === target.task)
+        // Clicking a task opens it. Resuming a session sends nothing to the
+        // model, so this costs nothing until you type — which is what makes it
+        // safe for a click, and not for tab, which passes over tasks on the
+        // way to another.
+        if (pane && !pane.lane && pane.state !== 'parked') void this.newAgent('')
         break
+      }
       case 'task-menu':
         // The menu itself comes with the rest of the panels; until then the
         // task is at least put in front of you.
@@ -542,8 +556,12 @@ export class App {
         if (this.state.dictation === null) this.state = setDictation(this.state, '')
         break
       case 'file':
-        this.state = notice(this.state, target.path)
-        break
+      case 'place':
+        void this.openPlace(target)
+        return
+      case 'link':
+        void this.openLink(target.url)
+        return
       case 'action':
         void this.run(target.name)
         return
@@ -584,6 +602,79 @@ export class App {
         return
       default:
         await this.act(action)
+    }
+  }
+
+  /**
+   * Open a file you clicked, in your editor, at the line if there is one.
+   * Relative paths are the agent's, so they resolve in its worktree.
+   */
+  private async openPlace(target: { path: string; line?: number; column?: number }): Promise<void> {
+    const focused = this.state.panes.find((pane) => pane.task === this.state.focused)
+    const root =
+      (focused && this.live?.worktreeOf(focused.task)) ??
+      (this.state.project ? this.opts.config.projects[this.state.project]?.root : undefined) ??
+      this.opts.cwd ??
+      process.cwd()
+    const file = isAbsolute(target.path) ? target.path : resolve(expandHome(root), target.path)
+    const { editor } = chooseEditor(this.opts.config.surfaces.window.editor, process.env)
+    const opener = openerFor(
+      editor,
+      {
+        file,
+        ...(target.line ? { line: target.line } : {}),
+        ...(target.column ? { column: target.column } : {}),
+      },
+      process.env,
+    )
+    const where = `${basename(file)}${target.line ? `:${target.line}` : ''}`
+    if (opener.kind === 'terminal') {
+      // A terminal editor gets a terminal: this one, for as long as you are in
+      // it, with the window put back when you quit — never two programs reading
+      // one keyboard.
+      await this.onScreenWith(async (ui) => {
+        await ui.run(`${opener.command} ${where}`, opener.command, opener.args)
+      })
+      return
+    }
+    try {
+      await launch(opener)
+      this.state = notice(
+        this.state,
+        `opened ${where} in ${editor === 'system' ? 'its app' : editor}`,
+      )
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  private async openLink(url: string): Promise<void> {
+    try {
+      const opener = openerForLink(url)
+      if (opener.kind === 'detached') await launch(opener)
+      this.state = notice(this.state, `opened ${url}`)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  /** Borrow the terminal for a flow on the shared screen, then put the window back. */
+  private async onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> {
+    if (this.borrowed) return
+    this.borrowed = true
+    this.tui.stop()
+    try {
+      await runScreen({ title: 'Wilco', terminal: this.terminal }, flow)
+    } catch (err) {
+      if (!(err instanceof ScreenCancelled)) {
+        this.state = notice(this.state, why(err))
+      }
+    } finally {
+      this.borrowed = false
+      this.tui.start()
+      this.draw()
     }
   }
 
@@ -832,12 +923,18 @@ export class App {
       this.draw()
       return
     }
+    // Two clicks before the first agent has registered must not start two.
+    if (this.opening.has(task)) return
+    this.opening.add(task)
     try {
       await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt })
       await this.live?.refresh()
-      this.state = focusTask(notice(this.state, `an agent is working on ${task}`), task)
+      const said = prompt ? `an agent is working on ${task}` : `opened ${task} where it left off`
+      this.state = focusTask(notice(this.state, said), task)
     } catch (err) {
       this.state = notice(this.state, why(err))
+    } finally {
+      this.opening.delete(task)
     }
     this.draw()
   }
@@ -978,11 +1075,47 @@ export class App {
   private async tick(): Promise<void> {
     if (this.stopped) return
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
-    const screen = await (this.live?.capture(pane?.lane ?? null, this.terminal.rows) ?? '')
+    const size = this.paneSize()
+    if (pane?.lane) await this.fitLane(pane.lane, size)
+    this.title(pane ? `${pane.project} › ${pane.name}` : null)
+    const screen = await (this.live?.capture(pane?.lane ?? null, size.rows, this.skin.colour) ?? '')
     if (screen !== this.screen || this.state.talkingSince !== null) {
       this.screen = screen
       this.draw()
     }
+  }
+
+  /** The agent's part of the window: the pane, less its title and rule. */
+  private paneSize(): { cols: number; rows: number } {
+    const layout = resolveLayout(this.layout(), {
+      width: this.terminal.columns,
+      height: Math.max(6, this.terminal.rows),
+    })
+    return { cols: Math.max(20, layout.mainWidth), rows: Math.max(4, layout.bodyHeight - 2) }
+  }
+
+  /**
+   * Make the lane the size of the pane it is drawn in.
+   *
+   * An agent draws for the terminal it thinks it has. Drawn into a pane of a
+   * different size, its own layout wraps and clips in all the wrong places —
+   * so the pane decides, once per size, not every frame.
+   */
+  private async fitLane(lane: string, size: { cols: number; rows: number }): Promise<void> {
+    const want = `${size.cols}x${size.rows}`
+    if (this.fitted.get(lane) === want) return
+    this.fitted.set(lane, want)
+    await this.opts.client.resize(lane as LaneId, size.cols, size.rows).catch(() => {
+      // A lane that just ended cannot be resized; the next tick will not ask.
+    })
+  }
+
+  /** The terminal window's own title says which task you are in. */
+  private title(where: string | null): void {
+    const title = where ? `wilco · ${where}` : 'wilco'
+    if (title === this.titled) return
+    this.titled = title
+    this.terminal.setTitle(title)
   }
 
   /**

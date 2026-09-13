@@ -39,6 +39,8 @@ export interface Skin {
   hint(text: string): string
   /** The window behind a panel: there, but not asking for attention. */
   faded(text: string): string
+  /** A link under the pointer. */
+  link(text: string): string
 
   /** `▐ label ▌`, exactly label + 4 columns. */
   button(label: string, look: Look): string
@@ -111,6 +113,7 @@ export const PLAIN: Skin = {
   you: identity,
   hint: identity,
   faded: identity,
+  link: identity,
   button: (label) => `[ ${label} ]`,
   tabbed: (label, on) => (on ? `[ ${label} ]` : `  ${label}  `),
   keycap: (label) => `[${label}]`,
@@ -136,6 +139,7 @@ export const COLOUR: Skin = {
   you: paint(`${fg(255)}${BOLD}`),
   hint: paint(fg(244)),
   faded: paint(fg(239)),
+  link: paint(`${fg(80)}${ESC}4m`),
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
     return pill(label, ground, ink, bold)

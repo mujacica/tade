@@ -123,6 +123,9 @@ export function changesFrom(status: string, numstat: string): Change[] {
     } else {
       continue
     }
+    // Wilco's own record of the task is untracked on purpose, and is not a
+    // change anybody made to the work.
+    if (path === '.wilco' || path.startsWith('.wilco/')) continue
     const count = counts.get(path)
     out.push({ path, mark, added: count?.added ?? null, removed: count?.removed ?? null })
   }
@@ -299,10 +302,10 @@ export class Live {
   }
 
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */
-  async capture(lane: string | null, lines: number): Promise<string> {
+  async capture(lane: string | null, lines: number, styled = false): Promise<string> {
     if (!lane) return ''
     try {
-      return await this.opts.client.capture(lane as never, lines)
+      return await this.opts.client.capture(lane as never, lines, styled)
     } catch {
       // A lane that just exited is not an error worth showing.
       return ''

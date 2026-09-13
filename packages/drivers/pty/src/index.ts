@@ -169,9 +169,12 @@ export class PtyDriver implements WorkspaceDriver {
     const end = buffer.baseY + lane.term.rows
     const all: string[] = []
     for (let i = 0; i < end; i++) {
-      all.push(buffer.getLine(i)?.translateToString(true) ?? '')
+      const row = buffer.getLine(i)
+      all.push(
+        row ? (opts.styled ? styledLine(row, lane.term.cols) : row.translateToString(true)) : '',
+      )
     }
-    while (all.length > 0 && all.at(-1)!.trim() === '') all.pop()
+    while (all.length > 0 && stripSgr(all.at(-1) ?? '').trim() === '') all.pop()
     return all.slice(Math.max(0, all.length - opts.lines)).join('\n')
   }
 
@@ -276,4 +279,62 @@ function safely(fn: () => void): void {
   } catch {
     // A broken subscriber must never take down a lane.
   }
+}
+
+type BufferLine = NonNullable<ReturnType<import('@xterm/headless').IBuffer['getLine']>>
+type BufferCell = NonNullable<ReturnType<BufferLine['getCell']>>
+
+/**
+ * One row of the screen with its paint, as SGR.
+ *
+ * Built from the cells rather than kept from the byte stream: the stream is
+ * full of cursor moves and clears that would scramble whatever draws it, and
+ * the cells are what the screen actually shows. A new sequence is written
+ * only where the paint changes, and trailing blank cells go.
+ */
+function styledLine(row: BufferLine, cols: number): string {
+  let out = ''
+  let paint = ''
+  let pending = ''
+  for (let x = 0; x < cols; x++) {
+    const cell = row.getCell(x)
+    if (!cell || cell.getWidth() === 0) continue
+    const chars = cell.getChars() || ' '
+    const next = sgrOf(cell)
+    if (chars === ' ' && next === '') {
+      // Held back: blank cells only count if something follows them.
+      pending += ' '
+      continue
+    }
+    if (next !== paint) {
+      out += `${pending}\x1b[0${next}m`
+      pending = ''
+      paint = next
+    }
+    out += pending + chars
+    pending = ''
+  }
+  return paint === '' ? out : `${out}\x1b[0m`
+}
+
+function sgrOf(cell: BufferCell): string {
+  const codes: string[] = []
+  if (cell.isBold()) codes.push('1')
+  if (cell.isDim()) codes.push('2')
+  if (cell.isItalic()) codes.push('3')
+  if (cell.isUnderline()) codes.push('4')
+  if (cell.isInverse()) codes.push('7')
+  if (cell.isFgPalette()) codes.push(`38;5;${cell.getFgColor()}`)
+  else if (cell.isFgRGB()) codes.push(`38;2;${rgb(cell.getFgColor())}`)
+  if (cell.isBgPalette()) codes.push(`48;5;${cell.getBgColor()}`)
+  else if (cell.isBgRGB()) codes.push(`48;2;${rgb(cell.getBgColor())}`)
+  return codes.length === 0 ? '' : `;${codes.join(';')}`
+}
+
+function rgb(colour: number): string {
+  return `${(colour >> 16) & 255};${(colour >> 8) & 255};${colour & 255}`
+}
+
+function stripSgr(text: string): string {
+  return text.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
 }

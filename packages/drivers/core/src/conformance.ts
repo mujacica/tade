@@ -138,6 +138,25 @@ export function testWorkspaceDriver(
       expect(text).not.toContain('\u001b[')
     })
 
+    it('keeps colour when asked for a styled capture, and only then', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('paint'))
+      await waitFor(s.id, 'bold')
+      // Built from a character code: an escape in a regex literal is usually a mistake.
+      const ESC = String.fromCharCode(27)
+      const plain = await driver.capture(s.id, { lines: 50 })
+      const styled = await driver.capture(s.id, { lines: 50, styled: true })
+      expect(plain).not.toContain('\u001b[')
+      // The window draws a lane the way it looks; a capture that drops the
+      // colour draws every agent grey.
+      expect(styled).toMatch(new RegExp(`${ESC}\\[[0-9;]*38;5;196[0-9;]*m`))
+      expect(styled).toContain('red')
+      // Nothing but paint: a cursor move in here would scramble the window.
+      expect(styled.replace(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')).not.toContain(ESC)
+    })
+
     it('preserves output ordering under rapid writes', async () => {
       const s = spec()
       await driver.open(s)

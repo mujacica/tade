@@ -77,6 +77,13 @@ const RETRY_MS = 2_000
 
 /** Session totals as last reported, so each turn sends only the difference. */
 let spent = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
+/**
+ * Whether `spent` has been set from the session this process opened. A resumed
+ * session arrives with its whole history, which was reported by the process
+ * that spent it; counting from zero would report all of it again on the first
+ * turn, and opening a task is now a click.
+ */
+let seeded = false
 const RUN = process.env.WILCO_RUN_ID ?? 'unknown'
 
 export default function wilcoExtension(pi: PiApi): void {
@@ -194,6 +201,12 @@ export default function wilcoExtension(pi: PiApi): void {
 
   pi.on('turn_start', ((_event: unknown, ctx: PiContext) => {
     latest = ctx
+    // Before this turn has spent anything, the session holds only what came
+    // before this process: that is the baseline, not news.
+    if (!seeded) {
+      spent = sessionTotals(ctx)
+      seeded = true
+    }
     send({ type: 'turn_started' })
   }) as never)
 
@@ -205,16 +218,8 @@ export default function wilcoExtension(pi: PiApi): void {
     reportSpend(ctx)
   }) as never)
 
-  /**
-   * What this turn cost, in tokens and dollars.
-   *
-   * The session carries running totals, so each turn reports the difference
-   * since the last one and Wilco can simply add them up. Prices come from
-   * the harness's own model catalog: it is the only thing that knows what was
-   * actually charged, and a table we kept ourselves would be wrong the first
-   * time a provider changed anything.
-   */
-  function reportSpend(ctx: PiContext): void {
+  /** Everything the session has spent, from its own running totals. */
+  function sessionTotals(ctx: PiContext): typeof spent {
     const entries = ctx.sessionManager?.getEntries?.() ?? []
     const total = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
     for (const entry of entries) {
@@ -227,6 +232,21 @@ export default function wilcoExtension(pi: PiApi): void {
       total.tokens += usage.totalTokens ?? 0
       total.usd += usage.cost?.total ?? 0
     }
+    return total
+  }
+
+  /**
+   * What this turn cost, in tokens and dollars.
+   *
+   * The session carries running totals, so each turn reports the difference
+   * since the last one and Wilco can simply add them up. Prices come from
+   * the harness's own model catalog: it is the only thing that knows what was
+   * actually charged, and a table we kept ourselves would be wrong the first
+   * time a provider changed anything.
+   */
+  function reportSpend(ctx: PiContext): void {
+    const total = sessionTotals(ctx)
+    seeded = true
     const since = {
       input: total.input - spent.input,
       output: total.output - spent.output,

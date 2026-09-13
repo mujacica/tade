@@ -36,6 +36,11 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
 - **No implementation vocabulary in the port.** If you want to add `sendKeys`, `newWindow` or
   `selectPane` to the interface, the answer is no: find the neutral name, or it belongs in the
   driver's own module.
+- **`capture` is the rendered screen, never the byte stream.** Plain text by default; with
+  `styled: true`, the same rows with their colour and emphasis as SGR sequences and nothing else —
+  no cursor moves, no clears — because the window draws them straight into a pane. A backend with a
+  screen model (tmux `capture-pane -e`) gives this for free; one without has to build it from cells,
+  as the pty driver does from its headless xterm.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Wilco calls `detach`, and under a driver

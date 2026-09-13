@@ -60,6 +60,12 @@ export interface AdoptHint {
 export interface CaptureOptions {
   /** How many lines back from the bottom of the screen to return. */
   lines: number
+  /**
+   * Keep colour and emphasis, as SGR sequences, so a window can draw the lane
+   * the way it looks. Still the rendered screen — no cursor movement, no
+   * clears — only the paint on it. Plain text when absent.
+   */
+  styled?: boolean
 }
 
 export type LaneOutputListener = (chunk: Uint8Array) => void

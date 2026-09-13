@@ -1,4 +1,4 @@
-import type { Config } from './config.ts'
+import { type Config, EDITORS } from './config.ts'
 
 // The settings a person actually changes, and what each one means.
 //
@@ -163,6 +163,14 @@ export function settingsOf(config: Config): SettingGroup[] {
               : String(config.surfaces.window.strip_height),
           fallback: '9',
           type: { kind: 'number' },
+        },
+        {
+          path: 'surfaces.window.editor',
+          title: 'Editor',
+          means: 'where a file opens when you click it',
+          value: config.surfaces.window.editor ?? '',
+          fallback: 'the editor Wilco is running in',
+          type: { kind: 'choice', options: EDITORS },
         },
       ],
     },

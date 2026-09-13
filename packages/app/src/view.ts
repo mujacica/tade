@@ -1,6 +1,7 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@wilco/voice-core'
-import { type Hit, rowHit, shift, type Target } from './hits.ts'
+import { findOpenable } from './editor.ts'
+import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import {
   type AgentPane,
@@ -427,13 +428,52 @@ function renderMain(
     )
   } else {
     const lines = frame.screen.split('\n')
-    for (const line of lines.slice(-room)) rows.push({ text: fit(line, width), hits: [] })
+    for (const line of lines.slice(-room)) rows.push(screenRow(line, width, skin, pointer))
   }
 
   while (rows.length < height) rows.push(blank(width))
   const drawn = stack(rows.slice(0, height))
   if (pane.approval) return withApproval(drawn, pane.approval, width, height, skin, pointer)
   return drawn
+}
+
+/**
+ * One row of an agent's screen, with its links and file references made
+ * clickable. The one under the pointer is underlined, which costs that row its
+ * own colours while you point at it — a fair trade for seeing what you would
+ * open.
+ */
+function screenRow(
+  line: string,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+): { text: string; hits: Hit[] } {
+  const plain = stripTerminalSequences(line)
+  const hits: Hit[] = []
+  let text = fit(line, width)
+  for (const found of findOpenable(plain)) {
+    if (found.from >= width) continue
+    const target: Target =
+      found.target.kind === 'url'
+        ? { kind: 'link', url: found.target.url }
+        : {
+            kind: 'place',
+            path: found.target.path,
+            ...(found.target.line ? { line: found.target.line } : {}),
+            ...(found.target.column ? { column: found.target.column } : {}),
+          }
+    const to = Math.min(found.to, width - 1)
+    hits.push({ row: 0, from: found.from, to, target })
+    if (sameTarget(pointer.hover, target)) {
+      const cells = [...fit(plain, width)]
+      text =
+        cells.slice(0, found.from).join('') +
+        skin.link(cells.slice(found.from, to + 1).join('')) +
+        cells.slice(to + 1).join('')
+    }
+  }
+  return { text, hits }
 }
 
 /** A waiting approval, where the agent asked for it, answerable by click. */

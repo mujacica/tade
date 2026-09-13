@@ -169,6 +169,18 @@ export const SCENARIOS: Scenario[] = [
     }),
   },
   {
+    name: 'pointing-at-a-link',
+    about:
+      'Links and file references on an agent screen are clickable, and underline under the pointer.',
+    state: {
+      ...base(),
+      hover: { kind: 'link', url: 'https://docs.stripe.com/webhooks/signatures' },
+    },
+    frame: frame({
+      screen: `${agentScreen}\n\n  See https://docs.stripe.com/webhooks/signatures — the failure is in src/webhooks.ts:42:7`,
+    }),
+  },
+  {
     name: 'small-terminal',
     about: 'An 80×24 terminal: everything still fits, and nothing wraps.',
     state: base(),

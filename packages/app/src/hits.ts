@@ -13,6 +13,10 @@ export type Target =
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }
+  /** A link on an agent's screen. */
+  | { kind: 'link'; url: string }
+  /** A file reference on an agent's screen, maybe at a line. */
+  | { kind: 'place'; path: string; line?: number; column?: number }
   | { kind: 'section'; section: string }
   | { kind: 'action'; name: string }
   /** A panel's own control, named by the panel. */

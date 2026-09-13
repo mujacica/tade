@@ -356,6 +356,24 @@ This is an 80×24 terminal, exactly as drawn — it is one of the screens the te
 
   Both are wishes rather than instructions: a sidebar wider than the terminal leaves nothing to
   watch, so they are fitted to the window you actually have.
+- **Clicking a task opens it.** If its agent is running, the pane shows it; if not, pi opens in the
+  task's worktree on the task's own session, so the conversation picks up where it stopped.
+  Opening a session sends nothing to the model — it costs nothing until you type — which is what
+  makes it safe for a click (tab passes over tasks, so it only shows them). The agent is drawn in
+  its own colours, its terminal is sized to the pane so its layout fits, and the terminal window's
+  title says which task you are in.
+- **Click a file to open it, and a link to follow it.** A file under CHANGES or FILES, a link on an
+  agent's screen, or a reference like `src/webhooks.ts:42:7` in its output opens in your editor at
+  that line — underlined while you point at it. The editor is, in order: the one you set, the one
+  whose terminal Wilco is running in (VS Code, Cursor, Windsurf, Zed, JetBrains, Neovim, Emacs are
+  recognised), `$VISUAL` or `$EDITOR`, then whatever the system opens that kind of file with. A
+  terminal editor such as vim opens inside Wilco's screen and hands the window back when you quit
+  it, rather than fighting it for the keyboard.
+
+  ```yaml
+  surfaces:
+    window: { editor: cursor }   # code, cursor, windsurf, zed, idea, subl, nvim, vim, emacs, system
+  ```
 - **Every exchange shows its reasoning** (`→ park · checkout/stripe-v15 · "you mentioned it last"`),
   so a wrong guess is obvious and can be corrected rather than silently obeyed.
 - `a` and `d` answer an approval, and only while that pane is actually waiting on one.

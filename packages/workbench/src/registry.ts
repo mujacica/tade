@@ -272,9 +272,9 @@ export class LaneRegistry {
     await this.driver.write(id, data)
   }
 
-  async capture(id: LaneId, lines: number): Promise<string> {
+  async capture(id: LaneId, lines: number, styled = false): Promise<string> {
     this.requireAlive(id)
-    return this.driver.capture(id, { lines })
+    return this.driver.capture(id, { lines, ...(styled ? { styled } : {}) })
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

@@ -214,6 +214,7 @@ export class TmuxDriver implements WorkspaceDriver {
     const out = await this.tmux([
       'capture-pane',
       '-p',
+      ...(opts.styled ? ['-e'] : []),
       '-t',
       lane.window,
       '-S',
