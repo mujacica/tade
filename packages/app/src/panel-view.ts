@@ -298,6 +298,8 @@ function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
   const recent = ctx.openRows.filter((view) => view.row.kind === 'recent')
   const folders = ctx.openRows.filter((view) => view.row.kind === 'folder')
   const room = Math.max(4, Math.min(14, ctx.height - 18))
+  // Wide enough for the longest name shown, within reason.
+  const folderWidth = Math.min(28, Math.max(14, ...folders.map((view) => view.row.name.length + 3)))
   const line = (view: OpenRowView) => {
     const at = ctx.openRows.indexOf(view)
     const on = at === panel.index
@@ -310,7 +312,7 @@ function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       if (view.tasks > 0) r.badge(view.tasks)
       r.right((right) => right.text(view.when ?? '', skin.hint).space())
     } else {
-      r.text(pad(`${view.row.name}/`, 14), skin.busy)
+      r.text(pad(`${view.row.name}/`, folderWidth), skin.busy)
       r.text(
         view.row.git ? `git · ${view.branch ?? 'repository'}` : 'not a git repository',
         view.row.git ? skin.hint : skin.waiting,
@@ -563,7 +565,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
                 }
               : {
                   mark: '▲',
-                  text: "This terminal doesn't report key releases, so talking toggles.",
+                  text: "This terminal can't report releases, so talking toggles.",
                   tone: skin.waiting,
                 }
             : { mark: '', text: setting.means, tone: skin.hint }

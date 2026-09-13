@@ -1843,7 +1843,9 @@ export class App {
           path: folder.path,
           git: folder.git !== null,
         }))
-        this.openCache = { query: panel.query, rows: [...recent, ...folders], browsing: tilde(dir) }
+        // Folders first in the list, though drawn below the recent ones: typing
+        // a path means you are looking for a folder, so Enter should open one.
+        this.openCache = { query: panel.query, rows: [...folders, ...recent], browsing: tilde(dir) }
       } else {
         this.openCache = { query: panel.query, rows: recent, browsing: null }
       }
