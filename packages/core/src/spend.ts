@@ -71,15 +71,20 @@ export function spendFrom(
     const project = (event.task ?? '').split('/')[0] || 'elsewhere'
     const model = String(event.detail.model ?? 'unknown')
     const task = event.task ?? ''
-    const buckets = [
-      report.total,
-      (report.byProject[project] ??= noSpend()),
-      (report.byModel[model] ??= noSpend()),
-      ...(task ? [(report.byTask[task] ??= noSpend())] : []),
-    ]
+    // Every bucket this event counts towards. The same numbers are added to
+    // each, so a total and a per-project figure can never disagree.
+    const buckets = [report.total, into(report.byProject, project), into(report.byModel, model)]
+    if (task) buckets.push(into(report.byTask, task))
     for (const bucket of buckets) add(bucket, event)
   }
   return report
+}
+
+/** The bucket for this key, made on first sight. */
+function into(buckets: Record<string, Spend>, key: string): Spend {
+  const found = buckets[key] ?? noSpend()
+  buckets[key] = found
+  return found
 }
 
 function add(spend: Spend, event: WilcoEvent): void {
