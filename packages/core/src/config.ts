@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
@@ -165,6 +166,20 @@ export const ConfigSchema = z
 
 export type Config = z.infer<typeof ConfigSchema>
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>
+
+/**
+ * Where sockets for this home go.
+ *
+ * Not in the home itself: a Unix socket path is capped near 104 bytes, and a
+ * home under a temp directory or a deep checkout blows that — which shows up as
+ * an agent that will not start, for a reason no user could act on. These are
+ * runtime files with no value after a restart, so somewhere short and
+ * disposable is also the honest place for them.
+ */
+export function runtimeDir(home: string, env: NodeJS.ProcessEnv = process.env): string {
+  const base = env.XDG_RUNTIME_DIR || tmpdir()
+  return join(base, `wilco-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`)
+}
 
 /** Root of Wilco's per-user state. `WILCO_HOME` overrides for tests. */
 export function wilcoHome(env: NodeJS.ProcessEnv = process.env): string {

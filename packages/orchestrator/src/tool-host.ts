@@ -51,7 +51,7 @@ export class ToolHost {
         }),
       'task/park': (p) => wilco.parkTask(String(p.worktree), p.parked === true),
       'worker/start': (p) =>
-        wilco.startRun({
+        wilco.startAgent({
           task: String(p.task) as never,
           cwd: String(p.cwd),
           prompt: String(p.prompt),
@@ -59,11 +59,11 @@ export class ToolHost {
       'worker/list': () => wilco.runs(),
       'worker/pending': (p) => wilco.pendingApprovals(p.task ? String(p.task) : undefined),
       'worker/steer': async (p) => {
-        await wilco.steerRun(String(p.run) as RunId, String(p.message))
+        await wilco.steerAgent(String(p.task), String(p.message))
         return { ok: true }
       },
       'worker/stop': async (p) => {
-        await wilco.stopRun(String(p.run) as RunId)
+        await wilco.stopAgent(String(p.task))
         return { ok: true }
       },
       'worker/decide': async (p) => {

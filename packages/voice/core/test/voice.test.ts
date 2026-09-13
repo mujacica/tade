@@ -43,8 +43,8 @@ function fakeWilco() {
     async runs() {
       return state.runs
     },
-    async steerRun(run, message) {
-      calls.push(`steer ${run} ${message}`)
+    async steerAgent(task, message) {
+      calls.push(`steer ${task} ${message}`)
     },
     async parkTask(worktree, parked) {
       calls.push(`park ${worktree} ${parked}`)
@@ -54,7 +54,7 @@ function fakeWilco() {
       calls.push(`create ${request.project}/${request.slug} ${request.intent}`)
       return { id: `${request.project}/${request.slug}`, worktree: `/wt/${request.slug}` }
     },
-    async startRun(request) {
+    async startAgent(request) {
       calls.push(`start ${request.task}`)
       return { run: 'r1' }
     },
@@ -155,7 +155,7 @@ describe('VoiceSurface', () => {
     wilco.state.runs = [{ run: 'r7', task: 'checkout/refunds' }]
     const { voice } = await surface(wilco)
     expect(await voice.handle('tell refunds to also update the docs')).toBe('Told refunds.')
-    expect(wilco.calls).toEqual(['steer r7 to also update the docs'])
+    expect(wilco.calls).toEqual(['steer checkout/refunds to also update the docs'])
   })
 
   it('says so when nothing is running on that task', async () => {

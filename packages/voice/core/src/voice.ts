@@ -43,14 +43,15 @@ export interface VoiceWorkbench {
     decision: { allow: boolean; reason?: string; said?: string },
   ): Promise<void>
   runs(): Awaitable<Array<{ run: string; task: string }>>
-  steerRun(run: string, message: string): Promise<void>
+  /** Tell the agent working on a task something, without stopping it. */
+  steerAgent(task: string, message: string): Promise<void>
   parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }>
   createTask(request: {
     project: string
     slug: string
     intent: string
   }): Promise<{ id: string; worktree: string }>
-  startRun(request: { task: string; cwd: string; prompt: string }): Promise<{ run: string }>
+  startAgent(request: { task: string; cwd: string; prompt: string }): Promise<unknown>
   /**
    * Watch the journal. What comes back is how to stop watching: a surface
    * that cannot let go of the event stream leaks past its own lifetime, so
@@ -268,9 +269,8 @@ export class VoiceSurface {
       }
       case 'steer': {
         const runs = await this.opts.wilco.runs()
-        const run = runs.find((r) => r.task === task)
-        if (!run) return `Nothing is running on ${short(task)}.`
-        await this.opts.wilco.steerRun(run.run, intent.message)
+        if (!runs.some((r) => r.task === task)) return `Nothing is running on ${short(task)}.`
+        await this.opts.wilco.steerAgent(task, intent.message)
         return `Told ${short(task)}.`
       }
       case 'focus':
@@ -302,7 +302,7 @@ export class VoiceSurface {
           // Word for word: nothing else can reconstruct why you started.
           intent: intent.intent,
         })
-        await this.opts.wilco.startRun({
+        await this.opts.wilco.startAgent({
           task: created.id,
           cwd: created.worktree,
           prompt: intent.intent,

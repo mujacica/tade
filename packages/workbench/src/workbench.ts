@@ -11,6 +11,7 @@ import {
   type Note,
   noSpend,
   resolveRoute,
+  runtimeDir,
   type SandboxKind,
   spendFrom,
   startOfToday,
@@ -139,6 +140,7 @@ export class Workbench {
       const workers = new WorkerSupervisor({
         adapter: new PiAdapter({
           runDir: join(opts.home, 'runs'),
+          socketDir: runtimeDir(opts.home),
           approvals: config.approvals.mode,
         }),
         log,
@@ -395,57 +397,81 @@ export class Workbench {
     this.guardParallel(req.task)
     await this.guardBudget(req.task)
     const lane = `${req.task}/agent` as LaneId
-    const existing = this.registry.get(lane)
-    if (existing?.alive) {
+    if (this.registry.get(lane)?.alive) {
       // Two agents in one worktree is two agents editing the same files.
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
-    const launch = new PiAdapter({
-      runDir: join(this.home, 'runs'),
-      approvals: this.config.approvals.mode,
-    }).laneLaunchSpec({
-      run: lane as unknown as RunId,
+    const spec = {
+      run: lane as RunId,
       task: req.task,
       cwd: req.cwd,
       prompt: req.prompt,
       model: req.model ?? this.modelFor(req.task),
+      lane,
       sandbox: {
         kind: req.sandbox ?? this.sandboxFor(req.task),
         worktree: req.worktree ?? req.cwd,
       },
-    })
-    return this.registry.spawn({
-      id: lane,
-      task: req.task,
-      kind: 'agent',
-      cwd: req.cwd,
-      command: launch.command,
-      args: launch.args,
-      env: launch.env,
-      title: req.task,
+    }
+    // Listen before launching: the channel has to exist for the agent's very
+    // first signal, and its path is derived from the run id so both halves
+    // agree without being told.
+    await this.workers.start({ ...req, run: lane as RunId, model: spec.model })
+    const launch = this.adapterFor().launchSpec(spec)
+    try {
+      return await this.registry.spawn({
+        id: lane,
+        task: req.task,
+        kind: 'agent',
+        cwd: req.cwd,
+        command: launch.command,
+        args: launch.args,
+        env: launch.env,
+        title: req.task,
+      })
+    } catch (err) {
+      // Nothing to supervise after all.
+      await this.workers.stop(lane as RunId).catch(() => {})
+      throw err
+    }
+  }
+
+  /** The harness that runs workers. One place, so a route could pick another. */
+  private adapterFor(): PiAdapter {
+    return new PiAdapter({
+      runDir: join(this.home, 'runs'),
+      socketDir: runtimeDir(this.home),
+      approvals: this.config.approvals.mode,
     })
   }
 
-  /** Say something to a running agent, as though you had typed it. */
+  /**
+   * Say something to a running agent without stopping it.
+   *
+   * Over the channel when there is one, which delivers it as a message into
+   * the turn. Failing that — an agent adopted from a window that has since
+   * closed, whose extension has nowhere to reconnect yet — type it at the
+   * terminal, which is what you would do yourself.
+   */
   async steerAgent(task: string, message: string): Promise<void> {
     const lane = `${task}/agent` as LaneId
     if (!this.registry.get(lane)?.alive) throw new Error(`no agent running on ${task}`)
-    // The newline is the send: without it the words sit in pi's input box.
-    await this.registry.write(lane, Buffer.from(`${message}\n`, 'utf8'))
+    try {
+      await this.workers.steer(lane as RunId, message)
+    } catch {
+      // The newline is the send: without it the words sit in pi's input box.
+      await this.registry.write(lane, Buffer.from(`${message}\n`, 'utf8'))
+    }
   }
 
-  async startRun(req: StartRunRequest): Promise<WorkerHandle> {
-    this.guardParallel(req.task)
-    await this.guardBudget(req.task)
-    return this.workers.start({
-      ...req,
-      // A project names a route; the route names the model. Asking for one
-      // explicitly still wins.
-      model: req.model ?? this.modelFor(req.task),
-      sandbox: req.sandbox ?? this.sandboxFor(req.task),
-    })
+  /** Stop an agent: the lane ends, the task and its worktree stay. */
+  async stopAgent(task: string): Promise<void> {
+    const lane = `${task}/agent` as LaneId
+    await this.workers.stop(lane as RunId).catch(() => {})
+    await this.registry.close(lane)
   }
 
+  /** The agents working right now. */
   runs(): WorkerHandle[] {
     return this.workers.list()
   }

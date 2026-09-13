@@ -86,6 +86,12 @@ export class WorkerSupervisor {
     this.approvals = opts.approvals
   }
 
+  /**
+   * Take charge of an agent that is about to start in a lane: open its channel,
+   * subscribe, and record that it began. The lane itself is opened by whoever
+   * called this, with `adapter.launchSpec()` — placing the process is the
+   * driver's business, and supervising it is ours.
+   */
   async start(request: StartRunRequest): Promise<WorkerHandle> {
     const run = request.run ?? `r_${randomUUID().slice(0, 8)}`
     if (this.runs.has(run)) throw new Error(`run already exists: ${run}`)
@@ -97,7 +103,7 @@ export class WorkerSupervisor {
     })
     let handle: WorkerHandle
     try {
-      handle = await this.adapter.start({
+      handle = await this.adapter.supervise({
         run,
         task: request.task,
         cwd: request.cwd,

@@ -19,7 +19,13 @@ describe('task and run RPC', () => {
   beforeEach(async () => {
     repo = mkrepo()
     home = tmp('wilco-rpc-')
-    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    // Two agents allowed, so the per-task rule is reachable: with the default
+    // of one, `max_parallel` would answer first and the narrower guard would
+    // never be exercised.
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  app:\n    root: ${repo.root}\n    max_parallel: 2\n`,
+    )
     _socket = join(home, 'w.sock')
     client = await Workbench.open({ home, version: '9.9.9' })
   })
@@ -78,26 +84,42 @@ describe('task and run RPC', () => {
     expect(await client.info()).toMatchObject({ runs: 0, approvals: 'bypass' })
   })
 
-  it('starts a supervised run in a task worktree, then stops it', async () => {
+  it('starts an agent in a lane in the task worktree, then stops it', async () => {
     const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
-    const handle = await client.startRun({
-      run: 'r1',
-      task: task.id,
-      cwd: task.worktree,
-      // No prompt: the agent starts and waits, so this needs no model.
-      prompt: '',
-    })
+    // No prompt: the agent starts and waits, so this needs no model.
+    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
 
-    expect(handle).toMatchObject({ run: 'r1', task: 'app/refunds' })
-    expect((await client.runs()).map((r) => r.run)).toEqual(['r1'])
+    // The lane, the run and the task are one thing under one name.
+    expect(lane).toMatchObject({ id: 'app/refunds/agent', task: 'app/refunds', alive: true })
+    expect((await client.runs()).map((r) => r.run)).toEqual(['app/refunds/agent'])
     expect((await client.info()).runs).toBe(1)
 
     const [started] = await client.events({ types: ['run_started'] })
     expect(started?.task).toBe('app/refunds')
     expect(started?.detail).toMatchObject({ adapter: 'pi', approvals: 'bypass' })
 
-    await client.stopRun('r1')
+    await client.stopAgent('app/refunds')
     expect(await client.runs()).toEqual([])
-    expect((await client.events({ types: ['run_exited'] })).length).toBeGreaterThan(0)
+    expect(client.lane('app/refunds/agent' as never)?.alive).toBe(false)
   }, 60_000)
+
+  it('refuses a second agent on the same task, even when the project allows two', async () => {
+    const task = await client.createTask({ project: 'app', slug: 'search', intent: INTENT })
+    await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    // Two agents in one worktree is two agents editing the same files.
+    await expect(
+      client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' }),
+    ).rejects.toThrow(/already has an agent/)
+  }, 60_000)
+
+  it('refuses more agents than the project allows', async () => {
+    for (const slug of ['one', 'two']) {
+      const task = await client.createTask({ project: 'app', slug, intent: INTENT })
+      await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    }
+    const third = await client.createTask({ project: 'app', slug: 'three', intent: INTENT })
+    await expect(
+      client.startAgent({ task: third.id, cwd: third.worktree, prompt: '' }),
+    ).rejects.toThrow(/max_parallel is 2/)
+  }, 90_000)
 })

@@ -165,23 +165,26 @@ export default function wilcoTools(pi: PiApi): void {
 
   tool(
     'wilco_run_list',
-    'The agents running right now, with the task each is working on and its run id. Steering or stopping one needs the run id from here.',
+    'The agents working right now, and the task each is on. One agent per task at most.',
     object({}),
     () => rpc('worker/list', {}),
   )
 
   tool(
     'wilco_steer',
-    'Tell a running agent something without stopping it.',
-    object({ run: string('run id'), message: string('what to tell it') }, ['run', 'message']),
-    (p) => rpc('worker/steer', { run: String(p.run), message: String(p.message) }),
+    'Tell the agent working on a task something, without stopping it.',
+    object({ task: string('task id, like checkout/refunds'), message: string('what to tell it') }, [
+      'task',
+      'message',
+    ]),
+    (p) => rpc('worker/steer', { task: String(p.task), message: String(p.message) }),
   )
 
   tool(
     'wilco_run_stop',
-    'Stop a running agent. The task and its worktree stay; only the agent ends.',
-    object({ run: string('run id') }, ['run']),
-    (p) => rpc('worker/stop', { run: String(p.run) }),
+    'Stop the agent working on a task. The task and its worktree stay; only the agent ends.',
+    object({ task: string('task id, like checkout/refunds') }, ['task']),
+    (p) => rpc('worker/stop', { task: String(p.task) }),
   )
 
   for (const [name, parked, what] of [

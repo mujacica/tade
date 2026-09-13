@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { WorkerSignal } from '@wilco/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { PiAdapter, piBinary } from '../src/adapter.ts'
+import { PiAdapter, piBinary, runSocket } from '../src/adapter.ts'
 import { describeToolCall } from '../src/extension.ts'
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 20_000): Promise<void> {
@@ -33,7 +33,7 @@ describe('PiAdapter', () => {
 
   it('contains a worker when the route asks for one', () => {
     adapter = new PiAdapter({ runDir: tmp('wilco-pi-') })
-    const launch = adapter.laneLaunchSpec({
+    const launch = adapter.launchSpec({
       run: 'r1',
       task: 'app/t',
       cwd: '/wt/t',
@@ -47,7 +47,7 @@ describe('PiAdapter', () => {
 
   it('leaves a worker alone when no sandbox was asked for', () => {
     adapter = new PiAdapter({ runDir: tmp('wilco-pi-') })
-    const launch = adapter.laneLaunchSpec({ run: 'r1', task: 'app/t', cwd: '/wt/t', prompt: '' })
+    const launch = adapter.launchSpec({ run: 'r1', task: 'app/t', cwd: '/wt/t', prompt: '' })
     expect(launch.command).toBe(process.execPath)
   })
 
@@ -68,7 +68,7 @@ describe('PiAdapter', () => {
     expect(handle).toMatchObject({ run: 'r1', task: 'app/t' })
     // `started` only arrives if pi loaded our extension and it dialled back.
     await until(() => signals.some((s) => s.type === 'started'))
-    expect(existsSync(join(runDir, 'r1.sock'))).toBe(true)
+    expect(existsSync(runSocket(runDir, 'r1'))).toBe(true)
     // get_state answered during start, so the RPC framing round-trips.
     expect(handle.sessionId === null || typeof handle.sessionId === 'string').toBe(true)
     expect((await adapter.list()).map((h) => h.run)).toEqual(['r1'])
@@ -84,7 +84,7 @@ describe('PiAdapter', () => {
 
     await adapter.stop('r2')
     expect(await adapter.list()).toEqual([])
-    await until(() => !existsSync(join(runDir, 'r2.sock')))
+    await until(() => !existsSync(runSocket(runDir, 'r2')))
   }, 60_000)
 
   it('rejects commands for an unknown run instead of hanging', async () => {

@@ -34,7 +34,15 @@ class FakeAdapter implements WorkerAdapter {
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
   private readonly handles = new Map<string, WorkerHandle>()
 
+  launchSpec(spec: WorkerSpec) {
+    return { command: 'fake', args: [spec.run], env: {} }
+  }
+
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
+    return this.supervise(spec)
+  }
+
+  async supervise(spec: WorkerSpec): Promise<WorkerHandle> {
     const handle: WorkerHandle = {
       run: spec.run,
       task: spec.task,

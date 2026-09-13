@@ -3,6 +3,7 @@ export {
   PiAdapter,
   type PiAdapterOptions,
   piBinary,
+  runSocket,
   sessionIdFor,
 } from './adapter.ts'
 export { SignalChannel, type SignalChannelOptions } from './channel.ts'

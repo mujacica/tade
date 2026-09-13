@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,6 +36,19 @@ export function sessionIdFor(task: string): string {
   return `wilco-${task.replace(/[^a-zA-Z0-9-]+/g, '-')}`
 }
 
+/**
+ * Where a run's supervision socket lives.
+ *
+ * Hashed rather than named after the run, because run ids are lane ids —
+ * `<project>/<task>/agent` — and those contain slashes, which would turn one
+ * socket into three directories. Unix socket paths are also capped around 100
+ * bytes, so a name that grows with the task name is a run that fails to start
+ * for no reason a user could act on.
+ */
+export function runSocket(runDir: string, run: string): string {
+  return join(runDir, `run-${createHash('sha1').update(run).digest('hex').slice(0, 12)}.sock`)
+}
+
 /** The pi binary that ships with this package. */
 export function piBinary(): string {
   // pi's exports map declares no `require` condition and does not expose
@@ -62,8 +76,14 @@ export function piBinary(): string {
 }
 
 export interface PiAdapterOptions {
-  /** Directory for per-run sockets and session files. */
+  /** Directory for per-run session files. */
   runDir: string
+  /**
+   * Where supervision sockets go. Defaults to `runDir`, which is fine for
+   * short paths; Wilco passes a short runtime directory because a socket path
+   * over ~104 bytes fails to bind.
+   */
+  socketDir?: string
   /**
    * Load the supervision extension, so every tool call is held until Wilco
    * answers. True for workers. False for the orchestrator, which is Wilco's
@@ -86,7 +106,8 @@ export interface PiAdapterOptions {
 
 interface Run {
   handle: WorkerHandle
-  child: ChildProcess
+  /** Null when the agent runs in a lane: something else placed the process. */
+  child: ChildProcess | null
   /** Null when the run is not supervised. */
   channel: SignalChannel | null
   pendingRpc: Map<string, (response: RpcResponse) => void>
@@ -109,9 +130,10 @@ export class PiAdapter implements WorkerAdapter {
     permissionGate: true,
     steer: true,
     modelSwitch: true,
-    // This adapter runs pi headless; a visible lane is launched with
-    // `laneLaunchSpec()` and supervised through the same channel.
-    visibleUi: false,
+    // Workers run as pi in a lane (`launchSpec()` + `supervise()`), which is
+    // visible. The headless protocol is for the orchestrator, whose interface
+    // Wilco draws itself.
+    visibleUi: true,
     resume: true,
   }
 
@@ -120,8 +142,9 @@ export class PiAdapter implements WorkerAdapter {
   // before `start()` returns: the first signals arrive while it is still running.
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
   private readonly opts: Required<
-    Omit<PiAdapterOptions, 'onWarning' | 'bin' | 'args' | 'env' | 'approvals'>
+    Omit<PiAdapterOptions, 'onWarning' | 'bin' | 'args' | 'env' | 'approvals' | 'socketDir'>
   > & {
+    socketDir: string
     approvals: 'bypass' | 'policy'
     bin: string
     args: string[]
@@ -132,6 +155,7 @@ export class PiAdapter implements WorkerAdapter {
   constructor(opts: PiAdapterOptions) {
     this.opts = {
       runDir: opts.runDir,
+      socketDir: opts.socketDir ?? opts.runDir,
       supervise: opts.supervise ?? true,
       approvals: opts.approvals ?? 'bypass',
       bin: opts.bin ?? piBinary(),
@@ -145,6 +169,9 @@ export class PiAdapter implements WorkerAdapter {
    * How to run pi as itself, in a lane you can watch, rather than as a
    * machine-protocol child of ours.
    *
+   * Pair it with `supervise()`: that opens the channel this launch connects
+   * back to.
+   *
    * The session id is the whole point. pi's sessions are append-only and
    * survive being killed mid-turn — everything up to the kill is on disk, and
    * only the answer that never came back is missing — so naming the session
@@ -156,7 +183,7 @@ export class PiAdapter implements WorkerAdapter {
    * partitioned by task — and leaving them where pi puts them means you can
    *`cd` into the worktree, run pi yourself, and be in the same conversation.
    */
-  laneLaunchSpec(spec: WorkerSpec): {
+  launchSpec(spec: WorkerSpec): {
     command: string
     args: string[]
     env: Record<string, string>
@@ -181,9 +208,48 @@ export class PiAdapter implements WorkerAdapter {
     return { ...launch, env: this.runEnv(spec) }
   }
 
+  /**
+   * Listen for an agent someone else is going to run.
+   *
+   * This is how a visible agent is supervised: Wilco opens the channel, the
+   * lane starts pi with `launchSpec()`, and the extension connects back to it.
+   * The socket path is derived from the run id rather than passed around, so
+   * both halves agree without having to be told.
+   *
+   * The channel is opened whatever the approval mode, because it carries the
+   * journal as well as the gate: with approvals off nothing is ever held, and
+   * we still want to know what the agent did and what it cost.
+   */
+  async supervise(spec: WorkerSpec): Promise<WorkerHandle> {
+    if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
+    const channel = await SignalChannel.listen({
+      path: runSocket(this.opts.socketDir, spec.run),
+      run: spec.run,
+      onSignal: (signal) => this.dispatch(spec.run, signal),
+      onWarning: this.opts.onWarning,
+    })
+    const run: Run = {
+      handle: {
+        run: spec.run,
+        task: spec.task,
+        sessionId: sessionIdFor(spec.task),
+        startedAt: Date.now(),
+        lane: spec.lane ?? null,
+      },
+      child: null,
+      channel,
+      pendingRpc: new Map(),
+      streaming: false,
+      stdout: '',
+      rpcId: 0,
+    }
+    this.runs.set(spec.run, run)
+    return { ...run.handle }
+  }
+
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
     if (this.runs.has(spec.run)) throw new Error(`run already started: ${spec.run}`)
-    const socketPath = join(this.opts.runDir, `${spec.run}.sock`)
+    const socketPath = runSocket(this.opts.socketDir, spec.run)
 
     const channel = this.opts.supervise
       ? await SignalChannel.listen({
@@ -307,7 +373,10 @@ export class PiAdapter implements WorkerAdapter {
     const entry = this.runs.get(run)
     if (!entry) return
     entry.channel?.send({ type: 'shutdown' })
-    entry.child.kill()
+    // Null for an agent in a lane: the process is the lane's, and closing the
+    // lane is what ends it. Killing it from here would leave the lane holding
+    // a corpse.
+    entry.child?.kill()
     await entry.channel?.close()
     this.runs.delete(run)
   }
@@ -335,7 +404,7 @@ export class PiAdapter implements WorkerAdapter {
     for (const [key, value] of Object.entries(this.opts.env)) {
       if (typeof value === 'string') env[key] = value
     }
-    env[WORKER_ENV.socket] = join(this.opts.runDir, `${spec.run}.sock`)
+    env[WORKER_ENV.socket] = runSocket(this.opts.socketDir, spec.run)
     // What the agent should do when we are not reachable. Declared at launch
     // rather than discovered later, so it can never change underneath a run.
     env[WORKER_ENV.approvals] = this.opts.approvals
@@ -453,6 +522,14 @@ export class PiAdapter implements WorkerAdapter {
   }
 
   private rpc(run: Run, command: Record<string, unknown>): Promise<RpcResponse> {
+    // An agent in a lane speaks the extension channel, never this: there is no
+    // stdin to write to, because its process belongs to the lane.
+    const child = run.child
+    if (!child) {
+      return Promise.reject(
+        new Error(`run ${run.handle.run} is in a lane: say it over the channel, not the protocol`),
+      )
+    }
     const id = `w${++run.rpcId}`
     return new Promise<RpcResponse>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -465,7 +542,7 @@ export class PiAdapter implements WorkerAdapter {
         if (response.success) resolve(response)
         else reject(new Error(response.error ?? `${response.command} failed`))
       })
-      run.child.stdin?.write(`${JSON.stringify({ ...command, id })}\n`)
+      child.stdin?.write(`${JSON.stringify({ ...command, id })}\n`)
     })
   }
 

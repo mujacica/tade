@@ -198,10 +198,33 @@ export interface WorkerHandle {
 
 export type WorkerSignalListener = (signal: WorkerSignal) => void
 
+/** Everything needed to run an agent somewhere we can see it. */
+export interface LaunchSpec {
+  command: string
+  args: string[]
+  env: Record<string, string>
+}
+
 export interface WorkerAdapter {
   readonly id: string
   readonly capabilities: WorkerCapabilities
 
+  /**
+   * How to run this agent in a lane. Wilco places the process — that is the
+   * driver's job — so the adapter only says what to run.
+   */
+  launchSpec(spec: WorkerSpec): LaunchSpec
+  /**
+   * Be ready for an agent that is about to be launched: open whatever channel
+   * it reports back over, so signals and approvals work from the first turn.
+   * Pairs with `launchSpec`.
+   */
+  supervise(spec: WorkerSpec): Promise<WorkerHandle>
+  /**
+   * Run the agent headless, under our own protocol, as a child of this
+   * process. For an agent whose interface Wilco draws itself — the
+   * orchestrator — never for work you are meant to watch.
+   */
   start(spec: WorkerSpec): Promise<WorkerHandle>
   /** Send an instruction, to be handled when the agent is ready for it. */
   prompt(run: RunId, message: string): Promise<void>

@@ -30,8 +30,8 @@ function fakeWilco() {
         { run: 'r-pagination', task: 'search/pagination' },
       ]
     },
-    async steerRun(run, message) {
-      calls.push(`steer ${run} ${message}`)
+    async steerAgent(task, message) {
+      calls.push(`steer ${task} ${message}`)
     },
     async parkTask(worktree, parked) {
       calls.push(`park ${worktree} ${parked}`)
@@ -40,7 +40,7 @@ function fakeWilco() {
     async createTask() {
       return { id: 'x/y', worktree: '/wt/y' }
     },
-    async startRun() {
+    async startAgent() {
       return { run: 'r1' }
     },
     async subscribe() {
@@ -142,7 +142,7 @@ describe('working out which agent you meant', () => {
     const { voice } = await surface(wilco, { tasks })
     // Only one is running, so steering can only mean that one.
     expect(await voice.handle('tell it to hurry up')).toBe('Told refunds.')
-    expect(wilco.calls).toEqual(['steer r-refunds to hurry up'])
+    expect(wilco.calls).toEqual(['steer checkout/refunds to hurry up'])
   })
 
   describe('when it cannot tell', () => {
