@@ -458,6 +458,11 @@ nothing is dropped; it waits and comes back as one sentence.
 Task and project names are handed to the engine as expected vocabulary, because *"stripe-v15"* is
 exactly the kind of word a general model mishears.
 
+`wilco setup` asks which languages you speak before which model to download — the `.en` models are
+smaller and better at English, the rest understand about a hundred languages — and offers the
+engine first: local whisper, OpenAI, Groq, or a dictation app you already use. Downloads show a bar,
+the rate and how much longer. `wilco voice setup --list` prints what is on offer and what each costs.
+
 **If any of it is missing, nothing breaks.** `wilco voice` tells you what and how to fix it, and
 ctrl+space falls back to a line you type into — which is also how a dictation app (Wispr Flow, macOS
 dictation) works with Wilco today, with no integration at all. Wake words, and transcribing while

@@ -55,8 +55,12 @@ export function progressLine(done: number, total: number, perSecond: number, wid
   const filled = Math.round(share * width)
   const bar = `${'█'.repeat(filled)}${'░'.repeat(Math.max(0, width - filled))}`
   const percent = total > 0 ? `${Math.floor(share * 100)}%`.padStart(4) : '    '
-  const speed = perSecond > 0 ? ` ${mb(perSecond)}/s` : ''
-  const left = total > 0 && perSecond > 0 ? ` · ${duration((total - done) / perSecond)} left` : ''
+  const speed = perSecond > 0 ? ` · ${mb(perSecond)}/s` : ''
+  // Nothing is left when it is done: "a moment left" at 100% reads as a thing
+  // still happening.
+  const remaining = total - done
+  const left =
+    total > 0 && perSecond > 0 && remaining > 0 ? ` · ${duration(remaining / perSecond)} left` : ''
   return `  ${bar} ${percent}  ${mb(done)}${total > 0 ? ` of ${mb(total)}` : ''}${speed}${left}`
 }
 

@@ -25,7 +25,7 @@ describe('the download progress line', () => {
     const line = progressLine(50_000_000, 142_000_000, 5_000_000)
     expect(line).toContain('35%')
     expect(line).toContain('50 MB of 142 MB')
-    expect(line).toContain('5 MB/s')
+    expect(line).toContain('· 5 MB/s')
     // The number people actually want: when can I stop watching this.
     expect(line).toContain('19s left')
   })
@@ -44,6 +44,13 @@ describe('the download progress line', () => {
     const line = progressLine(1_000_000, 142_000_000, 0)
     expect(line).not.toContain('/s')
     expect(line).toContain('1 MB of 142 MB')
+  })
+
+  it('stops counting down once it is finished', () => {
+    const line = progressLine(78_000_000, 78_000_000, 4_000_000)
+    expect(line).toContain('100%')
+    // "a moment left" under a full bar reads as something still happening.
+    expect(line).not.toContain('left')
   })
 
   it('copes with a server that does not say how big the file is', () => {
