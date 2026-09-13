@@ -6,6 +6,8 @@ import {
   type Terminal,
   TuiAltScreen,
   type TuiInputListenerResult,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
 } from '@earendil-works/pi-tui'
 import {
   type Config,
@@ -25,6 +27,7 @@ import {
 } from '@wilco/voice-core'
 import { Speaker } from '@wilco/voice-tts'
 import type { Workbench } from '@wilco/workbench'
+import { type Hit, hitAt, type Target } from './hits.ts'
 import { appKey } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow } from './layout.ts'
 import { knownTasks, Live } from './live.ts'
@@ -33,6 +36,7 @@ import {
   type AppState,
   addTurn,
   focusBy,
+  focusedProject,
   focusTask,
   initialState,
   keyAction,
@@ -40,16 +44,21 @@ import {
   noteTyping,
   notice,
   onEvent,
+  parseCommand,
+  selectProject,
   setDictation,
   setHeld,
   setListening,
   setQuestion,
+  whichProject,
+  withProjects,
   withTasks,
 } from './model.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { addProject, editSettings } from './settings.ts'
-import { renderApp } from './view.ts'
+import { type Skin, skinFor } from './skin.ts'
+import { draw } from './view.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -83,21 +92,44 @@ function slugify(intent: string): string {
   return words.split('-').slice(0, 3).join('-') || 'task'
 }
 
+/**
+ * The window as the TUI sees it: one component that draws everything, and
+ * knows what is under the pointer.
+ *
+ * The hit map comes out of the same pass that drew the rows and is kept from
+ * the last frame, so a click lands on what is actually on the screen rather
+ * than on a second, re-derived idea of where things went.
+ */
 class Window implements Component {
   private readonly frame: () => {
     state: AppState
     screen: string
     height: number
     layout: LayoutPrefs
+    files: readonly string[]
+    skin: Skin
   }
+  private readonly onClick: (target: Target) => void
+  private hits: readonly Hit[] = []
 
-  constructor(frame: Window['frame']) {
+  constructor(frame: Window['frame'], onClick: (target: Target) => void) {
     this.frame = frame
+    this.onClick = onClick
   }
 
   render(width: number): string[] {
-    const { state, screen, height, layout } = this.frame()
-    return renderApp(state, { width, height, screen, layout })
+    const { state, screen, height, layout, files, skin } = this.frame()
+    const drawn = draw(state, { width, height, screen, layout, files, skin })
+    this.hits = drawn.hits
+    return drawn.rows
+  }
+
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    if (event.type !== 'click' || event.button !== 'left') return undefined
+    const target = hitAt(this.hits, event.x, event.y)
+    if (!target) return undefined
+    this.onClick(target)
+    return { handled: true }
   }
 
   invalidate(): void {
@@ -130,6 +162,16 @@ export class App {
   private readonly terminal: Terminal
   private readonly tui: TuiAltScreen
   private state: AppState = initialState()
+  /**
+   * Where free text goes, once there is something to send it to.
+   *
+   * Settable, because the orchestrator is a model in another process and can
+   * take a few seconds to come up. The window opens without waiting for it:
+   * an empty terminal while something else starts is the worst first second
+   * Wilco could have, and everything except free text works meanwhile.
+   */
+  private thinker: AppOptions['thinker'] | null = null
+  private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private screen = ''
   private recording: Recording | null = null
   /** Where you were last time, applied once the tasks are known. */
@@ -152,7 +194,10 @@ export class App {
 
   private constructor(opts: AppOptions) {
     this.opts = opts
+    this.thinker = opts.thinker ?? null
     this.terminal = opts.terminal ?? new ProcessTerminal()
+    // Mouse reporting is on by default, which is what makes the window
+    // clickable: events arrive at the component with coordinates local to it.
     this.tui = new TuiAltScreen(this.terminal)
     this.closed = new Promise((resolve) => {
       this.settle = resolve
@@ -163,6 +208,19 @@ export class App {
     const app = new App(opts)
     await app.begin()
     return app
+  }
+
+  /**
+   * Hand the window the orchestrator, once it has started.
+   *
+   * Said out loud in the strip rather than silently: until this happens, a
+   * sentence Wilco's own grammar does not recognise has nowhere to go, and
+   * knowing when that changed is the difference between waiting and retyping.
+   */
+  attachThinker(thinker: NonNullable<AppOptions['thinker']>): void {
+    this.thinker = thinker
+    this.state = notice(this.state, 'orchestrator ready')
+    this.draw()
   }
 
   /** Resolves when the window has been closed. */
@@ -221,6 +279,9 @@ export class App {
 
   private async begin(): Promise<void> {
     this.remembered = this.recall()
+    // Every project, before any of them has a task: an empty one is still a
+    // tab you can be standing in when you start work.
+    this.state = withProjects(this.state, Object.keys(this.opts.config.projects))
     // Held as a local as well as a field: the surface below closes over it, so
     // it never has to wonder whether there is one.
     const live = await Live.start({
@@ -270,9 +331,7 @@ export class App {
       openSettings: async () => this.openSettings(),
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
-      ...(this.opts.thinker
-        ? { ask: (text: string) => this.opts.thinker?.ask(text) ?? Promise.resolve('') }
-        : {}),
+      ask: (text: string) => this.ask(text),
       ...(this.opts.now ? { now: this.opts.now } : {}),
       // Typing at an agent is what mutes speech for that task.
       focusedTask: () => ({ task: this.state.focused, lastInputAt: this.state.lastInputAt }),
@@ -284,12 +343,17 @@ export class App {
     })
 
     this.tui.addChild(
-      new Window(() => ({
-        state: this.state,
-        screen: this.screen,
-        height: Math.max(6, this.terminal.rows),
-        layout: this.layout(),
-      })),
+      new Window(
+        () => ({
+          state: this.state,
+          screen: this.screen,
+          height: Math.max(6, this.terminal.rows),
+          layout: this.layout(),
+          files: live.files(this.state.focused),
+          skin: this.skin,
+        }),
+        (target) => this.clicked(target),
+      ),
     )
     this.release = this.tui.addInputListener((data) => this.onInput(data))
     this.tui.start()
@@ -358,6 +422,42 @@ export class App {
     }
     this.toLane(data)
     return undefined
+  }
+
+  /**
+   * Something was clicked.
+   *
+   * Every target is something you could also have typed, which is the point:
+   * the mouse is a shortcut into the same commands, never a second way of
+   * driving Wilco that behaves differently. A button whose command wants words
+   * puts the half-written line in front of you instead of guessing them.
+   */
+  private clicked(target: Target): void {
+    switch (target.kind) {
+      case 'task':
+        this.state = focusTask(this.state, target.task)
+        this.draw()
+        return
+      case 'project':
+        this.state = selectProject(this.state, target.project)
+        this.draw()
+        return
+      case 'orchestrator':
+        this.state = { ...this.state, focused: null, chose: true }
+        if (this.state.dictation === null) this.state = setDictation(this.state, '')
+        this.draw()
+        return
+      case 'file':
+        // Saying where you are is all a window owes you here; opening files is
+        // your editor's job, and the agent's.
+        this.state = notice(this.state, target.path)
+        this.draw()
+        return
+      case 'action':
+        if (target.name.endsWith(' ')) this.prefill(target.name)
+        else void this.act(target.name)
+        return
+    }
   }
 
   /**
@@ -446,12 +546,16 @@ export class App {
   /**
    * Carry out a slash command.
    *
-   * The ones that need more than a word borrow the whole terminal for a moment
-   * — the same screen the settings use — because a form squeezed into three
-   * rows of a strip is worse than one that has room.
+   * Work happens in the window. Starting a task used to throw the whole screen
+   * away for a form, which is a strange thing for a window whose entire job is
+   * to show you what is running: you said what you wanted, so it is done, and
+   * what you get back is the agent working on it. Only the two commands that
+   * edit configuration — which is neither urgent nor about a task — borrow the
+   * terminal, because a YAML editor does not fit in three rows.
    */
   private async act(said: string): Promise<void> {
-    const [chosen] = matchActions(this.state, said)
+    const { name, rest } = parseCommand(said)
+    const [chosen] = matchActions(this.state, name)
     if (!chosen) {
       this.state = notice(this.state, `no command like ${said}`)
       this.draw()
@@ -470,18 +574,133 @@ export class App {
         this.state = notice(this.state, HELP)
         this.draw()
         return
+      case '/task':
+        await this.newTask(rest)
+        return
+      case '/agent':
+        await this.newAgent(rest)
+        return
+      case '/stop':
+        await this.stopAgent(rest)
+        return
       case '/open': {
-        const task = await this.pick(
-          'Which task?',
-          this.state.panes.map((pane) => pane.task),
-        )
-        if (task) this.state = focusTask(this.state, task)
+        const task = this.findTask(rest)
+        if (!task) {
+          this.state = notice(this.state, rest ? `no task like ${rest}` : 'which task? /open name')
+          this.prefill('/open ')
+          return
+        }
+        this.state = focusTask(this.state, task)
         this.draw()
         return
       }
       default:
         await this.onScreen(chosen.name)
     }
+  }
+
+  /**
+   * Start work: a branch, a worktree, an agent in it, and your eyes on it.
+   *
+   * The project is the one you are looking at unless you name another, so the
+   * common case — watching a project, wanting another thing done in it — is
+   * one sentence with no questions asked back.
+   */
+  private async newTask(said: string): Promise<void> {
+    const projects = Object.keys(this.opts.config.projects)
+    if (projects.length === 0) {
+      this.state = notice(this.state, 'no projects yet — /project adds one')
+      this.draw()
+      return
+    }
+    const { project, intent } = whichProject(said, projects, focusedProject(this.state))
+    if (!project) {
+      this.state = notice(this.state, `which project? ${projects.join(' · ')}`)
+      this.prefill('/task ')
+      return
+    }
+    if (intent === '') {
+      this.state = notice(this.state, `${project}: /task what needs doing`)
+      this.prefill('/task ')
+      return
+    }
+
+    this.state = notice(this.state, `starting ${project} · ${slugify(intent)}…`)
+    this.draw()
+    try {
+      const task = await this.opts.client.createTask({ project, slug: slugify(intent), intent })
+      await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
+      // Refresh before focusing: a pane you cannot see yet cannot take focus,
+      // and the point of starting work here is landing in it.
+      await this.live?.refresh()
+      this.state = focusTask(notice(this.state, `${task.id} — an agent is on it`), task.id)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  /** Another agent on the task in front of you, or on one you name. */
+  private async newAgent(said: string): Promise<void> {
+    const { name, rest } = parseCommand(said)
+    const named = this.findTask(name)
+    const task = named ?? this.state.focused
+    const prompt = named ? rest : said
+    if (!task) {
+      this.state = notice(this.state, 'which task? /agent name what it should do')
+      this.prefill('/agent ')
+      return
+    }
+    const worktree = this.live?.worktreeOf(task)
+    if (!worktree) {
+      this.state = notice(this.state, `I do not know where ${task} lives`)
+      this.draw()
+      return
+    }
+    try {
+      await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt })
+      await this.live?.refresh()
+      this.state = focusTask(notice(this.state, `an agent is working on ${task}`), task)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  /** Stop the agent you are watching, or the one you name. The task stays. */
+  private async stopAgent(said: string): Promise<void> {
+    const task = this.findTask(said) ?? this.state.focused
+    if (!task) {
+      this.state = notice(this.state, 'which agent? /stop name')
+      this.prefill('/stop ')
+      return
+    }
+    try {
+      await this.opts.client.stopAgent(task)
+      await this.live?.refresh()
+      this.state = notice(this.state, `${task} stopped — the task and its worktree stay`)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  /** The task somebody meant by a word or two of its name. */
+  private findTask(said: string): string | null {
+    const want = said.trim().toLowerCase()
+    if (want === '') return null
+    const tasks = this.state.panes.map((pane) => pane.task)
+    return (
+      tasks.find((task) => task.toLowerCase() === want) ??
+      tasks.find((task) => task.toLowerCase().includes(want)) ??
+      null
+    )
+  }
+
+  /** Put a half-written command back on the line, ready to be finished. */
+  private prefill(line: string): void {
+    this.state = setDictation(this.state, line)
+    this.draw()
   }
 
   /** Ask, on a screen of its own, and put the window back afterwards. */
@@ -517,31 +736,10 @@ export class App {
     }
   }
 
-  /** One short list, on a screen, because three rows is not enough to choose in. */
-  private async pick(question: string, options: string[]): Promise<string | null> {
-    let picked: string | null = null
-    await this.onScreenWith(async (ui) => {
-      const at = await ui.choose(question, options)
-      picked = options[at] ?? null
-    })
-    return picked
-  }
-
-  private async onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> {
-    if (this.borrowed) return
-    this.borrowed = true
-    this.tui.stop()
-    try {
-      await runScreen({ title: 'Wilco', terminal: this.terminal }, flow)
-    } catch (err) {
-      if (!(err instanceof ScreenCancelled)) {
-        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
-      }
-    } finally {
-      this.borrowed = false
-      this.tui.start()
-      this.draw()
-    }
+  /** Free text, which only the orchestrator can answer. */
+  private async ask(text: string): Promise<string> {
+    if (!this.thinker) return 'The orchestrator is still starting.'
+    return this.thinker.ask(text)
   }
 
   /** Everything addressed to Wilco arrives here, however it was said. */
@@ -652,7 +850,7 @@ export class App {
    * `wilco skills` and the next brief. Nothing is said out loud.
    */
   private async reflect(tasks: readonly TaskSnapshot[]): Promise<void> {
-    const thinker = this.opts.thinker
+    const thinker = this.thinker
     if (!thinker || !this.opts.config.orchestrator.reflect) return
     const finished = needsReflection(
       tasks.map((task) => ({ task: task.task, state: task.state })),
@@ -720,36 +918,6 @@ export class App {
         const name = await ui.ask('call it what?', fallback)
         addProject(path, name, root)
         return `added ${name} → ${root}, from the next time Wilco starts`
-      }
-      case '/task': {
-        const projects = Object.keys(this.opts.config.projects)
-        if (projects.length === 0) throw new Error('no projects yet — /project adds one')
-        const project = projects[await ui.choose('Which project?', projects)] ?? projects[0]
-        const intent = await ui.ask('what needs doing? (in your own words)')
-        if (!intent || !project) return ''
-        const slug = slugify(intent)
-        const task = await this.opts.client.createTask({ project, slug, intent })
-        ui.say(`  ${task.id} → ${task.worktree}`)
-        if (!(await ui.confirm('start an agent on it now?', true))) return `${task.id} created`
-        await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
-        return `${task.id} created, and an agent is on it`
-      }
-      case '/agent': {
-        const tasks = this.state.panes.map((pane) => pane.task)
-        const task = tasks[await ui.choose('Which task?', tasks)]
-        if (!task) return ''
-        const worktree = this.live?.worktreeOf(task)
-        if (!worktree) throw new Error(`I do not know where ${task} lives`)
-        const prompt = await ui.ask('what should it do first?')
-        await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt })
-        return `an agent is working on ${task}`
-      }
-      case '/stop': {
-        const running = this.state.panes.filter((pane) => pane.lane !== null).map((p) => p.task)
-        const task = running[await ui.choose('Stop which agent?', running)]
-        if (!task) return ''
-        await this.opts.client.stopAgent(task)
-        return `${task} stopped — the task and its worktree stay`
       }
       default:
         return ''

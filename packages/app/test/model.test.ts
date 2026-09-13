@@ -13,11 +13,17 @@ import {
   keyAction,
   noteTyping,
   onEvent,
+  parseCommand,
+  projects,
+  selectProject,
   setDictation,
   setListening,
   sidebar,
   type TaskSnapshot,
   TURN_HISTORY,
+  tasksOf,
+  whichProject,
+  withProjects,
   withTasks,
 } from '../src/model.ts'
 
@@ -167,6 +173,73 @@ describe('what the window shows', () => {
     }
     expect(current.turns.length).toBe(TURN_HISTORY)
     expect(current.turns[0]?.utterance).toBe('utterance 20')
+  })
+})
+
+describe('which project you are in', () => {
+  it('is the one the focused task belongs to', () => {
+    expect(state().project).toBe('checkout')
+    expect(focusTask(state(), 'search/pagination').project).toBe('search')
+  })
+
+  it('lists a project that has no tasks in it yet', () => {
+    // It is still somewhere you can stand, and standing there is how the first
+    // task in it gets made.
+    const known = withProjects(state(), ['checkout', 'search', 'infra'])
+    expect(projects(known)).toEqual(['checkout', 'infra', 'search'])
+  })
+
+  it('shows only the tasks of that project down the side', () => {
+    expect(tasksOf(state()).map((task) => task.name)).toEqual(['stripe-v15', 'refunds'])
+    expect(tasksOf(selectProject(state(), 'search')).map((t) => t.name)).toEqual(['pagination'])
+  })
+
+  it('takes the focus with it, so the pane and the list agree', () => {
+    expect(selectProject(state(), 'search').focused).toBe('search/pagination')
+  })
+
+  it('puts you on the orchestrator in a project with nothing in it', () => {
+    const empty = withProjects(state(), ['checkout', 'search', 'infra'])
+    expect(selectProject(empty, 'infra').focused).toBeNull()
+  })
+})
+
+describe('a typed command', () => {
+  it('is the first word, and everything after it is what the command is for', () => {
+    expect(parseCommand('/task fix the double charge')).toEqual({
+      name: '/task',
+      rest: 'fix the double charge',
+    })
+    expect(parseCommand('  /quit  ')).toEqual({ name: '/quit', rest: '' })
+  })
+
+  it('starts work in the project you are looking at', () => {
+    expect(whichProject('fix the refund', ['checkout', 'search'], 'checkout')).toEqual({
+      project: 'checkout',
+      intent: 'fix the refund',
+    })
+  })
+
+  it('starts it somewhere else when you name somewhere else', () => {
+    expect(
+      whichProject('search pagination is off by one', ['checkout', 'search'], 'checkout'),
+    ).toEqual({ project: 'search', intent: 'pagination is off by one' })
+  })
+
+  it('takes the only project there is, without being told', () => {
+    expect(whichProject('fix the refund', ['checkout'], null).project).toBe('checkout')
+  })
+
+  it('asks rather than guessing between two', () => {
+    expect(whichProject('fix the refund', ['checkout', 'search'], null).project).toBeNull()
+  })
+
+  it('keeps what was said, so the intent is the words that were used', () => {
+    // `intent_spoken` is stored verbatim; only a project named up front is
+    // taken off the front, because it is addressing, not intent.
+    expect(whichProject('Park The Stripe One', ['checkout'], 'checkout').intent).toBe(
+      'Park The Stripe One',
+    )
   })
 })
 

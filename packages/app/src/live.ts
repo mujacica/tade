@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import {
   type Config,
   historyFrom,
@@ -23,6 +24,12 @@ import type { TaskSnapshot } from './model.ts'
 
 /** How much journal to keep for working out what recently moved. */
 const JOURNAL = 500
+
+/** How long a worktree listing is good for. */
+const LISTING_MS = 2_000
+
+/** No sidebar is long enough to be worth reading past this. */
+const LISTING_MAX = 200
 
 /**
  * Fold what status, the lane registry and the approval queue each know into
@@ -80,6 +87,8 @@ export class Live {
   private snapshots: TaskSnapshot[] = []
   /** Where each task lives on disk, which is what parking one needs. */
   private readonly worktrees = new Map<string, string>()
+  /** The last listing of each worktree, so the sidebar is not a disk read. */
+  private readonly listings = new Map<string, { at: number; files: string[] }>()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
 
@@ -120,6 +129,36 @@ export class Live {
   /** What one agent has been doing, from the journal. */
   workOn(task: string): WorkSummary {
     return summariseWork(this.journal, task, this.now())
+  }
+
+  /**
+   * The top of a task's worktree.
+   *
+   * Enough to see which repository you are standing in and what is in it, not
+   * a file browser: your editor is better at that, and a window that tried
+   * would be re-reading a tree every quarter second. One level, cached, and
+   * re-read no more often than the tasks are.
+   */
+  files(task: string | null): readonly string[] {
+    const root = task ? this.worktrees.get(task) : null
+    if (!task || !root) return []
+    const seen = this.listings.get(task)
+    if (seen && this.now() - seen.at < LISTING_MS) return seen.files
+    let files: string[] = []
+    try {
+      const entries = readdirSync(root, { withFileTypes: true })
+        .filter((entry) => !entry.name.startsWith('.'))
+        .sort(
+          (a, b) =>
+            Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name),
+        )
+      files = entries.slice(0, LISTING_MAX).map((e) => (e.isDirectory() ? `${e.name}/` : e.name))
+    } catch {
+      // A worktree that has been removed under us is not worth a warning: the
+      // next status pass will stop listing the task at all.
+    }
+    this.listings.set(task, { at: this.now(), files })
+    return files
   }
 
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */

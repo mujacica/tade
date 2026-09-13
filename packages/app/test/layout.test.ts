@@ -8,9 +8,16 @@ const big = { width: 200, height: 60 }
 
 describe('resolveLayout', () => {
   it('uses the defaults when nothing was asked for', () => {
-    const layout = resolveLayout({}, big)
+    const layout = resolveLayout({}, { width: 100, height: 40 })
     expect(layout.sidebarWidth).toBe(DEFAULTS.sidebarWidth)
     expect(layout.stripHeight).toBe(DEFAULTS.stripHeight)
+  })
+
+  it('gives the sidebar more room on a wide terminal, up to a point', () => {
+    // Task names are the one thing in that column that has to stay readable,
+    // and a fixed 24 beside 200 columns of agent is a ribbon.
+    expect(resolveLayout({}, big).sidebarWidth).toBeGreaterThan(DEFAULTS.sidebarWidth)
+    expect(resolveLayout({}, { width: 400, height: 60 }).sidebarWidth).toBeLessThanOrEqual(34)
   })
 
   it('honours a preference that fits', () => {

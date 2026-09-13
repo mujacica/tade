@@ -1,6 +1,7 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@wilco/voice-core'
 import { describe, expect, it } from 'vitest'
+import { hitAt } from '../src/hits.ts'
 import {
   type AppState,
   addTurn,
@@ -12,9 +13,14 @@ import {
   setListening,
   setQuestion,
   type TaskSnapshot,
+  withProjects,
   withTasks,
 } from '../src/model.ts'
-import { renderApp, renderTurn } from '../src/view.ts'
+import { BUTTONS, draw, renderApp, renderTurn } from '../src/view.ts'
+
+/** The same row without its colour, for comparing positions against columns. */
+const plain = (row: string) =>
+  row.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
 
 // The geometry contract matters more than the wording: a row that is not
 // exactly as wide as the window, or a frame with the wrong number of rows,
@@ -32,7 +38,7 @@ const tasks: TaskSnapshot[] = [
 ]
 
 const state = (over: Partial<AppState> = {}): AppState => ({
-  ...withTasks(initialState(), tasks),
+  ...withTasks(withProjects(initialState(), ['checkout', 'search']), tasks),
   ...over,
 })
 
@@ -82,20 +88,60 @@ describe('the frame', () => {
   })
 })
 
-describe('the projects list', () => {
-  it('shows every project and task, and marks the focused one', () => {
+describe('the tabs', () => {
+  it('has a tab for every project, and lists the tasks of the one you are in', () => {
     const text = renderApp(state(), frame()).join('\n')
     expect(text).toContain('checkout')
-    expect(text).toContain('stripe-v15')
     expect(text).toContain('search')
-    expect(text).toContain('pagination')
-    expect(text).toMatch(/▸.*stripe-v15/)
+    expect(text).toContain('stripe-v15')
+    expect(text).toMatch(/▌.*stripe-v15/)
+    // The other project's tasks are behind its tab, not mixed in with these.
+    expect(text).not.toContain('pagination')
   })
 
-  it('moves the marker with the focus', () => {
+  it('shows a project with no tasks in it yet, because that is where you start one', () => {
+    const empty = withProjects(initialState(), ['checkout', 'infra'])
+    const text = renderApp(empty, frame()).join('\n')
+    expect(text).toContain('infra')
+    expect(text).toContain('+')
+  })
+
+  it('follows the focus into the other project', () => {
     const text = renderApp(focusTask(state(), 'search/pagination'), frame()).join('\n')
-    expect(text).toMatch(/▸.*pagination/)
-    expect(text).not.toMatch(/▸.*stripe-v15/)
+    expect(text).toMatch(/▌.*pagination/)
+    expect(text).not.toContain('stripe-v15')
+  })
+})
+
+describe('what is clickable', () => {
+  it('puts a hit on every tab, task, file and button', () => {
+    const { rows, hits } = draw(state(), { ...frame(), files: ['src/', 'README.md'] })
+    const at = (target: string) => hits.filter((hit) => hit.target.kind === target)
+    expect(at('project').length).toBe(2)
+    expect(at('task').length).toBe(2)
+    expect(at('file').length).toBe(2)
+    expect(at('action').length).toBeGreaterThan(BUTTONS.length - 1)
+    // Every hit has to land on a row that exists, or it is a click into space.
+    for (const hit of hits) expect(hit.row).toBeLessThan(rows.length)
+  })
+
+  it('reads back what is under a click', () => {
+    const { hits } = draw(state(), frame())
+    const task = hits.find((hit) => hit.target.kind === 'task')
+    expect(task).toBeDefined()
+    if (task) expect(hitAt(hits, task.from, task.row)).toEqual(task.target)
+    expect(hitAt(hits, 0, 9_000)).toBeNull()
+  })
+
+  it('puts the button where its label is written', () => {
+    const { rows, hits } = draw(state(), frame())
+    for (const hit of hits) {
+      if (hit.target.kind !== 'action' || !hit.target.name.startsWith('/set')) continue
+      const row = rows[hit.row] ?? ''
+      // Compared without colour: the hit is a position, and a painted row has
+      // more bytes than columns.
+      expect(plain(row).slice(hit.from, hit.to + 1)).toContain('settings')
+    }
   })
 })
 
@@ -207,16 +253,16 @@ describe('the orchestrator strip', () => {
 describe('renderTurn', () => {
   it('reads as one exchange', () => {
     expect(renderTurn(turn(), 80)).toEqual([
-      '❯ park the stripe one',
-      '  → park · checkout/stripe-v15 · "you mentioned it last"',
-      '  parked stripe-v15',
+      ' ❯ park the stripe one',
+      '   → park · checkout/stripe-v15 · "you mentioned it last"',
+      '   parked stripe-v15',
     ])
   })
 
   it('leaves out what it does not have', () => {
     expect(renderTurn(turn({ task: null, why: null, reply: '' }), 80)).toEqual([
-      '❯ park the stripe one',
-      '  → park',
+      ' ❯ park the stripe one',
+      '   → park',
     ])
   })
 })

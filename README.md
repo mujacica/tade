@@ -274,30 +274,46 @@ wilco logs -f --min-urgency notable
 
 ### The window
 
-`wilco` with no arguments is one window over everything: your projects down the left, the agent you're currently
-watching in the middle, and the orchestrator along the bottom, where it cannot be closed — it is how
-you see what Wilco heard and what it did about it.
+`wilco` with no arguments is one window over everything: your projects as tabs along the top, the
+tasks of the one you're in down the side, the agent you're watching in the middle, and the
+orchestrator along the bottom, where it cannot be closed — it is how you see what Wilco heard and
+what it did about it.
 
 ```
-checkout          │ checkout · stripe-v15 · agent — waiting on you
-▸● stripe-v15     │ ────────────────────────────────────────────────
- ○ refunds        │ $ npm i stripe@15
-search            │ ⏵ wants approval: bash: npm i stripe@15
- ◆ pagination     │
-──── orchestrator ───────────────────────────────────────────────────
-❯ what's going on with checkout
-  → status · checkout · "you asked about it by name"
-  3 tasks, 1 working, 1 waiting on you.
- 1 waiting  tab switch · ctrl+space talk · ? help
+ WILCO   checkout   search   infra   +                             1 waiting
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ AGENTS           │ checkout · stripe-v15 · agent          ● waiting on you
+▌ ● stripe-v15    │ ───────────────────────────────────────────────────────
+  ○ refunds       │ $ npm i stripe@15
+                  │ ⏵ wants approval: bash: npm i stripe@15
+ FILES            │
+  src/            │
+  package.json    │
+━ orchestrator ─────────────────────────── ctrl+space talks · / commands ━━━
+ ❯ what's going on with checkout
+   → status · checkout · "you asked about it by name"
+   3 tasks, 1 working, 1 waiting on you.
+────────────────────────────────────────────────────────────────────────────
+  new task   agent   open   settings   help   quit
 ```
 
 - **Tab** moves between agents *and the orchestrator*, which is a place you can be: it is where you
   type to Wilco. Everything the window doesn't claim is typed straight into the agent you're
   watching, so its own keybindings keep working.
-- **Type `/` to see what Wilco can do** — create a task, start or stop an agent, add a project, open
+- **It is clickable.** A project tab moves you to that project, a task down the side puts its agent
+  in front of you, `+` and the buttons along the foot start the command they name. Every target is
+  something you could also have typed — the mouse is a shortcut into the same commands, never a
+  second way of driving Wilco — and the map of what is where comes out of the same pass that drew
+  the rows, so a button cannot end up clickable somewhere other than where it is written.
+- **Type `/` to see what Wilco can do** — start work, start or stop an agent, add a project, open
   the settings. Unavailable ones are still listed, with the reason (*"nothing is running"*), because
-  a menu that changes shape is one you re-read every time. Anything needing more than a word opens a
-  form with room for it.
+  a menu that changes shape is one you re-read every time.
+- **Work happens in the window.** `/task fix the double charge on refunds` makes the branch, the
+  worktree and an agent in it, and leaves you watching that agent — no form, no full screen, no
+  questions asked back. The project is the one whose tab you are on unless you name another first
+  (`/task search pagination is off by one`). The two commands that edit configuration — `/settings`
+  and `/project` — still take the terminal for a moment, because a YAML editor does not fit in
+  three rows.
 - **Ctrl+space** talks. Where the terminal reports key releases it is hold-to-talk; elsewhere it
   toggles. Space is never claimed, because you have to be able to type one.
 - **Say something to Wilco without leaving the agent you're typing at.** Begin a line with `wilco ` —

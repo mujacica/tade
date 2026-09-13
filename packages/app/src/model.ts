@@ -31,6 +31,14 @@ export interface AgentPane {
 
 export interface AppState {
   panes: AgentPane[]
+  /**
+   * Every project Wilco has been told about, whether or not it has tasks yet.
+   * A project with nothing in it still has to be somewhere you can go: that is
+   * where the first task in it gets made.
+   */
+  known: string[]
+  /** The project whose tasks are down the side. */
+  project: string | null
   /** Task id of the focused pane, or null when only the orchestrator is up. */
   focused: string | null
   turns: Turn[]
@@ -62,6 +70,8 @@ export interface AppState {
 export function initialState(): AppState {
   return {
     panes: [],
+    known: [],
+    project: null,
     focused: null,
     turns: [],
     listening: false,
@@ -94,7 +104,45 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     state: task.state,
     waiting: task.waiting ?? false,
   }))
-  return { ...state, panes, focused: refocus(state, panes) }
+  const focused = refocus(state, panes)
+  const project =
+    panes.find((pane) => pane.task === focused)?.project ??
+    state.project ??
+    panes[0]?.project ??
+    null
+  return { ...state, panes, focused, project }
+}
+
+/** The projects from the config, which is the only place empty ones exist. */
+export function withProjects(state: AppState, names: readonly string[]): AppState {
+  const known = [...names].sort((a, b) => a.localeCompare(b))
+  return { ...state, known, project: state.project ?? known[0] ?? null }
+}
+
+/** Every project, whether it came from the config or from a task. */
+export function projects(state: AppState): string[] {
+  const names = new Set(state.known)
+  for (const pane of state.panes) names.add(pane.project)
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Go to a project.
+ *
+ * Focus follows, because a sidebar listing one project's tasks while the pane
+ * shows another project's agent is two answers to "where am I". An empty
+ * project puts you on the orchestrator, which is where you would start work.
+ */
+export function selectProject(state: AppState, project: string): AppState {
+  const first = state.panes.find((pane) => pane.project === project)
+  return { ...state, project, focused: first?.task ?? null, chose: true }
+}
+
+/** The tasks down the side: the selected project's, in the order they come. */
+export function tasksOf(state: AppState): Array<AgentPane & { focused: boolean }> {
+  return state.panes
+    .filter((pane) => pane.project === (state.project ?? pane.project))
+    .map((pane) => ({ ...pane, focused: pane.task === state.focused }))
 }
 
 /**
@@ -120,9 +168,8 @@ function refocus(state: AppState, panes: AgentPane[]): string | null {
 }
 
 export function focusTask(state: AppState, task: string): AppState {
-  return state.panes.some((pane) => pane.task === task)
-    ? { ...state, focused: task, chose: true }
-    : state
+  const pane = state.panes.find((one) => one.task === task)
+  return pane ? { ...state, focused: task, project: pane.project, chose: true } : state
 }
 
 /** Move focus along the sidebar, wrapping at both ends. */
@@ -138,7 +185,9 @@ export function focusBy(state: AppState, delta: number): AppState {
   const ring: Array<string | null> = [...state.panes.map((pane) => pane.task), null]
   const at = ring.indexOf(state.focused)
   const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length
-  return { ...state, focused: ring[next] ?? null }
+  const focused = ring[next] ?? null
+  const project = state.panes.find((pane) => pane.task === focused)?.project ?? state.project
+  return { ...state, focused, project }
 }
 
 /** What you can ask for by name, rather than by remembering a phrase. */
@@ -160,10 +209,10 @@ export function actions(state: AppState): Action[] {
   const focused = state.panes.find((pane) => pane.task === state.focused)
   const running = state.panes.filter((pane) => pane.lane !== null)
   return [
-    { name: '/task', about: 'create a task: a branch, a worktree, your words', ready: true },
+    { name: '/task', about: 'start work: /task what needs doing', ready: true },
     {
       name: '/agent',
-      about: focused ? `start an agent on ${focused.name}` : 'start an agent on a task',
+      about: focused ? `another agent on ${focused.name}` : 'start an agent on a task',
       ready: state.panes.length > 0,
     },
     {
@@ -173,7 +222,7 @@ export function actions(state: AppState): Action[] {
     },
     {
       name: '/open',
-      about: state.panes.length > 0 ? 'watch a task' : 'no tasks yet',
+      about: state.panes.length > 0 ? 'watch a task: /open name' : 'no tasks yet',
       ready: state.panes.length > 0,
     },
     { name: '/project', about: 'add a git repository Wilco can work in', ready: true },
@@ -183,12 +232,53 @@ export function actions(state: AppState): Action[] {
   ]
 }
 
+/**
+ * A typed command line: the word, and whatever was said after it.
+ *
+ * Most commands take the rest of the line as what they are for — `/task fix
+ * the double charge` is a whole task, said in one go — so the two are split
+ * once, here, rather than by each caller guessing.
+ */
+export function parseCommand(typed: string): { name: string; rest: string } {
+  const line = typed.trim()
+  const space = line.search(/\s/)
+  if (space < 0) return { name: line, rest: '' }
+  return { name: line.slice(0, space), rest: line.slice(space + 1).trim() }
+}
+
 /** The actions matching what has been typed after the slash. */
 export function matchActions(state: AppState, typed: string): Action[] {
-  const want = typed.replace(/^\//, '').trim().toLowerCase()
+  // Only the first word chooses the command: the words after it are what the
+  // command is *for*, and they must not narrow the list to nothing while you
+  // are still typing them.
+  const want = parseCommand(typed).name.replace(/^\//, '').toLowerCase()
   const all = actions(state)
   if (want === '') return all
   return all.filter((action) => action.name.slice(1).startsWith(want))
+}
+
+/**
+ * Which project a new task belongs to, and what it is for.
+ *
+ * In order: a project named as the first word, the one you are looking at, or
+ * the only one there is. Naming it is how you start work somewhere other than
+ * where you are standing, and everything after the name is kept as said.
+ */
+export function whichProject(
+  said: string,
+  projects: readonly string[],
+  current: string | null,
+): { project: string | null; intent: string } {
+  const { name, rest } = parseCommand(said)
+  if (projects.includes(name)) return { project: name, intent: rest }
+  const only = projects.length === 1 ? (projects[0] ?? null) : null
+  const here = current && projects.includes(current) ? current : null
+  return { project: here ?? only, intent: said.trim() }
+}
+
+/** The project you are looking at, if you are looking at anything. */
+export function focusedProject(state: AppState): string | null {
+  return state.panes.find((pane) => pane.task === state.focused)?.project ?? null
 }
 
 /** Whether what is being typed is reaching for a command rather than words. */

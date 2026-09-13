@@ -87,25 +87,13 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         wilco: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
       })
-      // Anything the grammar does not recognise goes to the orchestrator. If
-      // it cannot start — no model configured yet — the window still works and
-      // free text is simply not understood, which is the honest outcome.
-      const orchestrator = await Orchestrator.start({
-        home,
-        socket: tools.path,
-        runDir: join(home, 'orchestrator'),
-        cwd: process.cwd(),
-        config: cfg.config,
-        // So it knows what you have told it, not just what it can do.
-        notes: client.recallAll(),
-        // And which of its own lessons still apply.
-        activity: activityFrom(
-          historyFrom(await client.events({ limit: 2_000 }), Date.now()),
-          Object.keys(cfg.config.projects),
-        ),
-        safe: program.opts().safe === true,
-      }).catch(() => null)
-
+      // Held so it can be stopped on the way out, whenever it finishes coming
+      // up. Typed explicitly: assigned only from inside a callback, which is
+      // not something inference can see.
+      let orchestrator: Orchestrator | null = null
+      const stopOrchestrator = async () => {
+        await orchestrator?.stop().catch(() => {})
+      }
       try {
         const app = await App.start({
           client,
@@ -113,10 +101,34 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           home,
           cwd: process.cwd(),
           ...(canHear ? { recorder, transcriber } : {}),
-          ...(orchestrator
-            ? { thinker: { ask: (text: string) => orchestrator.askFor(text) } }
-            : {}),
         })
+
+        // The orchestrator is a model in another process and takes a few
+        // seconds to come up. The window does not wait for it: an empty
+        // terminal while something else starts is the worst first second Wilco
+        // could have, and it says so in the strip when it arrives. If it never
+        // does — no model configured yet — everything except free text still
+        // works, which is the honest outcome.
+        const starting = Orchestrator.start({
+          home,
+          socket: tools.path,
+          runDir: join(home, 'orchestrator'),
+          cwd: process.cwd(),
+          config: cfg.config,
+          // So it knows what you have told it, not just what it can do.
+          notes: client.recallAll(),
+          // And which of its own lessons still apply.
+          activity: activityFrom(
+            historyFrom(await client.events({ limit: 2_000 }), Date.now()),
+            Object.keys(cfg.config.projects),
+          ),
+          safe: program.opts().safe === true,
+        })
+          .then((started) => {
+            orchestrator = started
+            app.attachThinker({ ask: (text: string) => started.askFor(text) })
+          })
+          .catch(() => {})
         // Leaving the terminal in raw mode would outlive us, so stop on a
         // signal the same way as on quitting.
         const stop = () => void app.stop()
@@ -127,12 +139,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         } finally {
           process.removeListener('SIGINT', stop)
           process.removeListener('SIGTERM', stop)
+          // Closing while it is still starting would leave a model process
+          // behind with nothing to talk to.
+          await starting
         }
       } catch (err) {
         io.err(err instanceof Error ? err.message : String(err))
         setExit(Exit.error)
       } finally {
-        await orchestrator?.stop().catch(() => {})
+        await stopOrchestrator()
         await tools.close().catch(() => {})
         // Lets go of the lanes; under tmux the agents carry on working.
         await client.close().catch(() => {})

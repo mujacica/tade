@@ -27,6 +27,14 @@ export interface Layout {
 
 export const DEFAULTS = { sidebarWidth: 24, stripHeight: 9 }
 
+/**
+ * Rows the window spends on itself: the project tabs, the rule under them, and
+ * the rule and buttons at the foot. Counted here rather than in the drawing,
+ * because a frame that does not add up to the terminal's height corrupts the
+ * whole screen.
+ */
+export const CHROME = 4
+
 /** Below these the region stops being readable and starts being decoration. */
 export const MINIMUM = { sidebar: 12, strip: 4, main: 20, body: 1 }
 
@@ -42,7 +50,7 @@ export function resolveLayout(
   frame: { width: number; height: number },
 ): Layout {
   const width = Math.max(MINIMUM.sidebar + MINIMUM.main + 1, frame.width)
-  const height = Math.max(MINIMUM.strip + MINIMUM.body + 1, frame.height)
+  const height = Math.max(MINIMUM.strip + MINIMUM.body + CHROME, frame.height)
 
   // The strip never takes more than a third: it is context, not the view.
   const stripHeight = clamp(
@@ -50,10 +58,14 @@ export function resolveLayout(
     MINIMUM.strip,
     Math.max(MINIMUM.strip, Math.floor(height / 3)),
   )
-  const bodyHeight = height - stripHeight - 1
+  const bodyHeight = height - stripHeight - CHROME
 
+  // Unasked, the sidebar is a share of the window rather than a fixed 24: on a
+  // wide terminal that is a thin ribbon beside an ocean, and task names are the
+  // one thing in it that must stay readable.
+  const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 6), DEFAULTS.sidebarWidth, 34)
   const sidebarWidth = clamp(
-    prefs.sidebarWidth ?? DEFAULTS.sidebarWidth,
+    wanted,
     MINIMUM.sidebar,
     Math.max(MINIMUM.sidebar, width - MINIMUM.main - 1),
   )

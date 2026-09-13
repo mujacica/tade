@@ -141,7 +141,7 @@ describe('the window, wired up', () => {
     terminal.written = ''
     terminal.press('\t')
     // The marker has to land somewhere; which task is the model's business.
-    await until('a redraw with the focus marker', () => terminal.written.includes('▸'))
+    await until('a redraw with the focus marker', () => terminal.written.includes('▌'))
   })
 
   it('records what you say, and acts on it', async () => {
@@ -214,20 +214,20 @@ describe('the window, wired up', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     // Focus starts on refunds; move it to search.
     terminal.press('\t')
-    await until('the marker to move', () => /▸.?\s*search/.test(terminal.written))
+    await until('the marker to move', () => /▌ \S search/.test(terminal.written))
     await first.stop()
 
     // A new window, same home: it should not dump you back on the first task.
     terminal = new FakeTerminal()
     await start()
     await until('the window to come back', () => terminal.written.includes('search'))
-    expect(terminal.written).toMatch(/▸.?\s*search/)
+    expect(terminal.written).toMatch(/▌ \S search/)
   })
 
   it('opens on the first task when it has never been opened before', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
-    expect(terminal.written).toMatch(/▸.?\s*refunds/)
+    expect(terminal.written).toMatch(/▌ \S refunds/)
   })
 
   it('moves the pane when you ask to be shown something', async () => {
@@ -236,7 +236,7 @@ describe('the window, wired up', () => {
     await start({ transcriber, recorder })
     await until('the first frame', () => terminal.written.includes('refunds'))
     // Focus starts on the first task.
-    expect(terminal.written).toMatch(/▸.?\s*refunds/)
+    expect(terminal.written).toMatch(/▌ \S refunds/)
     terminal.written = ''
 
     terminal.press('\x00')
@@ -245,7 +245,7 @@ describe('the window, wired up', () => {
 
     // Asking to be shown something has to actually show it, rather than
     // telling you which command would.
-    await until('the marker to move', () => /▸.?\s*search/.test(terminal.written))
+    await until('the marker to move', () => /▌ \S search/.test(terminal.written))
     expect(terminal.written).not.toContain('run wilco attach')
   })
 
