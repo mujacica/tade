@@ -14,12 +14,13 @@ import {
   stringEnv,
   wilcoHome,
 } from '@wilco/core'
-import { piBinary } from '@wilco/harnesses-pi'
+import { piBinary, usableModels } from '@wilco/harnesses-pi'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { drivers } from '@wilco/workbench'
 import type { Command } from 'commander'
 import { parse, stringify } from 'yaml'
 import { Exit, type Io } from '../io.ts'
+import { WHISPER_MODELS } from './voice.ts'
 
 // The first minute.
 //
@@ -234,8 +235,11 @@ async function setUpModel(ui: Ui): Promise<void> {
     ])
     if (choice === 0) {
       ui.say('')
-      ui.say('Opening the harness. Type /login, pick your provider, then /exit.')
-      await ui.run('pi — /login, pick your provider, then /exit', process.execPath, [piBinary()])
+      // Our own key rather than the harness's quit command: which command that
+      // is is the harness's business and has changed, and being told the wrong
+      // one is worse than being told a key we control.
+      ui.say('Opening the harness. Type /login, pick your provider, then ctrl+] to come back.')
+      await ui.run('pi — /login, then ctrl+] to come back', process.execPath, [piBinary()])
       if (!piLoggedIn()) throw new Error('still not logged in — run `wilco setup` again')
       ui.say('  logged in')
     } else {
@@ -244,11 +248,37 @@ async function setUpModel(ui: Ui): Promise<void> {
     }
   }
 
-  const model = await ui.ask('model for the orchestrator', 'claude-opus-5')
+  const model = await pickModel(ui)
+  if (!model) return
   patchConfig((config) => {
-    config.orchestrator = { ...(config.orchestrator ?? {}), model: model || 'claude-opus-5' }
+    config.orchestrator = { ...(config.orchestrator ?? {}), model }
   })
-  ui.say(`  orchestrator will use ${model || 'claude-opus-5'}`)
+  ui.say(`  orchestrator will use ${model}`)
+}
+
+/**
+ * Which model to think with, from the ones this machine can actually reach.
+ *
+ * A name typed from memory is the kind of mistake that surfaces much later, in
+ * a lane, as an error nobody connects back to setup — so the catalog the
+ * harness already keeps is offered as a list you narrow by typing. Where there
+ * is no catalog, typing a name is still there.
+ */
+async function pickModel(ui: Ui): Promise<string> {
+  const models = await usableModels().catch(() => [])
+  if (models.length === 0) return ui.ask('model for the orchestrator', 'claude-opus-5')
+
+  const BY_HAND = 'type a name instead'
+  const options = [...models.map((model) => model.id), BY_HAND]
+  const picked = await ui.choose(
+    `Which model? (${models.length} available — type to narrow)`,
+    options,
+  )
+  const chosen = options[picked]
+  if (chosen === undefined || chosen === BY_HAND) {
+    return ui.ask('model for the orchestrator', 'claude-opus-5')
+  }
+  return chosen
 }
 
 /**
@@ -301,22 +331,89 @@ async function driverAvailable(driver: string): Promise<boolean> {
 
 async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
   ui.say(`Speech is optional — ${facts.speechReason ?? 'not set up'}.`)
-  if (!(await ui.confirm('set it up now?', false))) {
-    ui.say('  skipped — ctrl+space still opens a line you can type into')
+  ui.say('Whatever you choose, ctrl+space always opens a line you can type into.')
+
+  const engines = [
+    'whisper.cpp — runs here, nothing leaves this machine',
+    'OpenAI — sends your audio to them, nothing to install',
+    'Groq — sends your audio to them, nothing to install',
+    'a dictation app I already use (Wispr Flow, macOS dictation)',
+    'nothing for now',
+  ] as const
+  const picked = await ui.choose('How should Wilco hear you?', engines)
+
+  if (picked === 3) {
+    // These type into whatever is focused, so the dictation line receives them
+    // with no integration at all. Saying so is the whole setup.
+    ui.say('  nothing to set up: hold ctrl+space and dictate into the line as you would anywhere')
     return
   }
-  const missing = ['whisper-cpp', 'ffmpeg'].filter((tool) => !which(tool.replace('-cpp', '-cli')))
-  if (missing.length > 0 && !(await offerInstall(ui, { name: 'speech', packages: missing }))) {
+  if (picked === 4) {
+    ui.say('  skipped — `wilco setup` again when you want it')
     return
   }
-  // The model is the part that takes minutes and megabytes, so it is its own
-  // question rather than something that starts downloading unannounced.
-  if (!(await ui.confirm('download a speech model now?', true))) {
-    ui.say('  `wilco voice setup` when you want it')
+  if (picked === 1 || picked === 2) {
+    const driver = picked === 1 ? 'openai' : 'groq'
+    const key = picked === 1 ? 'OPENAI_API_KEY' : 'GROQ_API_KEY'
+    patchConfig((config) => {
+      const surfaces = (config.surfaces ?? {}) as Record<string, Record<string, unknown>>
+      const voice = (surfaces.voice ?? {}) as Record<string, unknown>
+      config.surfaces = { ...surfaces, voice: { ...voice, stt: { driver } } }
+    })
+    ui.say(`  Wilco will use ${driver}`)
+    if (!process.env[key]) ui.say(`  set ${key} in your shell before it can hear you`)
     return
   }
+
+  await setUpWhisper(ui)
+}
+
+/** Local speech: the binary, then a model, then which one to use. */
+async function setUpWhisper(ui: Ui): Promise<void> {
+  const missing = ['whisper-cli', 'ffmpeg'].filter((tool) => !which(tool))
+  if (missing.length > 0) {
+    const packages = missing.map((tool) => (tool === 'whisper-cli' ? 'whisper-cpp' : tool))
+    if (!(await offerInstall(ui, { name: 'speech', packages }))) return
+  }
+
+  // English-only models are better at English for their size; the rest
+  // understand about a hundred languages. That is the actual choice, so it is
+  // the first question rather than a flag on a model name.
+  const anyLanguage = await ui.choose('Which languages will you speak?', [
+    'English only — smaller and better at it',
+    'any language',
+  ])
+  const models = WHISPER_MODELS.filter((model) => model.english === (anyLanguage === 0))
+  const picked = await ui.choose(
+    'Which model? Bigger hears better and runs slower.',
+    models.map((model) => `${model.name.padEnd(16)} ${model.size.padStart(7)}  ${model.note}`),
+  )
+  const model = models[picked]
+  if (!model) return
+
+  patchConfig((config) => {
+    const surfaces = (config.surfaces ?? {}) as Record<string, Record<string, unknown>>
+    const voice = (surfaces.voice ?? {}) as Record<string, unknown>
+    config.surfaces = {
+      ...surfaces,
+      voice: { ...voice, stt: { driver: 'whisper-cpp', model: modelPathFor(model.name) } },
+    }
+  })
+
   const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
-  await ui.run('downloading a speech model', process.execPath, [bin, 'voice', 'setup'])
+  const code = await ui.run(`downloading ${model.name} (${model.size})`, process.execPath, [
+    bin,
+    'voice',
+    'setup',
+    '--model',
+    model.name,
+  ])
+  ui.say(code === 0 ? `  ${model.name} is ready` : '  that download did not finish — try again')
+}
+
+/** Where `wilco voice setup` puts a model, which the config has to point at. */
+function modelPathFor(name: string): string {
+  return join(wilcoHome(), 'models', `ggml-${name}.bin`)
 }
 
 /** Read, change and write `config.yaml`, keeping whatever else is in it. */

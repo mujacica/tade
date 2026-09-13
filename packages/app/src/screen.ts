@@ -102,8 +102,24 @@ export interface Prompt {
 export interface Menu {
   question: string
   options: readonly string[]
-  /** Which one is under the cursor. */
+  /** Which of the *matching* options is under the cursor. */
   index: number
+  /** What has been typed to narrow the list. */
+  filter: string
+}
+
+/** The options that match what has been typed, in order, with their places. */
+export function matching(menu: Menu): Array<{ option: string; at: number }> {
+  const want = menu.filter.trim().toLowerCase()
+  const all = menu.options.map((option, at) => ({ option, at }))
+  if (want === '') return all
+  // Every word has to appear somewhere, in any order: people type "opus 5"
+  // for "anthropic/claude-opus-5" and mean it.
+  const words = want.split(/\s+/)
+  return all.filter(({ option }) => {
+    const haystack = option.toLowerCase()
+    return words.every((word) => haystack.includes(word))
+  })
 }
 
 export interface ScreenState {
@@ -217,27 +233,38 @@ function renderBody(state: ScreenState, height: number, paint: Palette): string[
 
   if (state.menu) {
     const menu = state.menu
-    const rows = [`  ${paint.title(menu.question)}`, '']
-    menu.options.forEach((option, i) => {
-      const here = i === menu.index
+    const found = matching(menu)
+    const rows = [`  ${paint.title(menu.question)}`]
+    rows.push(
+      `  ${paint.cursor('❯')} ${menu.filter}${menu.filter === '' ? paint.hint('type to narrow') : ''}`,
+    )
+    rows.push('')
+    if (found.length === 0) rows.push(`    ${paint.hint('nothing matches that')}`)
+
+    // A window around the cursor, so a long list neither overflows the screen
+    // nor scrolls the thing you are pointing at out of sight.
+    const room = Math.max(1, height - rows.length)
+    const first = Math.max(0, Math.min(menu.index - Math.floor(room / 2), found.length - room))
+    found.slice(first, first + room).forEach(({ option }, i) => {
+      const here = first + i === menu.index
       rows.push(here ? `  ${paint.cursor(`▸ ${option}`)}` : `    ${paint.said(option)}`)
     })
     return fill(rows, height)
   }
 
-  // The transcript, newest last, cropped to whatever is left after the
-  // question — which is always on screen, because it is the thing to answer.
-  const spare = Math.max(0, height - (state.prompt ? 3 : 1))
-  const rows = state.said.slice(-spare).map((said) => `  ${paint.said(said)}`)
-  const before = fill(rows, spare)
+  // Everything hugs the top: a question at the bottom of an empty screen is a
+  // question you have to go looking for.
+  const rows = state.said.map((said) => `  ${paint.said(said)}`)
   if (state.prompt) {
     const shown = state.prompt.confirm
       ? `${state.prompt.question} [${state.prompt.fallback === 'y' ? 'Y/n' : 'y/N'}]`
       : `${state.prompt.question}${state.prompt.fallback ? ` [${state.prompt.fallback}]` : ''}`
-    return [...before, '', `  ${paint.cursor('❯')} ${shown}: ${state.typed}`, ''].slice(0, height)
+    rows.push('', `  ${paint.cursor('❯')} ${shown}: ${state.typed}`)
   }
-  if (state.finished) return [...before, `  ${paint.done(state.finished)}`].slice(0, height)
-  return before
+  if (state.finished) rows.push('', `  ${paint.done(state.finished)}`)
+  // Cropped from the top when there is more than fits: the newest lines and
+  // the question are what matter, and they are at the end.
+  return fill(rows.slice(Math.max(0, rows.length - height)), height)
 }
 
 function fill(rows: string[], height: number): string[] {
@@ -342,23 +369,28 @@ export async function runScreen(
     }
     if (state.menu) {
       const menu = state.menu
+      const found = matching(menu)
       const settle = (index: number) => {
         const chosen = answer
         answer = null
         state = { ...state, menu: null }
+        // The place in the list the caller gave us, not the place in what is
+        // left of it after narrowing.
         chosen?.(String(index))
       }
       if (data === UP) {
         state = { ...state, menu: { ...menu, index: Math.max(0, menu.index - 1) } }
       } else if (data === DOWN) {
-        const last = menu.options.length - 1
-        state = { ...state, menu: { ...menu, index: Math.min(last, menu.index + 1) } }
+        state = { ...state, menu: { ...menu, index: Math.min(found.length - 1, menu.index + 1) } }
       } else if (data === '\r' || data === '\n') {
-        settle(menu.index)
-      } else if (/^[1-9]$/.test(data) && Number(data) <= menu.options.length) {
-        // The options are numbered on screen; typing one should do what it
-        // looks like it does.
-        settle(Number(data) - 1)
+        const picked = found[menu.index]
+        if (picked) settle(picked.at)
+      } else if (data === '\x7f' || data === '\b') {
+        state = { ...state, menu: { ...menu, filter: menu.filter.slice(0, -1), index: 0 } }
+      } else if (data >= ' ' && data.length === 1) {
+        // Typing narrows the list rather than jumping to a number: a list
+        // worth searching is longer than nine things.
+        state = { ...state, menu: { ...menu, filter: menu.filter + data, index: 0 } }
       }
       draw()
       return { consume: true }
@@ -423,7 +455,7 @@ export async function runScreen(
       return said === '' ? fallback : said.startsWith('y')
     },
     async choose(question, options) {
-      state = { ...state, menu: { question, options, index: 0 } }
+      state = { ...state, menu: { question, options, index: 0, filter: '' } }
       draw()
       const picked = Number(await waitFor())
       state = { ...state, menu: null }

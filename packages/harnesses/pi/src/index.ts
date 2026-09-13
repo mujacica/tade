@@ -8,6 +8,12 @@ export {
 } from './adapter.ts'
 export { SignalChannel, type SignalChannelOptions } from './channel.ts'
 export {
+  type AvailableModel,
+  availableModels,
+  loggedInProviders,
+  usableModels,
+} from './models.ts'
+export {
   noUsage,
   type SessionUsage,
   sessionFileFor,

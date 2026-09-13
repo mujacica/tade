@@ -100,7 +100,7 @@ describe('the setup screen', () => {
   it('shows a menu with the cursor on one of them', () => {
     const state = {
       ...initialScreen('Setting up', context),
-      menu: { question: 'which?', options: ['log in', 'use an API key'], index: 1 },
+      menu: { question: 'which?', options: ['log in', 'use an API key'], index: 1, filter: '' },
     }
     const rows = renderScreen(state, frame).join('\n')
     expect(rows).toContain('▸ use an API key')
@@ -223,23 +223,55 @@ describe('answering it', () => {
     expect(terminal.written).toContain('\x1b[?1049l')
   })
 
-  it('chooses from a menu with the arrows, and with the number keys', async () => {
+  it('chooses from a menu with the arrows', async () => {
     const terminal = new FakeTerminal()
-    const picked: number[] = []
+    let picked = -1
     await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
-      const first = ui.choose('which?', ['log in', 'use an API key'])
+      const choosing = ui.choose('which?', ['log in', 'use an API key'])
       await until(() => terminal.written.includes('which?'))
       terminal.press('\x1b[B')
       terminal.press('\r')
-      picked.push(await first)
-
-      const second = ui.choose('which?', ['log in', 'use an API key'])
-      await until(() => terminal.written.includes('use an API key'))
-      // The options are numbered on screen; typing one does what it looks like.
-      terminal.press('2')
-      picked.push(await second)
+      picked = await choosing
     })
-    expect(picked).toEqual([1, 1])
+    expect(picked).toBe(1)
+  })
+
+  it('narrows a long list by typing, and answers with the right one', async () => {
+    const terminal = new FakeTerminal()
+    const models = ['anthropic/claude-opus-5', 'openai/gpt-5', 'google/gemini-3', 'ollama/qwen']
+    let picked = -1
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      const choosing = ui.choose('model?', models)
+      await until(() => terminal.written.includes('model?'))
+      // Words in any order: people type "opus 5" and mean claude-opus-5.
+      for (const char of 'opus 5') terminal.press(char)
+      await until(() => terminal.written.includes('opus 5'))
+      terminal.press('\r')
+      picked = await choosing
+    })
+    // The index into the list as given, not into what was left after filtering.
+    expect(models[picked]).toBe('anthropic/claude-opus-5')
+  })
+
+  it('refuses to answer with something that does not match', async () => {
+    const terminal = new FakeTerminal()
+    let settled = false
+    const screen = runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      const choosing = ui.choose('model?', ['anthropic/claude-opus-5', 'openai/gpt-5'])
+      await until(() => terminal.written.includes('model?'))
+      for (const char of 'zzz') terminal.press(char)
+      await until(() => terminal.written.includes('nothing matches that'))
+      // Enter on nothing picks nothing, rather than the first thing in a list
+      // you can no longer see.
+      terminal.press('\r')
+      await new Promise((r) => setTimeout(r, 50))
+      settled = true
+      for (const char of '\x7f\x7f\x7fgpt') terminal.press(char)
+      terminal.press('\r')
+      await choosing
+    })
+    await screen
+    expect(settled).toBe(true)
   })
 
   it('stops on ctrl+c and puts the terminal back', async () => {
