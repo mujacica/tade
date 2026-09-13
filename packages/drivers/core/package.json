@@ -10,5 +10,8 @@
   "dependencies": {
     "@wilco/core": "workspace:*",
     "vitest": "^5.0.0"
+  },
+  "devDependencies": {
+    "node-pty": "^1.1.0"
   }
 }

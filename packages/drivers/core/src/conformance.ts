@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { LaneId } from '@wilco/core'
+import { spawn as openPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LaneClosedError, LaneNotFoundError, type LaneSpec, type WorkspaceDriver } from './port.ts'
 
@@ -263,6 +264,72 @@ export function testWorkspaceDriver(
       const cmd = driver.attachCommand(s.id)
       expect(cmd.length).toBeGreaterThan(0)
       expect(cmd).toContain(s.id.split('/').at(-1)!)
+    })
+
+    // The escape hatch that makes the rest of this safe to rely on: whatever
+    // else is broken, a human can still see the lane. A string that looks
+    // plausible and does not run is worse than no escape hatch at all, because
+    // you find out at the moment you needed it — so it gets run.
+    //
+    // Gated on `remoteAttach`, which is exactly the claim that the command
+    // works from another terminal with no Wilco in the picture. A driver
+    // without it hands back something like `wilco attach <lane>`, which needs
+    // the window that owns the lane and cannot be tested from out here.
+    it('attachCommand actually attaches, not just reads like it would', async () => {
+      if (!driver.capabilities.remoteAttach) return
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('marker'))
+      await waitFor(s.id, 'got:marker')
+
+      const seen: string[] = []
+      const viewer = openPty('/bin/sh', ['-c', driver.attachCommand(s.id)], {
+        name: 'xterm-256color',
+        cols: 80,
+        rows: 24,
+        cwd: process.cwd(),
+        env: process.env as Record<string, string>,
+      })
+      viewer.onData((chunk) => seen.push(chunk))
+      try {
+        // What the lane already said has to show up in somebody else's
+        // terminal, which is the whole claim.
+        await until(() => seen.join('').includes('got:marker'))
+      } finally {
+        viewer.kill()
+      }
+    })
+
+    it('two terminals attached to one lane see the same thing', async () => {
+      if (!driver.capabilities.remoteAttach) return
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+
+      const watch = () => {
+        const seen: string[] = []
+        const term = openPty('/bin/sh', ['-c', driver.attachCommand(s.id)], {
+          name: 'xterm-256color',
+          cols: 80,
+          rows: 24,
+          cwd: process.cwd(),
+          env: process.env as Record<string, string>,
+        })
+        term.onData((chunk) => seen.push(chunk))
+        return { seen, term }
+      }
+      const a = watch()
+      const b = watch()
+      try {
+        await driver.write(s.id, line('shared'))
+        // Neither is privileged: one attacher is a view, not an owner.
+        await until(() => a.seen.join('').includes('got:shared'))
+        await until(() => b.seen.join('').includes('got:shared'))
+      } finally {
+        a.term.kill()
+        b.term.kill()
+      }
     })
 
     it('close is idempotent', async () => {
