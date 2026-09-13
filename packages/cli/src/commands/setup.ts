@@ -2,13 +2,16 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { createInterface, type Interface } from 'node:readline/promises'
+import { fileURLToPath } from 'node:url'
 import {
   defaultConfigPath,
   isReady,
   loadConfig,
   type ReadinessFacts,
   readiness,
+  resolveCommand,
   type Step,
+  stringEnv,
   wilcoHome,
 } from '@wilco/core'
 import { piBinary } from '@wilco/harnesses-pi'
@@ -24,6 +27,67 @@ import { Exit, type Io } from '../io.ts'
 // somebody keeps this tool is whether that first minute tells them what to do
 // or shows them an empty screen, so `wilco app` runs this when it has to and
 // nothing else has to be read first.
+
+/** The config as written, for telling a choice apart from a default. */
+function readConfigText(): string {
+  try {
+    return readFileSync(defaultConfigPath(), 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Offer to install something, and do it if they say yes.
+ *
+ * Printing a command and leaving somebody to it is where setup wizards lose
+ * people: the whole point of being asked is not having to go and find out how.
+ * Only offered where we know how — elsewhere it says the name and moves on,
+ * because a wrong install command is worse than none.
+ */
+async function offerInstall(
+  rl: Interface,
+  io: Io,
+  what: { name: string; packages: string[] },
+): Promise<boolean> {
+  const manager = installer()
+  if (!manager) {
+    io.out(`  install ${what.packages.join(' and ')} and run \`wilco setup\` again`)
+    return false
+  }
+  const command = `${manager.join(' ')} ${what.packages.join(' ')}`
+  if (
+    (await ask(rl, `  install ${what.name}? runs \`${command}\` [Y/n]: `)).trim().toLowerCase() ===
+    'n'
+  ) {
+    io.out(`  skipped — \`${command}\` when you want it`)
+    return false
+  }
+  io.out(`  running ${command}`)
+  const [bin, ...args] = [...manager, ...what.packages]
+  const code = await new Promise<number>((done) => {
+    const child = spawn(bin!, args, { stdio: 'inherit' })
+    child.once('error', () => done(1))
+    child.once('exit', (status) => done(status ?? 1))
+  })
+  if (code !== 0) {
+    io.out(`  that did not work — run \`${command}\` yourself and try again`)
+    return false
+  }
+  return true
+}
+
+/** How this machine installs things, if we know. */
+function installer(): string[] | null {
+  if (process.platform === 'darwin' && which('brew')) return ['brew', 'install']
+  if (which('apt-get')) return ['sudo', 'apt-get', 'install', '-y']
+  return null
+}
+
+/** On the PATH and executable. The same lookup a lane does before spawning. */
+function which(command: string): boolean {
+  return resolveCommand(command, stringEnv(process.env)) !== null
+}
 
 /** Provider keys the harness can use without being logged in. */
 const API_KEYS = [
@@ -54,6 +118,9 @@ export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
     orchestratorModel: config?.orchestrator.model ?? null,
     driver,
     driverOk: await driverAvailable(driver),
+    // Read from the file rather than the parsed config, which supplies a
+    // default: the question is whether a person chose, not what is in effect.
+    driverChosen: /^\s*driver:/m.test(readConfigText()),
     micOk: mic.ok,
     speechOk: speech.ok,
     speechReason: speech.ok ? null : speech.reason,
@@ -115,27 +182,32 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       io.out('')
 
       const rl = createInterface({ input: process.stdin, output: process.stdout })
+      const stuck: string[] = []
       try {
         for (const step of steps) {
           if (step.done) continue
-          if (step.id === 'project') await setUpProject(rl, io, facts)
-          if (step.id === 'model') await setUpModel(rl, io)
-          if (step.id === 'workspace') explainWorkspace(io, facts)
-          if (step.id === 'voice') await setUpVoice(rl, io, facts)
+          try {
+            if (step.id === 'project') await setUpProject(rl, io, facts)
+            if (step.id === 'model') await setUpModel(rl, io)
+            if (step.id === 'workspace') await setUpWorkspace(rl, io)
+            if (step.id === 'voice') await setUpVoice(rl, io, facts)
+          } catch (err) {
+            // One step that cannot be finished is not a reason to abandon the
+            // others: somebody who has to go and export an API key should
+            // still come back to a configured project and a chosen driver.
+            stuck.push(`${step.title}: ${err instanceof Error ? err.message : String(err)}`)
+          }
         }
-      } catch (err) {
-        io.err(err instanceof Error ? err.message : String(err))
-        setExit(Exit.error)
-        return
       } finally {
         rl.close()
       }
+      for (const problem of stuck) io.err(`  ${problem}`)
 
       io.out('')
       const after = readiness(await gather())
       for (const line of render(after)) io.out(line)
       io.out('')
-      io.out(isReady(after) ? 'Ready. Run `wilco app`.' : 'Still missing something — see above.')
+      io.out(isReady(after) ? 'Ready. Run `wilco`.' : 'Still missing something — see above.')
       if (!isReady(after)) setExit(Exit.error)
     })
 }
@@ -184,13 +256,42 @@ async function setUpModel(rl: Interface, io: Io): Promise<void> {
 }
 
 /**
- * There is nothing to start here — Wilco is the window — so the only thing
- * that can be wrong is a driver this machine cannot provide.
+ * Where agents live, which decides whether they survive you closing Wilco.
+ *
+ * There is nothing to start — Wilco is the window — so this is a choice rather
+ * than an installation, and it is the one choice worth interrupting somebody
+ * for: a default nobody was shown deciding whether a night's work stops when
+ * you shut your laptop is not a default, it is a surprise.
  */
-function explainWorkspace(io: Io, facts: ReadinessFacts): void {
-  io.out(`  workspace.driver is ${facts.driver}, which is not installed.`)
-  io.out('  Either install it, or set `workspace: { driver: pty }` to run agents inside Wilco.')
-  io.out('  With pty they close when Wilco does; with tmux they keep working.')
+async function setUpWorkspace(rl: Interface, io: Io): Promise<void> {
+  io.out('Agents run in a terminal. Where that terminal lives is up to you:')
+  io.out('  · tmux — they keep working after you close Wilco, and you can attach from anywhere')
+  io.out('  · pty  — nothing to install, and they stop when Wilco does')
+
+  const keepRunning =
+    (await ask(rl, '  keep agents running after you close Wilco? [Y/n]: ')).trim().toLowerCase() !==
+    'n'
+  if (!keepRunning) {
+    patchConfig((config) => {
+      config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
+    })
+    io.out('  agents will run inside Wilco and stop with it')
+    return
+  }
+
+  if (!which('tmux') && !(await offerInstall(rl, io, { name: 'tmux', packages: ['tmux'] }))) {
+    // Asked for durable agents and has no tmux: say plainly what they got
+    // rather than writing a driver that will not start.
+    io.out('  leaving it on pty for now — agents will stop when Wilco does')
+    patchConfig((config) => {
+      config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
+    })
+    return
+  }
+  patchConfig((config) => {
+    config.workspace = { ...(config.workspace ?? {}), driver: 'tmux', fallback: 'pty' }
+  })
+  io.out('  agents will live in tmux and keep working when you close Wilco')
 }
 
 /**
@@ -210,7 +311,22 @@ async function setUpVoice(rl: Interface, io: Io, facts: ReadinessFacts): Promise
     io.out('  skipped — ctrl+space still opens a line you can type into')
     return
   }
-  io.out('  run: brew install whisper-cpp ffmpeg && wilco voice setup')
+  const missing = ['whisper-cpp', 'ffmpeg'].filter((tool) => !which(tool.replace('-cpp', '-cli')))
+  if (missing.length > 0 && !(await offerInstall(rl, io, { name: 'speech', packages: missing }))) {
+    return
+  }
+  // The model is the part that takes minutes and megabytes, so it is its own
+  // question rather than something that starts downloading unannounced.
+  if ((await ask(rl, '  download a speech model now? [Y/n]: ')).trim().toLowerCase() === 'n') {
+    io.out('  `wilco voice setup` when you want it')
+    return
+  }
+  const bin = fileURLToPath(new URL('../bin.ts', import.meta.url))
+  await new Promise<void>((done) => {
+    const child = spawn(process.execPath, [bin, 'voice', 'setup'], { stdio: 'inherit' })
+    child.once('error', () => done())
+    child.once('exit', () => done())
+  })
 }
 
 /** Run the harness attached to this terminal, so the user can log in. */

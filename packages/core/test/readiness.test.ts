@@ -14,6 +14,7 @@ const facts = (over: Partial<ReadinessFacts> = {}): ReadinessFacts => ({
   orchestratorModel: 'claude-opus-5',
   driver: 'pty',
   driverOk: true,
+  driverChosen: true,
   micOk: true,
   speechOk: true,
   speechReason: null,
@@ -54,6 +55,17 @@ describe('readiness', () => {
 
   it('counts a logged-in provider as credentials, with no key set', () => {
     expect(isReady(readiness(facts({ loggedIn: true, apiKeys: [] })))).toBe(true)
+  })
+
+  it('asks where agents should live until somebody has said', () => {
+    // Whether a night's work stops when you shut your laptop is not a thing to
+    // decide by default and never mention.
+    const steps = readiness(facts({ driverChosen: false }))
+    const workspace = steps.find((s) => s.id === 'workspace')
+    expect(workspace).toMatchObject({ done: false, required: false })
+    expect(workspace?.detail).toContain('agents stop when Wilco does')
+    // Not required: a working driver is enough to run, so this never blocks.
+    expect(isReady(steps)).toBe(true)
   })
 
   it('notices a driver this machine cannot provide', () => {

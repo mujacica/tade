@@ -27,6 +27,12 @@ export interface ReadinessFacts {
   /** The configured workspace driver, and whether this machine can run it. */
   driver: string
   driverOk: boolean
+  /**
+   * Whether the config actually names one. Without this, the most consequential
+   * choice there is — whether agents survive you closing the window — is made
+   * by a default nobody was shown.
+   */
+  driverChosen: boolean
   /** Speech, which is never required. */
   micOk: boolean
   speechOk: boolean
@@ -113,12 +119,24 @@ function model(facts: ReadinessFacts): Step {
  * is a spawn that fails later, with no clue why, so it is checked here.
  */
 function workspace(facts: ReadinessFacts): Step {
+  if (!facts.driverOk) {
+    return {
+      id: 'workspace',
+      title: 'Somewhere to run agents',
+      done: false,
+      detail: `workspace.driver is ${facts.driver}, which is not installed`,
+      required: true,
+    }
+  }
   return {
     id: 'workspace',
     title: 'Somewhere to run agents',
-    done: facts.driverOk,
-    detail: facts.driverOk ? '' : `workspace.driver is ${facts.driver}, which is not installed`,
-    required: true,
+    // A driver that works is enough to run, so this never blocks. But until
+    // somebody has actually chosen, the wizard still asks: whether agents
+    // outlive the window is not a thing to decide by default and never mention.
+    done: facts.driverChosen,
+    detail: facts.driverChosen ? '' : `${facts.driver}, so agents stop when Wilco does`,
+    required: false,
   }
 }
 
