@@ -653,6 +653,112 @@ describe('the window, wired up', () => {
     expect(screenOf(terminal.written).some((row) => row.includes('✓ weather now · app'))).toBe(true)
   })
 
+  it('turns an extension off, and sets one up from the guide it gives', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          settings: [{ key: 'city', kind: 'string', means: 'where' }],
+          ready: (ctx) => (ctx.settings.city ? null : 'which city?'),
+          setup: () => ({
+            guide: ['Say which **city** to look at.'],
+            fields: [
+              { key: 'city', label: 'City', kind: 'text', choices: async () => ['Vienna', 'Graz'] },
+            ],
+          }),
+        },
+        {
+          name: 'clock',
+          title: 'Clock',
+          description: 'The time.',
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    await start({ extensions })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('the panel', () =>
+      screenOf(terminal.written).some((row) => row.includes('◐ Weather')),
+    )
+
+    // The clock is on; turning it off writes that down.
+    const off = screenOf(terminal.written).findIndex((row) => row.includes('● Clock'))
+    const turnOff = find('Turn off ]')
+    click(turnOff.col + 2, turnOff.row > off ? turnOff.row : off + 2)
+    await until('the clock off', () =>
+      screenOf(terminal.written).some((row) => row.includes('○ Clock')),
+    )
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('enabled: false')
+
+    // Weather needs setting up: its guide, what it offers, and saving checks it.
+    const setup = find('Set up… ]')
+    click(setup.col + 2, setup.row)
+    await until('the guide and its choices', () =>
+      screenOf(terminal.written).some((row) => row.includes('Graz ]')),
+    )
+    const graz = find('Graz ]')
+    click(graz.col + 1, graz.row)
+    const save = find('Save and check ]')
+    click(save.col + 2, save.row)
+    await until('ready', () =>
+      screenOf(terminal.written).some((row) => row.includes('Saved. Weather is ready.')),
+    )
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('city: Graz')
+  })
+
+  it('keeps what an extension watches in the status bar, and opens its view from there', async () => {
+    terminal.columns = 140
+    terminal.rows = 40
+    let asked = 0
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'meter',
+          title: 'Meter',
+          description: 'A number that goes up.',
+          status: async () => ({ text: `meter ${++asked}` }),
+          view: async () =>
+            [
+              '**Everything the meter knows.**',
+              ...Array.from({ length: 80 }, (_, i) => `- reading ${i}`),
+            ].join('\n'),
+        },
+      ],
+      config: { extensions: {}, projects: {} },
+      home,
+    })
+    await start({
+      extensions,
+      extensionWorkbench: {
+        pid: process.pid,
+        lanes: () => [],
+        startAgent: async () => ({ task: '', worktree: '' }),
+      },
+    })
+    await until('the status', () =>
+      screenOf(terminal.written).some((row) => row.includes('meter 1')),
+    )
+    const status = find('meter 1')
+    click(status.col + 1, status.row)
+    await until('the view', () =>
+      screenOf(terminal.written).some((row) => row.includes('Everything the meter knows.')),
+    )
+    terminal.press('\x1b[6~')
+    await until('it to scroll', () =>
+      screenOf(terminal.written).some((row) => row.includes('↑↓ scrolls · 11–')),
+    )
+  })
+
   it('opens the Spend panel from the status bar', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('today'))

@@ -39,6 +39,19 @@ tools registered by Wilco's own pi extensions, which call back to Wilco. What on
   written out and clickable; add `linkers` for ids that should open somewhere (Sentry short ids).
 - **Throw with a reason someone can act on.** The host turns it into the tool's failure, which the
   model reads and the window shows in full.
+- **Setup is a guide and fields** (`setup(ctx)`): steps in markdown, links to where the thing is
+  made, and one field per setting — with `choices` looked up once the panel is open (the
+  organizations a token can see). Saving writes the config, reloads the host and says whether it is
+  ready now.
+- **Status bar items are cheap and shared** (`status(ctx)`): the window asks every few seconds and
+  gives up after two, so cache a sample and let every caller — status, `view`, tools — read the same
+  one. `view(ctx)` is the markdown a click on the item opens, asked again while it is open.
+- **`heard` on an action is for narrow phrases only** ("how much is Wilco using"): matched against the
+  whole utterance and run with no model. Anything looser is the orchestrator's, through the tool's
+  description. Give the answer a `said` sentence, because the markdown is not for speaking.
+- **Watching costs something; measure it.** Anything polled gets a performance test (see
+  `extensions/resources`): one command for the whole picture, bounded history, a time limit in the
+  test.
 - **Tests never reach the network.** Pass `fetch` to `ExtensionHost.load`, and `env: {}` — `pnpm run`
   puts its own `npm_config_*` in the environment. Use `mkrepo` for anything reading a project.
 

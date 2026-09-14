@@ -3,6 +3,7 @@ import type { Setting, SettingGroup } from '@wilco/core'
 import type { ParsedDiff } from './diff.ts'
 import type { Hit } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
+import { linkedRow } from './links.ts'
 import { type AgentPane, glyph } from './model.ts'
 import {
   ACCOUNTS,
@@ -14,9 +15,11 @@ import {
   type ConfirmRemovePanel,
   choicesFor,
   type DiffPanel,
+  type ExtensionSetupPanel,
   type ExtensionsPanel,
   type ExtensionView,
-  extensionActions,
+  type ExtensionViewPanel,
+  extensionControls,
   type FilePanel,
   type FindPanel,
   type MenuItem,
@@ -30,10 +33,13 @@ import {
   type OpenRow,
   type Panel,
   type PromptPanel,
+  type ProposalView,
   type QuitPanel,
   type SearchPanel,
   type SettingsPanel,
+  type SetupFieldView,
   type SpendPanel,
+  setupControls,
   usesDropdown,
   visibleSettings,
 } from './panels.ts'
@@ -42,7 +48,7 @@ import type { Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
 import { blank, box, type Drawn, fit as fitRow, type Pointer, Row } from './ui.ts'
 import type { Change } from './view.ts'
-import { bytes, type ViewedFile } from './viewer.ts'
+import { bytes, markdownLines, type ViewedFile } from './viewer.ts'
 
 // How each panel looks. The model of what a panel holds and what a key does to
 // it is in `panels.ts`; this only draws it, and names each control so a click
@@ -122,6 +128,19 @@ export interface PanelContext {
   extensions: readonly ExtensionView[]
   /** Extensions the harness loads itself, which Wilco only lists. */
   harnessExtensions: readonly { name: string; where: string }[]
+  /** What Wilco wrote for itself, waiting on you. */
+  proposals: readonly ProposalView[]
+  /** The extension view being shown, once it has been asked for. */
+  extensionView: { title: string; markdown: string } | null
+  /** The extension being set up: its state, its guide and its fields. */
+  setup: {
+    title: string
+    state: string
+    problem: string | null
+    guide: readonly string[]
+    links: readonly { title: string; url: string }[]
+    fields: readonly SetupFieldView[]
+  } | null
   /** Where your own extensions go, as you would type it. */
   extensionsRoot: string
   /** Models to choose from, for the model panel. */
@@ -179,6 +198,10 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: quit(panel, ctx), popups: [] }
     case 'extensions':
       return { panel: extensions(panel, ctx), popups: [] }
+    case 'extension-setup':
+      return { panel: extensionSetup(panel, ctx), popups: [] }
+    case 'extension-view':
+      return { panel: extensionView(panel, ctx), popups: [] }
     case 'model':
       return { panel: models(panel, ctx), popups: [] }
   }
@@ -259,25 +282,42 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
 
 /**
  * The extensions: each with whether it works and, when it does not, what to
- * do about it; its actions as buttons; and where your own go. A fixed height,
- * scrolled to the action the keyboard is on, so nothing jumps while you move.
+ * do about it; turning it on or off, setting it up, its actions; then what
+ * Wilco wrote for itself and is waiting on you to read. A fixed height,
+ * scrolled to the control the keyboard is on, so nothing jumps while you move.
  */
 function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(100, ctx.width - 4)
+  const width = Math.min(104, ctx.width - 4)
   const inner = width - 2
-  const actions = extensionActions(ctx.extensions)
-  const chosen = actions[panel.index]
-  const pointer = ctx.pointer.hover
-    ? ctx.pointer
-    : {
-        ...ctx.pointer,
-        hover: chosen
-          ? { kind: 'control' as const, id: `action:${chosen.extension}:${chosen.id}` }
-          : null,
-      }
+  const controls = extensionControls(ctx.extensions, ctx.proposals)
+  const chosen = controls[panel.index] ?? null
+  // The keyboard's control is lit as the pointer's would be, when the pointer is not on one.
+  const pointer =
+    ctx.pointer.hover?.kind === 'control'
+      ? ctx.pointer
+      : { ...ctx.pointer, hover: chosen ? { kind: 'control' as const, id: chosen } : null }
   const row = () => new Row(inner, skin, pointer)
   const lines: { text: string; hits: Hit[]; chosen?: boolean }[] = []
+  const control = (id: string) => ({ kind: 'control' as const, id })
+  /** Buttons in rows that wrap, each row knowing whether the chosen control is on it. */
+  const buttons = (
+    items: readonly { id: string; label: string; look?: 'attention' | 'danger' | 'primary' }[],
+    indent = 3,
+  ) => {
+    let current = row().text(' '.repeat(indent))
+    let here = false
+    for (const item of items) {
+      if (current.used + visibleWidth(item.label) + 5 > inner) {
+        lines.push({ ...current.build(), chosen: here })
+        current = row().text(' '.repeat(indent))
+        here = false
+      }
+      current.button(item.label, control(item.id), item.look).space()
+      if (item.id === chosen) here = true
+    }
+    if (items.length > 0) lines.push({ ...current.build(), chosen: here })
+  }
 
   for (const view of ctx.extensions) {
     const mark =
@@ -293,7 +333,14 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
         .space()
         .text(mark)
         .space()
-        .text(view.title, skin.you)
+        // The name is a way in too: to setting it up, where it can be.
+        .text(
+          view.title,
+          view.state === 'off' ? skin.hint : skin.you,
+          view.configurable && view.state !== 'broken' && view.state !== 'off'
+            ? control(`setup:${view.name}`)
+            : undefined,
+        )
         .text(`  ${view.source} · ${view.state}`, skin.hint)
         .right((r) =>
           r
@@ -307,12 +354,15 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
         )
         .build(),
     )
-    const said = view.problem && view.state !== 'ready' ? view.problem : view.description
-    for (const piece of wrapTextWithAnsi(said, Math.max(10, inner - 4))) {
+    const problem = view.state === 'needs setup' || view.state === 'broken'
+    for (const piece of wrapTextWithAnsi(
+      problem && view.problem ? view.problem : view.description,
+      Math.max(10, inner - 4),
+    )) {
       lines.push(
         row()
           .text('   ')
-          .text(piece, view.problem && view.state !== 'ready' ? skin.waiting : skin.hint)
+          .text(piece, problem ? skin.waiting : skin.hint)
           .build(),
       )
     }
@@ -324,27 +374,68 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
           .build(),
       )
     }
-    if (view.state === 'ready' && view.actions.length > 0) {
-      let buttons = row().text('   ')
-      let chosenHere = false
-      for (const action of view.actions) {
-        const id = `action:${view.name}:${action.id}`
-        // A button that would not fit starts the next line.
-        if (buttons.used + visibleWidth(action.title) + 5 > inner) {
-          lines.push({ ...buttons.build(), chosen: chosenHere })
-          buttons = row().text('   ')
-          chosenHere = false
+    const items: { id: string; label: string; look?: 'attention' | 'danger' | 'primary' }[] = []
+    if (view.state !== 'broken') {
+      items.push({
+        id: `toggle:${view.name}`,
+        label: view.state === 'off' ? 'Turn on' : 'Turn off',
+      })
+    }
+    if (view.configurable && view.state !== 'broken' && view.state !== 'off') {
+      items.push({
+        id: `setup:${view.name}`,
+        label: view.state === 'needs setup' ? 'Set up…' : 'Settings…',
+        ...(view.state === 'needs setup' ? { look: 'attention' as const } : {}),
+      })
+    }
+    if (view.state === 'ready') {
+      items.push(
+        ...view.actions.map((action) => ({
+          id: `action:${view.name}:${action.id}`,
+          label: action.title,
+        })),
+      )
+    }
+    if (view.folder) items.push({ id: `folder:${view.name}`, label: 'Open folder' })
+    buttons(items)
+    lines.push(blank(inner))
+  }
+  if (ctx.extensions.length === 0) {
+    lines.push(row().space().text('No extensions are loaded.', skin.hint).build(), blank(inner))
+  }
+
+  if (ctx.proposals.length > 0) {
+    lines.push(
+      row()
+        .space()
+        .text('WRITTEN BY WILCO', skin.label)
+        .text('  waiting for you: approved ones load when Wilco next starts', skin.hint)
+        .build(),
+    )
+    for (const proposal of ctx.proposals) {
+      lines.push(
+        row()
+          .text('   ')
+          .text(proposal.name, skin.you)
+          .text(
+            `  ${proposal.kind === 'tool' ? 'a tool for the orchestrator' : 'an extension'}`,
+            skin.hint,
+          )
+          .build(),
+      )
+      if (proposal.why) {
+        for (const piece of wrapTextWithAnsi(proposal.why, Math.max(10, inner - 6))) {
+          lines.push(row().text('   ').text(piece, skin.hint).build())
         }
-        buttons.button(action.title, { kind: 'control', id }).space()
-        if (chosen && `${chosen.extension}:${chosen.id}` === `${view.name}:${action.id}`)
-          chosenHere = true
       }
-      lines.push({ ...buttons.build(), chosen: chosenHere })
+      buttons([
+        { id: `read:${proposal.name}`, label: 'Read' },
+        { id: `approve:${proposal.name}`, label: 'Approve', look: 'primary' },
+        { id: `reject:${proposal.name}`, label: 'Turn down', look: 'danger' },
+      ])
     }
     lines.push(blank(inner))
   }
-  if (ctx.extensions.length === 0)
-    lines.push(row().space().text('No extensions are loaded.', skin.hint).build(), blank(inner))
 
   if (ctx.harnessExtensions.length > 0) {
     lines.push(
@@ -361,7 +452,7 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   }
 
   // As tall as the window allows, and no taller than it needs; scrolled so the
-  // chosen action is in view.
+  // chosen control is in view.
   const room = Math.max(6, Math.min(lines.length, ctx.height - 8))
   const at = Math.max(
     0,
@@ -369,12 +460,162 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   )
   const start = Math.max(0, Math.min(at - Math.floor(room / 2), lines.length - room))
   const shown = lines.slice(start, start + room)
-  const footer = row()
-    .space()
-    .text(`yours go in ${ctx.extensionsRoot}/active/<name>/extension.ts`, skin.hint)
-    .right((r) => r.text('enter runs · esc closes', skin.hint).space())
-    .build()
+  const footer = panel.said
+    ? row().space().text(panel.said, skin.busy).build()
+    : row()
+        .space()
+        .text(`yours go in ${ctx.extensionsRoot}/active/<name>/extension.ts`, skin.hint)
+        .right((r) => r.text('tab moves · enter presses · esc closes', skin.hint).space())
+        .build()
   return box('Extensions', [...shown, footer], width, skin, { corner: 'esc' })
+}
+
+/**
+ * What an extension shows when its status is clicked: its document, formatted,
+ * as tall as the window allows and scrolled with the arrows. It is asked again
+ * while it is open, so what it shows stays current.
+ */
+function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(110, ctx.width - 4)
+  const inner = width - 2
+  const lines = ctx.extensionView
+    ? markdownLines(ctx.extensionView.markdown, inner - 2, !skin.colour)
+    : []
+  const room = Math.max(6, ctx.height - 8)
+  const start = Math.max(0, Math.min(panel.scroll, lines.length - room))
+  const rows: { text: string; hits: Hit[] }[] = []
+  if (!ctx.extensionView)
+    rows.push(new Row(inner, skin).space().text('Looking…', skin.hint).build())
+  for (const line of lines.slice(start, start + room))
+    rows.push(linkedRow(` ${line}`, inner, skin, ctx.pointer))
+  for (let gap = room - rows.length; gap > 0; gap--) rows.push(blank(inner))
+  rows.push(
+    new Row(inner, skin, ctx.pointer)
+      .space()
+      .text(
+        lines.length > room
+          ? `↑↓ scrolls · ${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · kept current while open`
+          : 'kept current while open',
+        skin.hint,
+      )
+      .right((r) => r.button('Close', { kind: 'control', id: 'close' }).space())
+      .build(),
+  )
+  return box(ctx.extensionView?.title ?? 'Extension', rows, width, skin, { corner: 'esc' })
+}
+
+/**
+ * Setting an extension up: what it needs, in steps; links worth opening; the
+ * fields to fill in, with what they can be chosen from; and what saving came
+ * to — ready, or what is still missing.
+ */
+function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(96, ctx.width - 4)
+  const inner = width - 2
+  const setup = ctx.setup
+  const controls = setupControls(setup?.fields ?? [])
+  const chosen = controls[panel.index] ?? null
+  const pointer =
+    ctx.pointer.hover?.kind === 'control'
+      ? ctx.pointer
+      : { ...ctx.pointer, hover: chosen ? { kind: 'control' as const, id: chosen } : null }
+  const row = () => new Row(inner, skin, pointer)
+  const rows: { text: string; hits: Hit[] }[] = []
+  if (!setup) {
+    rows.push(row().space().text('This extension has nothing to set up.', skin.hint).build())
+    return box('Set up', rows, width, skin, { corner: 'esc' })
+  }
+  rows.push(
+    row()
+      .space()
+      .text(setup.state === 'ready' ? skin.done('●') : skin.waiting('◐'))
+      .space()
+      .text(
+        setup.state === 'ready' ? 'Ready' : `Needs setting up: ${setup.problem ?? ''}`,
+        setup.state === 'ready' ? skin.done : skin.waiting,
+      )
+      .build(),
+    blank(inner),
+  )
+  for (const step of setup.guide) {
+    for (const line of markdownLines(step, inner - 2, !skin.colour)) {
+      rows.push(linkedRow(`  ${line}`, inner, skin, pointer))
+    }
+  }
+  if (setup.links.length > 0) {
+    const links = row().space()
+    for (const link of setup.links)
+      links.text(`${link.title} ↗`, skin.link, { kind: 'link', url: link.url }).space(3)
+    rows.push(links.build())
+  }
+  rows.push(blank(inner))
+  const label = 16
+  for (const field of setup.fields) {
+    const focused = chosen === `field:${field.key}`
+    const value = panel.values[field.key] ?? ''
+    const r = row()
+      .space()
+      .text(field.label.padEnd(label).slice(0, label), focused ? skin.you : skin.label)
+    if (field.kind === 'flag') {
+      r.check(value === 'on', value === '' ? 'as it comes' : value, {
+        kind: 'control',
+        id: `field:${field.key}`,
+      })
+    } else {
+      r.field(value, Math.max(10, inner - label - 4), {
+        caret: focused,
+        target: { kind: 'control', id: `field:${field.key}` },
+        ...(value === '' && field.placeholder ? { ghost: field.placeholder } : {}),
+      })
+    }
+    rows.push(r.build())
+    if (field.help)
+      rows.push(
+        row()
+          .text(' '.repeat(label + 1))
+          .text(field.help, skin.hint)
+          .build(),
+      )
+    if (field.choices.length > 0) {
+      let picks = row().text(' '.repeat(label + 1))
+      for (const choice of field.choices) {
+        if (picks.used + visibleWidth(choice) + 5 > inner) {
+          rows.push(picks.build())
+          picks = row().text(' '.repeat(label + 1))
+        }
+        picks.button(choice, { kind: 'control', id: `pick:${field.key}:${choice}` }).space()
+      }
+      rows.push(picks.build())
+    }
+  }
+  rows.push(blank(inner))
+  rows.push(
+    panel.error
+      ? row().space().text(`▲ ${panel.error}`, skin.waiting).build()
+      : panel.said
+        ? row().space().text(panel.said, skin.done).build()
+        : blank(inner),
+  )
+  rows.push(
+    row()
+      .space()
+      .text(
+        panel.busy ? 'Checking…' : 'tab moves · enter presses · space turns on and off',
+        skin.hint,
+      )
+      .right((r) =>
+        r
+          .button('Close', { kind: 'control', id: 'cancel' })
+          .space()
+          .button('Save and check', { kind: 'control', id: 'save' }, 'primary')
+          .space(),
+      )
+      .build(),
+  )
+  const room = Math.max(8, ctx.height - 6)
+  return box(`Set up ${setup.title}`, rows.slice(0, room), width, skin, { corner: 'esc' })
 }
 
 function search(panel: SearchPanel, ctx: PanelContext): Drawn {

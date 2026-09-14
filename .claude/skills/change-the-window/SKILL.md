@@ -155,6 +155,12 @@ file and cannot be tested.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
   (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
   keeps `state.scroll`, a panel's list moves its own index.
+- **Extensions reach the window through the host, never by name.** Their status items come from
+  `ExtensionHost.statuses()` (polled in `tick`, never awaited by a frame) into `Frame.statuses`; a
+  click opens the `extension-view` panel on `host.view()`. Add a hook to the extension port rather
+  than a special case for one extension here.
+- **What drawing costs is tested** in `screens.test.ts` over every scenario. If a change makes a
+  frame slow, cache what it formats (as the transcript and file viewer do) rather than raising it.
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
   sentence, and `live: false` if Wilco only reads it at start — the panel draws the control and the
   *on restart* label from that.

@@ -48,6 +48,8 @@ export interface ExtensionSetting {
 export interface ToolAnswer {
   /** Markdown, for a model or a person to read. */
   text: string
+  /** The answer in a sentence, for saying out loud; the first line of the text when not given. */
+  said?: string
   links?: readonly Link[]
   /** The same answer as data, for a caller that is a program. */
   data?: unknown
@@ -73,6 +75,12 @@ export interface ExtensionAction {
   input?: Record<string, unknown>
   /** It works on a project, which is the one you are in. */
   project?: boolean
+  /**
+   * What someone says to run it straight away, matched against the whole
+   * utterance: "how much is Wilco using". Heard this way it needs no model,
+   * so keep them narrow — anything looser belongs to the orchestrator.
+   */
+  heard?: readonly RegExp[]
 }
 
 /** One thing worth hearing in the brief, and what to ask about it. */
@@ -100,6 +108,35 @@ export interface HarnessPieces {
   skills?: readonly string[]
 }
 
+/** One thing to fill in while setting an extension up: a key under `extensions.<name>`. */
+export interface SetupField {
+  key: string
+  label: string
+  /** A sentence under the field: what it is for, where to find it. */
+  help?: string
+  placeholder?: string
+  /**
+   * `text` is one value; `list` is values separated by commas; `map` is
+   * `name=value` pairs separated by commas, like which Sentry project each of
+   * yours reports to; `flag` is on or off.
+   */
+  kind: 'text' | 'list' | 'map' | 'flag'
+  /** Values to offer, looked up when asked: the organizations a token can see. */
+  choices?(ctx: ExtensionContext): Promise<readonly string[]>
+}
+
+/**
+ * How to set an extension up, in the window: what it needs in words, the
+ * settings to fill in, and where to go for what cannot be filled in here — a
+ * token is never typed into Wilco, which would put it in a file.
+ */
+export interface ExtensionSetup {
+  /** Steps, in markdown, in the order to take them. */
+  guide: readonly string[]
+  fields?: readonly SetupField[]
+  links?: readonly Link[]
+}
+
 /** What an open window can do for an extension that nothing else can. */
 export interface ExtensionWorkbench {
   /**
@@ -116,6 +153,21 @@ export interface ExtensionWorkbench {
     links?: readonly Link[]
     prepare?: (worktree: string) => Promise<void>
   }): Promise<{ task: string; worktree: string }>
+  /** Wilco's own process: the window. */
+  readonly pid: number
+  /** What Wilco is running: every lane, with the task it belongs to and its process. */
+  lanes(): readonly { id: string; task: string; kind: string; pid: number | null; alive: boolean }[]
+}
+
+/** A few words an extension keeps in the window's status bar, clicked for its view. */
+export interface StatusItem {
+  text: string
+  tone?: 'quiet' | 'warning' | 'bad'
+}
+
+/** What an extension asks with the window open: everything, and the window itself. */
+export interface WindowContext extends ExtensionContext {
+  wilco: ExtensionWorkbench
 }
 
 export interface ExecResult {
@@ -181,5 +233,14 @@ export interface WilcoExtension {
   agents?(ctx: ExtensionContext, project: ProjectRef): string | null
   /** Text on screen that should open somewhere. */
   linkers?(ctx: ExtensionContext): readonly Linker[]
+  /** How to set it up, and what can be changed about it, in the window. */
+  setup?(ctx: ExtensionContext): ExtensionSetup
+  /**
+   * A few words for the status bar, asked every few seconds while the window
+   * is open. It must be cheap: it runs whether or not anyone looks.
+   */
+  status?(ctx: WindowContext): Promise<StatusItem | null>
+  /** What its status opens: a document, in markdown, asked for when shown and again while it is open. */
+  view?(ctx: WindowContext): Promise<string>
   harness?: Readonly<Record<string, HarnessPieces>>
 }

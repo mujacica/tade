@@ -4,13 +4,20 @@ import {
   branchMenuItems,
   branchPanel,
   changeMenuItems,
+  type ExtensionView,
+  extensionControls,
+  extensionSetupPanel,
+  extensionsPanel,
+  extensionViewPanel,
   fileMenuItems,
   filePanel,
   findPanel,
   panelClick,
   panelKey,
   promptPanel,
+  type SetupFieldView,
   searchPanel,
+  setupControls,
   spendPanel,
   terminalMenuItems,
 } from '../src/panels.ts'
@@ -220,5 +227,119 @@ describe('finding in a terminal', () => {
       'clear',
       'close',
     ])
+  })
+})
+
+describe('the Extensions panel', () => {
+  const views: ExtensionView[] = [
+    {
+      name: 'deps',
+      title: 'Dependencies',
+      description: '',
+      source: 'built-in',
+      state: 'ready',
+      problem: null,
+      tools: [],
+      actions: [{ id: 'check', title: 'Check dependencies' }],
+      unknownSettings: [],
+      configurable: true,
+      folder: null,
+    },
+    {
+      name: 'sentry',
+      title: 'Sentry',
+      description: '',
+      source: 'built-in',
+      state: 'needs setup',
+      problem: 'which organization?',
+      tools: [],
+      actions: [{ id: 'new', title: 'New issues' }],
+      unknownSettings: [],
+      configurable: true,
+      folder: null,
+    },
+  ]
+  const proposals = [{ name: 'notes', kind: 'tool' as const, why: 'x', path: '/p/notes.ts' }]
+
+  it('moves through turning on and off, setting up, actions and proposals, and presses with enter', () => {
+    expect(extensionControls(views, proposals)).toEqual([
+      'toggle:deps',
+      'setup:deps',
+      'action:deps:check',
+      'toggle:sentry',
+      'setup:sentry',
+      'read:notes',
+      'approve:notes',
+      'reject:notes',
+    ])
+    let panel = extensionsPanel()
+    for (let i = 0; i < 4; i++)
+      panel = panelKey(panel, 'tab', '\t', { extensions: views, proposals }).panel as typeof panel
+    expect(panelKey(panel, 'enter', '\r', { extensions: views, proposals })).toMatchObject({
+      submit: true,
+      choice: 'setup:sentry',
+    })
+    expect(
+      panelClick(extensionsPanel(), 'approve:notes', { extensions: views, proposals }),
+    ).toMatchObject({
+      submit: true,
+      choice: 'approve:notes',
+    })
+  })
+})
+
+describe("an extension's view", () => {
+  it('scrolls as far as it has lines, and closes', () => {
+    let panel = extensionViewPanel('resources')
+    panel = panelKey(panel, 'pageDown', '', { lines: 14 }).panel as typeof panel
+    expect(panel.scroll).toBe(10)
+    panel = panelKey(panel, 'pageDown', '', { lines: 14 }).panel as typeof panel
+    expect(panel.scroll).toBe(13)
+    panel = panelKey(panel, 'home', '', { lines: 14 }).panel as typeof panel
+    expect(panel.scroll).toBe(0)
+    expect(panelKey(panel, 'escape', '', {}).panel).toBeNull()
+    expect(panelClick(panel, 'close', {}).panel).toBeNull()
+  })
+})
+
+describe('setting an extension up', () => {
+  const fields: SetupFieldView[] = [
+    {
+      key: 'org',
+      label: 'Organization',
+      help: '',
+      placeholder: '',
+      kind: 'text',
+      choices: ['acme', 'globex'],
+    },
+    { key: 'brief', label: 'In the brief', help: '', placeholder: '', kind: 'flag', choices: [] },
+  ]
+
+  it('types into a field, picks what it offers, turns a flag round, and saves', () => {
+    let panel = extensionSetupPanel('sentry', [
+      { key: 'org', value: '' },
+      { key: 'brief', value: '' },
+    ])
+    expect(setupControls(fields)).toEqual([
+      'field:org',
+      'pick:org:acme',
+      'pick:org:globex',
+      'field:brief',
+      'save',
+      'cancel',
+    ])
+    for (const char of 'ac')
+      panel = panelKey(panel, undefined, char, { setupFields: fields }).panel as typeof panel
+    expect(panel.values.org).toBe('ac')
+    panel = panelClick(panel, 'pick:org:globex', { setupFields: fields }).panel as typeof panel
+    expect(panel.values.org).toBe('globex')
+    panel = panelClick(panel, 'field:brief', { setupFields: fields }).panel as typeof panel
+    expect(panel.values.brief).toBe('on')
+    panel = panelKey(panel, 'space', ' ', { setupFields: fields }).panel as typeof panel
+    expect(panel.values.brief).toBe('off')
+    expect(panelClick(panel, 'save', { setupFields: fields })).toMatchObject({
+      submit: true,
+      choice: 'save',
+    })
   })
 })

@@ -13,6 +13,7 @@ import type {
   Link,
   Linker,
   ProjectRef,
+  StatusItem,
   ToolAnswer,
   WilcoExtension,
 } from './port.ts'
@@ -199,19 +200,133 @@ export class ExtensionHost {
         : null
       taken.add(extension.name)
       const ctx = host.context(extension.name, settings)
-      let loaded = base
-      if (shape || clash) loaded = { ...base, state: 'broken', problem: shape ?? clash }
-      else if (settings.enabled === false)
-        loaded = { ...base, state: 'off', problem: `extensions.${extension.name}.enabled is false` }
-      else {
-        const needs = await Promise.resolve()
-          .then(() => extension.ready?.(ctx) ?? null)
-          .catch((err: unknown) => why(err))
-        if (needs) loaded = { ...base, state: 'needs setup', problem: needs }
-      }
-      host.entries.push({ extension, loaded, ctx })
+      const entry: Entry = { extension, loaded: base, ctx }
+      if (shape || clash) entry.loaded = { ...base, state: 'broken', problem: shape ?? clash }
+      else await host.evaluate(entry, settings)
+      host.entries.push(entry)
     }
     return host
+  }
+
+  /** Whether an extension is on and ready, with the settings it has now. */
+  private async evaluate(entry: Entry, settings: Readonly<Record<string, unknown>>): Promise<void> {
+    const { extension } = entry
+    entry.ctx = this.context(extension.name, settings)
+    const base = {
+      ...entry.loaded,
+      unknownSettings: unknownSettings(extension, settings),
+      state: 'ready' as ExtensionState,
+      problem: null,
+    }
+    if (settings.enabled === false) {
+      entry.loaded = { ...base, state: 'off', problem: 'turned off' }
+      return
+    }
+    const needs = await Promise.resolve()
+      .then(() => extension.ready?.(entry.ctx) ?? null)
+      .catch((err: unknown) => why(err))
+    entry.loaded = needs ? { ...base, state: 'needs setup', problem: needs } : base
+  }
+
+  /**
+   * Take new settings — turned on or off, set up — and say again which
+   * extensions work. What is broken stays broken, and what `--safe` left out
+   * stays out: those need Wilco started again, which is the point of them.
+   */
+  async reconfigure(
+    extensions: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
+  ): Promise<void> {
+    for (const entry of this.entries) {
+      if (entry.loaded.state === 'broken' || (entry.loaded.source === 'yours' && this.opts.safe))
+        continue
+      await this.evaluate(entry, extensions[entry.extension.name] ?? {})
+    }
+  }
+
+  /** How to set an extension up in the window, when it says. */
+  setupOf(name: string): {
+    guide: readonly string[]
+    fields: {
+      key: string
+      label: string
+      help: string
+      placeholder: string
+      kind: 'text' | 'list' | 'map' | 'flag'
+      offers: boolean
+      value: string
+    }[]
+    links: readonly Link[]
+  } | null {
+    const entry = this.entries.find((one) => one.extension.name === name)
+    if (!entry?.extension.setup) return null
+    const setup = safely(() => entry.extension.setup?.(entry.ctx) ?? null, null)
+    if (!setup) return null
+    return {
+      guide: setup.guide,
+      links: setup.links ?? [],
+      fields: (setup.fields ?? []).map((field) => ({
+        key: field.key,
+        label: field.label,
+        help: field.help ?? '',
+        placeholder: field.placeholder ?? '',
+        kind: field.kind,
+        offers: field.choices !== undefined,
+        value: written(entry.ctx.settings[field.key], field.kind),
+      })),
+    }
+  }
+
+  /** What a setup field offers to choose from, asked now. Never throws: nothing to offer is empty. */
+  async choices(name: string, key: string): Promise<string[]> {
+    const entry = this.entries.find((one) => one.extension.name === name)
+    const field = entry?.extension.setup?.(entry.ctx).fields?.find((one) => one.key === key)
+    if (!entry || !field?.choices) return []
+    return [...(await field.choices(entry.ctx).catch(() => []))]
+  }
+
+  /**
+   * What the ready extensions keep in the status bar, each given a moment to
+   * answer. One that is slow or fails is left out this time, never waited on.
+   */
+  async statuses(
+    wilco: ExtensionWorkbench,
+    timeoutMs = 2_000,
+  ): Promise<{ extension: string; title: string; item: StatusItem; viewable: boolean }[]> {
+    const out: { extension: string; title: string; item: StatusItem; viewable: boolean }[] = []
+    for (const entry of this.ready()) {
+      if (!entry.extension.status) continue
+      let timer: NodeJS.Timeout | undefined
+      const item = await Promise.race([
+        entry.extension.status({ ...entry.ctx, wilco }).catch(() => null),
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), timeoutMs)
+          timer.unref?.()
+        }),
+      ])
+      if (timer) clearTimeout(timer)
+      if (item) {
+        out.push({
+          extension: entry.extension.name,
+          title: entry.extension.title,
+          item,
+          viewable: entry.extension.view !== undefined,
+        })
+      }
+    }
+    return out
+  }
+
+  /** An extension's view, as markdown. Throws with the reason it could not be made. */
+  async view(
+    name: string,
+    wilco: ExtensionWorkbench,
+  ): Promise<{ title: string; markdown: string }> {
+    const entry = this.ready().find((one) => one.extension.name === name)
+    if (!entry?.extension.view) throw new Error(`${name} has nothing to show`)
+    return {
+      title: entry.extension.title,
+      markdown: await entry.extension.view({ ...entry.ctx, wilco }),
+    }
   }
 
   /** Every extension found, working or not, in the order they load. */
@@ -238,6 +353,12 @@ export class ExtensionHost {
     return this.ready().flatMap((entry) =>
       (entry.extension.actions ?? []).map((action) => ({ extension: entry.loaded, action })),
     )
+  }
+
+  /** The action someone asked for out loud, if what they said is one an extension listens for. */
+  heard(said: string): { extension: LoadedExtension; action: ExtensionAction } | null {
+    const words = said.trim().replace(/[?.!]+$/, '')
+    return this.actions().find((one) => one.action.heard?.some((way) => way.test(words))) ?? null
   }
 
   /** Watch tools run: started, how they are going, and how they ended. */
@@ -512,6 +633,43 @@ function unknownSettings(
 ): string[] {
   const known = new Set(['enabled', ...(extension.settings ?? []).map((setting) => setting.key)])
   return Object.keys(settings).filter((key) => !known.has(key))
+}
+
+/** A setting as it is typed into its field. */
+function written(value: unknown, kind: 'text' | 'list' | 'map' | 'flag'): string {
+  if (kind === 'flag') return value === true ? 'on' : value === false ? 'off' : ''
+  if (value === undefined || value === null) return ''
+  if (kind === 'list' && Array.isArray(value)) return value.map(String).join(', ')
+  if (kind === 'map' && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, one]) => `${key}=${Array.isArray(one) ? one.join('+') : String(one)}`)
+      .join(', ')
+  }
+  return String(value)
+}
+
+/** A field as typed, as the setting it becomes. Empty is no setting at all. */
+export function settingFrom(text: string, kind: 'text' | 'list' | 'map' | 'flag'): unknown {
+  const trimmed = text.trim()
+  if (trimmed === '') return undefined
+  if (kind === 'flag') return trimmed === 'on'
+  const parts = trimmed
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  if (kind === 'list') return parts
+  if (kind === 'map') {
+    return Object.fromEntries(
+      parts.flatMap((part) => {
+        const [key, ...rest] = part.split('=')
+        const value = rest.join('=').trim()
+        return key?.trim() && value
+          ? [[key.trim(), value.includes('+') ? value.split('+').map((one) => one.trim()) : value]]
+          : []
+      }),
+    )
+  }
+  return trimmed
 }
 
 function withLinks(text: string, links: readonly Link[]): string {

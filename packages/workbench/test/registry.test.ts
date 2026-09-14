@@ -1,4 +1,4 @@
-import { readFileSync, rmSync } from 'node:fs'
+import { readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LaneId } from '@wilco/core'
 import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
@@ -140,12 +140,36 @@ describe('the lane registry, across a restart', () => {
       expect(String(exits.at(-1)?.detail?.reason)).toContain('do not outlive Wilco')
     })
 
-    it('leaves the registry file readable by anything that wants to look', async () => {
+    it('leaves the registry file readable by anything of yours that wants to look', async () => {
       const registry = await session(new PtyDriver({ scrollback: 200 }))
       await lane(registry, 'app/refunds/agent')
       const saved = JSON.parse(readFileSync(path, 'utf8'))
       expect(saved.driver).toBe('pty')
       expect(saved.lanes.map((l: { id: string }) => l.id)).toEqual(['app/refunds/agent'])
+    })
+  })
+
+  describe('what it writes down', () => {
+    it('keeps the environment Wilco set, never what the lane inherited, and only for you to read', async () => {
+      process.env.WILCO_TEST_SECRET = 'sk-not-for-disk'
+      try {
+        const registry = await session(new PtyDriver({ scrollback: 200 }))
+        await registry.spawn({
+          id: 'app/refunds/agent' as LaneId,
+          task: 'app/refunds',
+          kind: 'agent',
+          cwd: home,
+          command: process.execPath,
+          args: [ECHO_CHILD],
+          env: { ...process.env, WILCO_TASK_ID: 'app/refunds' } as Record<string, string>,
+        })
+        const text = readFileSync(path, 'utf8')
+        expect(text).not.toContain('sk-not-for-disk')
+        expect(JSON.parse(text).lanes[0].spec.env).toEqual({ WILCO_TASK_ID: 'app/refunds' })
+        expect(statSync(path).mode & 0o777).toBe(0o600)
+      } finally {
+        delete process.env.WILCO_TEST_SECRET
+      }
     })
   })
 

@@ -259,5 +259,40 @@ export const depsExtension: WilcoExtension = {
     'When asked to check, verify or update the dependencies of a project, call deps_check first and say what it found briefly — how many are behind, the majors, anything vulnerable. To update, call deps_update with the level the human asked for (minor unless they said everything or major): it starts an agent that installs, tests and fixes, so tell them which agent is on it. Never update in the project’s own checkout.',
   agents: () =>
     'deps_check lists which dependencies of your worktree are out of date, vulnerable or deprecated; deps_update moves them forward in your worktree, after which you install and run the tests.',
+  setup: () => ({
+    guide: [
+      'Nothing is needed: dependencies are checked against the public registries, and vulnerabilities against OSV.',
+      'Change these only when the defaults do not suit this machine.',
+    ],
+    fields: [
+      {
+        key: 'registry',
+        label: 'npm registry',
+        kind: 'text',
+        placeholder: 'https://registry.npmjs.org',
+        help: 'a mirror or private registry, when you use one',
+      },
+      {
+        key: 'ignore',
+        label: 'Ignore',
+        kind: 'list',
+        placeholder: 'react, typescript',
+        help: 'packages never reported or updated',
+      },
+      {
+        key: 'vulnerabilities',
+        label: 'Vulnerabilities',
+        kind: 'flag',
+        help: 'look them up in OSV (on unless turned off)',
+      },
+      {
+        key: 'brief',
+        label: 'In the brief',
+        kind: 'flag',
+        help: 'mention vulnerable dependencies (asks the network each time)',
+      },
+    ],
+    links: [{ title: 'OSV', url: 'https://osv.dev' }],
+  }),
   harness: { pi: { skills: ['skills/update-dependencies'] } },
 }

@@ -1,0 +1,34 @@
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
+ ▾ AG│ Wilco is using 91% CPU and 783 MB of memory, across 7 processes.                                           │ 41% 
+▌● st│                                                                                                            │─────
+ ○ re│ ### By project                                                                                             │     
+     │                                                                                                            │     
+ ▾ CH│ ```                                                                                                        │     
+  M p│                 CPU               memory                                                                   │     
+  A s│   checkout      ████████░░   76%  █████░░░░░  369 MB                                                       │     
+  M s│   Wilco itself  ██░░░░░░░░   15%  █████░░░░░  414 MB                                                       │     
+     │ ```                                                                                                        │     
+ ▾ FI│                                                                                                            │     
+   ▾ │ ### By kind                                                                                                │     
+     │                                                                                                            │     
+     │ ```                                                                                                        │     
+   ▸ │                         CPU               memory                                                           │     
+     │   agents                ████████░░   76%  █████░░░░░  361 MB                                               │     
+     │   the orchestrator      █░░░░░░░░░   12%  ████░░░░░░  293 MB                                               │     
+     │   the window            ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                               │     
+ ▸ NO│   terminals             ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                               │     
+ ▾ GI│   helpers (git, ps, …)  ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                               │     
+   re│ ```                                                                                                        │     
+   br│                                                                                                            │     
+━ ▐ o│ ### By agent and terminal                                                                                  │▾ ▌ ━
+     │                                                                                                            │     
+     │ ```                                                                                                        │     
+     │                     CPU               memory                                                               │     
+     │   refunds           ████████░░   76%  █████░░░░░  361 MB                                                   │     
+     │ ↑↓ scrolls · 1–26 of 53 · kept current while open                                                ▐ Close ▌ │     
+     ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯     
+ ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+ ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌   91% · 783 MB │ claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 

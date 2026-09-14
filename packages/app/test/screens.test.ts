@@ -14,6 +14,21 @@ import { SCENARIOS } from './screens/scenarios.ts'
 // And, for every screen, the rules that no golden file can be trusted to
 // notice: the geometry, and that whatever can be clicked is where it is drawn.
 
+// Drawing is what Wilco does most — every keystroke, every frame an agent
+// prints — so what a frame costs is held to a number, over every screen.
+describe('what drawing costs', () => {
+  it('draws any screen in a few milliseconds', () => {
+    for (const scenario of SCENARIOS) draw(scenario.state, scenario.frame)
+    const rounds = 5
+    const started = performance.now()
+    for (let round = 0; round < rounds; round++) {
+      for (const scenario of SCENARIOS) draw(scenario.state, scenario.frame)
+    }
+    const each = (performance.now() - started) / (rounds * SCENARIOS.length)
+    expect(each).toBeLessThan(15)
+  })
+})
+
 describe.each(SCENARIOS)('$name', (scenario) => {
   const drawn = draw(scenario.state, scenario.frame)
 

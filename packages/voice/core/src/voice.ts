@@ -123,6 +123,11 @@ export interface VoiceOptions {
    * never run on its own, so it waits for enter, or for "confirm" and its words.
    */
   terminals?: VoiceTerminals
+  /**
+   * What an extension listens for — "how much is Wilco using" — answered in a
+   * sentence, or null when none of them does. Asked before the orchestrator.
+   */
+  extension?: (said: string) => Promise<string | null>
   /** Anything the grammar doesn't recognise, if an orchestrator is running. */
   ask?: (text: string) => Promise<string>
   /** Called when the surface decides which agent you meant. */
@@ -391,9 +396,12 @@ export class VoiceSurface {
         return scope ? `Noted, about ${short(scope)}.` : 'Noted.'
       }
 
-      default:
+      default: {
+        const heard = await this.opts.extension?.(utterance)
+        if (typeof heard === 'string') return heard
         if (this.opts.ask) return this.opts.ask(utterance)
         return "I didn't catch that."
+      }
     }
   }
 

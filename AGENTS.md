@@ -96,6 +96,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   what it found in `.wilco/context.md` — never the project's own checkout. Tool names start with the
   extension's name, `ready()` never touches the network, and an extension that is broken is listed
   as broken rather than stopping anything else.
+- **Wilco stays light, and proves it.** What the window polls is cheap and shared — one `ps` for
+  the whole process table, cached between askers — and anything on a timer or drawn every frame has
+  a performance test. The resources extension is how you see what Wilco and its agents cost.
+- **Nothing inherited is written to disk.** A lane's spec keeps only the environment Wilco set
+  (`withoutInherited`); the rest is everyone's shell environment, tokens included, and a relaunch
+  inherits it again. Wilco's own files that could hold such things are written `0600`.
 - **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
   throws; anything else reaches the model as an empty answer that looks like success.
 - **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its
@@ -153,7 +159,7 @@ implementations of it.
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
 | `packages/extensions/core` | the `WilcoExtension` port, the host that runs extensions, their suite |
-| `packages/extensions/{deps,sentry}` | the extensions that ship with Wilco |
+| `packages/extensions/{deps,sentry,resources}` | the extensions that ship with Wilco |
 | `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
 | `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
 | `packages/cli` | the `wilco` binary |

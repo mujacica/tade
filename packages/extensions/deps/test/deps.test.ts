@@ -223,6 +223,8 @@ describe('checking and updating a project', () => {
       {
         caller: { kind: 'orchestrator' },
         wilco: {
+          pid: process.pid,
+          lanes: () => [],
           startAgent: async (request) => {
             await request.prepare?.(worktree.root)
             started.push({ ...request, worktree: worktree.root })

@@ -96,7 +96,13 @@ function write(path: string, key: string, value: string | number | boolean | und
 export function writeSetting(
   path: string,
   key: string,
-  value: string | number | boolean | undefined,
+  value:
+    | string
+    | number
+    | boolean
+    | readonly string[]
+    | Readonly<Record<string, unknown>>
+    | undefined,
 ): void {
   let text = ''
   try {
@@ -107,6 +113,6 @@ export function writeSetting(
   const doc = parseDocument(text)
   const at = key.split('.')
   if (value === undefined || value === '') doc.deleteIn(at)
-  else doc.setIn(at, value)
+  else doc.setIn(at, typeof value === 'object' ? doc.createNode(value) : value)
   writeFileSync(path, doc.toString())
 }

@@ -6,6 +6,7 @@ import { App } from '@wilco/app'
 import {
   activityFrom,
   defaultConfigPath,
+  expandHome,
   historyFrom,
   isReady,
   loadConfig,
@@ -17,10 +18,12 @@ import { piBinary } from '@wilco/harnesses-pi/adapter'
 import { installedPieces } from '@wilco/harnesses-pi/installed'
 import { credentials, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
 import {
+  decideProposal,
   extensionWorkbench,
   loadExtensions,
   Orchestrator,
   orchestratorExtensions,
+  proposedExtensions,
   ToolHost,
   workbenchExtensions,
 } from '@wilco/orchestrator'
@@ -81,6 +84,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // Loaded before anything that hands them out: the workbench gives agents
       // their tools, the host gives the orchestrator its, the window runs them.
       const extensions = await loadExtensions({ config: cfg.config, home, safe })
+      const extensionsRoot = expandHome(cfg.config.orchestrator.extensions)
       // What an extension may ask of the window, once there is one.
       let windowForExtensions: ExtensionWorkbench | null = null
       let client: Workbench
@@ -142,6 +146,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
           restartThinker: () => restartThinker(),
+          proposals: {
+            list: () => proposedExtensions(extensionsRoot),
+            decide: (name, verdict) => decideProposal(extensionsRoot, name, verdict),
+          },
           extensions,
           harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })

@@ -12,7 +12,7 @@ import {
   type WilcoExtension,
 } from '@wilco/extensions-core'
 import { type Json, SentryApi } from './api.ts'
-import { findAccess, type SentryAccess } from './auth.ts'
+import { findAccess, findCredentials, type SentryAccess } from './auth.ts'
 import {
   issueDetails,
   issueList,
@@ -526,6 +526,76 @@ export const sentryExtension: WilcoExtension = {
         url: sentry.webUrl('/issues/?query=$&'),
       },
     ]
+  },
+  setup: (ctx) => {
+    const found = findCredentials({
+      settings: ctx.settings,
+      env: ctx.env,
+      folders: ctx.projects.map((project) => project.root),
+      now: ctx.now(),
+    })
+    const variable = found.tokenVariable ?? 'SENTRY_AUTH_TOKEN'
+    return {
+      guide: [
+        found.token
+          ? `**Token:** found in ${found.token.from}. Wilco reads it there and never keeps a copy.`
+          : `**Token:** Wilco needs one that can read your organization, and never stores it. Either run \`sentry-cli login\` (it keeps the token in \`~/.sentryclirc\`, where Wilco reads it), or create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and add \`export ${variable}=…\` to your shell's profile — then start Wilco from a new terminal.`,
+        found.org
+          ? `**Organization:** ${found.org}.`
+          : '**Organization:** type its slug below — the part after `sentry.io/organizations/` — or, with a token, choose from the ones it can see.',
+        '**Projects:** a Wilco project reports to the Sentry project with the same name. Where the names differ, say which: `checkout=checkout-api`, and `+` for more than one (`web=web-app+web-edge`).',
+        '**Your own Sentry:** leave Sentry empty for sentry.io; for a self-hosted or local one, give its address.',
+      ],
+      fields: [
+        {
+          key: 'org',
+          label: 'Organization',
+          kind: 'text',
+          placeholder: found.org ?? 'acme',
+          help: 'its slug, as in the address of its pages',
+          ...(found.token
+            ? {
+                choices: async (asked: typeof ctx) => {
+                  const response = await asked.fetch(`${found.url}/api/0/organizations/`, {
+                    headers: { authorization: `Bearer ${found.token?.value ?? ''}` },
+                    signal: AbortSignal.timeout(15_000),
+                  })
+                  if (!response.ok) return []
+                  const orgs = (await response.json()) as { slug?: unknown }[]
+                  return orgs.map((org) => String(org.slug ?? '')).filter(Boolean)
+                },
+              }
+            : {}),
+        },
+        {
+          key: 'projects',
+          label: 'Projects',
+          kind: 'map',
+          placeholder: 'checkout=checkout-api',
+          help: 'only where a Sentry project is called something else',
+        },
+        {
+          key: 'url',
+          label: 'Sentry',
+          kind: 'text',
+          placeholder: 'https://sentry.io',
+          help: 'only for a Sentry you run yourself',
+        },
+        {
+          key: 'brief',
+          kind: 'flag',
+          label: 'In the brief',
+          help: 'say how many new issues there are',
+        },
+      ],
+      links: [
+        {
+          title: 'Create an auth token',
+          url: `${found.url.includes('sentry.io') ? 'https://sentry.io' : found.url}/settings/account/api/auth-tokens/`,
+        },
+        { title: 'Install sentry-cli', url: 'https://docs.sentry.io/cli/installation/' },
+      ],
+    }
   },
   harness: { pi: { skills: ['skills/fix-sentry-issue'] } },
 }

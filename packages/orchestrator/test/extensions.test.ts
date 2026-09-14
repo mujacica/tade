@@ -7,8 +7,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   BUILTIN_EXTENSIONS,
+  decideProposal,
   extensionWorkbench,
   loadExtensions,
+  proposedExtensions,
   workbenchExtensions,
 } from '../src/extensions.ts'
 
@@ -115,8 +117,8 @@ describe('an agent an extension starts', () => {
     expect(again.task).toBe('shop/fix-shop-1a-2')
   }, 60_000)
 
-  it('ships dependencies and Sentry, and loads yours beside them', async () => {
-    expect(BUILTIN_EXTENSIONS.map((one) => one.name)).toEqual(['deps', 'sentry'])
+  it('ships dependencies, Sentry and resources, and loads yours beside them', async () => {
+    expect(BUILTIN_EXTENSIONS.map((one) => one.name)).toEqual(['deps', 'sentry', 'resources'])
     const home = tmp('wx-load-')
     const host = await loadExtensions({
       config: ConfigSchema.parse({ orchestrator: { extensions: join(home, 'extensions') } }),
@@ -126,6 +128,42 @@ describe('an agent an extension starts', () => {
     expect(host.list().map((one) => [one.name, one.state])).toEqual([
       ['deps', 'ready'],
       ['sentry', 'needs setup'],
+      ['resources', 'ready'],
     ])
+  })
+
+  it('lists what Wilco wrote for itself, and approving or turning one down moves it and is committed', async () => {
+    const root = tmp('wx-proposals-')
+    mkdirSync(join(root, 'proposed', 'release-notes'), { recursive: true })
+    writeFileSync(
+      join(root, 'proposed', 'release-notes', 'extension.ts'),
+      '// Drafts release notes from merged work.\nexport default {}\n',
+    )
+    writeFileSync(
+      join(root, 'proposed', 'standup.ts'),
+      '// Reads out yesterday.\nexport default function () {}\n',
+    )
+    expect(proposedExtensions(root)).toEqual([
+      {
+        name: 'release-notes',
+        kind: 'extension',
+        why: 'Drafts release notes from merged work.',
+        path: join(root, 'proposed', 'release-notes'),
+      },
+      {
+        name: 'standup',
+        kind: 'tool',
+        why: 'Reads out yesterday.',
+        path: join(root, 'proposed', 'standup.ts'),
+      },
+    ])
+    expect(await decideProposal(root, 'release-notes', 'approve')).toContain(
+      'loads when Wilco next starts',
+    )
+    expect(existsSync(join(root, 'active', 'release-notes', 'extension.ts'))).toBe(true)
+    await decideProposal(root, 'standup', 'reject')
+    expect(existsSync(join(root, 'rejected', 'standup.ts'))).toBe(true)
+    expect(proposedExtensions(root)).toEqual([])
+    await expect(decideProposal(root, 'standup', 'approve')).rejects.toThrow('nothing proposed')
   })
 })

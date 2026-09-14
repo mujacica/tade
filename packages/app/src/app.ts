@@ -4,10 +4,12 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   type Component,
+  getKeybindings,
   isKeyRelease,
   ProcessTerminal,
   parseKey,
   type Terminal,
+  TUI_KEYBINDINGS,
   TuiAltScreen,
   type TuiInputListenerResult,
   type TuiMouseEvent,
@@ -29,7 +31,7 @@ import {
   resolveRoute,
   settingsOf,
 } from '@wilco/core'
-import type { ExtensionHost, ExtensionWorkbench } from '@wilco/extensions-core'
+import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
 import { git } from '@wilco/status'
 import {
   type AudioClip,
@@ -99,7 +101,7 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
-import { fileViewSize, type OpenRowView } from './panel-view.ts'
+import { fileViewSize, type OpenRowView, type PanelContext } from './panel-view.ts'
 import {
   type BranchRow,
   branchMenuItems,
@@ -109,8 +111,13 @@ import {
   changeMenuItems,
   confirmRemovePanel,
   diffPanel,
+  type ExtensionSetupPanel,
+  type ExtensionsPanel,
   type ExtensionView,
+  extensionControls,
+  extensionSetupPanel,
   extensionsPanel,
+  extensionViewPanel,
   fileMenuItems,
   filePanel,
   findPanel,
@@ -128,6 +135,7 @@ import {
   type PanelInputs,
   type PanelOutcome,
   type PromptPanel,
+  type ProposalView,
   panelClick,
   panelKey,
   promptPanel,
@@ -167,7 +175,14 @@ import {
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
 import { draw, type Frame } from './view.ts'
-import { formattable, formattedLines, readForView, sourceLines, type ViewedFile } from './viewer.ts'
+import {
+  formattable,
+  formattedLines,
+  markdownLines,
+  readForView,
+  sourceLines,
+  type ViewedFile,
+} from './viewer.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -181,6 +196,8 @@ const FRAME_MS = 250
 
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
+/** How often extensions are asked what they keep in the status bar. */
+const STATUS_MS = 5_000
 
 /** A stuck key must not record until the disk is full. */
 const MAX_SPEECH_MS = 120_000
@@ -326,6 +343,11 @@ export interface AppOptions {
    * conversation. Without it, a new model applies when Wilco next starts.
    */
   restartThinker?: () => Promise<void>
+  /** What Wilco wrote for itself and is waiting on you: to list, and to decide. */
+  proposals?: {
+    list(): ProposalView[]
+    decide(name: string, verdict: 'approve' | 'reject'): Promise<string>
+  }
   /** Extensions the harness loads by itself, which Wilco lists but does not run. */
   harnessExtensions?: () => Promise<{ name: string; where: string }[]>
   now?: () => number
@@ -350,6 +372,8 @@ export class App {
   private sending: string[] = []
   /** Text the extensions know how to open, asked once: working it out reads files. */
   private linkers: readonly Linker[] = []
+  /** What each field of the setup panel offers, once looked up. */
+  private setupChoices: Record<string, readonly string[]> = {}
   /** What the harness loads by itself, once asked. */
   private harnessPieces: { name: string; where: string }[] = []
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
@@ -377,6 +401,11 @@ export class App {
   private terminalScreen = ''
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
+  private statuses: NonNullable<Frame['statuses']> = []
+  private statusedAt = Number.NEGATIVE_INFINITY
+  private asking = false
+  private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
+    null
   /** What each terminal has printed, read when search opens. */
   private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
   /** A command voice typed into a terminal, waiting for enter or "confirm". */
@@ -439,6 +468,7 @@ export class App {
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
     this.tui = new TuiAltScreen(this.terminal)
+    freeViewportKeys()
     this.closed = new Promise((resolve) => {
       this.settle = resolve
     })
@@ -661,8 +691,17 @@ export class App {
             : (live.vitals(panel.for)?.model ?? null),
       }
     }
+    if (panel.kind === 'extension-setup') return { setup: this.setupFacts(panel) }
+    if (panel.kind === 'extension-view') {
+      const shown = this.extensionShown
+      return {
+        extensionView:
+          shown?.name === panel.extension ? { title: shown.title, markdown: shown.markdown } : null,
+      }
+    }
     if (panel.kind === 'extensions') {
       return {
+        proposals: this.opts.proposals?.list() ?? [],
         extensions: this.extensionViews(),
         harnessExtensions: this.harnessPieces,
         extensionsRoot: tilde(expandHome(this.opts.config.orchestrator.extensions)),
@@ -808,6 +847,7 @@ export class App {
       home: tilde(this.opts.home),
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
+      statuses: this.statuses,
       now: this.now(),
     }
   }
@@ -974,6 +1014,7 @@ export class App {
       show: async (task) => this.show(task),
       openSettings: async () => this.openSettings(),
       brief: () => this.brief(),
+      extension: (said) => this.heardByExtension(said),
       tasks: async () => knownTasks(live.tasks),
       history: async () => live.history,
       ask: (text: string) => this.ask(text),
@@ -1258,6 +1299,13 @@ export class App {
       this.say(action.slice('ask:'.length))
       return
     }
+    if (action.startsWith('extension-view:')) {
+      const name = action.slice('extension-view:'.length)
+      this.state = { ...this.state, panel: extensionViewPanel(name) }
+      this.draw()
+      await this.refreshExtensionView(name)
+      return
+    }
     if (action.startsWith('extension:')) {
       const [, name, id] = action.split(':')
       await this.runExtension(name ?? '', id ?? '')
@@ -1273,7 +1321,15 @@ export class App {
         return
       case 'extensions':
         this.harnessPieces = (await this.opts.harnessExtensions?.().catch(() => [])) ?? []
-        this.state = { ...this.state, panel: extensionsPanel() }
+        {
+          // The keyboard starts on the first thing to run, not on turning it off.
+          const controls = extensionControls(this.extensionViews(), this.opts.proposals?.list())
+          const first = controls.findIndex((control) => control.startsWith('action:'))
+          this.state = {
+            ...this.state,
+            panel: { ...extensionsPanel(), index: Math.max(0, first) },
+          }
+        }
         this.draw()
         return
       case 'brief':
@@ -1551,12 +1607,12 @@ export class App {
       case 'model':
         await this.chooseModel(panel, choice ?? '')
         return
-      case 'extensions': {
-        this.state = { ...this.state, panel: null }
-        const [name, id] = (choice ?? '').split(':')
-        await this.runExtension(name ?? '', id ?? '')
+      case 'extensions':
+        await this.fromExtensions(panel, choice ?? '')
         return
-      }
+      case 'extension-setup':
+        await this.saveSetup(panel)
+        return
       case 'prompt':
         await this.savePrompt(panel)
         break
@@ -2922,6 +2978,7 @@ export class App {
   private async tick(): Promise<void> {
     if (this.stopped) return
     this.reopenStopped()
+    this.askExtensions()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
       this.repaint()
@@ -3267,7 +3324,220 @@ export class App {
       tools: one.tools.map((tool) => tool.name),
       actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
       unknownSettings: one.unknownSettings,
+      configurable: this.opts.extensions?.setupOf(one.name) !== null,
+      folder: one.source === 'yours' ? one.path : null,
     }))
+  }
+
+  /** Something pressed in the Extensions panel. */
+  private async fromExtensions(panel: ExtensionsPanel, choice: string): Promise<void> {
+    const [verb, ...rest] = choice.split(':')
+    const name = rest[0] ?? ''
+    const host = this.opts.extensions
+    const stay = (said: string | null) => {
+      this.state = { ...this.state, panel: { ...panel, busy: false, said } }
+      this.draw()
+    }
+    try {
+      switch (verb) {
+        case 'action':
+          this.state = { ...this.state, panel: null }
+          await this.runExtension(name, rest[1] ?? '')
+          return
+        case 'setup':
+          this.openSetup(name)
+          return
+        case 'folder': {
+          const folder = host?.list().find((one) => one.name === name)?.path
+          if (folder) await this.reveal(folder, true)
+          return stay(null)
+        }
+        case 'toggle': {
+          const was = host?.list().find((one) => one.name === name)
+          const on = was?.state === 'off'
+          // On is the default, so turning one on takes the setting away.
+          writeSetting(this.configPath, `extensions.${name}.enabled`, on ? undefined : false)
+          await this.reloadExtensions()
+          const now = host?.list().find((one) => one.name === name)
+          return stay(
+            on
+              ? `${was?.title ?? name} is on${now?.state === 'needs setup' ? `, and needs setting up: ${now.problem}` : ''}`
+              : `${was?.title ?? name} is off`,
+          )
+        }
+        case 'read': {
+          const proposal = this.opts.proposals?.list().find((one) => one.name === name)
+          if (!proposal) return stay(null)
+          this.state = { ...this.state, panel: null }
+          await this.openPlace({ path: proposal.path })
+          return
+        }
+        case 'approve':
+        case 'reject': {
+          const said = await this.opts.proposals?.decide(
+            name,
+            verb === 'approve' ? 'approve' : 'reject',
+          )
+          const count = extensionControls(
+            this.extensionViews(),
+            this.opts.proposals?.list() ?? [],
+          ).length
+          this.state = {
+            ...this.state,
+            panel: { ...panel, index: Math.min(panel.index, Math.max(0, count - 1)) },
+          }
+          return stay(said ?? null)
+        }
+        default:
+          return stay(null)
+      }
+    } catch (err) {
+      stay(why(err))
+    }
+  }
+
+  /**
+   * Read the config again and let the extensions take it. The orchestrator is
+   * started again when what it can call changed, so a turned-on extension is
+   * one it can use now, not after a restart.
+   */
+  private async reloadExtensions(): Promise<void> {
+    const host = this.opts.extensions
+    if (!host) return
+    const before = host
+      .specs('orchestrator')
+      .map((one) => one.name)
+      .join()
+    const loaded = await loadConfig(this.configPath)
+    if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
+    this.opts.config = loaded.config
+    await host.reconfigure(loaded.config.extensions)
+    this.linkers = host.linkers()
+    if (
+      host
+        .specs('orchestrator')
+        .map((one) => one.name)
+        .join() !== before
+    ) {
+      void this.opts.restartThinker?.()
+    }
+  }
+
+  /**
+   * What extensions keep in the status bar, asked every few seconds and never
+   * waited on: the tick goes on drawing while they answer, and an open view is
+   * asked again with them so it stays current.
+   */
+  private askExtensions(): void {
+    const host = this.opts.extensions
+    const wilco = this.opts.extensionWorkbench
+    if (!host || !wilco || this.asking || this.now() - this.statusedAt < STATUS_MS) return
+    this.asking = true
+    this.statusedAt = this.now()
+    const panel = this.state.panel
+    void host
+      .statuses(wilco)
+      .then(async (found) => {
+        this.statuses = found.map((one) => ({
+          extension: one.extension,
+          text: one.item.text,
+          tone: one.item.tone ?? 'quiet',
+          viewable: one.viewable,
+        }))
+        if (panel?.kind === 'extension-view') await this.refreshExtensionView(panel.extension)
+        this.draw()
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.asking = false
+      })
+  }
+
+  /** Ask an extension for its view again, and show it if its panel is still open. */
+  private async refreshExtensionView(name: string): Promise<void> {
+    const host = this.opts.extensions
+    const wilco = this.opts.extensionWorkbench
+    if (!host || !wilco) return
+    try {
+      const view = await host.view(name, wilco)
+      this.extensionShown = { name, ...view, at: this.now() }
+    } catch (err) {
+      this.extensionShown = { name, title: name, markdown: why(err), at: this.now() }
+    }
+    if (this.state.panel?.kind === 'extension-view') this.draw()
+  }
+
+  /** Set an extension up, or change its settings, in a panel. */
+  private openSetup(name: string): void {
+    const setup = this.opts.extensions?.setupOf(name)
+    if (!setup) return
+    this.setupChoices = {}
+    this.state = { ...this.state, panel: extensionSetupPanel(name, setup.fields) }
+    this.draw()
+    // What a field offers — the organizations a token can see — is looked up
+    // once the panel is open, rather than making it wait.
+    for (const field of setup.fields.filter((one) => one.offers)) {
+      void this.opts.extensions?.choices(name, field.key).then((choices) => {
+        this.setupChoices = { ...this.setupChoices, [field.key]: choices }
+        this.draw()
+      })
+    }
+  }
+
+  /** The setup panel's facts: the extension as it stands, and what its fields offer. */
+  private setupFacts(panel: ExtensionSetupPanel): NonNullable<PanelContext['setup']> | null {
+    const host = this.opts.extensions
+    const setup = host?.setupOf(panel.extension)
+    const loaded = host?.list().find((one) => one.name === panel.extension)
+    if (!setup || !loaded) return null
+    return {
+      title: loaded.title,
+      state: loaded.state,
+      problem: loaded.problem,
+      guide: setup.guide,
+      links: setup.links,
+      fields: setup.fields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        help: field.help,
+        placeholder: field.placeholder,
+        kind: field.kind,
+        choices: this.setupChoices[field.key] ?? [],
+      })),
+    }
+  }
+
+  /** Save what was typed into the setup panel, and say whether it works now. */
+  private async saveSetup(panel: ExtensionSetupPanel): Promise<void> {
+    const host = this.opts.extensions
+    const setup = host?.setupOf(panel.extension)
+    if (!host || !setup) return
+    const before = readFileSync(this.configPath, 'utf8')
+    try {
+      for (const field of setup.fields) {
+        const value = settingFrom(panel.values[field.key] ?? '', field.kind)
+        writeSetting(
+          this.configPath,
+          `extensions.${panel.extension}.${field.key}`,
+          value as Parameters<typeof writeSetting>[2],
+        )
+      }
+      await this.reloadExtensions()
+      const now = host.list().find((one) => one.name === panel.extension)
+      this.state = {
+        ...this.state,
+        panel: {
+          ...panel,
+          busy: false,
+          error: now?.state === 'ready' ? null : (now?.problem ?? null),
+          said: now?.state === 'ready' ? `Saved. ${now.title} is ready.` : null,
+        },
+      }
+    } catch (err) {
+      writeFileSync(this.configPath, before)
+      this.state = { ...this.state, panel: { ...panel, busy: false, error: why(err) } }
+    }
+    this.draw()
   }
 
   /**
@@ -3338,6 +3608,32 @@ export class App {
       )
       // Shown by the run itself: a failure's reason is already on its line.
       .catch(() => {})
+  }
+
+  /**
+   * Something said that an extension listens for, run as its button would be;
+   * the answer lands in the transcript, and its first sentence is the reply.
+   */
+  private async heardByExtension(said: string): Promise<string | null> {
+    const host = this.opts.extensions
+    const found = host?.heard(said)
+    if (!host || !found) return null
+    const project = this.state.project
+    if (found.action.project && !project) return 'Open a project first: that works on one.'
+    try {
+      const answer = await host.call(
+        found.action.tool,
+        { ...(found.action.input ?? {}), ...(found.action.project && project ? { project } : {}) },
+        {
+          caller: { kind: 'you' },
+          id: `you-${++this.ranCount}`,
+          wilco: this.opts.extensionWorkbench ?? null,
+        },
+      )
+      return answer.said ?? spokenLine(answer.text)
+    } catch (err) {
+      return why(err)
+    }
   }
 
   /**
@@ -3545,7 +3841,8 @@ export class App {
   private panelInputs(): PanelInputs {
     return {
       entries: this.searchEntries(),
-      lines: this.fileLines(),
+      lines:
+        this.state.panel?.kind === 'extension-view' ? this.extensionViewLines() : this.fileLines(),
       branches: this.branchRows,
       found: this.findMatches().length,
       rows:
@@ -3555,10 +3852,23 @@ export class App {
       choices: this.choices,
       items: this.menuItemsFor(this.state.panel),
       extensions: this.extensionViews(),
+      proposals: this.state.panel?.kind === 'extensions' ? (this.opts.proposals?.list() ?? []) : [],
+      setupFields:
+        this.state.panel?.kind === 'extension-setup'
+          ? (this.setupFacts(this.state.panel)?.fields ?? [])
+          : [],
       models: this.models,
       settings: settingsOf(this.opts.config),
       accounts: this.accounts.length,
     }
+  }
+
+  /** How many lines an extension's view has, as wide as its panel draws it. */
+  private extensionViewLines(): number {
+    const shown = this.extensionShown
+    if (!shown) return 0
+    const inner = Math.min(110, this.terminal.columns - 4) - 4
+    return markdownLines(shown.markdown, inner, !this.skin.colour).length
   }
 
   /** How many lines the viewer has to scroll through, as it is showing the file now. */
@@ -3849,4 +4159,30 @@ function capitalise(text: string): string {
 /** A menu's title for pictures: who gets this one, or these. */
 function imagesTitle(paths: readonly string[]): string {
   return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} pictures`} to`
+}
+
+/** The first line of Markdown, as it would be said: no emphasis, no code marks, no link targets. */
+export function spokenLine(markdown: string): string {
+  const first = markdown.split('\n').find((line) => line.trim() !== '') ?? ''
+  return first
+    .replace(/^#+\s*/, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`]/g, '')
+    .trim()
+}
+
+/**
+ * The alternate screen claims page up and down, home and end, ctrl+up and
+ * down and ctrl+shift+f to scroll and search a viewport of its own — before
+ * any listener sees them. Wilco
+ * draws exactly one screen and never scrolls one, so those keys belong to the
+ * panel that is open or the agent you are typing at.
+ */
+export function freeViewportKeys(): void {
+  const bindings = getKeybindings()
+  const freed: Record<string, never[]> = {}
+  for (const id of Object.keys(TUI_KEYBINDINGS)) {
+    if (id.startsWith('tui.altScreen.')) freed[id] = []
+  }
+  bindings.setUserBindings({ ...bindings.getUserBindings(), ...freed })
 }

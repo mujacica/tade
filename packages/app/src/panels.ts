@@ -410,9 +410,11 @@ function modelKey(
 /** The extensions this window runs with, and what each can do for you. */
 export interface ExtensionsPanel {
   kind: 'extensions'
-  /** Which action the keyboard is on, counting every extension's in order. */
+  /** Which control the keyboard is on, of `extensionControls`. */
   index: number
-  busy: false
+  busy: boolean
+  /** What the last thing done here came to: turned on, approved. */
+  said: string | null
 }
 
 /** One extension, as the panel shows it. */
@@ -429,21 +431,178 @@ export interface ExtensionView {
   actions: { id: string; title: string }[]
   /** Settings it was given and does not read. */
   unknownSettings: string[]
+  /** It says how to set it up, or what can be changed about it. */
+  configurable: boolean
+  /** Its folder, for one of yours. */
+  folder: string | null
+}
+
+/** What an extension shows when its status is clicked: a document, kept fresh while open. */
+export interface ExtensionViewPanel {
+  kind: 'extension-view'
+  extension: string
+  scroll: number
+  busy: false
+}
+
+export function extensionViewPanel(extension: string): ExtensionViewPanel {
+  return { kind: 'extension-view', extension, scroll: 0, busy: false }
+}
+
+/** Something Wilco wrote for itself, waiting for you to read it and decide. */
+export interface ProposalView {
+  name: string
+  /** A tool for the orchestrator, or a whole extension. */
+  kind: 'tool' | 'extension'
+  /** What it is for, as Wilco said when it wrote it. */
+  why: string
+  path: string
 }
 
 export function extensionsPanel(): ExtensionsPanel {
-  return { kind: 'extensions', index: 0, busy: false }
+  return { kind: 'extensions', index: 0, busy: false, said: null }
 }
 
-/** Every action in the panel, in the order the keyboard moves through them. */
-export function extensionActions(
+/**
+ * Every control in the panel, in the order the keyboard moves through them:
+ * for each extension, turning it on or off, setting it up, its actions and its
+ * folder; then, for each proposal, reading, approving and turning it down.
+ */
+export function extensionControls(
   views: readonly ExtensionView[],
-): { extension: string; id: string }[] {
-  return views.flatMap((view) =>
-    view.state === 'ready'
-      ? view.actions.map((action) => ({ extension: view.name, id: action.id }))
-      : [],
-  )
+  proposals: readonly ProposalView[] = [],
+): string[] {
+  const controls: string[] = []
+  for (const view of views) {
+    if (view.state !== 'broken') controls.push(`toggle:${view.name}`)
+    if (view.configurable && view.state !== 'broken' && view.state !== 'off')
+      controls.push(`setup:${view.name}`)
+    if (view.state === 'ready')
+      controls.push(...view.actions.map((action) => `action:${view.name}:${action.id}`))
+    if (view.folder) controls.push(`folder:${view.name}`)
+  }
+  for (const proposal of proposals) {
+    controls.push(`read:${proposal.name}`, `approve:${proposal.name}`, `reject:${proposal.name}`)
+  }
+  return controls
+}
+
+/** Setting an extension up, or changing its settings: a guide, and fields. */
+export interface ExtensionSetupPanel {
+  kind: 'extension-setup'
+  extension: string
+  /** Which control the keyboard is on, of `setupControls`. */
+  index: number
+  /** What is typed into each field, by key. */
+  values: Record<string, string>
+  busy: boolean
+  error: string | null
+  /** What saving came to: ready, or what it still needs. */
+  said: string | null
+}
+
+/** A field on the setup panel, as the panel is given it. */
+export interface SetupFieldView {
+  key: string
+  label: string
+  help: string
+  placeholder: string
+  kind: 'text' | 'list' | 'map' | 'flag'
+  /** What it offers to choose from, once looked up. */
+  choices: readonly string[]
+}
+
+export function extensionSetupPanel(
+  extension: string,
+  fields: readonly { key: string; value: string }[],
+): ExtensionSetupPanel {
+  return {
+    kind: 'extension-setup',
+    extension,
+    index: 0,
+    values: Object.fromEntries(fields.map((field) => [field.key, field.value])),
+    busy: false,
+    error: null,
+    said: null,
+  }
+}
+
+/** The setup panel's controls in keyboard order: each field, the choices it offers, then save and close. */
+export function setupControls(fields: readonly SetupFieldView[]): string[] {
+  return [
+    ...fields.flatMap((field) => [
+      `field:${field.key}`,
+      ...field.choices.map((choice) => `pick:${field.key}:${choice}`),
+    ]),
+    'save',
+    'cancel',
+  ]
+}
+
+function setupKey(
+  panel: ExtensionSetupPanel,
+  key: string | undefined,
+  data: string,
+  fields: readonly SetupFieldView[],
+): PanelOutcome {
+  const controls = setupControls(fields)
+  const at = controls[panel.index] ?? ''
+  if (key === 'escape') return close
+  if (panel.busy) return stay(panel)
+  if (key === 'tab' || key === 'down')
+    return stay({ ...panel, index: (panel.index + 1) % controls.length })
+  if (key === 'shift+tab' || key === 'up') {
+    return stay({ ...panel, index: (panel.index - 1 + controls.length) % controls.length })
+  }
+  if (key === 'enter' || (key === 'space' && !at.startsWith('field:')))
+    return setupPress(panel, at, fields)
+  if (at.startsWith('field:')) {
+    const field = fields.find((one) => `field:${one.key}` === at)
+    if (!field) return stay(panel)
+    const value = panel.values[field.key] ?? ''
+    if (field.kind === 'flag') {
+      return key === 'space' ? setupPress(panel, at, fields) : stay(panel)
+    }
+    if (key === 'backspace')
+      return stay(setValue(panel, field.key, [...value].slice(0, -1).join('')))
+    if (key === 'ctrl+u') return stay(setValue(panel, field.key, ''))
+    if (key === 'space') return stay(setValue(panel, field.key, `${value} `))
+    const typed = data.startsWith('\x1b') ? '' : [...data].filter((char) => !control(char)).join('')
+    if (typed) return stay(setValue(panel, field.key, value + typed))
+  }
+  return stay(panel)
+}
+
+/** Pressing one of the setup panel's controls. */
+function setupPress(
+  panel: ExtensionSetupPanel,
+  at: string,
+  fields: readonly SetupFieldView[],
+): PanelOutcome {
+  if (at === 'cancel') return close
+  if (at === 'save')
+    return {
+      panel: { ...panel, busy: true, error: null, said: null },
+      submit: true,
+      choice: 'save',
+    }
+  if (at.startsWith('pick:')) {
+    const [, key, ...rest] = at.split(':')
+    return stay(setValue(panel, key ?? '', rest.join(':')))
+  }
+  const field = fields.find((one) => `field:${one.key}` === at)
+  if (field?.kind === 'flag') {
+    // Unset, on, off, and round again: unset is the extension's own default.
+    const next = { '': 'on', on: 'off', off: '' }[panel.values[field.key] ?? ''] ?? ''
+    return stay(setValue(panel, field.key, next))
+  }
+  // Enter in a text field moves on, as it would in a form.
+  const controls = setupControls(fields)
+  return stay({ ...panel, index: Math.min(controls.length - 1, panel.index + 1) })
+}
+
+function setValue(panel: ExtensionSetupPanel, key: string, value: string): ExtensionSetupPanel {
+  return { ...panel, values: { ...panel.values, [key]: value }, error: null, said: null }
 }
 
 /** Closing, when closing would stop something. */
@@ -505,6 +664,8 @@ export type Panel =
   | KeysPanel
   | QuitPanel
   | ExtensionsPanel
+  | ExtensionSetupPanel
+  | ExtensionViewPanel
   | ModelPanel
 
 export function settingsPanel(category = 'agents'): SettingsPanel {
@@ -545,6 +706,10 @@ export interface PanelInputs {
   extensions?: readonly ExtensionView[]
   /** Models there are to choose from. */
   models?: readonly ModelChoice[]
+  /** What Wilco wrote for itself and is waiting on you. */
+  proposals?: readonly ProposalView[]
+  /** The fields of the extension being set up. */
+  setupFields?: readonly SetupFieldView[]
 }
 
 /** The settings a panel is showing: a category's, or everything matching the search. */
@@ -764,16 +929,29 @@ export function panelKey(
   if (panel.kind === 'file') return fileKey(panel, key, inputs.lines ?? 0)
   if (panel.kind === 'keys') return key === 'escape' || key === 'enter' ? close : stay(panel)
   if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
+  if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
+  if (panel.kind === 'extension-view') {
+    const most = Math.max(0, (inputs.lines ?? 0) - 1)
+    if (key === 'escape' || key === 'enter') return close
+    const by =
+      key === 'up' ? -1 : key === 'down' ? 1 : key === 'pageUp' ? -10 : key === 'pageDown' ? 10 : 0
+    if (key === 'home') return stay({ ...panel, scroll: 0 })
+    if (key === 'end') return stay({ ...panel, scroll: most })
+    return by === 0
+      ? stay(panel)
+      : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
+  }
   if (panel.kind === 'extensions') {
-    const actions = extensionActions(inputs.extensions ?? [])
+    const controls = extensionControls(inputs.extensions ?? [], inputs.proposals ?? [])
     if (key === 'escape') return close
-    if (key === 'up' || key === 'shift+tab')
+    if (panel.busy) return stay(panel)
+    if (key === 'up' || key === 'shift+tab' || key === 'left')
       return stay({ ...panel, index: Math.max(0, panel.index - 1) })
-    if (key === 'down' || key === 'tab')
-      return stay({ ...panel, index: Math.min(Math.max(0, actions.length - 1), panel.index + 1) })
-    const chosen = actions[panel.index]
-    if (key === 'enter' && chosen) {
-      return { panel, submit: true, choice: `${chosen.extension}:${chosen.id}` }
+    if (key === 'down' || key === 'tab' || key === 'right')
+      return stay({ ...panel, index: Math.min(Math.max(0, controls.length - 1), panel.index + 1) })
+    const chosen = controls[panel.index]
+    if ((key === 'enter' || key === 'space') && chosen) {
+      return { panel: { ...panel, said: null }, submit: true, choice: chosen }
     }
     return stay(panel)
   }
@@ -811,11 +989,25 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
       ? { panel: { ...panel, busy: true, error: null }, submit: true, choice: chosen.id }
       : stay(panel)
   }
+  if (panel.kind === 'extension-view') return control === 'close' ? close : stay(panel)
+  if (panel.kind === 'extension-setup') {
+    const fields = inputs.setupFields ?? []
+    const index = setupControls(fields).indexOf(control)
+    if (index < 0) return stay(panel)
+    // A field is clicked into; anything else is pressed.
+    return control.startsWith('field:') &&
+      fields.find((one) => `field:${one.key}` === control)?.kind !== 'flag'
+      ? stay({ ...panel, index })
+      : setupPress({ ...panel, index }, control, fields)
+  }
   if (panel.kind === 'extensions') {
     if (control === 'close') return close
-    return control.startsWith('action:')
-      ? { panel, submit: true, choice: control.slice('action:'.length) }
-      : stay(panel)
+    const index = extensionControls(inputs.extensions ?? [], inputs.proposals ?? []).indexOf(
+      control,
+    )
+    return index < 0
+      ? stay(panel)
+      : { panel: { ...panel, index, said: null }, submit: true, choice: control }
   }
   if (panel.kind === 'quit') {
     if (control === 'cancel') return close

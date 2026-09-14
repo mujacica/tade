@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { extensionConformance } from '../src/conformance.ts'
-import { ExtensionHost, type ExtensionRun } from '../src/host.ts'
+import { ExtensionHost, type ExtensionRun, settingFrom } from '../src/host.ts'
 import type { WilcoExtension } from '../src/port.ts'
 import { object, string } from '../src/schema.ts'
 
@@ -241,5 +241,57 @@ describe('what extensions tell everyone else', () => {
     })
     expect(loaded.harness('another-harness')).toEqual({ extensions: [], skills: [] })
     expect(loaded.linkers()).toEqual([{ pattern: 'RAIN-\\d+', url: 'https://weather.example/$&' }])
+  })
+})
+
+describe('changing extensions while the window is open', () => {
+  it('turns one off and on again, and says what it needs when it comes back', async () => {
+    const loaded = await host({ city: 'Vienna' })
+    await loaded.reconfigure({ weather: { city: 'Vienna', enabled: false } })
+    expect(loaded.list()[0]).toMatchObject({ state: 'off' })
+    expect(loaded.specs('orchestrator')).toEqual([])
+    await expect(
+      loaded.call('weather_change', {}, { caller: { kind: 'orchestrator' } }),
+    ).rejects.toThrow('off')
+    await loaded.reconfigure({ weather: {} })
+    expect(loaded.list()[0]).toMatchObject({
+      state: 'needs setup',
+      problem: 'set extensions.weather.city',
+    })
+    await loaded.reconfigure({ weather: { city: 'Graz' } })
+    expect(loaded.list()[0]?.state).toBe('ready')
+  })
+
+  it('describes its setup with the values it has, and what a field offers', async () => {
+    const loaded = await host(
+      { city: 'Vienna', skip: ['rain', 'snow'] },
+      {
+        settings: [
+          { key: 'city', kind: 'string', means: 'where' },
+          { key: 'skip', kind: 'list', means: 'what not to mention' },
+        ],
+        setup: () => ({
+          guide: ['Pick a city.'],
+          fields: [
+            { key: 'city', label: 'City', kind: 'text', choices: async () => ['Vienna', 'Graz'] },
+            { key: 'skip', label: 'Skip', kind: 'list' },
+          ],
+        }),
+      },
+    )
+    expect(
+      loaded.setupOf('weather')?.fields.map((field) => [field.key, field.value, field.offers]),
+    ).toEqual([
+      ['city', 'Vienna', true],
+      ['skip', 'rain, snow', false],
+    ])
+    expect(await loaded.choices('weather', 'city')).toEqual(['Vienna', 'Graz'])
+    expect(settingFrom('checkout=checkout-api, web=web+edge', 'map')).toEqual({
+      checkout: 'checkout-api',
+      web: ['web', 'edge'],
+    })
+    expect(settingFrom('a, b', 'list')).toEqual(['a', 'b'])
+    expect(settingFrom('', 'text')).toBeUndefined()
+    expect(settingFrom('off', 'flag')).toBe(false)
   })
 })

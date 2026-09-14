@@ -1,4 +1,11 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { basename, join } from 'node:path'
 import {
   type Config,
@@ -12,6 +19,7 @@ import {
   skillDirs,
 } from '@wilco/core'
 import { depsExtension } from '@wilco/extension-deps'
+import { resourcesExtension } from '@wilco/extension-resources'
 import { sentryExtension } from '@wilco/extension-sentry'
 import {
   type Audience,
@@ -20,7 +28,12 @@ import {
   type WilcoExtension,
 } from '@wilco/extensions-core'
 import type { WorkerExtras } from '@wilco/harnesses-core'
-import { branchSlug, type Workbench, type WorkbenchExtensions } from '@wilco/workbench'
+import {
+  branchSlug,
+  recordAuthored,
+  type Workbench,
+  type WorkbenchExtensions,
+} from '@wilco/workbench'
 
 // Finding the tools Wilco wrote for itself. The rules about which files count
 // are in core and tested there; this is the part that touches the disk.
@@ -67,8 +80,91 @@ function skillsIn(dir: string): Skill[] {
 // orchestrator its tools and a paragraph about them, every agent the tools it
 // may call, what it is told, and the harness-native pieces extensions ship.
 
+/** Something Wilco wrote for itself and is waiting on a human for. */
+export interface Proposal {
+  name: string
+  /** A pi extension file for the orchestrator, or a folder that is a whole Wilco extension. */
+  kind: 'tool' | 'extension'
+  /** Why it was written, from the comment it starts with. */
+  why: string
+  path: string
+}
+
+/** What is waiting in `proposed/`, in name order. Never throws. */
+export function proposedExtensions(root: string): Proposal[] {
+  const dirs = extensionDirs(root)
+  let entries: import('node:fs').Dirent[]
+  try {
+    entries = readdirSync(dirs.proposed, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  const why = (file: string) => {
+    try {
+      const first =
+        readFileSync(file, 'utf8')
+          .split('\n')
+          .find((line) => line.trim() !== '') ?? ''
+      return first
+        .replace(/^\s*(\/\/+|\/\*+|\*)\s?/, '')
+        .replace(/\*\/\s*$/, '')
+        .trim()
+    } catch {
+      return ''
+    }
+  }
+  return entries
+    .flatMap((entry): Proposal[] => {
+      const path = join(dirs.proposed, entry.name)
+      if (entry.isDirectory() && existsSync(join(path, 'extension.ts'))) {
+        return [{ name: entry.name, kind: 'extension', why: why(join(path, 'extension.ts')), path }]
+      }
+      if (entry.isFile() && loadable([entry.name]).length === 1) {
+        return [
+          {
+            name: basename(entry.name).replace(/\.(ts|js|mjs)$/, ''),
+            kind: 'tool',
+            why: why(path),
+            path,
+          },
+        ]
+      }
+      return []
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Approve a proposal, which moves it to `active/` to load when Wilco next
+ * starts, or turn it down, which keeps it in `rejected/` so it is not proposed
+ * again. Either way it is committed, so the decision can be found later.
+ */
+export async function decideProposal(
+  root: string,
+  name: string,
+  verdict: 'approve' | 'reject',
+): Promise<string> {
+  const proposal = proposedExtensions(root).find((one) => one.name === name)
+  if (!proposal) throw new Error(`nothing proposed called ${name}`)
+  const dirs = extensionDirs(root)
+  const to = verdict === 'approve' ? dirs.active : dirs.rejected
+  mkdirSync(to, { recursive: true })
+  renameSync(proposal.path, join(to, basename(proposal.path)))
+  await recordAuthored(
+    root,
+    `${verdict === 'approve' ? 'activate' : 'reject'} ${proposal.kind} ${name}`,
+  )
+  return verdict === 'approve'
+    ? `${name} is approved: it loads when Wilco next starts`
+    : `${name} is turned down, and kept so it is not proposed again`
+}
+
 /** The extensions that ship with Wilco, by name. */
-export const BUILTIN_EXTENSIONS: readonly WilcoExtension[] = [depsExtension, sentryExtension]
+export const BUILTIN_EXTENSIONS: readonly WilcoExtension[] = [
+  depsExtension,
+  sentryExtension,
+  resourcesExtension(),
+]
 
 /**
  * Every extension this window runs with: the built-in ones, then yours from
@@ -132,6 +228,15 @@ export function extensionWorkbench(
   onStarted?: (task: string) => void,
 ): ExtensionWorkbench {
   return {
+    pid: process.pid,
+    lanes: () =>
+      wilco.lanes().map((lane) => ({
+        id: lane.id,
+        task: lane.task,
+        kind: lane.kind,
+        pid: lane.pid,
+        alive: lane.alive,
+      })),
     async startAgent(request) {
       const base = branchSlug(request.title)
       let slug = base
@@ -164,9 +269,11 @@ export function workbenchExtensions(
   home: string,
   window: () => ExtensionWorkbench | null,
 ): WorkbenchExtensions {
-  const tools = writeToolList(host, 'agent', home)
   return {
     extras: ({ project, cwd, harness }) => {
+      // Written for each agent as it starts, so an extension turned on or off
+      // since the window opened is what the next agent gets.
+      const tools = writeToolList(host, 'agent', home)
       const pieces = host.harness(harness)
       const instructions = host.agentPrompt({ name: project, root: cwd })
       return {

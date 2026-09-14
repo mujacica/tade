@@ -298,6 +298,8 @@ describe('acting on Sentry', () => {
       {
         caller: { kind: 'orchestrator' },
         wilco: {
+          pid: process.pid,
+          lanes: () => [],
           startAgent: async (request) => {
             started.push(request)
             return { task: 'shop/fix-shop-1a', worktree: '/w' }
@@ -359,6 +361,30 @@ describe('acting on Sentry', () => {
       items: [],
       problems: [],
     })
+  })
+})
+
+describe('setting Sentry up', () => {
+  it('says where the token is, and offers the organizations it can see', async () => {
+    const { fetcher } = sentry({
+      'GET https://sentry.io/api/0/organizations/': () =>
+        Response.json([{ slug: 'acme' }, { slug: 'globex' }]),
+    })
+    const loaded = await ExtensionHost.load({
+      builtin: [sentryExtension],
+      config: { extensions: { sentry: {} }, projects: { shop: { root: '/src/shop' } } },
+      home: '/home',
+      env: { SENTRY_AUTH_TOKEN: 'sntrys_test' },
+      fetch: fetcher,
+      now: () => NOW,
+    })
+    expect(loaded.list()[0]).toMatchObject({ state: 'needs setup' })
+    const setup = loaded.setupOf('sentry')
+    expect(setup?.guide[0]).toContain('found in $SENTRY_AUTH_TOKEN')
+    expect(setup?.fields.map((field) => field.key)).toEqual(['org', 'projects', 'url', 'brief'])
+    expect(await loaded.choices('sentry', 'org')).toEqual(['acme', 'globex'])
+    await loaded.reconfigure({ sentry: { org: 'acme' } })
+    expect(loaded.list()[0]).toMatchObject({ state: 'ready' })
   })
 })
 

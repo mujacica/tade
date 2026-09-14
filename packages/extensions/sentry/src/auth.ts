@@ -140,19 +140,25 @@ function fromSentryCli(env: Readonly<Record<string, string | undefined>>, now: n
 }
 
 /**
- * Credentials to reach Sentry with, or what is missing, said so it can be
- * fixed. `folders` are the projects' own, where a `.sentryclirc` may be.
+ * What there is to reach Sentry with, found wherever it already is, whether or
+ * not it is enough: a token with no organization can still list the
+ * organizations it can see, which is how setting one up offers them.
  */
-export function findAccess(options: {
+export function findCredentials(options: {
   settings: Readonly<Record<string, unknown>>
   env: Readonly<Record<string, string | undefined>>
   folders: readonly string[]
   now: number
-}): SentryAccess | { problem: string } {
+}): {
+  token: { value: string; from: string } | null
+  org: string | null
+  url: string
+  tokenVariable: string | null
+} {
   const { settings, env } = options
   const text = (key: string) =>
     typeof settings[key] === 'string' && settings[key] !== '' ? String(settings[key]) : undefined
-  const tokenVariable = text('token_env')
+  const tokenVariable = text('token_env') ?? null
   const fromEnv = tokenVariable
     ? env[tokenVariable]
       ? { value: env[tokenVariable] as string, from: `$${tokenVariable}` }
@@ -164,8 +170,6 @@ export function findAccess(options: {
         : undefined
   const rc = fromSentryclirc(options.folders, env)
   const cli = fromSentryCli(env, options.now)
-  const token = fromEnv ?? rc.token ?? cli.token
-  const org = text('org') ?? env.SENTRY_ORG ?? rc.org ?? cli.org
   const url = (
     text('url') ??
     env.SENTRY_HOST ??
@@ -174,19 +178,34 @@ export function findAccess(options: {
     cli.url ??
     'https://sentry.io'
   ).replace(/\/+$/, '')
-  if (!token) {
+  return {
+    token: fromEnv ?? rc.token ?? cli.token ?? null,
+    org: text('org') ?? env.SENTRY_ORG ?? rc.org ?? cli.org ?? null,
+    url: url.startsWith('http') ? url : `https://${url}`,
+    tokenVariable,
+  }
+}
+
+/**
+ * Credentials to reach Sentry with, or what is missing, said so it can be
+ * fixed. `folders` are the projects' own, where a `.sentryclirc` may be.
+ */
+export function findAccess(options: {
+  settings: Readonly<Record<string, unknown>>
+  env: Readonly<Record<string, string | undefined>>
+  folders: readonly string[]
+  now: number
+}): SentryAccess | { problem: string } {
+  const found = findCredentials(options)
+  if (!found.token) {
     return {
-      problem: `no Sentry token: set ${tokenVariable ? `$${tokenVariable}` : '$SENTRY_AUTH_TOKEN'} to a user auth token (org:read, project:read, event:read, event:write), or log in with sentry-cli`,
+      problem: `no Sentry token: set ${found.tokenVariable ? `$${found.tokenVariable}` : '$SENTRY_AUTH_TOKEN'} to a user auth token (org:read, project:read, event:read, event:write), or log in with sentry-cli`,
     }
   }
-  if (!org)
+  if (!found.org) {
     return { problem: 'which Sentry organization? set extensions.sentry.org, or $SENTRY_ORG' }
-  return {
-    token: token.value,
-    org,
-    url: url.startsWith('http') ? url : `https://${url}`,
-    from: token.from,
   }
+  return { token: found.token.value, org: found.org, url: found.url, from: found.token.from }
 }
 
 function safely<T>(read: () => T): T | undefined {

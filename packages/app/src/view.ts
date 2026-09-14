@@ -143,12 +143,22 @@ export interface Frame {
       | 'models'
       | 'modelTarget'
       | 'currentModel'
+      | 'proposals'
+      | 'setup'
+      | 'extensionView'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
   voice?: { keys: readonly string[]; available: boolean }
   /** Wilco's home, as you would type it, for showing where worktrees go. */
   home?: string
+  /** What extensions keep in the status bar. */
+  statuses?: readonly {
+    extension: string
+    text: string
+    tone: 'quiet' | 'warning' | 'bad'
+    viewable: boolean
+  }[]
   /** The orchestrator's model, shown on its tab: undefined where the window has no orchestrator. */
   orchestratorModel?: string | null
   /** Text extensions know how to open, made clickable wherever it is shown. */
@@ -296,6 +306,9 @@ export function draw(state: AppState, frame: Frame): Drawn {
     models: extra.models ?? [],
     modelTarget: extra.modelTarget ?? 'the orchestrator',
     currentModel: extra.currentModel ?? null,
+    proposals: extra.proposals ?? [],
+    setup: extra.setup ?? null,
+    extensionView: extra.extensionView ?? null,
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
@@ -1282,6 +1295,20 @@ function renderFoot(
     { model: false, account: false, tokens: false },
   ]
   const status = (show: (typeof tries)[number]) => (r: Row) => {
+    // What extensions keep here — what Wilco is using — clicked for their view.
+    if (show.model) {
+      for (const one of frame.statuses ?? []) {
+        const view: Target = { kind: 'action', name: `extension-view:${one.extension}` }
+        const tone =
+          one.tone === 'bad' ? skin.bad : one.tone === 'warning' ? skin.waiting : skin.hint
+        r.text(
+          one.text,
+          sameTarget(state.hover, view) ? skin.link : tone,
+          one.viewable ? view : undefined,
+        )
+        r.text(' │ ', skin.chrome)
+      }
+    }
     if (show.model) {
       r.text(model ? shortModel(model) : 'its default model', skin.hint, target)
       if (show.account && route?.provider) r.text(` · ${route.provider}`, skin.hint, target)

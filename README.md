@@ -69,7 +69,11 @@ from **Settings**.
       projects: { checkout: checkout-api }   # when a Sentry slug differs from the project name
   ```
 
-Your own go in `~/.wilco/extensions/active/<name>/extension.ts`.
+- **Resources** keeps what Wilco and everything it runs is using in the status bar; click it for the
+  breakdown by project, kind, agent and process: *"how much memory is Wilco using?"*
+
+Turn them on and off, set them up and approve what Wilco wrote for itself from **Extensions**. Your
+own go in `~/.wilco/extensions/active/<name>/extension.ts`.
 
 ## Development
 

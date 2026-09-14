@@ -75,7 +75,11 @@ function fakeWilco() {
 
 async function surface(
   wilco: ReturnType<typeof fakeWilco>,
-  over: { ask?: (t: string) => Promise<string>; terminals?: VoiceTerminals } = {},
+  over: {
+    ask?: (t: string) => Promise<string>
+    extension?: (t: string) => Promise<string | null>
+    terminals?: VoiceTerminals
+  } = {},
 ) {
   const said: string[] = []
   const tones: string[] = []
@@ -301,6 +305,23 @@ describe('VoiceSurface', () => {
       'It changed the webhook handler.',
     )
     expect(asked).toEqual(['what did the migration actually change'])
+  })
+
+  it('lets an extension answer what it listens for before the orchestrator is asked', async () => {
+    const asked: string[] = []
+    const { voice } = await surface(wilco, {
+      extension: async (text) =>
+        text === 'how much is wilco using' ? 'Wilco is using 12% CPU and 400 MB of memory.' : null,
+      ask: async (text) => {
+        asked.push(text)
+        return 'Asked.'
+      },
+    })
+    expect(await voice.handle('how much is wilco using')).toBe(
+      'Wilco is using 12% CPU and 400 MB of memory.',
+    )
+    expect(await voice.handle('what did the migration change')).toBe('Asked.')
+    expect(asked).toEqual(['what did the migration change'])
   })
 
   describe('what it does with events', () => {

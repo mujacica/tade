@@ -4,6 +4,7 @@ export {
   type ExtensionState,
   type HostOptions,
   type LoadedExtension,
+  settingFrom,
   shapeProblem,
   type ToolSpec,
 } from './host.ts'

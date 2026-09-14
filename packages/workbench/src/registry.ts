@@ -408,7 +408,7 @@ export class LaneRegistry {
     const snapshot: z.infer<typeof LaneFile> = {
       version: 1,
       driver: this.driver.id,
-      lanes: this.list(),
+      lanes: this.list().map((lane) => ({ ...lane, spec: withoutInherited(lane.spec) })),
     }
     this.saving = this.saving.then(() => writeJsonAtomic(this.path, snapshot))
     await this.saving
@@ -448,10 +448,28 @@ async function readJson(path: string): Promise<unknown> {
   }
 }
 
+/**
+ * A spec as it is written down: only the environment Wilco set, never what the
+ * lane inherited from the window. That is everyone's shell environment, API
+ * keys and tokens included, and a relaunch inherits it again anyway — drivers
+ * lay a spec's env over their own.
+ */
+export function withoutInherited(
+  spec: LaneSpec,
+  inherited: NodeJS.ProcessEnv = process.env,
+): LaneSpec {
+  if (!spec.env) return spec
+  const own = Object.fromEntries(
+    Object.entries(spec.env).filter(([key, value]) => inherited[key] !== value),
+  )
+  const { env: _, ...rest } = spec
+  return Object.keys(own).length > 0 ? { ...rest, env: own } : rest
+}
+
 async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const tmp = join(dirname(path), `.${Date.now()}-${process.pid}.tmp`)
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`)
+  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
   await rename(tmp, path)
 }
 
