@@ -260,6 +260,7 @@ export const ConfigSchema = z
                 settings: z.string().min(1).default('ctrl+,'),
                 fill_bottom: z.string().min(1).default('ctrl+shift+f'),
                 keys_sheet: z.string().min(1).default('f1'),
+                reload: z.string().min(1).default('ctrl+shift+r'),
                 approve: z.string().min(1).default('a'),
                 deny: z.string().min(1).default('d'),
                 /** Held with 1–9: the agent in that place in the sidebar. `off` for none. */

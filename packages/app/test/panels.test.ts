@@ -374,3 +374,29 @@ describe('setting an extension up', () => {
     })
   })
 })
+
+describe('the Reload panel', () => {
+  it('toggles between cancel and reload with tab, and submits on enter', () => {
+    const panel: { kind: 'reload'; field: 'cancel' | 'reload'; busy: false } = {
+      kind: 'reload',
+      field: 'cancel',
+      busy: false,
+    }
+    const toggled = panelKey(panel, 'tab', '').panel as typeof panel
+    expect(toggled.field).toBe('reload')
+    expect(panelKey(toggled, 'tab', '').panel).toMatchObject({ field: 'cancel' })
+    expect(panelKey(panel, 'escape', '').panel).toBeNull()
+    expect(panelKey(toggled, 'enter', '')).toMatchObject({ submit: true, choice: 'reload' })
+    expect(panelKey(panel, 'enter', '')).toMatchObject({ submit: false })
+  })
+
+  it('submits or closes by click', () => {
+    const panel: { kind: 'reload'; field: 'cancel' | 'reload'; busy: false } = {
+      kind: 'reload',
+      field: 'cancel',
+      busy: false,
+    }
+    expect(panelClick(panel, 'cancel', {})).toMatchObject({ submit: false, panel: null })
+    expect(panelClick(panel, 'reload', {})).toMatchObject({ submit: true, choice: 'reload' })
+  })
+})

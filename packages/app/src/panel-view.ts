@@ -35,6 +35,7 @@ import {
   type PromptPanel,
   type ProposalView,
   type QuitPanel,
+  type ReloadPanel,
   type SearchPanel,
   type SettingsPanel,
   type SetupFieldView,
@@ -198,6 +199,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: keysSheet(ctx), popups: [] }
     case 'quit':
       return { panel: quit(panel, ctx), popups: [] }
+    case 'reload':
+      return { panel: reload(panel, ctx), popups: [] }
     case 'extensions':
       return { panel: extensions(panel, ctx), popups: [] }
     case 'extension-setup':
@@ -1004,6 +1007,48 @@ function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
       .build(),
   ]
   return box('Close Wilco?', rows, width, skin, { corner: 'esc' })
+}
+
+function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(62, ctx.width - 4)
+  const inner = width - 2
+  const pointer = ctx.pointer.hover
+    ? ctx.pointer
+    : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
+  const row = () => new Row(inner, skin, pointer)
+  const running = ctx.running
+  const rows: { text: string; hits: Hit[] }[] = [
+    blank(inner),
+    row()
+      .space()
+      .text(
+        `${running} agent${running === 1 ? ' is' : 's are'} running inside this window.`,
+        skin.you,
+      )
+      .build(),
+    blank(inner),
+    row().space().text('Reload restarts the window with your changes.').build(),
+    row()
+      .space()
+      .text('Agents here run under ')
+      .text('pty', skin.busy)
+      .text(', so reloading stops them. Their')
+      .build(),
+    row().space().text('conversations are kept, and they open again where they').build(),
+    row().space().text('stopped the next time Wilco opens.').build(),
+    blank(inner),
+    row()
+      .right((r) =>
+        r
+          .button('Cancel', { kind: 'control', id: 'cancel' })
+          .space()
+          .button('Reload anyway', { kind: 'control', id: 'reload' }, 'attention')
+          .space(),
+      )
+      .build(),
+  ]
+  return box('Reload Wilco?', rows, width, skin, { corner: 'esc' })
 }
 
 function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {

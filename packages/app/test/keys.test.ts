@@ -53,6 +53,7 @@ describe('the window’s own keys', () => {
     expect(normalKey('ctrl++')).toBe('ctrl++')
     expect(appKey('\x07', { ...held, bindings: { orchestrator: 'ctrl+g' } })).toBe('orchestrator')
     expect(appKey('\x1b[101;6u', held)).toBe('extensions')
+    expect(appKey('\x1b[114;6u', held)).toBe('reload')
   })
 })
 

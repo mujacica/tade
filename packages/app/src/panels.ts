@@ -634,6 +634,13 @@ export interface QuitPanel {
   busy: false
 }
 
+/** Reloading, when reloading would stop something. */
+export interface ReloadPanel {
+  kind: 'reload'
+  field: 'cancel' | 'reload'
+  busy: false
+}
+
 export function searchPanel(query = ''): SearchPanel {
   return { kind: 'search', query, index: 0, busy: false }
 }
@@ -685,6 +692,7 @@ export type Panel =
   | FindPanel
   | KeysPanel
   | QuitPanel
+  | ReloadPanel
   | ExtensionsPanel
   | ExtensionSetupPanel
   | ExtensionViewPanel
@@ -999,6 +1007,15 @@ export function panelKey(
       return panel.field === 'cancel' ? close : { panel, submit: true, choice: 'quit' }
     return stay(panel)
   }
+  if (panel.kind === 'reload') {
+    if (key === 'escape') return close
+    if (key === 'tab' || key === 'left' || key === 'right') {
+      return stay({ ...panel, field: panel.field === 'cancel' ? 'reload' : 'cancel' })
+    }
+    if (key === 'enter')
+      return panel.field === 'cancel' ? close : { panel, submit: true, choice: 'reload' }
+    return stay(panel)
+  }
   if (panel.kind === 'spend') return spendKey(panel, key)
   if (panel.kind === 'menu') return menuKey(panel, key, inputs.items ?? [])
   if (panel.kind === 'prompt') return promptKey(panel, key, data)
@@ -1048,6 +1065,11 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
     if (control === 'cancel') return close
     if (control === 'quit') return { panel, submit: true, choice: 'quit' }
     if (control === 'where') return { panel, submit: true, choice: 'where' }
+    return stay(panel)
+  }
+  if (panel.kind === 'reload') {
+    if (control === 'cancel') return close
+    if (control === 'reload') return { panel, submit: true, choice: 'reload' }
     return stay(panel)
   }
   if (panel.kind === 'spend') return spendClick(panel, control)

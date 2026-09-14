@@ -500,6 +500,12 @@ export const KEY_BINDINGS: readonly {
   },
   { key: 'keys_sheet', title: 'Keys', means: 'the sheet of every key', fallback: 'f1' },
   {
+    key: 'reload',
+    title: 'Reload',
+    means: 'restart the window with your changes',
+    fallback: 'ctrl+shift+r',
+  },
+  {
     key: 'approve',
     title: 'Allow',
     means: 'allow what an agent asks, while one waits',

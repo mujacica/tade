@@ -41,6 +41,7 @@ const PRESSED: Record<string, string> = {
   settings: 'settings',
   fill_bottom: 'bottom-max',
   keys_sheet: 'keys',
+  reload: 'reload',
   approve: 'a',
   deny: 'd',
 }
@@ -60,6 +61,7 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = {
   settings: 'ctrl+,',
   fill_bottom: 'ctrl+shift+f',
   keys_sheet: 'f1',
+  reload: 'ctrl+shift+r',
   approve: 'a',
   deny: 'd',
   agent_by_number: 'ctrl',
