@@ -167,6 +167,82 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
   ...over,
 })
 
+/** Times said in UTC, so the screens do not change with the machine's time zone. */
+const utcClock = (at: number) => new Date(at).toISOString().slice(11, 16)
+
+/** A plan under way: two agents working, the rest queued in every way queued work can be. */
+const queueTasks: TaskSnapshot[] = [
+  { task: 'checkout/fix-charge', state: 'failed', reason: 'tests failed twice' },
+  { task: 'checkout/bump-mailer', state: 'working', lane: 'checkout/bump-mailer/agent' },
+  {
+    task: 'checkout/add-refunds',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: {
+        kind: 'held',
+        on: 'checkout/fix-charge',
+        because: 'checkout/fix-charge failed: tests failed twice',
+      },
+      after: [{ task: 'checkout/fix-charge', why: 'both change src/charge.ts' }],
+      prompt: 'Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.',
+      touches: ['src/refunds.ts', 'src/charge.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/docs-typos',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'ready' },
+      after: [],
+      prompt: 'Fix the typos in docs/.',
+      touches: ['docs/'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/refund-emails',
+    state: 'queued',
+    by: 'orchestrator',
+    done: 'said',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/add-refunds', 'checkout/bump-mailer'] },
+      after: [
+        { task: 'checkout/add-refunds', why: 'it emails what refund() returns' },
+        { task: 'checkout/bump-mailer', why: 'the mailer’s send() changes in v4' },
+      ],
+      prompt:
+        'Email the customer when a refund goes through: use the new mailer, and say how much came back and when.',
+      touches: ['src/mail/refund.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/release-notes',
+    state: 'queued',
+    queued: {
+      state: { kind: 'scheduled', at: Date.parse('2026-09-13T18:00:00Z') },
+      after: [],
+      prompt: 'Draft the release notes from what merged today.',
+      touches: [],
+      at: Date.parse('2026-09-13T18:00:00Z'),
+    },
+  },
+  {
+    task: 'checkout/perf-check',
+    state: 'queued',
+    queued: {
+      state: { kind: 'paused', all: false },
+      after: [],
+      prompt: 'Run the benchmarks.',
+      touches: [],
+      at: null,
+    },
+  },
+]
+
 let seq = 0
 const usage = (task: string | null, model: string, tokens: number, usd: number): WilcoEvent => ({
   seq: ++seq,
@@ -399,6 +475,34 @@ export const SCENARIOS: Scenario[] = [
         },
       },
     }),
+  },
+  {
+    name: 'a-smart-queue',
+    about:
+      'Work planned together: two agents working, and under them the SMART QUEUE — held because what it waited on failed, next, waiting on two, at a time, and paused — told apart by shape, with filters over it. The held one is open: it will not start by itself, and says what can be done.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+        'checkout/add-refunds',
+      ),
+      folded: ['changes', 'files', 'notes', 'where'],
+      hover: { kind: 'task', task: 'checkout/refund-emails' },
+    },
+    frame: frame({ screen: '', height: 44, clock: utcClock }),
+  },
+  {
+    name: 'waiting-in-the-queue',
+    about:
+      'Queued work open in front of you: what it waits on and why, what its agent will be told, what it will change, and how it counts as finished.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+        'checkout/refund-emails',
+      ),
+      folded: ['changes', 'files', 'notes', 'where'],
+      queueFilter: 'next',
+    },
+    frame: frame({ screen: '', height: 44, clock: utcClock }),
   },
   {
     name: 'pointing-at-a-note',

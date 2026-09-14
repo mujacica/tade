@@ -874,6 +874,42 @@ describe('the window, wired up', () => {
     )
   }, 60_000)
 
+  it('shows queued work under the agents, opens it, and starts it from its card', async () => {
+    terminal.columns = 120
+    terminal.rows = 60
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'look first, then fix',
+      agents: [
+        { name: 'look-first', said: 'look first', prompt: '', after: [], touches: [] },
+        {
+          name: 'fix-after',
+          said: 'then fix',
+          prompt: 'fix what look-first found',
+          after: [{ agent: 'look-first', why: 'it needs what that finds' }],
+          touches: [],
+        },
+      ],
+    })
+    await until('the queue on screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('SMART QUEUE')),
+    )
+    const tab = find('fix-after')
+    terminal.written = ''
+    click(tab.col + 1, tab.row)
+    await until('its card', () => terminal.written.includes('it needs what that finds'))
+    expect(terminal.written).toContain('fix what look-first found')
+    const button = find('Start now')
+    click(button.col + 2, button.row)
+    await until(
+      'it started',
+      () => client.runs().some((run) => run.task === 'app/fix-after'),
+      10_000,
+    )
+  }, 60_000)
+
   it('holds work whose dependency stopped, tells the orchestrator, and starts it when told to', async () => {
     const told: string[] = []
     const window = await start({

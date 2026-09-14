@@ -1,4 +1,10 @@
-import { type DoneRule, IDLE_REASON, type TaskState, type WilcoEvent } from '@wilco/core'
+import {
+  type DoneRule,
+  IDLE_REASON,
+  type QueueState,
+  type TaskState,
+  type WilcoEvent,
+} from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
 import type { Target } from './hits.ts'
 import type { Panel } from './panels.ts'
@@ -43,7 +49,24 @@ export interface AgentPane {
   done?: DoneRule
   /** Who asked for it, as its task file says. */
   by?: string
+  /** It is queued work: made, and waiting to start. Shown in the SMART QUEUE, not with agents. */
+  queued?: QueuedView | null
 }
+
+/** Queued work, as the window shows it: where it stands, and what it is waiting to do. */
+export interface QueuedView {
+  state: QueueState
+  after: readonly { task: string; why: string }[]
+  prompt: string
+  touches: readonly string[]
+  /** Not before this moment, when it waits for one. */
+  at: number | null
+}
+
+/** Which queued work the SMART QUEUE shows: all of it, what waits on agents, or what waits for a time. */
+export type QueueFilter = 'all' | 'next' | 'timed'
+
+export const QUEUE_FILTERS: readonly QueueFilter[] = ['all', 'next', 'timed']
 
 export interface AppState {
   panes: AgentPane[]
@@ -97,6 +120,8 @@ export interface AppState {
   pressed: Target | null
   /** Sidebar sections folded shut. */
   folded: string[]
+  /** Which queued work the SMART QUEUE shows. */
+  queueFilter: QueueFilter
   /** Folders opened in the FILES tree, relative to the folder it is of. */
   expanded: string[]
   /** How many rows the sidebar is scrolled down. */
@@ -185,6 +210,7 @@ export function initialState(): AppState {
     hover: null,
     pressed: null,
     folded: [...FOLDED_AT_START],
+    queueFilter: 'all',
     expanded: [],
     scroll: 0,
     talkingSince: null,
@@ -221,6 +247,7 @@ export interface TaskSnapshot {
   finished?: { by: string; summary: string } | null
   done?: DoneRule
   by?: string
+  queued?: QueuedView | null
 }
 
 /**
@@ -243,6 +270,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     ...(task.finished ? { finished: task.finished } : {}),
     ...(task.done ? { done: task.done } : {}),
     ...(task.by ? { by: task.by } : {}),
+    ...(task.queued ? { queued: task.queued } : {}),
   }))
   const focused = refocus(state, panes)
   const project =
@@ -285,7 +313,10 @@ export function selectProject(state: AppState, project: string): AppState {
 export function tasksOf(
   state: AppState,
 ): Array<AgentPane & { focused: boolean; dragging: boolean }> {
-  const here = state.panes.filter((pane) => pane.project === (state.project ?? pane.project))
+  // Queued work is not an agent yet: it waits in the SMART QUEUE until it starts.
+  const here = state.panes.filter(
+    (pane) => pane.project === (state.project ?? pane.project) && !pane.queued,
+  )
   const order = state.reordering
     ? { ...state.order, [state.reordering.project]: dragged(state, state.reordering) }
     : state.order
@@ -294,6 +325,54 @@ export function tasksOf(
     focused: pane.task === state.focused,
     dragging: pane.task === state.reordering?.task,
   }))
+}
+
+/** In what order queued work is listed: what needs deciding, then what starts soonest. */
+const QUEUE_RANK: Readonly<Record<QueueState['kind'], number>> = {
+  held: 0,
+  ready: 1,
+  waiting: 2,
+  scheduled: 3,
+  paused: 4,
+}
+
+/** Whether queued work is what a filter shows. */
+export function shownBy(filter: QueueFilter, queued: QueuedView): boolean {
+  if (filter === 'all') return true
+  const timed = queued.at !== null || queued.state.kind === 'scheduled'
+  return filter === 'timed' ? timed : !timed
+}
+
+/**
+ * The queued work in the project in front of you, as the filter shows it:
+ * what needs deciding first, then what starts soonest, then what is paused.
+ */
+export function queueOf(
+  state: AppState,
+): Array<AgentPane & { queued: QueuedView; focused: boolean }> {
+  const here = state.panes.filter(
+    (pane): pane is AgentPane & { queued: QueuedView } =>
+      Boolean(pane.queued) && pane.project === (state.project ?? pane.project),
+  )
+  const at = (pane: { queued: QueuedView }) =>
+    pane.queued.state.kind === 'scheduled' ? pane.queued.state.at : (pane.queued.at ?? 0)
+  return here
+    .map((pane, i) => ({ pane, i }))
+    .filter(({ pane }) => shownBy(state.queueFilter, pane.queued))
+    .sort(
+      (a, b) =>
+        QUEUE_RANK[a.pane.queued.state.kind] - QUEUE_RANK[b.pane.queued.state.kind] ||
+        at(a.pane) - at(b.pane) ||
+        a.i - b.i,
+    )
+    .map(({ pane }) => ({ ...pane, focused: pane.task === state.focused }))
+}
+
+/** How much queued work there is in the project in front of you, whatever the filter. */
+export function queuedCount(state: AppState): number {
+  return state.panes.filter(
+    (pane) => pane.queued && pane.project === (state.project ?? pane.project),
+  ).length
 }
 
 /**
@@ -936,10 +1015,12 @@ type Marked = Pick<AgentPane, 'state' | 'reason'> & {
   waiting?: boolean
   approval?: AgentPane['approval']
   finished?: AgentPane['finished']
+  queued?: AgentPane['queued']
 }
 
 export function markOf(pane: Marked): AgentMark {
-  if (pane.waiting || pane.approval) return 'needs-you'
+  // Held queued work is a decision nobody has made yet, like an approval.
+  if (pane.waiting || pane.approval || pane.queued?.state.kind === 'held') return 'needs-you'
   // Finished is what its rule says, or what someone said: an agent that ended
   // its turn after saying so is done, not idle. Put back to work, it is working.
   if (pane.finished && pane.state !== 'working' && pane.state !== 'parked') return 'done'

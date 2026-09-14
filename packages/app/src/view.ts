@@ -1,4 +1,5 @@
 import { stripTerminalSequences, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
+import { DONE_RULE_MEANS, type QueueState, taskOrigin } from '@wilco/core'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { keyCaps } from './keys.ts'
@@ -16,6 +17,11 @@ import {
   matchActions,
   ORCHESTRATOR_TAB,
   projects,
+  QUEUE_FILTERS,
+  type QueuedView,
+  type QueueFilter,
+  queuedCount,
+  queueOf,
   shownName,
   spinner,
   splitShown,
@@ -189,6 +195,11 @@ export interface Frame {
   /** Text extensions know how to open, made clickable wherever it is shown. */
   linkers?: readonly Linker[]
   now?: number
+  /**
+   * How a moment is said: `18:00`. The machine's own time unless given, which
+   * the screens tests do, so a screen does not change with the time zone.
+   */
+  clock?: (at: number) => string
   /** How to divide the window. Defaults when absent. */
   layout?: LayoutPrefs
   /** How to colour it. Plain unless told otherwise. */
@@ -598,6 +609,9 @@ function renderSidebar(
               width,
             ),
     },
+    // Only while there is work waiting to start: an empty section is a row of
+    // nothing between your agents and what they changed.
+    ...(queuedCount(state) === 0 ? [] : [queueSection(state, frame, width, skin, pointer)]),
     {
       id: 'changes',
       label: 'CHANGES',
@@ -941,6 +955,392 @@ function taskRow(
   }
 }
 
+/** Three glyph buttons at the end of a queued tab — pause, remove, menu — and the room after them. */
+const QUEUE_ICONS = 10
+
+/** How queued work is marked: its shape, its colour, and what the right of its tab says. */
+function queueLook(
+  queued: QueuedView,
+  skin: Skin,
+  frame: Frame,
+): {
+  glyph: string
+  tone: (text: string) => string
+  when: string
+  whenTone: (text: string) => string
+} {
+  switch (queued.state.kind) {
+    case 'held':
+      return { glyph: '!', tone: skin.waiting, when: 'held', whenTone: skin.waiting }
+    case 'ready':
+      return { glyph: '◌', tone: skin.busy, when: 'next', whenTone: skin.busy }
+    case 'waiting':
+      return { glyph: '◌', tone: skin.hint, when: '', whenTone: skin.hint }
+    case 'scheduled':
+      return {
+        glyph: '◷',
+        tone: skin.hint,
+        when: clockOf(frame)(queued.state.at),
+        whenTone: skin.hint,
+      }
+    case 'paused':
+      return { glyph: '‖', tone: skin.faded, when: 'paused', whenTone: skin.faded }
+  }
+}
+
+/** A moment, said the way the frame says moments. */
+function clockOf(frame: Frame): (at: number) => string {
+  return (
+    frame.clock ??
+    ((at) => {
+      const time = new Date(at)
+      return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+    })
+  )
+}
+
+/** A task's name without its project, which the list it is in already says. */
+function inProject(project: string, text: string): string {
+  return text.replaceAll(`${project}/`, '')
+}
+
+/** Who asked for queued work, in a word. */
+function askedBy(by: string | undefined): string {
+  const origin = taskOrigin(by)
+  return origin.kind === 'you' ? 'you' : origin.name
+}
+
+/**
+ * Who asked, as short as the row under a name needs: the marks the
+ * conversation is drawn with — ❯ what you said, ◆ the orchestrator — or an
+ * extension's or a schedule's own name.
+ */
+function askedMark(by: string | undefined): string {
+  const origin = taskOrigin(by)
+  return origin.kind === 'you' ? '❯' : origin.kind === 'orchestrator' ? '◆' : origin.name
+}
+
+/**
+ * Who asked, then what queued work is waiting for, for the row under its name.
+ * Who asked goes first: it is short, and a long reason cut with `…` must not
+ * take it with it.
+ */
+function queueSays(pane: AgentPane & { queued: QueuedView }): string {
+  const mark = askedMark(pane.by)
+  const from = [...mark].length === 1 ? `${mark} ` : `${mark} · `
+  const state = pane.queued.state
+  switch (state.kind) {
+    case 'held':
+      return `${from}${inProject(pane.project, state.because)}`
+    case 'waiting': {
+      const [first, ...rest] = state.on.map((task) => inProject(pane.project, task))
+      return `${from}after ${first ?? ''}${rest.length > 0 ? ` +${rest.length}` : ''}`
+    }
+    case 'ready':
+      return `${from}waiting for room`
+    case 'scheduled':
+      return `${from}waits for its time`
+    case 'paused':
+      return `${from}paused`
+  }
+}
+
+/**
+ * The SMART QUEUE: work made and waiting to start, under the agents that are
+ * working, with a filter over it once there is more than one to filter.
+ */
+function queueSection(
+  state: AppState,
+  frame: Frame,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+): Section {
+  return {
+    id: 'queue',
+    label: 'SMART QUEUE',
+    count: queuedCount(state),
+    banded: true,
+    rows: (row) => {
+      const entries = queueOf(state)
+      const filters = queuedCount(state) > 1 ? [queueFilters(row(), state.queueFilter, skin)] : []
+      if (entries.length === 0) {
+        const none =
+          state.queueFilter === 'timed' ? 'nothing waits for a time' : 'nothing waits on agents'
+        return [
+          ...filters,
+          blank(width),
+          row().space(3).text(none, skin.hint).build(),
+          blank(width),
+        ]
+      }
+      return [
+        ...filters,
+        ...tabList(
+          entries.map((pane) => queueRow(width, skin, pointer, pane, frame)),
+          width,
+        ),
+      ]
+    },
+  }
+}
+
+/** The filters over the SMART QUEUE, as words: the one showing is lit. */
+function queueFilters(row: Row, current: QueueFilter, skin: Skin): { text: string; hits: Hit[] } {
+  row.space(3)
+  QUEUE_FILTERS.forEach((filter, i) => {
+    if (i > 0) row.space(2)
+    row.text(filter, filter === current ? skin.you : skin.tab, {
+      kind: 'action',
+      name: `queue-filter:${filter}`,
+    })
+  })
+  return row.build()
+}
+
+/**
+ * Queued work down the side, as a tab like an agent's: its mark, its name, and
+ * when it starts; under it, what it waits for and who asked. Under the pointer,
+ * pause (or resume), remove and a menu take the place of when.
+ */
+function queueRow(
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  pane: AgentPane & { queued: QueuedView; focused: boolean },
+  frame: Frame,
+): ListItem {
+  const target: Target = { kind: 'task', task: pane.task }
+  const paused = pane.queued.state.kind === 'paused'
+  const toggle: Target = {
+    kind: 'action',
+    name: `queue-${paused ? 'resume' : 'pause'}:${pane.task}`,
+  }
+  const remove: Target = { kind: 'action', name: `queue-remove:${pane.task}` }
+  const menu: Target = { kind: 'task-menu', task: pane.task }
+  const pointed = [target, toggle, remove, menu].some((one) => sameTarget(pointer.hover, one))
+  const band: Band | null = pane.focused ? 'selected' : pointed ? 'hovered' : null
+  const look = queueLook(pane.queued, skin, frame)
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  inner.text(look.glyph, look.tone, target).space()
+  const right = pointed ? QUEUE_ICONS : look.when ? visibleWidth(look.when) + 1 : 0
+  const room = Math.max(1, inner.width - inner.used - right - 1)
+  const nameTone = pane.focused ? skin.you : paused ? skin.faded : (text: string) => text
+  inner.text(shortened(shownName(pane), room), nameTone, target)
+  inner.right((r) => {
+    if (pointed) {
+      r.icon(paused ? '▶' : '‖', toggle)
+        .icon('×', remove, 'danger')
+        .icon('≡', menu)
+        .space()
+    } else if (look.when) {
+      r.text(look.when, look.whenTone, target).space()
+    }
+  })
+  return {
+    rows: [
+      tabbed(width, skin, band, inner.build(), target),
+      secondRow(width, skin, pointer, band, queueSays(pane), target, 3),
+    ],
+    band,
+  }
+}
+
+/** A queued task's state, in a word, for its card. */
+function queueWord(state: QueueState): string {
+  switch (state.kind) {
+    case 'held':
+      return 'held'
+    case 'ready':
+      return 'next'
+    case 'waiting':
+      return 'waiting'
+    case 'scheduled':
+      return 'at a time'
+    case 'paused':
+      return 'paused'
+  }
+}
+
+/** Plain words to a width, broken between words where it can be. */
+function wrapWords(text: string, width: number): string[] {
+  const lines: string[] = []
+  for (const paragraph of text.split('\n')) {
+    let line = ''
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (!line) line = word
+      else if (visibleWidth(`${line} ${word}`) <= width) line = `${line} ${word}`
+      else {
+        lines.push(line)
+        line = word
+      }
+      while (visibleWidth(line) > width) {
+        lines.push(truncateToWidth(line, width, ''))
+        line = line.slice(truncateToWidth(line, width, '').length)
+      }
+    }
+    lines.push(line)
+  }
+  return lines
+}
+
+/**
+ * Queued work in front of you, where an agent's screen would be: where it
+ * stands and what to do about it, what it waits on and why, what its agent
+ * will be told, and how it will count as finished.
+ */
+function renderQueued(
+  state: AppState,
+  frame: Frame,
+  pane: AgentPane & { queued: QueuedView },
+  width: number,
+  height: number,
+  skin: Skin,
+  pointer: Pointer,
+): Drawn {
+  const queued = pane.queued
+  const look = queueLook(queued, skin, frame)
+  const clock = clockOf(frame)
+  const start: Target = { kind: 'action', name: `queue-start:${pane.task}` }
+  const paused = queued.state.kind === 'paused'
+  const toggle: Target = {
+    kind: 'action',
+    name: `queue-${paused ? 'resume' : 'pause'}:${pane.task}`,
+  }
+  const remove: Target = { kind: 'action', name: `queue-remove:${pane.task}` }
+  const controls = (r: Row) => {
+    r.button('Start now', start, 'primary')
+      .space()
+      .button(paused ? '▶ Resume' : '‖ Pause', toggle)
+      .space()
+      .button('×', remove, 'danger')
+      .space()
+  }
+  const probe = new Row(width, skin)
+  controls(probe)
+  const header = new Row(width, skin, pointer).space()
+  const word = `${look.glyph} ${queueWord(queued.state)}`
+  const title = `${pane.project} › ${shownName(pane)}`
+  header
+    .text(shortened(title, Math.max(8, width - probe.used - visibleWidth(word) - 5)), skin.you)
+    .space(2)
+    .text(word, look.tone)
+  header.right(controls)
+
+  const rows: { text: string; hits: Hit[] }[] = [
+    header.build(),
+    { text: skin.chrome('─'.repeat(width)), hits: [] },
+    blank(width),
+  ]
+  const line = (build: (r: Row) => void) => {
+    const r = new Row(width, skin, pointer).space(2)
+    build(r)
+    rows.push(r.build())
+  }
+  const name = (task: string) => inProject(pane.project, task)
+  const said = (text: string) => shortened(text, Math.max(1, width - 6))
+  switch (queued.state.kind) {
+    case 'held': {
+      const because = inProject(pane.project, queued.state.because)
+      line((r) =>
+        r
+          .text('!', skin.waiting)
+          .space()
+          .text(said(`Held: ${because}.`), skin.you),
+      )
+      line((r) => r.space(2).text('It will not start by itself. What should happen?', skin.hint))
+      rows.push(blank(width))
+      line((r) =>
+        r
+          .button(
+            'Wait for a retry',
+            { kind: 'action', name: `queue-wait:${pane.task}` },
+            'attention',
+          )
+          .space()
+          .button('Start anyway', start)
+          .space()
+          .button('Remove', remove, 'danger'),
+      )
+      break
+    }
+    case 'waiting': {
+      const on = queued.state.on.map(name)
+      line((r) =>
+        r
+          .text('◌', skin.hint)
+          .space()
+          .text(said(`Waits on ${on.join(', ')}, then starts by itself.`)),
+      )
+      break
+    }
+    case 'ready':
+      line((r) =>
+        r
+          .text('◌', skin.busy)
+          .space()
+          .text(said(`Starts as soon as ${pane.project} has room for another agent.`)),
+      )
+      break
+    case 'scheduled': {
+      const at = queued.state.at
+      line((r) =>
+        r
+          .text('◷', skin.hint)
+          .space()
+          .text(said(`Starts at ${clock(at)}.`)),
+      )
+      break
+    }
+    case 'paused':
+      line((r) =>
+        r.text('‖', skin.faded).space().text(said('Paused: it starts when you resume it.')),
+      )
+      break
+  }
+
+  if (queued.after.length > 0) {
+    rows.push(blank(width))
+    line((r) => r.text('WAITS ON', skin.label))
+    for (const dep of queued.after) {
+      const other = state.panes.find((one) => one.task === dep.task)
+      line((r) => {
+        r.text(other ? glyph(other, frame.now ?? 0) : '✕', other ? toneOf(other, skin) : skin.bad)
+        r.space().text(name(dep.task)).space(2)
+        // What it waits on may itself be waiting: then that is what it is doing.
+        const now = !other
+          ? 'not there any more'
+          : other.queued
+            ? queueSays({ ...other, queued: other.queued })
+            : doing(other)
+        r.text(said(now), skin.hint)
+      })
+      if (dep.why) line((r) => r.space(2).text(said(dep.why), skin.hint))
+    }
+  }
+
+  if (queued.prompt.trim()) {
+    rows.push(blank(width))
+    line((r) => r.text('WILL BE TOLD', skin.label))
+    const told = wrapWords(queued.prompt.trim(), Math.max(10, width - 6))
+    for (const text of told.slice(0, 6)) line((r) => r.text('│', skin.chrome).space().text(text))
+    if (told.length > 6) line((r) => r.text('│', skin.chrome).space().text('…', skin.hint))
+  }
+
+  rows.push(blank(width))
+  const fact = (label: string, value: string) =>
+    line((r) => r.text(label.padEnd(10), skin.label).space().text(said(value), skin.hint))
+  if (queued.touches.length > 0) fact('TOUCHES', queued.touches.join(', '))
+  fact('FINISHES', DONE_RULE_MEANS[pane.done ?? 'said'])
+  const from = askedBy(pane.by)
+  fact('FROM', from === 'you' ? 'you' : from === 'orchestrator' ? 'the orchestrator' : from)
+
+  const shown = stack(rows.slice(0, height))
+  const filled = [...shown.rows]
+  while (filled.length < height) filled.push(' '.repeat(width))
+  return { rows: filled, hits: shown.hits }
+}
+
 /**
  * A note down the side, as a tab, cut short with `…`: its menu reads it
  * whole. Under the pointer, a forget and a menu, the way an agent has a close.
@@ -1060,6 +1460,17 @@ function renderMain(
 ): Drawn {
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane) return renderWelcome(state, frame, width, height, skin, pointer)
+  if (pane.queued) {
+    return renderQueued(
+      state,
+      frame,
+      { ...pane, queued: pane.queued },
+      width,
+      height,
+      skin,
+      pointer,
+    )
+  }
 
   const shown = laneShown(state, pane)
   // A tab per lane — the agent, and any shell beside it — and + for another.

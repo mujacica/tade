@@ -10,6 +10,7 @@ import {
   type Note,
   type Queued,
   type QueueFacts,
+  queueStateOf,
   ruleMet,
   type SpendReport,
   spendFrom,
@@ -29,7 +30,7 @@ import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { LaneRecord } from '@wilco/workbench/registry'
 import type { PendingApproval } from '@wilco/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
-import type { TaskSnapshot } from './model.ts'
+import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
 import type { Change } from './view.ts'
 
@@ -69,6 +70,7 @@ export function snapshotsFrom(
   pending: readonly PendingApproval[],
   lanes: readonly LaneRecord[],
   finished: ReadonlyMap<string, Finished> = new Map(),
+  queued: ReadonlyMap<string, QueuedView> = new Map(),
 ): TaskSnapshot[] {
   const snapshots: TaskSnapshot[] = []
   for (const project of workspace.projects) {
@@ -85,6 +87,7 @@ export function snapshotsFrom(
         ...(done ? { finished: { by: done.by, summary: done.summary } } : {}),
         ...(task.done ? { done: task.done } : {}),
         ...(task.by ? { by: task.by } : {}),
+        ...(queued.has(task.id) ? { queued: queued.get(task.id) } : {}),
         title: task.title ?? null,
         branch: task.branch,
         lane: lane?.id ?? null,
@@ -633,7 +636,19 @@ export class Live {
           if (ruleMet(rule, facts)) this.met.push({ task: task.id, rule })
         }
       }
-      this.snapshots = snapshotsFrom(workspace, pending, lanes, this.finished)
+      const facts = this.queueFacts()
+      const queued = new Map<string, QueuedView>()
+      for (const item of this.queue) {
+        const at = item.start.at ? Date.parse(item.start.at) : Number.NaN
+        queued.set(item.task, {
+          state: queueStateOf(item, facts),
+          after: item.start.after,
+          prompt: item.start.prompt,
+          touches: item.start.touches,
+          at: Number.isFinite(at) ? at : null,
+        })
+      }
+      this.snapshots = snapshotsFrom(workspace, pending, lanes, this.finished, queued)
       this.opts.onTasks?.(this.snapshots)
     } catch (err) {
       this.opts.onWarning?.(err instanceof Error ? err.message : String(err))

@@ -113,6 +113,7 @@ import {
   parseCommand,
   projectNumber,
   projects,
+  QUEUE_FILTERS,
   removeAttachment,
   resizeTo,
   scrollSidebar,
@@ -187,6 +188,7 @@ import {
   panelKey,
   priceSaid,
   promptPanel,
+  queueMenuItems,
   type SettingsPanel,
   searchPanel,
   settingsPanel,
@@ -868,6 +870,7 @@ export class App {
     switch (subject.kind) {
       case 'task': {
         const pane = this.state.panes.find((p) => p.task === subject.task)
+        if (pane?.queued) return queueMenuItems(pane.queued)
         return pane ? menuItems(pane, this.live?.changes(subject.task).length ?? 0) : []
       }
       case 'file': {
@@ -1737,6 +1740,17 @@ export class App {
     }
     if (action.startsWith('close-task:')) {
       await this.closeAgent(action.slice('close-task:'.length))
+      return
+    }
+    if (action.startsWith('queue-filter:')) {
+      const filter = QUEUE_FILTERS.find((one) => one === action.slice('queue-filter:'.length))
+      if (filter) this.state = { ...this.state, queueFilter: filter, scroll: this.state.scroll }
+      this.draw()
+      return
+    }
+    const queued = /^queue-(start|pause|resume|wait|remove):(.+)$/.exec(action)
+    if (queued?.[1] && queued[2]) {
+      await this.changeQueue(queued[2], queued[1])
       return
     }
     if (action.startsWith('thinking:')) {
@@ -3109,9 +3123,28 @@ export class App {
     this.state = notice({ ...this.state, panel: null }, `discarded ${path}`)
   }
 
+  /**
+   * A choice about queued work made in the window: written down as yours, and
+   * acted on at once rather than at the next look — pressing Start and waiting
+   * two seconds for anything to happen reads as broken.
+   */
+  private async changeQueue(task: string, change: string): Promise<void> {
+    try {
+      const answer = await this.queueTools().change({ task, change, by: 'you' })
+      this.state = notice(this.state, answer)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
   private async fromTaskMenu(task: string, item: string): Promise<void> {
     const facts = this.live?.factsOf(task)
     const worktree = this.live?.worktreeOf(task)
+    if (item.startsWith('queue-')) {
+      await this.changeQueue(task, item.slice('queue-'.length))
+      return
+    }
     switch (item) {
       case 'open': {
         this.state = focusTask(this.state, task)
@@ -4908,7 +4941,12 @@ export class App {
   queueTools(): {
     advance(): Promise<string[]>
     describe(): Promise<string>
-    change(req: { task?: string; project?: string; change: string }): Promise<string>
+    change(req: {
+      task?: string
+      project?: string
+      change: string
+      by?: 'you' | 'orchestrator'
+    }): Promise<string>
     plan(plan: Plan): Promise<string>
   } {
     return {
@@ -4947,7 +4985,7 @@ export class App {
           ...(req.task ? { task: req.task } : {}),
           ...(req.project ? { project: req.project } : {}),
           change,
-          by: 'orchestrator',
+          by: req.by ?? 'orchestrator',
         })
         await this.live?.refresh()
         const started = await this.advanceQueue()

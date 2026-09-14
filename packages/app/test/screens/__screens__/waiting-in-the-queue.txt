@@ -1,0 +1,44 @@
+ WILCO  ▐ checkout ▌ ▐  +  ▌                 ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › refund-emails  ◌ waiting                     ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+   ✕ fix-charge               │                                                                                         
+     tests failed twice       │  ◌ Waits on add-refunds, bump-mailer, then starts by itself.                            
+                              │                                                                                         
+   ⠋ bump-mailer              │  WAITS ON                                                                               
+     working                  │  ! add-refunds  ◆ fix-charge failed: tests failed twice                                 
+                              │    it emails what refund() returns                                                      
+ ▾ SMART QUEUE  5             │  ⠋ bump-mailer  working                                                                 
+   all  next  timed           │    the mailer’s send() changes in v4                                                    
+                              │                                                                                         
+   ! add-refunds       held   │  WILL BE TOLD                                                                           
+     ◆ fix-charge failed: …   │  │ Email the customer when a refund goes through: use the new mailer, and say how much  
+                              │  │ came back and when.                                                                  
+   ◌ docs-typos        next   │                                                                                         
+     ◆ waiting for room       │  TOUCHES    src/mail/refund.ts                                                          
+                              │  FINISHES   when its agent says it has finished — the usual choice                      
+ ▐ ◌ refund-emails          ▌ │  FROM       the orchestrator                                                            
+ ▐   ◆ after add-refunds +1 ▌ │                                                                                         
+                              │                                                                                         
+   ‖ perf-check      paused   │                                                                                         
+     ❯ paused                 │                                                                                         
+                              │                                                                                         
+ ▸ CHANGES  3         vs main │                                                                                         
+ ▸ FILES                      │                                                                                         
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
+ ▸ GIT                        │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+                              │                                                                                         
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

@@ -21,6 +21,9 @@ git owns the work, and status is always read from them, so closing Wilco loses n
   when they commit, and `agents.instructions` is anything else every agent should be told.
 - **An orchestrator you talk to**: hold `ctrl+space` or type. It starts, steers and stops agents,
   runs commands in terminals, and shows its work as it goes.
+- **A smart queue**: ask for several changes at once and the orchestrator plans them — what can run
+  together starts, and the rest waits in the SMART QUEUE and starts by itself when what it waits on
+  has finished.
 - **One window**: agents, files, changes, git, notes, terminals, search (`ctrl+k`), a file viewer.
 - **Extensions**: dependencies and Sentry built in, with your own beside them.
 - **The brief**: what is stopped, what is moving, and what extensions found — `wilco brief`, or

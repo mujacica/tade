@@ -21,6 +21,9 @@ import {
   parseCommand,
   projectNumber,
   projects,
+  type QueuedView,
+  queuedCount,
+  queueOf,
   removeAttachment,
   resizeTo,
   searchKey,
@@ -215,6 +218,55 @@ describe('what the window shows', () => {
   it('says what is waiting, and whether it is listening', () => {
     expect(headline(state())).toBe('1 waiting')
     expect(headline(setListening(state(), true))).toBe('⏺ listening · 1 waiting')
+  })
+})
+
+describe('the smart queue', () => {
+  const queued = (
+    task: string,
+    state: QueuedView['state'],
+    at: number | null = null,
+  ): TaskSnapshot => ({
+    task,
+    state: 'queued',
+    queued: { state, after: [], prompt: '', touches: [], at },
+  })
+  const plan: TaskSnapshot[] = [
+    { task: 'app/working', state: 'working' },
+    queued('app/later', { kind: 'scheduled', at: 2_000 }, 2_000),
+    queued('app/soon', { kind: 'scheduled', at: 1_000 }, 1_000),
+    queued('app/stopped', { kind: 'paused', all: false }),
+    queued('app/after', { kind: 'waiting', on: ['app/working'] }),
+    queued('app/stuck', { kind: 'held', on: 'app/working', because: 'app/working failed' }),
+    queued('app/next', { kind: 'ready' }),
+  ]
+
+  it('is apart from the agents: what needs deciding first, then what starts soonest', () => {
+    const state = withTasks(initialState(), plan)
+    expect(tasksOf(state).map((task) => task.name)).toEqual(['working'])
+    expect(queueOf(state).map((task) => task.name)).toEqual([
+      'stuck',
+      'next',
+      'after',
+      'soon',
+      'later',
+      'stopped',
+    ])
+    expect(queuedCount(state)).toBe(6)
+    // Held is a decision nobody has made: it counts as waiting on you.
+    expect(markOf(state.panes.find((pane) => pane.task === 'app/stuck') ?? plan[0]!)).toBe(
+      'needs-you',
+    )
+  })
+
+  it('shows what waits on agents, or what waits for a time', () => {
+    const state = withTasks(initialState(), plan)
+    const shown = (queueFilter: AppState['queueFilter']) =>
+      queueOf({ ...state, queueFilter }).map((task) => task.name)
+    expect(shown('timed')).toEqual(['soon', 'later'])
+    expect(shown('next')).toEqual(['stuck', 'next', 'after', 'stopped'])
+    // Filtered away is not gone: the count is still all of it.
+    expect(queuedCount({ ...state, queueFilter: 'timed' })).toBe(6)
   })
 })
 

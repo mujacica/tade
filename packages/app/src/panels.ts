@@ -999,6 +999,23 @@ export function menuItems(
   ]
 }
 
+/** Queued work's menu: start it, pause or resume it, wait past what held it, or remove it. */
+export function queueMenuItems(queued: { state: { kind: string } }): MenuItem[] {
+  const paused = queued.state.kind === 'paused'
+  const held = queued.state.kind === 'held'
+  return [
+    { id: 'open', label: 'Open', note: 'enter' },
+    { id: 'queue-start', label: 'Start now' },
+    paused ? { id: 'queue-resume', label: 'Resume' } : { id: 'queue-pause', label: 'Pause' },
+    {
+      id: 'queue-wait',
+      label: 'Wait for a retry',
+      ...(held ? {} : { off: 'not held' }),
+    },
+    { id: 'queue-remove', label: 'Remove', danger: true, divider: true },
+  ]
+}
+
 export function confirmRemovePanel(task: string): ConfirmRemovePanel {
   // Keep is where the keyboard starts: enter on a question like this should
   // be the answer that loses nothing.
