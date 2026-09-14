@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
-                       ╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
- ▾ CHANGES  3         v│ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
-  M package.json       │                                                                        │                       
-  A src/webhooks.test.t│ by ▐ Agent ▌  Project    Model                                         │                       
-  M src/webhooks.ts    │                                                                        │                       
-                       │ WHO                 MODEL            TOKENS  SHARE           COST      │                       
- ▾ FILES               │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
-   ▾ src/              │ ● stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
-       webhooks.test.ts│ ○ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
-       webhooks.ts     │ ◆ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
-   ▸ test/             │                                                                        │                       
-     package.json      │ BUDGETS                                                                │                       
-     README.md         │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
-                       │ search     $0.20                    no budget — set one                │                       
- ▸ NOTES  4           ▐│                                                                        │                       
- ▾ GIT                 │ Prices as pi reports them.                                             │                       
-   repo     ~/src/check╰────────────────────────────────────────────────────────────────────────╯                       
-   branch   …lco/stripe-v15   │                                                                                         
+                                                                                                                        
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds        $0.62╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
+                       │ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
+ ▾ CHANGES  3         v│                                                                        │                       
+  M package.json       │ by ▐ Agent ▌  Project    Model                                         │                       
+  A src/webhooks.test.t│                                                                        │                       
+  M src/webhooks.ts    │ WHO                 MODEL            TOKENS  SHARE           COST      │                       
+                       │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
+ ▾ FILES               │ ● stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
+   ▾ src/              │ ○ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
+       webhooks.test.ts│ ◆ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
+       webhooks.ts     │                                                                        │                       
+   ▸ test/             │ BUDGETS                                                                │                       
+     package.json      │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
+     README.md         │ search     $0.20                    no budget — set one                │                       
+                       │                                                                        │                       
+ ▸ NOTES  4           ▐│ Prices as pi reports them.                                             │                       
+ ▾ GIT                 ╰────────────────────────────────────────────────────────────────────────╯                       
+   repo     ~/src/checkout    │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

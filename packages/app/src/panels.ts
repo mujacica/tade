@@ -54,6 +54,10 @@ export type MenuSubject =
   | { kind: 'terminal'; id: string }
   /** Pictures dropped or pasted on the window, waiting to be given to someone. */
   | { kind: 'images'; paths: string[] }
+  /** Which harness an agent runs in. */
+  | { kind: 'harness'; task: string; current: string }
+  /** A shell beside an agent, in its pane. */
+  | { kind: 'lane'; task: string; lane: string; name: string }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -178,6 +182,7 @@ export interface PromptPanel {
     | 'new-branch'
     | 'rename-branch'
     | 'rename-terminal'
+    | 'rename-lane'
     | 'run-command'
     | 'rename-agent'
   /** The terminal or agent it is about, for renaming one or running a command in it. */
@@ -208,12 +213,29 @@ export function findPanel(terminal: string, query = '', index = 0): FindPanel {
 }
 
 /** What can be done with a terminal, from its tab. */
-export function terminalMenuItems(): MenuItem[] {
+export function terminalMenuItems(split = false): MenuItem[] {
   return [
     { id: 'run', label: 'Run a command…' },
     { id: 'find', label: 'Find…' },
     { id: 'rename', label: 'Rename…' },
     { id: 'clear', label: 'Clear' },
+    split
+      ? { id: 'unsplit', label: 'Unsplit', divider: true }
+      : { id: 'split-beside', label: 'Split: a new terminal beside', divider: true },
+    ...(split ? [] : [{ id: 'split-below', label: 'Split: a new terminal below' }]),
+    { id: 'close', label: 'Close', danger: true, divider: true },
+  ]
+}
+
+/** What can be done with a shell beside an agent. */
+export function laneMenuItems(split: boolean, agentRunning = true): MenuItem[] {
+  const off = agentRunning ? {} : { off: 'its agent is not running' }
+  return [
+    { id: 'rename', label: 'Rename…' },
+    split
+      ? { id: 'unsplit', label: 'Unsplit', divider: true }
+      : { id: 'split-beside', label: 'Show beside the agent', divider: true, ...off },
+    ...(split ? [] : [{ id: 'split-below', label: 'Show below the agent', ...off }]),
     { id: 'close', label: 'Close', danger: true, divider: true },
   ]
 }
@@ -762,6 +784,19 @@ export function usesDropdown(setting: Setting): boolean {
 /** A write for the app to carry out: path and value, unset when empty. */
 export function writeOf(path: string, value: string): string {
   return `write:${path}\u0000${value}`
+}
+
+/** The harnesses an agent could run in: the one it is on marked, the ones not yet runnable said so. */
+export function harnessMenuItems(
+  choices: readonly { id: string; title: string; about: string; ready: boolean }[],
+  current: string,
+): MenuItem[] {
+  return choices.map((choice) => ({
+    id: choice.id,
+    label: `${choice.id === current ? '● ' : '  '}${choice.title}`,
+    note: choice.id === current ? 'now' : choice.ready ? '' : 'soon',
+    ...(choice.ready ? {} : { off: choice.about }),
+  }))
 }
 
 export function menuPanel(

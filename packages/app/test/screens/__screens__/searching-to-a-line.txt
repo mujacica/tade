@@ -1,16 +1,17 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
- ▾ AGENTS │ ⌕ hooks.ts:42▏                                                                                   │░░░░░ 41% 
-▌● stripe-│     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
- ○ refunds│                                                                                                  │          
-          │ FILES  4                                                                                         │          
- ▾ CHANGES│▌ □ src/webhooks.ts  checkout                                                             line 42 │          
-  M packag│  □ src/webhooks.ts  checkout › stripe-v15                                                line 42 │          
-  A src/we│  □ src/webhooks.test.ts  checkout                                                        line 42 │          
-  M src/we│  □ src/webhooks.test.ts  checkout › stripe-v15                                           line 42 │          
-          │ IN FILES  2                                                                                      │          
- ▾ FILES  │  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventAs│          
-   ▾ src/ │  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                       │          
+          │ ⌕ hooks.ts:42▏                                                                                   │          
+ ▾ AGENTS │     @ agents     # in files     > actions                                 file:42 goes to a line │pus-5 ▾ ▌ 
+▌● stripe-│                                                                                                  │──────────
+ ○ refunds│ FILES  4                                                                                         │          
+          │▌ □ src/webhooks.ts  checkout                                                             line 42 │          
+ ▾ CHANGES│  □ src/webhooks.ts  checkout › stripe-v15                                                line 42 │          
+  M packag│  □ src/webhooks.test.ts  checkout                                                        line 42 │          
+  A src/we│  □ src/webhooks.test.ts  checkout › stripe-v15                                           line 42 │          
+  M src/we│ IN FILES  2                                                                                      │          
+          │  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventAs│          
+ ▾ FILES  │  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                       │          
+   ▾ src/ │                                                                                                  │          
        web│                                                                                                  │          
        web│                                                                                                  │          
    ▸ test/│                                                                                                  │          
@@ -20,7 +21,6 @@
  ▸ NOTES  │                                                                                                  │          
  ▾ GIT    │                                                                                                  │          
    repo   │                                                                                                  │          
-   branch │                                                                                                  │          
 ━ ▐ orches│                                                                                                  │ ▌ ▐ ▾ ▌ ━
           │                                                                                                  │          
           │                                                                                                  │          
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

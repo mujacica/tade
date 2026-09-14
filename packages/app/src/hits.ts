@@ -21,11 +21,13 @@ export type Target =
   /** A tab of the bottom panel: `orchestrator`, or a terminal's lane id. */
   | { kind: 'bottom-tab'; tab: string }
   /** A terminal's screen: clicking it gives it the keyboard. */
-  | { kind: 'terminal' }
+  /** The terminal in front; `split` for the one beside or below it. */
+  | { kind: 'terminal'; side?: 'split' }
   /** The agent's screen: clicking it gives the keyboard back to the agent. */
-  | { kind: 'pane' }
+  /** An agent's pane; `split` for the lane shown beside or below the main one. */
+  | { kind: 'pane'; side?: 'split' }
   /** A line between regions that can be dragged to resize them. */
-  | { kind: 'divider'; edge: 'sidebar' | 'bottom' }
+  | { kind: 'divider'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
   /** The branch under GIT: clicking it is its menu. */
   | { kind: 'branch' }
   /** A ≡ that opens something's menu. */

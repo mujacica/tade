@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell  ▐ ▾ ▌▐ × ▌ ▐ + ▌  ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
 ▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds        $0.62       │                                                                                         
-                              │                                                                                         
- ▾ CHANGES  3         vs main │                                                                                         
-  M package.json        ╭─ New note ───────────────────────────────────────────────────── esc ─╮                        
-  A src/webhooks.test.ts│                                                                      │                        
-  M src/webhooks.ts    +│ NOTE ABOUT CHECKOUT                                                  │                        
-                        │  The staging key rotates on the 1st▏                                 │                        
- ▾ FILES                │                                                                      │                        
-   ▾ src/               │ ◉ About checkout   ○ About everything                                │                        
-       webhooks.test.ts │ Kept word for word. Saying "remember …" to Wilco does the same.      │                        
-       webhooks.ts      │                                                                      │                        
-   ▸ test/              │                                           ▐ Cancel ▌ ▐ Save note ⏎ ▌ │                        
-     package.json       ╰──────────────────────────────────────────────────────────────────────╯                        
+ ○ refunds        $0.62       │                                            │ shell  typing here       ▐ ⇄ ▌ ▐ ⇅ ▌ ▐ × ▌ 
+                              │                                            │~/src/checkout (wilco/stripe-v15) $ git diff
+ ▾ CHANGES  3         vs main │                                            │ src/webhooks.ts | 16 ++++++++++------      
+  M package.json        +2 −1 │                                            │ 1 file changed, 12 insertions(+), 4 deletio
+  A src/webhooks.test.ts  +48 │                                            │~/src/checkout (wilco/stripe-v15) $         
+  M src/webhooks.ts    +12 −4 │                                            │                                            
+                              │                                            │                                            
+ ▾ FILES                      │                                            │                                            
+   ▾ src/                     │                                            │                                            
+       webhooks.test.ts       │                                            │                                            
+       webhooks.ts            │                                            │                                            
+   ▸ test/                    │                                            │                                            
+     package.json             │  ● Upgrading stripe to v15. The webhook sig│                                            
      README.md                │  ╭─ wants approval ─────────────────────────────────────────────╮                       
                               │  │ bash  npm i stripe@15                                        │                       
  ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
  ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
-   repo     ~/src/checkout    │                                                                                         
+   repo     ~/src/checkout    │  ▸ bash npm i stripe@15                    │                                            
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

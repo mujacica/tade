@@ -1,8 +1,9 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                                                                                                                        
  ▾ AGENTS  2          ▐  +  ▌ │                                                                                         
- ● stripe-v15         $1.26   │   Nothing is running in checkout.                                                       
- ○ refunds            $0.62   │                                                                                         
+ ● stripe-v15     $1.26       │   Nothing is running in checkout.                                                       
+ ○ refunds        $0.62       │                                                                                         
                               │   ▐ + New agent ▌ ▐ Open project ▌                                                      
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
@@ -20,7 +21,6 @@
  ▸ NOTES  4           ▐  +  ▌ │                                                                                         
  ▾ GIT                        │                                                                                         
    repo     ~/src/checkout    │                                                                                         
-   branch   …lco/stripe-v15   │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
 ───────────────────────────────────────────────────────────────  enter sends · shift+enter new line · ↑ ctrl+r history ─
  what is going on with checkout▏                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

@@ -37,6 +37,10 @@ export type Look =
   | 'extend-hover'
   | 'configure'
   | 'configure-hover'
+  | 'sound'
+  | 'sound-hover'
+  | 'sound-off'
+  | 'sound-off-hover'
 
 export interface Skin {
   readonly colour: boolean
@@ -130,6 +134,10 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   'extend-hover': [91, 231, false],
   configure: [58, 229, false],
   'configure-hover': [100, 231, false],
+  sound: [236, 250, false],
+  'sound-hover': [239, 231, false],
+  'sound-off': [88, 224, true],
+  'sound-off-hover': [124, 231, true],
 }
 
 const identity = (text: string) => text

@@ -360,6 +360,14 @@ async function updateTaskFile(
   await writeFile(path, stringify(file))
 }
 
+/** Say which harness a task's agent runs in; empty goes back to the route's. */
+export async function setTaskHarness(worktree: string, id: string, harness: string): Promise<void> {
+  await updateTaskFile(taskFilePath(worktree, id), (file) => {
+    if (harness) file.harness = harness
+    else delete file.harness
+  })
+}
+
 export interface ParkResult {
   task: string
   parked: boolean

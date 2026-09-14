@@ -1,12 +1,13 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮░░░░░ 41% 
-▌● stripe-│ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │──────────
- ○ refunds│                                                                                                  │          
-          │ RECENT                       │ ◆ this folder   no git                                            │          
- ▾ CHANGES│ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
-  M packag│ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
-  A src/we│                              │ ▸ search/       git · main                                     ›  │          
+          ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮          
+ ▾ AGENTS │ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │pus-5 ▾ ▌ 
+▌● stripe-│                                                                                                  │──────────
+ ○ refunds│ RECENT                       │ ◆ this folder   no git                                            │          
+          │ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
+ ▾ CHANGES│ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
+  M packag│                              │ ▸ search/       git · main                                     ›  │          
+  A src/we│                              │                                                                   │          
   M src/we│                              │                                                                   │          
           │                              │                                                                   │          
  ▾ FILES  │                              │                                                                   │          
@@ -18,9 +19,8 @@
      READM│                              │                                                                   │          
           │                              │                                                                   │          
  ▸ NOTES  │                              │                                                                   │          
- ▾ GIT    │                              │                                                                   │          
-   repo   │                                                                                                  │          
-   branch │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
+ ▾ GIT    │                                                                                                  │          
+   repo   │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
 ━ ▐ orches│   so Wilco needs one before it can start work there.                                             │ ▌ ▐ ▾ ▌ ━
           │   ■ git init, and commit what's there as the first commit                                        │          
           │                                                                                                  │          
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

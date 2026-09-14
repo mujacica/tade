@@ -36,6 +36,7 @@ const PRESSED: Record<string, string> = {
   new_agent: 'new-agent',
   new_terminal: 'new-terminal',
   open_project: 'open-project',
+  mute: 'mute',
   extensions: 'extensions',
   settings: 'settings',
   fill_bottom: 'bottom-max',
@@ -49,17 +50,36 @@ export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = {
   search: 'ctrl+k',
   next_agent: 'tab',
   previous_agent: 'shift+tab',
-  orchestrator: 'alt+o',
-  next_waiting: 'alt+w',
-  new_agent: 'alt+a',
-  new_terminal: 'alt+t',
-  open_project: 'alt+r',
-  extensions: 'alt+e',
-  settings: 'alt+s',
-  fill_bottom: 'alt+m',
+  orchestrator: 'ctrl+/',
+  next_waiting: 'ctrl+q',
+  new_agent: 'ctrl+n',
+  new_terminal: 'ctrl+t',
+  open_project: 'ctrl+o',
+  mute: 'ctrl+m',
+  extensions: 'ctrl+shift+e',
+  settings: 'ctrl+,',
+  fill_bottom: 'ctrl+shift+f',
   keys_sheet: 'f1',
   approve: 'a',
   deny: 'd',
+  agent_by_number: 'ctrl',
+  project_by_number: 'ctrl+shift',
+}
+
+const MODIFIER_ORDER = ['ctrl', 'alt', 'shift', 'super']
+
+/**
+ * A key name with its modifiers in one order, so `ctrl+shift+1`, as you would
+ * write it, and `shift+ctrl+1`, as the terminal reports it, are the same key.
+ */
+export function normalKey(name: string): string {
+  const parts = name.trim().toLowerCase().split('+')
+  // A key that is itself a plus: `ctrl++`.
+  const key = name.endsWith('++') ? '+' : (parts.pop() ?? '')
+  const mods = parts
+    .filter((part) => part !== '')
+    .sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
+  return [...new Set(mods), key].join('+')
 }
 
 /**
@@ -87,10 +107,26 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   // Search. Cmd+K arrives as super+k only where the terminal reports the Cmd
   // key at all; Terminal.app and most others keep Cmd for themselves.
   if (key === 'super+k') return 'search'
+  const pressed = normalKey(key)
   const bindings = { ...DEFAULT_BINDINGS, ...ctx.bindings }
+  // A number held with its modifiers: that agent, or that project.
+  const number = /^(.*)\+([1-9])$/.exec(pressed)
+  if (number) {
+    if (
+      bindings.agent_by_number !== 'off' &&
+      number[1] === normalKey(`${bindings.agent_by_number}+x`).slice(0, -2)
+    )
+      return `agent-${number[2]}`
+    if (
+      bindings.project_by_number !== 'off' &&
+      number[1] === normalKey(`${bindings.project_by_number}+x`).slice(0, -2)
+    )
+      return `project-${number[2]}`
+  }
   for (const [what, bound] of Object.entries(bindings)) {
+    const meaning = PRESSED[what]
     // Letters are only ever claimed while they mean something, which the model knows.
-    if (bound.toLowerCase() === key) return PRESSED[what] ?? null
+    if (meaning && normalKey(bound) === pressed) return meaning
   }
   return null
 }

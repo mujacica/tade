@@ -25,6 +25,7 @@ import {
   DEFAULT_ATTENTION,
   describeWork,
   expandHome,
+  HARNESS_CHOICES,
   type LaneId,
   loadConfig,
   needsReflection,
@@ -72,6 +73,7 @@ import {
   addTurn,
   conversing,
   focusBy,
+  focusNumber,
   focusTask,
   glyph,
   initialState,
@@ -84,6 +86,7 @@ import {
   ORCHESTRATOR_TAB,
   onEvent,
   parseCommand,
+  projectNumber,
   projects,
   resizeTo,
   scrollSidebar,
@@ -97,9 +100,17 @@ import {
   shownName,
   showOrchestrator,
   showTerminal,
+  splitPane,
+  splitRatio,
+  splitShown,
   startHistorySearch,
+  swapSplit,
+  terminalSplitShown,
   toggleFolder,
   toggleSection,
+  turnSplit,
+  typingLane,
+  unsplitPane,
   viewLane,
   whichProject,
   withProjects,
@@ -127,7 +138,9 @@ import {
   fileMenuItems,
   filePanel,
   findPanel,
+  harnessMenuItems,
   imageMenuItems,
+  laneMenuItems,
   type MenuSubject,
   type ModelPanel,
   menuItems,
@@ -227,7 +240,7 @@ export type PointerEvent =
   | { kind: 'click'; target: Target; button: 'left' | 'right'; x: number; y: number }
   | { kind: 'wheel'; area: ScrollArea; rows: number }
   /** A divider taken hold of, dragged to a cell, and let go. */
-  | { kind: 'grab'; edge: 'sidebar' | 'bottom' }
+  | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
   | { kind: 'drag'; x: number; y: number }
 
 class Window implements Component {
@@ -443,6 +456,9 @@ export class App {
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
+  /** The second half of a split pane, and of a split bottom panel, as last captured. */
+  private splitScreen = ''
+  private splitTerminalScreen = ''
   /** What you said to Wilco, oldest first. */
   private history: string[] = []
   /** pi's own editor, for the orchestrator's line. */
@@ -713,7 +729,14 @@ export class App {
         return branchMenuItems({ agent: focused !== undefined, name: branch })
       }
       case 'terminal':
-        return terminalMenuItems()
+        return terminalMenuItems(terminalSplitShown(this.state) !== null)
+      case 'harness':
+        return harnessMenuItems(HARNESS_CHOICES, subject.current)
+      case 'lane':
+        return laneMenuItems(
+          this.state.splits[subject.task]?.lane === subject.lane,
+          this.state.panes.find((one) => one.task === subject.task)?.lane != null,
+        )
       case 'images':
         return imageMenuItems({
           agents: this.state.panes
@@ -840,7 +863,10 @@ export class App {
   private muteable(speaker: Speaker): Speaker {
     return new Proxy(speaker, {
       get: (target, name, receiver) => {
-        if (name === 'speak' && !this.opts.config.surfaces.voice.speak) return async () => {}
+        const voice = this.opts.config.surfaces.voice
+        // Muted is silence: not a word, not a sound.
+        if ((name === 'speak' || name === 'earcon') && voice.muted) return async () => {}
+        if (name === 'speak' && !voice.speak) return async () => {}
         const value = Reflect.get(target, name, receiver)
         return typeof value === 'function' ? value.bind(target) : value
       },
@@ -925,7 +951,12 @@ export class App {
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
       orchestratorAccount: this.thinkerAccount(),
+      splitScreen: this.splitScreen,
+      splitTerminal: this.state.terminalSplit
+        ? { screen: this.splitTerminalScreen, find: null }
+        : undefined,
       bindings: this.opts.config.surfaces.window.keys,
+      muted: this.opts.config.surfaces.voice.muted,
       ...this.inputFor(width),
       statuses: this.statuses,
       now: this.now(),
@@ -974,6 +1005,10 @@ export class App {
         return true
       case 'drag':
         if (!this.state.resizing) return false
+        if (this.state.resizing === 'split' || this.state.resizing === 'terminal-split') {
+          this.state = this.dragSplit(this.state.resizing, event)
+          return true
+        }
         this.state = resizeTo(this.state, event, { height: Math.max(6, this.terminal.rows) })
         return true
       case 'move': {
@@ -1236,6 +1271,24 @@ export class App {
       case 'run':
         void this.run(action.action)
         return { consume: true }
+      case 'complete': {
+        // Tab on a command being typed finishes it, as a shell would.
+        const [best] = matchActions(this.state, this.state.dictation ?? '')
+        if (best) {
+          this.editor.setText(`${best.name} `)
+          this.state = setDictation(this.state, `${best.name} `)
+          this.draw()
+        }
+        return { consume: true }
+      }
+      case 'agent-number':
+        this.state = focusNumber(this.state, action.n)
+        this.draw()
+        return { consume: true }
+      case 'project-number':
+        this.state = projectNumber(this.state, action.n)
+        this.draw()
+        return { consume: true }
       case 'quit':
         this.quit()
         return { consume: true }
@@ -1247,7 +1300,9 @@ export class App {
     const terminal = activeTerminal(this.state)
     if (terminal && this.state.keyboard === 'terminal' && this.state.dictation === null) {
       this.state = { ...this.state, terminalScroll: 0 }
-      void this.opts.client.write(terminal.id as LaneId, data).catch(() => {})
+      const split = terminalSplitShown(this.state)
+      const into = split && this.state.splitFocus ? split.lane : terminal.id
+      void this.opts.client.write(into as LaneId, data).catch(() => {})
       this.soonTick()
       return { consume: true }
     }
@@ -1312,9 +1367,15 @@ export class App {
         if (pane && !pane.lane && pane.state !== 'parked') void this.openAgent()
         break
       }
-      case 'lane':
-        this.state = viewLane(this.state, target.task, target.lane)
+      case 'lane': {
+        // The tab of the half beside it gives that half the keyboard; any other shows it in front.
+        const split = this.state.splits[target.task]
+        this.state =
+          split?.lane === target.lane
+            ? { ...focusTask(this.state, target.task), keyboard: 'pane', splitFocus: true }
+            : { ...viewLane(this.state, target.task, target.lane), splitFocus: false }
         break
+      }
       case 'task-menu':
         this.openMenu({ kind: 'task', task: target.task }, at)
         return
@@ -1343,11 +1404,21 @@ export class App {
             : showTerminal(this.state, target.tab)
         break
       case 'terminal':
-        // Clicking into a terminal is choosing to type there.
-        this.state = { ...this.state, keyboard: 'terminal', dictation: null }
+        // Clicking into a terminal is choosing to type there — in the half clicked.
+        this.state = {
+          ...this.state,
+          keyboard: 'terminal',
+          dictation: null,
+          splitFocus: target.side === 'split',
+        }
         break
       case 'pane':
-        this.state = { ...this.state, keyboard: 'pane', dictation: null }
+        this.state = {
+          ...this.state,
+          keyboard: 'pane',
+          dictation: null,
+          splitFocus: target.side === 'split',
+        }
         break
       case 'folder':
         this.state = toggleFolder(this.state, target.path)
@@ -1401,6 +1472,64 @@ export class App {
       await this.openModels(action.slice('model:'.length))
       return
     }
+    if (action.startsWith('split:')) {
+      // `split:<task>:swap|turn|close`
+      const verb = action.slice(action.lastIndexOf(':') + 1)
+      const task = action.slice('split:'.length, action.lastIndexOf(':'))
+      this.state =
+        verb === 'swap'
+          ? swapSplit(this.state, task)
+          : verb === 'turn'
+            ? turnSplit(this.state, task)
+            : unsplitPane(this.state, task)
+      this.soonTick()
+      this.draw()
+      return
+    }
+    if (action.startsWith('terminal-split:')) {
+      const verb = action.slice('terminal-split:'.length)
+      const split = this.state.terminalSplit
+      if (split && verb === 'swap' && this.state.bottom !== ORCHESTRATOR_TAB) {
+        this.state = {
+          ...this.state,
+          bottom: split.lane,
+          terminalSplit: { ...split, lane: this.state.bottom },
+          splitFocus: !this.state.splitFocus,
+        }
+      } else if (split && verb === 'turn') {
+        this.state = {
+          ...this.state,
+          terminalSplit: { ...split, direction: split.direction === 'beside' ? 'below' : 'beside' },
+        }
+      } else {
+        this.state = { ...this.state, terminalSplit: null, splitFocus: false }
+      }
+      this.soonTick()
+      this.draw()
+      return
+    }
+    if (action.startsWith('close-lane:')) {
+      const lane = action.slice('close-lane:'.length)
+      await this.opts.client.closeLane(lane as LaneId).catch((err) => {
+        this.state = notice(this.state, why(err))
+      })
+      await this.live?.refresh()
+      this.draw()
+      return
+    }
+    if (action.startsWith('harness:')) {
+      const task = action.slice('harness:'.length)
+      const current = this.harnessShown(task)
+      this.state = {
+        ...this.state,
+        panel: menuPanel({ kind: 'harness', task, current }, 'Harness', {
+          row: 3,
+          col: Math.max(0, this.terminal.columns - 40),
+        }),
+      }
+      this.draw()
+      return
+    }
     if (action.startsWith('ask:')) {
       this.say(action.slice('ask:'.length))
       return
@@ -1423,6 +1552,9 @@ export class App {
         return
       case 'search':
         this.openSearch()
+        return
+      case 'mute':
+        await this.toggleMute()
         return
       case 'keys':
         this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
@@ -2084,7 +2216,11 @@ export class App {
             ? (this.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal')
             : subject.kind === 'images'
               ? imagesTitle(subject.paths)
-              : (subject.path.split('/').at(-1) ?? subject.path)
+              : subject.kind === 'harness'
+                ? 'Harness'
+                : subject.kind === 'lane'
+                  ? subject.name
+                  : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -2107,7 +2243,71 @@ export class App {
         return this.fromTerminalMenu(subject.id, item)
       case 'images':
         return this.giveImages(subject.paths, item)
+      case 'harness':
+        return this.chooseHarness(subject.task, item)
+      case 'lane':
+        return this.fromLaneMenu(subject.task, subject.lane, subject.name, item)
     }
+  }
+
+  /** What a shell's menu does: rename it, show it beside or below the agent, or close it. */
+  private async fromLaneMenu(
+    task: string,
+    lane: string,
+    name: string,
+    item: string,
+  ): Promise<void> {
+    switch (item) {
+      case 'rename':
+        this.state = {
+          ...this.state,
+          panel: { ...promptPanel('rename-lane', 'Rename shell', 'NAME', name), target: lane },
+        }
+        break
+      case 'split-beside':
+      case 'split-below':
+        this.state = splitPane(this.state, task, lane, item === 'split-beside' ? 'beside' : 'below')
+        this.soonTick()
+        break
+      case 'unsplit':
+        this.state = unsplitPane(this.state, task)
+        break
+      case 'close':
+        await this.opts.client.closeLane(lane as LaneId).catch((err) => {
+          this.state = notice(this.state, why(err))
+        })
+        await this.live?.refresh()
+        break
+      default:
+        break
+    }
+    this.draw()
+  }
+
+  /** The harness a task's agent is shown as running in: its route's, until it says. */
+  private harnessShown(task: string): string {
+    return resolveRoute(this.opts.config, { project: task.split('/')[0] ?? '' }).harness
+  }
+
+  /** Run an agent in another harness, starting it again there if it is running. */
+  private async chooseHarness(task: string, harness: string): Promise<void> {
+    const worktree = this.live?.worktreeOf(task)
+    if (!worktree) {
+      this.state = notice(this.state, `I cannot find where ${task} works`)
+      this.draw()
+      return
+    }
+    try {
+      const done = await this.opts.client.setAgentHarness({ task, worktree, harness })
+      this.state = notice(
+        this.state,
+        `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}`,
+      )
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    await this.live?.refresh()
+    this.draw()
   }
 
   /**
@@ -2175,6 +2375,28 @@ export class App {
           ? `${paths.length - readable.length} could not be read: a picture over 20 MB, or not a picture`
           : 'say or type what to do with it',
     }
+    this.draw()
+  }
+
+  /** Mute everything Wilco says and plays, or bring it back; kept for next time. */
+  private async toggleMute(): Promise<void> {
+    const muted = !this.opts.config.surfaces.voice.muted
+    try {
+      writeSetting(this.configPath, 'surfaces.voice.muted', muted ? true : undefined)
+    } catch {
+      // Not writable: muted for this window only.
+    }
+    this.opts.config = {
+      ...this.opts.config,
+      surfaces: {
+        ...this.opts.config.surfaces,
+        voice: { ...this.opts.config.surfaces.voice, muted },
+      },
+    }
+    this.state = notice(
+      this.state,
+      muted ? 'muted: nothing will be said or played' : 'sound back on',
+    )
     this.draw()
   }
 
@@ -2361,6 +2583,28 @@ export class App {
       case 'clear':
         await this.opts.client.write(id as LaneId, 'clear\r').catch(() => {})
         break
+      case 'split-beside':
+      case 'split-below': {
+        // A new terminal, beside or below this one, in the same project.
+        const front = id
+        const opened = await this.openTerminal()
+        const created = this.state.bottom
+        if (opened && created !== front) {
+          this.state = {
+            ...showTerminal(this.state, front),
+            terminalSplit: {
+              lane: created,
+              direction: item === 'split-beside' ? 'beside' : 'below',
+              ratio: 0.5,
+            },
+            splitFocus: true,
+          }
+        }
+        break
+      }
+      case 'unsplit':
+        this.state = { ...this.state, terminalSplit: null, splitFocus: false }
+        break
       case 'close':
         await this.opts.client.closeTerminal(id).catch((err) => {
           this.state = notice(this.state, why(err))
@@ -2411,6 +2655,12 @@ export class App {
           { ...this.state, panel: null },
           `${panel.target} is now called ${title}`,
         )
+        return
+      }
+      if (panel.purpose === 'rename-lane' && panel.target) {
+        await this.opts.client.setTitle(panel.target as LaneId, text)
+        await this.live?.refresh()
+        this.state = notice({ ...this.state, panel: null }, `renamed to ${text}`)
         return
       }
       if (panel.purpose === 'rename-terminal' && panel.target) {
@@ -3143,7 +3393,7 @@ export class App {
     this.router = routed.state
     this.state = setHeld(this.state, pending(this.router))
 
-    const lane = pane ? laneShown(this.state, pane) : null
+    const lane = pane ? typingLane(this.state, pane) : null
     if (routed.toLane !== '' && lane) {
       void this.opts.client.write(lane as LaneId, routed.toLane).catch(() => {})
     }
@@ -3185,9 +3435,20 @@ export class App {
     }
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
     const lane = pane ? laneShown(this.state, pane) : null
-    const size = this.paneSize()
+    const split = pane ? splitShown(this.state, pane) : null
+    const halves = this.halves(this.paneSize(), split)
+    const size = halves.first
     if (lane) await this.fitLane(lane, size)
     this.watch(lane)
+    if (split) {
+      await this.fitLane(split.lane, halves.second)
+      const second =
+        (await this.live?.capture(split.lane, halves.second.rows, this.skin.colour)) ?? ''
+      if (second !== this.splitScreen) {
+        this.splitScreen = second
+        this.draw()
+      }
+    }
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : null)
     const screen = this.scrolledBack(
       await (this.live?.capture(lane, size.rows + this.state.paneScroll, this.skin.colour) ?? ''),
@@ -3246,7 +3507,8 @@ export class App {
     )
     // As the strip lays it out: its tab row, then the conversation, then the
     // input box, which is taller while what is typed wraps.
-    const room = layout.stripHeight - 1
+    // The strip's tabs, and the row of room under them.
+    const room = layout.stripHeight - 2
     const input = Math.min(
       Math.max(3, room - 1),
       this.state.dictation !== null ? this.editor.render(width).length : 3,
@@ -3282,12 +3544,27 @@ export class App {
       this.watch(null, 'terminal')
       return false
     }
-    const size = {
-      cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1),
-      rows: Math.max(1, layout.stripHeight - 1),
-    }
+    const split = terminalSplitShown(this.state)
+    const halves = this.halves(
+      {
+        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1),
+        rows: Math.max(1, layout.stripHeight - 2),
+      },
+      split,
+    )
+    const size = halves.first
     await this.fitLane(terminal.id, size)
     this.watch(terminal.id, 'terminal')
+    let changed = false
+    if (split) {
+      await this.fitLane(split.lane, halves.second)
+      const second =
+        (await this.live?.capture(split.lane, halves.second.rows, this.skin.colour)) ?? ''
+      if (second !== this.splitTerminalScreen) {
+        this.splitTerminalScreen = second
+        changed = true
+      }
+    }
     const screen = this.scrolledBack(
       await (this.live?.capture(
         terminal.id,
@@ -3297,9 +3574,66 @@ export class App {
       size.rows,
       'terminalScroll',
     )
-    if (screen === this.terminalScreen) return false
+    if (screen === this.terminalScreen) return changed
     this.terminalScreen = screen
     return true
+  }
+
+  /**
+   * The sizes of the two halves of a split, as `splitView` lays them out — the
+   * divider, and the second half's bar, taking their row or column.
+   */
+  private halves(
+    whole: { cols: number; rows: number },
+    split: { direction: 'beside' | 'below'; ratio: number } | null,
+  ): { first: { cols: number; rows: number }; second: { cols: number; rows: number } } {
+    if (!split) return { first: whole, second: whole }
+    if (split.direction === 'beside' && whole.cols >= 24) {
+      const first = Math.max(
+        10,
+        Math.min(whole.cols - 11, Math.round((whole.cols - 1) * split.ratio)),
+      )
+      return {
+        first: { cols: first, rows: whole.rows },
+        second: { cols: whole.cols - 1 - first, rows: Math.max(1, whole.rows - 1) },
+      }
+    }
+    const first = Math.max(1, Math.min(whole.rows - 2, Math.round((whole.rows - 1) * split.ratio)))
+    return {
+      first: { cols: whole.cols, rows: first },
+      second: { cols: whole.cols, rows: Math.max(1, whole.rows - 1 - first) },
+    }
+  }
+
+  /** A split's divider dragged to a cell: the first half takes up to there. */
+  private dragSplit(which: 'split' | 'terminal-split', at: { x: number; y: number }): AppState {
+    const layout = resolveLayout(this.layout(), {
+      width: this.terminal.columns,
+      height: Math.max(6, this.terminal.rows),
+    })
+    if (which === 'split') {
+      const task = this.state.focused
+      const split = task ? this.state.splits[task] : undefined
+      if (!task || !split) return this.state
+      // The pane starts after the sidebar and its divider, below the top bar and the pane's header.
+      const ratio =
+        split.direction === 'beside'
+          ? (at.x - layout.sidebarWidth - 1) / Math.max(1, layout.mainWidth - 1)
+          : (at.y - 3 - 2) / Math.max(1, layout.bodyHeight - 2 - 1)
+      return {
+        ...this.state,
+        splits: { ...this.state.splits, [task]: { ...split, ratio: splitRatio(ratio) } },
+      }
+    }
+    const split = this.state.terminalSplit
+    if (!split) return this.state
+    const width = layout.sidebarWidth + layout.mainWidth + 1
+    const top = 3 + layout.bodyHeight + 2
+    const ratio =
+      split.direction === 'beside'
+        ? at.x / Math.max(1, width - 1)
+        : (at.y - top) / Math.max(1, layout.stripHeight - 2 - 1)
+    return { ...this.state, terminalSplit: { ...split, ratio: splitRatio(ratio) } }
   }
 
   /** The scrollback the find box is looking through, and the line it is on. */
@@ -3316,7 +3650,13 @@ export class App {
 
   /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
   async showTerminal(id: string): Promise<void> {
-    if (!this.state.terminals.some((terminal) => terminal.id === id)) await this.live?.refresh()
+    // Just opened, it may take a refresh or two to be listed: it still comes to the front.
+    for (let tries = 0; tries < 10; tries++) {
+      if (this.state.terminals.some((terminal) => terminal.id === id)) break
+      await this.live?.refresh()
+      if (this.state.terminals.some((terminal) => terminal.id === id)) break
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
     this.state = showTerminal(this.state, id)
     this.draw()
   }
@@ -3339,7 +3679,7 @@ export class App {
         ...(name ? { name } : {}),
         ...(cwd ? { cwd } : {}),
         cols: layout.sidebarWidth + layout.mainWidth + 1,
-        rows: Math.max(4, layout.stripHeight - 1),
+        rows: Math.max(4, layout.stripHeight - 2),
       })
       await this.showTerminal(opened.id)
       return opened.name

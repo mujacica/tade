@@ -8,6 +8,7 @@ import {
   composeAgentPrompt,
   type EventFilter,
   expandHome,
+  HARNESS_CHOICES,
   type LaneId,
   loadConfig,
   type Note,
@@ -17,6 +18,7 @@ import {
   type SandboxKind,
   spendFrom,
   startOfToday,
+  type TaskId,
   type Unsubscribe,
   type WilcoEvent,
 } from '@wilco/core'
@@ -28,11 +30,12 @@ import type {
   WorkerHandle,
   WorkerModel,
 } from '@wilco/harnesses-core'
-import { findModel, noUsage, PiAdapter, usableModels, usageOfTask } from '@wilco/harnesses-pi'
+import { findModel, noUsage, usableModels, usageOfTask } from '@wilco/harnesses-pi'
 import { git } from '@wilco/status'
 import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
 import { EventLog } from './events.ts'
+import { HARNESS_ADAPTERS, type LaneHarness } from './harnesses.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
@@ -42,6 +45,7 @@ import {
   type RemoveResult,
   removeTask,
   setParked,
+  setTaskHarness,
   setTitle,
   type TaskWorktree,
   taskContextPath,
@@ -244,12 +248,19 @@ export class Workbench {
           },
         })
       }
+      // One adapter per harness there is; the route's is the default.
+      const harnessOptions = {
+        runDir: join(opts.home, 'runs'),
+        socketDir: runtimeDir(opts.home),
+        approvals: config.approvals.mode,
+      }
+      const adapters = Object.fromEntries(
+        Object.entries(HARNESS_ADAPTERS).map(([id, make]) => [id, make(harnessOptions)]),
+      )
+      const defaultHarness = config.workers.routes[config.workers.default]?.harness ?? 'pi'
       const workers = new WorkerSupervisor({
-        adapter: new PiAdapter({
-          runDir: join(opts.home, 'runs'),
-          socketDir: runtimeDir(opts.home),
-          approvals: config.approvals.mode,
-        }),
+        adapter: adapters[defaultHarness] ?? HARNESS_ADAPTERS.pi!(harnessOptions),
+        adapters,
         log,
         approvals: {
           mode: config.approvals.mode,
@@ -691,13 +702,14 @@ export class Workbench {
       // Two agents in one worktree is two agents editing the same files.
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
+    const harness = req.harness ?? (await this.harnessOf(req.task, req.cwd))
     const extras = withWilco(
       req.extras ??
         this.extensions?.extras({
           project: req.task.split('/')[0] ?? '',
           task: req.task,
           cwd: req.cwd,
-          harness: this.adapterFor().id,
+          harness,
         }),
       await this.agentPrompt(req.task, req.cwd),
     )
@@ -723,9 +735,10 @@ export class Workbench {
       ...req,
       run: lane as RunId,
       model: spec.model,
+      harness,
       ...(extras ? { extras } : {}),
     })
-    const launch = this.adapterFor().launchSpec(spec)
+    const launch = this.adapterFor(harness).launchSpec(spec)
     try {
       return await this.registry.spawn({
         id: lane,
@@ -790,13 +803,74 @@ export class Workbench {
     })
   }
 
-  /** The harness that runs workers. One place, so a route could pick another. */
-  private adapterFor(): PiAdapter {
-    return new PiAdapter({
+  /** A harness's adapter, from the registry: the route's harness unless one is named. */
+  private adapterFor(harness?: string): LaneHarness {
+    const id = harness ?? this.config.workers.routes[this.config.workers.default]?.harness ?? 'pi'
+    const make = HARNESS_ADAPTERS[id]
+    if (!make)
+      throw new Error(
+        `no harness called ${id}: Wilco runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+      )
+    return make({
       runDir: join(this.home, 'runs'),
       socketDir: runtimeDir(this.home),
       approvals: this.config.approvals.mode,
     })
+  }
+
+  /** The harness a task's agent runs in: its own choice, else its project's route. */
+  private async harnessOf(task: string, cwd: string): Promise<string> {
+    const own = await this.taskHarness(cwd, task)
+    if (own) return own
+    const project = task.split('/')[0] ?? ''
+    return resolveRoute(this.config, { project }).harness
+  }
+
+  private async taskHarness(cwd: string, task: string): Promise<string | null> {
+    try {
+      const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
+        harness?: unknown
+      } | null
+      return typeof file?.harness === 'string' ? file.harness : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Run a task's agent in another harness. Kept in its task, so it starts there
+   * every time after; a running agent is stopped and started again in the new
+   * one, since a conversation does not move between harnesses.
+   */
+  async setAgentHarness(req: {
+    task: string
+    worktree: string
+    harness: string
+  }): Promise<{ harness: string; restarted: boolean }> {
+    const choice = HARNESS_CHOICES.find((one) => one.id === req.harness)
+    if (!choice) {
+      throw new Error(
+        `no harness called ${req.harness}: there are ${HARNESS_CHOICES.map((one) => one.id).join(', ')}`,
+      )
+    }
+    if (!choice.ready || !HARNESS_ADAPTERS[req.harness]) {
+      throw new Error(
+        `${choice.title} is ${choice.about}: Wilco runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+      )
+    }
+    await setTaskHarness(req.worktree, req.task, req.harness)
+    const lane = `${req.task}/agent` as LaneId
+    const running = this.registry.get(lane)?.alive === true
+    if (running) {
+      await this.stopAgent(req.task)
+      await this.startAgent({ task: req.task as TaskId, cwd: req.worktree, prompt: '' })
+    }
+    await this.log.append({
+      type: 'state_change',
+      task: req.task,
+      detail: { harness: req.harness, by: 'you' },
+    })
+    return { harness: req.harness, restarted: running }
   }
 
   /**

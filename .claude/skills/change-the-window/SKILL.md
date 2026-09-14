@@ -172,6 +172,12 @@ file and cannot be tested.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
   `appKey` names them, `keyAction` gives them meaning, the keys sheet and Keys settings read the
   same list. A new shortcut is a binding there, never a literal key in `app.ts`.
+- **Splits are one helper** (`splitView`): an agent's pane (`state.splits`, a shell beside or below
+  it) and the bottom panel (`state.terminalSplit`) both draw through it, and the app sizes both
+  halves with `halves()` — the same arithmetic, or a lane is resized to a size it is not drawn at.
+  `splitFocus` says which half typing goes to.
+- **Anything you click is a button, not a glyph**: menus (`≡`, `▾`), close (`×`), a model or harness
+  chip. A bare character is too small a target.
 - **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
   release (`Window.selection`); the terminal cannot, because the window reports the mouse.
 - **Agent panes and terminals scroll back** through their lane's scrollback: the wheel sets

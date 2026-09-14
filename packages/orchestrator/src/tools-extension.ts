@@ -240,6 +240,29 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
+    'wilco_agent_harness',
+    'Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Wilco says which harnesses exist and which it can run yet.',
+    object(
+      {
+        task: string('task id, like checkout/refunds'),
+        harness: string('the harness id: pi'),
+      },
+      ['task', 'harness'],
+    ),
+    async (p) => {
+      const task = String(p.task)
+      const worktree = await worktreeOf(task)
+      if (!worktree) throw new Error(`no such task: ${task}`)
+      const done = (await rpc('worker/harness', {
+        task,
+        worktree,
+        harness: String(p.harness),
+      })) as { harness: string; restarted: boolean }
+      return `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}.`
+    },
+  )
+
+  tool(
     'wilco_orchestrator_model',
     'Switch the model you — the orchestrator — think with: "use opus 5 yourself", "change your model to sonnet". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Wilco starts. For an agent\'s model use wilco_agent_model; for "both", call each.',
     object({ model: string('the model as the human said it') }, ['model']),

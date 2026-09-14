@@ -1,5 +1,27 @@
 [
   {
+    "name": "wilco_agent_harness",
+    "description": "Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Wilco says which harnesses exist and which it can run yet.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        },
+        "harness": {
+          "type": "string",
+          "description": "the harness id: pi"
+        }
+      },
+      "required": [
+        "task",
+        "harness"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_agent_model",
     "description": "Switch the model an agent is running on, for that agent only: \"switch refunds to opus 5\", \"use kimi in agent-1\". Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running.",
     "parameters": {

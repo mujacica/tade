@@ -4,15 +4,18 @@ import {
   type AppState,
   FOCUS_GUARD_MS,
   focusBy,
+  focusNumber,
   focusTask,
   glyph,
   headline,
   historyMatch,
   initialState,
   keyAction,
+  laneShown,
   noteTyping,
   onEvent,
   parseCommand,
+  projectNumber,
   projects,
   resizeTo,
   searchKey,
@@ -22,10 +25,17 @@ import {
   showOrchestrator,
   showTerminal,
   sidebar,
+  splitPane,
+  splitRatio,
+  splitShown,
   startHistorySearch,
+  swapSplit,
   type TaskSnapshot,
   tasksOf,
   terminalsOf,
+  turnSplit,
+  typingLane,
+  unsplitPane,
   whichProject,
   withProjects,
   withTasks,
@@ -333,6 +343,43 @@ describe('the bottom panel', () => {
     )
     expect(bottom).toMatchObject({ sizes: { stripHeight: 18 }, bottomMode: 'open' })
     expect(resizeTo(state(), { x: 1, y: 1 }, { height: 50 }).sizes).toEqual({})
+  })
+})
+
+describe('a split pane', () => {
+  const panes: TaskSnapshot[] = [
+    {
+      task: 'app/refunds',
+      state: 'working',
+      lane: 'app/refunds/agent',
+      lanes: [
+        { id: 'app/refunds/agent', kind: 'agent' },
+        { id: 'app/refunds/shell', kind: 'shell' },
+      ],
+    },
+  ]
+  const base = focusTask(withTasks(initialState(), panes), 'app/refunds')
+  const pane = () => base.panes[0] as NonNullable<(typeof base.panes)[0]>
+
+  it('shows a shell beside the agent, types into the half with the keyboard, and swaps', () => {
+    let state = splitPane(base, 'app/refunds', 'app/refunds/shell', 'beside')
+    expect(splitShown(state, pane())).toMatchObject({ lane: 'app/refunds/shell', ratio: 0.5 })
+    expect(typingLane(state, pane())).toBe('app/refunds/shell')
+    state = { ...state, splitFocus: false }
+    expect(typingLane(state, pane())).toBe('app/refunds/agent')
+    state = swapSplit(state, 'app/refunds')
+    expect(laneShown(state, pane())).toBe('app/refunds/shell')
+    expect(splitShown(state, pane())?.lane).toBe('app/refunds/agent')
+    expect(turnSplit(state, 'app/refunds').splits['app/refunds']?.direction).toBe('below')
+    expect(splitShown(unsplitPane(state, 'app/refunds'), pane())).toBeNull()
+    expect(splitRatio(0.95)).toBe(0.8)
+  })
+
+  it('goes to an agent and a project by number', () => {
+    expect(focusNumber(base, 1).focused).toBe('app/refunds')
+    expect(focusNumber(base, 5)).toBe(base)
+    const two = withProjects(base, ['app', 'shop'])
+    expect(projectNumber(two, 2).project).toBe('shop')
   })
 })
 

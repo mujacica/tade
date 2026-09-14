@@ -69,7 +69,14 @@ export function snapshotsFrom(
           .sort((a, b) =>
             a.kind === 'agent' ? -1 : b.kind === 'agent' ? 1 : a.id.localeCompare(b.id),
           )
-          .map((record) => ({ id: record.id, kind: record.kind })),
+          .map((record) => ({
+            id: record.id,
+            kind: record.kind,
+            // What a shell was named, when it was: an agent is always its task.
+            ...(record.kind !== 'agent' && record.title && !/ shell$/.test(record.title)
+              ? { title: record.title }
+              : {}),
+          })),
       })
     }
   }

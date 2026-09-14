@@ -34,7 +34,7 @@ export interface AgentPane {
   /** What it is waiting for, when that is an approval. */
   approval: { tool: string; summary: string } | null
   /** Every live lane the task has: its agent, and any shells beside it. */
-  lanes: { id: string; kind: string }[]
+  lanes: { id: string; kind: string; title?: string }[]
 }
 
 export interface AppState {
@@ -116,7 +116,21 @@ export interface AppState {
   /** Sizes you dragged the dividers to, over the ones the config gives. */
   sizes: { sidebarWidth?: number; stripHeight?: number }
   /** A divider being dragged. */
-  resizing: 'sidebar' | 'bottom' | null
+  resizing: 'sidebar' | 'bottom' | 'split' | 'terminal-split' | null
+  /** A second lane shown with an agent's own, by task: a shell beside it, or below. */
+  splits: Record<string, Split>
+  /** A second terminal shown with the one in front of the bottom panel. */
+  terminalSplit: Split | null
+  /** The keyboard is on the second half of a split, not the first. */
+  splitFocus: boolean
+}
+
+/** Two lanes in one place: which is the second, which way it sits, and how much the first takes. */
+export interface Split {
+  lane: string
+  direction: 'beside' | 'below'
+  /** The first half's share, 0.2 to 0.8. */
+  ratio: number
 }
 
 /** A terminal, as its tab shows it. */
@@ -168,6 +182,9 @@ export function initialState(): AppState {
     keyboard: 'pane',
     sizes: {},
     resizing: null,
+    splits: {},
+    terminalSplit: null,
+    splitFocus: false,
   }
 }
 
@@ -179,7 +196,7 @@ export interface TaskSnapshot {
   lane?: string | null
   waiting?: boolean
   approval?: { tool: string; summary: string } | null
-  lanes?: { id: string; kind: string }[]
+  lanes?: { id: string; kind: string; title?: string }[]
 }
 
 /**
@@ -388,6 +405,89 @@ export function whichProject(
 /** Look at one of a task's lanes. */
 export function viewLane(state: AppState, task: string, lane: string): AppState {
   return { ...focusTask(state, task), viewing: { ...state.viewing, [task]: lane } }
+}
+
+/** The second lane an agent's pane shows, while it is alive and not the one already shown. */
+export function splitShown(state: AppState, pane: AgentPane): Split | null {
+  const split = state.splits[pane.task]
+  if (!split || !pane.lanes.some((lane) => lane.id === split.lane)) return null
+  return split.lane === laneShown(state, pane) ? null : split
+}
+
+/** Show a lane beside or below the one a pane shows, half and half, with the keyboard on it. */
+export function splitPane(
+  state: AppState,
+  task: string,
+  lane: string,
+  direction: Split['direction'],
+): AppState {
+  const pane = state.panes.find((one) => one.task === task)
+  if (!pane) return state
+  // Splitting the lane in front with itself means the agent goes in front.
+  const shown = laneShown(state, pane)
+  const next =
+    shown === lane ? { ...state, viewing: { ...state.viewing, [task]: pane.lane ?? lane } } : state
+  return {
+    ...next,
+    splits: { ...next.splits, [task]: { lane, direction, ratio: 0.5 } },
+    splitFocus: true,
+  }
+}
+
+/** One lane again. */
+export function unsplitPane(state: AppState, task: string): AppState {
+  const { [task]: _, ...rest } = state.splits
+  return { ...state, splits: rest, splitFocus: false }
+}
+
+/** The two halves change places. */
+export function swapSplit(state: AppState, task: string): AppState {
+  const pane = state.panes.find((one) => one.task === task)
+  const split = pane ? splitShown(state, pane) : null
+  const shown = pane ? laneShown(state, pane) : null
+  if (!pane || !split || !shown) return state
+  return {
+    ...state,
+    viewing: { ...state.viewing, [task]: split.lane },
+    splits: { ...state.splits, [task]: { ...split, lane: shown } },
+    splitFocus: !state.splitFocus,
+  }
+}
+
+/** Beside becomes below, and below beside. */
+export function turnSplit(state: AppState, task: string): AppState {
+  const split = state.splits[task]
+  if (!split) return state
+  const direction = split.direction === 'beside' ? 'below' : 'beside'
+  return { ...state, splits: { ...state.splits, [task]: { ...split, direction } } }
+}
+
+/** How much of a split the first half takes, kept where both halves stay usable. */
+export function splitRatio(ratio: number): number {
+  return Math.min(0.8, Math.max(0.2, ratio))
+}
+
+/** The lane typing goes to in a pane: its second half when that has the keyboard. */
+export function typingLane(state: AppState, pane: AgentPane): string | null {
+  const split = splitShown(state, pane)
+  return split && state.splitFocus ? split.lane : laneShown(state, pane)
+}
+
+/** Two terminals in the bottom panel: the one in front, and this one beside or below it. */
+export function splitTerminal(
+  state: AppState,
+  id: string,
+  direction: Split['direction'],
+): AppState {
+  if (id === state.bottom || !state.terminals.some((one) => one.id === id)) return state
+  return { ...state, terminalSplit: { lane: id, direction, ratio: 0.5 }, splitFocus: true }
+}
+
+/** The second terminal in the bottom panel, while both are open and the first is in front. */
+export function terminalSplitShown(state: AppState): Split | null {
+  const split = state.terminalSplit
+  if (!split || state.bottom === ORCHESTRATOR_TAB || split.lane === state.bottom) return null
+  return state.terminals.some((one) => one.id === split.lane) ? split : null
 }
 
 /**
@@ -758,6 +858,12 @@ export type KeyAction =
   | { kind: 'orchestrator' }
   /** Do what a button of that name does. */
   | { kind: 'run'; action: string }
+  /** Finish the command being typed on the orchestrator line. */
+  | { kind: 'complete' }
+  /** The agent in this place in the sidebar, counting from one. */
+  | { kind: 'agent-number'; n: number }
+  /** The project in this place along the top, counting from one. */
+  | { kind: 'project-number'; n: number }
   | { kind: 'none' }
 
 /**
@@ -775,6 +881,26 @@ const RUNS = new Set([
   'bottom-max',
 ])
 
+/** `agent-3` and `project-2`, as the key names them. */
+function numberAction(key: string): KeyAction | null {
+  const match = /^(agent|project)-([1-9])$/.exec(key)
+  if (!match) return null
+  const n = Number(match[2])
+  return match[1] === 'agent' ? { kind: 'agent-number', n } : { kind: 'project-number', n }
+}
+
+/** The agent in a place in the sidebar: the project in front's agents, in the order shown. */
+export function focusNumber(state: AppState, n: number): AppState {
+  const task = tasksOf(state)[n - 1]
+  return task ? focusTask(state, task.task) : state
+}
+
+/** The project in a place along the top. */
+export function projectNumber(state: AppState, n: number): AppState {
+  const name = projects(state)[n - 1]
+  return name ? selectProject(state, name) : state
+}
+
 export function keyAction(key: string, state: AppState): KeyAction {
   // A terminal with the keyboard gets tab for completion, ctrl+c to interrupt,
   // and every letter: only talking and search stay Wilco's.
@@ -783,8 +909,14 @@ export function keyAction(key: string, state: AppState): KeyAction {
     if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
     if (key === 'search') return { kind: 'search' }
     if (key === 'orchestrator') return { kind: 'orchestrator' }
+    // A shell keeps tab, and a letter while nothing waits; the rest are the window's.
+    const numbered = numberAction(key)
+    if (numbered) return numbered
+    if (RUNS.has(key) || key === 'mute' || key === 'keys') return { kind: 'run', action: key }
     return { kind: 'none' }
   }
+  // Typing a command, tab finishes it rather than moving on.
+  if (key === 'tab' && (state.dictation?.startsWith('/') ?? false)) return { kind: 'complete' }
   if (key === 'tab') return { kind: 'focus-next' }
   if (key === 'shift+tab') return { kind: 'focus-previous' }
   // Push to talk is claimed even while an agent has focus: it must never be
@@ -794,8 +926,10 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (key === 'ctrl+c') return { kind: 'quit' }
   if (key === 'search') return { kind: 'search' }
   if (key === 'orchestrator') return { kind: 'orchestrator' }
-  if (key === 'keys') return { kind: 'run', action: 'keys' }
+  if (key === 'keys' || key === 'mute') return { kind: 'run', action: key }
   if (RUNS.has(key)) return { kind: 'run', action: key }
+  const numbered = numberAction(key)
+  if (numbered) return numbered
   // Answering an approval is a single key only while one is actually waiting,
   // and never while a line to Wilco is being typed.
   const focused = state.panes.find((pane) => pane.task === state.focused)

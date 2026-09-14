@@ -42,6 +42,8 @@ export interface StartRunRequest {
   sandbox?: SandboxKind
   /** What extensions add to it: instructions, tools, harness-native pieces. */
   extras?: WorkerExtras
+  /** The harness it runs in; the default one unless said. */
+  harness?: string
 }
 
 /** An agent running one of Wilco's extension tools. */
@@ -69,7 +71,10 @@ export interface PendingApproval {
 }
 
 export interface WorkerSupervisorOptions {
+  /** The adapter for the default harness. */
   adapter: WorkerAdapter
+  /** Every harness's adapter, by id, for agents on another one. */
+  adapters?: Readonly<Record<string, WorkerAdapter>>
   log: EventLog
   approvals: ApprovalSettings
   /** An agent said what its work is called. */
@@ -83,6 +88,8 @@ export interface WorkerSupervisorOptions {
 
 interface RunState {
   handle: WorkerHandle
+  /** The harness this run is in, which answers everything said to it. */
+  adapter: WorkerAdapter
   task: TaskId
   worktree: string
   stop: () => void
@@ -97,6 +104,7 @@ export interface RunVitals {
 
 export class WorkerSupervisor {
   private readonly adapter: WorkerAdapter
+  private readonly adapters: Readonly<Record<string, WorkerAdapter>>
   private readonly log: EventLog
   private readonly approvals: ApprovalSettings
   private readonly onTitle: WorkerSupervisorOptions['onTitle']
@@ -114,6 +122,7 @@ export class WorkerSupervisor {
 
   constructor(opts: WorkerSupervisorOptions) {
     this.adapter = opts.adapter
+    this.adapters = { [opts.adapter.id]: opts.adapter, ...opts.adapters }
     this.log = opts.log
     this.approvals = opts.approvals
     this.onTitle = opts.onTitle
@@ -137,17 +146,18 @@ export class WorkerSupervisor {
   async resume(request: StartRunRequest): Promise<WorkerHandle | null> {
     const run = request.run ?? ''
     if (!run || this.runs.has(run)) return null
-    const stop = this.adapter.onSignal(run, (signal) => {
+    const adapter = this.harness(request.harness)
+    const stop = adapter.onSignal(run, (signal) => {
       void this.onSignal(run, signal)
     })
     try {
-      const handle = await this.adapter.supervise({
+      const handle = await adapter.supervise({
         run,
         task: request.task,
         cwd: request.cwd,
         prompt: '',
       })
-      this.runs.set(run, { handle, task: request.task, worktree: request.cwd, stop })
+      this.runs.set(run, { handle, adapter, task: request.task, worktree: request.cwd, stop })
       return handle
     } catch {
       // A channel we cannot open means an agent we cannot gate. It carries on
@@ -162,13 +172,14 @@ export class WorkerSupervisor {
     if (this.runs.has(run)) throw new Error(`run already exists: ${run}`)
     const worktree = request.worktree ?? request.cwd
 
+    const adapter = this.harness(request.harness)
     // Subscribe before starting: the first signals arrive during start().
-    const stop = this.adapter.onSignal(run, (signal) => {
+    const stop = adapter.onSignal(run, (signal) => {
       void this.onSignal(run, signal)
     })
     let handle: WorkerHandle
     try {
-      handle = await this.adapter.supervise({
+      handle = await adapter.supervise({
         run,
         task: request.task,
         cwd: request.cwd,
@@ -185,14 +196,14 @@ export class WorkerSupervisor {
       stop()
       throw err
     }
-    this.runs.set(run, { handle, task: request.task, worktree, stop })
+    this.runs.set(run, { handle, adapter, task: request.task, worktree, stop })
     await this.log.append({
       type: 'run_started',
       task: request.task,
       run,
       detail: {
         cwd: request.cwd,
-        adapter: this.adapter.id,
+        adapter: adapter.id,
         model: request.model?.id ?? null,
         approvals: this.approvals.mode,
       },
@@ -212,27 +223,27 @@ export class WorkerSupervisor {
 
   async steer(run: RunId, message: string): Promise<void> {
     this.require(run)
-    await this.adapter.steer(run, message)
+    await this.adapterOf(run).steer(run, message)
   }
 
   async queue(run: RunId, message: string): Promise<void> {
     this.require(run)
-    await this.adapter.queue(run, message)
+    await this.adapterOf(run).queue(run, message)
   }
 
   async setModel(run: RunId, model: WorkerModel): Promise<void> {
     this.require(run)
-    await this.adapter.setModel(run, model)
+    await this.adapterOf(run).setModel(run, model)
   }
 
   async name(run: RunId, title: string): Promise<void> {
     this.require(run)
-    await this.adapter.name(run, title)
+    await this.adapterOf(run).name(run, title)
   }
 
   async prompt(run: RunId, message: string): Promise<void> {
     this.require(run)
-    await this.adapter.prompt(run, message)
+    await this.adapterOf(run).prompt(run, message)
   }
 
   /** Answer an approval a human was asked for. */
@@ -246,7 +257,7 @@ export class WorkerSupervisor {
       already.add(signatureOf(approval.tool, approval.summary))
       this.refused.set(run, already)
     }
-    await this.adapter.decide(run, requestId, decision)
+    await this.adapterOf(run).decide(run, requestId, decision)
     await this.log.append({
       type: decision.allow ? 'permission_granted' : 'permission_denied',
       task: approval.task,
@@ -266,7 +277,7 @@ export class WorkerSupervisor {
 
   async abort(run: RunId): Promise<void> {
     this.require(run)
-    await this.adapter.abort(run)
+    await this.adapterOf(run).abort(run)
   }
 
   async stop(run: RunId): Promise<void> {
@@ -274,7 +285,7 @@ export class WorkerSupervisor {
     if (!state) return
     // A refusal is scoped to the run it was given in, so this drops that too.
     this.forget(run)
-    await this.adapter.stop(run)
+    await this.adapterOf(run).stop(run)
     await this.log.append({ type: 'run_exited', task: state.task, run, detail: { stopped: true } })
   }
 
@@ -283,12 +294,28 @@ export class WorkerSupervisor {
     for (const run of this.runs.values()) run.stop()
     this.runs.clear()
     this.pendingApprovals.clear()
-    await this.adapter.detach()
+    for (const adapter of Object.values(this.adapters)) await adapter.detach()
   }
 
   async shutdown(): Promise<void> {
     for (const run of [...this.runs.keys()]) await this.stop(run)
-    await this.adapter.shutdown()
+    for (const adapter of Object.values(this.adapters)) await adapter.shutdown()
+  }
+
+  /** A harness's adapter by id; the default one when none is named. */
+  private harness(id: string | undefined): WorkerAdapter {
+    if (!id) return this.adapter
+    const adapter = this.adapters[id]
+    if (!adapter)
+      throw new Error(
+        `no harness called ${id}: Wilco runs ${Object.keys(this.adapters).join(', ')}`,
+      )
+    return adapter
+  }
+
+  /** The adapter a run is in: what it was started with, or the default for one we never saw start. */
+  private adapterOf(run: string): WorkerAdapter {
+    return this.runs.get(run)?.adapter ?? this.adapter
   }
 
   /** Drop everything held on behalf of a run: it is not coming back. */
@@ -410,7 +437,9 @@ export class WorkerSupervisor {
         result = { ok: false, text: err instanceof Error ? err.message : String(err) }
       }
     }
-    await this.adapter.answer(run, signal.callId, result).catch(() => {})
+    await this.adapterOf(run)
+      .answer(run, signal.callId, result)
+      .catch(() => {})
   }
 
   private async onPermissionRequest(
@@ -432,7 +461,7 @@ export class WorkerSupervisor {
       approval.tier === 'hard' &&
       this.refused.get(run)?.has(signatureOf(signal.tool, signal.summary))
     ) {
-      await this.adapter.decide(run, signal.requestId, {
+      await this.adapterOf(run).decide(run, signal.requestId, {
         allow: false,
         reason: 'already refused in this run',
       })
@@ -454,7 +483,7 @@ export class WorkerSupervisor {
     }
 
     if (approval.decision === 'allow') {
-      await this.adapter.decide(run, signal.requestId, { allow: true })
+      await this.adapterOf(run).decide(run, signal.requestId, { allow: true })
       await this.log.append({
         type: 'tool_call',
         task,

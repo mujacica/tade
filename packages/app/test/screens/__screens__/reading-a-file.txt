@@ -1,25 +1,25 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
- ▾│ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB                                                     │% 
-▌●│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──
- ○│   1 │ import Stripe from 'stripe'                                                                                │  
-  │   2 │ import { refund } from './ledger.ts'                                                                       │  
- ▾│   3 │                                                                                                            │  
-  │   4 │ /** Every event Stripe sends us, checked before anything acts on it. */                                    │  
+  │ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB                                                     │  
+ ▾│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│▌ 
+▌●│   1 │ import Stripe from 'stripe'                                                                                │──
+ ○│   2 │ import { refund } from './ledger.ts'                                                                       │  
+  │   3 │                                                                                                            │  
+ ▾│   4 │ /** Every event Stripe sends us, checked before anything acts on it. */                                    │  
   │   5 │ export async function handle(body: string, sig: string): Promise<void> {                                   │  
   │   6 │   const key = process.env.STRIPE_WEBHOOK_SECRET                                                            │  
   │   7 │   if (!key) throw new Error('no webhook secret')                                                           │  
- ▾│   8 │   const cryptoProvider = Stripe.createSubtleCryptoProvider()                                               │  
-  │▶  9 │   const event = await stripe.webhooks.constructEventAsync(                                                 │  
+  │   8 │   const cryptoProvider = Stripe.createSubtleCryptoProvider()                                               │  
+ ▾│▶  9 │   const event = await stripe.webhooks.constructEventAsync(                                                 │  
   │  10 │     body, sig, key, undefined, cryptoProvider,                                                             │  
   │  11 │   )                                                                                                        │  
   │  12 │   if (event.type === 'charge.refunded') {                                                                  │  
   │  13 │     await refund(event)                                                                                    │  
   │  14 │   }                                                                                                        │  
   │  15 │ }                                                                                                          │  
+  │                                                                                                                  │  
  ▸│                                                                                                                  │  
  ▾│                                                                                                                  │  
-  │                                                                                                                  │  
   │                                                                                                                  │  
 ━ │                                                                                                                  │ ━
   │                                                                                                                  │  
@@ -31,4 +31,4 @@
 ──│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│─ 
  A│ lines 1–15 of 15  ↑↓ scroll · space a page · e editor                 ▐ Copy path ▌ ▐ Open in editor ▌ ▐ Close ▌ │▌ 
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯──
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

@@ -64,8 +64,23 @@ export const TaskFile = z.object({
   links: z.array(z.object({ title: z.string(), url: z.string() })).default([]),
   /** Where the agent works: the project's own checkout, or a worktree of its own. */
   workspace: z.enum(['checkout', 'worktree']).optional(),
+  /** The harness its agent runs in, when it is not the route's. */
+  harness: z.string().optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
+
+/** The harnesses there are, and what each is, for choosing between them. */
+export const HARNESS_CHOICES: readonly {
+  id: string
+  title: string
+  about: string
+  /** Offered to choose: false for one that is coming but cannot run yet. */
+  ready: boolean
+}[] = [
+  { id: 'pi', title: 'pi', about: 'the pi coding agent, supervised by Wilco', ready: true },
+  { id: 'claude-code', title: 'Claude Code', about: 'not supported yet', ready: false },
+  { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
+]
 
 /** Beside the task file: what whoever started a task wanted the agent to know. */
 export const TASK_CONTEXT_FILE = '.wilco/context.md'

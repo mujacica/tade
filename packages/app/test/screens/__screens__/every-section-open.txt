@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
+                                                                                                                        
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds        $0.62       │                                                                                         
                               │                                                                                         
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │                                                                                         
   A src/webhooks.test.ts  +48 │                                                                                         
   M src/webhooks.ts    +12 −4 │                                                                                         
                               │                                                                                         
- ▾ FILES                      │                                                                                         
-   ▾ src/                     │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-       webhooks.test.ts       │    so src/webhooks.ts needs the new constructEvent signature.                           
-       webhooks.ts            │                                                                                         
-   ▸ test/                    │  ▸ Read src/webhooks.ts                                                                 
-     package.json             │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-     README.md                │  ▸ bash npm i stripe@15                                                                 
-                              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
- ▾ NOTES  4           ▐  +  ▌ │  │ bash  npm i stripe@15                                        │                       
-   the staging key rotates on │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   we pin major versions      │  ╰──────────────────────────────────────────────────────────────╯                       
-   refunds go through the ledg│                                                                                         
+ ▾ FILES                      │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+   ▾ src/                     │    so src/webhooks.ts needs the new constructEvent signature.                           
+       webhooks.test.ts       │                                                                                         
+       webhooks.ts            │  ▸ Read src/webhooks.ts                                                                 
+   ▸ test/                    │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+     package.json             │  ▸ bash npm i stripe@15                                                                 
+     README.md                │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+                              │  │ bash  npm i stripe@15                                        │                       
+ ▾ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   the staging key rotates on │  ╰──────────────────────────────────────────────────────────────╯                       
+   we pin major versions      │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

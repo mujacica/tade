@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
+                                                                                                                        
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds        $0.62       │                                                                                         
                               │                                                                                         
- ▾ CHANGES  3         vs main │                                                                                         
-  M package.json        +2 −1╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
-  A src/webhooks.test.ts  +48│                                                            │                             
-  M src/webhooks.ts    +12 −4│ 2 agents are running inside this window.                   │                             
-                             │                                                            │                             
- ▾ FILES                     │ Agents here run under pty, so closing stops them. Their    │                             
-   ▾ src/                    │ conversations are kept, and each one picks up where it     │ed,                          
-       webhooks.test.ts      │ stopped the next time you open its task.                   │e.                           
-       webhooks.ts           │                                                            │                             
-   ▸ test/                   │ Under tmux they would keep working after you close.        │                             
-     package.json            │ Settings › Agents › Where agents run                       │                             
-     README.md               │                                                            │                             
-                             │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
- ▸ NOTES  4           ▐  +  ▌╰────────────────────────────────────────────────────────────╯     │                       
- ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
-   branch   …lco/stripe-v15   │                                                                                         
+ ▾ CHANGES  3         vs main╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
+  M package.json        +2 −1│                                                            │                             
+  A src/webhooks.test.ts  +48│ 2 agents are running inside this window.                   │                             
+  M src/webhooks.ts    +12 −4│                                                            │                             
+                             │ Agents here run under pty, so closing stops them. Their    │                             
+ ▾ FILES                     │ conversations are kept, and each one picks up where it     │ed,                          
+   ▾ src/                    │ stopped the next time you open its task.                   │e.                           
+       webhooks.test.ts      │                                                            │                             
+       webhooks.ts           │ Under tmux they would keep working after you close.        │                             
+   ▸ test/                   │ Settings › Agents › Where agents run                       │                             
+     package.json            │                                                            │                             
+     README.md               │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
+                             ╰────────────────────────────────────────────────────────────╯     │                       
+ ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+ ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
+   repo     ~/src/checkout    │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

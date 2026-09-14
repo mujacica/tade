@@ -1,4 +1,4 @@
-import { AGENT_WORKSPACES, COMMIT_RULES, type Config, EDITORS } from './config.ts'
+import { AGENT_WORKSPACES, COMMIT_RULES, type Config, EDITORS, HARNESS_IDS } from './config.ts'
 
 // The settings a person actually changes, and what each one means.
 //
@@ -157,6 +157,15 @@ export function settingsOf(config: Config): SettingGroup[] {
           type: { kind: 'model' },
           live: true,
         },
+        {
+          path: `workers.routes.${config.workers.default}.harness`,
+          title: 'Agent harness',
+          means: 'what runs new agents; each agent can be moved to another from its pane',
+          value: route?.harness ?? 'pi',
+          fallback: 'pi',
+          type: { kind: 'choice', options: [...HARNESS_IDS] },
+          live: true,
+        },
       ],
     },
     {
@@ -261,6 +270,15 @@ export function settingsOf(config: Config): SettingGroup[] {
           fallback: 'the default microphone',
           type: { kind: 'text', placeholder: ':0' },
           live: false,
+        },
+        {
+          path: 'surfaces.voice.muted',
+          title: 'Muted',
+          means: 'no speech and no sounds at all; the conversation still shows everything',
+          value: String(voice.muted),
+          fallback: 'false',
+          type: { kind: 'flag' },
+          live: true,
         },
         {
           path: 'surfaces.voice.speak',
@@ -369,7 +387,7 @@ export function settingsOf(config: Config): SettingGroup[] {
       id: 'keys',
       title: 'Keys',
       about:
-        'The keys Wilco keeps for itself. Everything else goes to your agent. Alt keys need Option as Meta in macOS terminals.',
+        'The keys Wilco keeps for itself; everything else goes to your agent. Keys with shift, and ctrl with a number or m, need a terminal with the Kitty keyboard protocol.',
       settings: [
         {
           path: 'surfaces.voice.talk.key',
@@ -378,6 +396,24 @@ export function settingsOf(config: Config): SettingGroup[] {
           value: voice.talk.key,
           fallback: 'ctrl+space',
           type: { kind: 'key' },
+          live: true,
+        },
+        {
+          path: 'surfaces.window.keys.agent_by_number',
+          title: 'Agent by number',
+          means: 'held with 1–9: the agent in that place in the sidebar',
+          value: config.surfaces.window.keys.agent_by_number,
+          fallback: 'ctrl',
+          type: { kind: 'choice', options: [...NUMBER_MODIFIERS] },
+          live: true,
+        },
+        {
+          path: 'surfaces.window.keys.project_by_number',
+          title: 'Project by number',
+          means: 'held with 1–9: the project in that place along the top',
+          value: config.surfaces.window.keys.project_by_number,
+          fallback: 'ctrl+shift',
+          type: { kind: 'choice', options: [...NUMBER_MODIFIERS] },
           live: true,
         },
         ...KEY_BINDINGS.map(
@@ -398,90 +434,89 @@ export function settingsOf(config: Config): SettingGroup[] {
 
 /** Every key the window keeps, by what it does: the Keys settings and the keys sheet both read this. */
 export const KEY_BINDINGS: readonly {
-  key: keyof Config['surfaces']['window']['keys']
+  key: Exclude<keyof Config['surfaces']['window']['keys'], 'agent_by_number' | 'project_by_number'>
   title: string
   means: string
   fallback: string
   /** Claimed only while it means something — an approval waiting — so a letter is fine. */
   printable?: boolean
 }[] = [
-  {
-    key: 'search',
-    title: 'Search',
-    means: 'agents, files, lines in files, commands',
-    fallback: 'ctrl+k',
-  },
+  { key: 'search', title: 'Search', means: 'agents, files, lines, commands', fallback: 'ctrl+k' },
   {
     key: 'next_agent',
     title: 'Next agent',
-    means: 'move to the next agent, then the orchestrator',
+    means: 'the next agent, then the orchestrator',
     fallback: 'tab',
   },
   {
     key: 'previous_agent',
     title: 'Previous agent',
-    means: 'move back through the same',
+    means: 'back through the same',
     fallback: 'shift+tab',
   },
   {
     key: 'orchestrator',
     title: 'Talk to Wilco',
-    means: 'put the keyboard on the orchestrator line',
-    fallback: 'alt+o',
+    means: 'type to the orchestrator',
+    fallback: 'ctrl+/',
   },
   {
     key: 'next_waiting',
     title: 'Next waiting agent',
-    means: 'go to the agent that is waiting on you',
-    fallback: 'alt+w',
+    means: 'the agent waiting on you',
+    fallback: 'ctrl+q',
   },
   {
     key: 'new_agent',
     title: 'New agent',
-    means: 'start an agent in the project you are in',
-    fallback: 'alt+a',
+    means: 'start one in the project you are in',
+    fallback: 'ctrl+n',
   },
   {
     key: 'new_terminal',
     title: 'New terminal',
-    means: 'open a terminal in the bottom panel',
-    fallback: 'alt+t',
+    means: 'a terminal in the bottom panel',
+    fallback: 'ctrl+t',
   },
   {
     key: 'open_project',
     title: 'Open project',
     means: 'add or go to a repository',
-    fallback: 'alt+r',
+    fallback: 'ctrl+o',
   },
+  { key: 'mute', title: 'Mute', means: 'no speech and no sounds, and back', fallback: 'ctrl+m' },
   {
     key: 'extensions',
     title: 'Extensions',
-    means: 'turn extensions on and off, set them up',
-    fallback: 'alt+e',
+    means: 'turn them on and off, set them up',
+    fallback: 'ctrl+shift+e',
   },
-  { key: 'settings', title: 'Settings', means: 'this panel', fallback: 'alt+s' },
+  { key: 'settings', title: 'Settings', means: 'this panel', fallback: 'ctrl+,' },
   {
     key: 'fill_bottom',
     title: 'Bottom panel fills window',
     means: 'the conversation or terminal takes the window',
-    fallback: 'alt+m',
+    fallback: 'ctrl+shift+f',
   },
   { key: 'keys_sheet', title: 'Keys', means: 'the sheet of every key', fallback: 'f1' },
   {
     key: 'approve',
     title: 'Allow',
-    means: 'allow what an agent asked, only while one waits',
+    means: 'allow what an agent asks, while one waits',
     fallback: 'a',
     printable: true,
   },
   {
     key: 'deny',
     title: 'Deny',
-    means: 'deny what an agent asked, only while one waits',
+    means: 'deny what an agent asks, while one waits',
     fallback: 'd',
     printable: true,
   },
 ]
+
+/** The modifiers a number is held with to go to an agent or a project. */
+export const NUMBER_MODIFIERS = ['ctrl', 'alt', 'ctrl+shift', 'ctrl+alt', 'off'] as const
 
 /** One line per setting, for a list you choose from. */
 export function describeSetting(setting: Setting): string {

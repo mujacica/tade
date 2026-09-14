@@ -1,6 +1,6 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { type FileEntry, folderMark } from './files.ts'
-import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
+import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import { type Linker, linkedRow } from './links.ts'
 import {
@@ -14,7 +14,9 @@ import {
   ORCHESTRATOR_TAB,
   projects,
   shownName,
+  splitShown,
   tasksOf,
+  terminalSplitShown,
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
@@ -154,6 +156,12 @@ export interface Frame {
   home?: string
   /** Who pays for the orchestrator's model: its provider, and how you are signed in to it. */
   orchestratorAccount?: { provider: string | null; credential: string | null }
+  /** Nothing is said or played. */
+  muted?: boolean
+  /** The second lane of a split pane, as captured. */
+  splitScreen?: string
+  /** The second terminal of a split bottom panel. */
+  splitTerminal?: Frame['terminal']
   /** The window's own keys as set, for the keys sheet. */
   bindings?: Readonly<Record<string, string>>
   /** The orchestrator's input, as its editor draws it, rules included, while it is being typed in. */
@@ -468,7 +476,8 @@ function renderTop(
     talkChip(r, state, frame, skin)
     r.space()
   })
-  return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
+  // A row of room under the rule, so the tabs below are not pressed against it.
+  return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }, blank(width)])
 }
 
 /**
@@ -489,6 +498,9 @@ function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin): void {
   if (state.hearing) {
     r.text('◌ transcribing…', skin.hint, target)
     return
+  }
+  if (frame.muted) {
+    r.text('✕ muted', skin.bad, { kind: 'action', name: 'mute' }).space(2)
   }
   if (!voice.available) {
     // Said, not left to be discovered by holding a key that does nothing.
@@ -725,7 +737,7 @@ function fileRow(
   if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, tone ?? skin.busy)
   else row.text(`  ${entry.name}`, tone ?? (hovered ? skin.you : (t) => t))
   row.right((r) => {
-    if (hovered) r.text('≡', skin.signal, menu).space()
+    if (hovered) r.button('≡', menu).space()
     if (mark) r.text(entry.folder ? '•' : mark, tone ?? skin.hint).space()
     else if (!hovered) r.space(2)
   })
@@ -762,9 +774,9 @@ function taskRow(
     // The menu mark, and its click, only where it is drawn: on the task you
     // are on, or the one under the pointer. An invisible button is a trap.
     if (task.focused || hovered) {
-      r.text('≡', skin.signal, { kind: 'task-menu', task: task.task }).space()
+      r.button('≡', { kind: 'task-menu', task: task.task }).space()
     } else {
-      r.space(2)
+      r.space(6)
     }
   })
   const built = row.build()
@@ -797,14 +809,14 @@ function changeRow(
     .join(' ')
   const menu: Target = { kind: 'menu', subject: { kind: 'change', task, path: change.path } }
   const hovered = sameTarget(row.pointer.hover, target) || sameTarget(row.pointer.hover, menu)
-  const room = row.width - 5 - (counts ? counts.length + 2 : 0) - (hovered ? 2 : 0)
+  const room = row.width - 5 - (counts ? counts.length + 2 : 0) - (hovered ? 6 : 0)
   row
     .space(2)
     .text(change.mark, mark)
     .space()
     .text(shortPath(change.path, room), hovered ? skin.you : (t) => t)
   row.right((r) => {
-    if (hovered) r.text('≡', skin.signal, menu).space()
+    if (hovered) r.button('≡', menu).space()
     if (change.added) r.text(`+${change.added}`, skin.done)
     if (change.added && change.removed) r.space()
     if (change.removed) r.text(`−${change.removed}`, skin.bad)
@@ -858,34 +870,49 @@ function renderMain(
     .space(2)
   // A tab per lane — the agent, and any shell beside it — and + for another.
   if (pane.lanes.length === 0) header.tab('agent', { kind: 'task', task: pane.task }, true)
-  laneLabels(pane.lanes).forEach(({ id, label }) => {
-    header.tab(label, { kind: 'lane', task: pane.task, lane: id }, id === shown)
+  const labels = laneLabels(pane.lanes)
+  labels.forEach(({ id, label }) => {
+    const target: Target = { kind: 'lane', task: pane.task, lane: id }
+    header.tab(label, target, id === shown)
+    const kind = pane.lanes.find((lane) => lane.id === id)?.kind
+    if (kind === 'agent') return
+    // A shell's menu and close, on the tab you point at or are on; the room is
+    // kept either way, so pointing never moves the tabs.
+    const menu: Target = {
+      kind: 'menu',
+      subject: { kind: 'lane', task: pane.task, lane: id, name: label },
+    }
+    const close: Target = { kind: 'action', name: `close-lane:${id}` }
+    const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
+    if (id === shown || pointed || state.splits[pane.task]?.lane === id) {
+      header.button('▾', menu).button('×', close, 'danger')
+    }
   })
   header.space().button('+', { kind: 'action', name: 'new-shell' }, 'add')
   const route = frame.route
   const vitals = frame.vitals
   if (route || vitals) {
-    header.right((r) => {
-      // What the agent says it runs on beats what the config hoped for.
-      const model = vitals?.model ?? route?.model
-      // Its model is a control: click it to switch this agent to another.
-      const switcher: Target = { kind: 'action', name: `model:${pane.task}` }
-      const pointed = sameTarget(state.hover, switcher)
-      r.text(`${route?.harness ?? 'pi'} · `, skin.hint)
-      r.text(
-        `${model ? shortModel(model) : 'its default model'} ▾`,
-        pointed ? skin.link : skin.hint,
-        switcher,
-      )
-      if (vitals?.contextPercent !== null && vitals?.contextPercent !== undefined) {
-        const percent = vitals.contextPercent
+    // What the agent says it runs on beats what the config hoped for.
+    const model = vitals?.model ?? route?.model
+    // Its harness and its model are controls: click either to change it for this agent.
+    const harness: Target = { kind: 'action', name: `harness:${pane.task}` }
+    const switcher: Target = { kind: 'action', name: `model:${pane.task}` }
+    const percent = vitals?.contextPercent ?? null
+    const controls = (withContext: boolean) => (r: Row) => {
+      r.button(`${route?.harness ?? 'pi'} ▾`, harness).space()
+      r.button(`${model ? shortModel(model) : 'its default model'} ▾`, switcher)
+      if (withContext && percent !== null) {
         const tone = percent >= 85 ? skin.bad : percent >= 60 ? skin.waiting : skin.busy
-        r.text(' · ctx ', skin.hint)
-          .meter(percent / 100, 8, tone)
+        r.text(' ctx ', skin.hint)
+          .meter(percent / 100, 6, tone)
           .text(` ${Math.round(percent)}%`, skin.hint)
       }
       r.space()
-    })
+    }
+    // Shed the context meter before the controls, where the header is short of room.
+    const probe = new Row(width, skin)
+    controls(true)(probe)
+    header.right(controls(header.used + probe.used + 1 <= width))
   }
 
   const rows: { text: string; hits: Hit[] }[] = [
@@ -895,6 +922,7 @@ function renderMain(
   const room = height - rows.length
   if (room <= 0) return stack(rows.slice(0, height))
 
+  const split = shown ? splitShown(state, pane) : null
   if (!shown) {
     rows.push(blank(width))
     rows.push(
@@ -912,6 +940,51 @@ function renderMain(
         .text('picks the conversation up where it stopped', skin.hint)
         .build(),
     )
+  } else if (split) {
+    // Two lanes at once: the one in front, and a shell beside or below it.
+    const kindOf = (lane: string) => pane.lanes.find((one) => one.id === lane)?.kind ?? 'shell'
+    const label = laneLabels(pane.lanes).find((one) => one.id === split.lane)?.label ?? 'shell'
+    const drawn = splitView({
+      width,
+      height: room,
+      split,
+      edge: 'split',
+      lit:
+        state.resizing === 'split' || sameTarget(state.hover, { kind: 'divider', edge: 'split' }),
+      focus: state.splitFocus,
+      label,
+      actions: `split:${pane.task}`,
+      skin,
+      pointer,
+      first: (w, h) =>
+        underTargets(
+          laneLines(frame.screen, kindOf(shown), w, h, skin, pointer, frame.linkers),
+          w,
+          { kind: 'pane' },
+          'pane',
+        ),
+      second: (w, h) =>
+        underTargets(
+          laneLines(
+            frame.splitScreen ?? '',
+            kindOf(split.lane),
+            w,
+            h,
+            skin,
+            pointer,
+            frame.linkers,
+          ),
+          w,
+          { kind: 'pane', side: 'split' },
+          null,
+        ),
+    })
+    rows.push(
+      ...drawn.rows.map((text, i) => ({
+        text,
+        hits: drawn.hits.filter((hit) => hit.row === i).map((hit) => ({ ...hit, row: 0 })),
+      })),
+    )
   } else if (state.paneScroll > 0) {
     // Scrolled back: exactly the lines asked for, and a way back to the newest.
     const lines = frame.screen.split('\n').slice(-(room - 1))
@@ -919,38 +992,152 @@ function renderMain(
     for (const line of lines) rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
     rows.push(scrolledBar(state.paneScroll, 'pane-end', width, skin, pointer))
   } else {
-    const lines = frame.screen.split('\n')
-    // pi draws from the top of a terminal and stops where its prompt is, which
-    // in a tall pane leaves the prompt stranded half way down. An agent's
-    // screen is read from the bottom, like a conversation, so it sits there;
-    // a shell is left where it draws, because full-screen programs count rows.
     const kind = pane.lanes.find((lane) => lane.id === shown)?.kind
-    if (kind === 'agent') {
-      while (lines.length > 0 && stripTerminalSequences(lines.at(-1) ?? '').trim() === '')
-        lines.pop()
-      // An approval card sits at the bottom; the conversation ends above it.
-      const reading = pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
-      for (let gap = reading - lines.length; gap > 0; gap--) rows.push(blank(width))
-      for (const line of lines.slice(-reading))
-        rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
-    } else {
-      for (const line of lines.slice(-room))
-        rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
-    }
+    // An approval card sits at the bottom; the conversation ends above it.
+    const reading = kind === 'agent' && pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
+    rows.push(
+      ...laneLines(frame.screen, kind ?? 'shell', width, reading, skin, pointer, frame.linkers),
+    )
   }
   // Anywhere on the agent's screen gives it the keyboard back, and the wheel
-  // scrolls back through what it said.
-  rows.forEach((row, i) => {
-    if (i >= 2) {
-      row.hits.unshift(rowHit(0, width, { kind: 'pane' }))
-      row.hits.unshift(rowHit(0, width, { kind: 'scroll', area: 'pane' }))
-    }
-  })
+  // scrolls back through what it said. A split pane says which half it was.
+  if (!split) {
+    rows.forEach((row, i) => {
+      if (i >= 2) {
+        row.hits.unshift(rowHit(0, width, { kind: 'pane' }))
+        row.hits.unshift(rowHit(0, width, { kind: 'scroll', area: 'pane' }))
+      }
+    })
+  }
 
   while (rows.length < height) rows.push(blank(width))
   const drawn = stack(rows.slice(0, height))
   if (pane.approval) return withApproval(drawn, pane.approval, width, height, skin, pointer)
   return drawn
+}
+
+/**
+ * A lane's screen as rows, bottom-anchored for an agent. pi draws from the top
+ * of a terminal and stops where its prompt is, which in a tall pane leaves the
+ * prompt stranded half way down, so an agent's screen is read from the bottom,
+ * like a conversation; a shell is left where it draws, because full-screen
+ * programs count rows.
+ */
+function laneLines(
+  screen: string,
+  kind: string,
+  width: number,
+  rows: number,
+  skin: Skin,
+  pointer: Pointer,
+  linkers: Frame['linkers'],
+): { text: string; hits: Hit[] }[] {
+  const lines = screen.split('\n')
+  const out: { text: string; hits: Hit[] }[] = []
+  if (kind === 'agent') {
+    while (lines.length > 0 && stripTerminalSequences(lines.at(-1) ?? '').trim() === '') lines.pop()
+    for (let gap = rows - lines.length; gap > 0; gap--) out.push(blank(width))
+  }
+  for (const line of lines.slice(-rows)) out.push(linkedRow(line, width, skin, pointer, linkers))
+  while (out.length < rows) out.push(blank(width))
+  return out
+}
+
+/** Rows given what a click and the wheel anywhere on them mean, under what they already hold. */
+function underTargets(
+  rows: { text: string; hits: Hit[] }[],
+  width: number,
+  target: Target,
+  scroll: ScrollArea | null,
+): Drawn {
+  return stack(
+    rows.map((row) => ({
+      text: row.text,
+      hits: [
+        ...(scroll ? [rowHit(0, width, { kind: 'scroll', area: scroll })] : []),
+        rowHit(0, width, target),
+        ...row.hits,
+      ],
+    })),
+  )
+}
+
+/**
+ * Two halves of one place, beside each other or one below the other, with a
+ * divider you can drag and a bar on the second half: what it is, and buttons
+ * to swap the halves, turn the split, and close it.
+ */
+export function splitView(opts: {
+  width: number
+  height: number
+  split: { direction: 'beside' | 'below'; ratio: number }
+  edge: 'split' | 'terminal-split'
+  lit: boolean
+  /** The keyboard is on the second half. */
+  focus: boolean
+  label: string
+  /** The actions' prefix: `split:<task>` or `terminal-split`. */
+  actions: string
+  skin: Skin
+  pointer: Pointer
+  first: (width: number, height: number) => Drawn
+  second: (width: number, height: number) => Drawn
+}): Drawn {
+  const { width, height, split, skin, pointer } = opts
+  const divider: Target = { kind: 'divider', edge: opts.edge }
+  const bar = (w: number): { text: string; hits: Hit[] } =>
+    new Row(w, skin, pointer)
+      .text(opts.split.direction === 'below' ? '── ' : ' ', skin.chrome)
+      .text(opts.label, opts.focus ? skin.you : skin.hint)
+      .text(opts.focus ? '  typing here' : '', skin.signal)
+      .right((r) =>
+        r
+          .button('⇄', { kind: 'action', name: `${opts.actions}:swap` })
+          .space()
+          .button(split.direction === 'beside' ? '⇅' : '⇆', {
+            kind: 'action',
+            name: `${opts.actions}:turn`,
+          })
+          .space()
+          .button('×', { kind: 'action', name: `${opts.actions}:close` })
+          .space(),
+      )
+      .build()
+  const rows: string[] = []
+  const hits: Hit[] = []
+  if (split.direction === 'beside' && width >= 24) {
+    const firstWidth = Math.max(10, Math.min(width - 11, Math.round((width - 1) * split.ratio)))
+    const secondWidth = width - 1 - firstWidth
+    const first = opts.first(firstWidth, height)
+    const top = bar(secondWidth)
+    const second = opts.second(secondWidth, Math.max(0, height - 1))
+    for (let i = 0; i < height; i++) {
+      const right = i === 0 ? top.text : (second.rows[i - 1] ?? ' '.repeat(secondWidth))
+      rows.push(
+        `${fit(first.rows[i] ?? '', firstWidth)}${opts.lit ? skin.signal('┃') : skin.chrome('│')}${fit(right, secondWidth)}`,
+      )
+      hits.push({ row: i, from: firstWidth, to: firstWidth, target: divider })
+    }
+    hits.push(...first.hits.filter((hit) => hit.row < height))
+    hits.push(...shift(top.hits, 0, firstWidth + 1))
+    hits.push(...shift(second.hits, 1, firstWidth + 1).filter((hit) => hit.row < height))
+    return { rows, hits }
+  }
+  const firstHeight = Math.max(1, Math.min(height - 2, Math.round((height - 1) * split.ratio)))
+  const secondHeight = Math.max(0, height - 1 - firstHeight)
+  const first = opts.first(width, firstHeight)
+  const second = opts.second(width, secondHeight)
+  rows.push(...first.rows.slice(0, firstHeight))
+  hits.push(...first.hits.filter((hit) => hit.row < firstHeight))
+  const middle = bar(width)
+  // The bar is the divider: take hold of it anywhere but its buttons.
+  hits.push(rowHit(firstHeight, width, divider))
+  hits.push(...shift(middle.hits, firstHeight))
+  rows.push(opts.lit ? skin.signal(stripTerminalSequences(middle.text)) : middle.text)
+  rows.push(...second.rows.slice(0, secondHeight))
+  hits.push(...shift(second.hits, firstHeight + 1).filter((hit) => hit.row < height))
+  while (rows.length < height) rows.push(' '.repeat(width))
+  return { rows, hits }
 }
 
 /** How tall the approval card is: its border and two rows. */
@@ -1087,12 +1274,33 @@ function renderStrip(
 
   const rows = [fit(bar, width)]
   const hits: Hit[] = talking ? [rowHit(0, width, { kind: 'orchestrator' })] : barHits
-  const room = height - 1
+  if (height <= 1) return { rows: rows.slice(0, height), hits }
+  // A row of room under the tabs, so what is below them is not pressed against them.
+  rows.push(' '.repeat(width))
+  const room = height - 2
   if (room <= 0) return { rows: rows.slice(0, height), hits }
 
   if (terminal) {
-    const drawn = terminalBody(frame.terminal, width, room, skin, state.terminalScroll, pointer)
-    return { rows: [...rows, ...drawn.rows], hits: [...hits, ...shift(drawn.hits, 1)] }
+    const split = terminalSplitShown(state)
+    const drawn = split
+      ? splitView({
+          width,
+          height: room,
+          split,
+          edge: 'terminal-split',
+          lit:
+            state.resizing === 'terminal-split' ||
+            sameTarget(state.hover, { kind: 'divider', edge: 'terminal-split' }),
+          focus: state.splitFocus,
+          label: state.terminals.find((one) => one.id === split.lane)?.name ?? 'terminal',
+          actions: 'terminal-split',
+          skin,
+          pointer,
+          first: (w, h) => terminalBody(frame.terminal, w, h, skin, state.terminalScroll, pointer),
+          second: (w, h) => terminalBody(frame.splitTerminal, w, h, skin, 0, pointer, 'split'),
+        })
+      : terminalBody(frame.terminal, width, room, skin, state.terminalScroll, pointer)
+    return { rows: [...rows, ...drawn.rows], hits: [...hits, ...shift(drawn.hits, 2)] }
   }
 
   if (frame.orchestrator !== undefined && !isAction(state.dictation)) {
@@ -1292,10 +1500,9 @@ function bottomTabs(
     const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
     row.space()
     if (on || pointed) {
-      row.text('▾', sameTarget(state.hover, menu) ? skin.signal : skin.hint, menu)
-      row.text('×', sameTarget(state.hover, close) ? skin.bad : skin.hint, close)
+      row.button('▾', menu).button('×', close, 'danger')
     } else {
-      row.text('  ')
+      row.space(10)
     }
   }
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
@@ -1330,6 +1537,7 @@ function terminalBody(
   skin: Skin,
   scroll = 0,
   pointer: Pointer = { hover: null, pressed: null },
+  side?: 'split',
 ): Drawn {
   const rows: string[] = []
   const hits: Hit[] = []
@@ -1365,8 +1573,8 @@ function terminalBody(
   while (rows.length < room) rows.push(' '.repeat(width))
   const own = hits.splice(0)
   for (let i = 0; i < rows.length; i++) {
-    hits.push(rowHit(i, width, { kind: 'scroll', area: 'terminal' }))
-    hits.push(rowHit(i, width, { kind: 'terminal' }))
+    if (!side) hits.push(rowHit(i, width, { kind: 'scroll', area: 'terminal' }))
+    hits.push(rowHit(i, width, side ? { kind: 'terminal', side } : { kind: 'terminal' }))
   }
   hits.push(...own)
   return { rows, hits }
@@ -1395,9 +1603,16 @@ function renderFoot(
 ): Drawn {
   const row = new Row(width, skin, pointer).space()
   // The footer keeps what it costs today before a button you can also reach from ctrl+k.
-  const all = BUTTONS.reduce((used, button) => used + visibleWidth(button.label) + 5, 1)
+  const buttons = [
+    ...BUTTONS,
+    // Said as what pressing it does, so its state reads at a glance.
+    frame.muted
+      ? { label: '✕ Unmute', action: 'mute', look: 'sound-off' as Look, optional: true }
+      : { label: '♪ Mute', action: 'mute', look: 'sound' as Look, optional: true },
+  ]
+  const all = buttons.reduce((used, button) => used + visibleWidth(button.label) + 5, 1)
   const roomy = all + 24 <= width
-  for (const button of BUTTONS.filter((one) => roomy || !one.optional)) {
+  for (const button of buttons.filter((one) => roomy || !one.optional)) {
     const look = button.action === 'new-agent' && !state.project ? 'off' : button.look
     row.button(button.label, { kind: 'action', name: button.action }, look).space()
   }
@@ -1473,12 +1688,14 @@ export function levelMeter(
 
 /** Tab names for a task's lanes: `agent`, `shell`, `shell 2`. */
 export function laneLabels(
-  lanes: readonly { id: string; kind: string }[],
+  lanes: readonly { id: string; kind: string; title?: string }[],
 ): { id: string; label: string }[] {
   const seen = new Map<string, number>()
   return lanes.map((lane) => {
     const n = (seen.get(lane.kind) ?? 0) + 1
     seen.set(lane.kind, n)
+    // A shell you named is called what you called it.
+    if (lane.kind !== 'agent' && lane.title) return { id: lane.id, label: lane.title }
     return { id: lane.id, label: n === 1 ? lane.kind : `${lane.kind} ${n}` }
   })
 }

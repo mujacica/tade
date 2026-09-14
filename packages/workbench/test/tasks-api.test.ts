@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -70,6 +70,22 @@ describe('task and run RPC', () => {
     expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds'))).toBe(false)
     expect(existsSync(join(repo.root, '.wilco', 'tasks', 'search', 'task.yaml'))).toBe(true)
     expect(existsSync(repo.root)).toBe(true)
+  })
+
+  it('runs a task in a harness of its own, and refuses one that cannot run yet', async () => {
+    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    await expect(
+      client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'codex' }),
+    ).rejects.toThrow(/not supported yet/)
+    await expect(
+      client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'nope' }),
+    ).rejects.toThrow(/no harness called nope/)
+    expect(
+      await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'pi' }),
+    ).toEqual({ harness: 'pi', restarted: false })
+    expect(
+      readFileSync(join(repo.root, '.wilco', 'tasks', 'refunds', 'task.yaml'), 'utf8'),
+    ).toContain('harness: pi')
   })
 
   it('refuses a project it has never heard of', async () => {

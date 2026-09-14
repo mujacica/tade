@@ -86,6 +86,12 @@ export class ToolHost {
           title: String(p.title),
         }),
       'worker/model': (p) => wilco.setAgentModel(String(p.task), String(p.model)),
+      'worker/harness': (p) =>
+        wilco.setAgentHarness({
+          task: String(p.task),
+          worktree: String(p.worktree),
+          harness: String(p.harness),
+        }),
       'orchestrator/model': (p) => {
         if (!opts.orchestratorModel)
           throw new Error('this window cannot change the orchestrator model')

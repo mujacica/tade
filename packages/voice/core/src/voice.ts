@@ -516,14 +516,17 @@ function preference(intent: Intent): { prefer?: ResolveOptions['prefer'] } {
   return {}
 }
 
+/**
+ * The sound for something worth a sound: waiting on you, or failing. An agent
+ * answering is not — a beep every time one finished a turn was a beep every
+ * few seconds, and the transcript already shows it.
+ */
 function toneFor(event: WilcoEvent): Tone | null {
   if (event.type === 'permission_request') return 'blocked'
   if (event.type === 'failed') return 'failed'
-  if (event.type === 'turn_done') return 'review'
   if (event.type === 'state_change') {
     const state = String(event.detail.state)
     if (state === 'blocked') return 'blocked'
-    if (state === 'review') return 'review'
     if (state === 'failed') return 'failed'
   }
   return null

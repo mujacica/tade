@@ -46,6 +46,7 @@ describe('the tools the orchestrator has', () => {
   it('is exactly this set', () => {
     // Adding or removing a verb changes what Wilco can be asked to do.
     expect(toolSurface().map((t) => t.name)).toEqual([
+      'wilco_agent_harness',
       'wilco_agent_model',
       'wilco_agent_rename',
       'wilco_approvals',

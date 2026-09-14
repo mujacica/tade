@@ -11,7 +11,10 @@ import { z } from 'zod'
 // The drivers that exist. Names with no implementation behind them used to be
 // listed here and validated clean, which reads as a promise.
 const DriverId = z.enum(['pty', 'tmux'])
-const Harness = z.enum(['pi'])
+/** The harnesses an agent can run in: the registry in the workbench has one adapter for each. */
+export const HARNESS_IDS = ['pi'] as const
+export type HarnessId = (typeof HARNESS_IDS)[number]
+const Harness = z.enum(HARNESS_IDS)
 const RouteName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/)
 
 /**
@@ -208,6 +211,8 @@ export const ConfigSchema = z
               .prefault({}),
             /** Say replies and news out loud. Off keeps the earcons and the text. */
             speak: z.boolean().default(true),
+            /** Nothing is said and nothing sounds: no speech, no earcons. The text stays. */
+            muted: z.boolean().default(false),
             /** Where the speech comes from. */
             mic: z
               .strictObject({
@@ -236,25 +241,31 @@ export const ConfigSchema = z
             editor: z.enum(EDITORS).optional(),
             /**
              * The keys the window keeps for itself, by what they do. Anything
-             * not here goes to the agent or terminal you are typing at.
-             * Alt keys need a terminal that sends Option as Meta on macOS.
+             * not here goes to the agent or terminal you are typing at. A key
+             * with shift, or ctrl with a digit or m, reaches Wilco only where
+             * the terminal speaks the Kitty keyboard protocol.
              */
             keys: z
               .strictObject({
                 search: z.string().min(1).default('ctrl+k'),
                 next_agent: z.string().min(1).default('tab'),
                 previous_agent: z.string().min(1).default('shift+tab'),
-                orchestrator: z.string().min(1).default('alt+o'),
-                next_waiting: z.string().min(1).default('alt+w'),
-                new_agent: z.string().min(1).default('alt+a'),
-                new_terminal: z.string().min(1).default('alt+t'),
-                open_project: z.string().min(1).default('alt+r'),
-                extensions: z.string().min(1).default('alt+e'),
-                settings: z.string().min(1).default('alt+s'),
-                fill_bottom: z.string().min(1).default('alt+m'),
+                orchestrator: z.string().min(1).default('ctrl+/'),
+                next_waiting: z.string().min(1).default('ctrl+q'),
+                new_agent: z.string().min(1).default('ctrl+n'),
+                new_terminal: z.string().min(1).default('ctrl+t'),
+                open_project: z.string().min(1).default('ctrl+o'),
+                mute: z.string().min(1).default('ctrl+m'),
+                extensions: z.string().min(1).default('ctrl+shift+e'),
+                settings: z.string().min(1).default('ctrl+,'),
+                fill_bottom: z.string().min(1).default('ctrl+shift+f'),
                 keys_sheet: z.string().min(1).default('f1'),
                 approve: z.string().min(1).default('a'),
                 deny: z.string().min(1).default('d'),
+                /** Held with 1–9: the agent in that place in the sidebar. `off` for none. */
+                agent_by_number: z.string().min(1).default('ctrl'),
+                /** Held with 1–9: the project in that place along the top. `off` for none. */
+                project_by_number: z.string().min(1).default('ctrl+shift'),
               })
               .prefault({}),
           })

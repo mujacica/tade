@@ -1,8 +1,9 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
+                                                                                                                        
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds        $0.62       │                                                                                         
                               │                                                                                         
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │                                                                                         
@@ -17,18 +18,17 @@
      package.json             │                                                                                         
      README.md                │                                                                                         
                               │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▾ GIT                        │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-   repo     ~/src/checkout    │    so src/webhooks.ts needs the new constructEvent signature.                           
-   branch   …lco/stripe-v15   │                                                                                         
-   from     main              │  ▸ Read src/webhooks.ts                                                                 
-   worktree …ckout-stripe-v15 │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   path     /Users/me/.wilco/ │  ▸ bash npm i stripe@15                                                                 
-            worktrees/        │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-            checkout-stripe-v │  │ bash  npm i stripe@15                                        │                       
-            15                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-                              │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ NOTES  4           ▐  +  ▌ │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
+   repo     ~/src/checkout    │                                                                                         
+   branch   …lco/stripe-v15   │  ▸ Read src/webhooks.ts                                                                 
+   from     main              │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   worktree …ckout-stripe-v15 │  ▸ bash npm i stripe@15                                                                 
+   path     /Users/me/.wilco/ │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+            worktrees/        │  │ bash  npm i stripe@15                                        │                       
+            checkout-stripe-v │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+            15                │  ╰──────────────────────────────────────────────────────────────╯                       
                               │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▴ ▌ ━
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

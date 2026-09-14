@@ -119,6 +119,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it
   removes only that folder. `worktree`: a worktree and branch each. Nothing that runs git on a
   task's directory may assume the directory is the task's alone — ask `task.workspace`.
+- **Harnesses come from one registry** (`HARNESS_ADAPTERS` in the workbench, `HARNESS_CHOICES` in
+  core for what to offer). A task may name its own (`harness` in its task file); the supervisor
+  keeps an adapter per harness and answers each run with the one it started in. Never `new` an
+  adapter at a call site.
 - **Opening the window starts nothing.** An agent exists because someone asked for one; a project
   whose agents were removed stays empty until asked again.
 - **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, where it works and

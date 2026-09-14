@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
+                                                                                                                        
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
+ ○ refunds        $0.62       │                                                                                         
                               │                                                                                         
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │                                                                                         
   A src/webhooks.test.ts  +48 │                                                                                         
   M src/webhooks.ts    +12 −4 │                                                                                         
                               │                                                                                         
- ▾ FILES                      │                                                                                         
-   ▾ src/                     │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-    ╭─ webhooks.ts ──────────────╮ so src/webhooks.ts needs the new constructEvent signature.                           
+ ▾ FILES                      │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+   ▾╭─ webhooks.ts ──────────────╮ so src/webhooks.ts needs the new constructEvent signature.                           
     │▌ Show changes        click │                                                                                      
-   ▸│  Open file                 │ Read src/webhooks.ts                                                                 
-    │  Open in editor            │ Edit src/webhooks.ts  +12 −4                                                         
+    │  Open file                 │ Read src/webhooks.ts                                                                 
+   ▸│  Open in editor            │ Edit src/webhooks.ts  +12 −4                                                         
     │  Ask the agent about it    │ bash npm i stripe@15                                                                 
     │────────────────────────────│─ wants approval ─────────────────────────────────────────────╮                       
- ▸ N│  Copy path                 │ bash  npm i stripe@15                                        │                       
- ▾ G│────────────────────────────│ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-   r│  Discard changes…          │──────────────────────────────────────────────────────────────╯                       
-   b╰────────────────────────────╯                                                                                      
+    │  Copy path                 │ bash  npm i stripe@15                                        │                       
+ ▸ N│────────────────────────────│ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+ ▾ G│  Discard changes…          │──────────────────────────────────────────────────────────────╯                       
+   r╰────────────────────────────╯                                                                                      
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 

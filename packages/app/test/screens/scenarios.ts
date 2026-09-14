@@ -6,6 +6,7 @@ import {
   initialState,
   setDictation,
   setListening,
+  splitPane,
   type TaskSnapshot,
   toggleSection,
   withProjects,
@@ -347,6 +348,45 @@ export const SCENARIOS: Scenario[] = [
     about: 'The pointer over a file in FILES: its row is shaded, so the click is plain.',
     state: { ...base(), hover: { kind: 'file', path: 'src/webhooks.ts' } },
     frame: frame(),
+  },
+  {
+    name: 'a-shell-beside-the-agent',
+    about:
+      'An agent and its shell side by side: a divider to drag, and on the shell’s half its name, swap, turn and close.',
+    state: {
+      ...splitPane(base(), 'checkout/stripe-v15', 'checkout/stripe-v15/shell', 'beside'),
+      keyboard: 'pane',
+    },
+    frame: frame({
+      splitScreen: [
+        '~/src/checkout (wilco/stripe-v15) $ git diff --stat',
+        ' src/webhooks.ts | 16 ++++++++++------',
+        ' 1 file changed, 12 insertions(+), 4 deletions(-)',
+        '~/src/checkout (wilco/stripe-v15) $ ',
+      ].join('\n'),
+    }),
+  },
+  {
+    name: 'two-terminals-split',
+    about: 'Two terminals in the bottom panel, one below the other, the lower one typed into.',
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+        { id: 'checkout/terminals/2', project: 'checkout', name: 'server' },
+      ]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal',
+      terminalSplit: { lane: 'checkout/terminals/2', direction: 'below', ratio: 0.5 },
+      splitFocus: true,
+      sizes: { stripHeight: 14 },
+    },
+    frame: frame({
+      terminal: { screen: '~/src/checkout (main) $ pnpm test --watch\n ✓ 48 tests', find: null },
+      splitTerminal: {
+        screen: '~/src/checkout (main) $ pnpm dev\n  ready on http://localhost:3000',
+        find: null,
+      },
+    }),
   },
   {
     name: 'terminals',

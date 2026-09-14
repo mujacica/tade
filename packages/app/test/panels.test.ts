@@ -12,6 +12,8 @@ import {
   fileMenuItems,
   filePanel,
   findPanel,
+  harnessMenuItems,
+  laneMenuItems,
   panelClick,
   panelKey,
   promptPanel,
@@ -225,6 +227,35 @@ describe('finding in a terminal', () => {
       'find',
       'rename',
       'clear',
+      'split-beside',
+      'split-below',
+      'close',
+    ])
+    // Split, it offers to go back to one instead.
+    expect(terminalMenuItems(true).map((item) => item.id)).toEqual([
+      'run',
+      'find',
+      'rename',
+      'clear',
+      'unsplit',
+      'close',
+    ])
+    // A harness not runnable yet is offered, and said to be not yet.
+    const harnesses = harnessMenuItems(
+      [
+        { id: 'pi', title: 'pi', about: 'pi', ready: true },
+        { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
+      ],
+      'pi',
+    )
+    expect(harnesses).toMatchObject([
+      { id: 'pi', label: '● pi', note: 'now' },
+      { id: 'codex', off: 'not supported yet' },
+    ])
+    expect(laneMenuItems(false).map((item) => item.id)).toEqual([
+      'rename',
+      'split-beside',
+      'split-below',
       'close',
     ])
   })

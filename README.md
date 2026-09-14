@@ -52,8 +52,10 @@ wilco extensions   # what extensions are loaded, and what they need
 wilco --help       # everything else
 ```
 
-In the window, `ctrl+k` finds anything, `tab` moves between agents and the orchestrator, and the
-keys sheet in `ctrl+k` lists the rest. Configuration lives in `~/.wilco/config.yaml` and is edited
+In the window, `ctrl+k` finds anything, `tab` moves between agents and the orchestrator, `ctrl+1`…`9`
+goes to an agent, `ctrl+n` starts one, `ctrl+t` opens a terminal and `ctrl+m` mutes; `F1` lists every
+key, and each can be changed in Settings. Keys with shift, and ctrl with a number or `m`, need a
+terminal with the Kitty keyboard protocol (Ghostty, kitty, WezTerm, iTerm2). Configuration lives in `~/.wilco/config.yaml` and is edited
 from **Settings**.
 
 ## Extensions

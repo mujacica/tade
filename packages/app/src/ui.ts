@@ -196,6 +196,8 @@ const TINTED_HOVER = {
   'open-hover': true,
   'extend-hover': true,
   'configure-hover': true,
+  'sound-hover': true,
+  'sound-off-hover': true,
 }
 
 /** Stack built rows into a region. */
