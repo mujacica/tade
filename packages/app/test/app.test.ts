@@ -846,6 +846,42 @@ describe('the window, wired up', () => {
     })
   })
 
+  it('closes an agent with its ×: stopped, and gone from the list', async () => {
+    await start()
+    await until('the agent', () =>
+      screenOf(terminal.written).some((row) => row.includes('refunds')),
+    )
+    const agent = find('refunds')
+    terminal.press(`\x1b[<35;${agent.col + 1};${agent.row + 1}M`)
+    await until('its buttons', () => (screenOf(terminal.written)[agent.row] ?? '').includes('×'))
+    click((screenOf(terminal.written)[agent.row] ?? '').indexOf('×'), agent.row)
+    // Nothing of it unmerged, so nothing to ask: it goes.
+    await until('it to be removed', async () =>
+      (await client.events({ types: ['task_removed'] })).some(
+        (event) => event.task === 'app/refunds',
+      ),
+    )
+    await until('the list without it', () =>
+      screenOf(terminal.written)
+        .slice(0, 12)
+        .every((row) => !row.includes('refunds')),
+    )
+  })
+
+  it('asks before closing an agent whose worktree has work not merged', async () => {
+    const worktree = repo.addTask('ledger', { project: 'app', intent: 'ledger rounding' })
+    repo.commit('half the rounding fix', { 'ledger.ts': 'export const round = 2\n' }, worktree)
+    await start()
+    await until('the agent', () => screenOf(terminal.written).some((row) => row.includes('ledger')))
+    const agent = find('ledger')
+    terminal.press(`\x1b[<35;${agent.col + 1};${agent.row + 1}M`)
+    await until('its buttons', () => (screenOf(terminal.written)[agent.row] ?? '').includes('×'))
+    click((screenOf(terminal.written)[agent.row] ?? '').indexOf('×'), agent.row)
+    // A commit that is nowhere else is asked about, not thrown away.
+    await until('the question', () => terminal.written.includes('Remove ledger?'))
+    expect(await client.events({ types: ['task_removed'] })).toEqual([])
+  })
+
   it('forgets a note from the × that pointing at it shows', async () => {
     terminal.rows = 60
     client.remember('the staging key rotates on the 1st', 'app', 'test')

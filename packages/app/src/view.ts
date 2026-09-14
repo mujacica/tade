@@ -820,11 +820,12 @@ interface ListItem {
 }
 
 /**
- * Items on bands. The row between two items holds half of each one's band, so
- * the item you are on, or pointing at, stands two rows tall, and the room
- * between items is part of them rather than padding: pointing anywhere on an
- * item's band is pointing at the item. Only where a band is drawn, though — a
- * click on empty room would press something you cannot see.
+ * Items on bands. The row between two items is laid on the band of whichever
+ * is lit, so the item you are on, or pointing at, stands three rows tall on one
+ * unbroken ground, and the room between items is part of them rather than
+ * padding: pointing anywhere on an item's band is pointing at the item. Only
+ * where a band is drawn, though — a click on empty room would press something
+ * you cannot see.
  */
 function bandedList(
   items: readonly ListItem[],
@@ -832,8 +833,9 @@ function bandedList(
   skin: Skin,
 ): { text: string; hits: Hit[] }[] {
   const between = (above: ListItem | undefined, below: ListItem | undefined) => {
-    // The half nearest the pointer's next row is the one below, when both are lit.
-    const owner = below?.band ? below : above?.band ? above : null
+    // The row is the lit one's; where both are, the selected one's, as it is painted.
+    const lit = [below, above].filter((one) => one?.band)
+    const owner = lit.find((one) => one?.band === 'selected') ?? lit[0] ?? null
     return {
       text: skin.bands(width, above?.band ?? null, below?.band ?? null),
       hits: owner ? [rowHit(0, width, owner.target)] : [],
@@ -1063,10 +1065,8 @@ function renderMain(
         .text(` ${Math.round(percent)}%`, skin.hint)
     }
     r.space()
-    // Close this agent, when it is running.
-    if (pane.lane !== null) {
-      r.button('×', { kind: 'action', name: `close-task:${pane.task}` }, 'danger').space()
-    }
+    // Close this agent, running or not: it stops, and goes from the list.
+    r.button('×', { kind: 'action', name: `close-task:${pane.task}` }, 'danger').space()
   }
   const measure = (build: (r: Row) => void) => {
     const probe = new Row(width, skin)

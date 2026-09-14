@@ -1,9 +1,9 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│─────────────────────────────────────────────────────────────────────────────────────────
+                              │─────────────────────────────────────────────────────────────────────────────────────────
 ▌! stripe-v15           $1.26 │                                                                                         
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                                                         
+                              │                                                                                         
  ⠋ refunds              $0.62 │                                                                                         
                               │  ● Upgrading stripe to v15. The webhook signature API changed,                          
  ▾ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           

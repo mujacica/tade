@@ -1,9 +1,9 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮▌ ▐ × ▌ 
-▄▄▄▄▄▄▄▄│  search settings       │ Voice                                                                       │────────
+        │  search settings       │ Voice                                                                       │────────
 ▌! strip│                        │ How you talk to Wilco, and how it talks back.                               │        
-▀▀▀▀▀▀▀▀│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
+        │  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
  ⠋ refun│  Models            │                                                            │                    │        
         │  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
  ▾ CHANG│  Approvals      byp│                                                            │                    │        

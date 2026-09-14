@@ -115,11 +115,16 @@ file and cannot be tested.
   `App.submitPanel`, putting any failure back into the panel rather than behind it.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
-- **Items down the side stand on bands** (`bandedList` in `view.ts`). The row between two items
-  carries half of each one's band (`skin.bands`), so the item you are on or pointing at is two rows
-  tall without a row of its own; a gap row takes clicks only while a band is drawn in it. An item's
-  name is `shortened` with `…` before whatever is at its end, and its buttons (`×`, `≡`) appear
-  under the pointer, each lit in turn — never pushed off the edge by a long name.
+- **Items down the side stand on bands** (`bandedList` in `view.ts`). The row between two items is
+  laid on the band of whichever is lit (`skin.bands`), so the item you are on or pointing at is three
+  rows tall on one ground without a row of its own; a gap row takes clicks only while a band is drawn
+  in it. Grounds are a cell's background, never half-block characters: a terminal draws a glyph
+  inside the font's height, and with lines spaced out half blocks leave dark hairlines between rows.
+  An item's name is `shortened` with `…` before whatever is at its end, and its buttons (`×`, `≡`)
+  appear under the pointer, each lit in turn — never pushed off the edge by a long name.
+- **`×` on an agent closes it**: stopped and taken off the list (`closeAgent`). It asks first only
+  when that would lose something — a worktree of its own with work not merged. Stopping without
+  removing is in its menu.
 - **Agents are dragged into order** (`dragAgent`, `dropAgent`, `inOrder`), by project, and the order
   is remembered in `window.json`. The window takes hold with `heldAgent`, reading every agent's row
   once when pressed: the list redraws in its new order as it is dragged, and measuring against that

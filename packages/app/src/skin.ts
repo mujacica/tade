@@ -68,10 +68,13 @@ export interface Skin {
   transmit(text: string): string
 
   /**
-   * The row between two list items, carrying half of each one's band: the
-   * bottom of the item above and the top of the item below. An item lit this
-   * way stands two rows tall without taking a row of its own. Blank when
-   * neither is lit, and always exactly `width` columns.
+   * The row between two list items, laid on the band of whichever is lit, so
+   * a lit item stands three rows tall without a row of its own. A whole cell's
+   * ground, never a half-block character: a terminal draws a glyph inside the
+   * font's height and the ground across the whole line, so half blocks leave a
+   * dark hairline between the rows wherever lines are spaced out. The selected
+   * one's band wins where two lit items meet. Blank when neither is lit, and
+   * always exactly `width` columns.
    */
   bands(width: number, above: Band | null, below: Band | null): string
 
@@ -184,12 +187,8 @@ export const COLOUR: Skin = {
   transmit: paint(`${bg(203)}${fg(231)}${BOLD}`),
   bands: (width, above, below) => {
     const cells = Math.max(0, width)
-    if (cells === 0) return ''
-    // The top half of the cell is drawn in the foreground, the bottom in the background.
-    if (above && below) return `${fg(BANDS[above])}${bg(BANDS[below])}${'▀'.repeat(cells)}${RESET}`
-    if (above) return `${fg(BANDS[above])}${'▀'.repeat(cells)}${RESET}`
-    if (below) return `${fg(BANDS[below])}${'▄'.repeat(cells)}${RESET}`
-    return ' '.repeat(cells)
+    const band = above === 'selected' || below === 'selected' ? 'selected' : (above ?? below)
+    return band && cells > 0 ? `${bg(BANDS[band])}${' '.repeat(cells)}${RESET}` : ' '.repeat(cells)
   },
   selected: under(BANDS.selected),
   hovered: under(BANDS.hovered),

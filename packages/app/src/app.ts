@@ -1697,8 +1697,7 @@ export class App {
       return
     }
     if (action.startsWith('close-task:')) {
-      const task = action.slice('close-task:'.length)
-      await this.stopAgent(task)
+      await this.closeAgent(action.slice('close-task:'.length))
       return
     }
     if (action.startsWith('thinking:')) {
@@ -3134,6 +3133,32 @@ export class App {
         break
       default:
         break
+    }
+    this.draw()
+  }
+
+  /**
+   * Close an agent: stop it and take it off the list. Asked first only when
+   * that would lose something — work in a worktree of its own that is not
+   * merged. An agent in the project's checkout loses nothing by going: its work
+   * is in the checkout, and only its task folder goes with it.
+   */
+  private async closeAgent(task: string): Promise<void> {
+    const facts = this.live?.factsOf(task)
+    const unmerged =
+      facts?.workspace === 'worktree' &&
+      ((this.live?.changes(task).length ?? 0) > 0 || (facts.ahead ?? 0) > 0)
+    const panel = confirmRemovePanel(task)
+    if (unmerged) {
+      this.state = { ...this.state, panel }
+      this.draw()
+      return
+    }
+    await this.removeTask(panel)
+    // Nothing to ask about, so nothing to leave open: a failure is said where you look.
+    if (this.state.panel?.kind === 'confirm-remove' && this.state.panel.error) {
+      const error = this.state.panel.error
+      this.state = notice({ ...this.state, panel: null }, error)
     }
     this.draw()
   }

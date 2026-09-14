@@ -205,6 +205,7 @@ export class Live {
       project: string
       branch: string
       ahead: number | null
+      workspace: 'checkout' | 'worktree'
       links: readonly { title: string; url: string }[]
     }
   >()
@@ -381,6 +382,8 @@ export class Live {
     project: string
     branch: string
     ahead: number | null
+    /** Where it works: the project's checkout with the others, or a worktree of its own. */
+    workspace: 'checkout' | 'worktree'
     /** Where the work came from: an issue, a trace. */
     links: readonly { title: string; url: string }[]
   } | null {
@@ -506,6 +509,7 @@ export class Live {
             project: project.name,
             branch: task.branch,
             ahead: task.git?.ahead ?? null,
+            workspace: task.workspace === 'checkout' ? 'checkout' : 'worktree',
             links: task.links ?? [],
           })
           const worked = (task.git?.dirty.length ?? 0) > 0 || (task.git?.ahead ?? 0) > 0

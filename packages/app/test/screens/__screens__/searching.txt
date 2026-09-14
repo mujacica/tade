@@ -1,9 +1,9 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
  ▾ AGENTS │ ⌕ webhook▏                                                                                       │▾ ▌ ▐ × ▌ 
-▄▄▄▄▄▄▄▄▄▄│     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
+          │     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
 ▌! stripe-│                                                                                                  │          
-▀▀▀▀▀▀▀▀▀▀│ FILES  4                                                                                         │          
+          │ FILES  4                                                                                         │          
  ⠋ refunds│  □ src/webhooks.ts  checkout                                                                     │          
           │▌ □ src/webhooks.ts  checkout › stripe-v15                                                        │          
  ▾ CHANGES│  □ src/webhooks.test.ts  checkout                                                                │          
