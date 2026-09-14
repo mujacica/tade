@@ -83,6 +83,8 @@ import {
   activeTerminal,
   addTurn,
   conversing,
+  dragAgent,
+  dropAgent,
   focusBy,
   focusNumber,
   focusTask,
@@ -259,6 +261,60 @@ export type PointerEvent =
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
   | { kind: 'drag'; x: number; y: number }
+  /** An agent dragged along the list: it would land at place `to` if let go now. */
+  | { kind: 'reorder'; task: string; to: number }
+
+/** An agent taken hold of in the list: which, where, and where each agent's row was then. */
+interface HeldAgent {
+  task: string
+  y: number
+  /** It has left the row it was pressed on: this is a drag, not a click. */
+  moved?: boolean
+  /** Every agent's own row, top to bottom, as drawn when it was pressed. */
+  rows: readonly { task: string; row: number }[]
+}
+
+/**
+ * Take hold of an agent in the list. The rows are read once, from what was on
+ * screen when it was pressed: the list redraws in its new order as the agent
+ * is dragged, and measuring against that would move the place being aimed at.
+ * An agent's own row is the one with its name on it — narrower than the row,
+ * where the band's half-rows around it are the whole width.
+ */
+export function heldAgent(hits: readonly Hit[], task: string, y: number): HeldAgent {
+  const rows = new Map<string, number>()
+  const widths = new Map<number, number>()
+  for (const hit of hits) widths.set(hit.row, Math.max(widths.get(hit.row) ?? 0, hit.to + 1))
+  for (const hit of hits) {
+    if (hit.target.kind !== 'task') continue
+    const narrow = hit.to - hit.from + 1 < (widths.get(hit.row) ?? 0)
+    if (narrow && !rows.has(hit.target.task)) rows.set(hit.target.task, hit.row)
+  }
+  return {
+    task,
+    y,
+    rows: [...rows].map(([one, row]) => ({ task: one, row })).sort((a, b) => a.row - b.row),
+  }
+}
+
+/**
+ * Where a dragged agent would land with the pointer on row `y`: at the place
+ * of the agent whose row is nearest, and between two, at the one it is moving
+ * towards.
+ */
+export function placeAt(held: HeldAgent, y: number): number {
+  let best = 0
+  let distance = Number.POSITIVE_INFINITY
+  held.rows.forEach(({ row }, i) => {
+    const away = Math.abs(row - y)
+    const closer = away < distance || (away === distance && y > held.y)
+    if (closer) {
+      best = i
+      distance = away
+    }
+  })
+  return best
+}
 
 class Window implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
@@ -268,6 +324,8 @@ class Window implements Component {
   private rows: readonly string[] = []
   /** A divider is held: every movement until it is let go is a drag. */
   private dragging = false
+  /** An agent pressed in the list, and where every agent's row was when it was. */
+  private held: HeldAgent | null = null
   /**
    * Text being selected by dragging over it. The window reports the mouse, so
    * the terminal cannot select for itself: dragging anywhere that is not a
@@ -302,6 +360,15 @@ class Window implements Component {
         if (this.dragging) {
           return { handled: true, render: this.onPointer({ kind: 'drag', x: event.x, y: event.y }) }
         }
+        // Once it has moved off its row it follows the pointer anywhere, back home included.
+        if (event.type === 'drag' && this.held && (this.held.moved || event.y !== this.held.y)) {
+          this.held = { ...this.held, moved: true }
+          const to = placeAt(this.held, event.y)
+          return {
+            handled: true,
+            render: this.onPointer({ kind: 'reorder', task: this.held.task, to }),
+          }
+        }
         if (event.type === 'drag' && this.selection) {
           this.selection = { ...this.selection, to: { x: event.x, y: event.y }, moved: true }
           return { handled: true, render: true }
@@ -320,6 +387,8 @@ class Window implements Component {
           return { handled: true }
         }
         if (event.button !== 'left') return undefined
+        // An agent pressed may be about to be dragged somewhere else in the list.
+        this.held = target?.kind === 'task' ? heldAgent(this.hits, target.task, event.y) : null
         // Anywhere that is not a control is text you might select.
         this.selection = pressable(target)
           ? null
@@ -330,6 +399,7 @@ class Window implements Component {
         }
       case 'release': {
         this.dragging = false
+        this.held = null
         const chosen = this.selection?.moved ? ordered(this.selection) : null
         if (chosen) {
           const text = selectedText(this.rows, chosen)
@@ -744,7 +814,11 @@ export class App {
 
   private remember(): void {
     try {
-      const kept: RememberedWindow = { focused: this.state.focused, ...this.state.sizes }
+      const kept: RememberedWindow = {
+        focused: this.state.focused,
+        ...this.state.sizes,
+        ...(Object.keys(this.state.order).length > 0 ? { order: this.state.order } : {}),
+      }
       writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
     } catch {
       // Coming back to the same pane is a convenience, not a reason to fail
@@ -1099,10 +1173,19 @@ export class App {
         if (!pressable(event.target)) return false
         this.state = { ...this.state, pressed: event.target }
         return true
+      case 'reorder':
+        this.state = dragAgent(this.state, event.task, event.to)
+        return true
       case 'release':
         if (this.state.resizing) {
           // Where you let go is where it stays, this time and next.
           this.state = { ...this.state, resizing: null }
+          this.remember()
+          return true
+        }
+        if (this.state.reordering) {
+          // So does an agent let go of in the list.
+          this.state = { ...dropAgent(this.state), pressed: null }
           this.remember()
           return true
         }
@@ -1133,10 +1216,11 @@ export class App {
 
   private async begin(): Promise<void> {
     this.remembered = this.recall()
-    const { sidebarWidth, stripHeight } = this.remembered ?? {}
+    const { sidebarWidth, stripHeight, order } = this.remembered ?? {}
     this.state = {
       ...this.state,
       sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
+      order: order ?? {},
     }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.loadAccounts()

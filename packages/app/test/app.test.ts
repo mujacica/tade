@@ -801,6 +801,27 @@ describe('the window, wired up', () => {
     })
   })
 
+  it('moves an agent to where it is dragged in the list, and remembers it there', async () => {
+    await start()
+    await until('both agents', () => {
+      const lines = screenOf(terminal.written)
+      return (
+        lines.some((row) => row.includes('refunds')) && lines.some((row) => row.includes('search'))
+      )
+    })
+    const from = find('refunds')
+    const to = find('search')
+    expect(from.row).toBeLessThan(to.row)
+    // Pressed, moved with the button held, and let go over the other agent.
+    terminal.press(`\x1b[<0;${from.col + 1};${from.row + 1}M`)
+    terminal.press(`\x1b[<32;${from.col + 1};${from.row + 2}M`)
+    terminal.press(`\x1b[<32;${from.col + 1};${to.row + 1}M`)
+    terminal.press(`\x1b[<0;${from.col + 1};${to.row + 1}m`)
+    await until('the new order on screen', () => find('search').row < find('refunds').row)
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.order.app.indexOf('app/search')).toBeLessThan(kept.order.app.indexOf('app/refunds'))
+  })
+
   it('forgets a note from the × that pointing at it shows', async () => {
     terminal.rows = 60
     client.remember('the staging key rotates on the 1st', 'app', 'test')

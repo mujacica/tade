@@ -857,7 +857,7 @@ const ITEM_BUTTONS = 12
  */
 function taskRow(
   row: Row,
-  task: AgentPane & { focused: boolean },
+  task: AgentPane & { focused: boolean; dragging?: boolean },
   spent: { tokens: number; usd: number } | undefined,
   skin: Skin,
   now: number,
@@ -866,8 +866,8 @@ function taskRow(
   const close: Target = { kind: 'action', name: `close-task:${task.task}` }
   const menu: Target = { kind: 'task-menu', task: task.task }
   const pointed = [target, close, menu].some((one) => sameTarget(row.pointer.hover, one))
-  // Only where they are drawn: an invisible button is a trap.
-  const buttons = pointed
+  // Only where they are drawn: an invisible button is a trap. Not on the one in your hand.
+  const buttons = pointed && !task.dragging
   const cost =
     !buttons && spent && (spent.usd > 0 || spent.tokens > 0)
       ? spent.usd > 0
@@ -889,7 +889,8 @@ function taskRow(
   return {
     // The whole row is the agent; its buttons sit on top of it.
     row: { text: built.text, hits: [rowHit(0, row.width, target), ...built.hits] },
-    band: task.focused ? 'selected' : pointed ? 'hovered' : null,
+    // The one being dragged is lit wherever it would land.
+    band: task.focused || task.dragging ? 'selected' : pointed ? 'hovered' : null,
     target,
   }
 }

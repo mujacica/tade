@@ -120,6 +120,10 @@ file and cannot be tested.
   tall without a row of its own; a gap row takes clicks only while a band is drawn in it. An item's
   name is `shortened` with `…` before whatever is at its end, and its buttons (`×`, `≡`) appear
   under the pointer, each lit in turn — never pushed off the edge by a long name.
+- **Agents are dragged into order** (`dragAgent`, `dropAgent`, `inOrder`), by project, and the order
+  is remembered in `window.json`. The window takes hold with `heldAgent`, reading every agent's row
+  once when pressed: the list redraws in its new order as it is dragged, and measuring against that
+  would move the place being aimed at. Tab and the agent numbers follow the same order.
 - **A panel draws only from its `PanelContext`.** Anything it needs that the app state does not hold
   (menu items, settings, models, a diff) goes through `Frame.panel`, filled in `App.panelFacts`, and
   anything its keys or clicks need goes through `PanelInputs` from `App.panelInputs`. **Add the fact

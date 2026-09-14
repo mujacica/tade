@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   type AgentPane,
   type AppState,
+  dragAgent,
+  dropAgent,
   FOCUS_GUARD_MS,
   focusBy,
   focusNumber,
@@ -207,6 +209,48 @@ describe('what the window shows', () => {
   it('says what is waiting, and whether it is listening', () => {
     expect(headline(state())).toBe('1 waiting')
     expect(headline(setListening(state(), true))).toBe('⏺ listening · 1 waiting')
+  })
+})
+
+describe('the order of agents in the list', () => {
+  const three: TaskSnapshot[] = [
+    { task: 'app/a', state: 'working' },
+    { task: 'app/b', state: 'working' },
+    { task: 'app/c', state: 'working' },
+  ]
+  const names = (state: AppState) => tasksOf(state).map((task) => task.name)
+
+  it('follows an agent dragged, while it is dragged, and keeps it where it is let go', () => {
+    const start = withTasks(initialState(), three)
+    expect(names(start)).toEqual(['a', 'b', 'c'])
+    // Held over the last place: the list shows where it would land, and which one is in hand.
+    const moving = dragAgent(start, 'app/a', 2)
+    expect(names(moving)).toEqual(['b', 'c', 'a'])
+    expect(tasksOf(moving).find((task) => task.dragging)?.name).toBe('a')
+    const dropped = dropAgent(moving)
+    expect(names(dropped)).toEqual(['b', 'c', 'a'])
+    expect(dropped.reordering).toBeNull()
+    expect(dropped.order).toEqual({ app: ['app/b', 'app/c', 'app/a'] })
+  })
+
+  it('puts an agent it has not been told about after the ones you placed', () => {
+    const placed = { ...withTasks(initialState(), three), order: { app: ['app/c', 'app/a'] } }
+    expect(names(placed)).toEqual(['c', 'a', 'b'])
+    expect(names(withTasks(placed, [...three, { task: 'app/d', state: 'queued' }]))).toEqual([
+      'c',
+      'a',
+      'b',
+      'd',
+    ])
+  })
+
+  it('is the order tab and the numbers go in', () => {
+    const placed = focusTask(
+      { ...withTasks(initialState(), three), order: { app: ['app/c', 'app/b', 'app/a'] } },
+      'app/c',
+    )
+    expect(focusBy(placed, 1).focused).toBe('app/b')
+    expect(focusNumber(placed, 3).focused).toBe('app/a')
   })
 })
 

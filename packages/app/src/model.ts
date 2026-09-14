@@ -125,6 +125,13 @@ export interface AppState {
   splits: Record<string, Split>
   /** A second terminal shown with the one in front of the bottom panel. */
   terminalSplit: Split | null
+  /**
+   * By project: the agents in the order you dragged them into. Any you have
+   * not placed come after, in the order they came.
+   */
+  order: Record<string, string[]>
+  /** An agent being dragged to a new place in the list: where it would land if let go now. */
+  reordering: { project: string; task: string; to: number } | null
   /** The keyboard is on the second half of a split, not the first. */
   splitFocus: boolean
 }
@@ -188,6 +195,8 @@ export function initialState(): AppState {
     resizing: null,
     splits: {},
     terminalSplit: null,
+    order: {},
+    reordering: null,
     splitFocus: false,
     orchestratorDraft: '',
   }
@@ -261,10 +270,75 @@ export function selectProject(state: AppState, project: string): AppState {
 }
 
 /** The tasks down the side: the selected project's, in the order they come. */
-export function tasksOf(state: AppState): Array<AgentPane & { focused: boolean }> {
-  return state.panes
-    .filter((pane) => pane.project === (state.project ?? pane.project))
-    .map((pane) => ({ ...pane, focused: pane.task === state.focused }))
+export function tasksOf(
+  state: AppState,
+): Array<AgentPane & { focused: boolean; dragging: boolean }> {
+  const here = state.panes.filter((pane) => pane.project === (state.project ?? pane.project))
+  const order = state.reordering
+    ? { ...state.order, [state.reordering.project]: dragged(state, state.reordering) }
+    : state.order
+  return inOrder(here, order).map((pane) => ({
+    ...pane,
+    focused: pane.task === state.focused,
+    dragging: pane.task === state.reordering?.task,
+  }))
+}
+
+/**
+ * Agents in the order you put them, project by project: the ones you dragged
+ * where you dragged them, the rest after, in the order they came. Projects
+ * keep the order they came in.
+ */
+export function inOrder<T extends { task: string; project: string }>(
+  panes: readonly T[],
+  order: Readonly<Record<string, readonly string[]>>,
+): T[] {
+  const first = new Map<string, number>()
+  panes.forEach((pane, i) => {
+    if (!first.has(pane.project)) first.set(pane.project, i)
+  })
+  const placed = (pane: T) => {
+    const at = order[pane.project]?.indexOf(pane.task) ?? -1
+    return at < 0 ? Number.MAX_SAFE_INTEGER : at
+  }
+  return panes
+    .map((pane, i) => ({ pane, i }))
+    .sort(
+      (a, b) =>
+        (first.get(a.pane.project) ?? 0) - (first.get(b.pane.project) ?? 0) ||
+        placed(a.pane) - placed(b.pane) ||
+        a.i - b.i,
+    )
+    .map((one) => one.pane)
+}
+
+/** A project's agents in the order they would have if the one being dragged were let go now. */
+function dragged(state: AppState, move: { project: string; task: string; to: number }): string[] {
+  const tasks = inOrder(
+    state.panes.filter((pane) => pane.project === move.project),
+    state.order,
+  ).map((pane) => pane.task)
+  const without = tasks.filter((task) => task !== move.task)
+  const to = Math.max(0, Math.min(move.to, without.length))
+  return [...without.slice(0, to), move.task, ...without.slice(to)]
+}
+
+/** Take hold of an agent to move it: it would land at place `to` in its project's list. */
+export function dragAgent(state: AppState, task: string, to: number): AppState {
+  const project = state.panes.find((pane) => pane.task === task)?.project
+  if (!project) return state
+  return { ...state, reordering: { project, task, to } }
+}
+
+/** Let go of the agent being moved: it stays where it was dropped, and is remembered there. */
+export function dropAgent(state: AppState): AppState {
+  const move = state.reordering
+  if (!move) return state
+  return {
+    ...state,
+    order: { ...state.order, [move.project]: dragged(state, move) },
+    reordering: null,
+  }
 }
 
 /**
@@ -306,8 +380,12 @@ export function focusTask(state: AppState, task: string): AppState {
  */
 export function focusBy(state: AppState, delta: number): AppState {
   // `null` is the orchestrator, and it is always there. Being at it means its
-  // line is open; the agent you were watching stays in view behind it.
-  const ring: Array<string | null> = [...state.panes.map((pane) => pane.task), null]
+  // line is open; the agent you were watching stays in view behind it. Agents
+  // come in the order the list shows them.
+  const ring: Array<string | null> = [
+    ...inOrder(state.panes, state.order).map((pane) => pane.task),
+    null,
+  ]
   const here = state.dictation !== null ? null : state.focused
   const at = ring.indexOf(here)
   const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length

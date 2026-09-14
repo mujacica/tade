@@ -104,15 +104,18 @@ export function resolveLayout(
 
 /**
  * What is worth writing down when the window closes: which pane you were on,
- * and the sizes you dragged the dividers to. The config says what a window
- * starts at; a divider you moved is you saying otherwise, and losing that on
- * every restart would be asking you to say it again.
+ * the sizes you dragged the dividers to, and the order you dragged agents
+ * into. The config says what a window starts at; a divider you moved is you
+ * saying otherwise, and losing that on every restart would be asking you to
+ * say it again.
  */
 export interface RememberedWindow {
   /** The task whose pane had focus. */
   focused: string | null
   sidebarWidth?: number
   stripHeight?: number
+  /** By project, the agents in the order they were dragged into. */
+  order?: Record<string, string[]>
 }
 
 /**
@@ -128,10 +131,17 @@ export function asRemembered(value: unknown): RememberedWindow | null {
     typeof raw[key] === 'number' && Number.isFinite(raw[key]) && (raw[key] as number) > 0
       ? { [key]: Math.round(raw[key] as number) }
       : {}
+  const order: Record<string, string[]> = {}
+  if (typeof raw.order === 'object' && raw.order !== null && !Array.isArray(raw.order)) {
+    for (const [project, tasks] of Object.entries(raw.order)) {
+      if (Array.isArray(tasks)) order[project] = tasks.filter((task) => typeof task === 'string')
+    }
+  }
   return {
     focused: typeof raw.focused === 'string' ? raw.focused : null,
     ...size('sidebarWidth'),
     ...size('stripHeight'),
+    ...(Object.keys(order).length > 0 ? { order } : {}),
   }
 }
 

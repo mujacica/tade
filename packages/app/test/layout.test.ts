@@ -84,6 +84,12 @@ describe('asRemembered', () => {
     })
   })
 
+  it('reads back the order agents were dragged into, and only names in it', () => {
+    expect(
+      asRemembered({ focused: null, order: { app: ['app/b', 7, 'app/a'], bad: 'app/c' } }),
+    ).toEqual({ focused: null, order: { app: ['app/b', 'app/a'] } })
+  })
+
   it('is null on anything it does not recognise', () => {
     // A layout file is a convenience; refusing to open the window over one
     // would be absurd.
