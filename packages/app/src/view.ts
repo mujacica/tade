@@ -1,6 +1,7 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
+import { keyCaps } from './keys.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import { type Linker, linkedRow } from './links.ts'
 import {
@@ -20,7 +21,7 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
-import { type Look, PLAIN, type Skin } from './skin.ts'
+import { PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
@@ -158,6 +159,10 @@ export interface Frame {
   orchestratorAccount?: { provider: string | null; credential: string | null }
   /** Nothing is said or played. */
   muted?: boolean
+  /** A picture is on the clipboard, and has not been taken or turned down. */
+  clipboardImage?: boolean
+  /** Extensions that need setting up, or are broken: the Extensions button says so. */
+  extensionsNeedYou?: number
   /** The second lane of a split pane, as captured. */
   splitScreen?: string
   /** The second terminal of a split bottom panel. */
@@ -192,21 +197,15 @@ export interface Spend {
 }
 
 /**
- * The buttons along the foot, which are also what clicking them does. Each
- * names an action the app carries out; none of them types a command for you.
+ * The footer's buttons: the few things that are not about an agent. Starting
+ * one and opening a project have their own `+` where agents and projects are,
+ * and search has ctrl+k beside the talk key. Each is grey unless there is
+ * something to say: an extension that needs you, or sound that is off.
  */
-export const BUTTONS: readonly {
-  label: string
-  action: string
-  look: Look
-  /** Left out where the footer is too narrow for it and what it costs: it is in ctrl+k too. */
-  optional?: boolean
-}[] = [
-  { label: 'Search ctrl+k', action: 'search', look: 'find', optional: true },
-  { label: '+ New agent', action: 'new-agent', look: 'create' },
-  { label: 'Open project', action: 'open-project', look: 'open' },
-  { label: 'Extensions', action: 'extensions', look: 'extend', optional: true },
-  { label: 'Settings', action: 'settings', look: 'configure' },
+export const BUTTONS: readonly { label: string; action: string }[] = [
+  { label: 'Extensions', action: 'extensions' },
+  { label: 'Settings', action: 'settings' },
+  { label: 'Mute', action: 'mute' },
 ]
 
 /** The whole window, one string per row, each exactly as wide as the window. */
@@ -462,20 +461,42 @@ function renderTop(
   }
   row.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
 
-  row.right((r) => {
-    const waiting = state.panes.filter((pane) => pane.waiting || pane.state === 'blocked').length
-    const working = state.panes.filter((pane) => pane.state === 'working').length
-    // The talk key is the one thing here that must survive a narrow terminal,
-    // so the counts shorten, and then go, before it does.
-    const roomy = width >= 110
-    if (waiting > 0) {
-      const label = roomy ? `● ${waiting} waiting` : `● ${waiting}`
+  const waiting = state.panes.filter((pane) => pane.waiting || pane.state === 'blocked').length
+  const working = state.panes.filter((pane) => pane.state === 'working').length
+  // The talk key is the one thing here that must survive a narrow terminal;
+  // search is next, then what waits on you. The counts shorten, then go, first.
+  type Counts = 'full' | 'short' | 'waiting' | 'none'
+  const right = (show: { search: boolean; counts: Counts }) => (r: Row) => {
+    if (waiting > 0 && show.counts !== 'none') {
+      const label = show.counts === 'full' ? `● ${waiting} waiting` : `● ${waiting}`
       r.text(label, skin.waiting, { kind: 'action', name: 'next-waiting' }).space(2)
     }
-    if (working > 0 && roomy) r.text(`○ ${working} working`, skin.busy).space(3)
+    if (working > 0 && (show.counts === 'full' || show.counts === 'short')) {
+      r.text(show.counts === 'full' ? `○ ${working} working` : `○ ${working}`, skin.busy).space(3)
+    }
+    // Search, beside talking: the two keys that work from anywhere.
+    if (show.search) {
+      const search: Target = { kind: 'action', name: 'search' }
+      r.keys(keyCaps(frame.bindings?.search ?? 'ctrl+k')).space()
+      r.text('search', sameTarget(state.hover, search) ? skin.link : skin.hint, search).space(3)
+    }
     talkChip(r, state, frame, skin)
     r.space()
+  }
+  const tries: { search: boolean; counts: Counts }[] = [
+    { search: true, counts: 'full' },
+    { search: true, counts: 'short' },
+    { search: true, counts: 'waiting' },
+    { search: false, counts: 'short' },
+    { search: false, counts: 'waiting' },
+    { search: false, counts: 'none' },
+  ]
+  const fits = tries.find((show) => {
+    const probe = new Row(width, skin)
+    right(show)(probe)
+    return row.used + 1 + probe.used <= width
   })
+  row.right(right(fits ?? { search: false, counts: 'none' }))
   // A row of room under the rule, so the tabs below are not pressed against it.
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }, blank(width)])
 }
@@ -1419,6 +1440,18 @@ function inputBox(
   const top = new Row(width, skin, pointer)
   // Open to hear you, where there is no microphone to hold: said on the rule.
   if (state.listening) top.text('─ ', rule).text('◉ listening', skin.bad).text(' ', rule)
+  // A picture on the clipboard, offered: Cmd+V pastes only text, so it is attached here.
+  if (open && frame.clipboardImage && state.attached.length === 0) {
+    top
+      .text('─ ', rule)
+      .button('▣ Attach the screenshot on the clipboard', {
+        kind: 'action',
+        name: 'attach-clipboard',
+      })
+      .text(' ctrl+v ', skin.hint)
+      .button('×', { kind: 'action', name: 'dismiss-clipboard' })
+      .text(' ', rule)
+  }
   if (state.attached.length > 0) {
     top.text('─ ', rule)
     for (const path of state.attached) {
@@ -1602,19 +1635,18 @@ function renderFoot(
   pointer: Pointer,
 ): Drawn {
   const row = new Row(width, skin, pointer).space()
-  // The footer keeps what it costs today before a button you can also reach from ctrl+k.
-  const buttons = [
-    ...BUTTONS,
-    // Said as what pressing it does, so its state reads at a glance.
-    frame.muted
-      ? { label: '✕ Unmute', action: 'mute', look: 'sound-off' as Look, optional: true }
-      : { label: '♪ Mute', action: 'mute', look: 'sound' as Look, optional: true },
-  ]
-  const all = buttons.reduce((used, button) => used + visibleWidth(button.label) + 5, 1)
-  const roomy = all + 24 <= width
-  for (const button of buttons.filter((one) => roomy || !one.optional)) {
-    const look = button.action === 'new-agent' && !state.project ? 'off' : button.look
-    row.button(button.label, { kind: 'action', name: button.action }, look).space()
+  for (const button of BUTTONS) {
+    // Amber means something here wants you: an extension to set up, or sound
+    // that is off. Otherwise a button is grey, whatever it does.
+    const muted = button.action === 'mute' && frame.muted === true
+    const needed = button.action === 'extensions' && (frame.extensionsNeedYou ?? 0) > 0
+    row
+      .button(
+        muted ? 'Unmute' : button.label,
+        { kind: 'action', name: button.action },
+        muted || needed ? 'attention' : 'rest',
+      )
+      .space()
   }
   const spend = frame.spend
   const target: Target = { kind: 'action', name: 'spend' }

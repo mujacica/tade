@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                                  ● 1 waiting  ○ 1 working    ● TX 0:04  
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌          ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ k ▌ search    ● TX 0:04  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
@@ -31,4 +31,4 @@
                                                                                                                         
  ◉  speak — Wilco hears you until you let go                                                                            
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

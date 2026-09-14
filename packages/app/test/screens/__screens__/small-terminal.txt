@@ -21,4 +21,4 @@
 ─────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                            type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Settings ▌  claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌           claude-opus-5 ▾ │ $2.66 today ▾ 

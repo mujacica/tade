@@ -61,7 +61,15 @@ import {
   scrollAt,
   type Target,
 } from './hits.ts'
-import { asPaste, clipboardImage, imagePaths, pasted, readImage, shellQuote } from './images.ts'
+import {
+  asPaste,
+  clipboardImage,
+  clipboardState,
+  imagePaths,
+  pasted,
+  readImage,
+  shellQuote,
+} from './images.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -219,6 +227,8 @@ const REPAINT_MS = 2_000
 const HISTORY_MAX = 1_000
 /** How often extensions are asked what they keep in the status bar. */
 const STATUS_MS = 5_000
+/** How often the clipboard is looked at for a picture, while the orchestrator's line is open. */
+const CLIPBOARD_MS = 3_000
 
 /** A stuck key must not record until the disk is full. */
 const MAX_SPEECH_MS = 120_000
@@ -364,6 +374,11 @@ export interface WorkerImageFile {
 export interface AppOptions {
   client: Workbench
   config: Config
+  /** The system clipboard's pictures: what is there, and saving it. The machine's own unless given. */
+  clipboard?: {
+    state: typeof clipboardState
+    image: typeof clipboardImage
+  }
   /** Wilco's state directory, where generated earcons are kept. */
   home: string
   cwd?: string
@@ -456,6 +471,17 @@ export class App {
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
+  /**
+   * A picture on the clipboard, noticed while the orchestrator's line is open:
+   * the copy offered, the copy already taken or turned down, and when it was
+   * last looked at.
+   */
+  private clipboard: {
+    offered: string | null
+    seen: string | null
+    askedAt: number
+    asking: boolean
+  } = { offered: null, seen: null, askedAt: Number.NEGATIVE_INFINITY, asking: false }
   /** The second half of a split pane, and of a split bottom panel, as last captured. */
   private splitScreen = ''
   private splitTerminalScreen = ''
@@ -957,6 +983,10 @@ export class App {
         : undefined,
       bindings: this.opts.config.surfaces.window.keys,
       muted: this.opts.config.surfaces.voice.muted,
+      clipboardImage: this.clipboard.offered !== null,
+      extensionsNeedYou: (this.opts.extensions?.list() ?? []).filter(
+        (one) => one.state === 'needs setup' || one.state === 'broken',
+      ).length,
       ...this.inputFor(width),
       statuses: this.statuses,
       now: this.now(),
@@ -1190,6 +1220,16 @@ export class App {
     // landed is not something a terminal says, so ask who it is for.
     const paste = pasted(data)
     if (paste !== null) {
+      // A paste with nothing in it is a terminal pasting a clipboard that holds
+      // only a picture: at the orchestrator, attach it; at pi, ctrl+v is how it
+      // takes a picture off the clipboard itself.
+      if (paste === '' && !(this.state.keyboard === 'terminal' && activeTerminal(this.state))) {
+        const pane = this.state.panes.find((one) => one.task === this.state.focused)
+        const lane = pane ? typingLane(this.state, pane) : null
+        if (this.state.dictation !== null || !lane) void this.attachClipboard()
+        else void this.opts.client.write(lane as LaneId, '\x16').catch(() => {})
+        return { consume: true }
+      }
       const paths = imagePaths(paste)
       if (paths.length > 0) {
         this.askWhereImagesGo(paths)
@@ -1555,6 +1595,14 @@ export class App {
         return
       case 'mute':
         await this.toggleMute()
+        return
+      case 'attach-clipboard':
+        await this.attachClipboard()
+        return
+      case 'dismiss-clipboard':
+        this.clipboard.seen = this.clipboard.offered
+        this.clipboard.offered = null
+        this.draw()
         return
       case 'keys':
         this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
@@ -2415,8 +2463,11 @@ export class App {
 
   /** ctrl+v at the orchestrator: the screenshot on the clipboard, attached. */
   private async attachClipboard(): Promise<void> {
-    const path = await clipboardImage()
+    const path = await (this.opts.clipboard?.image ?? clipboardImage)()
     if (path) {
+      // That copy is taken: it is not offered again.
+      if (this.clipboard.offered) this.clipboard.seen = this.clipboard.offered
+      this.clipboard.offered = null
       this.attachImages([path])
       return
     }
@@ -3429,6 +3480,7 @@ export class App {
     if (this.stopped) return
     this.reopenStopped()
     this.askExtensions()
+    this.lookAtClipboard()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
       this.repaint()
@@ -4041,6 +4093,33 @@ export class App {
     ) {
       void this.opts.restartThinker?.()
     }
+  }
+
+  /**
+   * While the orchestrator's line is open, notice a picture on the clipboard
+   * and offer it: pasting one with Cmd+V sends nothing a terminal can pass on.
+   * Asked every few seconds at most, and only then.
+   */
+  private lookAtClipboard(): void {
+    if (this.state.dictation === null) {
+      this.clipboard.offered = null
+      return
+    }
+    if (this.clipboard.asking || this.now() - this.clipboard.askedAt < CLIPBOARD_MS) return
+    this.clipboard.asking = true
+    this.clipboard.askedAt = this.now()
+    void (this.opts.clipboard?.state ?? clipboardState)()
+      .then((found) => {
+        const offer = found?.image && found.copy !== this.clipboard.seen ? found.copy : null
+        if (offer !== this.clipboard.offered) {
+          this.clipboard.offered = offer
+          this.draw()
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.clipboard.asking = false
+      })
   }
 
   /**

@@ -152,6 +152,8 @@ describe('the window, wired up', () => {
       terminal,
       speaker,
       frameMs: 50,
+      // Never the machine's own clipboard: what a developer copied is not a test's to read.
+      clipboard: { state: async () => null, image: async () => null },
       ...over,
     })
     return app
@@ -311,6 +313,46 @@ describe('the window, wired up', () => {
     await until('it sent again', () => asked.length === 3)
     expect(asked[2]).toBe('why is refunds slow')
   })
+
+  it('offers a screenshot on the clipboard, and attaches it from an empty paste or a click', async () => {
+    const shot = join(tmp('wilco-shot-'), 'shot.png')
+    writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
+    let copy = '7'
+    await start({
+      clipboard: { state: async () => ({ copy, image: true }), image: async () => shot },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Open the line: the picture on the clipboard is offered.
+    terminal.press('\x00')
+    await until('the offer', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('Attach the screenshot on the clipboard'),
+      ),
+    )
+    // Cmd+V on a picture reaches a terminal program as a paste with nothing in it.
+    terminal.press(asPaste(''))
+    await until('attached', () =>
+      screenOf(terminal.written).some((row) => row.includes('▣ shot.png')),
+    )
+    // That copy is not offered again; a new one is.
+    expect(
+      screenOf(terminal.written).some((row) =>
+        row.includes('Attach the screenshot on the clipboard'),
+      ),
+    ).toBe(false)
+    // Abandoned, and something new copied: offered when the line opens again.
+    terminal.press('\x1b')
+    copy = '8'
+    terminal.press('\x00')
+    await until(
+      'the next copy offered',
+      () =>
+        screenOf(terminal.written).some((row) =>
+          row.includes('Attach the screenshot on the clipboard'),
+        ),
+      8_000,
+    )
+  }, 20_000)
 
   it("shows the orchestrator's model in the status bar, and switches it from there", async () => {
     terminal.columns = 140
@@ -501,9 +543,13 @@ describe('the window, wired up', () => {
 
   it('starts a new agent from its button, asking nothing first', async () => {
     await start()
-    await until('the first frame', () => terminal.written.includes('New agent'))
-    const button = find('+ New agent')
-    click(button.col + 2, button.row)
+    await until('the first frame', () =>
+      screenOf(terminal.written).some((row) => row.includes('AGENTS')),
+    )
+    // The + beside AGENTS: where agents are, not a button at the foot.
+    const lines = screenOf(terminal.written)
+    const row = lines.findIndex((line) => line.includes('AGENTS'))
+    click(lines[row]?.indexOf('+') ?? 0, row)
     const deadline = Date.now() + 20_000
     while ((await client.events({ types: ['task_created'] })).length === 0) {
       if (Date.now() > deadline) throw new Error('no agent was made')

@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ○ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
      │ Wilco is using 91% CPU and 783 MB of memory, across 7 processes.                                           │     
  ▾ AG│                                                                                                            │ ▾ ▌ 
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌                         91% · 783 MB │ claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 

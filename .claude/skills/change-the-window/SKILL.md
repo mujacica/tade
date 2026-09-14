@@ -93,8 +93,10 @@ file and cannot be tested.
 
 ## Controls and panels
 
-- **The footer's buttons each have a colour of their own** (`find`, `create`, `open`, `extend`,
-  `configure` looks, with `-hover` variants). A new button picks a look; it never reuses one.
+- **Colour means something, or it is grey.** The footer keeps only Extensions, Settings and Mute,
+  grey unless something wants you (amber: an extension to set up, sound that is off). Starting an
+  agent and opening a project have their `+` where agents and projects are; search's key sits by
+  the talk key. Don't colour a button for identity.
 - **Build rows with `Row`, never by concatenating strings.** `new Row(width, skin, pointer)` then
   `.text()`, `.button()`, `.tab()`, `.keys()`, `.field()`, `.check()`… and `.right(r => …)` for the
   group pinned to the right edge. Each control records its own hit while it draws, measured before
@@ -178,6 +180,11 @@ file and cannot be tested.
   `splitFocus` says which half typing goes to.
 - **Anything you click is a button, not a glyph**: menus (`≡`, `▾`), close (`×`), a model or harness
   chip. A bare character is too small a target.
+- **Cmd+V never reaches the window with a picture**: macOS terminals paste text, and a screenshot
+  has none. So the orchestrator's line offers a picture it finds on the clipboard
+  (`clipboardState`, only while the line is open, every few seconds), ctrl+v attaches it, and an
+  empty paste — what some terminals send for a picture — is taken as ctrl+v. Tests pass a stub
+  `clipboard`: a developer's clipboard is not a test's to read.
 - **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
   release (`Window.selection`); the terminal cannot, because the window reports the mouse.
 - **Agent panes and terminals scroll back** through their lane's scrollback: the wheel sets

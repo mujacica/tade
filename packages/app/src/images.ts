@@ -121,6 +121,40 @@ const run: Run = (command, args) =>
   })
 
 /**
+ * Whether the clipboard holds a picture, and which copy it is: a number that
+ * changes whenever anything is copied, so a picture already offered, or
+ * attached, is not offered again. Null where it cannot be told.
+ *
+ * Asked, never waited on: Cmd+V on a picture pastes nothing in most macOS
+ * terminals — they paste text, and a screenshot has none — so the window has
+ * to notice the picture itself to offer it.
+ */
+export async function clipboardState(
+  platform: NodeJS.Platform = process.platform,
+  exec: Run = run,
+): Promise<{ copy: string; image: boolean } | null> {
+  if (platform === 'darwin') {
+    const asked = await exec('osascript', [
+      '-l',
+      'JavaScript',
+      '-e',
+      'ObjC.import("AppKit"); var pb = $.NSPasteboard.generalPasteboard; var t = ObjC.deepUnwrap(pb.types) || []; pb.changeCount + " " + (t.some(function (x) { return /png|tiff/i.test(x) }) ? 1 : 0)',
+    ])
+    const [copy, image] = asked.stdout.trim().split(' ')
+    return asked.ok && copy ? { copy, image: image === '1' } : null
+  }
+  if (platform === 'linux') {
+    const listed =
+      (await exec('wl-paste', ['--list-types'])).stdout ||
+      (await exec('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o'])).stdout
+    if (!listed) return null
+    // No count to tell copies apart: the types stand in for one.
+    return { copy: listed.trim(), image: /image\/(png|jpeg|tiff)/.test(listed) }
+  }
+  return null
+}
+
+/**
  * Whatever picture is on the clipboard, saved to a file. Null when there is
  * none, or nothing on this machine can read one.
  *

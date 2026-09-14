@@ -5,6 +5,7 @@ import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   asPaste,
   clipboardImage,
+  clipboardState,
   imagePaths,
   pasted,
   readImage,
@@ -102,5 +103,26 @@ describe('who a picture is for', () => {
       'terminal:shop/terminals/1',
     ])
     expect(items.find((item) => item.id === 'agent:shop/b')?.off).toBe('its agent is not running')
+  })
+})
+
+describe('a picture on the clipboard', () => {
+  it('is told apart by which copy it is, on macOS and Linux', async () => {
+    expect(await clipboardState('darwin', async () => ({ ok: true, stdout: '324 1\n' }))).toEqual({
+      copy: '324',
+      image: true,
+    })
+    expect(await clipboardState('darwin', async () => ({ ok: true, stdout: '325 0' }))).toEqual({
+      copy: '325',
+      image: false,
+    })
+    expect(await clipboardState('darwin', async () => ({ ok: false, stdout: '' }))).toBeNull()
+    expect(
+      await clipboardState('linux', async (command) => ({
+        ok: command === 'wl-paste',
+        stdout: command === 'wl-paste' ? 'image/png\ntext/plain\n' : '',
+      })),
+    ).toMatchObject({ image: true })
+    expect(await clipboardState('win32')).toBeNull()
   })
 })

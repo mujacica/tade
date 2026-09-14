@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌ ▐  +  ▌                                                                    ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌ ▐  +  ▌                                            ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS             ▐  +  ▌ │                                                                                         
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌ ▐ ♪ Mute ▌                $2.66 today ▾ 
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
