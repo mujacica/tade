@@ -253,6 +253,13 @@ The window is drawn from state by a pure function, so how it looks is tested lik
 
 ## Gotchas
 
+- **Lanes are looked at one look at a time** (`App.tick` → `look`). Looks that overlap finish out of
+  order, and a slow one finishing last puts back the screen a fast one replaced: a line blinking, one
+  frame's text interleaved with the next. A driver's `capture` waits for a whole frame — the pty
+  driver until its emulator has parsed what arrived and no synchronized update is half applied — and
+  reads only the rows asked for: painting ten thousand lines of scrollback to keep forty was most of
+  what echoing a keystroke cost, and a driver test holds it under a few milliseconds.
+
 - `Component` requires `invalidate()` as well as `render(width)`; it is not optional. `handleMouse`
   is optional and receives coordinates *local to the component*; mouse reporting is on by default in
   `TuiAltScreen`.

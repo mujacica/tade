@@ -229,8 +229,11 @@ import {
 // how it looks is in `view.ts`, and where the facts come from is in `live.ts`,
 // so all three can be tested without a terminal.
 
-/** How often a lane's screen is re-read. */
+/** How often a lane's screen is re-read when nothing has said it changed. */
 const FRAME_MS = 250
+
+/** How soon after a lane prints something it is looked at again. */
+const LOOK_SOON_MS = 8
 
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
@@ -582,6 +585,9 @@ export class App {
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
   private speakingTurn = false
+  /** A look at the lanes is under way, and whether another was asked for meanwhile. */
+  private looking = false
+  private lookAgain = false
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
     null
   /** What each terminal has printed, read when search opens. */
@@ -3765,7 +3771,32 @@ export class App {
   }
 
   /** Re-read the focused lane's screen. */
+  /**
+   * Look again, one look at a time. Looks overlapping could finish out of
+   * order, and a slow one finishing last would put back the screen the fast
+   * one had just replaced: a line blinking between two states, text from one
+   * frame interleaved with the next. Asked again while looking, it looks once
+   * more when it is done.
+   */
   private async tick(): Promise<void> {
+    if (this.stopped) return
+    if (this.looking) {
+      this.lookAgain = true
+      return
+    }
+    this.looking = true
+    try {
+      await this.look()
+    } finally {
+      this.looking = false
+    }
+    if (this.lookAgain) {
+      this.lookAgain = false
+      void this.tick()
+    }
+  }
+
+  private async look(): Promise<void> {
     if (this.stopped) return
     this.reopenStopped()
     this.askExtensions()
@@ -4143,13 +4174,18 @@ export class App {
       .catch(() => {})
   }
 
-  /** Look at the lane again in a moment: the terminal emulator parses what arrived first. */
+  /**
+   * Look at the lane again in a moment: long enough to take a burst of output
+   * in one look, short enough that what you typed is on screen before you
+   * notice it was not. Reading waits for the emulator to finish parsing, so a
+   * look this soon is never a look at half of it.
+   */
   private soonTick(): void {
     if (this.soon || this.stopped) return
     this.soon = setTimeout(() => {
       this.soon = null
       void this.tick()
-    }, 16)
+    }, LOOK_SOON_MS)
   }
 
   /** The agent's part of the window: the pane, less its title and rule. */

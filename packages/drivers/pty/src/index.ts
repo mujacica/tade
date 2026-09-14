@@ -165,17 +165,25 @@ export class PtyDriver implements WorkspaceDriver {
 
   async capture(id: LaneId, opts: CaptureOptions): Promise<string> {
     const lane = this.live(id)
+    await settled(lane.term)
+    if (lane.closed) throw new LaneClosedError(id)
     const buffer = lane.term.buffer.active
-    const end = buffer.baseY + lane.term.rows
-    const all: string[] = []
-    for (let i = 0; i < end; i++) {
+    // From the bottom up: past the blank rows under the last thing written,
+    // then only the rows asked for. Above them can be ten thousand lines of
+    // scrollback, and painting every one of them to keep the last forty was
+    // most of what echoing a keystroke cost.
+    let last = buffer.baseY + lane.term.rows - 1
+    while (last >= 0 && (buffer.getLine(last)?.translateToString(true).trim() ?? '') === '') {
+      last--
+    }
+    const rows: string[] = []
+    for (let i = Math.max(0, last - opts.lines + 1); i <= last; i++) {
       const row = buffer.getLine(i)
-      all.push(
+      rows.push(
         row ? (opts.styled ? styledLine(row, lane.term.cols) : row.translateToString(true)) : '',
       )
     }
-    while (all.length > 0 && stripSgr(all.at(-1) ?? '').trim() === '') all.pop()
-    return all.slice(Math.max(0, all.length - opts.lines)).join('\n')
+    return rows.join('\n')
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {
@@ -273,6 +281,38 @@ export class PtyDriver implements WorkspaceDriver {
   }
 }
 
+/** How long a frame being drawn is waited for before the screen is read anyway. */
+const FRAME_WAIT_MS = 50
+
+/**
+ * Wait until the screen is one its program meant to show: everything that has
+ * arrived parsed — the emulator parses in the background — and no redraw half
+ * applied. A program that draws in synchronized updates (pi does, every frame)
+ * says where a frame begins and ends, and read in between, the screen is the
+ * last frame torn by the next: a line blinking, text interleaved with what was
+ * there. Bounded, so a program that begins an update and never ends it cannot
+ * freeze the window.
+ */
+async function settled(term: XTerm, ms = FRAME_WAIT_MS): Promise<void> {
+  const deadline = Date.now() + ms
+  for (;;) {
+    const left = Math.max(0, deadline - Date.now())
+    // A lane closed meanwhile never answers: the wait is bounded either way.
+    await Promise.race([
+      new Promise<void>((resolve) => {
+        try {
+          term.write('', resolve)
+        } catch {
+          resolve()
+        }
+      }),
+      new Promise((resolve) => setTimeout(resolve, left)),
+    ])
+    if (Date.now() >= deadline || !term.modes.synchronizedOutputMode) return
+    await new Promise((resolve) => setTimeout(resolve, 2))
+  }
+}
+
 function safely(fn: () => void): void {
   try {
     fn()
@@ -333,8 +373,4 @@ function sgrOf(cell: BufferCell): string {
 
 function rgb(colour: number): string {
   return `${(colour >> 16) & 255};${(colour >> 8) & 255};${colour & 255}`
-}
-
-function stripSgr(text: string): string {
-  return text.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
 }
