@@ -223,6 +223,81 @@ export default function wilcoTools(pi: PiApi): void {
       }),
   )
 
+  const stringList = (description: string) => ({
+    type: 'array',
+    description,
+    items: { type: 'string' },
+  })
+
+  tool(
+    'wilco_plan',
+    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Wilco's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
+    object(
+      {
+        project: string('project name, as configured'),
+        said: string('the whole request, word for word'),
+        agents: {
+          type: 'array',
+          description: 'one entry per agent, in any order',
+          items: object(
+            {
+              name: string('its task name, lowercase with dashes'),
+              said: string('the words of the request this agent covers, word for word'),
+              prompt: string('what to tell the agent first'),
+              done,
+              after: {
+                type: 'array',
+                description:
+                  'what it waits on: other agents in this plan by name, or tasks already in the project',
+                items: object(
+                  {
+                    agent: string('an agent in this plan, or an existing task'),
+                    why: string('why it has to wait, in a few words'),
+                  },
+                  ['agent', 'why'],
+                ),
+              },
+              touches: stringList('the files or folders it will change, as you read the code'),
+              at: string(
+                'not before this time, ISO 8601 with a time zone, when it should wait for one',
+              ),
+              model: string('the model to start it on, only when the human named one'),
+              thinking: string('how hard it thinks: minimal, low, medium, high, xhigh'),
+            },
+            ['name', 'said', 'prompt'],
+          ),
+        },
+      },
+      ['project', 'said', 'agents'],
+    ),
+    (p) => rpc('queue/plan', p),
+  )
+
+  tool(
+    'wilco_queue',
+    'What is waiting to start, and why: after what, until when, held by what, or paused. Answer questions about queued work with this, not from memory.',
+    object({}),
+    () => rpc('queue/list', {}),
+  )
+
+  tool(
+    'wilco_queue_change',
+    "Change queued work, as the human asked: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it. Name no task to pause or resume a whole project's queue.",
+    object(
+      {
+        change: {
+          type: 'string',
+          enum: ['start', 'pause', 'resume', 'wait', 'remove'],
+          description: 'what to do',
+        },
+        task: string('the queued task, like checkout/add-refunds'),
+        project: string('the project, when pausing or resuming all of its queue'),
+      },
+      ['change'],
+    ),
+    (p) => rpc('queue/change', p),
+  )
+
   // Wilco's extensions: listed when Wilco started this orchestrator, run by
   // Wilco, which is where their settings, secrets and window are.
   for (const spec of extensionTools()) {

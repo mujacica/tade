@@ -225,6 +225,108 @@
     }
   },
   {
+    "name": "wilco_plan",
+    "description": "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Wilco's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "project name, as configured"
+        },
+        "said": {
+          "type": "string",
+          "description": "the whole request, word for word"
+        },
+        "agents": {
+          "type": "array",
+          "description": "one entry per agent, in any order",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "its task name, lowercase with dashes"
+              },
+              "said": {
+                "type": "string",
+                "description": "the words of the request this agent covers, word for word"
+              },
+              "prompt": {
+                "type": "string",
+                "description": "what to tell the agent first"
+              },
+              "done": {
+                "type": "string",
+                "enum": [
+                  "said",
+                  "idle",
+                  "committed",
+                  "merged",
+                  "manual"
+                ],
+                "description": "how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand."
+              },
+              "after": {
+                "type": "array",
+                "description": "what it waits on: other agents in this plan by name, or tasks already in the project",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "type": "string",
+                      "description": "an agent in this plan, or an existing task"
+                    },
+                    "why": {
+                      "type": "string",
+                      "description": "why it has to wait, in a few words"
+                    }
+                  },
+                  "required": [
+                    "agent",
+                    "why"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "touches": {
+                "type": "array",
+                "description": "the files or folders it will change, as you read the code",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "at": {
+                "type": "string",
+                "description": "not before this time, ISO 8601 with a time zone, when it should wait for one"
+              },
+              "model": {
+                "type": "string",
+                "description": "the model to start it on, only when the human named one"
+              },
+              "thinking": {
+                "type": "string",
+                "description": "how hard it thinks: minimal, low, medium, high, xhigh"
+              }
+            },
+            "required": [
+              "name",
+              "said",
+              "prompt"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "project",
+        "said",
+        "agents"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_propose_extension",
     "description": "Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `wilco extensions activate`. Never assume a proposed tool is available.",
     "parameters": {
@@ -273,6 +375,48 @@
       "required": [
         "name",
         "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_queue",
+    "description": "What is waiting to start, and why: after what, until when, held by what, or paused. Answer questions about queued work with this, not from memory.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_queue_change",
+    "description": "Change queued work, as the human asked: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it. Name no task to pause or resume a whole project's queue.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "change": {
+          "type": "string",
+          "enum": [
+            "start",
+            "pause",
+            "resume",
+            "wait",
+            "remove"
+          ],
+          "description": "what to do"
+        },
+        "task": {
+          "type": "string",
+          "description": "the queued task, like checkout/add-refunds"
+        },
+        "project": {
+          "type": "string",
+          "description": "the project, when pausing or resuming all of its queue"
+        }
+      },
+      "required": [
+        "change"
       ],
       "additionalProperties": false
     }

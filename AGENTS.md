@@ -63,6 +63,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   down once. The rule is `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` —
   chosen by whoever made the task. Never infer it from a turn ending (an agent that asked a question
   looks the same) or from a checkout agent having stopped (status calls that `review`).
+- **Queued work is a task that has not started**, with `start` in its task file: what it waits on
+  and why, not before when, and what its agent is told. The window starts it by rule
+  (`readyToStart`) on every look at the tasks — never a model deciding again — as far as
+  `max_parallel` leaves room, and writes why (`queue_started`). What it waits on failing, stopping
+  or going holds it (`queue_held`), said once to the orchestrator, which asks the person; their
+  choice (`queue_changed`) is written down and read back. In a worktree it begins on top of what it
+  waited on (`startFrom`), or from the base when that was merged, and keeps its own `.wilco` files.
 - **Wilco tells the orchestrator; it never talks over it.** What happened waits and goes with the
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and

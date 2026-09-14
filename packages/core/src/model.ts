@@ -53,6 +53,27 @@ export const DONE_RULE_MEANS: Readonly<Record<DoneRule, string>> = {
 }
 
 /**
+ * When a task that was asked for now should start: after other tasks finish,
+ * not before a time, or both. A task with one is queued work — made, named and
+ * waiting — until Wilco starts its agent.
+ */
+export const StartCondition = z.object({
+  /** The tasks it waits on, each with why: it starts once every one has finished. */
+  after: z.array(z.object({ task: TaskId, why: z.string().default('') })).default([]),
+  /** Not before this moment, as an ISO time. */
+  at: z.string().optional(),
+  /** What its agent is told when it starts. */
+  prompt: z.string().default(''),
+  /** What it is expected to change, as whoever planned it read the code. */
+  touches: z.array(z.string()).default([]),
+  /** The model to start it on, when one was named for the work. */
+  model: z.object({ provider: z.string().optional(), id: z.string() }).optional(),
+  /** How hard it thinks from its first turn, when that was chosen. */
+  thinking: z.string().optional(),
+})
+export type StartCondition = z.infer<typeof StartCondition>
+
+/**
  * `.wilco/task.yaml` inside a task's worktree, written once when the task is
  * created. `intent_spoken` is stored verbatim.
  */
@@ -88,6 +109,8 @@ export const TaskFile = z.object({
   by: z.string().optional(),
   /** How it counts as finished; `said` unless chosen. */
   done: z.enum(DONE_RULES).optional(),
+  /** When it starts, for work asked for now and started later. */
+  start: StartCondition.optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
 
@@ -224,6 +247,8 @@ export const Task = z.object({
   by: z.string().optional(),
   /** How it counts as finished, as its task file says. */
   done: z.enum(DONE_RULES).optional(),
+  /** When it starts, when it is queued work. */
+  start: StartCondition.optional(),
   created: z.string(),
   state: TaskState,
   reason: z.string(),

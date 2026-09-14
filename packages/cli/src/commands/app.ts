@@ -116,11 +116,28 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       let showTerminal: (terminal: string) => void = () => {}
       let keepOrchestratorModel: (model: { provider: string; id: string }) => void = () => {}
       let handOff: NonNullable<ToolHostOptions['handOff']> = async () => ({ note: '', images: [] })
+      // The queue is the window's to run, and the window comes up after this.
+      let queue: ReturnType<App['queueTools']> | null = null
+      const opening = () => new Error('Wilco is still opening: ask again in a moment')
       const tools = await ToolHost.listen({
         wilco: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
         handOff: (cwd) => handOff(cwd),
+        queue: {
+          describe: async () => {
+            if (!queue) throw opening()
+            return queue.describe()
+          },
+          change: async (req) => {
+            if (!queue) throw opening()
+            return queue.change(req)
+          },
+          plan: async (plan) => {
+            if (!queue) throw opening()
+            return queue.plan(plan)
+          },
+        },
         status: () =>
           collectStatus({
             config: client.config,
@@ -188,6 +205,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
 
         // Files you attached go to the agents the orchestrator starts in answer.
         handOff = (cwd) => app.handOff(cwd)
+        queue = app.queueTools()
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty

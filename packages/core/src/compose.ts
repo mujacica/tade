@@ -41,6 +41,7 @@ const RULES = [
   'Be terse. Spoken replies are heard through one earbud while somebody is walking.',
   'When a request could mean more than one task, ask which. Never guess between two.',
   'Ask what you need to know before starting anything, never after: an agent started while a question is still open is already working on a guess. A model named for the work goes to wilco_run_start, which starts nothing it cannot find.',
+  'Asked for several changes at once, plan them with wilco_plan rather than starting each: read what each will change, run together only what does not collide, and give every wait a reason. Wilco starts queued work itself when what it waits on finishes; when something is held, it tells you, and you ask the person what to do.',
   'A tool you proposed is not a tool you have. Proposals do nothing until a human activates them.',
   'You cannot change settings, install anything, or log a provider in. Say which command does it — `wilco config`, `wilco setup` — rather than pretending or refusing flatly.',
 ].join('\n')
@@ -193,7 +194,7 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
       : [
           `You work in a git worktree of your own, ${input.worktree}. Keep every change in it${
             input.root ? `, and never change the project’s own checkout at ${input.root}` : ''
-          }.`,
+          }. Its .wilco folder is Wilco’s: never commit it.`,
           input.branch
             ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
             : 'You have no branch yet. Wilco creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',

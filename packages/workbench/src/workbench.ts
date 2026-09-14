@@ -5,6 +5,7 @@ import {
   type Config,
   ConfigSchema,
   checkBudget,
+  checkPlan,
   composeAgentPrompt,
   type DoneRule,
   type EventFilter,
@@ -14,9 +15,12 @@ import {
   loadConfig,
   type Note,
   noSpend,
+  type Plan,
+  type QueueChange,
   resolveRoute,
   runtimeDir,
   type SandboxKind,
+  type StartCondition,
   spendFrom,
   startOfToday,
   type TaskId,
@@ -51,9 +55,11 @@ import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import {
+  beginFrom,
   createTask,
   nameTask,
   type RemoveResult,
+  readTaskFile,
   removeTask,
   setParked,
   setTaskHarness,
@@ -150,6 +156,14 @@ export interface CreateTaskRequest {
   by?: string
   /** How it counts as finished; `said` unless chosen. */
   done?: DoneRule
+  /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
+  start?: StartCondition
+}
+
+/** What a plan made: its tasks, in the order they were made, and what to watch out for. */
+export interface PlanMade {
+  made: TaskWorktree[]
+  warnings: string[]
 }
 
 export interface RemoveTaskRequest {
@@ -641,6 +655,7 @@ export class Workbench {
       ...(req.links ? { links: req.links } : {}),
       ...(req.by ? { by: req.by } : {}),
       ...(req.done ? { done: req.done } : {}),
+      ...(req.start ? { start: req.start } : {}),
       workspace,
     })
     await this.log.append({
@@ -655,9 +670,135 @@ export class Workbench {
         intent_spoken: req.intent,
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
+        ...(req.start ? { after: req.start.after.map((dep) => dep.task) } : {}),
+        ...(req.start?.at ? { at: req.start.at } : {}),
       },
     })
     return task
+  }
+
+  /**
+   * Make every task in a plan, in an order where each comes after what it
+   * waits on — or none of them, with every reason, when the plan cannot be
+   * kept. Making is not starting: the queue starts whatever is ready.
+   */
+  async planTasks(plan: Plan, by = 'orchestrator'): Promise<PlanMade> {
+    const configured = this.config.projects[plan.project]
+    if (!configured) {
+      throw new Error(`unknown project "${plan.project}": add it to config.yaml first`)
+    }
+    const created = await this.log.read({ types: ['task_created', 'task_removed'] }).catch(() => [])
+    const tasks = new Set<string>()
+    for (const event of created) {
+      if (!event.task?.startsWith(`${plan.project}/`)) continue
+      if (event.type === 'task_created') tasks.add(event.task)
+      else tasks.delete(event.task)
+    }
+    const check = checkPlan(plan, { workspace: this.config.agents.workspace, tasks })
+    if (!check.ok) throw new Error(`the plan was not made: ${check.problems.join('; ')}`)
+    // Every model named for the work settled first: a plan that starts half its
+    // agents and then cannot tell which model the rest meant is a mess to undo.
+    const models = new Map<string, { provider: string; id: string }>()
+    for (const agent of check.order) {
+      if (agent.model) models.set(agent.name, await this.resolveModel(agent.model))
+    }
+    const made: TaskWorktree[] = []
+    for (const agent of check.order) {
+      const model = models.get(agent.name)
+      made.push(
+        await this.createTask({
+          project: plan.project,
+          slug: agent.name,
+          intent: agent.said,
+          by,
+          ...(agent.done ? { done: agent.done } : {}),
+          start: {
+            after: check.waitsOn.get(agent.name) ?? [],
+            prompt: agent.prompt,
+            touches: agent.touches,
+            ...(agent.at ? { at: new Date(Date.parse(agent.at)).toISOString() } : {}),
+            ...(model ? { model } : {}),
+            ...(agent.thinking ? { thinking: agent.thinking } : {}),
+          },
+        }),
+      )
+    }
+    return { made, warnings: check.warnings }
+  }
+
+  /**
+   * Start queued work: from where it should begin, on what it was planned to
+   * run on, told what it was planned to be told. Said in the journal, so what
+   * started it and why is there to be asked about later.
+   */
+  async startQueued(req: {
+    task: string
+    worktree: string
+    /** What it begins on top of, in a worktree: what it waited on, or the base. */
+    from?: readonly string[]
+    why: string
+  }): Promise<LaneRecord> {
+    const file = await readTaskFile(req.worktree, req.task)
+    if (!file?.start) throw new Error(`${req.task} is not queued work`)
+    if (file.workspace !== 'checkout' && req.from && req.from.length > 0) {
+      await beginFrom(req.worktree, req.task, req.from)
+    }
+    const { start } = file
+    const lane = await this.startAgent({
+      task: req.task as TaskId,
+      cwd: req.worktree,
+      prompt: start.prompt,
+      ...(start.model ? { model: start.model } : {}),
+      ...(start.thinking && isThinkingLevel(start.thinking) ? { thinking: start.thinking } : {}),
+    })
+    await this.log.append({
+      type: 'queue_started',
+      task: req.task,
+      detail: { why: req.why, after: start.after.map((dep) => dep.task) },
+    })
+    return lane
+  }
+
+  /**
+   * A person's choice about queued work — pause, resume, start it anyway, or
+   * wait past what held it — or about a project's whole queue, when no task is
+   * named. Written down: what the queue does next is read from it.
+   */
+  async changeQueued(req: {
+    task?: string
+    project?: string
+    change: QueueChange
+    by: 'you' | 'orchestrator'
+  }): Promise<void> {
+    if (!req.task && (req.change === 'start' || req.change === 'wait')) {
+      throw new Error(`${req.change} is for one piece of work: say which`)
+    }
+    await this.log.append({
+      type: 'queue_changed',
+      task: req.task ?? null,
+      detail: {
+        change: req.change,
+        by: req.by,
+        ...(req.task ? {} : { all: true, ...(req.project ? { project: req.project } : {}) }),
+      },
+    })
+  }
+
+  /** Queued work that could not start, held with why until someone chooses. */
+  async holdQueued(
+    task: string,
+    because: string,
+    how: { on?: string; start?: 'failed' },
+  ): Promise<void> {
+    await this.log.append({
+      type: 'queue_held',
+      task,
+      detail: {
+        because,
+        ...(how.on ? { on: how.on } : {}),
+        ...(how.start ? { start: how.start } : {}),
+      },
+    })
   }
 
   /**
@@ -1243,6 +1384,11 @@ export class Workbench {
     await this.registry.shutdown()
     await this.close()
   }
+}
+
+/** A level someone wrote down, if it is one there is. */
+function isThinkingLevel(level: string): level is ThinkingLevel {
+  return (THINKING_LEVELS as readonly string[]).includes(level)
 }
 
 export type { LaneId, LaneRecord, SpawnRequest }

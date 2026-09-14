@@ -35,6 +35,13 @@ export const EventType = z.enum([
    * own rule met. What work waiting on it waits for.
    */
   'task_done',
+  // the queue
+  /** Queued work started: what it waited on finished, its time came, or someone started it. */
+  'queue_started',
+  /** Queued work is held: what it waits on failed, stopped or went, or it could not start. */
+  'queue_held',
+  /** Someone changed queued work: paused it, resumed it, started it anyway, or chose to wait. */
+  'queue_changed',
   // agents
   'run_started',
   'run_exited',
@@ -70,6 +77,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_removed: 'notable',
   state_change: 'notable',
   task_done: 'notable',
+  queue_started: 'notable',
+  // Not blocking: nothing is running into a wall, and the orchestrator is told
+  // in words. Blocking would raise a pane for work that has none.
+  queue_held: 'notable',
+  queue_changed: 'notable',
   run_started: 'notable',
   run_exited: 'notable',
   tool_call: 'routine',

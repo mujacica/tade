@@ -1,7 +1,7 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
-import { DONE_RULES, type DoneRule, type LaneId } from '@wilco/core'
+import { DONE_RULES, type DoneRule, type LaneId, type Plan } from '@wilco/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@wilco/harnesses-core'
 import type { Workbench } from '@wilco/workbench'
 
@@ -41,6 +41,16 @@ export interface ToolHostOptions {
    * status` from outside it calls every running agent working.
    */
   status?: () => Promise<unknown>
+  /**
+   * The queue, as the window runs it: planning work, saying where it stands,
+   * and changing it. Without a window there is nothing to start queued work,
+   * so there is no queue.
+   */
+  queue?: {
+    describe(): Promise<string>
+    change(req: { task?: string; project?: string; change: string }): Promise<string>
+    plan(plan: Plan): Promise<string>
+  }
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -90,6 +100,14 @@ export class ToolHost {
         })
         return `${String(p.task)} is finished`
       },
+      'queue/plan': async (p) => queueOf(opts).plan(planOf(p)),
+      'queue/list': async () => queueOf(opts).describe(),
+      'queue/change': async (p) =>
+        queueOf(opts).change({
+          ...(p.task ? { task: String(p.task) } : {}),
+          ...(p.project ? { project: String(p.project) } : {}),
+          change: String(p.change ?? ''),
+        }),
       'status/read': async () => {
         if (!opts.status) throw new Error('this Wilco has no window to ask')
         return opts.status()
@@ -272,6 +290,39 @@ function reply(socket: Socket, message: unknown): void {
 }
 
 /** Links as a model sent them: only the ones with somewhere to go. */
+/** The window's queue, or why there is none to use. */
+function queueOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['queue']> {
+  if (!opts.queue) throw new Error('queued work needs the Wilco window open, which starts it')
+  return opts.queue
+}
+
+/** A plan as the orchestrator sent it, read carefully: anything malformed is said, not guessed. */
+function planOf(p: Record<string, unknown>): Plan {
+  const text = (value: unknown) => (typeof value === 'string' ? value : '')
+  if (!Array.isArray(p.agents)) throw new Error('a plan needs agents: a list of them')
+  return {
+    project: text(p.project),
+    said: text(p.said),
+    agents: p.agents.map((raw) => {
+      const agent = (raw ?? {}) as Record<string, unknown>
+      return {
+        name: text(agent.name),
+        said: text(agent.said),
+        prompt: text(agent.prompt),
+        ...(agent.done ? { done: doneRuleOf(agent.done) } : {}),
+        after: (Array.isArray(agent.after) ? agent.after : []).map((dep) => {
+          const one = (dep ?? {}) as Record<string, unknown>
+          return { agent: text(one.agent), why: text(one.why) }
+        }),
+        touches: (Array.isArray(agent.touches) ? agent.touches : []).map(text).filter(Boolean),
+        ...(agent.at ? { at: text(agent.at) } : {}),
+        ...(agent.model ? { model: text(agent.model) } : {}),
+        ...(agent.thinking ? { thinking: text(agent.thinking) } : {}),
+      }
+    }),
+  }
+}
+
 /** A rule for finishing, as asked: one there is, or the reason it is not. */
 function doneRuleOf(value: unknown): DoneRule {
   const rule = DONE_RULES.find((one) => one === String(value).trim().toLowerCase())

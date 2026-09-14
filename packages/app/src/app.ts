@@ -23,18 +23,26 @@ import {
   type Config,
   composeBrief,
   DEFAULT_ATTENTION,
+  describeQueueState,
   describeWork,
   expandHome,
   HARNESS_CHOICES,
+  holdSaid,
+  joined,
   type LaneId,
   loadConfig,
   needsReflection,
   orchestratorRoute,
+  type Plan,
   parseQuietHours,
   parseSetting,
+  QUEUE_CHANGES,
+  queueStateOf,
+  readyToStart,
   reflectionPrompt,
   resolveRoute,
   settingsOf,
+  startFrom,
   THINKING_LEVELS,
 } from '@wilco/core'
 import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
@@ -198,6 +206,7 @@ import {
   readRecents,
   recentProjects,
 } from './projects.ts'
+import { describeQueue, heldMessage, planAnswer, whyStarting } from './queue.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } from './search.ts'
@@ -640,6 +649,10 @@ export class App {
   private seenTasks: readonly TaskSnapshot[] | null = null
   /** Tasks whose rule was met and is being written down, so it is written once. */
   private readonly marking = new Set<string>()
+  /** Queued work being started now, so a refresh in the middle does not start it twice. */
+  private readonly startingQueued = new Set<string>()
+  /** The queue pass under way, if one is. */
+  private advancing: Promise<string[]> | null = null
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private router: RouterState = initialRouter()
@@ -1277,6 +1290,7 @@ export class App {
         }
         this.seenTasks = tasks
         void this.recordRulesMet()
+        void this.advanceQueue()
         void this.reflect(tasks)
         this.draw()
       },
@@ -4813,6 +4827,159 @@ export class App {
         .append({ type: 'reflected', task, detail: { by: 'orchestrator' } })
         .catch(() => {})
       await this.tell(reflectionPrompt(task)).catch(() => {})
+    }
+  }
+
+  /**
+   * Start whatever queued work is ready, and say what is held. By rule, on
+   * every look at the tasks: a plan keeps going whether or not the orchestrator
+   * is busy, or there at all. One pass at a time, so nothing starts twice.
+   */
+  advanceQueue(): Promise<string[]> {
+    this.advancing ??= this.doAdvanceQueue().finally(() => {
+      this.advancing = null
+    })
+    return this.advancing
+  }
+
+  private async doAdvanceQueue(): Promise<string[]> {
+    const live = this.live
+    if (!live) return []
+    const facts = live.queueFacts()
+    const items = live.queued.filter((item) => !this.startingQueued.has(item.task))
+    for (const item of items) {
+      const state = queueStateOf(item, facts)
+      if (state.kind !== 'held' || state.on === null) continue
+      if (holdSaid(item.task, state.because, facts.events)) continue
+      await this.opts.client.holdQueued(item.task, state.because, { on: state.on }).catch(() => {})
+      this.state = withTranscript(
+        this.state,
+        wilcoDid(this.state.transcript, `${item.task} is held: ${state.because}`, this.now()),
+      )
+      void this.tell(heldMessage(item.task, state.because)).catch(() => {})
+    }
+    // Room only where a project says how many may run: the queue waits for a
+    // slot rather than failing the start the way a limit used to.
+    const room = new Map<string, number>()
+    for (const [project, settings] of Object.entries(this.opts.config.projects)) {
+      if (!settings.max_parallel) continue
+      const running = this.opts.client
+        .runs()
+        .filter((run) => run.task.startsWith(`${project}/`)).length
+      room.set(project, settings.max_parallel - running)
+    }
+    const started: string[] = []
+    for (const task of readyToStart(items, facts, room)) {
+      const item = items.find((one) => one.task === task)
+      const worktree = live.worktreeOf(task)
+      if (!item || !worktree) continue
+      this.startingQueued.add(task)
+      const because = whyStarting(item, facts)
+      try {
+        await this.opts.client.startQueued({
+          task,
+          worktree,
+          why: because,
+          from: startFrom(item.start.after, live.upstream, live.baseOf(task)),
+        })
+        started.push(task)
+        this.news = addNews(this.news, `started ${task}: ${because}`, this.now())
+        this.state = withTranscript(
+          this.state,
+          wilcoDid(this.state.transcript, `started ${task}: ${because}`, this.now()),
+        )
+      } catch (err) {
+        // Held with why, and said: work that silently never starts looks like waiting.
+        this.startingQueued.delete(task)
+        await this.opts.client.holdQueued(task, why(err), { start: 'failed' }).catch(() => {})
+        this.state = withTranscript(
+          this.state,
+          wilcoDid(this.state.transcript, `${task} could not start: ${why(err)}`, this.now()),
+        )
+        void this.tell(heldMessage(task, `it could not start: ${why(err)}`)).catch(() => {})
+      }
+    }
+    if (started.length > 0) await live.refresh()
+    this.draw()
+    return started
+  }
+
+  /** What the orchestrator's queue tools do, answered from this window. */
+  queueTools(): {
+    advance(): Promise<string[]>
+    describe(): Promise<string>
+    change(req: { task?: string; project?: string; change: string }): Promise<string>
+    plan(plan: Plan): Promise<string>
+  } {
+    return {
+      advance: () => this.advanceQueue(),
+      describe: async () => {
+        await this.live?.refresh()
+        const live = this.live
+        if (!live) return 'Wilco is still opening.'
+        return describeQueue(live.queued, live.queueFacts(), clockOf)
+      },
+      change: async (req) => {
+        const change = QUEUE_CHANGES.find((one) => one === req.change)
+        if (req.change === 'remove') {
+          if (!req.task) throw new Error('remove is for one piece of work: say which')
+          const facts = this.live?.factsOf(req.task)
+          const worktree = this.live?.worktreeOf(req.task)
+          if (!facts || !worktree) throw new Error(`there is no queued work called ${req.task}`)
+          const root = this.opts.config.projects[facts.project]?.root
+          const result = await this.opts.client.removeTask({
+            root: root ? expandHome(root) : worktree,
+            worktree,
+            branch: facts.branch,
+            task: req.task,
+            force: true,
+          })
+          if (!result.removed) throw new Error(result.reason)
+          await this.live?.refresh()
+          return `${req.task} is removed: anything waiting on it is held`
+        }
+        if (!change) {
+          throw new Error(
+            `${req.change} is not something to do to queued work: ${[...QUEUE_CHANGES, 'remove'].join(', ')}`,
+          )
+        }
+        await this.opts.client.changeQueued({
+          ...(req.task ? { task: req.task } : {}),
+          ...(req.project ? { project: req.project } : {}),
+          change,
+          by: 'orchestrator',
+        })
+        await this.live?.refresh()
+        const started = await this.advanceQueue()
+        return started.length > 0
+          ? `Done. Started ${joined(started)}.`
+          : `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
+      },
+      plan: async (plan) => {
+        const made = await this.opts.client.planTasks(plan)
+        await this.live?.refresh()
+        const started = await this.advanceQueue()
+        const live = this.live
+        const facts = live?.queueFacts()
+        const waiting = made.made
+          .map((task) => task.id)
+          .filter((task) => !started.includes(task))
+          .map((task) => {
+            const item = live?.queued.find((one) => one.task === task)
+            return {
+              task,
+              state:
+                item && facts ? describeQueueState(queueStateOf(item, facts), clockOf) : 'queued',
+            }
+          })
+        return planAnswer({
+          project: plan.project,
+          made: made.made.map((task) => task.id),
+          started,
+          waiting,
+          warnings: made.warnings,
+        })
+      },
     }
   }
 

@@ -8,11 +8,15 @@ import {
   historyFrom,
   type KnownTask,
   type Note,
+  type Queued,
+  type QueueFacts,
   ruleMet,
   type SpendReport,
   spendFrom,
   startOfToday,
   summariseWork,
+  type TaskState,
+  type Upstream,
   type WilcoEvent,
   type WorkHistory,
   type WorkSummary,
@@ -37,6 +41,17 @@ import type { Change } from './view.ts'
 
 /** How much journal to keep for working out what recently moved. */
 const JOURNAL = 500
+
+/** What decides where queued work stands, read from the whole journal rather than its tail. */
+const QUEUE_READS = [
+  'task_removed',
+  'run_started',
+  'run_exited',
+  'failed',
+  'queue_started',
+  'queue_held',
+  'queue_changed',
+] as const
 
 /** How long a folder listing is good for. */
 const LISTING_MS = 2_000
@@ -227,6 +242,14 @@ export class Live {
   private worked = new Set<string>()
   /** Tasks whose own rule is met and not yet written down, as the last refresh saw. */
   private met: { task: string; rule: DoneRule }[] = []
+  /** Tasks whose agent has ever started: queued work that has started is not queued. */
+  private started = new Set<string>()
+  /** What the queue reads: removals, runs, failures, and every choice made about queued work. */
+  private queueEvents: WilcoEvent[] = []
+  /** Queued work, and what it waits on, as the last refresh saw. */
+  private queue: Queued[] = []
+  private states = new Map<string, { state: TaskState; reason: string }>()
+  private upstreams = new Map<string, Upstream>()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
 
@@ -253,6 +276,10 @@ export class Live {
       .catch(() => [])
     live.finished = finishedFrom(told)
     live.worked = workedFrom(told)
+    live.queueEvents = await opts.client.events({ types: [...QUEUE_READS] }).catch(() => [])
+    for (const event of live.queueEvents) {
+      if (event.type === 'run_started' && event.task) live.started.add(event.task)
+    }
     await opts.client.subscribe((event) => live.record(event))
     await live.refresh()
     live.timer = setInterval(() => void live.refresh(), opts.pollMs ?? 2_000)
@@ -268,6 +295,26 @@ export class Live {
 
   get tasks(): TaskSnapshot[] {
     return this.snapshots
+  }
+
+  /** Work made and waiting to start, oldest first, as the last look saw it. */
+  get queued(): readonly Queued[] {
+    return this.queue
+  }
+
+  /** Everything the queue's rules read, as of now. */
+  queueFacts(): QueueFacts {
+    return {
+      tasks: this.states,
+      finished: this.finished,
+      events: this.queueEvents,
+      now: this.now(),
+    }
+  }
+
+  /** What each task could hand queued work to begin from: its branch, where it is, its rule. */
+  get upstream(): ReadonlyMap<string, Upstream> {
+    return this.upstreams
   }
 
   /**
@@ -559,8 +606,21 @@ export class Live {
         terminalsFrom(lanes).map(({ id, project, name }) => ({ id, project, name })),
       )
       this.met = []
+      this.queue = []
+      this.states = new Map()
+      this.upstreams = new Map()
       for (const project of workspace.projects) {
         for (const task of project.tasks) {
+          this.states.set(task.id, { state: task.state, reason: task.reason })
+          this.upstreams.set(task.id, {
+            workspace: task.workspace === 'checkout' ? 'checkout' : 'worktree',
+            branch: task.branch,
+            head: task.git?.head ?? null,
+            done: task.done ?? 'said',
+          })
+          if (task.start && !this.started.has(task.id)) {
+            this.queue.push({ task: task.id, project: project.name, start: task.start })
+          }
           const rule = task.done
           if (!rule || this.finished.has(task.id)) continue
           const facts = {
@@ -586,8 +646,12 @@ export class Live {
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)
     }
-    if (event.task && event.type === 'run_started') this.worked.delete(event.task)
+    if (event.task && event.type === 'run_started') {
+      this.worked.delete(event.task)
+      this.started.add(event.task)
+    }
     if (event.task && event.type === 'turn_done') this.worked.add(event.task)
+    if ((QUEUE_READS as readonly string[]).includes(event.type)) this.queueEvents.push(event)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)
   }

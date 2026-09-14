@@ -838,6 +838,87 @@ describe('the window, wired up', () => {
     expect(done).toMatchObject({ task: 'app/refunds', detail: { by: 'rule', rule: 'committed' } })
   }, 30_000)
 
+  it('starts what can start, and the rest once what it waits on has finished', async () => {
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const answer = await window.queueTools().plan({
+      project: 'app',
+      said: 'charge once, then give refunds back',
+      agents: [
+        { name: 'charge-once', said: 'charge once', prompt: '', after: [], touches: ['charge.ts'] },
+        {
+          name: 'refund-back',
+          said: 'then give refunds back',
+          prompt: '',
+          after: [{ agent: 'charge-once', why: 'both change charge.ts' }],
+          touches: ['charge.ts'],
+        },
+      ],
+    })
+    expect(answer).toContain('Started charge-once.')
+    expect(answer).toContain('Queued refund-back (after app/charge-once).')
+    expect(client.runs().map((run) => run.task)).toEqual(['app/charge-once'])
+
+    // Nobody asks: the first finishing is what starts the second.
+    await client.markDone('app/charge-once', { by: 'you' })
+    await until(
+      'the second started',
+      () => client.runs().some((run) => run.task === 'app/refund-back'),
+      10_000,
+    )
+    await until(
+      'why it started, written down',
+      async () =>
+        (await client.events({ types: ['queue_started'], task: 'app/refund-back' }))[0]?.detail
+          .why === 'app/charge-once has finished',
+    )
+  }, 60_000)
+
+  it('holds work whose dependency stopped, tells the orchestrator, and starts it when told to', async () => {
+    const told: string[] = []
+    const window = await start({
+      thinker: {
+        ask: async () => 'ok',
+        tell: async (text: string) => {
+          told.push(text)
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tools = window.queueTools()
+    await tools.plan({
+      project: 'app',
+      said: 'first, then second',
+      agents: [
+        { name: 'first', said: 'first', prompt: '', after: [], touches: [] },
+        {
+          name: 'second',
+          said: 'second',
+          prompt: '',
+          after: [{ agent: 'first', why: '' }],
+          touches: [],
+        },
+      ],
+    })
+    await client.stopAgent('app/first')
+    await until(
+      'the hold written down',
+      async () => (await client.events({ types: ['queue_held'] })).length === 1,
+      10_000,
+    )
+    await until('the orchestrator told', () =>
+      told.some((text) => text.includes('app/second is held')),
+    )
+    expect(await tools.describe()).toContain(
+      'app/second — held: app/first was stopped before it finished',
+    )
+
+    expect(await tools.change({ task: 'app/second', change: 'start' })).toBe(
+      'Done. Started app/second.',
+    )
+    expect(client.runs().some((run) => run.task === 'app/second')).toBe(true)
+  }, 60_000)
+
   it('searches with ctrl+k, finding agents and files, and opens a file to read', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

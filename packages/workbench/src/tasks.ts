@@ -1,7 +1,14 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { type DoneRule, sharedTaskDir, TASK_CONTEXT_FILE, TaskId } from '@wilco/core'
+import {
+  type DoneRule,
+  type StartCondition,
+  sharedTaskDir,
+  TASK_CONTEXT_FILE,
+  TaskFile,
+  TaskId,
+} from '@wilco/core'
 import { git, parseStatusV2, resolveBaseRef } from '@wilco/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
@@ -67,6 +74,8 @@ export interface CreateTaskOptions {
   by?: string
   /** How it counts as finished, kept in the task file. */
   done?: DoneRule
+  /** When it starts, for queued work: kept in the task file until it does. */
+  start?: StartCondition
   now?: Date
 }
 
@@ -150,7 +159,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    { by: opts.by, done: opts.done },
+    { by: opts.by, done: opts.done, start: opts.start },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(worktree, TASK_CONTEXT_FILE), context)
@@ -185,7 +194,7 @@ async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<Ta
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    { by: opts.by, done: opts.done },
+    { by: opts.by, done: opts.done, start: opts.start },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
@@ -216,7 +225,11 @@ async function writeTaskFile(
   intent: string,
   now: Date,
   links: readonly { title: string; url: string }[],
-  kept: { by?: string | undefined; done?: DoneRule | undefined },
+  kept: {
+    by?: string | undefined
+    done?: DoneRule | undefined
+    start?: StartCondition | undefined
+  },
 ): Promise<void> {
   await mkdir(join(path, '..'), { recursive: true })
   await writeFile(
@@ -233,6 +246,7 @@ async function writeTaskFile(
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
       ...(kept.by ? { by: kept.by } : {}),
       ...(kept.done ? { done: kept.done } : {}),
+      ...(kept.start ? { start: kept.start } : {}),
     }),
   )
 }
@@ -358,6 +372,111 @@ export async function setTitle(
       file.title = text
     }
   })
+}
+
+/** A task's file, read and checked; null when there is none or it will not read. */
+export async function readTaskFile(worktree: string, id: string): Promise<TaskFile | null> {
+  try {
+    const parsed = TaskFile.safeParse(parseYaml(await readFile(taskFilePath(worktree, id), 'utf8')))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Begin queued work in its worktree from where it should: on top of what it
+ * waited on, merged together when that was more than one. Only while it has
+ * nothing of its own — a queued task has not started, so moving it loses
+ * nothing, and one that somehow has work is left exactly where it is.
+ */
+export async function beginFrom(
+  worktree: string,
+  id: string,
+  refs: readonly string[],
+): Promise<void> {
+  const [first, ...rest] = refs
+  if (!first) return
+  const file = await readTaskFile(worktree, id)
+  const dirty = await git(worktree, ['status', '--porcelain=v2', '-z', '--untracked-files=no'])
+  const ahead = file?.base
+    ? await git(worktree, ['rev-list', '--count', `${file.base}..HEAD`])
+    : { ok: true, stdout: '0' }
+  if (!dirty.ok || dirty.stdout !== '' || !ahead.ok || ahead.stdout.trim() !== '0') {
+    throw new Error(`${id} already has work of its own in ${worktree}, so it was not moved`)
+  }
+  const was = await git(worktree, ['rev-parse', 'HEAD'])
+  // Its own task file and context, which an agent upstream may have committed
+  // its own over: a reset would put those in their place, and it would start as
+  // somebody else's task.
+  const own = await ownFiles(worktree)
+  const back = async () => {
+    for (const [path, content] of own) {
+      // A reset past a commit that had them takes the folder with them.
+      await mkdir(join(path, '..'), { recursive: true })
+      await writeFile(path, content)
+    }
+  }
+  const reset = await git(worktree, ['reset', '--hard', first])
+  if (!reset.ok) {
+    await back()
+    throw new Error(`${id} could not begin from ${first}: ${firstLine(reset.stderr)}`)
+  }
+  for (const ref of rest) {
+    const merged = await git(worktree, [...AS_WILCO, 'merge', '--no-edit', ref], 30_000)
+    if (merged.ok || (await settleOwnConflicts(worktree))) continue
+    await git(worktree, ['merge', '--abort'])
+    // Back where it was planned, so trying again later begins from the same place.
+    if (was.ok) await git(worktree, ['reset', '--hard', was.stdout.trim()])
+    await back()
+    const conflict = /CONFLICT/.test(`${merged.stdout}${merged.stderr}`)
+    throw new Error(
+      conflict
+        ? `${id} cannot begin from both ${first} and ${ref}: they conflict`
+        : `${id} could not put ${first} and ${ref} together: ${firstLine(merged.stderr || merged.stdout)}`,
+    )
+  }
+  await back()
+  const head = await git(worktree, ['rev-parse', 'HEAD'])
+  // Its own work is what comes after here, not after where it was planned.
+  if (head.ok) {
+    await updateTaskFile(taskFilePath(worktree, id), (task) => {
+      task.base = head.stdout.trim()
+    })
+  }
+}
+
+/** Wilco's own commits, never the person's: they only put starting points together. */
+const AS_WILCO = ['-c', 'user.name=Wilco', '-c', 'user.email=wilco@localhost']
+
+/** A worktree's own task file and context, as they are now. */
+async function ownFiles(worktree: string): Promise<Map<string, string>> {
+  const files = new Map<string, string>()
+  for (const name of ['task.yaml', 'context.md']) {
+    const path = join(worktree, '.wilco', name)
+    try {
+      files.set(path, await readFile(path, 'utf8'))
+    } catch {
+      // Not every task has context.
+    }
+  }
+  return files
+}
+
+/**
+ * Finish a merge whose only conflicts are in `.wilco/`: Wilco's bookkeeping,
+ * which agents sometimes commit, and which is never the work. Anything else
+ * conflicting is left for the caller to abort.
+ */
+async function settleOwnConflicts(worktree: string): Promise<boolean> {
+  const listed = await git(worktree, ['diff', '--name-only', '--diff-filter=U', '-z'])
+  const conflicted = listed.stdout.split('\0').filter(Boolean)
+  if (!listed.ok || conflicted.length === 0) return false
+  if (!conflicted.every((path) => path.startsWith('.wilco/'))) return false
+  const ours = await git(worktree, ['checkout', '--ours', '--', ...conflicted])
+  const added = await git(worktree, ['add', '--', ...conflicted])
+  const done = await git(worktree, [...AS_WILCO, 'commit', '--no-edit', '--no-verify'])
+  return ours.ok && added.ok && done.ok
 }
 
 async function updateTaskFile(
