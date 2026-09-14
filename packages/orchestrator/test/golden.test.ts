@@ -74,6 +74,7 @@ describe('the tools the orchestrator has', () => {
       'wilco_run_list',
       'wilco_run_start',
       'wilco_run_stop',
+      'wilco_schedule',
       'wilco_status',
       'wilco_steer',
       'wilco_task_create',

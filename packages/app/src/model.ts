@@ -65,6 +65,32 @@ export interface QueuedView {
   at: number | null
 }
 
+/** A schedule, as the SMART QUEUE shows it. */
+export interface ScheduleView {
+  id: string
+  name: string
+  project: string
+  /** What was said to make it, verbatim. */
+  said: string
+  kind: 'agent' | 'ask' | 'watch'
+  /** What it does each time, in words. */
+  does: string
+  /** What its agent is told, or the orchestrator asked. */
+  prompt: string
+  /** When it runs, in words. */
+  when: string
+  /** It runs once, not again. */
+  once: boolean
+  /** Its next few runs. Empty once it has nothing left to run. */
+  next: readonly number[]
+  paused: boolean
+  /** Who made it, as `TaskOrigin` says it; a watch is its extension's. */
+  by: string
+  missed: 'once' | 'skip'
+  /** What it did each time it came due, newest first. */
+  runs: readonly { due: number; ran: boolean; missed: number; task: string | null }[]
+}
+
 /** Which queued work the SMART QUEUE shows: all of it, what waits on agents, or what waits for a time. */
 export type QueueFilter = 'all' | 'next' | 'timed'
 
@@ -126,6 +152,8 @@ export interface AppState {
   queueFilter: QueueFilter
   /** The plan is drawn where an agent's screen would be, while no agent is in front. */
   showingPlan: boolean
+  /** The schedule open where an agent's screen would be, while no agent is in front. */
+  schedule: string | null
   /** Folders opened in the FILES tree, relative to the folder it is of. */
   expanded: string[]
   /** How many rows the sidebar is scrolled down. */
@@ -216,6 +244,7 @@ export function initialState(): AppState {
     folded: [...FOLDED_AT_START],
     queueFilter: 'all',
     showingPlan: false,
+    schedule: null,
     expanded: [],
     scroll: 0,
     talkingSince: null,
@@ -471,13 +500,42 @@ export function focusTask(state: AppState, task: string): AppState {
         chose: true,
         paneScroll: 0,
         showingPlan: false,
+        schedule: null,
       }
     : state
 }
 
 /** The plan in front of you, where an agent's screen was: which work comes first, and what waits on what. */
 export function showPlan(state: AppState): AppState {
-  return { ...state, focused: null, chose: true, showingPlan: true }
+  return { ...state, focused: null, chose: true, showingPlan: true, schedule: null }
+}
+
+/** A schedule in front of you, where an agent's screen was. */
+export function openSchedule(state: AppState, id: string): AppState {
+  return { ...state, focused: null, chose: true, showingPlan: false, schedule: id }
+}
+
+/**
+ * The schedules the SMART QUEUE shows for the project in front of you, as the
+ * filter has it: soonest first, then paused ones, then ones with nothing left
+ * to run. None under `next`, which is work waiting on agents.
+ */
+export function schedulesShown(
+  schedules: readonly ScheduleView[],
+  state: AppState,
+): ScheduleView[] {
+  if (state.queueFilter === 'next') return []
+  const rank = (one: ScheduleView) => (one.next.length === 0 ? 2 : one.paused ? 1 : 0)
+  return schedules
+    .filter((one) => one.project === (state.project ?? one.project))
+    .map((one, i) => ({ one, i }))
+    .sort(
+      (a, b) =>
+        rank(a.one) - rank(b.one) ||
+        (a.one.next[0] ?? Number.POSITIVE_INFINITY) - (b.one.next[0] ?? Number.POSITIVE_INFINITY) ||
+        a.i - b.i,
+    )
+    .map(({ one }) => one)
 }
 
 /**

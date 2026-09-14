@@ -20,6 +20,7 @@ import {
   resolveRoute,
   runtimeDir,
   type SandboxKind,
+  type Schedule,
   type StartCondition,
   spendFrom,
   startOfToday,
@@ -54,6 +55,7 @@ import { HARNESS_ADAPTERS, type LaneHarness } from './harnesses.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
+import { type KeptSchedule, Schedules } from './schedules.ts'
 import {
   beginFrom,
   createTask,
@@ -222,6 +224,8 @@ export class Workbench {
   /** The config as it was opened, and as the window has changed it since. */
   config: Config
   private readonly memory: Memory
+  /** The schedules as told: `kept` rather than `schedules`, which is the method that lists them. */
+  private readonly kept: Schedules
   private readonly lock: HomeLock
   private readonly version: string
   private readonly sessionsRoot: string | undefined
@@ -251,6 +255,7 @@ export class Workbench {
     this.config = opts.config
     this.lock = opts.lock
     this.memory = Memory.open(opts.home)
+    this.kept = Schedules.open(opts.home)
     this.extensions = opts.extensions ?? null
   }
 
@@ -757,6 +762,111 @@ export class Workbench {
       detail: { why: req.why, after: start.after.map((dep) => dep.task) },
     })
     return lane
+  }
+
+  // --- schedules
+
+  /** The schedules as they stand, paused ones included. */
+  schedules(): KeptSchedule[] {
+    return this.kept.all()
+  }
+
+  /**
+   * Make a schedule, or change the one with its id. Refused with why when its
+   * rule cannot be kept or its project is not one Wilco knows.
+   */
+  async setSchedule(schedule: Schedule, by: string): Promise<KeptSchedule> {
+    if (!this.config.projects[schedule.project]) {
+      throw new Error(`unknown project "${schedule.project}": add it to config.yaml first`)
+    }
+    const kept = this.kept.set(schedule, by)
+    await this.log.append({
+      type: 'schedule_changed',
+      detail: { schedule: kept.id, change: 'set', by, name: kept.name },
+    })
+    return kept
+  }
+
+  /** Rename, pause, resume or remove a schedule, as whoever asked. */
+  async changeSchedule(req: {
+    id: string
+    change: 'rename' | 'pause' | 'resume' | 'remove'
+    by: string
+    name?: string
+  }): Promise<KeptSchedule | null> {
+    let kept: KeptSchedule | null = null
+    if (req.change === 'rename') kept = this.kept.rename(req.id, req.name ?? '', req.by)
+    if (req.change === 'pause' || req.change === 'resume') {
+      kept = this.kept.pause(req.id, req.change === 'pause', req.by)
+    }
+    if (req.change === 'remove') this.kept.remove(req.id, req.by)
+    await this.log.append({
+      type: 'schedule_changed',
+      detail: {
+        schedule: req.id,
+        change: req.change,
+        by: req.by,
+        ...(req.name ? { name: req.name } : {}),
+      },
+    })
+    return kept
+  }
+
+  /**
+   * A schedule came due: written down first — so a window that stops half way
+   * never runs it twice — and then, for one that starts agents, its agent's task
+   * made as queued work, which the queue starts as soon as there is room. What
+   * it runs in is the project's own way of working, as any agent's is.
+   */
+  async fireSchedule(
+    id: string,
+    due: { run: boolean; due: number; missed: number },
+    now = Date.now(),
+  ): Promise<{ task: string | null }> {
+    const schedule = this.kept.get(id)
+    if (!schedule) throw new Error(`there is no schedule called ${id}`)
+    const at = new Date(due.due).toISOString()
+    if (!due.run || schedule.does.kind !== 'agent') {
+      await this.log.append({
+        type: 'schedule_fired',
+        detail: { schedule: id, due: at, missed: due.missed, ran: due.run },
+      })
+      return { task: null }
+    }
+    const day = new Date(now)
+    const month = String(day.getMonth() + 1).padStart(2, '0')
+    const stem = `${id}-${month}${String(day.getDate()).padStart(2, '0')}`
+    const does = schedule.does
+    for (let n = 1; n <= 50; n++) {
+      const slug = n === 1 ? stem : `${stem}-${n}`
+      let task: TaskWorktree
+      try {
+        task = await this.createTask({
+          project: schedule.project,
+          slug,
+          intent: schedule.said || schedule.name,
+          by: `schedule:${id}`,
+          ...(does.done ? { done: does.done } : {}),
+          start: {
+            after: [],
+            prompt: does.prompt,
+            touches: [],
+            ...(does.model ? { model: does.model } : {}),
+            ...(does.thinking ? { thinking: does.thinking } : {}),
+          },
+        })
+      } catch (err) {
+        if (/already exists|used before/.test(err instanceof Error ? err.message : '')) continue
+        throw err
+      }
+      await this.log.append({
+        type: 'schedule_fired',
+        task: task.id,
+        detail: { schedule: id, due: at, missed: due.missed, ran: true },
+      })
+      return { task: task.id }
+    }
+    throw new Error(`every name like ${stem} is taken in ${schedule.project}`)
   }
 
   /**

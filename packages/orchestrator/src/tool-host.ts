@@ -1,7 +1,7 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
-import { DONE_RULES, type DoneRule, type LaneId, type Plan } from '@wilco/core'
+import { DONE_RULES, type DoneRule, type LaneId, type Plan, When } from '@wilco/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@wilco/harnesses-core'
 import type { Workbench } from '@wilco/workbench'
 
@@ -48,8 +48,24 @@ export interface ToolHostOptions {
    */
   queue?: {
     describe(): Promise<string>
-    change(req: { task?: string; project?: string; change: string }): Promise<string>
+    change(req: {
+      task?: string
+      schedule?: string
+      project?: string
+      change: string
+      name?: string
+    }): Promise<string>
     plan(plan: Plan): Promise<string>
+    schedule(req: {
+      name: string
+      project: string
+      said: string
+      when: When
+      agent?: string
+      ask?: string
+      done?: DoneRule
+      missed?: 'once' | 'skip'
+    }): Promise<string>
   }
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
@@ -105,9 +121,31 @@ export class ToolHost {
       'queue/change': async (p) =>
         queueOf(opts).change({
           ...(p.task ? { task: String(p.task) } : {}),
+          ...(p.schedule ? { schedule: String(p.schedule) } : {}),
           ...(p.project ? { project: String(p.project) } : {}),
+          ...(p.name ? { name: String(p.name) } : {}),
           change: String(p.change ?? ''),
         }),
+      'queue/schedule': async (p) => {
+        const when = When.safeParse(p.when ?? {})
+        if (!when.success) {
+          throw new Error(
+            `when is not a rule: ${when.error.issues.map((issue) => issue.message).join('; ')}`,
+          )
+        }
+        const text = (value: unknown) => (typeof value === 'string' ? value : '')
+        const missed = p.missed === 'skip' ? 'skip' : p.missed === 'once' ? 'once' : undefined
+        return queueOf(opts).schedule({
+          name: text(p.name),
+          project: text(p.project),
+          said: text(p.said),
+          when: when.data,
+          ...(p.agent !== undefined ? { agent: text(p.agent) } : {}),
+          ...(p.ask !== undefined ? { ask: text(p.ask) } : {}),
+          ...(p.done ? { done: doneRuleOf(p.done) } : {}),
+          ...(missed ? { missed } : {}),
+        })
+      },
       'status/read': async () => {
         if (!opts.status) throw new Error('this Wilco has no window to ask')
         return opts.status()

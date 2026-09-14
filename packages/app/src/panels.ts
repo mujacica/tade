@@ -62,6 +62,8 @@ export type MenuSubject =
   | { kind: 'note'; at: string; text: string }
   /** How hard an agent thinks: `current` as it last said, or what new agents are given. */
   | { kind: 'thinking'; task: string; current: string | null }
+  /** A schedule in the SMART QUEUE. */
+  | { kind: 'schedule'; id: string }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -190,6 +192,7 @@ export interface PromptPanel {
     | 'rename-lane'
     | 'run-command'
     | 'rename-agent'
+    | 'rename-schedule'
   /**
    * The terminal or agent it is about, for renaming one or running a command
    * in it; for a note being changed, when it was said and what it said, joined
@@ -999,7 +1002,7 @@ export function menuItems(
   ]
 }
 
-/** Queued work's menu: start it, pause or resume it, wait past what held it, or remove it. */
+/** Queued work's menu: start it, pause or resume it, wait past what held it, rename or remove it. */
 export function queueMenuItems(queued: { state: { kind: string } }): MenuItem[] {
   const paused = queued.state.kind === 'paused'
   const held = queued.state.kind === 'held'
@@ -1012,7 +1015,28 @@ export function queueMenuItems(queued: { state: { kind: string } }): MenuItem[] 
       label: 'Wait for a retry',
       ...(held ? {} : { off: 'not held' }),
     },
+    { id: 'rename', label: 'Rename…' },
     { id: 'queue-remove', label: 'Remove', danger: true, divider: true },
+  ]
+}
+
+/** A schedule's menu: open it, run it now, pause or resume it, rename or remove it. */
+export function scheduleMenuItems(schedule: {
+  paused: boolean
+  next: readonly number[]
+}): MenuItem[] {
+  return [
+    { id: 'schedule-open', label: 'Open', note: 'enter' },
+    { id: 'schedule-run', label: 'Run now' },
+    schedule.paused
+      ? { id: 'schedule-resume', label: 'Resume' }
+      : {
+          id: 'schedule-pause',
+          label: 'Pause',
+          ...(schedule.next.length > 0 ? {} : { off: 'nothing left to run' }),
+        },
+    { id: 'schedule-rename', label: 'Rename…' },
+    { id: 'schedule-remove', label: 'Remove', danger: true, divider: true },
   ]
 }
 

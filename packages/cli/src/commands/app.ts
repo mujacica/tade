@@ -137,6 +137,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             if (!queue) throw opening()
             return queue.plan(plan)
           },
+          schedule: async (req) => {
+            if (!queue) throw opening()
+            return queue.schedule(req)
+          },
         },
         status: () =>
           collectStatus({

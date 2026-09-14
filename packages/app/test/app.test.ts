@@ -910,6 +910,58 @@ describe('the window, wired up', () => {
     )
   }, 60_000)
 
+  it('runs a schedule when it comes due: its agent starts, or the orchestrator is asked', async () => {
+    terminal.columns = 120
+    terminal.rows = 60
+    const told: string[] = []
+    const window = await start({
+      thinker: {
+        ask: async () => 'ok',
+        tell: async (text: string) => {
+          told.push(text)
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tools = window.queueTools()
+    const soon = new Date(Date.now() + 1_500).toISOString()
+    const answer = await tools.schedule({
+      name: 'Release notes',
+      project: 'app',
+      said: 'draft the release notes in a moment',
+      when: { at: soon },
+      agent: 'Draft the release notes from what merged today.',
+    })
+    expect(answer).toMatch(/^Release notes \(release-notes\): once, .+, starts an agent\. Next: /)
+    await tools.schedule({
+      name: 'Morning brief',
+      project: 'app',
+      said: 'in a moment, tell me what happened',
+      when: { at: soon },
+      ask: 'Say what the agents did, and what needs the person first.',
+    })
+    await until('both in the queue', () =>
+      screenOf(terminal.written).some((row) => row.includes('Morning brief')),
+    )
+
+    await until(
+      'its agent started',
+      () => client.runs().some((run) => run.task.startsWith('app/release-notes-')),
+      15_000,
+    )
+    await until('the orchestrator asked', () =>
+      told.some((text) => text.includes('It is time for "Morning brief"')),
+    )
+    const fired = await client.events({ types: ['schedule_fired'] })
+    expect(fired.map((event) => event.detail.schedule).sort()).toEqual([
+      'morning-brief',
+      'release-notes',
+    ])
+    // Once is once: nothing comes due again.
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(await client.events({ types: ['schedule_fired'] })).toHaveLength(2)
+  }, 60_000)
+
   it('holds work whose dependency stopped, tells the orchestrator, and starts it when told to', async () => {
     const told: string[] = []
     const window = await start({

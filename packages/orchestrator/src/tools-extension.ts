@@ -282,20 +282,61 @@ export default function wilcoTools(pi: PiApi): void {
 
   tool(
     'wilco_queue_change',
-    "Change queued work, as the human asked: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it. Name no task to pause or resume a whole project's queue.",
+    "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it; name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
     object(
       {
         change: {
           type: 'string',
-          enum: ['start', 'pause', 'resume', 'wait', 'remove'],
+          enum: ['start', 'pause', 'resume', 'wait', 'rename', 'remove'],
           description: 'what to do',
         },
         task: string('the queued task, like checkout/add-refunds'),
+        schedule: string('the schedule, by the id wilco_queue lists it with'),
+        name: string('the new name, when renaming a schedule'),
         project: string('the project, when pausing or resuming all of its queue'),
       },
       ['change'],
     ),
     (p) => rpc('queue/change', p),
+  )
+
+  tool(
+    'wilco_schedule',
+    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it either starts an agent (agent: what to tell it) or asks you something (ask). It runs while Wilco is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
+    object(
+      {
+        name: string('what it is called, in a few words'),
+        project: string('project name, as configured'),
+        said: string('what the human said, word for word'),
+        when: object({
+          at: string('once, at this moment: ISO 8601 with a time zone'),
+          every: string(
+            'every so often, like 30m, 2h, 1d; or day, weekday, week or month with times and on',
+          ),
+          times: stringList('times of day, HH:MM, for day, weekday, week or month'),
+          on: {
+            type: 'array',
+            description: 'days: mon to sun for week, 1 to 31 for month',
+            items: { type: ['string', 'number'] },
+          },
+          cron: string('for anything else: minute hour day-of-month month day-of-week'),
+          count: { type: 'number', description: 'stop after this many runs' },
+          until: string('stop after this moment: ISO 8601'),
+          tz: string('an IANA time zone, like Europe/Sarajevo; the machine’s own when not said'),
+        }),
+        agent: string('start an agent each time, told this'),
+        ask: string('ask you this each time, instead of starting an agent'),
+        done,
+        missed: {
+          type: 'string',
+          enum: ['once', 'skip'],
+          description:
+            'what happens to runs that came due while Wilco was closed: once (the default) or skip',
+        },
+      },
+      ['name', 'project', 'said', 'when'],
+    ),
+    (p) => rpc('queue/schedule', p),
   )
 
   // Wilco's extensions: listed when Wilco started this orchestrator, run by

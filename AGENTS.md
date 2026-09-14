@@ -70,6 +70,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   or going holds it (`queue_held`), said once to the orchestrator, which asks the person; their
   choice (`queue_changed`) is written down and read back. In a worktree it begins on top of what it
   waited on (`startFrom`), or from the base when that was merged, and keeps its own `.wilco` files.
+- **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
+  to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
+  it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,
+  the journal and the clock. There is no daemon: runs that came due while no window was open are
+  caught up once or skipped, as the schedule says, never once per run missed. An agent a schedule
+  starts is queued work named for it and the day, in the project's own workspace.
 - **Wilco tells the orchestrator; it never talks over it.** What happened waits and goes with the
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and
@@ -149,7 +155,8 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   because someone asked for one; a project whose agents were removed stays empty until asked again.
   An agent that was running when Wilco closed — not stopped, not removed, not ended on its own — is
   marked `lost` in `lanes.json` when the next window cannot find it, and that window opens it again
-  where it left off. Stopping, removing or exiting clears the mark.
+  where it left off. Stopping, removing or exiting clears the mark. Queued work and schedules are
+  asked for too: what came due while Wilco was closed starts when it opens, and says why.
 - **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, where it works and
   who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
   notes about the work, and its context file. Appended to the harness's own instructions, never

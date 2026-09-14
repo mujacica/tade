@@ -23,6 +23,8 @@ import {
   type QueueFilter,
   queuedCount,
   queueOf,
+  type ScheduleView,
+  schedulesShown,
   shownName,
   spinner,
   splitShown,
@@ -202,6 +204,10 @@ export interface Frame {
    * the screens tests do, so a screen does not change with the time zone.
    */
   clock?: (at: number) => string
+  /** Every schedule, as the SMART QUEUE shows it. */
+  schedules?: readonly ScheduleView[]
+  /** A moment with its date, for where a time alone would be ambiguous: `Mon 7 Sep 09:00`. */
+  date?: (at: number) => string
   /** How to divide the window. Defaults when absent. */
   layout?: LayoutPrefs
   /** How to colour it. Plain unless told otherwise. */
@@ -613,7 +619,9 @@ function renderSidebar(
     },
     // Only while there is work waiting to start: an empty section is a row of
     // nothing between your agents and what they changed.
-    ...(queuedCount(state) === 0 ? [] : [queueSection(state, frame, width, skin, pointer)]),
+    ...(queuedCount(state) + schedulesHere(state, frame) === 0
+      ? []
+      : [queueSection(state, frame, width, skin, pointer)]),
     {
       id: 'changes',
       label: 'CHANGES',
@@ -1058,10 +1066,11 @@ function queueSection(
   skin: Skin,
   pointer: Pointer,
 ): Section {
+  const all = queuedCount(state) + schedulesHere(state, frame)
   return {
     id: 'queue',
     label: 'SMART QUEUE',
-    count: queuedCount(state),
+    count: all,
     banded: true,
     // The plan it came from, drawn where an agent's screen would be.
     ...(planOf(state).waits.length > 0
@@ -1069,8 +1078,9 @@ function queueSection(
       : {}),
     rows: (row) => {
       const entries = queueOf(state)
-      const filters = queuedCount(state) > 1 ? [queueFilters(row(), state.queueFilter, skin)] : []
-      if (entries.length === 0) {
+      const schedules = schedulesShown(frame.schedules ?? [], state)
+      const filters = all > 1 ? [queueFilters(row(), state.queueFilter, skin)] : []
+      if (entries.length === 0 && schedules.length === 0) {
         const none =
           state.queueFilter === 'timed' ? 'nothing waits for a time' : 'nothing waits on agents'
         return [
@@ -1083,12 +1093,200 @@ function queueSection(
       return [
         ...filters,
         ...tabList(
-          entries.map((pane) => queueRow(width, skin, pointer, pane, frame)),
+          [
+            ...entries.map((pane) => queueRow(width, skin, pointer, pane, frame)),
+            ...schedules.map((one) =>
+              scheduleRow(width, skin, pointer, one, state.schedule === one.id, frame),
+            ),
+          ],
           width,
         ),
       ]
     },
   }
+}
+
+/** How many schedules the project in front of you has, whatever the filter. */
+function schedulesHere(state: AppState, frame: Frame): number {
+  return (frame.schedules ?? []).filter((one) => one.project === (state.project ?? one.project))
+    .length
+}
+
+/** How a schedule is marked: once, on repeat, or a watch; paused, it is only paused. */
+function scheduleMark(
+  one: ScheduleView,
+  skin: Skin,
+): { glyph: string; tone: (text: string) => string } {
+  if (one.paused) return { glyph: '‖', tone: skin.faded }
+  if (one.kind === 'watch') return { glyph: '◎', tone: skin.hint }
+  return { glyph: one.once ? '◷' : '↻', tone: skin.hint }
+}
+
+/**
+ * A schedule down the side, as a tab: its mark, its name and when it next
+ * runs; under it, who made it and when it runs. Under the pointer, pause (or
+ * resume), remove and a menu take the place of when.
+ */
+function scheduleRow(
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  one: ScheduleView,
+  selected: boolean,
+  frame: Frame,
+): ListItem {
+  const target: Target = { kind: 'action', name: `schedule-open:${one.id}` }
+  const toggle: Target = {
+    kind: 'action',
+    name: `schedule-${one.paused ? 'resume' : 'pause'}:${one.id}`,
+  }
+  const remove: Target = { kind: 'action', name: `schedule-remove:${one.id}` }
+  const menu: Target = { kind: 'menu', subject: { kind: 'schedule', id: one.id } }
+  const pointed = [target, toggle, remove, menu].some((each) => sameTarget(pointer.hover, each))
+  const band: Band | null = selected ? 'selected' : pointed ? 'hovered' : null
+  const mark = scheduleMark(one, skin)
+  const next = one.next[0]
+  const when = one.paused ? 'paused' : next === undefined ? 'done' : clockOf(frame)(next)
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  inner.text(mark.glyph, mark.tone, target).space()
+  const right = pointed ? QUEUE_ICONS : visibleWidth(when) + 1
+  const room = Math.max(1, inner.width - inner.used - right - 1)
+  const nameTone = selected ? skin.you : one.paused ? skin.faded : (text: string) => text
+  inner.text(shortened(one.name, room), nameTone, target)
+  inner.right((r) => {
+    if (pointed) {
+      r.icon(one.paused ? '▶' : '‖', toggle)
+        .icon('×', remove, 'danger')
+        .icon('≡', menu)
+        .space()
+    } else {
+      r.text(when, one.paused ? skin.faded : skin.hint, target).space()
+    }
+  })
+  const by = askedMark(one.by)
+  const said = `${[...by].length === 1 ? `${by} ` : `${by} · `}${one.when}`
+  return {
+    rows: [
+      tabbed(width, skin, band, inner.build(), target),
+      secondRow(width, skin, pointer, band, said, target, 3),
+    ],
+    band,
+  }
+}
+
+/**
+ * A schedule in front of you: when it runs and what it does each time, its
+ * next runs, what happens to runs Wilco was closed for, who made it, and what
+ * it did each time it came due.
+ */
+function renderSchedule(
+  state: AppState,
+  frame: Frame,
+  one: ScheduleView,
+  width: number,
+  height: number,
+  skin: Skin,
+  pointer: Pointer,
+): Drawn {
+  // Its runs are days apart: a time alone would say every one of them at once.
+  const clock = frame.date ?? clockOf(frame)
+  const mark = scheduleMark(one, skin)
+  const run: Target = { kind: 'action', name: `schedule-run:${one.id}` }
+  const toggle: Target = {
+    kind: 'action',
+    name: `schedule-${one.paused ? 'resume' : 'pause'}:${one.id}`,
+  }
+  const remove: Target = { kind: 'action', name: `schedule-remove:${one.id}` }
+  const menu: Target = { kind: 'menu', subject: { kind: 'schedule', id: one.id } }
+  const controls = (r: Row) => {
+    r.button('Run now', run, 'primary')
+      .space()
+      .button(one.paused ? '▶ Resume' : '‖ Pause', toggle)
+      .space()
+      .button('≡', menu)
+      .space()
+      .button('×', remove, 'danger')
+      .space()
+  }
+  const probe = new Row(width, skin)
+  controls(probe)
+  const header = new Row(width, skin, pointer).space()
+  const title = `${one.project} › ${one.name}`
+  const word = `${mark.glyph} ${one.paused ? 'paused' : one.when}`
+  header
+    .text(shortened(title, Math.max(8, Math.floor((width - probe.used) / 2))), skin.you)
+    .space(2)
+    .text(shortened(word, Math.max(1, width - probe.used - visibleWidth(title) - 6)), mark.tone)
+  header.right(controls)
+  const rows: { text: string; hits: Hit[] }[] = [
+    header.build(),
+    { text: skin.chrome('─'.repeat(width)), hits: [] },
+    blank(width),
+  ]
+  const line = (build: (r: Row) => void) => {
+    const r = new Row(width, skin, pointer).space(2)
+    build(r)
+    rows.push(r.build())
+  }
+  const said = (text: string) => shortened(text, Math.max(1, width - 16))
+  line((r) => r.text(said(`${capitalised(one.when)}, it ${one.does}.`), skin.you))
+  if (one.prompt.trim()) {
+    rows.push(blank(width))
+    line((r) => r.text(one.kind === 'ask' ? 'ASKS' : 'TELLS ITS AGENT', skin.label))
+    const told = wrapWords(one.prompt.trim(), Math.max(10, width - 6))
+    for (const text of told.slice(0, 6)) line((r) => r.text('│', skin.chrome).space().text(text))
+    if (told.length > 6) line((r) => r.text('│', skin.chrome).space().text('…', skin.hint))
+  }
+  rows.push(blank(width))
+  const fact = (label: string, value: string) =>
+    line((r) => r.text(label.padEnd(10), skin.label).space().text(said(value), skin.hint))
+  fact(
+    'NEXT',
+    one.paused
+      ? 'paused'
+      : one.next.length > 0
+        ? one.next.map(clock).join(' · ')
+        : 'nothing left to run',
+  )
+  fact('IF MISSED', one.missed === 'once' ? 'runs once when Wilco next opens' : 'skipped')
+  const from = askedBy(one.by)
+  fact(
+    'FROM',
+    `${from === 'you' ? 'you' : from === 'orchestrator' ? 'the orchestrator' : from}${one.said ? ` · “${one.said}”` : ''}`,
+  )
+  if (one.runs.length > 0) {
+    rows.push(blank(width))
+    line((r) => r.text('RUNS', skin.label))
+    for (const each of one.runs.slice(0, 8)) {
+      line((r) => {
+        r.text(clock(each.due).padEnd(18), skin.hint)
+        if (!each.ran) {
+          r.text(`skipped ${each.missed} missed while Wilco was closed`, skin.faded)
+          return
+        }
+        const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
+        if (task)
+          r.text(glyph(task, frame.now ?? 0), toneOf(task, skin))
+            .space()
+            .text(shownName(task))
+        else
+          r.text(
+            each.task ? inProject(one.project, each.task) : 'ran',
+            each.task ? skin.hint : (t) => t,
+          )
+        if (each.missed > 0) r.space(2).text(`${each.missed} missed before it`, skin.hint)
+      })
+    }
+  }
+  const shown = stack(rows.slice(0, height))
+  const filled = [...shown.rows]
+  while (filled.length < height) filled.push(' '.repeat(width))
+  return { rows: filled, hits: shown.hits }
+}
+
+/** The first letter of a phrase as the start of a sentence. */
+function capitalised(text: string): string {
+  return text ? `${text[0]?.toUpperCase() ?? ''}${text.slice(1)}` : text
 }
 
 /** The filters over the SMART QUEUE, as words: the one showing is lit. */
@@ -1602,6 +1800,10 @@ function renderMain(
 ): Drawn {
   const pane = state.panes.find((p) => p.task === state.focused)
   if (!pane && state.showingPlan) return renderPlan(state, frame, width, height, skin, pointer)
+  const schedule = frame.schedules?.find((one) => one.id === state.schedule)
+  if (!pane && schedule) {
+    return renderSchedule(state, frame, schedule, width, height, skin, pointer)
+  }
   if (!pane) return renderWelcome(state, frame, width, height, skin, pointer)
   if (pane.queued) {
     return renderQueued(

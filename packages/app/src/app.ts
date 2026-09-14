@@ -23,8 +23,11 @@ import {
   type Config,
   composeBrief,
   DEFAULT_ATTENTION,
+  type DoneRule,
   describeQueueState,
+  describeWhen,
   describeWork,
+  dueNow,
   expandHome,
   HARNESS_CHOICES,
   holdSaid,
@@ -41,9 +44,12 @@ import {
   readyToStart,
   reflectionPrompt,
   resolveRoute,
+  type Schedule,
   settingsOf,
   startFrom,
   THINKING_LEVELS,
+  taskOrigin,
+  type When,
 } from '@wilco/core'
 import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
 import { git } from '@wilco/status'
@@ -110,12 +116,14 @@ import {
   notice,
   ORCHESTRATOR_TAB,
   onEvent,
+  openSchedule,
   parseCommand,
   projectNumber,
   projects,
   QUEUE_FILTERS,
   removeAttachment,
   resizeTo,
+  type ScheduleView,
   scrollSidebar,
   scrollTranscript,
   searchKey,
@@ -191,6 +199,7 @@ import {
   promptPanel,
   queueMenuItems,
   type SettingsPanel,
+  scheduleMenuItems,
   searchPanel,
   settingsPanel,
   spendPanel,
@@ -209,7 +218,14 @@ import {
   readRecents,
   recentProjects,
 } from './projects.ts'
-import { describeQueue, heldMessage, planAnswer, whyStarting } from './queue.ts'
+import {
+  describeQueue,
+  describeSchedule,
+  heldMessage,
+  planAnswer,
+  scheduleView,
+  whyStarting,
+} from './queue.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } from './search.ts'
@@ -656,6 +672,10 @@ export class App {
   private readonly startingQueued = new Set<string>()
   /** The queue pass under way, if one is. */
   private advancing: Promise<string[]> | null = null
+  /** The schedules pass under way, if one is. */
+  private scheduling: Promise<void> | null = null
+  /** When each schedule was last run from this window, before the journal says so. */
+  private readonly fired = new Map<string, number>()
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private router: RouterState = initialRouter()
@@ -869,6 +889,10 @@ export class App {
     const focused = this.state.panes.find((p) => p.task === this.state.focused)
     const agent = focused?.lane != null
     switch (subject.kind) {
+      case 'schedule': {
+        const one = this.scheduleViews().find((view) => view.id === subject.id)
+        return one ? scheduleMenuItems(one) : []
+      }
       case 'task': {
         const pane = this.state.panes.find((p) => p.task === subject.task)
         if (pane?.queued) return queueMenuItems(pane.queued)
@@ -1143,6 +1167,27 @@ export class App {
       ).length,
       ...this.inputFor(width),
       statuses: this.statuses,
+      schedules: this.scheduleViews(),
+      clock: (at: number) => whenShort(at, this.now()),
+      date: (at: number) => {
+        const time = new Date(at)
+        const month = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ]
+        const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''
+        return `${day} ${time.getDate()} ${month[time.getMonth()] ?? ''} ${clockOf(at)}`
+      },
       now: this.now(),
     }
   }
@@ -1294,7 +1339,7 @@ export class App {
         }
         this.seenTasks = tasks
         void this.recordRulesMet()
-        void this.advanceQueue()
+        void this.runSchedules().then(() => this.advanceQueue())
         void this.reflect(tasks)
         this.draw()
       },
@@ -1741,6 +1786,11 @@ export class App {
     }
     if (action.startsWith('close-task:')) {
       await this.closeAgent(action.slice('close-task:'.length))
+      return
+    }
+    const scheduling = /^schedule-(open|run|pause|resume|remove|rename):(.+)$/.exec(action)
+    if (scheduling?.[1] && scheduling[2]) {
+      await this.onSchedule(scheduling[2], scheduling[1])
       return
     }
     if (action === 'queue-plan') {
@@ -2515,7 +2565,10 @@ export class App {
                     ? 'Thinking'
                     : subject.kind === 'note'
                       ? 'Note'
-                      : (subject.path.split('/').at(-1) ?? subject.path)
+                      : subject.kind === 'schedule'
+                        ? (this.scheduleViews().find((one) => one.id === subject.id)?.name ??
+                          'Schedule')
+                        : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -2526,6 +2579,8 @@ export class App {
   /** What a menu item does. Each is exactly what it says. */
   private async fromMenu(subject: MenuSubject, item: string): Promise<void> {
     switch (subject.kind) {
+      case 'schedule':
+        return this.run(`${item}:${subject.id}`)
       case 'task':
         return this.fromTaskMenu(subject.task, item)
       case 'file':
@@ -3013,6 +3068,16 @@ export class App {
           { ...this.state, panel: null },
           `${panel.target} is now called ${title}`,
         )
+        return
+      }
+      if (panel.purpose === 'rename-schedule' && panel.target) {
+        const kept = await this.opts.client.changeSchedule({
+          id: panel.target,
+          change: 'rename',
+          name: text,
+          by: 'you',
+        })
+        this.state = notice({ ...this.state, panel: null }, `now called ${kept?.name ?? text}`)
         return
       }
       if (panel.purpose === 'rename-lane' && panel.target) {
@@ -4949,11 +5014,14 @@ export class App {
     describe(): Promise<string>
     change(req: {
       task?: string
+      schedule?: string
       project?: string
       change: string
+      name?: string
       by?: 'you' | 'orchestrator'
     }): Promise<string>
     plan(plan: Plan): Promise<string>
+    schedule(req: ScheduleRequest): Promise<string>
   } {
     return {
       advance: () => this.advanceQueue(),
@@ -4961,9 +5029,89 @@ export class App {
         await this.live?.refresh()
         const live = this.live
         if (!live) return 'Wilco is still opening.'
-        return describeQueue(live.queued, live.queueFacts(), clockOf)
+        const now = this.now()
+        const schedules = this.scheduleViews()
+        return [
+          describeQueue(live.queued, live.queueFacts(), clockOf),
+          ...(schedules.length > 0
+            ? [
+                '',
+                'Schedules:',
+                ...schedules.map((one) => describeSchedule(one, (at) => whenShort(at, now))),
+              ]
+            : []),
+        ].join('\n')
+      },
+      schedule: async (req) => {
+        const now = this.now()
+        const id =
+          req.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 40) || 'schedule'
+        const existing = this.opts.client.schedules().find((one) => one.id === id)
+        const does =
+          req.ask !== undefined
+            ? { kind: 'ask' as const, prompt: req.ask }
+            : {
+                kind: 'agent' as const,
+                prompt: req.agent ?? '',
+                ...(req.done ? { done: req.done } : {}),
+              }
+        if (!does.prompt.trim())
+          throw new Error('say what it does each time: agent (what to tell it) or ask')
+        const kept = await this.opts.client.setSchedule(
+          {
+            id,
+            name: req.name,
+            project: req.project,
+            said: req.said,
+            when: req.when,
+            does,
+            missed: req.missed ?? 'once',
+            by: req.by ?? 'orchestrator',
+            // Kept when it is changed: intervals count from when it was made.
+            created: existing?.created ?? new Date(now).toISOString(),
+          },
+          req.by ?? 'orchestrator',
+        )
+        const view = scheduleView(kept, this.live?.runsOf(kept.id) ?? [], now)
+        this.draw()
+        const next = view.next.map((at) => whenShort(at, now))
+        return `${kept.name} (${kept.id}): ${view.when}, ${view.does}. ${next.length > 0 ? `Next: ${next.join(', ')}.` : 'It has nothing left to run.'}`
       },
       change: async (req) => {
+        if (req.schedule) {
+          const id = req.schedule
+          const by = req.by ?? 'orchestrator'
+          if (req.change === 'start') {
+            const one = this.opts.client.schedules().find((each) => each.id === id)
+            if (!one) throw new Error(`there is no schedule called ${id}`)
+            await this.fire(one, { run: true, due: this.now(), missed: 0 })
+            return `${one.name} ran now.`
+          }
+          if (
+            req.change === 'rename' ||
+            req.change === 'pause' ||
+            req.change === 'resume' ||
+            req.change === 'remove'
+          ) {
+            const kept = await this.opts.client.changeSchedule({
+              id,
+              change: req.change,
+              by,
+              ...(req.name ? { name: req.name } : {}),
+            })
+            this.draw()
+            return req.change === 'remove'
+              ? `${id} is removed.`
+              : `${kept?.name ?? id} is ${req.change === 'rename' ? 'renamed' : req.change === 'pause' ? 'paused' : 'back on'}.`
+          }
+          throw new Error(
+            `${req.change} is not something to do to a schedule: start, pause, resume, rename, remove`,
+          )
+        }
         const change = QUEUE_CHANGES.find((one) => one === req.change)
         if (req.change === 'remove') {
           if (!req.task) throw new Error('remove is for one piece of work: say which')
@@ -5025,6 +5173,119 @@ export class App {
         })
       },
     }
+  }
+
+  /** Every schedule, as the SMART QUEUE shows it. */
+  private scheduleViews(): ScheduleView[] {
+    const now = this.now()
+    return this.opts.client
+      .schedules()
+      .map((one) => scheduleView(one, this.live?.runsOf(one.id) ?? [], now))
+  }
+
+  /** What is done to a schedule from the window: yours, and at once. */
+  private async onSchedule(id: string, change: string): Promise<void> {
+    try {
+      if (change === 'open') {
+        this.state = openSchedule(this.state, id)
+      } else if (change === 'rename') {
+        const name = this.scheduleViews().find((one) => one.id === id)?.name ?? ''
+        this.state = {
+          ...this.state,
+          panel: {
+            ...promptPanel('rename-schedule', 'Rename schedule', 'NAME', name),
+            target: id,
+          },
+        }
+      } else if (change === 'run') {
+        const one = this.opts.client.schedules().find((each) => each.id === id)
+        if (!one) throw new Error(`there is no schedule called ${id}`)
+        await this.fire(one, { run: true, due: this.now(), missed: 0 })
+      } else if (change === 'pause' || change === 'resume' || change === 'remove') {
+        await this.opts.client.changeSchedule({ id, change, by: 'you' })
+        if (change === 'remove' && this.state.schedule === id) {
+          this.state = { ...this.state, schedule: null }
+        }
+        const said =
+          change === 'remove' ? 'is removed' : change === 'pause' ? 'is paused' : 'is back on'
+        this.state = notice(this.state, `${id} ${said}`)
+      }
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  /**
+   * Run the schedules that are due, by rule, on every look at the tasks: only
+   * while this window is open, catching up once, or skipping, for what came due
+   * while none was. One pass at a time, so nothing runs twice.
+   */
+  private runSchedules(): Promise<void> {
+    this.scheduling ??= this.doRunSchedules().finally(() => {
+      this.scheduling = null
+    })
+    return this.scheduling
+  }
+
+  private async doRunSchedules(): Promise<void> {
+    const live = this.live
+    if (!live) return
+    const now = this.now()
+    for (const one of this.opts.client.schedules()) {
+      // A watch looks with an extension's check, which this window does not run yet.
+      if (one.paused || one.does.kind === 'watch') continue
+      const runs = live.runsOf(one.id)
+      const last = Math.max(
+        runs.at(-1)?.due ?? Number.NEGATIVE_INFINITY,
+        this.fired.get(one.id) ?? Number.NEGATIVE_INFINITY,
+      )
+      const due = dueNow(
+        one,
+        Number.isFinite(last) ? last : null,
+        runs.filter((run) => run.ran).length,
+        now,
+      )
+      if (!due) continue
+      await this.fire(one, due).catch((err) => {
+        this.state = withTranscript(
+          this.state,
+          problem(this.state.transcript, `${one.name} could not run: ${why(err)}`, this.now()),
+        )
+      })
+    }
+  }
+
+  /**
+   * One run of a schedule: written down first, then done — its agent's work
+   * queued, or the orchestrator asked — and said where you would look.
+   */
+  private async fire(
+    one: Schedule & { paused: boolean },
+    due: { run: boolean; due: number; missed: number },
+  ): Promise<void> {
+    this.fired.set(one.id, due.due)
+    const { task } = await this.opts.client.fireSchedule(one.id, due, this.now())
+    const missed =
+      due.missed > 0
+        ? `, ${due.missed} run${due.missed === 1 ? '' : 's'} missed while Wilco was closed`
+        : ''
+    let said: string
+    if (!due.run) {
+      said = `${one.name} skipped what came due while Wilco was closed${missed}`
+    } else if (one.does.kind === 'agent') {
+      said = `${one.name} ran: ${task ?? 'its agent'} is queued${missed}`
+      void this.advanceQueue()
+    } else {
+      said = `${one.name} ran: the orchestrator is asked${missed}`
+      const who = askedByWords(one.by)
+      void this.tell(
+        `It is time for "${one.name}", a schedule ${who} made to run ${describeWhen(one.when)}. ${one.does.kind === 'ask' ? one.does.prompt : ''}`,
+      ).catch(() => {})
+    }
+    this.news = addNews(this.news, said, this.now())
+    this.state = withTranscript(this.state, wilcoDid(this.state.transcript, said, this.now()))
+    this.draw()
   }
 
   /** A task's own rule met — an idle turn, committed work, a merge — written down, once. */
@@ -5497,6 +5758,40 @@ async function copyText(text: string, write: (data: string) => void): Promise<bo
   }
   write(`\x1b]52;c;${Buffer.from(text).toString('base64')}\x07`)
   return true
+}
+
+/** A schedule the orchestrator asks for: what, when, and what it does each time. */
+export interface ScheduleRequest {
+  name: string
+  project: string
+  said: string
+  when: When
+  /** Start an agent each time, told this. */
+  agent?: string
+  /** Ask the orchestrator this each time. */
+  ask?: string
+  done?: DoneRule
+  missed?: 'once' | 'skip'
+  by?: string
+}
+
+/** Who made a schedule, in words for the orchestrator. */
+function askedByWords(by: string): string {
+  const origin = taskOrigin(by)
+  return origin.kind === 'you' ? 'the person' : origin.kind === 'orchestrator' ? 'you' : origin.name
+}
+
+/** A moment as short as it can be said: the time today, or the day and time otherwise. */
+function whenShort(at: number, now: number): string {
+  const time = new Date(at)
+  const today = new Date(now)
+  const clock = clockOf(at)
+  const sameDay =
+    time.getFullYear() === today.getFullYear() &&
+    time.getMonth() === today.getMonth() &&
+    time.getDate() === today.getDate()
+  if (sameDay) return clock
+  return `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''} ${clock}`
 }
 
 /** The time of day something happened, the way news is said: `14:02`. */

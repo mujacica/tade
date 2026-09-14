@@ -52,7 +52,16 @@ const QUEUE_READS = [
   'queue_started',
   'queue_held',
   'queue_changed',
+  'schedule_fired',
 ] as const
+
+/** A schedule's runs as the journal has them, newest last. */
+export interface ScheduleRun {
+  due: number
+  ran: boolean
+  missed: number
+  task: string | null
+}
 
 /** How long a folder listing is good for. */
 const LISTING_MS = 2_000
@@ -320,6 +329,18 @@ export class Live {
   /** What each task could hand queued work to begin from: its branch, where it is, its rule. */
   get upstream(): ReadonlyMap<string, Upstream> {
     return this.upstreams
+  }
+
+  /** Each schedule's runs, from the whole journal, oldest first. */
+  runsOf(schedule: string): ScheduleRun[] {
+    return this.queueEvents
+      .filter((event) => event.type === 'schedule_fired' && event.detail.schedule === schedule)
+      .map((event) => ({
+        due: Date.parse(String(event.detail.due ?? event.ts)),
+        ran: event.detail.ran !== false,
+        missed: typeof event.detail.missed === 'number' ? event.detail.missed : 0,
+        task: event.task,
+      }))
   }
 
   /**

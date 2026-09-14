@@ -42,6 +42,10 @@ export const EventType = z.enum([
   'queue_held',
   /** Someone changed queued work: paused it, resumed it, started it anyway, or chose to wait. */
   'queue_changed',
+  /** A schedule came due: what it did then — or that it skipped runs Wilco was closed for. */
+  'schedule_fired',
+  /** A schedule was made, renamed, paused, resumed or removed, and by whom. */
+  'schedule_changed',
   // agents
   'run_started',
   'run_exited',
@@ -82,6 +86,8 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // in words. Blocking would raise a pane for work that has none.
   queue_held: 'notable',
   queue_changed: 'notable',
+  schedule_fired: 'notable',
+  schedule_changed: 'notable',
   run_started: 'notable',
   run_exited: 'notable',
   tool_call: 'routine',

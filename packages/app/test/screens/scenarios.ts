@@ -4,6 +4,8 @@ import {
   type AppState,
   focusTask,
   initialState,
+  openSchedule,
+  type ScheduleView,
   setDictation,
   setListening,
   showPlan,
@@ -171,6 +173,14 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
 /** Times said in UTC, so the screens do not change with the machine's time zone. */
 const utcClock = (at: number) => new Date(at).toISOString().slice(11, 16)
 
+/** Dates said in UTC, the way the window says them. */
+const utcDate = (at: number) => {
+  const time = new Date(at)
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getUTCDay()] ?? ''
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${day} ${time.getUTCDate()} ${month[time.getUTCMonth()] ?? ''} ${utcClock(at)}`
+}
+
 /** A plan under way: two agents working, the rest queued in every way queued work can be. */
 const queueTasks: TaskSnapshot[] = [
   { task: 'checkout/fix-charge', state: 'failed', reason: 'tests failed twice' },
@@ -241,6 +251,76 @@ const queueTasks: TaskSnapshot[] = [
       touches: [],
       at: null,
     },
+  },
+]
+
+/** Schedules beside the queued work: one on repeat, one that asks the orchestrator, one paused. */
+const queueSchedules: ScheduleView[] = [
+  {
+    id: 'deps-weekly',
+    name: 'deps weekly',
+    project: 'checkout',
+    said: 'every monday morning update our dependencies',
+    kind: 'agent',
+    does: 'starts an agent',
+    prompt:
+      'Update dependencies within their major versions, run the tests, and commit what changed.',
+    when: 'every Monday at 09:00',
+    once: false,
+    next: [
+      Date.parse('2026-09-14T09:00:00Z'),
+      Date.parse('2026-09-21T09:00:00Z'),
+      Date.parse('2026-09-28T09:00:00Z'),
+    ],
+    paused: false,
+    by: 'you',
+    missed: 'once',
+    runs: [
+      {
+        due: Date.parse('2026-09-07T09:00:00Z'),
+        ran: true,
+        missed: 0,
+        task: 'checkout/deps-weekly-0907',
+      },
+      {
+        due: Date.parse('2026-08-31T09:00:00Z'),
+        ran: true,
+        missed: 2,
+        task: 'checkout/deps-weekly-0831',
+      },
+    ],
+  },
+  {
+    id: 'morning-brief',
+    name: 'morning brief',
+    project: 'checkout',
+    said: 'every weekday at 8:45 tell me what happened overnight',
+    kind: 'ask',
+    does: 'asks the orchestrator',
+    prompt: 'Say what the agents did overnight, what failed, and what needs the person first.',
+    when: 'every weekday at 08:45',
+    once: false,
+    next: [Date.parse('2026-09-14T08:45:00Z')],
+    paused: false,
+    by: 'orchestrator',
+    missed: 'skip',
+    runs: [],
+  },
+  {
+    id: 'perf-nightly',
+    name: 'perf nightly',
+    project: 'checkout',
+    said: '',
+    kind: 'agent',
+    does: 'starts an agent',
+    prompt: 'Run the benchmarks.',
+    when: 'every day at 02:00',
+    once: false,
+    next: [Date.parse('2026-09-14T02:00:00Z')],
+    paused: true,
+    by: 'you',
+    missed: 'once',
+    runs: [],
   },
 ]
 
@@ -489,7 +569,28 @@ export const SCENARIOS: Scenario[] = [
       folded: ['changes', 'files', 'notes', 'where'],
       hover: { kind: 'task', task: 'checkout/refund-emails' },
     },
-    frame: frame({ screen: '', height: 44, clock: utcClock }),
+    frame: frame({ screen: '', height: 56, clock: utcClock, schedules: queueSchedules }),
+  },
+  {
+    name: 'a-schedule',
+    about:
+      'A schedule open where an agent’s screen would be: when it runs and what it does, what its agent is told, its next runs, what happens to runs Wilco was closed for, who made it, and each time it ran.',
+    state: {
+      ...openSchedule(
+        withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+        'deps-weekly',
+      ),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      queueFilter: 'timed',
+    },
+    frame: frame({
+      screen: '',
+      height: 44,
+      clock: utcClock,
+      date: utcDate,
+      schedules: queueSchedules,
+    }),
   },
   {
     name: 'the-plan',

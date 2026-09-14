@@ -1,17 +1,72 @@
 import {
   describeQueueState,
+  describeWhen,
   joined,
   type Queued,
   type QueueFacts,
   type QueueState,
   queueStateOf,
+  runsOf,
+  type Schedule,
+  scheduleEnded,
 } from '@wilco/core'
+import type { ScheduleView } from './model.ts'
 
 // What the queue says, in words: to the journal when it starts something, to
 // the orchestrator when something is held or it asks, and to you in the
 // transcript. The rules themselves are core's; this is how they are told.
 //
 // Pure: queued work and facts in, sentences out.
+
+/** A schedule as the SMART QUEUE shows it, from what was set and what the journal says it did. */
+export function scheduleView(
+  schedule: Schedule & { paused: boolean },
+  runs: readonly { due: number; ran: boolean; missed: number; task: string | null }[],
+  now: number,
+): ScheduleView {
+  const last = runs.at(-1)?.due ?? null
+  const ran = runs.filter((run) => run.ran).length
+  const created = Date.parse(schedule.created)
+  const left = schedule.when.count === undefined ? 3 : Math.max(0, schedule.when.count - ran)
+  const next = scheduleEnded(schedule, last, ran, now)
+    ? []
+    : runsOf(
+        schedule.when,
+        created,
+        Math.max(last ?? created - 1, now),
+        Number.POSITIVE_INFINITY,
+        3,
+      ).slice(0, left)
+  const does = schedule.does
+  return {
+    id: schedule.id,
+    name: schedule.name,
+    project: schedule.project,
+    said: schedule.said,
+    kind: does.kind,
+    does:
+      does.kind === 'agent'
+        ? 'starts an agent'
+        : does.kind === 'ask'
+          ? 'asks the orchestrator'
+          : `looks with ${does.watch}, and starts work on what it finds`,
+    prompt: does.kind === 'watch' ? '' : does.prompt,
+    when: describeWhen(schedule.when),
+    once: schedule.when.at !== undefined,
+    next,
+    paused: schedule.paused,
+    by: does.kind === 'watch' ? `extension:${does.watch.split('.')[0] ?? ''}` : schedule.by,
+    missed: schedule.missed,
+    runs: [...runs].reverse(),
+  }
+}
+
+/** A schedule and when it next runs, in a line, for the orchestrator. */
+export function describeSchedule(view: ScheduleView, clock: (at: number) => string): string {
+  const next =
+    view.next.length > 0 ? `next ${view.next.map(clock).join(', ')}` : 'nothing left to run'
+  return `- ${view.id} (${view.name}) — ${view.when}, ${view.does}; ${view.paused ? 'paused' : next}`
+}
 
 /** Why queued work is starting now. */
 export function whyStarting(item: Queued, facts: QueueFacts): string {

@@ -1,36 +1,24 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                 ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › add-refunds  ! held                          ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › deps weekly  ↻ every Monday at 09:00     ▐ Run now ▌ ▐ ‖ Pause ▌ ▐ ≡ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
    ✕ fix-charge               │                                                                                         
-     tests failed twice       │  ! Held: fix-charge failed: tests failed twice.                                         
-                              │    It will not start by itself. What should happen?                                     
-   ⠋ bump-mailer              │                                                                                         
-     working                  │  ▐ Wait for a retry ▌ ▐ Start anyway ▌ ▐ Remove ▌                                       
+     tests failed twice       │  Every Monday at 09:00, it starts an agent.                                             
                               │                                                                                         
- ▾ SMART QUEUE  8    ▐ plan ▌ │  WAITS ON                                                                               
-   all  next  timed           │  ✕ fix-charge  tests failed twice                                                       
-                              │    both change src/charge.ts                                                            
- ▐ ! add-refunds       held ▌ │                                                                                         
- ▐   ◆ fix-charge failed: … ▌ │  WILL BE TOLD                                                                           
-                              │  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
-   ◌ docs-typos        next   │                                                                                         
-     ◆ waiting for room       │  TOUCHES    src/refunds.ts, src/charge.ts                                               
-                              │  FINISHES   when its agent says it has finished — the usual choice                      
- ▐ ◌ refund-emai…  ‖  ×  ≡  ▌ │  FROM       the orchestrator                                                            
- ▐   ◆ after add-refunds +1 ▌ │                                                                                         
-                              │                                                                                         
-   ◷ release-notes    18:00   │                                                                                         
+   ⠋ bump-mailer              │  TELLS ITS AGENT                                                                        
+     working                  │  │ Update dependencies within their major versions, run the tests, and commit what      
+                              │  │ changed.                                                                             
+ ▾ SMART QUEUE  8    ▐ plan ▌ │                                                                                         
+   all  next  timed           │  NEXT       Mon 14 Sep 09:00 · Mon 21 Sep 09:00 · Mon 28 Sep 09:00                      
+                              │  IF MISSED  runs once when Wilco next opens                                             
+   ◷ release-notes    18:00   │  FROM       you · “every monday morning update our dependencies”                        
      ❯ waits for its time     │                                                                                         
+                              │  RUNS                                                                                   
+   ↻ morning brief    08:45   │  Mon 7 Sep 09:00   deps-weekly-0907                                                     
+     ◆ every weekday at 08…   │  Mon 31 Aug 09:00  deps-weekly-0831  2 missed before it                                 
                               │                                                                                         
-   ‖ perf-check      paused   │                                                                                         
-     ❯ paused                 │                                                                                         
-                              │                                                                                         
-   ↻ morning brief    08:45   │                                                                                         
-     ◆ every weekday at 08…   │                                                                                         
-                              │                                                                                         
-   ↻ deps weekly      09:00   │                                                                                         
-     ❯ every Monday at 09:…   │                                                                                         
+ ▐ ↻ deps weekly      09:00 ▌ │                                                                                         
+ ▐   ❯ every Monday at 09:… ▌ │                                                                                         
                               │                                                                                         
    ‖ perf nightly    paused   │                                                                                         
      ❯ every day at 02:00     │                                                                                         
