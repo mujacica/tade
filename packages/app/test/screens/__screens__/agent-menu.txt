@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                                                                        
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌      ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ ▐ × ▌ 
-  ╭─ stripe-v15 ───────────────╮────────────────────────────────────────────────────────────────────────────────────────
-▌●│▌ Open                enter │                                                                                        
-  │  Start agent       running │                                                                                        
- ●│  Stop agent                │                                                                                        
-  │  Show changes      3 files │                                                                                        
- ▾│  Rename…                   │                                                                                        
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+▌●╭─ stripe-v15 ───────────────╮                                                                                        
+  │▌ Open                enter │                                                                                        
+ ●│  Start agent       running │                                                                                        
+  │  Stop agent                │                                                                                        
+ ▾│  Show changes      3 files │                                                                                        
+  │  Rename…                   │                                                                                        
   │  Change model…             │                                                                                        
   │  Open in editor            │                                                                                        
   │  Copy branch name          │ ● Upgrading stripe to v15. The webhook signature API changed,                          
-  │────────────────────────────│   so src/webhooks.ts needs the new constructEvent signature.                           
- ▾│  Park                      │                                                                                        
+ ▾│────────────────────────────│   so src/webhooks.ts needs the new constructEvent signature.                           
+  │  Park                      │                                                                                        
   │  Remove agent…             │ ▸ Read src/webhooks.ts                                                                 
   ╰────────────────────────────╯ ▸ Edit src/webhooks.ts  +12 −4                                                         
-       webhooks.ts            │  ▸ bash npm i stripe@15                                                                 
-   ▸ test/                    │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-     package.json             │  │ bash  npm i stripe@15                                        │                       
-     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-                              │  ╰──────────────────────────────────────────────────────────────╯                       
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
+   ▸ test/                    │  ▸ bash npm i stripe@15                                                                 
+     package.json             │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+     README.md                │  │ bash  npm i stripe@15                                        │                       
+                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+ ▸ NOTES  4           ▐  +  ▌ │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▾ GIT                        │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

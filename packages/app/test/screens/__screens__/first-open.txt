@@ -1,6 +1,5 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                                            ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                                                                        
  ▾ AGENTS             ▐  +  ▌ │                                                                                         
                               │   Nothing is running in checkout.                                                       
    none yet — + starts one    │                                                                                         
@@ -20,6 +19,7 @@
    branch   main              │                                                                                         
    path     /Users/me/src/    │                                                                                         
             checkout          │                                                                                         
+                              │                                                                                         
                               │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         

@@ -1,6 +1,5 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                                            ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                                                                        
  ▾ AGENTS             ▐  +  ▌ │                                                                                         
                               │   Nothing is running in checkout.                                                       
    none yet — + starts one    │                                                                                         
@@ -16,11 +15,12 @@
      package.json             │                                                                                         
      README.md                │                                                                                         
                               │                                                                                         
- ▸ N╭─ main ─────────────────────╮                                                                                      
- ▾ G│▌ Switch branch…            │                                                                                      
-   r│  New branch…               │                                                                                      
-   b│  Pull         fast-forward │                                                                                      
-   p│────────────────────────────│                                                                                      
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
+ ▾ G╭─ main ─────────────────────╮                                                                                      
+   r│▌ Switch branch…            │                                                                                      
+   b│  New branch…               │                                                                                      
+   p│  Pull         fast-forward │                                                                                      
+    │────────────────────────────│                                                                                      
 ━ ▐ │  Copy branch name          │━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
     │  Copy path                 │                                                                                      
     ╰────────────────────────────╯                                                                                      

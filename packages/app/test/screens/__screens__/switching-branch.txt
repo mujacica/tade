@@ -1,12 +1,11 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                                            ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━╭─ Switch branch ──────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━━━━━━━━━━━━━
-                        │  fix▏                                                                │                        
- ▾ AGENTS             ▐ │ on main now                                                          │                        
-                        │                                                                      │                        
-   none yet — + starts o│▌ + Create fix                                                        │                        
-                        │    fix/refund-retries                                     3 days ago │                        
- ▾ CHANGES            vs│    fix/webhook-signature                                 2 weeks ago │                        
-   open an agent to see │                                                                      │                        
+ ▾ AGENTS             ▐ │  fix▏                                                                │                        
+                        │ on main now                                                          │                        
+   none yet — + starts o│                                                                      │                        
+                        │▌ + Create fix                                                        │                        
+ ▾ CHANGES            vs│    fix/refund-retries                                     3 days ago │                        
+   open an agent to see │    fix/webhook-signature                                 2 weeks ago │                        
                         │                                                                      │                        
  ▾ FILES                │                                                                      │                        
    ▾ src/               │                                                                      │                        
@@ -21,6 +20,7 @@
    repo     ~/src/checko│                                                                      │                        
    branch   …lco/stripe-│                                                                      │                        
    from     main        │                                                                      │                        
+   worktree …ckout-strip│                                                                      │                        
 ━ ▐ orchestrator ▌ ▐ + ▌│                                                                      │━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                         │                                                                      │                        
                         │                                                                      │                        

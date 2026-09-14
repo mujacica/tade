@@ -1,13 +1,12 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮          
- ▾ AGENTS │ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │▾ ▌ ▐ × ▌ 
-          │                                                                                                  │──────────
-▌● stripe-│ RECENT                       │ ◆ this folder   no git                                            │          
-          │ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
- ● refunds│ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
-          │                              │ ▸ search/       git · main                                     ›  │          
- ▾ CHANGES│                              │                                                                   │          
+ ▾ AGENTS ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮▾ ▌ ▐ × ▌ 
+          │ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │──────────
+▌● stripe-│                                                                                                  │          
+          │ RECENT                       │ ◆ this folder   no git                                            │          
+ ● refunds│ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
+          │ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
+ ▾ CHANGES│                              │ ▸ search/       git · main                                     ›  │          
   M packag│                              │                                                                   │          
   A src/we│                              │                                                                   │          
   M src/we│                              │                                                                   │          
@@ -19,8 +18,9 @@
    ▸ test/│                              │                                                                   │          
      packa│                              │                                                                   │          
      READM│                              │                                                                   │          
-          │                                                                                                  │          
- ▸ NOTES  │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
+          │                              │                                                                   │          
+ ▸ NOTES  │                                                                                                  │          
+ ▾ GIT    │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
 ━ ▐ orches│   so Wilco needs one before it can start work there.                                             │ ▌ ▐ ▾ ▌ ━
           │   ■ git init, and commit what's there as the first commit                                        │          
           │                                                                                                  │          

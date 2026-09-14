@@ -1,13 +1,12 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━╭─ Model for the orchestrator ─────────────────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━
-            │  ▏type to narrow: opus, kimi, openrouter…                                                    │            
- ▾ AGENTS  2│ the orchestrator is on openrouter/anthropic/claude-opus-5                                    │5 ▾ ▌ ▐ × ▌ 
-            │                                                                                              │────────────
-▌● stripe-v1│  ● anthropic/claude-opus-5                                        Claude Opus 5 · openrouter │            
-            │▌   anthropic/claude-sonnet-5                                    Claude Sonnet 5 · openrouter │            
- ● refunds  │    moonshotai/kimi-k2.6                                               Kimi K2.6 · openrouter │            
-            │    claude-opus-5                                                   Claude Opus 5 · anthropic │            
- ▾ CHANGES  │                                                                                              │            
+ ▾ AGENTS  2│  ▏type to narrow: opus, kimi, openrouter…                                                    │5 ▾ ▌ ▐ × ▌ 
+            │ the orchestrator is on openrouter/anthropic/claude-opus-5                                    │────────────
+▌● stripe-v1│                                                                                              │            
+            │  ● anthropic/claude-opus-5                                        Claude Opus 5 · openrouter │            
+ ● refunds  │▌   anthropic/claude-sonnet-5                                    Claude Sonnet 5 · openrouter │            
+            │    moonshotai/kimi-k2.6                                               Kimi K2.6 · openrouter │            
+ ▾ CHANGES  │    claude-opus-5                                                   Claude Opus 5 · anthropic │            
   M package.│                                                                                              │            
   A src/webh│                                                                                              │            
   M src/webh│                                                                                              │            
@@ -21,6 +20,7 @@
      README.│                                                                                              │            
             │                                                                                              │            
  ▸ NOTES  4 │                                                                                              │            
+ ▾ GIT      │                                                                                              │            
 ━ ▐ orchestr│                                                                                              │ ⤢ ▌ ▐ ▾ ▌ ━
             │                                                                                              │            
             │                                                                                              │            

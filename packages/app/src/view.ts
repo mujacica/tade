@@ -497,8 +497,7 @@ function renderTop(
     return row.used + 1 + probe.used <= width
   })
   row.right(right(fits ?? { search: false, counts: 'none' }))
-  // A row of room under the rule, so the tabs below are not pressed against it.
-  return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }, blank(width)])
+  return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
 }
 
 /**

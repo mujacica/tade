@@ -39,12 +39,12 @@ export const DEFAULTS = { sidebarWidth: 26, stripHeight: 9 }
 export const CONVERSATION_ROWS = 16
 
 /**
- * Rows the window spends on itself: the project tabs, the rule under them and
- * a row of room below it, and the rule and buttons at the foot. Counted here
- * rather than in the drawing, because a frame that does not add up to the
- * terminal's height corrupts the whole screen.
+ * Rows the window spends on itself: the project tabs and the rule under them,
+ * and the rule and buttons at the foot. Counted here rather than in the
+ * drawing, because a frame that does not add up to the terminal's height
+ * corrupts the whole screen.
  */
-export const CHROME = 5
+export const CHROME = 4
 
 /** Below these the region stops being readable and starts being decoration. */
 export const MINIMUM = { sidebar: 12, strip: 4, main: 20, body: 1 }

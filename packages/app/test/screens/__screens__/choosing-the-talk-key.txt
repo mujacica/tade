@@ -1,26 +1,26 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        ╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮        
- ▾ AGENT│  search settings       │ Voice                                                                       │▌ ▐ × ▌ 
-        │                        │ How you talk to Wilco, and how it talks back.                               │────────
-▌● strip│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
-        │  Models            │                                                            │                    │        
- ● refun│  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
-        │  Approvals      byp│                                                            │                    │        
- ▾ CHANG│▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
-  M pack│  Window            │                                                            │                    │        
-  A src/│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
-  M src/│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
-        │  Keys              │                                                            │       ↻ on restart │        
- ▾ FILES│  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
-   ▾ src│                    │ Never a key that types a character — you have to be        │                    │        
+ ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮▌ ▐ × ▌ 
+        │  search settings       │ Voice                                                                       │────────
+▌● strip│                        │ How you talk to Wilco, and how it talks back.                               │        
+        │  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
+ ● refun│  Models            │                                                            │                    │        
+        │  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
+ ▾ CHANG│  Approvals      byp│                                                            │                    │        
+  M pack│▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
+  A src/│  Window            │                                                            │                    │        
+  M src/│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
+        │  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
+ ▾ FILES│  Keys              │                                                            │       ↻ on restart │        
+   ▾ src│  Accounts          │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
+       w│                    │ Never a key that types a character — you have to be        │                    │        
        w│                    │ able to type a space into your agent.                      │                    │        
-       w│                    │                                                            │       ↻ on restart │        
-   ▸ tes│                    │                      ▐ Try another ▌ ▐ Use ctrl+r anyway ▌ │       ↻ on restart │        
-     pac│                    ╰────────────────────────────────────────────────────────────╯                    │        
-     REA│                        │                                                                             │        
+   ▸ tes│                    │                                                            │       ↻ on restart │        
+     pac│                    │                      ▐ Try another ▌ ▐ Use ctrl+r anyway ▌ │       ↻ on restart │        
+     REA│                    ╰────────────────────────────────────────────────────────────╯                    │        
         │                        │                                                                             │        
  ▸ NOTES│                        │                                                                             │        
+ ▾ GIT  │                        │                                                                             │        
 ━ ▐ orch│                        │                                                                             │ ▐ ▾ ▌ ━
         │                        │                                                                             │        
         │                        │                                                                             │        

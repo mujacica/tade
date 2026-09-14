@@ -1,17 +1,16 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
-          │ ⌕ webhook▏                                                                                       │          
- ▾ AGENTS │     @ agents     # in files     > actions                                 file:42 goes to a line │▾ ▌ ▐ × ▌ 
-          │                                                                                                  │──────────
-▌● stripe-│ FILES  4                                                                                         │          
-          │  □ src/webhooks.ts  checkout                                                                     │          
- ● refunds│▌ □ src/webhooks.ts  checkout › stripe-v15                                                        │          
-          │  □ src/webhooks.test.ts  checkout                                                                │          
- ▾ CHANGES│  □ src/webhooks.test.ts  checkout › stripe-v15                                                   │          
-  M packag│ IN FILES  2                                                                                      │          
-  A src/we│  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync(  │          
-  M src/we│  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
-          │                                                                                                  │          
+ ▾ AGENTS │ ⌕ webhook▏                                                                                       │▾ ▌ ▐ × ▌ 
+          │     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
+▌● stripe-│                                                                                                  │          
+          │ FILES  4                                                                                         │          
+ ● refunds│  □ src/webhooks.ts  checkout                                                                     │          
+          │▌ □ src/webhooks.ts  checkout › stripe-v15                                                        │          
+ ▾ CHANGES│  □ src/webhooks.test.ts  checkout                                                                │          
+  M packag│  □ src/webhooks.test.ts  checkout › stripe-v15                                                   │          
+  A src/we│ IN FILES  2                                                                                      │          
+  M src/we│  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync(  │          
+          │  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
  ▾ FILES  │                                                                                                  │          
    ▾ src/ │                                                                                                  │          
        web│                                                                                                  │          
@@ -21,6 +20,7 @@
      READM│                                                                                                  │          
           │                                                                                                  │          
  ▸ NOTES  │                                                                                                  │          
+ ▾ GIT    │                                                                                                  │          
 ━ ▐ orches│                                                                                                  │ ▌ ▐ ▾ ▌ ━
           │                                                                                                  │          
           │                                                                                                  │          

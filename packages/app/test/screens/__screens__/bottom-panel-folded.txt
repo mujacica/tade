@@ -1,6 +1,5 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                                                                        
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌      ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
 ▌● stripe-v15                 │                                                                                         
@@ -18,17 +17,18 @@
        webhooks.ts            │                                                                                         
    ▸ test/                    │                                                                                         
      package.json             │                                                                                         
-     README.md                │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-                              │    so src/webhooks.ts needs the new constructEvent signature.                           
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▾ GIT                        │  ▸ Read src/webhooks.ts                                                                 
-   repo     ~/src/checkout    │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   branch   …lco/stripe-v15   │  ▸ bash npm i stripe@15                                                                 
-   from     main              │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   worktree …ckout-stripe-v15 │  │ bash  npm i stripe@15                                        │                       
-   path     /Users/me/.wilco/ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-            worktrees/        │  ╰──────────────────────────────────────────────────────────────╯                       
-            checkout-stripe-v │                                                                                         
+     README.md                │                                                                                         
+                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▸ NOTES  4           ▐  +  ▌ │    so src/webhooks.ts needs the new constructEvent signature.                           
+ ▾ GIT                        │                                                                                         
+   repo     ~/src/checkout    │  ▸ Read src/webhooks.ts                                                                 
+   branch   …lco/stripe-v15   │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   from     main              │  ▸ bash npm i stripe@15                                                                 
+   worktree …ckout-stripe-v15 │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   path     /Users/me/.wilco/ │  │ bash  npm i stripe@15                                        │                       
+            worktrees/        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+            checkout-stripe-v │  ╰──────────────────────────────────────────────────────────────╯                       
+            15                │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▴ ▌ ━
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
