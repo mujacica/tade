@@ -126,6 +126,7 @@ import {
   setQuestion,
   shownName,
   showOrchestrator,
+  showPlan,
   showTerminal,
   splitPane,
   splitRatio,
@@ -1740,6 +1741,11 @@ export class App {
     }
     if (action.startsWith('close-task:')) {
       await this.closeAgent(action.slice('close-task:'.length))
+      return
+    }
+    if (action === 'queue-plan') {
+      this.state = showPlan(this.state)
+      this.draw()
       return
     }
     if (action.startsWith('queue-filter:')) {

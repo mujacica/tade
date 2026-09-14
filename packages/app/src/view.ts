@@ -16,6 +16,7 @@ import {
   markOf,
   matchActions,
   ORCHESTRATOR_TAB,
+  planOf,
   projects,
   QUEUE_FILTERS,
   type QueuedView,
@@ -30,7 +31,8 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
-import { type Band, PLAIN, type Skin } from './skin.ts'
+import { drawPlan, type PlanBox, type PlanTone } from './plan-graph.ts'
+import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
@@ -566,7 +568,7 @@ interface Section {
   count: number | null
   /** Rows when unfolded. At least one, so an open section never looks broken. */
   rows: (row: () => Row) => { text: string; hits: Hit[] }[]
-  action?: { label: string; target: Target }
+  action?: { label: string; target: Target; look?: Look }
   /** Said quietly at the right of the heading: what the section is measured against. */
   note?: string
   /** Its items are tabs, and its rows carry their own room above and below them. */
@@ -684,7 +686,7 @@ function renderSidebar(
     if (section.count !== null && section.count > 0) head.space().badge(section.count)
     if (section.action) {
       const action = section.action
-      head.right((r) => r.button(action.label, action.target, 'add').space())
+      head.right((r) => r.button(action.label, action.target, action.look ?? 'add').space())
     } else if (section.note) {
       const note = section.note
       head.right((r) => r.text(note, skin.hint).space())
@@ -1061,6 +1063,10 @@ function queueSection(
     label: 'SMART QUEUE',
     count: queuedCount(state),
     banded: true,
+    // The plan it came from, drawn where an agent's screen would be.
+    ...(planOf(state).waits.length > 0
+      ? { action: { label: 'plan', target: { kind: 'action', name: 'queue-plan' }, look: 'rest' } }
+      : {}),
     rows: (row) => {
       const entries = queueOf(state)
       const filters = queuedCount(state) > 1 ? [queueFilters(row(), state.queueFilter, skin)] : []
@@ -1144,6 +1150,142 @@ function queueRow(
     ],
     band,
   }
+}
+
+/**
+ * The project's plan where an agent's screen would be: a column per step, a
+ * box per task with its mark and what it is doing, an arrow for every wait,
+ * and under it every wait's reason. Too many steps for the width, it is said
+ * as a list instead of drawn through itself.
+ */
+function renderPlan(
+  state: AppState,
+  frame: Frame,
+  width: number,
+  height: number,
+  skin: Skin,
+  pointer: Pointer,
+): Drawn {
+  const { tasks, waits } = planOf(state)
+  const spend = frame.spend?.byTask ?? {}
+  const now = frame.now ?? 0
+  const working = tasks.filter((pane) => !pane.queued && markOf(pane) === 'working').length
+  const queued = tasks.filter((pane) => pane.queued).length
+  const header = new Row(width, skin, pointer).space()
+  header.text(`${state.project ?? ''} › plan`, skin.you).space(2)
+  header.text(`${tasks.length} tasks · ${working} working · ${queued} waiting to start`, skin.hint)
+  const rows: { text: string; hits: Hit[] }[] = [
+    header.build(),
+    { text: skin.chrome('─'.repeat(width)), hits: [] },
+    blank(width),
+  ]
+  const line = (build: (r: Row) => void) => {
+    const r = new Row(width, skin, pointer).space(2)
+    build(r)
+    rows.push(r.build())
+  }
+  if (tasks.length === 0) {
+    line((r) => r.text('Nothing here waits on anything: there is no plan to draw.', skin.hint))
+  }
+
+  const boxes: PlanBox[] = tasks.map((pane) => {
+    if (pane.queued) {
+      const look = queueLook(pane.queued, skin, frame)
+      return {
+        task: pane.task,
+        mark: look.glyph,
+        name: shownName(pane),
+        right: look.when,
+        note: queueSays({ ...pane, queued: pane.queued }),
+        tone: planTone(
+          pane.queued.state.kind === 'held'
+            ? 'waiting'
+            : pane.queued.state.kind === 'ready'
+              ? 'busy'
+              : pane.queued.state.kind === 'paused'
+                ? 'faded'
+                : 'hint',
+        ),
+      }
+    }
+    const spent = spend[pane.task]
+    return {
+      task: pane.task,
+      mark: glyph(pane, now),
+      name: shownName(pane),
+      right: spent && spent.usd > 0 ? dollars(spent.usd) : '',
+      note: doing(pane),
+      tone: planTone(MARK_TONES[markOf(pane)]),
+    }
+  })
+  const drawing = drawPlan(boxes, waits, Math.max(0, width - 4), (column) =>
+    column === 0 ? 'FIRST' : 'THEN',
+  )
+  const paint: Record<PlanTone, (text: string) => string> = {
+    busy: skin.busy,
+    hint: skin.hint,
+    waiting: skin.waiting,
+    bad: skin.bad,
+    done: skin.done,
+    faded: skin.faded,
+    line: skin.chrome,
+    label: skin.label,
+  }
+  if (!drawing.tooWide) {
+    for (const runs of drawing.rows) {
+      line((r) => {
+        for (const run of runs) r.text(run.text, run.tone ? paint[run.tone] : (text) => text)
+      })
+    }
+  } else {
+    // Too many steps to draw side by side: each task under what it waits on.
+    for (const box of boxes) {
+      const after = waits
+        .filter((wait) => wait.to === box.task)
+        .map((wait) => inProject(state.project ?? '', wait.from))
+      line((r) =>
+        r
+          .text(box.mark, paint[box.tone])
+          .space()
+          .text(box.name)
+          .text(after.length > 0 ? `  after ${after.join(', ')}` : '', skin.hint),
+      )
+    }
+  }
+
+  if (waits.length > 0) {
+    rows.push(blank(width))
+    line((r) => r.text('WHY THIS ORDER', skin.label))
+    const name = (task: string) => inProject(state.project ?? '', task)
+    const first = Math.min(18, Math.max(...waits.map((wait) => visibleWidth(name(wait.to)))) + 2)
+    let previous = ''
+    for (const wait of waits) {
+      const to = name(wait.to)
+      line((r) =>
+        r
+          .text(shortened(to === previous ? '' : to, first - 1).padEnd(first))
+          .text(shortened(`after ${name(wait.from)}`, 24).padEnd(26), skin.busy)
+          .text(shortened(wait.why || '—', Math.max(1, width - first - 30)), skin.hint),
+      )
+      previous = to
+    }
+  }
+
+  const shown = stack(rows.slice(0, height))
+  const filled = [...shown.rows]
+  while (filled.length < height) filled.push(' '.repeat(width))
+  return { rows: filled, hits: shown.hits }
+}
+
+/** A plan box's tone, from the name the skin's tones go by. */
+function planTone(tone: string): PlanTone {
+  return tone === 'busy' ||
+    tone === 'waiting' ||
+    tone === 'bad' ||
+    tone === 'done' ||
+    tone === 'faded'
+    ? tone
+    : 'hint'
 }
 
 /** A queued task's state, in a word, for its card. */
@@ -1459,6 +1601,7 @@ function renderMain(
   pointer: Pointer,
 ): Drawn {
   const pane = state.panes.find((p) => p.task === state.focused)
+  if (!pane && state.showingPlan) return renderPlan(state, frame, width, height, skin, pointer)
   if (!pane) return renderWelcome(state, frame, width, height, skin, pointer)
   if (pane.queued) {
     return renderQueued(

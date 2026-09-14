@@ -1,24 +1,27 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                 ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › refund-emails  ◌ waiting                     ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › plan  4 tasks · 1 working · 2 waiting to start                               
                               │─────────────────────────────────────────────────────────────────────────────────────────
    ✕ fix-charge               │                                                                                         
-     tests failed twice       │  ◌ Waits on add-refunds, bump-mailer, then starts by itself.                            
+     tests failed twice       │  FIRST                         THEN                          THEN                       
+                              │  ╭──────────────────────╮      ╭──────────────────────╮      ╭──────────────────────╮   
+   ⠋ bump-mailer              │  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶│ ◌ refund-emails      │   
+     working                  │  │   tests failed twice │      │   ◆ fix-charge fail… │ │    │   ◆ after add-refun… │   
+                              │  ╰──────────────────────╯      ╰──────────────────────╯ │    ╰──────────────────────╯   
+ ▾ SMART QUEUE  5    ▐ plan ▌ │                                                         │                               
+   all  next  timed           │  ╭──────────────────────╮                               │                               
+                              │  │ ⠋ bump-mailer        │───────────────────────────────╯                               
+   ! add-refunds       held   │  │   working            │                                                               
+     ◆ fix-charge failed: …   │  ╰──────────────────────╯                                                               
                               │                                                                                         
-   ⠋ bump-mailer              │  WAITS ON                                                                               
-     working                  │  ! add-refunds  ◆ fix-charge failed: tests failed twice                                 
-                              │    it emails what refund() returns                                                      
- ▾ SMART QUEUE  5    ▐ plan ▌ │  ⠋ bump-mailer  working                                                                 
-   all  next  timed           │    the mailer’s send() changes in v4                                                    
-                              │                                                                                         
-   ! add-refunds       held   │  WILL BE TOLD                                                                           
-     ◆ fix-charge failed: …   │  │ Email the customer when a refund goes through: use the new mailer, and say how much  
-                              │  │ came back and when.                                                                  
    ◌ docs-typos        next   │                                                                                         
-     ◆ waiting for room       │  TOUCHES    src/mail/refund.ts                                                          
-                              │  FINISHES   when its agent says it has finished — the usual choice                      
- ▐ ◌ refund-emails          ▌ │  FROM       the orchestrator                                                            
- ▐   ◆ after add-refunds +1 ▌ │                                                                                         
+     ◆ waiting for room       │  WHY THIS ORDER                                                                         
+                              │  add-refunds    after fix-charge          both change src/charge.ts                     
+   ◌ refund-emails            │  refund-emails  after add-refunds         it emails what refund() returns               
+     ◆ after add-refunds +1   │                 after bump-mailer         the mailer’s send() changes in v4             
+                              │                                                                                         
+   ◷ release-notes    18:00   │                                                                                         
+     ❯ waits for its time     │                                                                                         
                               │                                                                                         
    ‖ perf-check      paused   │                                                                                         
      ❯ paused                 │                                                                                         
@@ -27,9 +30,6 @@
  ▸ FILES                      │                                                                                         
  ▸ NOTES  4           ▐  +  ▌ │                                                                                         
  ▸ GIT                        │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
                               │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         

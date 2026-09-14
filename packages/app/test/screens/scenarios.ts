@@ -6,6 +6,7 @@ import {
   initialState,
   setDictation,
   setListening,
+  showPlan,
   splitPane,
   type TaskSnapshot,
   toggleSection,
@@ -487,6 +488,17 @@ export const SCENARIOS: Scenario[] = [
       ),
       folded: ['changes', 'files', 'notes', 'where'],
       hover: { kind: 'task', task: 'checkout/refund-emails' },
+    },
+    frame: frame({ screen: '', height: 44, clock: utcClock }),
+  },
+  {
+    name: 'the-plan',
+    about:
+      'The plan the queue came from, where an agent’s screen would be: a column per step, a box per task with its mark and what it is doing, an arrow for each wait, and every wait’s reason under it.',
+    state: {
+      ...showPlan(withTasks(withProjects(initialState(), ['checkout']), queueTasks)),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
     },
     frame: frame({ screen: '', height: 44, clock: utcClock }),
   },

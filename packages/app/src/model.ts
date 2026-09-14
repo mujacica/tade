@@ -51,6 +51,8 @@ export interface AgentPane {
   by?: string
   /** It is queued work: made, and waiting to start. Shown in the SMART QUEUE, not with agents. */
   queued?: QueuedView | null
+  /** What it was planned to wait on, started or not: what draws it into its plan. */
+  waitsOn?: readonly { task: string; why: string }[]
 }
 
 /** Queued work, as the window shows it: where it stands, and what it is waiting to do. */
@@ -122,6 +124,8 @@ export interface AppState {
   folded: string[]
   /** Which queued work the SMART QUEUE shows. */
   queueFilter: QueueFilter
+  /** The plan is drawn where an agent's screen would be, while no agent is in front. */
+  showingPlan: boolean
   /** Folders opened in the FILES tree, relative to the folder it is of. */
   expanded: string[]
   /** How many rows the sidebar is scrolled down. */
@@ -211,6 +215,7 @@ export function initialState(): AppState {
     pressed: null,
     folded: [...FOLDED_AT_START],
     queueFilter: 'all',
+    showingPlan: false,
     expanded: [],
     scroll: 0,
     talkingSince: null,
@@ -248,6 +253,7 @@ export interface TaskSnapshot {
   done?: DoneRule
   by?: string
   queued?: QueuedView | null
+  waitsOn?: readonly { task: string; why: string }[]
 }
 
 /**
@@ -266,6 +272,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     ...(task.reason ? { reason: task.reason } : {}),
     waiting: task.waiting ?? false,
     approval: task.approval ?? null,
+    ...(task.waitsOn ? { waitsOn: task.waitsOn } : {}),
     lanes: task.lanes ?? (task.lane ? [{ id: task.lane, kind: 'agent' }] : []),
     ...(task.finished ? { finished: task.finished } : {}),
     ...(task.done ? { done: task.done } : {}),
@@ -457,8 +464,41 @@ function refocus(state: AppState, panes: AgentPane[]): string | null {
 export function focusTask(state: AppState, task: string): AppState {
   const pane = state.panes.find((one) => one.task === task)
   return pane
-    ? { ...state, focused: task, project: pane.project, chose: true, paneScroll: 0 }
+    ? {
+        ...state,
+        focused: task,
+        project: pane.project,
+        chose: true,
+        paneScroll: 0,
+        showingPlan: false,
+      }
     : state
+}
+
+/** The plan in front of you, where an agent's screen was: which work comes first, and what waits on what. */
+export function showPlan(state: AppState): AppState {
+  return { ...state, focused: null, chose: true, showingPlan: true }
+}
+
+/**
+ * The project's plan, as tasks and waits: every task something waits on, and
+ * everything that waits, started or not. Work nothing waits on and that waits
+ * on nothing is not part of a plan.
+ */
+export function planOf(state: AppState): {
+  tasks: AgentPane[]
+  waits: { from: string; to: string; why: string }[]
+} {
+  const here = state.panes.filter((pane) => pane.project === (state.project ?? pane.project))
+  const waits = here.flatMap((pane) =>
+    (pane.waitsOn ?? pane.queued?.after ?? []).map((dep) => ({
+      from: dep.task,
+      to: pane.task,
+      why: dep.why,
+    })),
+  )
+  const inPlan = new Set(waits.flatMap((wait) => [wait.from, wait.to]))
+  return { tasks: here.filter((pane) => inPlan.has(pane.task)), waits }
 }
 
 /** Move focus along the sidebar, wrapping at both ends. */
