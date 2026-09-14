@@ -1,18 +1,18 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ○ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌      ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
-▌● stripe-v15     $1.26╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
+▌● stripe-v15          ╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
                        │ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
- ○ refunds        $0.62│                                                                        │                       
+ ● refunds   $0.62     │                                                                        │                       
                        │ by ▐ Agent ▌  Project    Model                                         │                       
  ▾ CHANGES  3         v│                                                                        │                       
   M package.json       │ WHO                 MODEL            TOKENS  SHARE           COST      │                       
   A src/webhooks.test.t│ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
   M src/webhooks.ts    │ ● stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
-                       │ ○ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
- ▾ FILES               │ ◆ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
+                       │ ● refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
+ ▾ FILES               │ ● search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
    ▾ src/              │                                                                        │                       
        webhooks.test.ts│ BUDGETS                                                                │                       
        webhooks.ts     │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       

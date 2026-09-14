@@ -173,10 +173,10 @@ describe('what the window shows', () => {
     expect(groups[0]?.tasks[0]?.focused).toBe(true)
   })
 
-  it('gives each state its own glyph', () => {
+  it('gives every state the same filled dot — color is the signal', () => {
     const glyphs = state().panes.map(glyph)
-    expect(new Set(glyphs).size).toBe(3)
-    expect(glyph({ ...state().panes[1]!, waiting: true })).toBe('●')
+    expect(new Set(glyphs).size).toBe(1)
+    expect(glyphs.every((g) => g === '●')).toBe(true)
   })
 
   it('says what is waiting, and whether it is listening', () => {

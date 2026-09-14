@@ -325,6 +325,46 @@ export default function wilcoTools(pi: PiApi): void {
     (p) => rpc('worker/stop', { task: String(p.task) }),
   )
 
+  tool(
+    'wilco_run_cleanup',
+    'Stop agents that match a state filter: idle (not actively working), done (ready to merge, in review state), failed, or all (any non-working agent). Use when the human asks to clean up finished or failed agents.',
+    object({ filter: string('which agents to stop: idle, done, failed, or all') }, ['filter']),
+    async (p) => {
+      const filter = String(p.filter).toLowerCase()
+      const status = JSON.parse(await runCli(['status', '--json'])) as {
+        projects: Array<{ tasks: Array<{ id: string; state: string }> }>
+      }
+      const toStop: string[] = []
+      for (const project of status.projects) {
+        for (const task of project.tasks) {
+          const matches =
+            filter === 'all'
+              ? task.state !== 'working'
+              : filter === 'idle'
+                ? task.state !== 'working'
+                : filter === 'done'
+                  ? task.state === 'review'
+                  : filter === 'failed'
+                    ? task.state === 'failed'
+                    : false
+          if (matches) toStop.push(task.id)
+        }
+      }
+      const stopped: string[] = []
+      for (const task of toStop) {
+        try {
+          await rpc('worker/stop', { task })
+          stopped.push(task)
+        } catch {
+          // skip ones that could not be stopped
+        }
+      }
+      return stopped.length === 0
+        ? `No agents matched filter "${filter}"`
+        : `Stopped ${stopped.length} agent${stopped.length === 1 ? '' : 's'}: ${stopped.join(', ')}`
+    },
+  )
+
   for (const [name, parked, what] of [
     [
       'wilco_park',

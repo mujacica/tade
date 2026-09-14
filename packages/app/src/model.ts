@@ -820,14 +820,9 @@ export function sidebar(state: AppState): SidebarGroup[] {
   return [...groups.values()].sort((a, b) => a.project.localeCompare(b.project))
 }
 
-/** A glyph per state, so a column of them is readable at a glance. */
-export function glyph(pane: AgentPane): string {
-  if (pane.waiting || pane.state === 'blocked') return '●'
-  if (pane.state === 'failed') return '◍'
-  if (pane.state === 'review') return '◆'
-  if (pane.state === 'working') return '○'
-  if (pane.state === 'parked') return '◌'
-  return '·'
+/** A single character that shows an agent's live state. Always a filled dot — color is the signal. */
+export function glyph(_pane: AgentPane): string {
+  return '●'
 }
 
 export function paneTitle(pane: AgentPane): string {

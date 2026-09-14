@@ -1,11 +1,11 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ○ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
               ╭─ Keys ───────────────────────────────────────────────────────────────────────────── esc ─╮              
- ▾ AGENTS  2  │                                                                                          │de-opus-5 ▾ ▌ 
+ ▾ AGENTS  2  │                                                                                          │s-5 ▾ ▌ ▐ × ▌ 
               │ Push to talk              ▐ ctrl ▌+▐ space ▌  hold                                       │──────────────
 ▌● stripe-v15 │ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines, commands                 │              
               │ Next agent                ▐ tab ▌  the next agent, then the orchestrator                 │              
- ○ refunds    │ Previous agent            ▐ shift ▌+▐ tab ▌  back through the same                       │              
+ ● refunds   $│ Previous agent            ▐ shift ▌+▐ tab ▌  back through the same                       │              
               │ Talk to Wilco             ▐ ctrl ▌+▐ / ▌  type to the orchestrator                       │              
  ▾ CHANGES  3 │ Next waiting agent        ▐ ctrl ▌+▐ q ▌  the agent waiting on you                       │              
   M package.js│ New agent                 ▐ ctrl ▌+▐ n ▌  start one in the project you are in            │              
@@ -16,17 +16,17 @@
    ▾ src/     │ Settings                  ▐ ctrl ▌+▐ , ▌  this panel                                     │              
        webhook│ Bottom panel fills window ▐ ctrl ▌+▐ shift ▌+▐ f ▌  the conversation or terminal takes th│              
        webhook│ Keys                      ▐ F1 ▌  the sheet of every key                                 │              
-   ▸ test/    │ Allow                     ▐ a ▌  allow what an agent asks, while one waits               │              
-     package.j│ Deny                      ▐ d ▌  deny what an agent asks, while one waits                │              
-     README.md│                                                                                          │              
-              │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
- ▸ NOTES  4   │ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │              
-━ ▐ orchestrat│ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+   ▸ test/    │ Reload                    ▐ ctrl ▌+▐ shift ▌+▐ r ▌  restart the window with your changes │              
+     package.j│ Allow                     ▐ a ▌  allow what an agent asks, while one waits               │              
+     README.md│ Deny                      ▐ d ▌  deny what an agent asks, while one waits                │              
+              │                                                                                          │              
+ ▸ NOTES  4   │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
+━ ▐ orchestrat│ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+              │ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │              
               │                                                                                          │              
               │ Everything else goes to the agent or terminal you're typing at.                          │              
               │                                                                         ▐ Change keys… ▌ │              
               ╰──────────────────────────────────────────────────────────────────────────────────────────╯              
-                                                                                                                        
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 

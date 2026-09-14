@@ -1,11 +1,11 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ○ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         ╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮        
- ▾ AGENT│ ● Dependencies  built-in · ready                                                             2 tools │s-5 ▾ ▌ 
+ ▾ AGENT│ ● Dependencies  built-in · ready                                                             2 tools │▌ ▐ × ▌ 
         │   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │────────
 ▌● strip│   an agent’s worktree.                                                                               │        
         │   ▐ Turn off ▌ ▐ Settings… ▌ ▐ Check dependencies ▌ ▐ Update dependencies (minor) ▌                  │        
- ○ refun│   ▐ Update dependencies (major) ▌                                                                    │        
+ ● refun│   ▐ Update dependencies (major) ▌                                                                    │        
         │                                                                                                      │        
  ▾ CHANG│ ◐ Sentry  built-in · needs setup                                                             2 tools │        
   M pack│   no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read,  │        

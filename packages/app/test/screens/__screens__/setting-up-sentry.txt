@@ -1,11 +1,11 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ○ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌      ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
 ▌● stripe-v1╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
             │ ◐ Needs setting up: no Sentry token                                                          │            
- ○ refunds  │                                                                                              │            
+ ● refunds  │                                                                                              │            
             │  Create a user auth token with org:read, project:read, event:read and event:write.           │            
  ▾ CHANGES  │  Paste it below, or log in with sentry-cli login and leave it empty.                         │            
   M package.│  Say which Sentry project each of your projects sends to.                                    │            

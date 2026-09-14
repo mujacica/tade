@@ -1,9 +1,9 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ○ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                    ╭─ ● search › pagination ────────────────────── × ─╮ 
  ▾ AGENTS  1          ▐  +  ▌ │ checkout › refunds  ▐ agent ▌ ▐ + ▌│ wants approval                               12s │ 
                               │────────────────────────────────────│ bash  rm -rf node_modules && npm ci              │─
-▌○ refunds        $0.62 ▐ ≡ ▌ │                                    │                                                  │ 
+▌● refunds  $0.62 ▐ × ▌ ▐ ≡ ▌ │                                    │                                                  │ 
                               │                                    │ ▐ Allow once ▌ ▐ Deny ▌ ▐ Show ▌                 │ 
  ▾ CHANGES  3         vs main │                                    ╰──────────────────────────────────────────────────╯ 
   M package.json        +2 −1 │                                                                                         

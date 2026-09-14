@@ -1558,6 +1558,11 @@ export class App {
       this.draw()
       return
     }
+    if (action.startsWith('close-task:')) {
+      const task = action.slice('close-task:'.length)
+      await this.stopAgent(task)
+      return
+    }
     if (action.startsWith('harness:')) {
       const task = action.slice('harness:'.length)
       const current = this.harnessShown(task)
