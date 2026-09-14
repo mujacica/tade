@@ -17,6 +17,7 @@ import {
   ORCHESTRATOR_TAB,
   projects,
   shownName,
+  spinner,
   splitShown,
   tasksOf,
   terminalSplitShown,
@@ -466,18 +467,23 @@ function renderTop(
   }
   row.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
 
-  const waiting = state.panes.filter((pane) => pane.waiting || pane.state === 'blocked').length
-  const working = state.panes.filter((pane) => pane.state === 'working').length
+  // The same marks the list shows: an agent idle at its prompt is not waiting on you.
+  const waiting = state.panes.filter((pane) => markOf(pane) === 'needs-you').length
+  const working = state.panes.filter((pane) => markOf(pane) === 'working').length
   // The talk key is the one thing here that must survive a narrow terminal;
   // search is next, then what waits on you. The counts shorten, then go, first.
   type Counts = 'full' | 'short' | 'waiting' | 'none'
   const right = (show: { search: boolean; counts: Counts }) => (r: Row) => {
     if (waiting > 0 && show.counts !== 'none') {
-      const label = show.counts === 'full' ? `● ${waiting} waiting` : `● ${waiting}`
+      const label = show.counts === 'full' ? `! ${waiting} waiting` : `! ${waiting}`
       r.text(label, skin.waiting, { kind: 'action', name: 'next-waiting' }).space(2)
     }
     if (working > 0 && (show.counts === 'full' || show.counts === 'short')) {
-      r.text(show.counts === 'full' ? `● ${working} working` : `● ${working}`, skin.busy).space(3)
+      const turning = spinner(frame.now ?? 0)
+      r.text(
+        show.counts === 'full' ? `${turning} ${working} working` : `${turning} ${working}`,
+        skin.busy,
+      ).space(3)
     }
     // Search, beside talking: the two keys that work from anywhere.
     if (show.search) {

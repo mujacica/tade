@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌    ● 1  ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌    ! 1  ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2      ▐  +  ▌ │ checkou…  ▐ agent ▌  shell   ▐ + ▌                  
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│─────────────────────────────────────────────────────

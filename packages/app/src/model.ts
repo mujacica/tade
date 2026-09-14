@@ -688,7 +688,7 @@ export function toggleSection(state: AppState, section: string): AppState {
 
 /** The next task waiting on you after the one in front of you, across projects. */
 export function nextWaiting(state: AppState): string | null {
-  const waiting = state.panes.filter((pane) => pane.waiting || pane.state === 'blocked')
+  const waiting = inOrder(state.panes, state.order).filter((pane) => markOf(pane) === 'needs-you')
   if (waiting.length === 0) return null
   const at = waiting.findIndex((pane) => pane.task === state.focused)
   return waiting[(at + 1) % waiting.length]?.task ?? null
@@ -919,9 +919,13 @@ export function sidebar(state: AppState): SidebarGroup[] {
  */
 export type AgentMark = 'working' | 'idle' | 'needs-you' | 'failed' | 'done' | 'stopped' | 'parked'
 
-export function markOf(
-  pane: Pick<AgentPane, 'state' | 'reason' | 'waiting' | 'approval'>,
-): AgentMark {
+/** What a mark is read from: an agent's state and why, and whether anything waits on you. */
+type Marked = Pick<AgentPane, 'state' | 'reason'> & {
+  waiting?: boolean
+  approval?: AgentPane['approval']
+}
+
+export function markOf(pane: Marked): AgentMark {
   if (pane.waiting || pane.approval) return 'needs-you'
   switch (pane.state) {
     case 'working':
@@ -965,10 +969,7 @@ export function spinner(now: number): string {
  * as its colour: colour is decoration, and eight dots in five colours are eight
  * identical dots to anyone who cannot tell the colours apart. Working turns.
  */
-export function glyph(
-  pane: Pick<AgentPane, 'state' | 'reason' | 'waiting' | 'approval'>,
-  now = 0,
-): string {
+export function glyph(pane: Marked, now = 0): string {
   switch (markOf(pane)) {
     case 'working':
       return spinner(now)

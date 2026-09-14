@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮▌ ▐ × ▌ 
 ▄▄▄▄▄▄▄▄│ ● Dependencies  built-in · ready                                                             2 tools │────────

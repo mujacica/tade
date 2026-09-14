@@ -181,9 +181,9 @@ describe('the focused agent', () => {
     expect(text).toContain('no agent is running')
   })
 
-  it('says when it is waiting on you', () => {
+  it('says when it is waiting on you, by the mark the list uses for it', () => {
     const text = renderApp(state(), frame()).join('\n')
-    expect(text).toContain('● 1')
+    expect(text).toContain('! 1')
   })
 })
 

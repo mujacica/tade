@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌ ▐  +  ▌                 ● 2 waiting  ● 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌ ▐  +  ▌                 ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  7          ▐  +  ▌ │ checkout › Update notes panel to…  ▐ agent ▌ ▐ + ▌ ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────

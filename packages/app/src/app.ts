@@ -5063,8 +5063,9 @@ export class App {
       ? tasks.filter((t) => t.task === scope || t.task.startsWith(`${scope}/`))
       : tasks
     if (wanted.length === 0) return scope ? `nothing going on in ${scope}.` : 'nothing going on.'
-    const blocked = wanted.filter((t) => t.waiting || t.state === 'blocked').length
-    const working = wanted.filter((t) => t.state === 'working').length
+    // Waiting on you is a decision to make: an agent idle at its prompt is not one.
+    const blocked = wanted.filter((t) => markOf(t) === 'needs-you').length
+    const working = wanted.filter((t) => markOf(t) === 'working').length
     const parts = [`${wanted.length} task${wanted.length === 1 ? '' : 's'}`]
     if (working > 0) parts.push(`${working} working`)
     parts.push(blocked > 0 ? `${blocked} waiting on you` : 'nothing blocked')

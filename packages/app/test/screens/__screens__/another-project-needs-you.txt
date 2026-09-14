@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1          ▐  +  ▌ │ checkout › refunds  ▐ agent ▌ ▐ + ▌╭─ ● search › pagination ────────────────────── × ─╮ 
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│────────────────────────────────────│ wants approval                               12s │─
