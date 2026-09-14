@@ -402,6 +402,14 @@ export class WorkerSupervisor {
       case 'turn_started':
         this.turns.set(run, 'running')
         return
+      case 'done':
+        await this.log.append({
+          type: 'task_done',
+          task,
+          run,
+          detail: { by: 'agent', summary: signal.summary },
+        })
+        return
       case 'idle':
         this.turns.set(run, 'idle')
         return

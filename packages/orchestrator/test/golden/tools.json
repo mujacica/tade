@@ -151,6 +151,27 @@
     }
   },
   {
+    "name": "wilco_done",
+    "description": "Mark a task finished because the human said it is, whatever its rule: work waiting on it starts. Not for your own guess that it looks done — ask them.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        },
+        "summary": {
+          "type": "string",
+          "description": "what was done, in a line, when they said"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_logs",
     "description": "What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.",
     "parameters": {
@@ -438,6 +459,17 @@
             ],
             "additionalProperties": false
           }
+        },
+        "done": {
+          "type": "string",
+          "enum": [
+            "said",
+            "idle",
+            "committed",
+            "merged",
+            "manual"
+          ],
+          "description": "how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand."
         }
       },
       "required": [

@@ -329,7 +329,7 @@ describe('the window, wired up', () => {
     terminal.press('\r')
     await until('the orchestrator asked', () => asked.length === 1)
     expect(asked[0]).toContain('- ')
-    expect(asked[0]).toContain('app/refunds finished')
+    expect(asked[0]).toContain('app/refunds has work to review')
     // Your words last, under their own heading, exactly as you typed them.
     expect(asked[0]?.endsWith('What they said:\nhow is it going')).toBe(true)
   }, 30_000)
@@ -796,6 +796,47 @@ describe('the window, wired up', () => {
     await until('the menu', () => terminal.written.includes('Remove agent'))
     expect(terminal.written).toContain('Copy branch name')
   })
+
+  it('marks an agent finished from its menu, whatever its rule', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const task = find(' refunds')
+    terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}M`)
+    terminal.press(`\x1b[<2;${task.col + 2};${task.row + 1}m`)
+    await until('the menu', () => terminal.written.includes('Mark finished'))
+    const item = find('Mark finished')
+    click(item.col + 1, item.row)
+    await until(
+      'it written down',
+      async () => (await client.events({ types: ['task_done'] })).length === 1,
+    )
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done).toMatchObject({ task: 'app/refunds', detail: { by: 'you' } })
+    await until('finished on screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('✓ refunds')),
+    )
+  })
+
+  it("writes a task's own rule down once it is met, and only then", async () => {
+    const worktree = join(repo.root, '..', 'worktrees', 'app-refunds')
+    const file = join(worktree, '.wilco', 'task.yaml')
+    writeFileSync(file, `${readFileSync(file, 'utf8')}done: committed\n`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Its agent ran and ended a turn, but nothing is committed: not yet.
+    await client.log.append({ type: 'run_started', task: 'app/refunds', detail: {} })
+    await client.log.append({ type: 'turn_done', task: 'app/refunds', detail: { status: 'ok' } })
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(await client.events({ types: ['task_done'] })).toEqual([])
+    repo.commit('refunds charge once', { 'refunds.ts': 'once' }, worktree)
+    await until(
+      'the rule written down',
+      async () => (await client.events({ types: ['task_done'] })).length === 1,
+      15_000,
+    )
+    const [done] = await client.events({ types: ['task_done'] })
+    expect(done).toMatchObject({ task: 'app/refunds', detail: { by: 'rule', rule: 'committed' } })
+  }, 30_000)
 
   it('searches with ctrl+k, finding agents and files, and opens a file to read', async () => {
     await start()

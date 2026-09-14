@@ -1,3 +1,4 @@
+import type { WilcoEvent } from '@wilco/core'
 import type { TaskSnapshot } from './model.ts'
 
 // What Wilco tells the orchestrator without being asked.
@@ -40,10 +41,25 @@ export function taskNews(
     if (previous === undefined || previous === task.state) continue
     const why = task.reason ? `: ${task.reason}` : ''
     if (task.state === 'merged') out.push(`${task.task} was merged${why}`)
-    else if (task.state === 'review') out.push(`${task.task} finished${why}`)
+    else if (task.state === 'review') out.push(`${task.task} has work to review${why}`)
     else if (task.state === 'failed') out.push(`${task.task} failed${why}`)
   }
   return out
+}
+
+/** What a journal event is worth telling, when it is: a task finishing, and who said so. */
+export function eventNews(event: WilcoEvent): string | null {
+  if (event.type !== 'task_done' || !event.task) return null
+  const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
+  const who =
+    event.detail.by === 'agent'
+      ? 'its agent said so'
+      : event.detail.by === 'rule'
+        ? `its rule, ${String(event.detail.rule ?? '')}, was met`
+        : event.detail.by === 'orchestrator'
+          ? 'you marked it'
+          : 'the person marked it'
+  return `${event.task} finished (${who})${summary ? `: ${summary}` : ''}`
 }
 
 /** The heading the person's own words go under, which the orchestrator is told to look for. */

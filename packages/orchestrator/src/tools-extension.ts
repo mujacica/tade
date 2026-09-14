@@ -96,6 +96,18 @@ const object = (
 
 const string = (description: string) => ({ type: 'string', description })
 
+/**
+ * How a task counts as finished, as core's `DONE_RULES` says. Spelled out here
+ * because pi loads this file on its own; the golden tool list is what notices
+ * the two drifting apart.
+ */
+const done = {
+  type: 'string',
+  enum: ['said', 'idle', 'committed', 'merged', 'manual'],
+  description:
+    'how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand.',
+}
+
 export default function wilcoTools(pi: PiApi): void {
   const tool = (
     name: string,
@@ -179,6 +191,7 @@ export default function wilcoTools(pi: PiApi): void {
         intent: string('what the human said, word for word'),
         context,
         links,
+        done,
       },
       ['project', 'name', 'intent'],
     ),
@@ -189,6 +202,24 @@ export default function wilcoTools(pi: PiApi): void {
         intent: String(p.intent),
         ...(p.context ? { context: String(p.context) } : {}),
         ...(Array.isArray(p.links) ? { links: p.links } : {}),
+        ...(p.done ? { done: String(p.done) } : {}),
+      }),
+  )
+
+  tool(
+    'wilco_done',
+    'Mark a task finished because the human said it is, whatever its rule: work waiting on it starts. Not for your own guess that it looks done — ask them.',
+    object(
+      {
+        task: string('task id, like checkout/refunds'),
+        summary: string('what was done, in a line, when they said'),
+      },
+      ['task'],
+    ),
+    (p) =>
+      rpc('task/done', {
+        task: String(p.task),
+        ...(p.summary ? { summary: String(p.summary) } : {}),
       }),
   )
 

@@ -29,6 +29,7 @@ class FakeAdapter implements WorkerAdapter {
     visibleUi: false,
     resume: false,
     images: false,
+    done: true,
   }
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
   readonly steered: Array<{ run: string; message: string }> = []
@@ -367,6 +368,18 @@ describe('WorkerSupervisor', () => {
     // An agent that has gone is in the middle of nothing.
     adapter.emit('r1', { type: 'exited', code: 0 })
     await until(() => supervisor.turnOf('r1') === 'unknown')
+  })
+
+  it('writes down an agent saying its task is finished, in its words', async () => {
+    const { log, adapter } = await setup('bypass')
+    close = () => log.close()
+    adapter.emit('r1', { type: 'done', summary: 'Refunds charge once, with a test.' })
+    await until(async () => (await logged(log, 'task_done')).length > 0)
+    const [done] = await logged(log, 'task_done')
+    expect(done).toMatchObject({
+      task: 'app/refunds',
+      detail: { by: 'agent', summary: 'Refunds charge once, with a test.' },
+    })
   })
 
   it('logs turn completion and failures', async () => {

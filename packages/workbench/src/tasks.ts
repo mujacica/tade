@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { sharedTaskDir, TASK_CONTEXT_FILE, TaskId } from '@wilco/core'
+import { type DoneRule, sharedTaskDir, TASK_CONTEXT_FILE, TaskId } from '@wilco/core'
 import { git, parseStatusV2, resolveBaseRef } from '@wilco/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
@@ -65,6 +65,8 @@ export interface CreateTaskOptions {
   workspace?: 'checkout' | 'worktree'
   /** Who asked for it: kept in the task file, as `TaskOrigin` says it. */
   by?: string
+  /** How it counts as finished, kept in the task file. */
+  done?: DoneRule
   now?: Date
 }
 
@@ -148,7 +150,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    opts.by,
+    { by: opts.by, done: opts.done },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(worktree, TASK_CONTEXT_FILE), context)
@@ -183,7 +185,7 @@ async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<Ta
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    opts.by,
+    { by: opts.by, done: opts.done },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
@@ -214,7 +216,7 @@ async function writeTaskFile(
   intent: string,
   now: Date,
   links: readonly { title: string; url: string }[],
-  by: string | undefined,
+  kept: { by?: string | undefined; done?: DoneRule | undefined },
 ): Promise<void> {
   await mkdir(join(path, '..'), { recursive: true })
   await writeFile(
@@ -229,7 +231,8 @@ async function writeTaskFile(
       parked: false,
       ...(task.workspace === 'checkout' ? { workspace: 'checkout' } : {}),
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
-      ...(by ? { by } : {}),
+      ...(kept.by ? { by: kept.by } : {}),
+      ...(kept.done ? { done: kept.done } : {}),
     }),
   )
 }

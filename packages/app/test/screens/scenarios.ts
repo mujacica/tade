@@ -373,7 +373,13 @@ export const SCENARIOS: Scenario[] = [
             approval: { tool: 'bash', summary: 'npm i stripe@15' },
           },
           { task: 'checkout/reload', state: 'failed', reason: 'agent exited with code 1' },
-          { task: 'checkout/refunds', state: 'review' },
+          {
+            task: 'checkout/refunds',
+            state: 'blocked',
+            reason: IDLE_REASON,
+            // Its agent said so: finished, not idle.
+            finished: { by: 'agent', summary: 'Refunds charge once, with a test' },
+          },
           { task: 'checkout/queue', state: 'queued' },
           { task: 'checkout/later', state: 'parked' },
         ]),

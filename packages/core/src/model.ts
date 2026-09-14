@@ -35,6 +35,24 @@ export const LaneId = z
 export type LaneId = z.infer<typeof LaneId>
 
 /**
+ * How a task counts as finished, which is what work waiting on it waits for.
+ * Chosen when the task is made, by whoever knows the work; anyone can mark a
+ * task finished by hand, whatever its rule.
+ */
+export const DONE_RULES = ['said', 'idle', 'committed', 'merged', 'manual'] as const
+export type DoneRule = (typeof DONE_RULES)[number]
+
+/** What each rule means, in the words the orchestrator is offered them in. */
+export const DONE_RULE_MEANS: Readonly<Record<DoneRule, string>> = {
+  said: 'when its agent says it has finished — the usual choice',
+  idle: 'when its agent ends a turn with nothing waiting on anyone — small jobs done in one go',
+  committed:
+    'when its agent has stopped with its work committed and nothing uncommitted (worktree mode)',
+  merged: 'when its branch is merged into the base branch (worktree mode)',
+  manual: 'only when someone marks it finished',
+}
+
+/**
  * `.wilco/task.yaml` inside a task's worktree, written once when the task is
  * created. `intent_spoken` is stored verbatim.
  */
@@ -68,6 +86,8 @@ export const TaskFile = z.object({
   harness: z.string().optional(),
   /** Who asked for it (see `TaskOrigin`). Absent on tasks made before this was kept. */
   by: z.string().optional(),
+  /** How it counts as finished; `said` unless chosen. */
+  done: z.enum(DONE_RULES).optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
 
@@ -200,6 +220,10 @@ export const Task = z.object({
   workspace: z.enum(['checkout', 'worktree']).optional(),
   /** The directory its work is in: the project's checkout, or its worktree. */
   worktree: z.string(),
+  /** Who asked for it, as its task file says. */
+  by: z.string().optional(),
+  /** How it counts as finished, as its task file says. */
+  done: z.enum(DONE_RULES).optional(),
   created: z.string(),
   state: TaskState,
   reason: z.string(),

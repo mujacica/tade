@@ -201,6 +201,12 @@ describe('what the window shows', () => {
     expect(markOf(pane({ state: 'working', approval: { tool: 'bash', summary: 'rm' } }))).toBe(
       'needs-you',
     )
+    // Finished is what was said or what its rule saw, not how its turn ended...
+    const finished = { by: 'agent', summary: 'Charges once.' }
+    expect(markOf(pane({ state: 'blocked', reason: IDLE_REASON, finished }))).toBe('done')
+    // ...until it is put back to work, or someone is asked something.
+    expect(markOf(pane({ state: 'working', finished }))).toBe('working')
+    expect(markOf(pane({ state: 'blocked', finished, waiting: true }))).toBe('needs-you')
     // Working turns, a tenth of a second a step.
     expect(glyph(marks.working, 0)).not.toBe(glyph(marks.working, 100))
     expect(glyph(marks.idle, 0)).toBe(glyph(marks.idle, 100))

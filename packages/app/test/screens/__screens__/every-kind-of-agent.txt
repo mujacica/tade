@@ -15,7 +15,7 @@
      agent exited with cod…   │                                                                                         
                               │                                                                                         
    ✓ refunds                  │                                                                                         
-     finished                 │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+     finished · Refunds ch…   │  ● Upgrading stripe to v15. The webhook signature API changed,                          
                               │    so src/webhooks.ts needs the new constructEvent signature.                           
    ○ queue                    │                                                                                         
      not started              │  ▸ Read src/webhooks.ts                                                                 

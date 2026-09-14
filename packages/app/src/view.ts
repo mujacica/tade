@@ -879,6 +879,9 @@ function doing(pane: AgentPane): string {
     case 'needs-you':
       return pane.approval ? `wants you to approve ${pane.approval.summary}` : reason
     case 'done':
+      if (pane.finished) {
+        return pane.finished.summary ? `finished · ${pane.finished.summary}` : 'finished'
+      }
       return reason.startsWith('agent stopped')
         ? 'stopped · its work is in the checkout'
         : reason || 'finished'

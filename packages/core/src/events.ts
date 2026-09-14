@@ -30,6 +30,11 @@ export const EventType = z.enum([
   'task_named',
   'task_removed',
   'state_change',
+  /**
+   * A task finished: its agent said so, a person marked it, or Wilco saw its
+   * own rule met. What work waiting on it waits for.
+   */
+  'task_done',
   // agents
   'run_started',
   'run_exited',
@@ -64,6 +69,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_named: 'notable',
   task_removed: 'notable',
   state_change: 'notable',
+  task_done: 'notable',
   run_started: 'notable',
   run_exited: 'notable',
   tool_call: 'routine',

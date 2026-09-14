@@ -6,6 +6,7 @@ import {
   ConfigSchema,
   checkBudget,
   composeAgentPrompt,
+  type DoneRule,
   type EventFilter,
   expandHome,
   HARNESS_CHOICES,
@@ -147,6 +148,8 @@ export interface CreateTaskRequest {
   workspace?: 'checkout' | 'worktree'
   /** Who asked for it, as `TaskOrigin` says it: kept with the task and in the journal. */
   by?: string
+  /** How it counts as finished; `said` unless chosen. */
+  done?: DoneRule
 }
 
 export interface RemoveTaskRequest {
@@ -619,6 +622,13 @@ export class Workbench {
       throw new Error(`unknown project "${req.project}": add it to config.yaml or pass a root`)
     }
     await this.guardName(`${req.project}/${req.slug}`)
+    const workspace = req.workspace ?? this.config.agents.workspace
+    if ((req.done === 'committed' || req.done === 'merged') && workspace !== 'worktree') {
+      // In a shared checkout nothing is any one agent's to commit or merge.
+      throw new Error(
+        `a task in ${req.project}'s checkout cannot finish when ${req.done}: agents there share one branch. Use said, idle or manual`,
+      )
+    }
     const task = await createTask({
       project: req.project,
       root,
@@ -630,7 +640,8 @@ export class Workbench {
       ...(req.context ? { context: req.context } : {}),
       ...(req.links ? { links: req.links } : {}),
       ...(req.by ? { by: req.by } : {}),
-      workspace: req.workspace ?? this.config.agents.workspace,
+      ...(req.done ? { done: req.done } : {}),
+      workspace,
     })
     await this.log.append({
       type: 'task_created',
@@ -643,9 +654,30 @@ export class Workbench {
         // The journal is where "what was that about" gets answered.
         intent_spoken: req.intent,
         ...(req.by ? { by: req.by } : {}),
+        ...(req.done ? { done: req.done } : {}),
       },
     })
     return task
+  }
+
+  /**
+   * Record that a task is finished: a person marking it, the orchestrator on
+   * their word, or Wilco seeing the task's own rule met. Its agent says so
+   * itself, through its harness. Whatever waits on it starts from this.
+   */
+  async markDone(
+    task: string,
+    how: { by: 'you' | 'orchestrator' | 'rule'; summary?: string; rule?: DoneRule },
+  ): Promise<void> {
+    await this.log.append({
+      type: 'task_done',
+      task,
+      detail: {
+        by: how.by,
+        summary: how.summary?.trim() ?? '',
+        ...(how.rule ? { rule: how.rule } : {}),
+      },
+    })
   }
 
   /**
@@ -767,7 +799,7 @@ export class Workbench {
           cwd: req.cwd,
           harness,
         }),
-      await this.agentPrompt(req.task, req.cwd),
+      await this.agentPrompt(req.task, req.cwd, this.adapterFor(harness).capabilities.done),
     )
     const { chosen } = await this.taskFile(req.cwd, req.task)
     // The model new agents start on is for new agents. One coming back to its
@@ -847,7 +879,7 @@ export class Workbench {
   }
 
   /** What an agent starting on a task is told about where it is. */
-  private async agentPrompt(task: string, cwd: string): Promise<string> {
+  private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
     const { intent } = await this.taskFile(cwd, task)
@@ -868,6 +900,7 @@ export class Workbench {
       commit: agents.commit,
       ...(agents.instructions ? { instructions: agents.instructions } : {}),
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
+      canSayDone,
     })
   }
 

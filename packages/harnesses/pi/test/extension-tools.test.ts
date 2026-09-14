@@ -94,6 +94,33 @@ describe('extension tools in an agent', () => {
     expect(JSON.stringify(model.requests[0])).toContain('Errors from shop go to Sentry.')
   }, 90_000)
 
+  it('says when its task is finished, in the words the agent used', async () => {
+    const runDir = tmp('wilco-done-')
+    model = await startFakeModel({
+      tool: { name: 'wilco_done', arguments: { summary: 'Refunds charge once, with a test.' } },
+      finalText: 'Finished.',
+    })
+    adapter = new PiAdapter({
+      runDir,
+      socketDir: tmp('wd-'),
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+    })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal('done', (signal) => signals.push(signal))
+    await adapter.start({
+      run: 'done',
+      task: 'shop/refunds',
+      cwd: tmp('wilco-done-work-'),
+      prompt: 'fix the double charge',
+      model: { provider: 'wilco-test', id: 'fake' },
+    })
+    await until(() => signals.some((signal) => signal.type === 'done'))
+    expect(signals.find((signal) => signal.type === 'done')).toMatchObject({
+      summary: 'Refunds charge once, with a test.',
+    })
+  }, 90_000)
+
   it('lists no tools from a list that is missing or not a list', () => {
     expect(readTools(undefined)).toEqual([])
     expect(readTools('/nonexistent/tools.json')).toEqual([])

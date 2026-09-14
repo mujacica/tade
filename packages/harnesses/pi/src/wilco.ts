@@ -313,6 +313,36 @@ export default function wilcoExtension(pi: PiApi): void {
     })
   }
 
+  // How an agent says its task is finished, which is what starts the work that
+  // waits on it. A tool rather than words in a reply: "done" in a sentence is
+  // also how people write "not done yet".
+  pi.registerTool?.({
+    name: 'wilco_done',
+    label: 'Done',
+    description:
+      'Say that your task is finished: the work is done, and committed if you commit. Wilco then starts whatever was waiting on it. Call it once, at the end. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
+    parameters: {
+      type: 'object',
+      properties: {
+        summary: {
+          type: 'string',
+          description: 'One line saying what you did, for whoever looks at the task next.',
+        },
+      },
+      required: ['summary'],
+      additionalProperties: false,
+    },
+    async execute(_toolCallId, params) {
+      if (!connected) throw new Error('Wilco is not open, so it cannot be told yet: say so instead')
+      const summary = String((params as { summary?: unknown } | undefined)?.summary ?? '').trim()
+      send({ type: 'done', summary })
+      return {
+        content: [{ type: 'text', text: 'Wilco has it: this task is finished.' }],
+        details: {},
+      }
+    },
+  })
+
   const remember = (_event: unknown, ctx: PiContext) => {
     latest = ctx
   }

@@ -193,6 +193,8 @@ export class PiAdapter implements WorkerAdapter {
     visibleUi: true,
     resume: true,
     images: true,
+    // The supervision extension gives every agent `wilco_done`.
+    done: true,
   }
 
   private readonly runs = new Map<string, Run>()

@@ -1,4 +1,4 @@
-import { IDLE_REASON, type TaskState, type WilcoEvent } from '@wilco/core'
+import { type DoneRule, IDLE_REASON, type TaskState, type WilcoEvent } from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
 import type { Target } from './hits.ts'
 import type { Panel } from './panels.ts'
@@ -37,6 +37,12 @@ export interface AgentPane {
   approval: { tool: string; summary: string } | null
   /** Every live lane the task has: its agent, and any shells beside it. */
   lanes: { id: string; kind: string; title?: string }[]
+  /** It finished, as the journal says: who said so, and what was done. */
+  finished?: { by: string; summary: string } | null
+  /** How it counts as finished, when a rule was chosen for it. */
+  done?: DoneRule
+  /** Who asked for it, as its task file says. */
+  by?: string
 }
 
 export interface AppState {
@@ -212,6 +218,9 @@ export interface TaskSnapshot {
   waiting?: boolean
   approval?: { tool: string; summary: string } | null
   lanes?: { id: string; kind: string; title?: string }[]
+  finished?: { by: string; summary: string } | null
+  done?: DoneRule
+  by?: string
 }
 
 /**
@@ -231,6 +240,9 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     waiting: task.waiting ?? false,
     approval: task.approval ?? null,
     lanes: task.lanes ?? (task.lane ? [{ id: task.lane, kind: 'agent' }] : []),
+    ...(task.finished ? { finished: task.finished } : {}),
+    ...(task.done ? { done: task.done } : {}),
+    ...(task.by ? { by: task.by } : {}),
   }))
   const focused = refocus(state, panes)
   const project =
@@ -923,10 +935,14 @@ export type AgentMark = 'working' | 'idle' | 'needs-you' | 'failed' | 'done' | '
 type Marked = Pick<AgentPane, 'state' | 'reason'> & {
   waiting?: boolean
   approval?: AgentPane['approval']
+  finished?: AgentPane['finished']
 }
 
 export function markOf(pane: Marked): AgentMark {
   if (pane.waiting || pane.approval) return 'needs-you'
+  // Finished is what its rule says, or what someone said: an agent that ended
+  // its turn after saying so is done, not idle. Put back to work, it is working.
+  if (pane.finished && pane.state !== 'working' && pane.state !== 'parked') return 'done'
   switch (pane.state) {
     case 'working':
       return 'working'

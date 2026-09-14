@@ -965,7 +965,7 @@ export function branchMenuItems(branch: { agent: boolean; name: string }): MenuI
  * unavailable — a menu that changes shape is one you re-read every time.
  */
 export function menuItems(
-  task: { lane: string | null; state: string },
+  task: { lane: string | null; state: string; finished?: { by: string } | null },
   changed: number,
 ): MenuItem[] {
   const running = task.lane !== null
@@ -973,6 +973,12 @@ export function menuItems(
     { id: 'open', label: 'Open', note: 'enter' },
     { id: 'start', label: 'Start agent', ...(running ? { off: 'running' } : {}) },
     { id: 'stop', label: 'Stop agent', ...(running ? {} : { off: 'not running' }) },
+    // Whatever its rule, a person can say it is done: what waits on it starts.
+    {
+      id: 'mark-done',
+      label: 'Mark finished',
+      ...(task.finished ? { off: 'finished' } : {}),
+    },
     {
       id: 'changes',
       label: 'Show changes',

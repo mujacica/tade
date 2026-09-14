@@ -162,6 +162,8 @@ export interface AgentPromptInput {
   context: string | null
   /** How this project checks its work, when the config says. */
   testCommand?: string
+  /** Its harness gives it a way to say its task is finished (`wilco_done`). */
+  canSayDone?: boolean
 }
 
 /**
@@ -202,6 +204,9 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
       ? `Whoever started this task left what you need to know in ${input.context}, with links to where the work came from. Read it before anything else.`
       : null,
     'When you finish or get stuck, say so plainly in your last message: that is what the person sees when they come back to you.',
+    input.canSayDone
+      ? 'When your task is finished — done, and committed if you commit — call wilco_done with one line saying what you did: other work may be waiting on yours. When you need the person instead, ask, and do not call it.'
+      : null,
   ].filter((fact): fact is string => fact !== null)
 
   const sections = [

@@ -58,6 +58,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   append-only, and a line that won't parse is skipped rather than thrown over. Never lowercase or
   reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
   test with a capital letter in it to notice that it didn't.
+- **A task is finished when the journal says so** (`task_done`). Its agent says it (`wilco_done`), a
+  person or the orchestrator marks it, or the window sees the task's own rule met and writes that
+  down once. The rule is `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` —
+  chosen by whoever made the task. Never infer it from a turn ending (an agent that asked a question
+  looks the same) or from a checkout agent having stopped (status calls that `review`).
+- **Wilco tells the orchestrator; it never talks over it.** What happened waits and goes with the
+  next thing you say, under "What they said:"; what needs it now goes after its current turn
+  (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and
+  lost, so the pi adapter always says.
 - **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.

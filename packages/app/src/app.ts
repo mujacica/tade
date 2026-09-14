@@ -74,7 +74,7 @@ import {
   readImage,
   shellQuote,
 } from './images.ts'
-import { addNews, type News, taskNews, withNews } from './inbox.ts'
+import { addNews, eventNews, type News, taskNews, withNews } from './inbox.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -638,6 +638,8 @@ export class App {
   private news: News[] = []
   /** The tasks as last seen, so what changed between two looks is news. */
   private seenTasks: readonly TaskSnapshot[] | null = null
+  /** Tasks whose rule was met and is being written down, so it is written once. */
+  private readonly marking = new Set<string>()
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private router: RouterState = initialRouter()
@@ -1274,11 +1276,14 @@ export class App {
           }
         }
         this.seenTasks = tasks
+        void this.recordRulesMet()
         void this.reflect(tasks)
         this.draw()
       },
       onEvent: (event) => {
         this.state = onEvent(this.state, event, this.now())
+        const heard = eventNews(event)
+        if (heard) this.news = addNews(this.news, heard, this.now())
         this.draw()
       },
       onWarning: (message) => {
@@ -3135,6 +3140,15 @@ export class App {
           this.state = notice(this.state, copied ? `copied ${facts.branch}` : facts.branch)
         }
         break
+      case 'mark-done':
+        try {
+          await this.opts.client.markDone(task, { by: 'you' })
+          await this.live?.refresh()
+          this.state = notice(this.state, `${task} is finished`)
+        } catch (err) {
+          this.state = notice(this.state, why(err))
+        }
+        break
       case 'park': {
         if (!worktree) break
         const pane = this.state.panes.find((p) => p.task === task)
@@ -4799,6 +4813,15 @@ export class App {
         .append({ type: 'reflected', task, detail: { by: 'orchestrator' } })
         .catch(() => {})
       await this.tell(reflectionPrompt(task)).catch(() => {})
+    }
+  }
+
+  /** A task's own rule met — an idle turn, committed work, a merge — written down, once. */
+  private async recordRulesMet(): Promise<void> {
+    for (const { task, rule } of this.live?.rulesMet ?? []) {
+      if (this.marking.has(task)) continue
+      this.marking.add(task)
+      await this.opts.client.markDone(task, { by: 'rule', rule }).catch(() => {})
     }
   }
 

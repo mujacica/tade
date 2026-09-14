@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addNews, NEWS_MAX, taskNews, withNews } from '../src/inbox.ts'
+import { addNews, eventNews, NEWS_MAX, taskNews, withNews } from '../src/inbox.ts'
 
 const clock = (at: number) => `t${at}`
 
@@ -18,10 +18,32 @@ describe('news for the orchestrator', () => {
       { task: 'app/fresh', state: 'review' as const },
     ]
     expect(taskNews(before, after)).toEqual([
-      'app/refunds finished: 2 commits ahead, tests green',
+      // Work to look at is not the same as finished: that is the task's own rule.
+      'app/refunds has work to review: 2 commits ahead, tests green',
       'app/reload failed: agent exited with code 1',
       'app/docs was merged',
     ])
+  })
+
+  it('says a task finished, and who said so', () => {
+    const done = (detail: Record<string, unknown>) => ({
+      seq: 1,
+      ts: '2026-09-15T09:00:00Z',
+      type: 'task_done' as const,
+      urgency: 'notable' as const,
+      task: 'app/refunds',
+      lane: null,
+      run: null,
+      detail,
+    })
+    expect(eventNews(done({ by: 'agent', summary: 'Refunds charge once.' }))).toBe(
+      'app/refunds finished (its agent said so): Refunds charge once.',
+    )
+    expect(eventNews(done({ by: 'rule', rule: 'merged' }))).toBe(
+      'app/refunds finished (its rule, merged, was met)',
+    )
+    expect(eventNews(done({ by: 'you' }))).toBe('app/refunds finished (the person marked it)')
+    expect(eventNews({ ...done({}), type: 'turn_done' })).toBeNull()
   })
 
   it('keeps a thing said twice in a row once, and only the latest few', () => {

@@ -2,9 +2,13 @@ import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   type Config,
+  type DoneRule,
+  type Finished,
+  finishedFrom,
   historyFrom,
   type KnownTask,
   type Note,
+  ruleMet,
   type SpendReport,
   spendFrom,
   startOfToday,
@@ -13,6 +17,7 @@ import {
   type WorkHistory,
   type WorkSummary,
   type Workspace,
+  workedFrom,
 } from '@wilco/core'
 import { collectStatus, git } from '@wilco/status'
 import { terminalsFrom, type Workbench } from '@wilco/workbench'
@@ -48,6 +53,7 @@ export function snapshotsFrom(
   workspace: Workspace,
   pending: readonly PendingApproval[],
   lanes: readonly LaneRecord[],
+  finished: ReadonlyMap<string, Finished> = new Map(),
 ): TaskSnapshot[] {
   const snapshots: TaskSnapshot[] = []
   for (const project of workspace.projects) {
@@ -56,10 +62,14 @@ export function snapshotsFrom(
         lanes.find(
           (record) => record.task === task.id && record.kind === 'agent' && record.alive,
         ) ?? lanes.find((record) => record.task === task.id && record.alive)
+      const done = finished.get(task.id)
       snapshots.push({
         task: task.id,
         state: task.state,
         reason: task.reason,
+        ...(done ? { finished: { by: done.by, summary: done.summary } } : {}),
+        ...(task.done ? { done: task.done } : {}),
+        ...(task.by ? { by: task.by } : {}),
         title: task.title ?? null,
         branch: task.branch,
         lane: lane?.id ?? null,
@@ -211,6 +221,12 @@ export class Live {
   >()
   /** Every `usage` event since midnight, which is what today's spend is. */
   private usage: WilcoEvent[] = []
+  /** Which tasks have finished, from the whole journal: the last 500 events forget. */
+  private finished = new Map<string, Finished>()
+  /** Which tasks' agents have ended a turn since they last started. */
+  private worked = new Set<string>()
+  /** Tasks whose own rule is met and not yet written down, as the last refresh saw. */
+  private met: { task: string; rule: DoneRule }[] = []
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
 
@@ -230,6 +246,13 @@ export class Live {
     live.usage = (await opts.client.events({ types: ['usage'] }).catch(() => [])).filter(
       (event) => Date.parse(event.ts) >= since,
     )
+    // Finishing is read the same way: whether a task is done cannot depend on
+    // how busy the journal has been since.
+    const told = await opts.client
+      .events({ types: ['task_done', 'run_started', 'turn_done'] })
+      .catch(() => [])
+    live.finished = finishedFrom(told)
+    live.worked = workedFrom(told)
     await opts.client.subscribe((event) => live.record(event))
     await live.refresh()
     live.timer = setInterval(() => void live.refresh(), opts.pollMs ?? 2_000)
@@ -245,6 +268,14 @@ export class Live {
 
   get tasks(): TaskSnapshot[] {
     return this.snapshots
+  }
+
+  /**
+   * Tasks whose own rule — an idle turn, committed work, a merge — was met at
+   * the last look and has not been written down. Writing it is the window's.
+   */
+  get rulesMet(): readonly { task: string; rule: DoneRule }[] {
+    return this.met
   }
 
   get history(): WorkHistory {
@@ -527,7 +558,22 @@ export class Live {
       this.opts.onTerminals?.(
         terminalsFrom(lanes).map(({ id, project, name }) => ({ id, project, name })),
       )
-      this.snapshots = snapshotsFrom(workspace, pending, lanes)
+      this.met = []
+      for (const project of workspace.projects) {
+        for (const task of project.tasks) {
+          const rule = task.done
+          if (!rule || this.finished.has(task.id)) continue
+          const facts = {
+            state: task.state,
+            reason: task.reason,
+            workspace:
+              task.workspace === 'checkout' ? ('checkout' as const) : ('worktree' as const),
+            worked: this.worked.has(task.id),
+          }
+          if (ruleMet(rule, facts)) this.met.push({ task: task.id, rule })
+        }
+      }
+      this.snapshots = snapshotsFrom(workspace, pending, lanes, this.finished)
       this.opts.onTasks?.(this.snapshots)
     } catch (err) {
       this.opts.onWarning?.(err instanceof Error ? err.message : String(err))
@@ -537,6 +583,11 @@ export class Live {
   private record(event: WilcoEvent): void {
     this.journal.push(event)
     if (event.type === 'usage') this.usage.push(event)
+    if (event.task && event.type === 'task_done') {
+      for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)
+    }
+    if (event.task && event.type === 'run_started') this.worked.delete(event.task)
+    if (event.task && event.type === 'turn_done') this.worked.add(event.task)
     if (this.journal.length > JOURNAL) this.journal.splice(0, this.journal.length - JOURNAL)
     this.opts.onEvent?.(event)
   }

@@ -15,7 +15,7 @@
      [38;5;244magent exited with cod[0m…[0m[0m   [38;5;30m│[0m                                                                                         
                               [38;5;30m│[0m                                                                                         
    [38;5;114m✓[0m refunds                  [38;5;30m│[0m                                                                                         
-     [38;5;244mfinished[0m                 [38;5;30m│[0m  ● Upgrading stripe to v15. The webhook signature API changed,                          
+     [38;5;244mfinished · Refunds ch[0m…[0m[0m   [38;5;30m│[0m  ● Upgrading stripe to v15. The webhook signature API changed,                          
                               [38;5;30m│[0m    so src/webhooks.ts needs the new constructEvent signature.                           
    [38;5;244m○[0m queue                    [38;5;30m│[0m                                                                                         
      [38;5;244mnot started[0m              [38;5;30m│[0m  ▸ Read src/webhooks.ts                                                                 

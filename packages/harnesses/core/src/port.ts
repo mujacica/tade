@@ -73,6 +73,13 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     thinking: z.string().nullable().default(null),
   }),
   z.object({ type: z.literal('turn_started'), run: RunId, at: z.number() }),
+  /** The agent says its task is finished, in a line saying what it did. */
+  z.object({
+    type: z.literal('done'),
+    run: RunId,
+    at: z.number(),
+    summary: z.string().default(''),
+  }),
   /**
    * What the work is called: the name you gave the session (`named`), or the
    * start of the first thing you asked. Wilco names the agent's branch from it.
@@ -272,6 +279,11 @@ export interface WorkerCapabilities {
   resume: boolean
   /** Can be sent pictures with an instruction, not only told where they are. */
   images: boolean
+  /**
+   * Its agent can say its task is finished (the `done` signal). Without it, a
+   * task's rule cannot be `said`: nothing would ever say it.
+   */
+  done: boolean
 }
 
 export interface WorkerHandle {

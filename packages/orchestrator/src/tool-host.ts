@@ -1,7 +1,7 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
-import type { LaneId } from '@wilco/core'
+import { DONE_RULES, type DoneRule, type LaneId } from '@wilco/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@wilco/harnesses-core'
 import type { Workbench } from '@wilco/workbench'
 
@@ -80,8 +80,16 @@ export class ToolHost {
           ...(p.base ? { base: String(p.base) } : {}),
           ...(p.context ? { context: String(p.context) } : {}),
           ...(Array.isArray(p.links) ? { links: linksOf(p.links) } : {}),
+          ...(p.done ? { done: doneRuleOf(p.done) } : {}),
           by: 'orchestrator',
         }),
+      'task/done': async (p) => {
+        await wilco.markDone(String(p.task), {
+          by: 'orchestrator',
+          ...(p.summary ? { summary: String(p.summary) } : {}),
+        })
+        return `${String(p.task)} is finished`
+      },
       'status/read': async () => {
         if (!opts.status) throw new Error('this Wilco has no window to ask')
         return opts.status()
@@ -264,6 +272,13 @@ function reply(socket: Socket, message: unknown): void {
 }
 
 /** Links as a model sent them: only the ones with somewhere to go. */
+/** A rule for finishing, as asked: one there is, or the reason it is not. */
+function doneRuleOf(value: unknown): DoneRule {
+  const rule = DONE_RULES.find((one) => one === String(value).trim().toLowerCase())
+  if (!rule) throw new Error(`${String(value)} is not a way to finish: ${DONE_RULES.join(', ')}`)
+  return rule
+}
+
 function linksOf(value: unknown[]): { title: string; url: string }[] {
   return value.flatMap((one) => {
     const link = one as { title?: unknown; url?: unknown }
