@@ -21,6 +21,7 @@ import {
   type TaskId,
   type Unsubscribe,
   type WilcoEvent,
+  writeSetting,
 } from '@wilco/core'
 import type { WorkspaceCapabilities, WorkspaceDriver } from '@wilco/drivers-core'
 import type {
@@ -30,7 +31,7 @@ import type {
   WorkerHandle,
   WorkerModel,
 } from '@wilco/harnesses-core'
-import { findModel, noUsage, usableModels, usageOfTask } from '@wilco/harnesses-pi'
+import { findModel, noUsage, sessionFileFor, usableModels, usageOfTask } from '@wilco/harnesses-pi'
 import { git } from '@wilco/status'
 import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
@@ -190,7 +191,8 @@ export class Workbench {
   readonly registry: LaneRegistry
   readonly driver: WorkspaceDriver
   readonly workers: WorkerSupervisor
-  readonly config: Config
+  /** The config as it was opened, and as the window has changed it since. */
+  config: Config
   private readonly memory: Memory
   private readonly lock: HomeLock
   private readonly version: string
@@ -721,6 +723,13 @@ export class Workbench {
       await this.agentPrompt(req.task, req.cwd),
     )
     const { chosen } = await this.taskFile(req.cwd, req.task)
+    // The model new agents start on is for new agents. One coming back to its
+    // conversation keeps the model that conversation was on, which its session
+    // remembers — told the default instead, it would quietly change models.
+    const resuming =
+      (await sessionFileFor(req.task, this.sessionsRoot ? { root: this.sessionsRoot } : {}).catch(
+        () => null,
+      )) !== null
     const spec = {
       run: lane as RunId,
       task: req.task,
@@ -728,7 +737,7 @@ export class Workbench {
       prompt: req.prompt,
       ...(chosen ? { title: chosen } : {}),
       ...(extras ? { extras } : {}),
-      model: req.model ?? this.modelFor(req.task),
+      model: req.model ?? (resuming ? undefined : this.modelFor(req.task)),
       lane,
       sandbox: {
         kind: req.sandbox ?? this.sandboxFor(req.task),
@@ -928,7 +937,40 @@ export class Workbench {
     const found = await this.resolveModel(said)
     // What it switched to is journalled by the agent itself, as the model its usage is priced at.
     await this.workers.setModel(run, found)
+    this.keepAgentModel(task, found)
     return found
+  }
+
+  /**
+   * A model chosen for an agent is the one new agents start on from then on,
+   * until another is chosen: kept in the route the agent's project uses, which
+   * is where Settings shows the agent model. Unset, the harness picks — and pi
+   * picks by what you are signed in to, which is how every agent ended up on
+   * the same model whatever anyone chose.
+   */
+  keepAgentModel(task: string, model: { provider: string; id: string }): void {
+    const project = task.split('/')[0]
+    const route = resolveRoute(this.config, project ? { project } : {})
+    const path = join(this.home, 'config.yaml')
+    try {
+      writeSetting(path, `workers.routes.${route.name}.provider`, model.provider)
+      writeSetting(path, `workers.routes.${route.name}.model`, model.id)
+    } catch {
+      // A config that cannot be written: this agent switched, and new ones
+      // start where they did before.
+      return
+    }
+    const { name: _name, ...kept } = route
+    this.config = {
+      ...this.config,
+      workers: {
+        ...this.config.workers,
+        routes: {
+          ...this.config.workers.routes,
+          [route.name]: { ...kept, provider: model.provider, model: model.id },
+        },
+      },
+    }
   }
 
   /**

@@ -1,6 +1,14 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { describeSetting, loadConfig, parseSetting, type Setting, settingsOf } from '@wilco/core'
-import { parseDocument } from 'yaml'
+import {
+  describeSetting,
+  loadConfig,
+  parseSetting,
+  type Setting,
+  settingsOf,
+  writeSetting,
+} from '@wilco/core'
+
+export { writeSetting }
+
 import type { Ui } from './screen.ts'
 
 // Changing what Wilco has been told, on whatever screen is in front of you.
@@ -86,33 +94,4 @@ export function addProject(path: string, name: string, root: string): void {
  */
 function write(path: string, key: string, value: string | number | boolean | undefined): void {
   writeSetting(path, key, value)
-}
-
-/**
- * Write one setting back into the file as a document, not as data: parsing to
- * an object and printing it again loses every comment in the file, and the
- * file belongs to whoever wrote those comments.
- */
-export function writeSetting(
-  path: string,
-  key: string,
-  value:
-    | string
-    | number
-    | boolean
-    | readonly string[]
-    | Readonly<Record<string, unknown>>
-    | undefined,
-): void {
-  let text = ''
-  try {
-    text = readFileSync(path, 'utf8')
-  } catch {
-    // No file yet: this starts it.
-  }
-  const doc = parseDocument(text)
-  const at = key.split('.')
-  if (value === undefined || value === '') doc.deleteIn(at)
-  else doc.setIn(at, typeof value === 'object' ? doc.createNode(value) : value)
-  writeFileSync(path, doc.toString())
 }

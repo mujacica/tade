@@ -227,7 +227,7 @@ export default function wilcoTools(pi: PiApi): void {
 
   tool(
     'wilco_agent_model',
-    'Switch the model an agent is running on, for that agent only: "switch refunds to opus 5", "use kimi in agent-1". Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to wilco_run_start instead.',
+    'Switch the model an agent is running on: "switch refunds to opus 5", "use kimi in agent-1". New agents start on it from then on, until another is chosen; agents already working keep their own. Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to wilco_run_start instead.',
     object(
       {
         task: string('task id, like checkout/refunds'),

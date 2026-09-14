@@ -1,5 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { sessionIdFor } from '@wilco/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -159,6 +160,32 @@ describe('task and run RPC', () => {
     await client.stopAgent('app/refunds')
     expect(await client.runs()).toEqual([])
     expect(client.lane('app/refunds/agent' as never)?.alive).toBe(false)
+  }, 60_000)
+
+  it('starts new agents on the model last chosen for one, and a returning one on its own', async () => {
+    const sessionsRoot = tmp('wilco-sessions-')
+    await client.close()
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
+    client.keepAgentModel('app/refunds', { provider: 'openrouter', id: 'anthropic/claude-opus-5' })
+    // Kept where Settings shows the agent model, so the next window starts there too.
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('anthropic/claude-opus-5')
+
+    const fresh = await client.createTask({ project: 'app', slug: 'fresh', intent: INTENT })
+    const lane = await client.startAgent({ task: fresh.id, cwd: fresh.worktree, prompt: '' })
+    expect(lane.spec.args.join(' ')).toContain(
+      '--provider openrouter --model anthropic/claude-opus-5',
+    )
+
+    // A conversation to come back to keeps the model it was on: pi remembers it.
+    const back = await client.createTask({ project: 'app', slug: 'back', intent: INTENT })
+    const dir = join(sessionsRoot, '-src-app-')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor('app/back')}.jsonl`),
+      '{"type":"session","version":3}\n',
+    )
+    const returning = await client.startAgent({ task: back.id, cwd: back.worktree, prompt: '' })
+    expect(returning.spec.args).not.toContain('--model')
   }, 60_000)
 
   it('refuses a second agent on the same task, even when the project allows two', async () => {

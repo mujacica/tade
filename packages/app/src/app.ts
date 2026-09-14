@@ -4223,9 +4223,12 @@ export class App {
         await this.opts.restartThinker?.()
       } else {
         const chosen = await this.opts.client.setAgentModel(panel.for, id)
+        // It is new agents' model now too: read back what the workbench wrote.
+        const loaded = await loadConfig(this.configPath)
+        if (loaded.ok) this.opts.config = loaded.config
         this.state = notice(
           { ...this.state, panel: null },
-          `${panel.for} is switching to ${chosen.id}`,
+          `${panel.for} is switching to ${chosen.id}, and new agents start on it`,
         )
       }
     } catch (err) {
