@@ -1,20 +1,20 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
+ ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
  ○╭─ stripe-v15 ───────────────╮                                                                                        
   │▌ Open                enter │                                                                                        
  ▾│  Start agent       running │                                                                                        
   │  Stop agent                │                                                                                        
   │  Show changes      3 files │                                                                                        
-  │  Open in editor            │                                                                                        
-  │  Copy branch name          │                                                                                        
- ▾│────────────────────────────│                                                                                        
-  │  Park                      │ ● Upgrading stripe to v15. The webhook signature API changed,                          
-  │  Remove agent…             │   so src/webhooks.ts needs the new constructEvent signature.                           
-  ╰────────────────────────────╯                                                                                        
-   ▸ test/                    │  ▸ Read src/webhooks.ts                                                                 
-     package.json             │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+  │  Rename…                   │                                                                                        
+  │  Change model…             │                                                                                        
+ ▾│  Open in editor            │                                                                                        
+  │  Copy branch name          │ ● Upgrading stripe to v15. The webhook signature API changed,                          
+  │────────────────────────────│   so src/webhooks.ts needs the new constructEvent signature.                           
+  │  Park                      │                                                                                        
+  │  Remove agent…             │ ▸ Read src/webhooks.ts                                                                 
+  ╰────────────────────────────╯ ▸ Edit src/webhooks.ts  +12 −4                                                         
      README.md                │  ▸ bash npm i stripe@15                                                                 
                               │  ╭─ wants approval ─────────────────────────────────────────────╮                       
  ▸ NOTES  4           ▐  +  ▌ │  │ bash  npm i stripe@15                                        │                       
@@ -28,7 +28,7 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
+ ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 

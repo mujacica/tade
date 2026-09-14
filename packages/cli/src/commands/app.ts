@@ -124,6 +124,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // up. Typed explicitly: assigned only from inside a callback, which is
       // not something inference can see.
       let orchestrator: Orchestrator | null = null
+      let restartThinker: () => Promise<void> = async () => {}
       const stopOrchestrator = async () => {
         await orchestrator?.stop().catch(() => {})
       }
@@ -140,6 +141,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // Signed in, or a key: which one is paying, said beside the model.
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
+          restartThinker: () => restartThinker(),
           extensions,
           harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })
@@ -154,49 +156,68 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // could have, and it says so in the strip when it arrives. If it never
         // does — no model configured yet — everything except free text still
         // works, which is the honest outcome.
-        const starting = Orchestrator.start({
-          home,
-          socket: tools.path,
-          runDir: join(home, 'orchestrator'),
-          cwd: process.cwd(),
-          config: cfg.config,
-          // So it knows what you have told it, not just what it can do.
-          notes: client.recallAll(),
-          // And which of its own lessons still apply.
-          activity: activityFrom(
-            historyFrom(await client.events({ limit: 2_000 }), Date.now()),
-            Object.keys(cfg.config.projects),
-          ),
-          safe,
-          extensions: orchestratorExtensions(extensions, home, cfg.config.orchestrator.harness),
-          onUsage: (usage) => {
-            void client.log
-              .append({ type: 'usage', task: null, detail: { by: 'orchestrator', ...usage } })
-              .catch(() => {})
-          },
-        })
-          .then(async (started) => {
-            orchestrator = started
-            app.attachThinker({
-              ask: (text, images = []) =>
-                started.askFor(
-                  text,
-                  120_000,
-                  images.map(({ data, mimeType }) => ({ data, mimeType })),
-                ),
-              onEvent: (listener) => started.onEvent(listener),
+        const startThinker = async (resume: boolean) => {
+          // Read again: a model chosen in the window is in the file, not in
+          // what was loaded when this started.
+          const now = await loadConfig(opts.config)
+          const config = now.ok ? now.config : cfg.config
+          return (
+            Orchestrator.start({
+              home,
+              socket: tools.path,
+              runDir: join(home, 'orchestrator'),
+              cwd: process.cwd(),
+              config,
+              // So it knows what you have told it, not just what it can do.
+              notes: client.recallAll(),
+              // And which of its own lessons still apply.
+              activity: activityFrom(
+                historyFrom(await client.events({ limit: 2_000 }), Date.now()),
+                Object.keys(config.projects),
+              ),
+              safe,
+              ...(resume ? { resume: true } : {}),
+              extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
+              onUsage: (usage) => {
+                void client.log
+                  .append({ type: 'usage', task: null, detail: { by: 'orchestrator', ...usage } })
+                  .catch(() => {})
+              },
             })
-            // Nothing chosen, so the harness picked: keep what it picked, so the
-            // next time an agent switches model the orchestrator does not follow.
-            if (!cfg.config.orchestrator.model) {
-              const model = await started.model().catch(() => null)
-              if (model) app.keepThinkerModel(model)
-            }
-          })
-          // Said in the conversation, where you would have waited for an answer.
-          .catch((err: unknown) => {
-            app.thinkerFailed(err instanceof Error ? err.message : String(err))
-          })
+              .then(async (started) => {
+                orchestrator = started
+                app.attachThinker({
+                  ask: (text, images = []) =>
+                    started.askFor(
+                      text,
+                      120_000,
+                      images.map(({ data, mimeType }) => ({ data, mimeType })),
+                    ),
+                  onEvent: (listener) => started.onEvent(listener),
+                })
+                // Nothing chosen, so the harness picked: keep what it picked, so the
+                // next time an agent switches model the orchestrator does not follow.
+                if (!config.orchestrator.model) {
+                  const model = await started.model().catch(() => null)
+                  if (model) app.keepThinkerModel(model)
+                }
+              })
+              // Said in the conversation, where you would have waited for an answer.
+              .catch((err: unknown) => {
+                app.thinkerFailed(err instanceof Error ? err.message : String(err))
+              })
+          )
+        }
+        let starting = startThinker(false)
+        // A new model for the orchestrator: the old one stops, and the new one
+        // carries on the same conversation.
+        restartThinker = async () => {
+          await starting
+          await stopOrchestrator()
+          orchestrator = null
+          starting = startThinker(true)
+          await starting
+        }
         // Leaving the terminal in raw mode would outlive us, so stop on a
         // signal the same way as on quitting.
         const stop = () => void app.stop()

@@ -1,5 +1,6 @@
 import type { Config } from './config.ts'
 import type { Note } from './memory.ts'
+import { TASK_CONTEXT_FILE } from './model.ts'
 import { type Skill, skillText } from './skills.ts'
 
 // What the orchestrator is told about your world before it says anything.
@@ -110,4 +111,74 @@ function describeNotes(input: ComposeInput): string {
   const kept = [...notes].sort((a, b) => b.at.localeCompare(a.at)).slice(0, input.maxNotes ?? 20)
   const lines = kept.map((note) => `- ${note.scope ? `(${note.scope}) ` : ''}${note.text}`)
   return ['Things you have been told, in the words they were said:', ...lines].join('\n')
+}
+
+export interface AgentPromptInput {
+  /** `project/name`. */
+  task: string
+  project: string
+  /** Where it works: its own worktree. */
+  worktree: string
+  /** The project's own checkout, which it must leave alone. */
+  root: string | null
+  /** What was asked when the task was made, word for word; empty for an agent opened to look around. */
+  intent: string
+  /** Its branch, or empty until Wilco names one at its first change. */
+  branch: string
+  /** What you have told Wilco that is about this task, its project, or everything. */
+  notes?: readonly Note[]
+  /** Someone left it `.wilco/context.md`. */
+  context: boolean
+  /** How this project checks its work, when the config says. */
+  testCommand?: string
+}
+
+/**
+ * What every agent is told about where it is. Without this an agent in Wilco
+ * believed it was pi in an ordinary terminal: it did not know a person watches
+ * it from a window, that its branch is named for it, that a note you gave Wilco
+ * was about its work, or that a file of context was waiting for it.
+ *
+ * Appended to the harness's own system prompt, never replacing it, and pure:
+ * the same task always composes the same words.
+ */
+export function composeAgentPrompt(input: AgentPromptInput): string {
+  const intent = input.intent.trim()
+  const facts = [
+    `Your task is ${input.task}, in the project ${input.project}. ${
+      intent
+        ? `It was started with: "${intent}"`
+        : 'It was opened without a request: wait to be told what to do.'
+    }`,
+    `You work in a git worktree of your own, ${input.worktree}. Keep every change in it${
+      input.root ? `, and never change the project’s own checkout at ${input.root}` : ''
+    }.`,
+    input.branch
+      ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
+      : 'You have no branch yet. Wilco creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
+    'Commit when a piece of work is done and passes its checks, with a message that says why. Wilco shows the person your changes and your commits, and treats a clean tree with commits as ready for their review.',
+    input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null,
+    input.context
+      ? `Whoever started this task left what you need to know in ${TASK_CONTEXT_FILE}, with links to where the work came from. Read it before anything else.`
+      : null,
+    'When you finish or get stuck, say so plainly in your last message: that is what the person sees when they come back to you.',
+  ].filter((fact): fact is string => fact !== null)
+
+  const sections = [
+    'You are running inside Wilco, a control room for coding agents on this machine. A person watches this terminal from Wilco’s window, talks to you here, and may also reach you through Wilco’s orchestrator: a message that arrives while you work is theirs.',
+    facts.map((fact) => `- ${fact}`).join('\n'),
+  ]
+  const notes = input.notes ?? []
+  if (notes.length > 0) {
+    sections.push(
+      [
+        'Things the person told Wilco that apply to this work, in their words:',
+        ...[...notes]
+          .sort((a, b) => b.at.localeCompare(a.at))
+          .slice(0, 15)
+          .map((note) => `- ${note.text}`),
+      ].join('\n'),
+    )
+  }
+  return sections.join('\n\n')
 }

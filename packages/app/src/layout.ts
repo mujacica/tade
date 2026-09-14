@@ -15,6 +15,12 @@ export interface LayoutPrefs {
   sidebarWidth?: number
   /** Rows for the bottom panel — orchestrator and terminals — including its tabs. */
   stripHeight?: number
+  /**
+   * The conversation with the orchestrator is going on: the bottom panel is at
+   * least tall enough to read it, however small it was dragged, and goes back
+   * to its size when it is over.
+   */
+  grow?: boolean
   /** Filling the window above the buttons, or folded to its row of tabs. */
   bottom?: 'open' | 'max' | 'min'
 }
@@ -28,6 +34,9 @@ export interface Layout {
 }
 
 export const DEFAULTS = { sidebarWidth: 26, stripHeight: 9 }
+
+/** How many rows a conversation going on gets, at least, where the window has them. */
+export const CONVERSATION_ROWS = 16
 
 /**
  * Rows the window spends on itself: the project tabs, the rule under them, and
@@ -73,7 +82,11 @@ export function resolveLayout(
               MINIMUM.strip,
               Math.max(MINIMUM.strip, Math.floor(height / 3)),
             )
-  const bodyHeight = height - stripHeight - CHROME
+  const room =
+    prefs.grow && prefs.bottom !== 'min'
+      ? Math.min(CONVERSATION_ROWS, Math.floor(height * 0.45))
+      : 0
+  const bodyHeight = height - Math.max(stripHeight, room) - CHROME
 
   // Unasked, the sidebar is a share of the window rather than a fixed 24: on a
   // wide terminal that is a thin ribbon beside an ocean, and task names are the
@@ -81,7 +94,12 @@ export function resolveLayout(
   const wanted = prefs.sidebarWidth ?? clamp(Math.round(width / 4), DEFAULTS.sidebarWidth, 36)
   const widest = Math.min(SIDEBAR_MOST, width - MINIMUM.main - 1)
   const sidebarWidth = clamp(wanted, MINIMUM.sidebar, Math.max(MINIMUM.sidebar, widest))
-  return { sidebarWidth, stripHeight, mainWidth: width - sidebarWidth - 1, bodyHeight }
+  return {
+    sidebarWidth,
+    stripHeight: Math.max(stripHeight, room),
+    mainWidth: width - sidebarWidth - 1,
+    bodyHeight,
+  }
 }
 
 /**

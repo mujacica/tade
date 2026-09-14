@@ -6,6 +6,7 @@ import { type Linker, linkedRow } from './links.ts'
 import {
   type AgentPane,
   type AppState,
+  conversing,
   glyph,
   isAction,
   laneShown,
@@ -79,6 +80,8 @@ export interface Frame {
     worktree: string | null
     /** Where that is on this machine, in full: the worktree, or the repository. */
     path: string
+    /** The same, from your home as you would type it: `~/src/checkout`. */
+    shownPath?: string
     /** Where the agent's work came from — an issue, a trace — each opened by a click. */
     links?: readonly { title: string; url: string }[]
   } | null
@@ -137,12 +140,17 @@ export interface Frame {
       | 'extensions'
       | 'harnessExtensions'
       | 'extensionsRoot'
+      | 'models'
+      | 'modelTarget'
+      | 'currentModel'
     >
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
   voice?: { keys: readonly string[]; available: boolean }
   /** Wilco's home, as you would type it, for showing where worktrees go. */
   home?: string
+  /** The orchestrator's model, shown on its tab: undefined where the window has no orchestrator. */
+  orchestratorModel?: string | null
   /** Text extensions know how to open, made clickable wherever it is shown. */
   linkers?: readonly Linker[]
   now?: number
@@ -186,7 +194,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
   const pointer: Pointer = { hover: state.hover, pressed: state.pressed }
   // The config's sizes, then the ones dragged to, then the bottom folded or filling.
   const { sidebarWidth, stripHeight, mainWidth, bodyHeight } = resolveLayout(
-    { ...frame.layout, ...state.sizes, bottom: state.bottomMode },
+    { ...frame.layout, ...state.sizes, bottom: state.bottomMode, grow: conversing(state) },
     frame,
   )
   // The clamped width, not the asked-for one: a terminal too narrow to hold a
@@ -285,6 +293,9 @@ export function draw(state: AppState, frame: Frame): Drawn {
     extensions: extra.extensions ?? [],
     harnessExtensions: extra.harnessExtensions ?? [],
     extensionsRoot: extra.extensionsRoot ?? '~/.wilco/extensions',
+    models: extra.models ?? [],
+    modelTarget: extra.modelTarget ?? 'the orchestrator',
+    currentModel: extra.currentModel ?? null,
   })
   const panel = drawing.panel
   const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
@@ -623,16 +634,16 @@ function whereRows(
     rows.push({ text: r.build().text, hits: [rowHit(0, r.width, target)] })
   }
   if (where.worktree) rows.push(line('worktree', where.worktree))
-  // The whole path, never shortened — it is the one to paste into another
-  // terminal — so it wraps under its label, and a click copies it.
-  const copy: Target = { kind: 'action', name: 'copy-path' }
-  const hovered = sameTarget(row().pointer.hover, copy)
+  // The whole path, never cut, from your home as you would type it; it wraps
+  // under its label. A click opens the folder, a right-click copies it.
+  const open: Target = { kind: 'action', name: 'open-path' }
+  const hovered = sameTarget(row().pointer.hover, open)
   const first = row().space(3).text('path'.padEnd(9), skin.hint)
   const room = Math.max(8, first.width - first.used - 1)
-  wrapPath(where.path, room).forEach((piece, i) => {
+  wrapPath(where.shownPath ?? where.path, room).forEach((piece, i) => {
     const r = i === 0 ? first : row().space(12)
-    r.text(piece, hovered ? skin.link : (t) => t)
-    rows.push({ text: r.build().text, hits: [rowHit(0, r.width, copy)] })
+    r.text(piece, hovered ? skin.link : skin.signal)
+    rows.push({ text: r.build().text, hits: [rowHit(0, r.width, open)] })
   })
   return rows
 }
@@ -823,9 +834,14 @@ function renderMain(
     header.right((r) => {
       // What the agent says it runs on beats what the config hoped for.
       const model = vitals?.model ?? route?.model
+      // Its model is a control: click it to switch this agent to another.
+      const switcher: Target = { kind: 'action', name: `model:${pane.task}` }
+      const pointed = sameTarget(state.hover, switcher)
+      r.text(`${route?.harness ?? 'pi'} · `, skin.hint)
       r.text(
-        `${route?.harness ?? 'pi'} · ${model ? shortModel(model) : 'its default model'}`,
-        skin.hint,
+        `${model ? shortModel(model) : 'its default model'} ▾`,
+        pointed ? skin.link : skin.hint,
+        switcher,
       )
       if (vitals?.contextPercent !== null && vitals?.contextPercent !== undefined) {
         const percent = vitals.contextPercent
@@ -1020,7 +1036,7 @@ function renderStrip(
     left.text(tail, skin.chrome)
     bar = left.build().text
   } else {
-    const tabs = bottomTabs(state, width, skin, pointer)
+    const tabs = bottomTabs(state, frame, width, skin, pointer)
     bar = tabs.text
     barHits = tabs.hits
   }
@@ -1076,7 +1092,6 @@ function renderStrip(
     body.push(quiet(skin.waiting(` ? ${state.question.question}`)))
     body.push(quiet(skin.hint(`   ${state.question.candidates.join('  ·  ')}`)))
   }
-  if (state.notice) body.push(quiet(skin.hint(` · ${state.notice}`)))
 
   if (isAction(state.dictation)) {
     const found = matchActions(state, state.dictation ?? '')
@@ -1144,6 +1159,7 @@ function renderStrip(
  */
 function bottomTabs(
   state: AppState,
+  frame: Frame,
   width: number,
   skin: Skin,
   pointer: Pointer,
@@ -1175,6 +1191,15 @@ function bottomTabs(
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
 
   const controls = (r: Row) => {
+    // The orchestrator's model, where it is being talked to: click it to change.
+    if (state.bottom === ORCHESTRATOR_TAB && frame.orchestratorModel !== undefined) {
+      const switcher: Target = { kind: 'action', name: 'model:orchestrator' }
+      r.text(
+        `${frame.orchestratorModel ? shortModel(frame.orchestratorModel) : 'no model'} ▾`,
+        sameTarget(state.hover, switcher) ? skin.link : skin.hint,
+        switcher,
+      ).space(2)
+    }
     if (state.terminals.some((one) => one.id === state.bottom)) {
       r.button('⌕', { kind: 'action', name: 'find-terminal' }).space()
     }

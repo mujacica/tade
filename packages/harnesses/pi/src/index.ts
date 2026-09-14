@@ -12,6 +12,7 @@ export {
   type AvailableModel,
   availableModels,
   chooseModel,
+  findModel,
   loggedInProviders,
   type ModelChoice,
   usableModels,

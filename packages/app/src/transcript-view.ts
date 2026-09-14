@@ -68,6 +68,13 @@ export function transcriptLines(
   const plainText = (text: string) => lines.push({ text: fit(text, width), hits: [] })
   const linked = (text: string) => lines.push(linkedRow(text, width, skin, pointer, linkers))
 
+  // Nothing said yet: how to read what will be.
+  if (transcript.entries.length === 0) {
+    plainText(
+      ` ${skin.you('❯')} ${skin.hint('what you say   ')}${skin.signal('◆')} ${skin.hint('the orchestrator   ')}${skin.busy('●')} ${skin.hint('what Wilco did   ')}${skin.done('✓')}${skin.bad('✗')} ${skin.hint('its tools')}`,
+    )
+  }
+
   transcript.entries.forEach((entry, index) => {
     // A breath before each thing you said, so exchanges read as exchanges.
     if (entry.kind === 'you' && index > 0) plainText('')
@@ -129,8 +136,15 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
         const tail = (lines.at(-1) ?? '').replace(/ +((?:\x1b\[[0-9;]*m)*)$/, '$1')
         lines[lines.length - 1] = `${tail}${skin.busy('▍')}`
       }
-      return lines.map((text) => ({ text: `  ${text}`, linkable: true }))
+      // Who is answering, on its first line: the orchestrator, or Wilco itself.
+      const mark = entry.by === 'orchestrator' ? skin.signal('◆') : skin.busy('●')
+      return lines.map((text, i) => ({ text: `${i === 0 ? mark : ' '} ${text}`, linkable: true }))
     }
+    case 'wilco':
+      return wrapped(entry.text, width, `${skin.busy('●')} `, skin.hint).map((text) => ({
+        text,
+        linkable: true,
+      }))
     case 'tool': {
       const mark =
         entry.state === 'running'
@@ -157,7 +171,7 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
       return out
     }
     case 'problem':
-      return wrapped(entry.text, width, `  ${skin.bad('!')} `, skin.bad).map((text) => ({
+      return wrapped(entry.text, width, `${skin.bad('✗')} `, skin.bad).map((text) => ({
         text,
         linkable: true,
       }))

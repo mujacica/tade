@@ -55,6 +55,8 @@ export const TaskFile = z.object({
    * name you gave its session, or the start of the first thing you asked it.
    */
   title: z.string().optional(),
+  /** The title is one a person chose, so nothing renames it. */
+  title_named: z.boolean().optional(),
   /**
    * Where the work came from and where to read about it — an issue, a trace —
    * put there by whoever started it, so an agent and a person both find it.

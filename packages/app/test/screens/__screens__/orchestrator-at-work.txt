@@ -28,7 +28,7 @@
   ✗ terminal run · tests · "pnpm test src/webhooks"                                                                     
     no terminal called tests is open in checkout: open one first, or name another                                       
   ⠸ terminal open · checkout · tests                                                                                    
-  Opening a tests terminal first, then▍                                                                                 
+◆ Opening a tests terminal first, then▍                                                                                 
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 

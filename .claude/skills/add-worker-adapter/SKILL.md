@@ -28,7 +28,9 @@ closes, which is the thing this design exists to avoid.
   `usage`, `exited`. These are zod schemas because they cross a socket. A process that exits before
   it answers anything says why with `failed`, from what it wrote to stderr — never leave a caller to
   time out.
-- Accept `WorkerCommand`s back: `decision`, `steer`, `queue`, `abort`, `shutdown`, `extension_result`.
+- Accept `WorkerCommand`s back: `decision`, `steer`, `queue`, `abort`, `shutdown`, `name`, `model`,
+  `extension_result`. `name` and `model` change only this agent's session: never the harness's default
+  for new sessions, which is how one agent's model once leaked into every other.
 - Honour `WorkerSpec.extras`: instructions appended to the agent's own, the list of extension tools
   it may call (register them, and send `extension_call` when one is used, waiting for
   `extension_result`), and the skills and native extensions extensions ship for this harness.

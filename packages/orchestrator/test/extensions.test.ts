@@ -82,6 +82,10 @@ describe('an agent an extension starts', () => {
     const lane = wilco.lane('shop/fix-shop-1a/agent' as never)
     const args = lane?.spec.args ?? []
     const told = args[args.indexOf('--append-system-prompt') + 1] ?? ''
+    // It knows where it is: in Wilco, on this task, in this worktree.
+    expect(told).toContain('You are running inside Wilco')
+    expect(told).toContain('Your task is shop/fix-shop-1a')
+    expect(told).toContain(first.worktree)
     expect(told).toContain('.wilco/context.md')
     expect(told).toContain('shop reports errors to the error tracker.')
     expect(args[args.indexOf('--skill') + 1]).toBe(join(root, 'skills', 'fixing'))
@@ -93,6 +97,12 @@ describe('an agent an extension starts', () => {
     // The links are kept with the task, where status reads them back from.
     expect(readFileSync(join(first.worktree, '.wilco', 'task.yaml'), 'utf8')).toContain(
       'url: https://acme.sentry.io/issues/4411/',
+    )
+
+    // Renamed while it runs: kept in its task, and it keeps the name next time it starts.
+    await wilco.renameAgent({ task: first.task, worktree: first.worktree, title: 'Refund retries' })
+    expect(readFileSync(join(first.worktree, '.wilco', 'task.yaml'), 'utf8')).toContain(
+      'title_named: true',
     )
 
     // The same work started again is a second agent, not an error.

@@ -290,21 +290,22 @@ describe('the path under GIT', () => {
     ])
   })
 
-  it('is whole, and copies when clicked', () => {
+  it('is whole, from your home, and opens its folder when clicked', () => {
     const where = {
       repo: '~/wilco',
       branch: 'main',
       base: null,
       worktree: null,
       path: '/Users/me/wilco',
+      shownPath: '~/wilco',
     }
     const { rows, hits } = draw(
       { ...state(), folded: ['agents', 'changes', 'files', 'notes'] },
       { ...frame({ width: 140 }), where },
     )
-    expect(rows.join('\n')).toContain('/Users/me/wilco')
+    expect(rows.join('\n')).toMatch(/path +~\/wilco/)
     expect(
-      hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'copy-path'),
+      hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'open-path'),
     ).toBe(true)
   })
 })

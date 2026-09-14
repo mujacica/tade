@@ -9,7 +9,7 @@ import {
 } from '../../../../test/fixtures/fake-model.ts'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter } from '../src/adapter.ts'
-import { readTools } from '../src/extension.ts'
+import { readTools } from '../src/wilco.ts'
 
 // An agent calling one of Wilco's extension tools, proven against a real pi
 // with a scripted model: pi registers the tool from the list it was launched

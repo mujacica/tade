@@ -254,6 +254,7 @@ async function probePr(worktree: string, branch: string): Promise<GitSnapshot['p
     cwd: worktree,
     reject: false,
     timeout: 5_000,
+    detached: true,
   })
   if (r.exitCode !== 0 || typeof r.stdout !== 'string') return null
   try {

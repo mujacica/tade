@@ -176,5 +176,15 @@ function defaultPlayer(platform: NodeJS.Platform): ((file: string) => Command) |
 
 const execRunner: Runner = ({ command, args }) =>
   new Promise((resolve, reject) => {
-    execFile(command, args, { timeout: 20_000 }, (err) => (err ? reject(err) : resolve()))
+    execFile(command, args, detachedFor(20_000), (err) => (err ? reject(err) : resolve()))
   })
+
+/**
+ * Options for a short-lived helper in its own process group, so the terminal
+ * Wilco runs in never names its window after it. `execFile` passes `detached`
+ * on to the spawn beneath it; its types just do not say so.
+ */
+function detachedFor(timeout: number): { timeout: number } {
+  const options = { timeout, detached: true }
+  return options
+}

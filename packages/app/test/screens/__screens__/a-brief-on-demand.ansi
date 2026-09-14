@@ -27,7 +27,7 @@
                                                                                                                         
                                                                                                                         
 [38;5;255m[1m❯[0m [38;5;255m[1mbrief me[0m                                                                                                              
-  Morning. stripe-v15 is blocked on npm i stripe@15, 1 still working and Sentry has 3 new issues in checkout.           
+[38;5;80m●[0m Morning. stripe-v15 is blocked on npm i stripe@15, 1 still working and Sentry has 3 new issues in checkout.           
   [38;5;80m[1m?[0m Sentry has 3 new issues in checkout                                                                         [38;5;238m▐[0m[48;5;238m[38;5;255m ask [0m[38;5;238m▌[0m 
  [38;5;244m›[0m                                                                                     [38;5;244mtype, or hold [0m[38;5;250m▐[0m[48;5;250m[38;5;233m[1m ctrl [0m[38;5;250m▌[0m[38;5;244m+[0m[38;5;250m▐[0m[48;5;250m[38;5;233m[1m space [0m[38;5;250m▌[0m 
 [38;5;30m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[0m

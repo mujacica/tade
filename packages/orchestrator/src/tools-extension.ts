@@ -214,6 +214,47 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
+    'wilco_agent_model',
+    'Switch the model an agent is running on, for that agent only: "switch refunds to opus 5", "use kimi in agent-1". Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running.',
+    object(
+      {
+        task: string('task id, like checkout/refunds'),
+        model: string('the model as the human said it: "opus 5", "claude-sonnet-5", "kimi k2.6"'),
+      },
+      ['task', 'model'],
+    ),
+    async (p) => {
+      const chosen = (await rpc('worker/model', {
+        task: String(p.task),
+        model: String(p.model),
+      })) as {
+        provider?: string
+        id?: string
+      }
+      return `${String(p.task)} is switching to ${chosen.provider ? `${chosen.provider}/` : ''}${chosen.id ?? String(p.model)}.`
+    },
+  )
+
+  tool(
+    'wilco_agent_rename',
+    'Give an agent a name: what its work is called, shown in the window and in its own session. Only when the human asks to rename it. A name they give is never replaced by one Wilco would have chosen.',
+    object(
+      {
+        task: string('task id, like checkout/refunds'),
+        name: string('the new name, as they said it'),
+      },
+      ['task', 'name'],
+    ),
+    async (p) => {
+      const task = String(p.task)
+      const worktree = await worktreeOf(task)
+      if (!worktree) throw new Error(`no such task: ${task}`)
+      const title = await rpc('task/rename', { task, worktree, title: String(p.name) })
+      return `${task} is now called ${String(title)}.`
+    },
+  )
+
+  tool(
     'wilco_run_list',
     'The agents working right now, and the task each is on. One agent per task at most.',
     object({}),

@@ -73,6 +73,13 @@ export class ToolHost {
         })
       },
       'task/park': (p) => wilco.parkTask(String(p.worktree), p.parked === true),
+      'task/rename': (p) =>
+        wilco.renameAgent({
+          task: String(p.task),
+          worktree: String(p.worktree),
+          title: String(p.title),
+        }),
+      'worker/model': (p) => wilco.setAgentModel(String(p.task), String(p.model)),
       'worker/start': (p) =>
         wilco.startAgent({
           task: String(p.task) as never,

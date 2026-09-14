@@ -34,6 +34,8 @@ export interface WorkerSpec {
   sandbox?: SandboxSpec
   /** What extensions add to this worker. */
   extras?: WorkerExtras
+  /** A name a person gave the work, for the harness's own session to carry. */
+  title?: string
 }
 
 /**
@@ -200,6 +202,10 @@ export const WorkerCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('queue'), message: z.string() }),
   z.object({ type: z.literal('abort') }),
   z.object({ type: z.literal('shutdown') }),
+  /** A name for the work, chosen by a person: the agent's session takes it too. */
+  z.object({ type: z.literal('name'), title: z.string() }),
+  /** Switch the model the agent is running on, for this session only. */
+  z.object({ type: z.literal('model'), provider: z.string().default(''), id: z.string() }),
   /** What an extension tool the agent called answered. */
   z.object({
     type: z.literal('extension_result'),
@@ -224,6 +230,8 @@ export const WORKER_ENV = {
   approvals: 'WILCO_APPROVALS',
   /** Where the list of Wilco's extension tools for this agent is. */
   tools: 'WILCO_EXTENSION_TOOLS',
+  /** The name a person gave the work, which the agent's session takes when it has none. */
+  title: 'WILCO_TITLE',
 } as const
 
 /** A picture sent with an instruction: a screenshot, usually. */
@@ -298,6 +306,8 @@ export interface WorkerAdapter {
   /** Answer an `extension_call` with what the tool said. */
   answer(run: RunId, callId: string, result: { ok: boolean; text: string }): Promise<void>
   setModel(run: RunId, model: WorkerModel): Promise<void>
+  /** Give the agent's work a name a person chose; the harness's own session takes it too. */
+  name(run: RunId, title: string): Promise<void>
   /** Stop the current turn, leaving the run alive. */
   abort(run: RunId): Promise<void>
   stop(run: RunId): Promise<void>

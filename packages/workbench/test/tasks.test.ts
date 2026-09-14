@@ -226,13 +226,14 @@ describe('an agent that starts without a branch', () => {
     )
   })
 
-  it('takes a name you gave it over one taken from what you first asked', async () => {
+  it('takes a better name when one comes, and keeps a name you gave it', async () => {
     const { task } = await detached()
-    await setTitle(task.worktree, 'look at the logs', false)
-    await setTitle(task.worktree, 'something else it was asked', false)
     const read = () => parse(readFileSync(join(task.worktree, '.wilco', 'task.yaml'), 'utf8')).title
-    expect(read()).toBe('look at the logs')
+    await setTitle(task.worktree, 'look at the logs', false)
+    await setTitle(task.worktree, 'Investigate failing log rotation', false)
+    expect(read()).toBe('Investigate failing log rotation')
     await setTitle(task.worktree, 'Refund retries', true)
+    await setTitle(task.worktree, 'something it guessed', false)
     expect(read()).toBe('Refund retries')
   })
 

@@ -25,7 +25,13 @@ export async function listAgentProcesses(): Promise<{
   processes: AgentProcess[]
   warnings: string[]
 }> {
-  const ps = await execa('ps', ['-axo', 'pid=,args='], { reject: false, timeout: 3_000 })
+  // Detached, like every probe: a child in the terminal's foreground group is
+  // what Terminal.app names the window after, so polling retitled it to `ps`.
+  const ps = await execa('ps', ['-axo', 'pid=,args='], {
+    reject: false,
+    timeout: 3_000,
+    detached: true,
+  })
   if (ps.exitCode !== 0 || typeof ps.stdout !== 'string') {
     return { processes: [], warnings: ['process scan failed: ps unavailable'] }
   }
@@ -46,7 +52,32 @@ export async function listAgentProcesses(): Promise<{
   return { processes, warnings: [] }
 }
 
+/**
+ * Where each agent process was started, remembered by pid: a process does not
+ * move, so asking lsof again every poll was work — and a retitled terminal —
+ * for an answer already known. A pid reused by another process gets a fresh
+ * answer, because the args that made it an agent are checked first.
+ */
+const knownCwds = new Map<number, string>()
+
 async function processCwds(pids: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>()
+  for (const pid of pids) {
+    const known = knownCwds.get(pid)
+    if (known) out.set(pid, known)
+  }
+  for (const pid of [...knownCwds.keys()]) if (!pids.includes(pid)) knownCwds.delete(pid)
+  const unknown = pids.filter((pid) => !out.has(pid))
+  if (unknown.length === 0) return out
+  const found = await askCwds(unknown)
+  for (const [pid, cwd] of found) {
+    knownCwds.set(pid, cwd)
+    out.set(pid, cwd)
+  }
+  return out
+}
+
+async function askCwds(pids: number[]): Promise<Map<number, string>> {
   const out = new Map<number, string>()
   if (process.platform === 'linux') {
     await Promise.all(
@@ -62,6 +93,7 @@ async function processCwds(pids: number[]): Promise<Map<number, string>> {
   const r = await execa('lsof', ['-a', '-d', 'cwd', '-Fpn', '-p', pids.join(',')], {
     reject: false,
     timeout: 3_000,
+    detached: true,
   })
   if (typeof r.stdout !== 'string') return out
   let pid: number | null = null

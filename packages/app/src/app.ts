@@ -64,6 +64,7 @@ import {
   type AppState,
   activeTerminal,
   addTurn,
+  conversing,
   focusBy,
   focusTask,
   glyph,
@@ -115,8 +116,10 @@ import {
   findPanel,
   imageMenuItems,
   type MenuSubject,
+  type ModelPanel,
   menuItems,
   menuPanel,
+  modelPanel,
   nameFrom,
   type OpenProjectPanel,
   type OpenRow,
@@ -318,6 +321,11 @@ export interface AppOptions {
   extensions?: ExtensionHost
   /** What the window lets an extension do: start an agent on something. */
   extensionWorkbench?: ExtensionWorkbench
+  /**
+   * Start the orchestrator again, on what the config now says, carrying on its
+   * conversation. Without it, a new model applies when Wilco next starts.
+   */
+  restartThinker?: () => Promise<void>
   /** Extensions the harness loads by itself, which Wilco lists but does not run. */
   harnessExtensions?: () => Promise<{ name: string; where: string }[]>
   now?: () => number
@@ -351,6 +359,8 @@ export class App {
   private titled = ''
   /** When this window opened: the start of "This window" in the Spend panel. */
   private readonly openedAt = Date.now()
+  /** Agents this window has opened again on its own, so it never does it twice. */
+  private readonly reopened = new Set<string>()
   /** Tasks whose agent is being opened right now. */
   private readonly opening = new Set<string>()
   /** A new agent is being made. */
@@ -639,6 +649,18 @@ export class App {
     const panel = this.state.panel
     if (!panel) return {}
     if (panel.kind === 'menu') return { items: this.menuItemsFor(panel) }
+    if (panel.kind === 'model') {
+      const pane = this.state.panes.find((one) => one.task === panel.for)
+      return {
+        models: this.models,
+        modelTarget:
+          panel.for === 'orchestrator' ? 'the orchestrator' : pane ? shownName(pane) : panel.for,
+        currentModel:
+          panel.for === 'orchestrator'
+            ? this.thinkerModel()
+            : (live.vitals(panel.for)?.model ?? null),
+      }
+    }
     if (panel.kind === 'extensions') {
       return {
         extensions: this.extensionViews(),
@@ -756,6 +778,7 @@ export class App {
             base: focused ? live.baseOf(focused.task) : null,
             worktree: worktree ? tilde(worktree) : null,
             path: worktree ?? repo,
+            shownPath: tilde(worktree ?? repo),
             links: facts?.links ?? [],
           }
         : null,
@@ -784,6 +807,7 @@ export class App {
       terminal: { screen: this.terminalScreen, find: this.findView() },
       home: tilde(this.opts.home),
       linkers: this.linkers,
+      orchestratorModel: this.thinkerModel(),
       now: this.now(),
     }
   }
@@ -875,6 +899,7 @@ export class App {
       ...(sidebarWidth ? { sidebarWidth } : {}),
       ...(stripHeight ? { stripHeight } : {}),
       bottom: this.state.bottomMode,
+      grow: conversing(this.state),
     }
   }
 
@@ -1115,6 +1140,11 @@ export class App {
       this.clickPanel(target)
       return
     }
+    // The path under GIT opens its folder; right-clicked, it is copied.
+    if (button === 'right' && target.kind === 'action' && target.name === 'open-path') {
+      void this.run('copy-path')
+      return
+    }
     // A right-click is the menu of whatever it is on, as it is everywhere else.
     if (button === 'right') {
       const subject = subjectOf(target)
@@ -1220,6 +1250,10 @@ export class App {
       this.draw()
       return
     }
+    if (action.startsWith('model:')) {
+      await this.openModels(action.slice('model:'.length))
+      return
+    }
     if (action.startsWith('ask:')) {
       this.say(action.slice('ask:'.length))
       return
@@ -1314,6 +1348,11 @@ export class App {
         const copied = await copyText(path, (data) => this.terminal.write(data))
         this.state = notice(this.state, copied ? `copied ${path}` : path)
         this.draw()
+        return
+      }
+      case 'open-path': {
+        const path = this.hereOnDisk()
+        if (path) await this.reveal(path, true)
         return
       }
       default:
@@ -1508,6 +1547,9 @@ export class App {
         this.state = { ...this.state, panel: null }
         this.draw()
         await this.fromMenu(panel.subject, choice ?? '')
+        return
+      case 'model':
+        await this.chooseModel(panel, choice ?? '')
         return
       case 'extensions': {
         this.state = { ...this.state, panel: null }
@@ -2166,6 +2208,21 @@ export class App {
       this.state = { ...this.state, panel: { ...panel, busy: false, error } }
     }
     try {
+      if (panel.purpose === 'rename-agent' && panel.target) {
+        const worktree = this.live?.worktreeOf(panel.target)
+        if (!worktree) throw new Error(`I do not know where ${panel.target} works`)
+        const title = await this.opts.client.renameAgent({
+          task: panel.target,
+          worktree,
+          title: text,
+        })
+        await this.live?.refresh()
+        this.state = notice(
+          { ...this.state, panel: null },
+          `${panel.target} is now called ${title}`,
+        )
+        return
+      }
       if (panel.purpose === 'rename-terminal' && panel.target) {
         await this.opts.client.renameTerminal(panel.target, text)
         await this.live?.refresh()
@@ -2284,6 +2341,20 @@ export class App {
       }
       case 'editor':
         if (worktree) await this.openPlace({ path: worktree })
+        return
+      case 'rename': {
+        const pane = this.state.panes.find((p) => p.task === task)
+        this.state = {
+          ...this.state,
+          panel: {
+            ...promptPanel('rename-agent', 'Rename agent', 'NAME', pane ? shownName(pane) : ''),
+            target: task,
+          },
+        }
+        break
+      }
+      case 'model':
+        await this.openModels(task)
         return
       case 'copy-branch':
         if (facts) {
@@ -2670,6 +2741,23 @@ export class App {
     this.draw()
   }
 
+  /**
+   * The agent in front of you is not running — the window it ran in closed, or
+   * it stopped — so open it again, where it left off, without being asked.
+   * Once per agent per window: one that stops again straight away is left for
+   * you to look at, with its button, rather than started in a loop.
+   */
+  private reopenStopped(): void {
+    const pane = this.state.panes.find((one) => one.task === this.state.focused)
+    // Only an agent whose run stopped: one never started waits to be asked,
+    // and one that finished is waiting for review, not for another run.
+    if (!pane || pane.lane || pane.state !== 'failed') return
+    if (this.reopened.has(pane.task) || this.opening.has(pane.task)) return
+    if (!this.live?.worktreeOf(pane.task)) return
+    this.reopened.add(pane.task)
+    void this.openAgent(pane.task)
+  }
+
   /** Stop the agent you are watching, or the one you name. Its work stays. */
   private async stopAgent(said: string): Promise<void> {
     const task = this.findTask(said) ?? this.state.focused
@@ -2679,6 +2767,8 @@ export class App {
       return
     }
     try {
+      // Stopped on purpose: not something to start again behind your back.
+      this.reopened.add(task)
       await this.opts.client.stopAgent(task)
       await this.live?.refresh()
       this.state = notice(this.state, `${task} stopped — its branch and worktree stay`)
@@ -2831,6 +2921,7 @@ export class App {
   /** Re-read the focused lane's screen. */
   private async tick(): Promise<void> {
     if (this.stopped) return
+    this.reopenStopped()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
       this.repaint()
@@ -3110,6 +3201,60 @@ export class App {
    * capability says which, never the driver's name, and when it cannot the
    * answer says where to look instead of pretending.
    */
+  /** The orchestrator's model as the config has it: `provider/id`, or the id alone. */
+  private thinkerModel(): string | null {
+    const { provider, model } = this.opts.config.orchestrator
+    return model ? (provider ? `${provider}/${model}` : model) : null
+  }
+
+  /** Choose a model for the orchestrator, or for one agent's session. */
+  private async openModels(target: string): Promise<void> {
+    if (this.models.length === 0) {
+      this.models = (await this.opts.models?.().catch(() => [])) ?? []
+    }
+    // Starting on the one in use, so enter is a no-op and ↑↓ is "the one next to it".
+    const current =
+      target === 'orchestrator' ? this.thinkerModel() : (this.live?.vitals(target)?.model ?? null)
+    const index = current
+      ? Math.max(
+          0,
+          this.models.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
+        )
+      : 0
+    this.state = { ...this.state, panel: { ...modelPanel(target), index } }
+    this.draw()
+  }
+
+  /**
+   * Switch to a model. An agent switches its own session there and then. The
+   * orchestrator's is written to the config — so it stays — and it is started
+   * again on it, carrying on the same conversation.
+   */
+  private async chooseModel(panel: ModelPanel, id: string): Promise<void> {
+    try {
+      if (panel.for === 'orchestrator') {
+        const [provider, ...rest] = id.split('/')
+        writeSetting(this.configPath, 'orchestrator.provider', provider)
+        writeSetting(this.configPath, 'orchestrator.model', rest.join('/'))
+        const loaded = await loadConfig(this.configPath)
+        if (loaded.ok) this.opts.config = loaded.config
+        this.state = { ...this.state, panel: null }
+        this.state = notice(this.state, `the orchestrator is moving to ${rest.join('/')}`)
+        this.draw()
+        await this.opts.restartThinker?.()
+      } else {
+        const chosen = await this.opts.client.setAgentModel(panel.for, id)
+        this.state = notice(
+          { ...this.state, panel: null },
+          `${panel.for} is switching to ${chosen.id}`,
+        )
+      }
+    } catch (err) {
+      this.state = { ...this.state, panel: { ...panel, busy: false, error: why(err) } }
+    }
+    this.draw()
+  }
+
   /** The extensions, as the panel shows them. */
   private extensionViews(): ExtensionView[] {
     return (this.opts.extensions?.list() ?? []).map((one) => ({
@@ -3410,6 +3555,7 @@ export class App {
       choices: this.choices,
       items: this.menuItemsFor(this.state.panel),
       extensions: this.extensionViews(),
+      models: this.models,
       settings: settingsOf(this.opts.config),
       accounts: this.accounts.length,
     }
@@ -3642,7 +3788,10 @@ async function copyText(text: string, write: (data: string) => void): Promise<bo
           : null
   if (tool) {
     const copied = await new Promise<boolean>((resolve) => {
-      const child = spawn(tool[0] as string, tool.slice(1), { stdio: ['pipe', 'ignore', 'ignore'] })
+      const child = spawn(tool[0] as string, tool.slice(1), {
+        stdio: ['pipe', 'ignore', 'ignore'],
+        detached: true,
+      })
       child.once('error', () => resolve(false))
       child.once('exit', (code) => resolve(code === 0))
       child.stdin?.end(text)

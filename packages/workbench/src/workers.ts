@@ -220,6 +220,16 @@ export class WorkerSupervisor {
     await this.adapter.queue(run, message)
   }
 
+  async setModel(run: RunId, model: WorkerModel): Promise<void> {
+    this.require(run)
+    await this.adapter.setModel(run, model)
+  }
+
+  async name(run: RunId, title: string): Promise<void> {
+    this.require(run)
+    await this.adapter.name(run, title)
+  }
+
   async prompt(run: RunId, message: string): Promise<void> {
     this.require(run)
     await this.adapter.prompt(run, message)

@@ -162,6 +162,55 @@ export function chooseModel(
   }
 }
 
+/**
+ * The model someone meant by what they said — "opus 5", "kimi k2.6", "sonnet" —
+ * among the ones you can use. Words are compared without spaces, dashes or
+ * dots, a whole name beats part of one, and of equals the plainest wins (no
+ * `:batch`). When two different models fit equally, it says which, rather than
+ * picking one for you.
+ */
+export function findModel(
+  said: string,
+  usable: readonly AvailableModel[],
+): { ok: true; provider: string; id: string } | { ok: false; reason: string } {
+  const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, '')
+  const wanted = squash(said.replace(/^(the\s+)?/i, '').replace(/\s+model$/i, ''))
+  if (!wanted) return { ok: false, reason: 'which model?' }
+  const scored = usable
+    .map((model) => {
+      const id = model.id.slice(model.provider.length + 1)
+      const tail = squash(id.split('/').at(-1) ?? id)
+      const name = squash(model.name)
+      const score =
+        tail === wanted || name === wanted || squash(model.id) === wanted
+          ? 3
+          : tail.endsWith(wanted) || name.endsWith(wanted)
+            ? 2
+            : tail.includes(wanted) || name.includes(wanted)
+              ? 1
+              : 0
+      return { model, id, score }
+    })
+    .filter((one) => one.score > 0)
+    .sort((a, b) => b.score - a.score || a.id.length - b.id.length)
+  const [best, next] = scored
+  if (!best) {
+    return { ok: false, reason: `nothing you are signed in to offers a model like "${said}"` }
+  }
+  const base = (id: string) =>
+    id
+      .replace(/:[\w-]+$/, '')
+      .split('/')
+      .at(-1) ?? id
+  if (next && next.score === best.score && base(next.id) !== base(best.id)) {
+    const options = [
+      ...new Set(scored.filter((one) => one.score === best.score).map((one) => base(one.id))),
+    ]
+    return { ok: false, reason: `"${said}" could be ${options.slice(0, 5).join(', ')}: say which` }
+  }
+  return { ok: true, provider: best.model.provider, id: best.id }
+}
+
 async function readJson(path: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(path, 'utf8'))

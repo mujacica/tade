@@ -45,6 +45,8 @@ export interface VoiceWorkbench {
   runs(): Awaitable<Array<{ run: string; task: string }>>
   /** Tell the agent working on a task something, without stopping it. */
   steerAgent(task: string, message: string): Promise<void>
+  /** Switch a running agent's model, said as people say it. Optional: a surface without it says so. */
+  setAgentModel?(task: string, said: string): Promise<{ provider: string; id: string }>
   parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }>
   createTask(request: {
     project: string
@@ -304,6 +306,11 @@ export class VoiceSurface {
         await this.opts.wilco.steerAgent(task, intent.message)
         return `Told ${short(task)}.`
       }
+      case 'model': {
+        if (!this.opts.wilco.setAgentModel) return "I can't change an agent's model from here."
+        const chosen = await this.opts.wilco.setAgentModel(task, intent.model)
+        return `Switching ${short(task)} to ${chosen.id}.`
+      }
       case 'focus': {
         // Showing you something is the surface's job: the window can move its
         // own pane, and a driver whose lanes are real windows can raise one.
@@ -486,13 +493,14 @@ function needsTarget(intent: Intent): boolean {
     intent.kind === 'park' ||
     intent.kind === 'resume' ||
     intent.kind === 'steer' ||
+    intent.kind === 'model' ||
     intent.kind === 'focus'
   )
 }
 
 /** What sort of task a verb implies, when you didn't name one. */
 function preference(intent: Intent): { prefer?: ResolveOptions['prefer'] } {
-  if (intent.kind === 'steer') return { prefer: 'running' }
+  if (intent.kind === 'steer' || intent.kind === 'model') return { prefer: 'running' }
   return {}
 }
 

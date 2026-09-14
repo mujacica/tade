@@ -2,7 +2,7 @@ import type { TaskState, WilcoEvent } from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
 import type { Target } from './hits.ts'
 import type { Panel } from './panels.ts'
-import { emptyTranscript, fromTurn, type Transcript } from './transcript.ts'
+import { emptyTranscript, fromTurn, type Transcript, wilcoDid } from './transcript.ts'
 
 // What the app is showing, as data.
 //
@@ -514,6 +514,20 @@ export function addTurn(state: AppState, turn: Turn): AppState {
   return { ...state, transcript: fromTurn(state.transcript, turn) }
 }
 
+/**
+ * Whether the conversation with the orchestrator is going on — being typed or
+ * spoken to, or answering — so the bottom panel should make room to read it.
+ */
+export function conversing(state: AppState): boolean {
+  if (state.bottom !== ORCHESTRATOR_TAB) return false
+  return (
+    state.dictation !== null ||
+    state.listening ||
+    state.transcript.thinking !== null ||
+    state.transcript.entries.some((entry) => entry.kind === 'tool' && entry.state === 'running')
+  )
+}
+
 /** Change the conversation, and follow it to its newest line. */
 export function withTranscript(state: AppState, transcript: Transcript): AppState {
   return { ...state, transcript, transcriptScroll: 0 }
@@ -539,8 +553,13 @@ export function setHeld(state: AppState, held: string | null): AppState {
   return { ...state, held }
 }
 
+/**
+ * Something Wilco did or noticed, said in the conversation — where it stays,
+ * rather than on a line the next one overwrote before it was read.
+ */
 export function notice(state: AppState, notice: string | null): AppState {
-  return { ...state, notice }
+  if (notice === null) return { ...state, notice }
+  return { ...state, notice, transcript: wilcoDid(state.transcript, notice, 0) }
 }
 
 /**

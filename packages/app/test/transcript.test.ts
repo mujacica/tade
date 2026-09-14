@@ -12,6 +12,7 @@ import {
   type Transcript,
   thinking,
   toolDetail,
+  wilcoDid,
   youSaid,
 } from '../src/transcript.ts'
 import { transcriptLines } from '../src/transcript-view.ts'
@@ -41,12 +42,12 @@ describe('the conversation', () => {
     let current = thinking(youSaid(emptyTranscript(), 'status', 0), 0)
     current = fromThinker(current, { type: 'delta', text: 'Two agents' }, 1)
     current = fromThinker(current, { type: 'delta', text: ' are working' }, 2)
-    expect(text(current).at(-1)).toBe('  Two agents are working▍')
+    expect(text(current).at(-1)).toBe('◆ Two agents are working▍')
     current = fromThinker(current, { type: 'message', text: 'Two agents are working.' }, 3)
     // Still its turn: it may reach for a tool next.
     expect(text(current).at(-1)).toMatch(/thinking$/)
     current = fromThinker(current, { type: 'idle' }, 4)
-    expect(text(current).at(-1)).toBe('  Two agents are working.')
+    expect(text(current).at(-1)).toBe('◆ Two agents are working.')
   })
 
   it('shows each tool as it runs, and the whole reason when one fails', () => {
@@ -80,7 +81,7 @@ describe('the conversation', () => {
     current = fromThinker(current, { type: 'exited', code: 1 }, 2)
     expect(current.thinking).toBeNull()
     const lines = text(current).join('\n')
-    expect(lines).toContain('! The orchestrator stopped: Model "x" not found')
+    expect(lines).toContain('✗ The orchestrator stopped: Model "x" not found')
     expect(lines).toContain('✗ status')
   })
 
@@ -96,7 +97,7 @@ describe('the conversation', () => {
     expect(text(grammar)).toEqual([
       '❯ park the stripe one',
       '  → park · checkout/stripe-v15 · "you mentioned it last"',
-      '  Parked stripe-v15.',
+      '● Parked stripe-v15.',
     ])
 
     let free = youSaid(emptyTranscript(), 'why is refunds slow?', 0)
@@ -116,7 +117,7 @@ describe('the conversation', () => {
       reply: 'The orchestrator is still starting.',
       at: 1,
     })
-    expect(text(unanswered).at(-1)).toBe('  The orchestrator is still starting.')
+    expect(text(unanswered).at(-1)).toBe('● The orchestrator is still starting.')
   })
 
   it('shows a brief once, however it was asked for', () => {
@@ -134,6 +135,13 @@ describe('the conversation', () => {
       at: 2,
     })
     expect(text(current).filter((line) => line.includes('Morning.'))).toHaveLength(1)
+  })
+
+  it('shows what Wilco itself did, once, and how to read it all before anything is said', () => {
+    expect(text(emptyTranscript())[0]).toContain('❯ what you say')
+    let current = wilcoDid(emptyTranscript(), 'opened wilco/agent-1 where it left off', 0)
+    current = wilcoDid(current, 'opened wilco/agent-1 where it left off', 1)
+    expect(text(current)).toEqual(['● opened wilco/agent-1 where it left off'])
   })
 
   it('offers a suggestion as something to click', () => {

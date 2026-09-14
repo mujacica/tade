@@ -27,7 +27,7 @@
                                                                                                                         
                                                                                                                         
 ❯ brief me                                                                                                              
-  Morning. stripe-v15 is blocked on npm i stripe@15, 1 still working and Sentry has 3 new issues in checkout.           
+● Morning. stripe-v15 is blocked on npm i stripe@15, 1 still working and Sentry has 3 new issues in checkout.           
   ? Sentry has 3 new issues in checkout                                                                         ▐ ask ▌ 
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

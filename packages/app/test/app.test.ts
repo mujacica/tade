@@ -560,9 +560,11 @@ describe('the window, wired up', () => {
     await until('the tabs', () =>
       screenOf(terminal.written).some((row) => row.includes('orchestrator')),
     )
-    const tabs = find('orchestrator')
-    const row = screenOf(terminal.written)[tabs.row] ?? ''
-    click(row.indexOf('+', tabs.col), tabs.row)
+    // The tab row, which the rule runs along.
+    const rows = screenOf(terminal.written)
+    const tabRow = rows.findIndex((line) => line.includes('orchestrator') && line.includes('━'))
+    const row = rows[tabRow] ?? ''
+    click(row.indexOf('+', row.indexOf('orchestrator')), tabRow)
     await until('a terminal', () => client.terminals('app').length === 1)
     await until('its tab', () => terminal.written.includes('terminal 1'))
     // The keyboard is in it now: typed keys are the shell's.

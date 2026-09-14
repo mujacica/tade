@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { exitReason } from '../src/adapter.ts'
-import { type AvailableModel, chooseModel } from '../src/models.ts'
+import { type AvailableModel, chooseModel, findModel } from '../src/models.ts'
 
 // Which model a configured name means. A bare name the harness would find in
 // four catalogs made it exit before reading a word, and no name at all took
@@ -62,5 +62,41 @@ describe('why pi went away', () => {
   it('falls back to the exit code when it said nothing', () => {
     expect(exitReason(3, '')).toBe('pi exited with code 3')
     expect(exitReason(null, '')).toBe('pi was stopped')
+  })
+})
+
+describe('the model someone meant', () => {
+  const catalog: AvailableModel[] = [
+    {
+      id: 'openrouter/anthropic/claude-opus-5',
+      provider: 'openrouter',
+      name: 'Anthropic: Claude Opus 5',
+    },
+    {
+      id: 'openrouter/anthropic/claude-opus-5:batch',
+      provider: 'openrouter',
+      name: 'Claude Opus 5 (batch)',
+    },
+    { id: 'openrouter/anthropic/claude-opus-4.5', provider: 'openrouter', name: 'Claude Opus 4.5' },
+    { id: 'openrouter/moonshotai/kimi-k2.6', provider: 'openrouter', name: 'Kimi K2.6' },
+    { id: 'openrouter/moonshotai/kimi-k3', provider: 'openrouter', name: 'Kimi K3' },
+  ]
+
+  it('is found from how it is said, the plainest of equals first', () => {
+    expect(findModel('opus 5', catalog)).toEqual({
+      ok: true,
+      provider: 'openrouter',
+      id: 'anthropic/claude-opus-5',
+    })
+    expect(findModel('Kimi K2.6', catalog)).toMatchObject({ ok: true, id: 'moonshotai/kimi-k2.6' })
+  })
+
+  it('asks which when two different models fit', () => {
+    const found = findModel('kimi', catalog)
+    expect(found.ok).toBe(false)
+    expect(found.ok ? '' : found.reason).toMatch(
+      /could be kimi-k3, kimi-k2.6|could be kimi-k2.6, kimi-k3/,
+    )
+    expect(findModel('gemini', catalog).ok).toBe(false)
   })
 })

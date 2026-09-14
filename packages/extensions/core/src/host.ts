@@ -525,24 +525,27 @@ function run(
   args: readonly string[],
   options: { cwd?: string; timeoutMs?: number } = {},
 ): Promise<ExecResult> {
+  // Its own process group, so the terminal Wilco runs in is never retitled
+  // after it. `execFile` hands `detached` to the spawn beneath; its types omit it.
+  const spawnOptions = {
+    cwd: options.cwd,
+    timeout: options.timeoutMs ?? 120_000,
+    maxBuffer: 64 * 1024 * 1024,
+    detached: true,
+  }
   return new Promise((done) => {
-    execFile(
-      command,
-      [...args],
-      { cwd: options.cwd, timeout: options.timeoutMs ?? 120_000, maxBuffer: 64 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        const code = err
-          ? typeof (err as { code?: unknown }).code === 'number'
-            ? Number((err as { code?: unknown }).code)
-            : 1
-          : 0
-        done({
-          code,
-          stdout: String(stdout ?? ''),
-          stderr: String(stderr ?? (err ? err.message : '')),
-        })
-      },
-    )
+    execFile(command, [...args], spawnOptions, (err, stdout, stderr) => {
+      const code = err
+        ? typeof (err as { code?: unknown }).code === 'number'
+          ? Number((err as { code?: unknown }).code)
+          : 1
+        : 0
+      done({
+        code,
+        stdout: String(stdout ?? ''),
+        stderr: String(stderr ?? (err ? err.message : '')),
+      })
+    })
   })
 }
 

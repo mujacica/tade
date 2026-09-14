@@ -24,7 +24,7 @@ import { SignalChannel } from './channel.ts'
 // the extension channel. Model and provider are pi's business, which is how
 // one adapter covers API keys, subscriptions and local models alike.
 
-export const EXTENSION_PATH = fileURLToPath(new URL('./extension.ts', import.meta.url))
+export const EXTENSION_PATH = fileURLToPath(new URL('./wilco.ts', import.meta.url))
 
 /**
  * The session a task's agent talks in, for the life of the task.
@@ -396,8 +396,23 @@ export class PiAdapter implements WorkerAdapter {
     entry.channel.send({ type: 'extension_result', callId, ok: result.ok, text: result.text })
   }
 
+  async name(run: RunId, title: string): Promise<void> {
+    const entry = this.require(run)
+    if (!entry.channel?.connected) throw new Error(`${run} is not connected: open its agent first`)
+    entry.channel.send({ type: 'name', title })
+  }
+
   async setModel(run: RunId, model: WorkerModel): Promise<void> {
     const entry = this.require(run)
+    // An agent in a lane has no protocol to ask over, only its channel; and
+    // asked there, pi switches this session without making it every new
+    // session's default, which is how one agent's choice leaked into others.
+    if (!entry.child) {
+      if (!entry.channel?.connected)
+        throw new Error(`${run} is not connected: open its agent first`)
+      entry.channel.send({ type: 'model', provider: model.provider ?? '', id: model.id })
+      return
+    }
     await this.rpc(entry, {
       type: 'set_model',
       ...(model.provider ? { provider: model.provider } : {}),
@@ -468,6 +483,7 @@ export class PiAdapter implements WorkerAdapter {
     env[WORKER_ENV.run] = spec.run
     env[WORKER_ENV.task] = spec.task
     if (spec.extras?.tools) env[WORKER_ENV.tools] = spec.extras.tools
+    if (spec.title) env[WORKER_ENV.title] = spec.title
     return env
   }
 

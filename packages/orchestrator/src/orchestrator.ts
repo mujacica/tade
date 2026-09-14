@@ -52,6 +52,8 @@ export interface OrchestratorOptions {
    * told about them, and harness-native pieces they ship.
    */
   extensions?: { prompt: string; extras: WorkerExtras }
+  /** Carry on the conversation it had last time, rather than starting a new one. */
+  resume?: boolean
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
@@ -152,6 +154,7 @@ export class Orchestrator {
               }),
             ]
           : []),
+        ...(opts.resume ? ['--continue'] : []),
         ...(opts.args ?? []),
       ],
       env: {

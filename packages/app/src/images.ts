@@ -115,7 +115,7 @@ type Run = (command: string, args: string[]) => Promise<{ ok: boolean; stdout: s
 
 const run: Run = (command, args) =>
   new Promise((done) => {
-    execFile(command, args, { timeout: 5_000 }, (err, stdout) =>
+    execFile(command, args, detachedFor(5_000), (err, stdout) =>
       done({ ok: !err, stdout: String(stdout ?? '') }),
     )
   })
@@ -175,4 +175,14 @@ export async function clipboardImage(
   }
   rmSync(path, { force: true })
   return null
+}
+
+/**
+ * Options for a short-lived helper in its own process group, so the terminal
+ * Wilco runs in never names its window after it. `execFile` passes `detached`
+ * on to the spawn beneath it; its types just do not say so.
+ */
+function detachedFor(timeout: number): { timeout: number } {
+  const options = { timeout, detached: true }
+  return options
 }

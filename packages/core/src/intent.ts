@@ -12,6 +12,8 @@ export type Intent =
   | { kind: 'status'; scope: string | null }
   | { kind: 'focus'; task: string }
   | { kind: 'steer'; task: string; message: string }
+  /** Switch the model an agent runs on. `task` may be empty: the one being talked about. */
+  | { kind: 'model'; task: string; model: string }
   | { kind: 'approve' }
   | { kind: 'deny' }
   /** The distinct phrase a destructive command requires. Never a bare yes. */
@@ -80,6 +82,18 @@ const TERMINAL_RUN = new RegExp(
 const TERMINAL_SEARCH = new RegExp(
   String.raw`^(?:search|find|look)(?:\s+for)?\s+(?<text>.+?)\s+in\s+${NAMED}[.?]?$`,
 )
+
+// Switching an agent's model. Each names the word "model", so "switch refunds
+// to the new API" stays an instruction for the agent.
+const MODEL_WORDS = String.raw`(?:the\s+)?(?:currently\s+selected\s+|current\s+|selected\s+)?model`
+const MODEL_IN = new RegExp(
+  String.raw`^in\s+(?<task>.+?)[,\s]+(?:change|switch|set)\s+${MODEL_WORDS}\s+to\s+(?<model>.+?)[.!]?$`,
+)
+const MODEL_OF = new RegExp(
+  String.raw`^(?:change|switch|set)\s+${MODEL_WORDS}\s+(?:of|for|in|on)\s+(?<task>.+?)\s+to\s+(?<model>.+?)[.!]?$`,
+)
+const MODEL_ONTO =
+  /^(?:switch|move|put)\s+(?<task>.+?)\s+(?:over\s+)?(?:to|onto)\s+(?:the\s+)?(?<model>.+?)\s+model[.!]?$/
 
 const APPROVE = /^(yes|yep|yeah|go ahead|do it|approve|approved|sure|please do)[.!]?$/
 const DENY = /^(no|nope|don'?t|deny|denied|stop|cancel|refuse)[.!]?$/
@@ -189,6 +203,15 @@ export function parseUtterance(text: string, vocabulary: Vocabulary): Intent {
     if (isPronoun(resume.groups.task)) return { kind: 'resume', task: '' }
     const task = resolve(resume.groups.task, vocabulary)
     return task ? { kind: 'resume', task } : free
+  }
+
+  for (const pattern of [MODEL_IN, MODEL_OF, MODEL_ONTO]) {
+    const match = pattern.exec(lower)
+    const named = match?.groups?.task?.trim()
+    if (named && match?.groups?.model) {
+      const task = isPronoun(named) ? '' : resolve(named, vocabulary)
+      if (task !== null) return { kind: 'model', task, model: match.groups.model.trim() }
+    }
   }
 
   const steer = STEER.exec(said)

@@ -1,5 +1,49 @@
 [
   {
+    "name": "wilco_agent_model",
+    "description": "Switch the model an agent is running on, for that agent only: \"switch refunds to opus 5\", \"use kimi in agent-1\". Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        },
+        "model": {
+          "type": "string",
+          "description": "the model as the human said it: \"opus 5\", \"claude-sonnet-5\", \"kimi k2.6\""
+        }
+      },
+      "required": [
+        "task",
+        "model"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "wilco_agent_rename",
+    "description": "Give an agent a name: what its work is called, shown in the window and in its own session. Only when the human asks to rename it. A name they give is never replaced by one Wilco would have chosen.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        },
+        "name": {
+          "type": "string",
+          "description": "the new name, as they said it"
+        }
+      },
+      "required": [
+        "task",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_approvals",
     "description": "Commands agents are waiting for permission to run.",
     "parameters": {

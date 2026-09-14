@@ -12,13 +12,18 @@ import type { Turn } from '@wilco/voice-core'
 
 export type ToolState = 'running' | 'ok' | 'failed'
 
+/** Who is speaking: the model you talk to, or Wilco answering from its own grammar and its own work. */
+export type Speaker = 'orchestrator' | 'wilco'
+
 export type Entry =
   /** What you said or typed, with the pictures you sent along. */
   | { kind: 'you'; text: string; images: string[]; at: number }
   /** Where Wilco's own grammar sent it, and why: `start · checkout/refunds`. */
   | { kind: 'routed'; text: string; at: number }
   /** Words back: the orchestrator's (markdown), or a reply from Wilco itself. */
-  | { kind: 'said'; text: string; streaming: boolean; at: number }
+  | { kind: 'said'; text: string; streaming: boolean; by: Speaker; at: number }
+  /** Something Wilco itself did or noticed: opened an agent, copied a path, a warning. */
+  | { kind: 'wilco'; text: string; at: number }
   /** A tool it reached for, and how that went. */
   | {
       kind: 'tool'
@@ -101,14 +106,26 @@ export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
       .some((entry) => entry.kind === 'said' || entry.kind === 'tool' || entry.kind === 'problem')
     const settled = { ...transcript, thinking: null }
     if (answered || turn.reply.trim() === '') return settled
-    return push(settled, { kind: 'said', text: turn.reply, streaming: false, at: turn.at })
+    return push(settled, {
+      kind: 'said',
+      text: turn.reply,
+      streaming: false,
+      by: 'wilco',
+      at: turn.at,
+    })
   }
   const parts: string[] = [turn.intent]
   if (turn.task) parts.push(turn.task)
   if (turn.why) parts.push(`"${turn.why}"`)
   let next = push(transcript, { kind: 'routed', text: parts.join(' · '), at: turn.at })
   if (turn.reply)
-    next = push(next, { kind: 'said', text: turn.reply, streaming: false, at: turn.at })
+    next = push(next, {
+      kind: 'said',
+      text: turn.reply,
+      streaming: false,
+      by: 'wilco',
+      at: turn.at,
+    })
   return next
 }
 
@@ -125,6 +142,7 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
         kind: 'said',
         text: event.text,
         streaming: true,
+        by: 'orchestrator',
         at,
       })
     case 'message':
@@ -132,7 +150,13 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
       if (last?.kind === 'said' && last.streaming) {
         return replaceLast(transcript, { ...last, text: event.text, streaming: false })
       }
-      return push(transcript, { kind: 'said', text: event.text, streaming: false, at })
+      return push(transcript, {
+        kind: 'said',
+        text: event.text,
+        streaming: false,
+        by: 'orchestrator',
+        at,
+      })
     case 'tool':
       return push(thinking(settleStreaming(transcript), at), {
         kind: 'tool',
@@ -181,7 +205,17 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
 
 /** Words from Wilco itself, not the orchestrator: a brief, an extension's answer. */
 export function said(transcript: Transcript, text: string, at: number): Transcript {
-  return push(transcript, { kind: 'said', text, streaming: false, at })
+  return push(transcript, { kind: 'said', text, streaming: false, by: 'wilco', at })
+}
+
+/**
+ * Something Wilco did or noticed, as a line of its own. The same line said
+ * again soon after — a warning every poll — is not said twice.
+ */
+export function wilcoDid(transcript: Transcript, text: string, at: number): Transcript {
+  const recent = transcript.entries.slice(-12)
+  if (recent.some((entry) => entry.kind === 'wilco' && entry.text === text)) return transcript
+  return push(transcript, { kind: 'wilco', text, at })
 }
 
 /**

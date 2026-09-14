@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   type Config,
   ConfigSchema,
   checkBudget,
+  composeAgentPrompt,
   type EventFilter,
   expandHome,
   type LaneId,
@@ -28,7 +29,9 @@ import type {
   WorkerHandle,
   WorkerModel,
 } from '@wilco/harnesses-core'
-import { noUsage, PiAdapter, usageOfTask } from '@wilco/harnesses-pi'
+import { findModel, noUsage, PiAdapter, usableModels, usageOfTask } from '@wilco/harnesses-pi'
+import { git } from '@wilco/status'
+import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
 import { EventLog } from './events.ts'
 import { type HomeLock, lockHome } from './lock.ts'
@@ -676,7 +679,7 @@ export class Workbench {
       // Two agents in one worktree is two agents editing the same files.
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
-    const extras = withContext(
+    const extras = withWilco(
       req.extras ??
         this.extensions?.extras({
           project: req.task.split('/')[0] ?? '',
@@ -684,13 +687,15 @@ export class Workbench {
           cwd: req.cwd,
           harness: this.adapterFor().id,
         }),
-      existsSync(join(req.cwd, TASK_CONTEXT_FILE)),
+      await this.agentPrompt(req.task, req.cwd),
     )
+    const { chosen } = await this.taskFile(req.cwd)
     const spec = {
       run: lane as RunId,
       task: req.task,
       cwd: req.cwd,
       prompt: req.prompt,
+      ...(chosen ? { title: chosen } : {}),
       ...(extras ? { extras } : {}),
       model: req.model ?? this.modelFor(req.task),
       lane,
@@ -727,6 +732,43 @@ export class Workbench {
     }
   }
 
+  /** What a task's file says: what was asked, and the name a person chose, if any. */
+  private async taskFile(cwd: string): Promise<{ intent: string; chosen: string | null }> {
+    try {
+      const file = parseYaml(await readFile(join(cwd, '.wilco', 'task.yaml'), 'utf8')) as {
+        intent_spoken?: unknown
+        title?: unknown
+        title_named?: unknown
+      } | null
+      return {
+        intent: typeof file?.intent_spoken === 'string' ? file.intent_spoken : '',
+        chosen: file?.title_named === true && typeof file.title === 'string' ? file.title : null,
+      }
+    } catch {
+      // No task file: an agent opened on a worktree Wilco did not make.
+      return { intent: '', chosen: null }
+    }
+  }
+
+  /** What an agent starting on a task is told about where it is. */
+  private async agentPrompt(task: string, cwd: string): Promise<string> {
+    const project = task.split('/')[0] ?? ''
+    const configured = this.config.projects[project]
+    const { intent } = await this.taskFile(cwd)
+    const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+    return composeAgentPrompt({
+      task,
+      project,
+      worktree: cwd,
+      root: configured ? expandHome(configured.root) : null,
+      intent,
+      branch: head.ok ? head.stdout.trim() : '',
+      notes: this.memory.recall(task),
+      context: existsSync(join(cwd, TASK_CONTEXT_FILE)),
+      ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
+    })
+  }
+
   /** The harness that runs workers. One place, so a route could pick another. */
   private adapterFor(): PiAdapter {
     return new PiAdapter({
@@ -753,6 +795,39 @@ export class Workbench {
       // The newline is the send: without it the words sit in pi's input box.
       await this.registry.write(lane, Buffer.from(`${message}\n`, 'utf8'))
     }
+  }
+
+  /**
+   * Give an agent's work a name you chose. Kept in its task, so nothing names it
+   * over it; told to its session when it is running, and when it next starts
+   * otherwise. Its branch keeps its name: renaming a branch is its own choice.
+   */
+  async renameAgent(req: { task: string; worktree: string; title: string }): Promise<string> {
+    const title = req.title.replace(/\s+/g, ' ').trim()
+    if (!title) throw new Error('what should it be called?')
+    await setTitle(req.worktree, title, true)
+    const run = `${req.task}/agent` as RunId
+    if (this.registry.get(run as unknown as LaneId)?.alive) {
+      await this.workers.name(run, title).catch(() => {})
+    }
+    await this.log.append({ type: 'task_named', task: req.task, detail: { title, by: 'you' } })
+    return title
+  }
+
+  /**
+   * Switch a running agent to another model, said the way people say it —
+   * "opus 5". Only for this agent's session: nothing else changes model with it.
+   */
+  async setAgentModel(task: string, said: string): Promise<{ provider: string; id: string }> {
+    const run = `${task}/agent` as RunId
+    if (!this.registry.get(run as unknown as LaneId)?.alive) {
+      throw new Error(`${task} has no agent running: open it first`)
+    }
+    const found = findModel(said, await usableModels())
+    if (!found.ok) throw new Error(found.reason)
+    // What it switched to is journalled by the agent itself, as the model its usage is priced at.
+    await this.workers.setModel(run, { provider: found.provider, id: found.id })
+    return { provider: found.provider, id: found.id }
   }
 
   /** Stop an agent: the lane ends, the task and its worktree stay. */
@@ -899,19 +974,14 @@ export class Workbench {
 export type { LaneId, LaneRecord, SpawnRequest }
 
 /**
- * An agent whose task came with context is told to read it first. Said in its
- * instructions rather than its prompt, so it holds when the conversation is
- * reopened, and a prompt you typed yourself is never rewritten.
+ * What Wilco tells an agent about itself, before what extensions add. Said in
+ * its instructions rather than its prompt, so it holds when the conversation
+ * is reopened, and a prompt you typed yourself is never rewritten.
  */
-function withContext(
-  extras: WorkerExtras | undefined,
-  hasContext: boolean,
-): WorkerExtras | undefined {
-  if (!hasContext) return extras
-  const note = `Whoever started this task left what you need to know in ${TASK_CONTEXT_FILE}, with links to where the work came from. Read it before you start, and keep to it.`
+function withWilco(extras: WorkerExtras | undefined, told: string): WorkerExtras {
   return {
     ...(extras ?? {}),
-    instructions: [note, extras?.instructions ?? '']
+    instructions: [told, extras?.instructions ?? '']
       .filter((part) => part.trim() !== '')
       .join('\n\n'),
   }

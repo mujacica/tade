@@ -173,8 +173,14 @@ export interface OpenRow {
  */
 export interface PromptPanel {
   kind: 'prompt'
-  purpose: 'note' | 'new-branch' | 'rename-branch' | 'rename-terminal' | 'run-command'
-  /** The terminal it is about, for renaming one or running a command in it. */
+  purpose:
+    | 'note'
+    | 'new-branch'
+    | 'rename-branch'
+    | 'rename-terminal'
+    | 'run-command'
+    | 'rename-agent'
+  /** The terminal or agent it is about, for renaming one or running a command in it. */
   target?: string
   title: string
   /** What the field is, said before it. */
@@ -343,6 +349,64 @@ export interface KeysPanel {
   busy: false
 }
 
+/** Choosing a model: for the orchestrator, or for one agent's session. */
+export interface ModelPanel {
+  kind: 'model'
+  /** `orchestrator`, or the task whose agent it is for. */
+  for: string
+  query: string
+  index: number
+  busy: boolean
+  error: string | null
+}
+
+export interface ModelChoice {
+  /** `provider/id`, as the harness names it. */
+  id: string
+  provider: string
+  name: string
+}
+
+export function modelPanel(target: string): ModelPanel {
+  return { kind: 'model', for: target, query: '', index: 0, busy: false, error: null }
+}
+
+/** The models that fit what is typed: every word somewhere in the id or the name. */
+export function modelChoices(models: readonly ModelChoice[], query: string): ModelChoice[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  return models.filter((model) => {
+    const text = `${model.id} ${model.name}`.toLowerCase()
+    return words.every((word) => text.includes(word))
+  })
+}
+
+function modelKey(
+  panel: ModelPanel,
+  key: string | undefined,
+  data: string,
+  models: readonly ModelChoice[],
+): PanelOutcome {
+  const choices = modelChoices(models, panel.query)
+  if (key === 'escape') return close
+  if (key === 'up') return stay({ ...panel, index: Math.max(0, panel.index - 1) })
+  if (key === 'down')
+    return stay({ ...panel, index: Math.min(Math.max(0, choices.length - 1), panel.index + 1) })
+  if (key === 'pageUp') return stay({ ...panel, index: Math.max(0, panel.index - 10) })
+  if (key === 'pageDown')
+    return stay({ ...panel, index: Math.min(Math.max(0, choices.length - 1), panel.index + 10) })
+  if (key === 'enter') {
+    const chosen = choices[panel.index]
+    return chosen
+      ? { panel: { ...panel, busy: true, error: null }, submit: true, choice: chosen.id }
+      : stay(panel)
+  }
+  if (key === 'backspace') return stay({ ...panel, query: panel.query.slice(0, -1), index: 0 })
+  if (key === 'space') return stay({ ...panel, query: `${panel.query} `, index: 0 })
+  const typed = data.startsWith('\x1b') ? '' : [...data].filter((char) => !control(char)).join('')
+  if (typed) return stay({ ...panel, query: panel.query + typed, index: 0, error: null })
+  return stay(panel)
+}
+
 /** The extensions this window runs with, and what each can do for you. */
 export interface ExtensionsPanel {
   kind: 'extensions'
@@ -441,6 +505,7 @@ export type Panel =
   | KeysPanel
   | QuitPanel
   | ExtensionsPanel
+  | ModelPanel
 
 export function settingsPanel(category = 'agents'): SettingsPanel {
   return {
@@ -478,6 +543,8 @@ export interface PanelInputs {
   found?: number
   /** The extensions, for moving through their actions. */
   extensions?: readonly ExtensionView[]
+  /** Models there are to choose from. */
+  models?: readonly ModelChoice[]
 }
 
 /** The settings a panel is showing: a category's, or everything matching the search. */
@@ -641,6 +708,8 @@ export function menuItems(
         ? { note: `${changed} file${changed === 1 ? '' : 's'}` }
         : { off: 'none yet' }),
     },
+    { id: 'rename', label: 'Rename…' },
+    { id: 'model', label: 'Change model…', ...(running ? {} : { off: 'not running' }) },
     { id: 'editor', label: 'Open in editor' },
     { id: 'copy-branch', label: 'Copy branch name' },
     {
@@ -694,6 +763,7 @@ export function panelKey(
   if (panel.kind === 'search') return searchKey(panel, key, data, inputs.entries ?? [])
   if (panel.kind === 'file') return fileKey(panel, key, inputs.lines ?? 0)
   if (panel.kind === 'keys') return key === 'escape' || key === 'enter' ? close : stay(panel)
+  if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
   if (panel.kind === 'extensions') {
     const actions = extensionActions(inputs.extensions ?? [])
     if (key === 'escape') return close
@@ -734,6 +804,13 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'file') return fileClick(panel, control)
   if (panel.kind === 'keys')
     return control === 'change-keys' ? { panel, submit: true, choice: 'change-keys' } : stay(panel)
+  if (panel.kind === 'model') {
+    if (control === 'cancel') return close
+    const chosen = modelChoices(inputs.models ?? [], panel.query)[Number(control.slice(4))]
+    return control.startsWith('row:') && chosen
+      ? { panel: { ...panel, busy: true, error: null }, submit: true, choice: chosen.id }
+      : stay(panel)
+  }
   if (panel.kind === 'extensions') {
     if (control === 'close') return close
     return control.startsWith('action:')

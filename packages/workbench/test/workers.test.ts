@@ -67,6 +67,7 @@ class FakeAdapter implements WorkerAdapter {
     this.answers.push({ run, callId, ...result })
   }
   async setModel(): Promise<void> {}
+  async name(): Promise<void> {}
   async abort(): Promise<void> {}
   async stop(run: RunId): Promise<void> {
     this.stopped.push(run)

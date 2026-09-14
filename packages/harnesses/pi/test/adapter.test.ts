@@ -3,7 +3,7 @@ import type { WorkerSignal } from '@wilco/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, piBinary, runSocket } from '../src/adapter.ts'
-import { describeToolCall } from '../src/extension.ts'
+import { describeToolCall } from '../src/wilco.ts'
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 20_000): Promise<void> {
   const deadline = Date.now() + timeout

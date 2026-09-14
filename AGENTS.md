@@ -104,6 +104,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **An agent is a lane with pi in it**, named `<task>/agent`, talking in a pi session named after
   the task. That session id never changes, which is what makes reopening ordinary: the same command
   line starts the conversation the first time and continues it every time after.
+- **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, its worktree, how its
+  branch gets named, your notes about the work, and its context file. Appended to the harness's
+  own instructions, never replacing them.
+- **A name a person gives an agent is kept** (`title_named` in its task file) and given to its
+  session; any other name is only a guess, replaced when a better one comes.
+- **Probes run detached.** Anything Wilco runs on a timer — git, ps, lsof, an extension's commands —
+  runs in its own process group, or Terminal.app retitles the window after it every poll.
 - **A task's id is in its `.wilco/task.yaml`, not its branch.** An agent opened from the window
   starts on no branch (a detached worktree) and is given `wilco/<its title>` at its first change;
   its lanes and session keep the id it was made with. Status finds a branchless worktree only by that

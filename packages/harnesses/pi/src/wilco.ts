@@ -36,6 +36,19 @@ interface PiContext {
   /** The harness prices each message against its own model catalog. */
   sessionManager?: { getEntries?(): Array<{ usage?: PiUsage } | null> }
   model?: { id?: string; provider?: string } | string
+  /** The harness's model catalog: finding a model to switch to, and asking one for a name. */
+  modelRegistry?: {
+    find?(provider: string, id: string): unknown
+    getAvailable?(): Array<{ id: string; provider: string }>
+    complete?(
+      model: unknown,
+      context: {
+        systemPrompt?: string
+        messages: Array<{ role: 'user'; content: string; timestamp: number }>
+      },
+      options?: { signal?: AbortSignal },
+    ): Promise<{ content?: Array<{ type?: string; text?: string }> }>
+  }
 }
 
 /** What the harness records per message. Everything optional: it is theirs. */
@@ -68,6 +81,9 @@ interface PiApi {
   }): void
   /** The name given to the session with `/name`, if one was. */
   getSessionName?(): string | undefined
+  setSessionName?(name: string): void
+  /** Switch this session's model, leaving the default for new sessions alone. */
+  setModel?(model: unknown): Promise<boolean>
   sendUserMessage?(
     content: string,
     options?: { deliverAs?: 'steer' | 'followUp' },
@@ -165,6 +181,20 @@ export default function wilcoExtension(pi: PiApi): void {
         const resolve = calls.get(String(command.callId))
         calls.delete(String(command.callId))
         resolve?.({ ok: command.ok === true, text: String(command.text ?? '') })
+        return
+      }
+      case 'name': {
+        // Named in Wilco: pi shows it too, and it is yours, so nothing renames it after.
+        const title = String(command.title ?? '').trim()
+        if (!title) return
+        chosen = title
+        titled = title
+        pi.setSessionName?.(title)
+        send({ type: 'titled', title, named: true })
+        return
+      }
+      case 'model': {
+        void switchModel(String(command.provider ?? ''), String(command.id ?? ''))
         return
       }
       case 'abort':
@@ -295,30 +325,86 @@ export default function wilcoExtension(pi: PiApi): void {
   pi.on('model_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
 
   /**
-   * What the work is called, so Wilco can name the agent's branch when it
-   * first changes something: the session's name when you gave it one, else the
-   * start of the first thing you asked. Commands and shell lines are not a
-   * description of anything.
+   * What the work is called, so Wilco can name the agent's branch and you can
+   * tell agents apart.
+   *
+   * A name you gave — `/name` here, or renaming it in Wilco — always wins and
+   * is never replaced. Otherwise nothing is named until the agent does some
+   * work: "who are you?" is a question, not a description of a task. When it
+   * first changes something, the request that led there names it at once, and
+   * the model it runs on is asked for a better name in a few words, which pi
+   * shows as the session's name too.
    */
   let titled: string | null = null
+  /** A name a person chose. */
+  let chosen: string | null = null
+  /** A name this extension gave the session, which is not a person's choice. */
+  let generated: string | null = null
+  const prompts: string[] = []
+  let naming = false
+
   const sayName = () => {
     const name = pi.getSessionName?.()?.trim()
-    if (name && name !== titled) {
+    if (name && name !== titled && name !== generated) {
+      chosen = name
       titled = name
       send({ type: 'titled', title: name, named: true })
     }
   }
-  pi.on('session_start', (() => sayName()) as never)
+  pi.on('session_start', (() => {
+    // Renamed in Wilco while this agent was not running: its session takes the name now.
+    const given = process.env.WILCO_TITLE?.trim()
+    if (given && !pi.getSessionName?.()) {
+      pi.setSessionName?.(given)
+      chosen = given
+      titled = given
+    }
+    sayName()
+  }) as never)
   pi.on('turn_start', (() => sayName()) as never)
   pi.on('input', ((event: { text?: string }) => {
     sayName()
     const text = (event.text ?? '').trim()
-    if (titled === null && text !== '' && !text.startsWith('/') && !text.startsWith('!')) {
-      titled = text
-      send({ type: 'titled', title: firstWords(text), named: false })
+    if (text !== '' && !text.startsWith('/') && !text.startsWith('!') && prompts.length < 6) {
+      prompts.push(text)
     }
     return { action: 'continue' }
   }) as never)
+
+  const nameFromWork = (ctx: PiContext) => {
+    if (chosen || naming || generated) return
+    naming = true
+    const plain = titleFrom(prompts)
+    if (plain && titled === null) {
+      titled = plain
+      send({ type: 'titled', title: plain, named: false })
+    }
+    void askForName(ctx, prompts)
+      .then((name) => {
+        if (!name || chosen) return
+        generated = name
+        titled = name
+        pi.setSessionName?.(name)
+        send({ type: 'titled', title: name, named: false })
+      })
+      .catch(() => {})
+  }
+  pi.on('tool_call', ((event: ToolCallEvent, ctx: PiContext) => {
+    if (CHANGES.has(event.toolName)) nameFromWork(ctx)
+    return undefined
+  }) as never)
+
+  /** Switch to a model by provider and id, as Wilco asked. */
+  const switchModel = async (provider: string, id: string) => {
+    const registry = latest?.modelRegistry
+    const found =
+      (provider ? registry?.find?.(provider, id) : undefined) ??
+      registry
+        ?.getAvailable?.()
+        .find((model) => model.id === id && (!provider || model.provider === provider))
+    if (!found || !pi.setModel) return
+    await pi.setModel(found).catch(() => false)
+  }
 
   pi.on('turn_end', ((_event: unknown, ctx: PiContext) => {
     latest = ctx
@@ -455,9 +541,9 @@ function truncate(text: string, limit = 120): string {
 }
 
 /** The start of a request, short enough to be a name: its first line, eight words at most. */
-export function firstWords(text: string): string {
+export function firstWords(text: string, words = 8): string {
   const line = text.split('\n').find((part) => part.trim() !== '') ?? ''
-  return line.trim().split(/\s+/).slice(0, 8).join(' ').slice(0, 60)
+  return line.trim().split(/\s+/).slice(0, words).join(' ').slice(0, 60)
 }
 
 /** The tools listed for this agent, or none when the list is missing or unreadable. */
@@ -475,4 +561,82 @@ export function readTools(path: string | undefined): ToolSpec[] {
   } catch {
     return []
   }
+}
+
+/** Tools that change something: the first of these is when there is work to name. */
+const CHANGES = new Set(['edit', 'write', 'multi_edit', 'bash'])
+
+/** What people say that is not a description of any work. */
+const CHATTER =
+  /^(hi|hello|hey|yo|thanks|thank you|ok|okay|who are you|what are you|what can you do|how are you|help)\b[\s!?.,]*$/i
+
+/** What people say before the part that describes the work. */
+const PREAMBLE =
+  /^(please\s+|can you\s+|could you\s+|would you\s+|will you\s+|i want you to\s+|i'd like you to\s+|i need you to\s+|let's\s+|lets\s+|help me\s+|go ahead and\s+)+/i
+
+/**
+ * A name from what was asked, without asking anyone: the first request that
+ * describes work, its politeness taken off, in a few words.
+ */
+export function titleFrom(requests: readonly string[]): string | null {
+  for (const request of requests) {
+    // A greeting in front of a request is not part of what it asks.
+    const line = firstWords(request, 14).replace(/^(hi|hello|hey|yo)\b[\s,!.]*/i, '')
+    if (line === '' || CHATTER.test(line) || line.split(/\s+/).length < 2) continue
+    const words = line
+      .replace(PREAMBLE, '')
+      .replace(/[\s,]*(please|thanks|thank you)?[?.!]*$/i, '')
+      .split(/\s+/)
+      .slice(0, 6)
+    if (words.length === 0 || words.join('') === '') continue
+    const name = words.join(' ')
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  }
+  return null
+}
+
+/**
+ * A name for the work in a few words, from the model the agent runs on. One
+ * short request, made once, and nothing is lost if it fails: the plain name
+ * stands.
+ */
+async function askForName(ctx: PiContext, requests: readonly string[]): Promise<string | null> {
+  const registry = ctx.modelRegistry
+  if (!registry?.complete || !ctx.model || typeof ctx.model === 'string' || requests.length === 0) {
+    return null
+  }
+  const answer = await registry.complete(
+    ctx.model,
+    {
+      systemPrompt:
+        'You name pieces of software work. Reply with a name of three to six words, in sentence case, saying what is being done — like "Fix double refund on webhook retry". No quotes, no punctuation at the end, nothing else.',
+      messages: [
+        {
+          role: 'user',
+          content: `What was asked, in order:\n${requests.map((request) => `- ${request.slice(0, 400)}`).join('\n')}`,
+          timestamp: Date.now(),
+        },
+      ],
+    },
+    { signal: AbortSignal.timeout(20_000) },
+  )
+  const text = (answer.content ?? [])
+    .map((part) => (part.type === 'text' ? (part.text ?? '') : ''))
+    .join(' ')
+  return cleanName(text)
+}
+
+/** A model's answer as a name: its first line, unquoted, a few words. */
+export function cleanName(text: string): string | null {
+  const line =
+    text
+      .split('\n')
+      .map((part) => part.trim())
+      .find((part) => part !== '') ?? ''
+  const name = line
+    .replace(/^["'`*_\s]+|["'`*_.\s]+$/g, '')
+    .split(/\s+/)
+    .slice(0, 8)
+    .join(' ')
+  return name.length >= 3 ? name.slice(0, 60) : null
 }

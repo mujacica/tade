@@ -320,6 +320,34 @@ describe('asking for the settings', () => {
   })
 })
 
+describe("switching an agent's model", () => {
+  const known = { tasks: ['wilco/agent-1', 'shop/refunds'], projects: ['wilco', 'shop'] }
+  it('understands it however it is put, with the model as said', () => {
+    expect(
+      parseUtterance('in agent-1 change the currently selected model to opus 5', known),
+    ).toEqual({
+      kind: 'model',
+      task: 'wilco/agent-1',
+      model: 'opus 5',
+    })
+    expect(parseUtterance('switch the model of refunds to Kimi K2.6', known)).toEqual({
+      kind: 'model',
+      task: 'shop/refunds',
+      model: 'kimi k2.6',
+    })
+    expect(parseUtterance('switch it to the sonnet 5 model', known)).toEqual({
+      kind: 'model',
+      task: '',
+      model: 'sonnet 5',
+    })
+  })
+
+  it('leaves an instruction that is not about a model to the agent or the orchestrator', () => {
+    expect(parseUtterance('switch refunds to the new API', known).kind).not.toBe('model')
+    expect(parseUtterance('in nowhere change the model to opus 5', known).kind).toBe('free')
+  })
+})
+
 describe('asking for the brief', () => {
   it('understands the ways people ask', () => {
     for (const said of [

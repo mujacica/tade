@@ -242,7 +242,13 @@ export async function setTitle(worktree: string, title: string, named: boolean):
   const text = title.replace(/\s+/g, ' ').trim()
   if (!text) return
   await updateTaskFile(worktree, (file) => {
-    if (named || typeof file.title !== 'string' || file.title === '') file.title = text
+    // A name a person chose is kept; any other is better replaced by a better one.
+    if (named) {
+      file.title = text
+      file.title_named = true
+    } else if (file.title_named !== true) {
+      file.title = text
+    }
   })
 }
 
