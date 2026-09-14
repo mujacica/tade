@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { until } from '@wilco/drivers-core/conformance'
 import { sessionIdFor } from '@wilco/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -211,6 +212,28 @@ describe('task and run RPC', () => {
       client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' }),
     ).rejects.toThrow(/already has an agent/)
   }, 60_000)
+
+  it('forgets an agent whose process ended on its own, so it neither counts nor blocks a restart', async () => {
+    const one = await client.createTask({ project: 'app', slug: 'one', intent: INTENT })
+    const two = await client.createTask({ project: 'app', slug: 'two', intent: INTENT })
+    const lane = await client.startAgent({ task: one.id, cwd: one.worktree, prompt: '' })
+    await client.startAgent({ task: two.id, cwd: two.worktree, prompt: '' })
+    expect(client.runs()).toHaveLength(2)
+
+    // Nobody stopped it: the process just went, the way a crash or `/quit` does.
+    process.kill(lane.pid ?? 0, 'SIGKILL')
+    await until(() => client.runs().length === 1)
+    expect(client.runs().map((run) => run.task)).toEqual([two.id])
+    const exited = await until(
+      async () => (await client.events({ types: ['run_exited'], task: one.id }))[0],
+    )
+    expect(exited?.detail).toHaveProperty('code')
+
+    // Its slot is free, and the same task starts again rather than "run already exists".
+    await expect(
+      client.startAgent({ task: one.id, cwd: one.worktree, prompt: '' }),
+    ).resolves.toMatchObject({ id: `${one.id}/agent` })
+  }, 90_000)
 
   it('refuses more agents than the project allows', async () => {
     for (const slug of ['one', 'two']) {

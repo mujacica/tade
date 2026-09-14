@@ -386,6 +386,38 @@ export function testWorkspaceDriver(
       await expect(driver.open(s)).rejects.toThrow()
     })
 
+    // An agent stopped and started again, or one that crashed and is opened
+    // where it left off, is the same lane under the same name. Refusing that
+    // id for the life of the window made the second start fail.
+    it('opens a lane again under the id of one that was closed', async () => {
+      const s = spec()
+      await driver.open(s)
+      await driver.close(s.id)
+      const again = await driver.open(s)
+      expect(again.alive).toBe(true)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('again'))
+      await waitFor(s.id, 'got:again')
+    })
+
+    it('opens a lane again under the id of one whose process exited', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const exits: Array<{ code: number | null }> = []
+      driver.onExit(s.id, (e) => exits.push(e))
+      await driver.write(s.id, line('exit'))
+      await until(() => exits.length > 0)
+      const again = await driver.open(s)
+      expect(again.alive).toBe(true)
+      await driver.write(s.id, line('back'))
+      await waitFor(s.id, 'got:back')
+      // What listened to the old process does not hear the new one end.
+      await driver.write(s.id, line('exit'))
+      await until(async () => (await driver.get(s.id))?.alive === false)
+      expect(exits).toHaveLength(1)
+    })
+
     it('reports a failed launch instead of a phantom lane', async () => {
       const s = spec({ command: '/nonexistent/binary-xyz' })
       await expect(driver.open(s)).rejects.toThrow()

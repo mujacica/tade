@@ -127,12 +127,20 @@ export class TmuxDriver implements WorkspaceDriver {
   }
 
   async open(spec: LaneSpec): Promise<LaneHandle> {
-    if (this.lanes.has(spec.id)) throw new Error(`lane already exists: ${spec.id}`)
+    // An id is taken while something runs under it, and free again once that
+    // ended or was closed: an agent started again is the same lane.
+    const previous = this.lanes.get(spec.id)
+    if (previous && !previous.closed && !previous.exited) {
+      throw new Error(`lane already exists: ${spec.id}`)
+    }
     const env = stringEnv({ ...this.opts.env, ...spec.env })
     // Resolved up front: tmux would happily open a window on a command that
     // does not exist and leave a dead pane behind pretending to be a lane.
     const command = resolveCommand(spec.command, env)
     if (!command) throw new Error(`command not found: ${spec.command}`)
+    // A dead pane stays open to be read; the one taking its place ends it, or a
+    // later window would adopt two lanes under one id.
+    if (previous) await this.close(spec.id)
 
     const cols = spec.cols ?? DEFAULTS.cols
     const rows = spec.rows ?? DEFAULTS.rows

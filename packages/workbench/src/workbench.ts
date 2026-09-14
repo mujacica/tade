@@ -330,10 +330,23 @@ export class Workbench {
   private async resupervise(): Promise<void> {
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent' || !lane.alive) continue
-      await this.workers
+      const resumed = await this.workers
         .resume({ task: lane.task as never, run: lane.id as RunId, cwd: lane.spec.cwd, prompt: '' })
         .catch(() => null)
+      if (resumed) this.followExit(lane.id as LaneId)
     }
+  }
+
+  /**
+   * Tell the supervisor when an agent's lane ends. The lane is the only thing
+   * that sees it: an agent running in a terminal takes its channel down with
+   * it, so it never gets to say it exited.
+   */
+  private followExit(lane: LaneId): void {
+    const stop = this.registry.onExit(lane, ({ code }) => {
+      stop()
+      void this.workers.gone(lane as unknown as RunId, code)
+    })
   }
 
   /**
@@ -761,7 +774,7 @@ export class Workbench {
     })
     const launch = this.adapterFor(harness).launchSpec(spec)
     try {
-      return await this.registry.spawn({
+      const record = await this.registry.spawn({
         id: lane,
         task: req.task,
         kind: 'agent',
@@ -771,6 +784,8 @@ export class Workbench {
         env: launch.env,
         title: req.task,
       })
+      this.followExit(lane)
+      return record
     } catch (err) {
       // Nothing to supervise after all.
       await this.workers.stop(lane as RunId).catch(() => {})

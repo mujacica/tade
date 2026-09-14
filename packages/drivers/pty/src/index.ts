@@ -91,7 +91,12 @@ export class PtyDriver implements WorkspaceDriver {
   }
 
   async open(spec: LaneSpec): Promise<LaneHandle> {
-    if (this.lanes.has(spec.id)) throw new Error(`lane already exists: ${spec.id}`)
+    // An id is taken while something runs under it, and free again once that
+    // ended or was closed: an agent started again is the same lane.
+    const previous = this.lanes.get(spec.id)
+    if (previous?.handle.alive && !previous.closed) {
+      throw new Error(`lane already exists: ${spec.id}`)
+    }
     // node-pty hands the environment straight to posix_spawnp, which fails on
     // any non-string value (test runners inject them).
     const env = stringEnv({ ...this.opts.env, ...spec.env })
@@ -135,6 +140,14 @@ export class PtyDriver implements WorkspaceDriver {
       replay: [],
       replayBytes: 0,
       closed: false,
+    }
+    // Only once the new one is running: a launch that fails leaves the old
+    // screen where it was, to be read.
+    if (previous && !previous.closed) {
+      previous.closed = true
+      previous.term.dispose()
+      previous.outputs.clear()
+      previous.exits.clear()
     }
     this.lanes.set(spec.id, lane)
 

@@ -310,6 +310,32 @@ export class WorkerSupervisor {
     await this.log.append({ type: 'run_exited', task: state.task, run, detail: { stopped: true } })
   }
 
+  /**
+   * An agent's process ended without anyone stopping it: a crash, `/quit`, a
+   * lane closed from outside. An agent in a lane cannot say so itself — its
+   * channel dies with it — so whoever watches the lane reports it here.
+   * Nothing to do for a run already stopped or never seen.
+   */
+  async gone(run: RunId, code: number | null): Promise<void> {
+    const state = this.runs.get(run)
+    if (!state) return
+    await this.ended(run, state.task, code)
+  }
+
+  private async ended(run: RunId, task: TaskId | null, code: number | null): Promise<void> {
+    // An agent that has gone is waiting for nothing. Left in the list it would
+    // count against `max_parallel` for ever and refuse its own restart; its
+    // approvals would sit there looking like something needs you, keeping the
+    // task `blocked` against an agent that cannot act on a yes.
+    const adapter = this.adapterOf(run)
+    this.forget(run)
+    if (task) this.vitalsByTask.delete(task)
+    // The harness holds the run too, and would refuse to supervise it again.
+    // Its process is already gone, so stopping it only lets go.
+    await adapter.stop(run).catch(() => {})
+    await this.log.append({ type: 'run_exited', task, run, detail: { code } })
+  }
+
   /** Close the window: let go of every agent, ending none of them. */
   async detach(): Promise<void> {
     for (const run of this.runs.values()) run.stop()
@@ -371,12 +397,7 @@ export class WorkerSupervisor {
         await this.log.append({ type: 'failed', task, run, detail: { error: signal.error } })
         return
       case 'exited':
-        // An agent that has gone is waiting for nothing. Approvals left
-        // standing would sit there looking like something needs you, and would
-        // keep the task `blocked` against an agent that cannot act on a yes.
-        this.forget(run)
-        if (task) this.vitalsByTask.delete(task)
-        await this.log.append({ type: 'run_exited', task, run, detail: { code: signal.code } })
+        await this.ended(run, task, signal.code)
         return
       case 'turn_started':
         this.turns.set(run, 'running')
