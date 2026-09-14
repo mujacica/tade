@@ -109,6 +109,8 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
   skin: COLOUR,
   now: NOW,
   home: '~/.wilco',
+  orchestratorModel: 'openrouter/anthropic/claude-opus-5',
+  orchestratorAccount: { provider: 'openrouter', credential: 'signed in' },
   files: [
     { path: 'src', name: 'src', depth: 0, folder: true, open: true },
     {

@@ -152,6 +152,8 @@ export interface Frame {
   voice?: { keys: readonly string[]; available: boolean }
   /** Wilco's home, as you would type it, for showing where worktrees go. */
   home?: string
+  /** Who pays for the orchestrator's model: its provider, and how you are signed in to it. */
+  orchestratorAccount?: { provider: string | null; credential: string | null }
   /** What extensions keep in the status bar. */
   statuses?: readonly {
     extension: string
@@ -310,8 +312,21 @@ export function draw(state: AppState, frame: Frame): Drawn {
     setup: extra.setup ?? null,
     extensionView: extra.extensionView ?? null,
   })
-  const panel = drawing.panel
-  const panelWidth = Math.max(0, ...panel.rows.map((row) => visibleWidth(row)))
+  const panelWidth = Math.max(0, ...drawing.panel.rows.map((row) => visibleWidth(row)))
+  // The wheel scrolls whatever panel it is over, anywhere on it: under every
+  // control, so a click still presses what it is on.
+  const panel: Drawn = {
+    rows: drawing.panel.rows,
+    hits: [
+      ...drawing.panel.rows.map((_, i) => ({
+        row: i,
+        from: 0,
+        to: Math.max(0, panelWidth - 1),
+        target: { kind: 'scroll', area: 'panel' } as Target,
+      })),
+      ...drawing.panel.hits,
+    ],
+  }
   // Find sits on the bottom panel's top edge, over the terminal it searches.
   const anchor =
     state.panel.kind === 'menu'
@@ -1049,7 +1064,7 @@ function renderStrip(
     left.text(tail, skin.chrome)
     bar = left.build().text
   } else {
-    const tabs = bottomTabs(state, frame, width, skin, pointer)
+    const tabs = bottomTabs(state, width, skin, pointer)
     bar = tabs.text
     barHits = tabs.hits
   }
@@ -1130,7 +1145,15 @@ function renderStrip(
     for (const path of state.attached) {
       prompt.text(`▣ ${path.split('/').at(-1) ?? path}`, skin.busy).space()
     }
-    prompt.text(`${state.dictation}▏`, skin.you)
+    if (state.historySearch) {
+      // As a shell shows it: what you are looking for, then what it found.
+      const { query, missing } = state.historySearch
+      prompt.text(`search: ${query}▏`, missing ? skin.waiting : skin.signal).space(2)
+      prompt.text(missing ? 'nothing said like that' : (state.dictation ?? ''), skin.hint)
+      prompt.right((r) => r.text('ctrl+r older · enter sends · → keeps · esc', skin.hint).space())
+    } else {
+      prompt.text(`${state.dictation}▏`, skin.you)
+    }
   } else if (state.held) {
     prompt.text(`◌ ${state.held}▏`, skin.hint)
   } else {
@@ -1172,7 +1195,6 @@ function renderStrip(
  */
 function bottomTabs(
   state: AppState,
-  frame: Frame,
   width: number,
   skin: Skin,
   pointer: Pointer,
@@ -1204,15 +1226,6 @@ function bottomTabs(
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
 
   const controls = (r: Row) => {
-    // The orchestrator's model, where it is being talked to: click it to change.
-    if (state.bottom === ORCHESTRATOR_TAB && frame.orchestratorModel !== undefined) {
-      const switcher: Target = { kind: 'action', name: 'model:orchestrator' }
-      r.text(
-        `${frame.orchestratorModel ? shortModel(frame.orchestratorModel) : 'no model'} ▾`,
-        sameTarget(state.hover, switcher) ? skin.link : skin.hint,
-        switcher,
-      ).space(2)
-    }
     if (state.terminals.some((one) => one.id === state.bottom)) {
       r.button('⌕', { kind: 'action', name: 'find-terminal' }).space()
     }
@@ -1280,10 +1293,13 @@ function renderFoot(
     const look = button.action === 'new-agent' && !state.project ? 'off' : (button.look ?? 'rest')
     row.button(button.label, { kind: 'action', name: button.action }, look).space()
   }
-  const route = frame.route
   const spend = frame.spend
   const target: Target = { kind: 'action', name: 'spend' }
-  const model = frame.vitals?.model ?? route?.model
+  // The orchestrator's model, and the account paying for it: an agent's own
+  // model is on its pane, so this is only ever the one you talk to.
+  const switcher: Target = { kind: 'action', name: 'model:orchestrator' }
+  const thinker = frame.orchestratorModel
+  const account = frame.orchestratorAccount
   const spent = spend && spend.tokens > 0
   // Said in full where there is room, and shed from the left where there is
   // not: what it costs is the part worth keeping on a small terminal.
@@ -1309,11 +1325,12 @@ function renderFoot(
         r.text(' │ ', skin.chrome)
       }
     }
-    if (show.model) {
-      r.text(model ? shortModel(model) : 'its default model', skin.hint, target)
-      if (show.account && route?.provider) r.text(` · ${route.provider}`, skin.hint, target)
-      if (show.account && route?.credential) r.text(` · ${route.credential}`, skin.hint, target)
-      r.text(' │ ', skin.chrome, target)
+    if (show.model && thinker !== undefined) {
+      const look = sameTarget(state.hover, switcher) ? skin.link : skin.hint
+      r.text(`${thinker ? shortModel(thinker) : 'no model'} ▾`, look, switcher)
+      if (show.account && account?.provider) r.text(` · ${account.provider}`, look, switcher)
+      if (show.account && account?.credential) r.text(` · ${account.credential}`, look, switcher)
+      r.text(' │ ', skin.chrome)
     }
     if (spent && show.tokens) {
       r.text(tokens(spend.tokens), skin.hint, target).text(' │ ', skin.chrome, target)

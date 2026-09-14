@@ -31,4 +31,4 @@
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
  › what is going on with checkout▏                                                                                      
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 

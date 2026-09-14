@@ -67,6 +67,13 @@ export interface AppState {
    */
   dictation: string | null
   /**
+   * Where up and down have taken the line in what you said before, and what
+   * you had typed before the first up, to come back to.
+   */
+  recall: { at: number; draft: string } | null
+  /** Searching back through what you said, as ctrl+r does in a shell. */
+  historySearch: { query: string; skip: number; draft: string; missing: boolean } | null
+  /**
    * Keystrokes held back at an agent's prompt while they might still spell a
    * line addressed to Wilco. Shown, so they are never simply missing.
    */
@@ -139,6 +146,8 @@ export function initialState(): AppState {
     lastInputAt: null,
     question: null,
     dictation: null,
+    recall: null,
+    historySearch: null,
     held: null,
     notice: null,
     chose: false,
@@ -546,6 +555,106 @@ export function setQuestion(state: AppState, question: AppState['question']): Ap
 /** Open, extend or close the dictation line. */
 export function setDictation(state: AppState, dictation: string | null): AppState {
   return { ...state, dictation }
+}
+
+/**
+ * Up on the line: the line said before the one shown, or the newest when none
+ * is. What you had typed is kept, for down to come back to.
+ */
+export function recallOlder(state: AppState, history: readonly string[]): AppState {
+  if (history.length === 0) return state
+  const at = state.recall ? Math.max(0, state.recall.at - 1) : history.length - 1
+  const draft = state.recall?.draft ?? state.dictation ?? ''
+  return { ...state, dictation: history[at] ?? '', recall: { at, draft } }
+}
+
+/** Down on the line: the line said after the one shown, and past the newest, what you had typed. */
+export function recallNewer(state: AppState, history: readonly string[]): AppState {
+  if (!state.recall) return state
+  const at = state.recall.at + 1
+  if (at >= history.length) return { ...state, dictation: state.recall.draft, recall: null }
+  return { ...state, dictation: history[at] ?? '', recall: { at, draft: state.recall.draft } }
+}
+
+/** The line a search finds: the newest that contains it, or older ones for each ctrl+r again. */
+export function historyMatch(
+  history: readonly string[],
+  search: { query: string; skip: number },
+): string | null {
+  const query = search.query.toLowerCase()
+  let skipped = 0
+  for (let i = history.length - 1; i >= 0; i--) {
+    const line = history[i] ?? ''
+    if (!line.toLowerCase().includes(query)) continue
+    if (skipped === search.skip) return line
+    skipped++
+  }
+  return null
+}
+
+/**
+ * A key while searching back: typing narrows, ctrl+r looks further back,
+ * enter or an arrow keeps what it found on the line, escape puts back what was
+ * there. The line shows the match as it is found. Returns whether enter should
+ * also send it.
+ */
+export function searchKey(
+  state: AppState,
+  history: readonly string[],
+  key: string | undefined,
+  data: string,
+): { state: AppState; send: boolean } {
+  const search = state.historySearch
+  if (!search) return { state, send: false }
+  const looking = (next: { query: string; skip: number }): AppState => {
+    const found = historyMatch(history, next)
+    return {
+      ...state,
+      historySearch: { ...search, ...next, missing: found === null },
+      dictation: found ?? state.dictation,
+    }
+  }
+  if (key === 'ctrl+r') {
+    const further = { query: search.query, skip: search.skip + 1 }
+    return {
+      state: historyMatch(history, further) === null ? state : looking(further),
+      send: false,
+    }
+  }
+  if (key === 'escape' || key === 'ctrl+g') {
+    return { state: { ...state, historySearch: null, dictation: search.draft }, send: false }
+  }
+  const keep = (send: boolean) => ({
+    state: {
+      ...state,
+      historySearch: null,
+      recall: null,
+      dictation: search.missing ? search.draft : state.dictation,
+    },
+    send: send && !search.missing,
+  })
+  if (key === 'enter') return keep(true)
+  if (key === 'left' || key === 'right' || key === 'up' || key === 'down' || key === 'tab')
+    return keep(false)
+  if (key === 'backspace') {
+    return { state: looking({ query: search.query.slice(0, -1), skip: 0 }), send: false }
+  }
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: a control key is not something to search for
+  if (data.length > 0 && !/[\x00-\x1f\x7f]/.test(data)) {
+    return { state: looking({ query: search.query + data, skip: 0 }), send: false }
+  }
+  return { state, send: false }
+}
+
+/** Start searching back through what you said, keeping the line as it was to return to. */
+export function startHistorySearch(state: AppState, history: readonly string[]): AppState {
+  const draft = state.dictation ?? ''
+  const found = historyMatch(history, { query: '', skip: 0 })
+  return {
+    ...state,
+    historySearch: { query: '', skip: 0, draft, missing: found === null },
+    dictation: found ?? draft,
+  }
 }
 
 /** Show what is being held back at an agent's prompt. */

@@ -43,6 +43,9 @@ export const EventType = z.enum([
   'usage',
   /** A finished task was looked back over, so it is never looked at twice. */
   'reflected',
+  // you
+  /** A line you said or typed to Wilco, verbatim: what up and ctrl+r bring back. */
+  'said',
   // the workbench itself
   'wilco_opened',
   'wilco_closing',
@@ -74,6 +77,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   usage: 'routine',
   // Nobody needs to be told that Wilco thought about something.
   reflected: 'trace',
+  said: 'routine',
   wilco_opened: 'notable',
   wilco_closing: 'notable',
   warning: 'notable',

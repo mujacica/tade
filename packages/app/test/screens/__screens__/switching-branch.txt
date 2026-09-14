@@ -1,15 +1,15 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                                                                    ▐ ctrl ▌+▐ space ▌ talk 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS             ▐  +  ▌ │                                                                                         
-   none yet — + starts one    │   Nothing is running in checkout.                                                       
-                              │                                                                                         
- ▾ CHANGES            vs╭─ Switch branch ──────────────────────────────────────────────── esc ─╮                        
-   open an agent to see │  fix▏                                                                │                        
-                        │ on main now                                                          │                        
+━━━━━━━━━━━━━━━━━━━━━━━━╭─ Switch branch ──────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS             ▐ │  fix▏                                                                │                        
+   none yet — + starts o│ on main now                                                          │                        
+                        │                                                                      │                        
+ ▾ CHANGES            vs│▌ + Create fix                                                        │                        
+   open an agent to see │    fix/refund-retries                                     3 days ago │                        
+                        │    fix/webhook-signature                                 2 weeks ago │                        
  ▾ FILES                │                                                                      │                        
-   ▾ src/               │▌ + Create fix                                                        │                        
-       webhooks.test.ts │    fix/refund-retries                                     3 days ago │                        
-       webhooks.ts      │    fix/webhook-signature                                 2 weeks ago │                        
+   ▾ src/               │                                                                      │                        
+       webhooks.test.ts │                                                                      │                        
+       webhooks.ts      │                                                                      │                        
    ▸ test/              │                                                                      │                        
      package.json       │                                                                      │                        
      README.md          │                                                                      │                        
@@ -20,15 +20,15 @@
    branch   …lco/stripe-│                                                                      │                        
    from     main        │                                                                      │                        
    worktree …ckout-strip│                                                                      │                        
-   path     /Users/me/.w│ ↑↓ choose · enter switches · a new name creates it        ▐ Cancel ▌ │                        
-━ ▐ orchestrator ▌ ▐ + ▌╰──────────────────────────────────────────────────────────────────────╯━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
+   path     /Users/me/.w│                                                                      │                        
+━ ▐ orchestrator ▌ ▐ + ▌│                                                                      │━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+                        │                                                                      │                        
+                        │                                                                      │                        
+                        │                                                                      │                        
+                        │                                                                      │                        
+                        │ ↑↓ choose · enter switches · a new name creates it        ▐ Cancel ▌ │                        
+                        ╰──────────────────────────────────────────────────────────────────────╯                        
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 

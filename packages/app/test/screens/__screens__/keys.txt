@@ -9,16 +9,16 @@
   A src/webhooks.test.ts  +│ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
   M src/webhooks.ts    +12 │                                                                │                           
                            │ SEARCH           ▐ ctrl ▌+▐ k ▌  agents, files, lines in files │                           
- ▾ FILES                   │ TERMINAL         click into it to type; tab, ctrl+c and esc are│                           
-   ▾ src/                  │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │,                          
-       webhooks.test.ts    │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
-       webhooks.ts         │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
-   ▸ test/                 │ QUIT             ▐ ctrl ▌+▐ c ▌                                │                           
-     package.json          │                                                                │                           
-     README.md             │ Everything else goes to the agent you're watching.             │                           
-                           │                                               ▐ Change keys… ▌ │───╮                       
- ▸ NOTES  4           ▐  + ╰────────────────────────────────────────────────────────────────╯   │                       
- ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+ ▾ FILES                   │ SAID BEFORE      ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you typed     │                           
+   ▾ src/                  │ TERMINAL         click into it to type; tab, ctrl+c and esc are│,                          
+       webhooks.test.ts    │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │                           
+       webhooks.ts         │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
+   ▸ test/                 │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
+     package.json          │ QUIT             ▐ ctrl ▌+▐ c ▌                                │                           
+     README.md             │                                                                │                           
+                           │ Everything else goes to the agent you're watching.             │───╮                       
+ ▸ NOTES  4           ▐  + │                                               ▐ Change keys… ▌ │   │                       
+ ▾ GIT                     ╰────────────────────────────────────────────────────────────────╯   │                       
    repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
    branch   …lco/stripe-v15   │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
@@ -31,4 +31,4 @@
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 

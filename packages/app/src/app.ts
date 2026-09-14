@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
@@ -81,9 +81,12 @@ import {
   onEvent,
   parseCommand,
   projects,
+  recallNewer,
+  recallOlder,
   resizeTo,
   scrollSidebar,
   scrollTranscript,
+  searchKey,
   selectProject,
   setDictation,
   setHeld,
@@ -92,6 +95,7 @@ import {
   shownName,
   showOrchestrator,
   showTerminal,
+  startHistorySearch,
   toggleFolder,
   toggleSection,
   viewLane,
@@ -196,6 +200,8 @@ const FRAME_MS = 250
 
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
+/** How much of what you said up and ctrl+r reach back through. */
+const HISTORY_MAX = 1_000
 /** How often extensions are asked what they keep in the status bar. */
 const STATUS_MS = 5_000
 
@@ -402,6 +408,8 @@ export class App {
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
+  /** What you said to Wilco, oldest first. */
+  private history: string[] = []
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
@@ -861,6 +869,7 @@ export class App {
       home: tilde(this.opts.home),
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
+      orchestratorAccount: this.thinkerAccount(),
       statuses: this.statuses,
       now: this.now(),
     }
@@ -1051,6 +1060,7 @@ export class App {
     )
     this.release = this.tui.addInputListener((data) => this.onInput(data))
     this.tui.start()
+    void this.loadHistory()
     this.timer = setInterval(() => void this.tick(), this.opts.frameMs ?? FRAME_MS)
     this.timer.unref?.()
     await this.tick()
@@ -1169,6 +1179,11 @@ export class App {
     }
     // Nothing focused means the orchestrator is, and it is a thing you type
     // at: a window with no agents used to swallow every keystroke.
+    if (this.state.focused === null && ['up', 'ctrl+r'].includes(parseKey(data) ?? '')) {
+      this.state = setDictation(this.state, '')
+      this.type(data)
+      return { consume: true }
+    }
     if (this.state.focused === null && printable(data)) {
       this.state = setDictation(this.state, data)
       this.draw()
@@ -2595,10 +2610,32 @@ export class App {
 
   /** Edit the dictation line. Enter sends it, as holding the key again would. */
   private type(data: string): void {
+    const key = parseKey(data)
+    // Searching back through what you said: the search has the keys until it ends.
+    if (this.state.historySearch) {
+      const searched = searchKey(this.state, this.history, key, data)
+      this.state = searched.state
+      if (searched.send) this.submit()
+      else this.draw()
+      return
+    }
     if (data === '\r' || data === '\n') {
       this.submit()
       return
     }
+    // What you said before, as a shell and pi bring it back.
+    if (key === 'up' || key === 'down' || key === 'ctrl+r') {
+      this.state =
+        key === 'up'
+          ? recallOlder(this.state, this.history)
+          : key === 'down'
+            ? recallNewer(this.state, this.history)
+            : startHistorySearch(this.state, this.history)
+      this.draw()
+      return
+    }
+    // Changing a line brought back makes it a new one.
+    this.state = { ...this.state, recall: null }
     const current = this.state.dictation ?? ''
     if (BACKSPACE.test(data)) {
       this.state = setDictation(this.state, current.slice(0, -1))
@@ -2611,13 +2648,48 @@ export class App {
     this.draw()
   }
 
+  /**
+   * Kept, verbatim, for up and ctrl+r: in this window at once, and in the
+   * journal so the next window has it too.
+   */
+  private rememberSaid(said: string): void {
+    if (this.history.at(-1) !== said) this.history.push(said)
+    if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX)
+    void this.opts.client.log
+      .append({ type: 'said', task: null, detail: { text: said } })
+      .catch(() => {})
+  }
+
+  /** What was said in windows before this one, oldest first, for up and ctrl+r. */
+  private async loadHistory(): Promise<void> {
+    const events = await this.opts.client
+      .events({ types: ['said'], limit: HISTORY_MAX })
+      .catch(() => [])
+    const before: string[] = []
+    const keep = (text: unknown) => {
+      if (typeof text === 'string' && text !== '' && before.at(-1) !== text) before.push(text)
+    }
+    for (const event of events) keep(event.detail.text)
+    // Before lines were journaled, what you asked the orchestrator is still in
+    // its own sessions, where pi keeps the conversation.
+    if (before.length === 0)
+      for (const text of sessionPrompts(join(this.opts.home, 'orchestrator', 'sessions')))
+        keep(text)
+    // Anything said while this was loading is newer than all of it.
+    this.history = [...before, ...this.history]
+  }
+
   /** Hand what was said to the surface, which works out who you meant. */
   private submit(): void {
     const said = (this.state.dictation ?? '').trim()
-    this.state = setListening(setDictation(this.state, null), false)
+    this.state = setListening(
+      setDictation({ ...this.state, recall: null, historySearch: null }, null),
+      false,
+    )
     this.draw()
     // A command is carried out here; anything else is a sentence for Wilco.
     if (said.startsWith('/')) {
+      this.rememberSaid(said)
       void this.act(said)
       return
     }
@@ -2917,6 +2989,7 @@ export class App {
   /** Everything addressed to Wilco arrives here, however it was said. */
   private say(said: string): void {
     if (said === '' || !this.voice) return
+    this.rememberSaid(said)
     // Shown the moment it is sent, not once something has answered it. The
     // pictures waiting go with it, and only with it.
     this.sending = this.state.attached
@@ -3273,6 +3346,15 @@ export class App {
    * answer says where to look instead of pretending.
    */
   /** The orchestrator's model as the config has it: `provider/id`, or the id alone. */
+  private thinkerAccount(): NonNullable<Frame['orchestratorAccount']> {
+    const { provider, model } = this.opts.config.orchestrator
+    const paying = provider ?? (model?.includes('/') ? (model.split('/')[0] ?? null) : null)
+    return {
+      provider: paying,
+      credential: paying ? credentialLabel(this.credentials[paying]) : null,
+    }
+  }
+
   private thinkerModel(): string | null {
     const { provider, model } = this.opts.config.orchestrator
     return model ? (provider ? `${provider}/${model}` : model) : null
@@ -4199,4 +4281,50 @@ export function freeViewportKeys(): void {
     if (id.startsWith('tui.altScreen.')) freed[id] = []
   }
   bindings.setUserBindings({ ...bindings.getUserBindings(), ...freed })
+}
+
+/** What was typed to the orchestrator in its pi sessions, oldest first; nothing when there are none. */
+export function sessionPrompts(dir: string, most = 1_000): string[] {
+  let files: string[] = []
+  try {
+    files = readdirSync(dir)
+      .filter((name) => name.endsWith('.jsonl'))
+      .sort()
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  for (const file of files) {
+    let text = ''
+    try {
+      text = readFileSync(join(dir, file), 'utf8')
+    } catch {
+      continue
+    }
+    for (const line of text.split('\n')) {
+      if (!line.includes('"role":"user"')) continue
+      try {
+        const entry = JSON.parse(line) as {
+          type?: string
+          message?: { role?: string; content?: unknown }
+        }
+        if (entry.type !== 'message' || entry.message?.role !== 'user') continue
+        const content = entry.message.content
+        const said =
+          typeof content === 'string'
+            ? content
+            : Array.isArray(content)
+              ? content
+                  .map((part: { type?: string; text?: string }) =>
+                    part?.type === 'text' ? (part.text ?? '') : '',
+                  )
+                  .join('')
+              : ''
+        if (said.trim()) out.push(said.trim())
+      } catch {
+        // A line pi is still writing, or not ours to read.
+      }
+    }
+  }
+  return out.slice(-most)
 }

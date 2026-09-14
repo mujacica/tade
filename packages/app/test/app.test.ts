@@ -99,10 +99,14 @@ function screenOf(written: string): string[] {
 }
 
 /** Wait for something to become true, rather than for a fixed time. */
-async function until(what: string, ok: () => boolean, ms = 5_000): Promise<void> {
+async function until(
+  what: string,
+  ok: () => boolean | Promise<boolean>,
+  ms = 5_000,
+): Promise<void> {
   const deadline = Date.now() + ms
   while (Date.now() < deadline) {
-    if (ok()) return
+    if (await ok()) return
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
   throw new Error(`timed out waiting for ${what}`)
@@ -254,6 +258,88 @@ describe('the window, wired up', () => {
     expect(asked[0]).toBe('why is refunds slow')
     await until('the answer on screen', () =>
       terminal.written.includes('because the webhook retries twice'),
+    )
+  })
+
+  it('brings back what you said with up, and finds it with ctrl+r, in the next window too', async () => {
+    const asked: string[] = []
+    const thinker = {
+      ask: async (text: string) => {
+        asked.push(text)
+        return 'ok'
+      },
+    }
+    await start({ thinker })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    for (const line of ['why is refunds slow', 'what changed in search']) {
+      terminal.press('\x00')
+      for (const char of line) terminal.press(char)
+      terminal.press('\r')
+    }
+    await until('both to be asked', () => asked.length === 2)
+    await until(
+      'both journaled',
+      async () => (await client.events({ types: ['said'] })).length === 2,
+    )
+    const line = () =>
+      screenOf(terminal.written).find((row) => row.startsWith(' ◉') || row.startsWith(' ›')) ?? ''
+
+    // Up twice is the one before last; enter sends it again.
+    terminal.press('\x00')
+    terminal.press('\x1b[A')
+    terminal.press('\x1b[A')
+    await until('the older line back', () => line().includes('why is refunds slow▏'))
+    terminal.press('\x1b[B')
+    await until('the newer line back', () => line().includes('what changed in search▏'))
+    terminal.press('\x1b')
+
+    // A new window finds it in the journal: ctrl+r, a few letters, enter.
+    await app?.stop()
+    await start({ thinker })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    terminal.press('\x12')
+    for (const char of 'refunds') terminal.press(char)
+    await until('the match', () =>
+      screenOf(terminal.written).some(
+        (row) => row.includes('search: refunds▏') && row.includes('why is refunds slow'),
+      ),
+    )
+    terminal.press('\r')
+    await until('it sent again', () => asked.length === 3)
+    expect(asked[2]).toBe('why is refunds slow')
+  })
+
+  it("shows the orchestrator's model in the status bar, and switches it from there", async () => {
+    terminal.columns = 140
+    await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        orchestrator: { provider: 'openrouter', model: 'anthropic/claude-opus-5' },
+      }),
+      models: async () => [
+        { id: 'openrouter/anthropic/claude-opus-5', provider: 'openrouter', name: 'Claude Opus 5' },
+        ...Array.from({ length: 40 }, (_, i) => ({
+          id: `openrouter/vendor/model-${i}`,
+          provider: 'openrouter',
+          name: `Model ${i}`,
+        })),
+      ],
+    })
+    await until(
+      'the model in the footer',
+      () => screenOf(terminal.written).at(-1)?.includes('claude-opus-5 ▾') ?? false,
+    )
+    const chip = find('claude-opus-5 ▾')
+    click(chip.col + 1, chip.row)
+    await until('the picker', () =>
+      screenOf(terminal.written).some((row) => row.includes('Model for the orchestrator')),
+    )
+    // The wheel over the list moves through it, as far as it goes.
+    const list = find('model-3 ')
+    for (let i = 0; i < 12; i++) terminal.press(`\x1b[<65;${list.col + 1};${list.row + 1}M`)
+    await until('scrolled down the list', () =>
+      screenOf(terminal.written).some((row) => row.includes('model-35')),
     )
   })
 

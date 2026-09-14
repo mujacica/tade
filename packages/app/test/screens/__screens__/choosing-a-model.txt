@@ -1,15 +1,15 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds  ╭─ Model for the orchestrator ─────────────────────────────────────────────────────────── esc ─╮            
-            │  ▏type to narrow: opus, kimi, openrouter…                                                    │            
- ▾ CHANGES  │ the orchestrator is on openrouter/anthropic/claude-opus-5                                    │            
-  M package.│                                                                                              │            
-  A src/webh│  ● anthropic/claude-opus-5                                        Claude Opus 5 · openrouter │            
-  M src/webh│▌   anthropic/claude-sonnet-5                                    Claude Sonnet 5 · openrouter │            
-            │    moonshotai/kimi-k2.6                                               Kimi K2.6 · openrouter │            
- ▾ FILES    │    claude-opus-5                                                   Claude Opus 5 · anthropic │            
+━━━━━━━━━━━━╭─ Model for the orchestrator ─────────────────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━
+ ▾ AGENTS  2│  ▏type to narrow: opus, kimi, openrouter…                                                    │██░░░░░ 41% 
+▌● stripe-v1│ the orchestrator is on openrouter/anthropic/claude-opus-5                                    │────────────
+ ○ refunds  │                                                                                              │            
+            │  ● anthropic/claude-opus-5                                        Claude Opus 5 · openrouter │            
+ ▾ CHANGES  │▌   anthropic/claude-sonnet-5                                    Claude Sonnet 5 · openrouter │            
+  M package.│    moonshotai/kimi-k2.6                                               Kimi K2.6 · openrouter │            
+  A src/webh│    claude-opus-5                                                   Claude Opus 5 · anthropic │            
+  M src/webh│                                                                                              │            
+            │                                                                                              │            
+ ▾ FILES    │                                                                                              │            
    ▾ src/   │                                                                                              │            
        webho│                                                                                              │            
        webho│                                                                                              │            
@@ -21,14 +21,14 @@
  ▾ GIT      │                                                                                              │            
    repo     │                                                                                              │            
    branch   │                                                                                              │            
-━ ▐ orchestr│ ↑↓ choose · enter switches · 4 of 4                                               ▐ Cancel ▌ │ ⤢ ▌ ▐ ▾ ▌ ━
+━ ▐ orchestr│                                                                                              │ ⤢ ▌ ▐ ▾ ▌ ━
+            │                                                                                              │            
+            │                                                                                              │            
+            │                                                                                              │            
+            │                                                                                              │            
+            │ ↑↓ choose · enter switches · 4 of 4                                               ▐ Cancel ▌ │            
             ╰──────────────────────────────────────────────────────────────────────────────────────────────╯            
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
  ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                  claude-opus-5 │ 1.9M tok │ $2.66 today ▾ 
+ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 

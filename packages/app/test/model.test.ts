@@ -7,19 +7,24 @@ import {
   focusTask,
   glyph,
   headline,
+  historyMatch,
   initialState,
   keyAction,
   noteTyping,
   onEvent,
   parseCommand,
   projects,
+  recallNewer,
+  recallOlder,
   resizeTo,
+  searchKey,
   selectProject,
   setDictation,
   setListening,
   showOrchestrator,
   showTerminal,
   sidebar,
+  startHistorySearch,
   type TaskSnapshot,
   tasksOf,
   terminalsOf,
@@ -330,5 +335,49 @@ describe('the bottom panel', () => {
     )
     expect(bottom).toMatchObject({ sizes: { stripHeight: 18 }, bottomMode: 'open' })
     expect(resizeTo(state(), { x: 1, y: 1 }, { height: 50 }).sizes).toEqual({})
+  })
+})
+
+describe('what you said before', () => {
+  const history = ['status', 'park refunds', 'why is refunds slow']
+
+  it('comes back with up, newest first, and down returns to what you were typing', () => {
+    let state = setDictation(initialState(), 'half a th')
+    state = recallOlder(state, history)
+    expect(state.dictation).toBe('why is refunds slow')
+    state = recallOlder(recallOlder(recallOlder(state, history), history), history)
+    expect(state.dictation).toBe('status')
+    state = recallNewer(recallNewer(state, history), history)
+    expect(state.dictation).toBe('why is refunds slow')
+    state = recallNewer(state, history)
+    expect(state.dictation).toBe('half a th')
+    expect(state.recall).toBeNull()
+    expect(recallOlder(setDictation(initialState(), ''), []).dictation).toBe('')
+  })
+
+  it('is searched back through as ctrl+r does, and escape puts the line back', () => {
+    let state = startHistorySearch(setDictation(initialState(), 'draft'), history)
+    for (const char of 'refunds') state = searchKey(state, history, undefined, char).state
+    expect(state.dictation).toBe('why is refunds slow')
+    state = searchKey(state, history, 'ctrl+r', '\x12').state
+    expect(state.dictation).toBe('park refunds')
+    // Nothing older matches: it stays on the last it found.
+    expect(searchKey(state, history, 'ctrl+r', '\x12').state.dictation).toBe('park refunds')
+    expect(searchKey(state, history, 'escape', '\x1b').state).toMatchObject({
+      dictation: 'draft',
+      historySearch: null,
+    })
+    expect(searchKey(state, history, 'enter', '\r')).toMatchObject({
+      send: true,
+      state: { dictation: 'park refunds', historySearch: null },
+    })
+    let missing = startHistorySearch(setDictation(initialState(), 'draft'), history)
+    for (const char of 'zzz') missing = searchKey(missing, history, undefined, char).state
+    expect(missing.historySearch?.missing).toBe(true)
+    expect(searchKey(missing, history, 'enter', '\r')).toMatchObject({
+      send: false,
+      state: { dictation: 'draft' },
+    })
+    expect(historyMatch(history, { query: 'STATUS', skip: 0 })).toBe('status')
   })
 })

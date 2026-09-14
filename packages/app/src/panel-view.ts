@@ -216,7 +216,8 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   const width = Math.min(96, ctx.width - 4)
   const inner = width - 2
   const choices = modelChoices(ctx.models, panel.query)
-  const room = Math.max(4, Math.min(14, ctx.height - 12))
+  // As tall as the window allows: a long list is scrolled, never cut short.
+  const room = Math.max(4, Math.min(40, ctx.height - 12))
   const rows: { text: string; hits: Hit[] }[] = [
     new Row(inner, skin)
       .space()
@@ -673,7 +674,7 @@ function search(panel: SearchPanel, ctx: PanelContext): Drawn {
     for (const { entry, at } of members)
       lines.push({ ...resultRow(entry, at, at === panel.index, inner, query.text, ctx), at })
   }
-  const room = Math.max(6, Math.min(22, ctx.height - 12))
+  const room = Math.max(6, Math.min(40, ctx.height - 12))
   const chosenLine = Math.max(
     0,
     lines.findIndex((line) => line.at === panel.index),
@@ -923,6 +924,14 @@ function keysSheet(ctx: PanelContext): Drawn {
       .keys(['ctrl', 'k'])
       .space(2)
       .text('agents, files, lines in files', skin.hint)
+      .build(),
+    label('SAID BEFORE')
+      .keys(['↑'])
+      .keys(['↓'])
+      .space()
+      .keys(['ctrl', 'r'])
+      .space(2)
+      .text('what you typed', skin.hint)
       .build(),
     label('TERMINAL')
       .text("click into it to type; tab, ctrl+c and esc are the shell's", skin.hint)
@@ -1805,7 +1814,7 @@ function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
   const width = Math.min(72, ctx.width - 4)
   const inner = width - 2
   const choices = branchChoices(ctx.branches, panel.query)
-  const room = Math.max(4, Math.min(12, ctx.height - 12))
+  const room = Math.max(4, Math.min(40, ctx.height - 12))
   const rows: { text: string; hits: Hit[] }[] = [
     new Row(inner, skin)
       .space()

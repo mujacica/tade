@@ -159,6 +159,11 @@ file and cannot be tested.
   `ExtensionHost.statuses()` (polled in `tick`, never awaited by a frame) into `Frame.statuses`; a
   click opens the `extension-view` panel on `host.view()`. Add a hook to the extension port rather
   than a special case for one extension here.
+- **Every panel scrolls under the wheel.** `draw` lays a scroll hit under each panel, and the wheel
+  becomes ↑/↓ for it — so a list panel must keep its selection in view (window its rows around the
+  index) and use the height it has, rather than a fixed handful of rows.
+- **What you type to Wilco is journaled** (`said` events) and comes back with ↑/↓ and ctrl+r on the
+  line, only while the line is open — anywhere else those keys are the agent's.
 - **What drawing costs is tested** in `screens.test.ts` over every scenario. If a change makes a
   frame slow, cache what it formats (as the transcript and file viewer do) rather than raising it.
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
