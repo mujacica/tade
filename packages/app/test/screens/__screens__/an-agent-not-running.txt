@@ -3,7 +3,7 @@
                                                                                                                         
  ▾ AGENTS  1          ▐  +  ▌ │ search › pagination  ▐ agent ▌ ▐ + ▌        ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ ctx ██░░░░ 41% 
                               │─────────────────────────────────────────────────────────────────────────────────────────
-▌● pagination     ▐ × ▌ ▐ ≡ ▌ │                                                                                         
+▌● pagination                 │                                                                                         
                               │  Ready for review, and no agent is running.                                             
  ▾ CHANGES            vs main │                                                                                         
    nothing changed            │  ▐ Open its agent ▌ picks the conversation up where it stopped                          

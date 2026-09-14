@@ -999,6 +999,18 @@ describe('the window, wired up', () => {
     click(status.col + 1, status.row)
     await until('the spend panel', () => terminal.written.includes('BUDGETS'))
   })
+
+  it('shows agent spend in the status bar', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('today'))
+    terminal.written = ''
+    await client.log.append({
+      type: 'usage',
+      task: 'app/refunds',
+      detail: { model: 'anthropic/claude-sonnet-5', tokens: 1500, usd: 0.351 },
+    })
+    await until('agent spend in status bar', () => terminal.written.includes('$0.35'))
+  })
 })
 
 describe('a project with nothing in it', () => {

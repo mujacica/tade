@@ -368,3 +368,31 @@ describe('the bottom panel and its handles', () => {
     expect(tabRow(folded.rows)).toBe(30 - 3)
   })
 })
+
+describe('agent spend', () => {
+  it('shows in the status bar when money was spent, even with zero tokens', () => {
+    const rows = renderApp(state(), {
+      ...frame(),
+      spend: { tokens: 0, usd: 0.351, hasCost: true, byTask: {} },
+    })
+    const footer = plain(rows[rows.length - 1] ?? '')
+    expect(footer).toContain('today')
+    expect(footer).toContain('$0.35')
+  })
+
+  it('shows in the task list when an agent has spent money', () => {
+    const focused = focusTask(state(), 'search/pagination')
+    const rows = renderApp(focused, {
+      ...frame(),
+      spend: {
+        tokens: 1_500,
+        usd: 0.351,
+        hasCost: true,
+        byTask: { 'search/pagination': { tokens: 1_500, usd: 0.351 } },
+      },
+    })
+    const text = plain(rows.join('\n'))
+    expect(text).toContain('pagination')
+    expect(text).toContain('$0.35')
+  })
+})

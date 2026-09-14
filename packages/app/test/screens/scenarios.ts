@@ -152,6 +152,7 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
     byTask: {
       'checkout/stripe-v15': { tokens: 880_000, usd: 1.26 },
       'checkout/refunds': { tokens: 460_000, usd: 0.62 },
+      'search/pagination': { tokens: 148_000, usd: 0.2 },
     },
   },
   route: {

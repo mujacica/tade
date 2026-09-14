@@ -24,6 +24,7 @@ import {
   terminalMenuItems,
 } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
+import { spendView } from '../src/spend.ts'
 
 // What a key or a click does to a panel, without a terminal.
 
@@ -43,6 +44,38 @@ describe('the Spend panel', () => {
     expect(panelClick(spendPanel(), 'by:model').panel).toMatchObject({ by: 'model' })
     expect(panelClick(spendPanel(), 'window:week').panel).toMatchObject({ window: 'week' })
     expect(panelKey(spendPanel(), 'escape', '').panel).toBeNull()
+  })
+
+  it('includes agent spend in the rows', () => {
+    const view = spendView(
+      [
+        {
+          seq: 1,
+          ts: new Date().toISOString(),
+          type: 'usage',
+          urgency: 'routine',
+          task: 'search/pagination',
+          lane: null,
+          run: 'search/pagination/agent',
+          detail: { model: 'anthropic/claude-sonnet-5', tokens: 1500, usd: 0.351 },
+        },
+      ],
+      {
+        window: 'today',
+        by: 'agent',
+        now: Date.now(),
+        openedAt: Date.now() - 3_600_000,
+        projects: ['checkout', 'search'],
+        budgets: {},
+      },
+    )
+    expect(view.rows).toHaveLength(1)
+    expect(view.rows[0]).toMatchObject({
+      label: 'search/pagination',
+      kind: 'task',
+      tokens: 1500,
+      usd: 0.351,
+    })
   })
 })
 

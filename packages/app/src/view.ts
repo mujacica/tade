@@ -1671,7 +1671,7 @@ function renderFoot(
   const switcher: Target = { kind: 'action', name: 'model:orchestrator' }
   const thinker = frame.orchestratorModel
   const account = frame.orchestratorAccount
-  const spent = spend && spend.tokens > 0
+  const spent = spend && (spend.tokens > 0 || spend.hasCost)
   // Said in full where there is room, and shed from the left where there is
   // not: what it costs is the part worth keeping on a small terminal.
   const full = { model: true, account: true, tokens: true }
