@@ -472,7 +472,7 @@ function renderTop(
       r.text(label, skin.waiting, { kind: 'action', name: 'next-waiting' }).space(2)
     }
     if (working > 0 && (show.counts === 'full' || show.counts === 'short')) {
-      r.text(show.counts === 'full' ? `○ ${working} working` : `○ ${working}`, skin.busy).space(3)
+      r.text(show.counts === 'full' ? `● ${working} working` : `● ${working}`, skin.busy).space(3)
     }
     // Search, beside talking: the two keys that work from anywhere.
     if (show.search) {
@@ -611,7 +611,10 @@ function renderSidebar(
       rows: (row) =>
         notes.length === 0
           ? [row().space(3).text('tell Wilco "remember …"', skin.hint).build()]
-          : notes.map((text) => row().space(3).text(text, skin.hint).build()),
+          : notes.flatMap((text, i) => [
+              row().space(3).text(text, skin.hint).build(),
+              ...(i < notes.length - 1 ? [blank(width)] : []),
+            ]),
     },
     {
       id: 'where',
@@ -646,7 +649,7 @@ function renderSidebar(
       head.right((r) => r.text(note, skin.hint).space())
     }
     out.push(head.build())
-    if (open && section.id === 'agents') out.push(blank(width))
+    if (open && (section.id === 'agents' || section.id === 'notes')) out.push(blank(width))
     if (open) out.push(...section.rows(make))
   })
   // Tailing is for screens that grow at the bottom; a sidebar is read from the
@@ -796,12 +799,14 @@ function taskRow(
     if (spent && (spent.usd > 0 || spent.tokens > 0)) {
       r.text(spent.usd > 0 ? dollars(spent.usd) : tokens(spent.tokens), skin.hint, target).space()
     }
-    // The menu mark, and its click, only where it is drawn: on the task you
-    // are on, or the one under the pointer. An invisible button is a trap.
+    // Close and menu marks, and their clicks, only where they are drawn: on
+    // the task you are on, or the one under the pointer. An invisible button
+    // is a trap.
     if (task.focused || hovered) {
+      r.button('×', { kind: 'action', name: `close-task:${task.task}` }, 'danger').space()
       r.button('≡', { kind: 'task-menu', task: task.task }).space()
     } else {
-      r.space(6)
+      r.space(11)
     }
   })
   const built = row.build()
@@ -870,7 +875,7 @@ export function shortPath(path: string, room: number): string {
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
   if (pane.waiting || pane.state === 'blocked') return skin.waiting
   if (pane.state === 'failed') return skin.bad
-  if (pane.state === 'review') return skin.done
+  if (pane.state === 'review' || pane.state === 'merged') return skin.done
   if (pane.state === 'working') return skin.busy
   return skin.hint
 }
@@ -933,6 +938,10 @@ function renderMain(
           .text(` ${Math.round(percent)}%`, skin.hint)
       }
       r.space()
+      // Close this agent, when it is running.
+      if (pane.lane !== null) {
+        r.button('×', { kind: 'action', name: `close-task:${pane.task}` }, 'danger').space()
+      }
     }
     // Shed the context meter before the controls, where the header is short of room.
     const probe = new Row(width, skin)
@@ -1459,7 +1468,10 @@ function inputBox(
   if (state.attached.length > 0) {
     top.text('─ ', rule)
     for (const path of state.attached) {
-      top.text(`▣ ${path.split('/').at(-1) ?? path}`, skin.busy).text(' ─ ', rule)
+      top
+        .text(`▣ ${path.split('/').at(-1) ?? path}`, skin.busy)
+        .button('×', { kind: 'action', name: `detach-image:${path}` })
+        .text(' ─ ', rule)
     }
   }
   const controls = (r: Row) => {
