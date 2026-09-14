@@ -749,14 +749,14 @@ export class App {
     try {
       writeSetting(this.configPath, 'orchestrator.provider', model.provider)
       writeSetting(this.configPath, 'orchestrator.model', model.id)
-      this.opts.config = {
+      this.useConfig({
         ...this.opts.config,
         orchestrator: {
           ...this.opts.config.orchestrator,
           model: model.id,
           ...(model.provider ? { provider: model.provider } : {}),
         },
-      }
+      })
     } catch {
       // Not writable: it still runs, only without the promise to stay put.
     }
@@ -2501,7 +2501,7 @@ export class App {
     try {
       const chosen = await this.opts.client.setAgentThinking(task, level)
       const loaded = await loadConfig(this.configPath)
-      if (loaded.ok) this.opts.config = loaded.config
+      if (loaded.ok) this.useConfig(loaded.config)
       this.state = notice(
         this.state,
         `${task} thinks at ${chosen} from its next turn, and new agents start there`,
@@ -2688,13 +2688,13 @@ export class App {
     } catch {
       // Not writable: muted for this window only.
     }
-    this.opts.config = {
+    this.useConfig({
       ...this.opts.config,
       surfaces: {
         ...this.opts.config.surfaces,
         voice: { ...this.opts.config.surfaces.voice, muted },
       },
-    }
+    })
     this.state = notice(
       this.state,
       muted ? 'muted: nothing will be said or played' : 'sound back on',
@@ -4325,7 +4325,7 @@ export class App {
         writeSetting(this.configPath, 'orchestrator.provider', provider)
         writeSetting(this.configPath, 'orchestrator.model', rest.join('/'))
         const loaded = await loadConfig(this.configPath)
-        if (loaded.ok) this.opts.config = loaded.config
+        if (loaded.ok) this.useConfig(loaded.config)
         this.state = { ...this.state, panel: null }
         this.state = notice(this.state, `the orchestrator is moving to ${rest.join('/')}`)
         this.draw()
@@ -4444,7 +4444,7 @@ export class App {
       .join()
     const loaded = await loadConfig(this.configPath)
     if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
-    this.opts.config = loaded.config
+    this.useConfig(loaded.config)
     await host.reconfigure(loaded.config.extensions)
     this.linkers = host.linkers()
     if (
@@ -4885,8 +4885,7 @@ export class App {
       addProject(this.configPath, name, tilde(chosen.path))
       const loaded = await loadConfig(this.configPath)
       if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
-      this.opts.config = loaded.config
-      this.live?.useConfig(loaded.config)
+      this.useConfig(loaded.config)
       noteRecent(this.opts.home, name, tilde(chosen.path), this.now())
       this.state = withProjects(this.state, Object.keys(loaded.config.projects))
       this.state = notice({ ...selectProject(this.state, name), panel: null }, `opened ${name}`)
@@ -4950,6 +4949,18 @@ export class App {
    * refuses is put back as it was, with the reason in the panel — never left
    * in a file Wilco will not open next time.
    */
+  /**
+   * The config as it is now, everywhere that holds one. The workbench keeps its
+   * own copy, and it is the one that decides where agents work, how many may
+   * run and what they are told: a setting saved here that only the window saw
+   * would say "applies now" and apply to nothing.
+   */
+  private useConfig(config: Config): void {
+    this.opts.config = config
+    this.opts.client.config = config
+    this.live?.useConfig(config)
+  }
+
   private async saveSetting(panel: SettingsPanel, path: string, value: string): Promise<void> {
     const setting = settingsOf(this.opts.config)
       .flatMap((group) => group.settings)
@@ -4984,7 +4995,7 @@ export class App {
         writeFileSync(this.configPath, before)
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
-      this.opts.config = loaded.config
+      this.useConfig(loaded.config)
       const said =
         setting?.live === false
           ? `Saved. ${setting.title} applies when Wilco next starts.`

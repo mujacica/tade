@@ -738,6 +738,20 @@ describe('the window, wired up', () => {
     expect(terminal.written).toContain('Accounts')
   })
 
+  it('saves where agents work so the workbench starts the next one there', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents work'))
+    terminal.written = ''
+    // Two choices are radios: the arrow moves to the other one and saves it.
+    terminal.press('\x1b[C')
+    await until('saved', () => terminal.written.includes('applies now'))
+    // The workbench's own copy is the one that decides where a task is made.
+    expect(client.config.agents.workspace).toBe('worktree')
+  })
+
   it("opens an agent's menu with a right-click, listing what can be done", async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
