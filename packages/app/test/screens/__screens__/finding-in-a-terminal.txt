@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
-▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │                                                                                         
+                              │                                                                                         
  ○ refunds        $0.62       │                                                                                         
                               │                                                                                         
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │                                                                                         
   A src/webhooks.test.ts  +48 │                                                                                         
-  M src/webhooks.ts    +12 −4 │                                                                                         
-                              │                                                                                         
- ▾ FILES                      │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-   ▾ src/                     │    so src/webhooks.ts needs the new constructEvent signature.                           
-       webhooks.test.ts       │                                                                                         
-       webhooks.ts            │  ▸ Read src/webhooks.ts                                                                 
-   ▸ test/                    │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-     package.json             │  ▸ bash npm i stripe@15                                                                 
-     README.md                │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-                              │  │ bash  npm i stripe@15                                        │                       
- ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌   ╭─ Find in tests ────────────────────────────────── esc ─╮ 
- ▾ GIT                        │  ╰───────────────────────────│  assert▏                           1 of 2   ▐ ↑ ▌▐ ↓ ▌ │ 
-   repo     ~/src/checkout    │                              ╰────────────────────────────────────────────────────────╯ 
+  M src/webhooks.ts    +12 −4 │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+                              │    so src/webhooks.ts needs the new constructEvent signature.                           
+ ▾ FILES                      │                                                                                         
+   ▾ src/                     │  ▸ Read src/webhooks.ts                                                                 
+       webhooks.test.ts       │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+       webhooks.ts            │  ▸ bash npm i stripe@15                                                                 
+   ▸ test/                    │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+     package.json             │  │ bash  npm i stripe@15                                        │                       
+     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌   ╭─ Find in tests ────────────────────────────────── esc ─╮ 
+                              │  ╰───────────────────────────│  assert▏                           1 of 2   ▐ ↑ ▌▐ ↓ ▌ │ 
+ ▸ NOTES  4           ▐  +  ▌ │                              ╰────────────────────────────────────────────────────────╯ 
 ━   orchestrator   ▐ tests ▌ ▐ ▾ ▌▐ × ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⌕ ▌ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
  ✓ src/ledger.test.ts (4 tests)                                                                                         

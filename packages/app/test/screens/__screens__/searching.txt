@@ -2,15 +2,17 @@
 ━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
           │ ⌕ webhook▏                                                                                       │          
  ▾ AGENTS │     @ agents     # in files     > actions                                 file:42 goes to a line │pus-5 ▾ ▌ 
-▌● stripe-│                                                                                                  │──────────
- ○ refunds│ FILES  4                                                                                         │          
+          │                                                                                                  │──────────
+▌● stripe-│ FILES  4                                                                                         │          
           │  □ src/webhooks.ts  checkout                                                                     │          
- ▾ CHANGES│▌ □ src/webhooks.ts  checkout › stripe-v15                                                        │          
-  M packag│  □ src/webhooks.test.ts  checkout                                                                │          
-  A src/we│  □ src/webhooks.test.ts  checkout › stripe-v15                                                   │          
-  M src/we│ IN FILES  2                                                                                      │          
-          │  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync(  │          
- ▾ FILES  │  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
+ ○ refunds│▌ □ src/webhooks.ts  checkout › stripe-v15                                                        │          
+          │  □ src/webhooks.test.ts  checkout                                                                │          
+ ▾ CHANGES│  □ src/webhooks.test.ts  checkout › stripe-v15                                                   │          
+  M packag│ IN FILES  2                                                                                      │          
+  A src/we│  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync(  │          
+  M src/we│  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
+          │                                                                                                  │          
+ ▾ FILES  │                                                                                                  │          
    ▾ src/ │                                                                                                  │          
        web│                                                                                                  │          
        web│                                                                                                  │          
@@ -19,8 +21,6 @@
      READM│                                                                                                  │          
           │                                                                                                  │          
  ▸ NOTES  │                                                                                                  │          
- ▾ GIT    │                                                                                                  │          
-   repo   │                                                                                                  │          
 ━ ▐ orches│                                                                                                  │ ▌ ▐ ▾ ▌ ━
           │                                                                                                  │          
           │                                                                                                  │          

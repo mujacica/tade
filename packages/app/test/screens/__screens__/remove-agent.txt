@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
-▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds        $0.62       │                                                                                         
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │                                                                                         
                               │                                                                                         
- ▾ CHANGES  3         vs ma╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
-  M package.json        +2 │                                                                │                           
-  A src/webhooks.test.ts  +│ Its worktree has work that isn't merged:                       │                           
-  M src/webhooks.ts    +12 │   M package.json                                               │                           
-                           │   A src/webhooks.test.ts                                       │                           
- ▾ FILES                   │   M src/webhooks.ts                                            │,                          
-   ▾ src/                  │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
-       webhooks.test.ts    │                                                                │                           
-       webhooks.ts         │ Removing deletes the worktree and the branch. The agent's      │                           
-   ▸ test/                 │ conversation stays in pi's sessions.                           │                           
-     package.json          │                                                                │                           
-     README.md             │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
-                           ╰────────────────────────────────────────────────────────────────╯   │                       
- ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
-   repo     ~/src/checkout    │                                                                                         
+ ○ refunds        $0.62    ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
+                           │                                                                │                           
+ ▾ CHANGES  3         vs ma│ Its worktree has work that isn't merged:                       │                           
+  M package.json        +2 │   M package.json                                               │                           
+  A src/webhooks.test.ts  +│   A src/webhooks.test.ts                                       │                           
+  M src/webhooks.ts    +12 │   M src/webhooks.ts                                            │,                          
+                           │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
+ ▾ FILES                   │                                                                │                           
+   ▾ src/                  │ Removing deletes the worktree and the branch. The agent's      │                           
+       webhooks.test.ts    │ conversation stays in pi's sessions.                           │                           
+       webhooks.ts         │                                                                │                           
+   ▸ test/                 │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
+     package.json          ╰────────────────────────────────────────────────────────────────╯   │                       
+     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

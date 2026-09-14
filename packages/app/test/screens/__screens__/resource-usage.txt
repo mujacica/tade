@@ -2,25 +2,25 @@
 ━━━━━╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
      │ Wilco is using 91% CPU and 783 MB of memory, across 7 processes.                                           │     
  ▾ AG│                                                                                                            │ ▾ ▌ 
-▌● st│ ### By project                                                                                             │─────
- ○ re│                                                                                                            │     
+     │ ### By project                                                                                             │─────
+▌● st│                                                                                                            │     
      │ ```                                                                                                        │     
- ▾ CH│                 CPU               memory                                                                   │     
-  M p│   checkout      ████████░░   76%  █████░░░░░  369 MB                                                       │     
-  A s│   Wilco itself  ██░░░░░░░░   15%  █████░░░░░  414 MB                                                       │     
-  M s│ ```                                                                                                        │     
+ ○ re│                 CPU               memory                                                                   │     
+     │   checkout      ████████░░   76%  █████░░░░░  369 MB                                                       │     
+ ▾ CH│   Wilco itself  ██░░░░░░░░   15%  █████░░░░░  414 MB                                                       │     
+  M p│ ```                                                                                                        │     
+  A s│                                                                                                            │     
+  M s│ ### By kind                                                                                                │     
      │                                                                                                            │     
- ▾ FI│ ### By kind                                                                                                │     
-   ▾ │                                                                                                            │     
-     │ ```                                                                                                        │     
-     │                         CPU               memory                                                           │     
-   ▸ │   agents                ████████░░   76%  █████░░░░░  361 MB                                               │     
+ ▾ FI│ ```                                                                                                        │     
+   ▾ │                         CPU               memory                                                           │     
+     │   agents                ████████░░   76%  █████░░░░░  361 MB                                               │     
      │   the orchestrator      █░░░░░░░░░   12%  ████░░░░░░  293 MB                                               │     
-     │   the window            ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                               │     
+   ▸ │   the window            ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                               │     
      │   terminals             ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                               │     
- ▸ NO│   helpers (git, ps, …)  ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                               │     
- ▾ GI│ ```                                                                                                        │     
-   re│                                                                                                            │     
+     │   helpers (git, ps, …)  ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                               │     
+     │ ```                                                                                                        │     
+ ▸ NO│                                                                                                            │     
 ━ ▐ o│ ### By agent and terminal                                                                                  │▾ ▌ ━
      │                                                                                                            │     
      │ ```                                                                                                        │     

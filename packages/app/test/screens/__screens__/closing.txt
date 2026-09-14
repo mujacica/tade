@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
-▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds        $0.62       │                                                                                         
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │                                                                                         
                               │                                                                                         
- ▾ CHANGES  3         vs main╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
+ ○ refunds        $0.62      ╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
+                             │                                                            │                             
+ ▾ CHANGES  3         vs main│ 2 agents are running inside this window.                   │                             
   M package.json        +2 −1│                                                            │                             
-  A src/webhooks.test.ts  +48│ 2 agents are running inside this window.                   │                             
-  M src/webhooks.ts    +12 −4│                                                            │                             
-                             │ Agents here run under pty, so closing stops them. Their    │                             
- ▾ FILES                     │ conversations are kept, and each one picks up where it     │ed,                          
-   ▾ src/                    │ stopped the next time you open its task.                   │e.                           
-       webhooks.test.ts      │                                                            │                             
-       webhooks.ts           │ Under tmux they would keep working after you close.        │                             
-   ▸ test/                   │ Settings › Agents › Where agents run                       │                             
-     package.json            │                                                            │                             
-     README.md               │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
-                             ╰────────────────────────────────────────────────────────────╯     │                       
- ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
-   repo     ~/src/checkout    │                                                                                         
+  A src/webhooks.test.ts  +48│ Agents here run under pty, so closing stops them. Their    │                             
+  M src/webhooks.ts    +12 −4│ conversations are kept, and each one picks up where it     │ed,                          
+                             │ stopped the next time you open its task.                   │e.                           
+ ▾ FILES                     │                                                            │                             
+   ▾ src/                    │ Under tmux they would keep working after you close.        │                             
+       webhooks.test.ts      │ Settings › Agents › Where agents run                       │                             
+       webhooks.ts           │                                                            │                             
+   ▸ test/                   │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
+     package.json            ╰────────────────────────────────────────────────────────────╯     │                       
+     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

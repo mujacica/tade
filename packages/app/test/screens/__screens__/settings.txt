@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         ╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮        
  ▾ AGENT│  search settings       │ Voice                                                                       │s-5 ▾ ▌ 
-▌● strip│                        │ How you talk to Wilco, and how it talks back.                               │────────
- ○ refun│  Agents                │                                                                             │        
+        │                        │ How you talk to Wilco, and how it talks back.                               │────────
+▌● strip│  Agents                │                                                                             │        
         │  Models                │▌Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
- ▾ CHANG│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
-  M pack│  Approvals      bypass │                                                                             │        
-  A src/│▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
-  M src/│  Window                │                                                                             │        
-        │  Projects           3  │ Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
- ▾ FILES│  Budgets           ● 1 │                                                                             │        
-   ▾ src│  Keys                  │ Microphone         MacBook Pro Microphone                      ↻ on restart │        
-       w│  Accounts          ● 1 │                   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁  ▐ Test ▌                                  │        
-       w│                        │ Muted             ●━━ off                                                   │        
-   ▸ tes│                        │ Spoken replies    ━━● on                                                    │        
-     pac│                        │ Interruptions      ‹  6  ›   an hour, at most                  ↻ on restart │        
-     REA│                        │ Quiet hours        22:00    to  07:00                          ↻ on restart │        
+ ○ refun│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
+        │  Approvals      bypass │                                                                             │        
+ ▾ CHANG│▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
+  M pack│  Window                │                                                                             │        
+  A src/│  Projects           3  │ Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
+  M src/│  Budgets           ● 1 │                                                                             │        
+        │  Keys                  │ Microphone         MacBook Pro Microphone                      ↻ on restart │        
+ ▾ FILES│  Accounts          ● 1 │                   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁  ▐ Test ▌                                  │        
+   ▾ src│                        │ Muted             ●━━ off                                                   │        
+       w│                        │ Spoken replies    ━━● on                                                    │        
+       w│                        │ Interruptions      ‹  6  ›   an hour, at most                  ↻ on restart │        
+   ▸ tes│                        │ Quiet hours        22:00    to  07:00                          ↻ on restart │        
+     pac│                        │                                                                             │        
+     REA│                        │                                                                             │        
         │                        │                                                                             │        
  ▸ NOTES│                        │                                                                             │        
- ▾ GIT  │                        │                                                                             │        
-   repo │                        │                                                                             │        
 ━ ▐ orch│                        │                                                                             │ ▐ ▾ ▌ ━
         │                        │                                                                             │        
         │                        │                                                                             │        

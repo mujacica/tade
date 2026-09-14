@@ -574,7 +574,10 @@ function renderSidebar(
       rows: (row) =>
         tasks.length === 0
           ? [row().space(3).text('none yet — + starts one', skin.hint).build()]
-          : tasks.map((task) => taskRow(row(), task, spend[task.task], skin)),
+          : tasks.flatMap((task, i) => [
+              taskRow(row(), task, spend[task.task], skin),
+              ...(i < tasks.length - 1 ? [blank(width)] : []),
+            ]),
     },
     {
       id: 'changes',
@@ -643,6 +646,7 @@ function renderSidebar(
       head.right((r) => r.text(note, skin.hint).space())
     }
     out.push(head.build())
+    if (open && section.id === 'agents') out.push(blank(width))
     if (open) out.push(...section.rows(make))
   })
   // Tailing is for screens that grow at the bottom; a sidebar is read from the

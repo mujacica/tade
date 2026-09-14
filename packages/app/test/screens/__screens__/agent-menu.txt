@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
-▌●╭─ stripe-v15 ───────────────╮────────────────────────────────────────────────────────────────────────────────────────
- ○│▌ Open                enter │                                                                                        
+  ╭─ stripe-v15 ───────────────╮────────────────────────────────────────────────────────────────────────────────────────
+▌●│▌ Open                enter │                                                                                        
   │  Start agent       running │                                                                                        
- ▾│  Stop agent                │                                                                                        
+ ○│  Stop agent                │                                                                                        
   │  Show changes      3 files │                                                                                        
-  │  Rename…                   │                                                                                        
+ ▾│  Rename…                   │                                                                                        
   │  Change model…             │                                                                                        
   │  Open in editor            │                                                                                        
- ▾│  Copy branch name          │ ● Upgrading stripe to v15. The webhook signature API changed,                          
+  │  Copy branch name          │ ● Upgrading stripe to v15. The webhook signature API changed,                          
   │────────────────────────────│   so src/webhooks.ts needs the new constructEvent signature.                           
-  │  Park                      │                                                                                        
+ ▾│  Park                      │                                                                                        
   │  Remove agent…             │ ▸ Read src/webhooks.ts                                                                 
   ╰────────────────────────────╯ ▸ Edit src/webhooks.ts  +12 −4                                                         
-     package.json             │  ▸ bash npm i stripe@15                                                                 
-     README.md                │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-                              │  │ bash  npm i stripe@15                                        │                       
- ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
-   repo     ~/src/checkout    │                                                                                         
+       webhooks.ts            │  ▸ bash npm i stripe@15                                                                 
+   ▸ test/                    │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+     package.json             │  │ bash  npm i stripe@15                                        │                       
+     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

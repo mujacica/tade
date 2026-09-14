@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
               ╭─ Keys ───────────────────────────────────────────────────────────────────────────── esc ─╮              
  ▾ AGENTS  2  │                                                                                          │de-opus-5 ▾ ▌ 
-▌● stripe-v15 │ Push to talk              ▐ ctrl ▌+▐ space ▌  hold                                       │──────────────
- ○ refunds    │ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines, commands                 │              
+              │ Push to talk              ▐ ctrl ▌+▐ space ▌  hold                                       │──────────────
+▌● stripe-v15 │ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines, commands                 │              
               │ Next agent                ▐ tab ▌  the next agent, then the orchestrator                 │              
- ▾ CHANGES  3 │ Previous agent            ▐ shift ▌+▐ tab ▌  back through the same                       │              
-  M package.js│ Talk to Wilco             ▐ ctrl ▌+▐ / ▌  type to the orchestrator                       │              
-  A src/webhoo│ Next waiting agent        ▐ ctrl ▌+▐ q ▌  the agent waiting on you                       │              
-  M src/webhoo│ New agent                 ▐ ctrl ▌+▐ n ▌  start one in the project you are in            │              
-              │ New terminal              ▐ ctrl ▌+▐ t ▌  a terminal in the bottom panel                 │              
- ▾ FILES      │ Open project              ▐ ctrl ▌+▐ o ▌  add or go to a repository                      │              
-   ▾ src/     │ Mute                      ▐ ctrl ▌+▐ m ▌  no speech and no sounds, and back              │              
-       webhook│ Extensions                ▐ ctrl ▌+▐ shift ▌+▐ e ▌  turn them on and off, set them up    │              
-       webhook│ Settings                  ▐ ctrl ▌+▐ , ▌  this panel                                     │              
-   ▸ test/    │ Bottom panel fills window ▐ ctrl ▌+▐ shift ▌+▐ f ▌  the conversation or terminal takes th│              
-     package.j│ Keys                      ▐ F1 ▌  the sheet of every key                                 │              
-     README.md│ Allow                     ▐ a ▌  allow what an agent asks, while one waits               │              
-              │ Deny                      ▐ d ▌  deny what an agent asks, while one waits                │              
- ▸ NOTES  4   │                                                                                          │              
- ▾ GIT        │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
-   repo     ~/│ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │              
+ ○ refunds    │ Previous agent            ▐ shift ▌+▐ tab ▌  back through the same                       │              
+              │ Talk to Wilco             ▐ ctrl ▌+▐ / ▌  type to the orchestrator                       │              
+ ▾ CHANGES  3 │ Next waiting agent        ▐ ctrl ▌+▐ q ▌  the agent waiting on you                       │              
+  M package.js│ New agent                 ▐ ctrl ▌+▐ n ▌  start one in the project you are in            │              
+  A src/webhoo│ New terminal              ▐ ctrl ▌+▐ t ▌  a terminal in the bottom panel                 │              
+  M src/webhoo│ Open project              ▐ ctrl ▌+▐ o ▌  add or go to a repository                      │              
+              │ Mute                      ▐ ctrl ▌+▐ m ▌  no speech and no sounds, and back              │              
+ ▾ FILES      │ Extensions                ▐ ctrl ▌+▐ shift ▌+▐ e ▌  turn them on and off, set them up    │              
+   ▾ src/     │ Settings                  ▐ ctrl ▌+▐ , ▌  this panel                                     │              
+       webhook│ Bottom panel fills window ▐ ctrl ▌+▐ shift ▌+▐ f ▌  the conversation or terminal takes th│              
+       webhook│ Keys                      ▐ F1 ▌  the sheet of every key                                 │              
+   ▸ test/    │ Allow                     ▐ a ▌  allow what an agent asks, while one waits               │              
+     package.j│ Deny                      ▐ d ▌  deny what an agent asks, while one waits                │              
+     README.md│                                                                                          │              
+              │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
+ ▸ NOTES  4   │ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │              
 ━ ▐ orchestrat│ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
               │                                                                                          │              
               │ Everything else goes to the agent or terminal you're typing at.                          │              

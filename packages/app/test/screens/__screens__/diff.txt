@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
-▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds        $0.62       │                                                                                         
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │                                                                                         
                               │                                                                                         
- ▾ CHANGES  ╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮            
-  M package.│ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                   │            
-  A src/webh│ 38     const sig = req.headers['stripe-signature']                                           │            
-  M src/webh│ 39 -   const event = stripe.webhooks.constructEvent(body, sig, key)                          │            
-            │ 39 +   const event = await stripe.webhooks.constructEventAsync(                              │            
- ▾ FILES    │ 40 +     body, sig, key, undefined, cryptoProvider,                                          │            
-   ▾ src/   │ 41 +   )                                                                                     │            
-       webho│ 42     if (event.type === 'charge.refunded') {                                               │            
-       webho│ 43       await refund(event)                                                                 │            
-   ▸ test/  │                                                                                              │            
-     package│ ▐ Open in editor ▌ ▐ Ask the agent about this ▌                 ‹ 2/3 ›  ↑↓ scroll · ←→ file │            
-     README.╰──────────────────────────────────────────────────────────────────────────────────────────────╯            
-                              │  │ bash  npm i stripe@15                                        │                       
- ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
-   repo     ~/src/checkout    │                                                                                         
+ ○ refunds  ╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮            
+            │ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                   │            
+ ▾ CHANGES  │ 38     const sig = req.headers['stripe-signature']                                           │            
+  M package.│ 39 -   const event = stripe.webhooks.constructEvent(body, sig, key)                          │            
+  A src/webh│ 39 +   const event = await stripe.webhooks.constructEventAsync(                              │            
+  M src/webh│ 40 +     body, sig, key, undefined, cryptoProvider,                                          │            
+            │ 41 +   )                                                                                     │            
+ ▾ FILES    │ 42     if (event.type === 'charge.refunded') {                                               │            
+   ▾ src/   │ 43       await refund(event)                                                                 │            
+       webho│                                                                                              │            
+       webho│ ▐ Open in editor ▌ ▐ Ask the agent about this ▌                 ‹ 2/3 ›  ↑↓ scroll · ←→ file │            
+   ▸ test/  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯            
+     package.json             │  │ bash  npm i stripe@15                                        │                       
+     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

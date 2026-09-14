@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         ╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮        
  ▾ AGENT│ ● Dependencies  built-in · ready                                                             2 tools │s-5 ▾ ▌ 
-▌● strip│   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │────────
- ○ refun│   an agent’s worktree.                                                                               │        
+        │   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │────────
+▌● strip│   an agent’s worktree.                                                                               │        
         │   ▐ Turn off ▌ ▐ Settings… ▌ ▐ Check dependencies ▌ ▐ Update dependencies (minor) ▌                  │        
- ▾ CHANG│   ▐ Update dependencies (major) ▌                                                                    │        
-  M pack│                                                                                                      │        
-  A src/│ ◐ Sentry  built-in · needs setup                                                             2 tools │        
-  M src/│   no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read,  │        
-        │   event:write), or log in with sentry-cli                                                            │        
- ▾ FILES│   not read: extensions.sentry.orgg                                                                   │        
-   ▾ src│   ▐ Turn off ▌ ▐ Set up… ▌                                                                           │        
-       w│                                                                                                      │        
-       w│ ✗ standup  yours · broken                                                                            │        
-   ▸ tes│   SyntaxError: Unexpected token '!'                                                                  │        
-     pac│   ▐ Open folder ▌                                                                                    │        
-     REA│                                                                                                      │        
-        │ WRITTEN BY WILCO  waiting for you: approved ones load when Wilco next starts                         │        
- ▸ NOTES│   release-notes  an extension                                                                        │        
- ▾ GIT  │   Drafts release notes from merged work, because you asked for them every Friday.                    │        
-   repo │   ▐ Read ▌ ▐ Approve ▌ ▐ Turn down ▌                                                                 │        
+ ○ refun│   ▐ Update dependencies (major) ▌                                                                    │        
+        │                                                                                                      │        
+ ▾ CHANG│ ◐ Sentry  built-in · needs setup                                                             2 tools │        
+  M pack│   no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read,  │        
+  A src/│   event:write), or log in with sentry-cli                                                            │        
+  M src/│   not read: extensions.sentry.orgg                                                                   │        
+        │   ▐ Turn off ▌ ▐ Set up… ▌                                                                           │        
+ ▾ FILES│                                                                                                      │        
+   ▾ src│ ✗ standup  yours · broken                                                                            │        
+       w│   SyntaxError: Unexpected token '!'                                                                  │        
+       w│   ▐ Open folder ▌                                                                                    │        
+   ▸ tes│                                                                                                      │        
+     pac│ WRITTEN BY WILCO  waiting for you: approved ones load when Wilco next starts                         │        
+     REA│   release-notes  an extension                                                                        │        
+        │   Drafts release notes from merged work, because you asked for them every Friday.                    │        
+ ▸ NOTES│   ▐ Read ▌ ▐ Approve ▌ ▐ Turn down ▌                                                                 │        
 ━ ▐ orch│                                                                                                      │ ▐ ▾ ▌ ━
         │ PI'S OWN  loaded by pi itself, in every agent                                                        │        
         │   plan-mode  ~/.pi/agent/extensions                                                                  │        

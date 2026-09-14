@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌            ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ 
-▌● stripe-v15     $1.26 ▐ ≡ ▌ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds        $0.62       │                                                                                         
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+▌● stripe-v15     $1.26 ▐ ≡ ▌ │                                                                                         
                               │                                                                                         
- ▾ CHANGES  3         vs main │                                                                                         
-  M package.json        +2 −1 │      ╭─ Screenshot 2026-09-14 at 09.12.33.png ────╮                                     
-  A src/webhooks.test.ts  +48 │      │▌ The orchestrator                          │                                     
-  M src/webhooks.ts    +12 −4 │      │────────────────────────────────────────────│                                     
-                              │      │  refunds                   in front of you │                                     
- ▾ FILES                      │  ● Up│  stripe-v15       its agent is not running │PI changed,                          
-   ▾ src/                     │    so│────────────────────────────────────────────│signature.                           
-       webhooks.test.ts       │      │  tests                      types the path │                                     
-       webhooks.ts            │  ▸ Re╰────────────────────────────────────────────╯                                     
-   ▸ test/                    │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-     package.json             │  ▸ bash npm i stripe@15                                                                 
-     README.md                │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-                              │  │ bash  npm i stripe@15                                        │                       
- ▸ NOTES  4           ▐  +  ▌ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▾ GIT                        │  ╰──────────────────────────────────────────────────────────────╯                       
-   repo     ~/src/checkout    │                                                                                         
+ ○ refunds        $0.62       │                                                                                         
+                              │      ╭─ Screenshot 2026-09-14 at 09.12.33.png ────╮                                     
+ ▾ CHANGES  3         vs main │      │▌ The orchestrator                          │                                     
+  M package.json        +2 −1 │      │────────────────────────────────────────────│                                     
+  A src/webhooks.test.ts  +48 │      │  refunds                   in front of you │                                     
+  M src/webhooks.ts    +12 −4 │  ● Up│  stripe-v15       its agent is not running │PI changed,                          
+                              │    so│────────────────────────────────────────────│signature.                           
+ ▾ FILES                      │      │  tests                      types the path │                                     
+   ▾ src/                     │  ▸ Re╰────────────────────────────────────────────╯                                     
+       webhooks.test.ts       │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+       webhooks.ts            │  ▸ bash npm i stripe@15                                                                 
+   ▸ test/                    │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+     package.json             │  │ bash  npm i stripe@15                                        │                       
+     README.md                │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

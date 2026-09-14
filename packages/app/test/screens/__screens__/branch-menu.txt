@@ -2,11 +2,12 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
  ▾ AGENTS             ▐  +  ▌ │                                                                                         
-   none yet — + starts one    │   Nothing is running in checkout.                                                       
+                              │   Nothing is running in checkout.                                                       
+   none yet — + starts one    │                                                                                         
+                              │   ▐ + New agent ▌ ▐ Open project ▌                                                      
+ ▾ CHANGES            vs main │                                                                                         
+   open an agent to see       │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
                               │                                                                                         
- ▾ CHANGES            vs main │   ▐ + New agent ▌ ▐ Open project ▌                                                      
-   open an agent to see       │                                                                                         
-                              │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
  ▾ FILES                      │                                                                                         
    ▾ src/                     │                                                                                         
        webhooks.test.ts       │                                                                                         
@@ -15,12 +16,11 @@
      package.json             │                                                                                         
      README.md                │                                                                                         
                               │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▾ G╭─ main ─────────────────────╮                                                                                      
-   r│▌ Switch branch…            │                                                                                      
-   b│  New branch…               │                                                                                      
-   p│  Pull         fast-forward │                                                                                      
-    │────────────────────────────│                                                                                      
+ ▸ N╭─ main ─────────────────────╮                                                                                      
+ ▾ G│▌ Switch branch…            │                                                                                      
+   r│  New branch…               │                                                                                      
+   b│  Pull         fast-forward │                                                                                      
+   p│────────────────────────────│                                                                                      
 ━ ▐ │  Copy branch name          │━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
     │  Copy path                 │                                                                                      
     ╰────────────────────────────╯                                                                                      
