@@ -344,6 +344,29 @@ describe('WorkerSupervisor', () => {
     })
   })
 
+  it('knows whether an agent is in the middle of a turn, from what it says', async () => {
+    const { log, adapter, supervisor } = await setup('bypass')
+    close = () => log.close()
+    // Nothing said yet: nobody can tell, least of all its lane.
+    expect(supervisor.turnOf('r1')).toBe('unknown')
+    // A session that opens has nothing in flight until it is given something.
+    adapter.emit('r1', { type: 'started', sessionId: null, model: 'openrouter/kimi' })
+    await until(() => supervisor.turnOf('r1') === 'idle')
+    adapter.emit('r1', { type: 'turn_started' })
+    await until(() => supervisor.turnOf('r1') === 'running')
+    // A model changed mid-turn says `started` again, and the turn goes on.
+    adapter.emit('r1', { type: 'started', sessionId: null, model: 'openrouter/opus' })
+    // Ending one step of the work is not ending the work: more steps may follow.
+    adapter.emit('r1', { type: 'turn_done', status: 'ok' })
+    await until(async () => (await logged(log, 'turn_done')).length > 0)
+    expect(supervisor.turnOf('r1')).toBe('running')
+    adapter.emit('r1', { type: 'idle' })
+    await until(() => supervisor.turnOf('r1') === 'idle')
+    // An agent that has gone is in the middle of nothing.
+    adapter.emit('r1', { type: 'exited', code: 0 })
+    await until(() => supervisor.turnOf('r1') === 'unknown')
+  })
+
   it('logs turn completion and failures', async () => {
     const { log, adapter } = await setup('bypass')
     close = () => log.close()

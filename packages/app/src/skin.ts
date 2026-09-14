@@ -12,6 +12,9 @@
 // Separate from the setup screen's palette on purpose: that one names the roles
 // a form has, this one the roles a window has.
 
+/** How a list item is lit: the one you are on, or the one under the pointer. */
+export type Band = 'selected' | 'hovered'
+
 /** A button's look. Hover and pressed are the pointer's; the rest are meaning. */
 export type Look =
   | 'rest'
@@ -64,6 +67,14 @@ export interface Skin {
   /** The microphone is open. */
   transmit(text: string): string
 
+  /**
+   * The row between two list items, carrying half of each one's band: the
+   * bottom of the item above and the top of the item below. An item lit this
+   * way stands two rows tall without taking a row of its own. Blank when
+   * neither is lit, and always exactly `width` columns.
+   */
+  bands(width: number, above: Band | null, below: Band | null): string
+
   /** A whole row laid on the selection colour, resets and all. */
   selected(row: string): string
   /** A whole row under the pointer: a shade lighter than the ground, and less than selected. */
@@ -110,6 +121,9 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
 
 const identity = (text: string) => text
 
+/** The grounds of a lit list item, a shade and two above the window's. */
+const BANDS: Record<Band, number> = { selected: 237, hovered: 236 }
+
 export const PLAIN: Skin = {
   colour: false,
   chrome: identity,
@@ -132,6 +146,7 @@ export const PLAIN: Skin = {
   badge: (text) => `(${text.trim()})`.padEnd(text.length),
   field: (text) => text,
   transmit: identity,
+  bands: (width) => ' '.repeat(Math.max(0, width)),
   selected: identity,
   hovered: identity,
   surface: identity,
@@ -167,8 +182,17 @@ export const COLOUR: Skin = {
   badge: paint(`${bg(238)}${fg(250)}`),
   field: (text, hint) => paint(`${bg(236)}${fg(hint ? 244 : 255)}`)(text),
   transmit: paint(`${bg(203)}${fg(231)}${BOLD}`),
-  selected: under(237),
-  hovered: under(236),
+  bands: (width, above, below) => {
+    const cells = Math.max(0, width)
+    if (cells === 0) return ''
+    // The top half of the cell is drawn in the foreground, the bottom in the background.
+    if (above && below) return `${fg(BANDS[above])}${bg(BANDS[below])}${'▀'.repeat(cells)}${RESET}`
+    if (above) return `${fg(BANDS[above])}${'▀'.repeat(cells)}${RESET}`
+    if (below) return `${fg(BANDS[below])}${'▄'.repeat(cells)}${RESET}`
+    return ' '.repeat(cells)
+  },
+  selected: under(BANDS.selected),
+  hovered: under(BANDS.hovered),
   surface: under(235),
 }
 

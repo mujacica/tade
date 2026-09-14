@@ -117,6 +117,12 @@ export class WorkerSupervisor {
   /** By task: what each agent last said about its model and context. */
   private readonly vitalsByTask = new Map<string, RunVitals>()
   /**
+   * By run: whether the agent is in the middle of a turn, as it said. A lane
+   * cannot tell — its screen changes either way — and an agent whose turn is
+   * over looks, from outside, exactly like one that is thinking.
+   */
+  private readonly turns = new Map<string, 'running' | 'idle'>()
+  /**
    * Hard-tier requests you have already refused, per run. Asking again for the
    * same thing is refused without troubling you; asking for something else is
    * new information and gets a fresh hearing.
@@ -297,6 +303,7 @@ export class WorkerSupervisor {
   async detach(): Promise<void> {
     for (const run of this.runs.values()) run.stop()
     this.runs.clear()
+    this.turns.clear()
     this.pendingApprovals.clear()
     for (const adapter of Object.values(this.adapters)) await adapter.detach()
   }
@@ -331,6 +338,12 @@ export class WorkerSupervisor {
     const state = this.runs.get(run)
     state?.stop()
     this.runs.delete(run)
+    this.turns.delete(run)
+  }
+
+  /** Whether an agent is in the middle of a turn: unknown until it has said. */
+  turnOf(run: string): 'running' | 'idle' | 'unknown' {
+    return this.turns.get(run) ?? 'unknown'
   }
 
   private async onSignal(run: RunId, signal: WorkerSignal): Promise<void> {
@@ -354,7 +367,19 @@ export class WorkerSupervisor {
         if (task) this.vitalsByTask.delete(task)
         await this.log.append({ type: 'run_exited', task, run, detail: { code: signal.code } })
         return
+      case 'turn_started':
+        this.turns.set(run, 'running')
+        return
+      case 'idle':
+        this.turns.set(run, 'idle')
+        return
       case 'started':
+        // A session just opened has nothing in flight until it is given
+        // something. A model changed mid-turn says `started` too, and must not
+        // end the turn it happened in.
+        if (!this.turns.has(run)) this.turns.set(run, 'idle')
+        if (task) this.noteVitals(task, signal)
+        return
       case 'context':
         if (task) this.noteVitals(task, signal)
         return

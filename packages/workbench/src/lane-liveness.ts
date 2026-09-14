@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import type { AgentSignal, Lane, LivenessProbe, TaskId } from '@wilco/core'
+import type { AgentSignal, Lane, LivenessProbe, TaskId, TurnState } from '@wilco/core'
 import type { WorkerHandle } from '@wilco/harnesses-core'
 import { LaneRecord } from './registry.ts'
 import type { PendingApproval } from './workers.ts'
@@ -8,16 +8,16 @@ import type { PendingApproval } from './workers.ts'
 // Turns what Wilco is holding — lanes it opened, agents it supervises — into
 // the liveness signals `wilco status` derives task state from.
 
-export function laneSignal(lane: LaneRecord): AgentSignal {
+export function laneSignal(lane: LaneRecord, turn: TurnState = 'unknown'): AgentSignal {
   return {
     source: 'lane',
     provider: basename(lane.spec.command),
     sessionId: lane.id,
     alive: lane.alive,
     lastActivityAt: lane.lastOutputAt ?? lane.startedAt,
-    // A PTY lane cannot tell a running turn from a finished one; the agent
-    // protocol adapter is what will know.
-    turn: lane.alive ? 'unknown' : 'idle',
+    // A PTY lane cannot tell a running turn from a finished one — its screen
+    // changes either way — so what the agent itself said decides, when it has.
+    turn: lane.alive ? turn : 'idle',
     pendingPermissions: [],
     consecutiveFailures: 0,
     exitCode: lane.exitCode,
@@ -28,7 +28,11 @@ export function laneSignal(lane: LaneRecord): AgentSignal {
  * A supervised run. Approvals waiting on a human become pending permissions,
  * which is what turns a task `blocked` instead of leaving it looking busy.
  */
-export function runSignal(handle: WorkerHandle, pending: PendingApproval[]): AgentSignal {
+export function runSignal(
+  handle: WorkerHandle,
+  pending: PendingApproval[],
+  turn: TurnState = 'unknown',
+): AgentSignal {
   const waiting = pending.filter((p) => p.run === handle.run)
   return {
     source: 'run',
@@ -36,7 +40,7 @@ export function runSignal(handle: WorkerHandle, pending: PendingApproval[]): Age
     sessionId: handle.run,
     alive: true,
     lastActivityAt: waiting[0]?.at ?? handle.startedAt,
-    turn: 'unknown',
+    turn,
     pendingPermissions: waiting.map((p) => p.summary),
     consecutiveFailures: 0,
     exitCode: null,
@@ -48,6 +52,8 @@ export interface RunningWork {
   lanes(task?: string): LaneRecord[]
   runs(): WorkerHandle[]
   pendingApprovals(task?: string): PendingApproval[]
+  /** Whether a run is in the middle of a turn, as its agent said. */
+  turnOf?(run: string): TurnState
 }
 
 export function livenessFrom(work: RunningWork): LivenessProbe {
@@ -57,9 +63,11 @@ export function livenessFrom(work: RunningWork): LivenessProbe {
       const lanes = safely(() => work.lanes(task), [] as LaneRecord[])
       const runs = safely(() => work.runs(), [] as WorkerHandle[])
       const pending = safely(() => work.pendingApprovals(task), [] as PendingApproval[])
+      // An agent's lane and its run are one agent: its id names both.
+      const turn = (run: string) => safely(() => work.turnOf?.(run) ?? 'unknown', 'unknown')
       return [
-        ...lanes.filter((l) => l.kind === 'agent').map(laneSignal),
-        ...runs.filter((r) => r.task === task).map((r) => runSignal(r, pending)),
+        ...lanes.filter((l) => l.kind === 'agent').map((l) => laneSignal(l, turn(l.id))),
+        ...runs.filter((r) => r.task === task).map((r) => runSignal(r, pending, turn(r.run))),
       ]
     },
 
@@ -88,7 +96,7 @@ export async function laneLivenessFromFile(home: string): Promise<LivenessProbe>
     async lanes(task: TaskId): Promise<AgentSignal[]> {
       return of(task)
         .filter((l) => l.kind === 'agent')
-        .map(laneSignal)
+        .map((lane) => laneSignal(lane))
     },
     async records(task: TaskId): Promise<Lane[]> {
       return of(task).map(asLane)

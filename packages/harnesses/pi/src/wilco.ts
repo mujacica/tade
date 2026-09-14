@@ -218,6 +218,9 @@ export default function wilcoExtension(pi: PiApi): void {
       connected = true
       buffer = ''
       send({ type: 'started', sessionId: null, model: latest ? modelOf(latest) : null })
+      // Whether it is in the middle of something: a window that opened while
+      // it worked would otherwise take it for idle, or idle for working.
+      if (latest) send({ type: latest.isIdle() ? 'idle' : 'turn_started' })
     })
     socket.on('data', (chunk: Buffer) => {
       buffer += chunk.toString('utf8')

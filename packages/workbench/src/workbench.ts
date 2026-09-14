@@ -686,6 +686,11 @@ export class Workbench {
     return this.memory.all()
   }
 
+  /** Take a note back, named by when it was said and what it said. False when there was no such note. */
+  forget(note: { at: string; text: string }, by = 'unknown'): boolean {
+    return this.memory.forget(note, by)
+  }
+
   // --- agents
 
   /**
@@ -951,6 +956,11 @@ export class Workbench {
 
   runs(): WorkerHandle[] {
     return this.workers.list()
+  }
+
+  /** Whether an agent is in the middle of a turn, as it last said. */
+  turnOf(run: string): 'running' | 'idle' | 'unknown' {
+    return this.workers.turnOf(run)
   }
 
   /** Approvals waiting on a human. Empty unless approvals are switched on. */

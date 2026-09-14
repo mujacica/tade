@@ -1,0 +1,34 @@
+ WILCO  ▐ checkout ▌ ▐  +  ▌                 ● 2 waiting  ● 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  7          ▐  +  ▌ │ checkout › Update notes panel to match the new agent rows  ▐ agent ▌ ▐ + ▌              
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+ ⠋ Agent spend invisib… $5.73 │                                                                                         
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│                                                                                         
+▌● Update notes panel to mat… │                                                                                         
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                                                         
+ ! stripe-v15     ▐ × ▌ ▐ ≡ ▌ │                                                                                         
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                                                         
+ ✕ reload                     │                                                                                         
+                              │                                                                                         
+ ✓ refunds                    │                                                                                         
+                              │                                                                                         
+ ○ queue                      │                                                                                         
+                              │                                                                                         
+ ‖ later                      │                                                                                         
+                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▸ CHANGES  3         vs main │    so src/webhooks.ts needs the new constructEvent signature.                           
+ ▸ FILES                      │                                                                                         
+ ▾ NOTES  4           ▐  +  ▌ │  ▸ Read src/webhooks.ts                                                                 
+                              │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   the staging key rotates o… │  ▸ bash npm i stripe@15                                                                 
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 900k tok │ $1.90 today ▾ 

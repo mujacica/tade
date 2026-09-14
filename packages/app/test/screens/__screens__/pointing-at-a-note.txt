@@ -5,22 +5,22 @@
 ▌! stripe-v15           $1.26 │                                                                                         
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                                                         
  ⠋ refunds              $0.62 │                                                                                         
-                             ╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
- ▾ CHANGES  3         vs main│                                                            │                             
-  M package.json        +2 −1│ 2 agents are running inside this window.                   │                             
-  A src/webhooks.test.ts  +48│                                                            │                             
-  M src/webhooks.ts    +12 −4│ Agents here run under pty, so closing stops them. Their    │                             
-                             │ conversations are kept, and they open again where they     │ed,                          
- ▾ FILES                     │ stopped the next time Wilco opens.                         │e.                           
-   ▾ src/                    │                                                            │                             
-       webhooks.test.ts      │ Under tmux they would keep working after you close.        │                             
-       webhooks.ts           │ Settings › Agents › Where agents run                       │                             
-   ▸ test/                   │                                                            │                             
-     package.json            │                       ▐ Cancel ▌ ▐ Stop agents and close ▌ │─────╮                       
-     README.md               ╰────────────────────────────────────────────────────────────╯     │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▸ NOTES  4           ▐  +  ▌ │  ╰──────────────────────────────────────────────────────────────╯                       
- ▾ GIT                        │                                                                                         
+                              │                                                                                         
+ ▸ CHANGES  3         vs main │                                                                                         
+ ▸ FILES                      │                                                                                         
+ ▾ NOTES  4           ▐  +  ▌ │                                                                                         
+                              │                                                                                         
+   the staging key rotates o… │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+                              │    so src/webhooks.ts needs the new constructEvent signature.                           
+   we pin major versions      │                                                                                         
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│  ▸ Read src/webhooks.ts                                                                 
+   refunds go th… ▐ × ▌ ▐ ≡ ▌ │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│  ▸ bash npm i stripe@15                                                                 
+   never force-push to main   │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+                              │  │ bash  npm i stripe@15                                        │                       
+ ▸ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                              │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

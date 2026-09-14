@@ -116,6 +116,29 @@ describe('livenessFrom', () => {
     expect(await probe.lanes('app/other')).toEqual([])
   })
 
+  it('says whether the agent is working from what the agent said, not from its lane', async () => {
+    const lane = { id: 'app/refunds/agent', task: 'app/refunds', kind: 'agent', alive: true }
+    const work = {
+      lanes: () => [
+        {
+          ...lane,
+          spec: { id: lane.id, cwd: '/src/app', command: 'pi', args: [] },
+          pid: 1,
+          title: null,
+          startedAt: 1,
+          exitCode: null,
+          lastOutputAt: 2,
+        },
+      ],
+      runs: () => [{ run: lane.id, task: lane.task, sessionId: null, startedAt: 1, lane: lane.id }],
+      pendingApprovals: () => [],
+      turnOf: (run: string) => (run === lane.id ? ('idle' as const) : ('unknown' as const)),
+    }
+    const signals = await livenessFrom(work as never).lanes('app/refunds')
+    // Its screen changing says nothing: an agent waiting on you is idle.
+    expect(signals.map((signal) => signal.turn)).toEqual(['idle', 'idle'])
+  })
+
   it('returns nothing rather than failing when the workbench goes away', async () => {
     const probe = livenessFrom(client)
     await client.close()

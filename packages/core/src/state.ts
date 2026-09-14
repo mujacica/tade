@@ -49,6 +49,13 @@ function mostRecent(agents: AgentSignal[]): AgentSignal | undefined {
   return [...agents].sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))[0]
 }
 
+/**
+ * Why a task is `blocked` when nothing is wrong: its agent finished its turn
+ * and is waiting to be told something. Every other `blocked` is waiting on a
+ * decision — an approval, failing tests, work left uncommitted.
+ */
+export const IDLE_REASON = 'agent idle, waiting for input'
+
 const d = (state: TaskState, reason: string, stalled = false): Derived => ({
   state,
   reason,
@@ -92,7 +99,7 @@ export function deriveState(b: ProbeBundle): Derived {
     if (b.tests === 'fail') return d('blocked', 'turn ended with failing tests')
     if (hasCleanWork) return d('review', reviewReason(ahead, b.tests))
     if (dirty > 0) return d('blocked', `turn ended with ${dirty} uncommitted files`)
-    return d('blocked', 'agent idle, waiting for input')
+    return d('blocked', IDLE_REASON)
   }
 
   const dead = mostRecent(b.agents)
@@ -134,7 +141,7 @@ function deriveShared(b: ProbeBundle): Derived {
       return d('working', 'agent running')
     }
     if (b.tests === 'fail') return d('blocked', 'turn ended with failing tests')
-    return d('blocked', 'agent idle, waiting for input')
+    return d('blocked', IDLE_REASON)
   }
   const dead = mostRecent(b.agents)
   if (dead?.exitCode !== null && dead?.exitCode !== undefined && dead.exitCode !== 0) {

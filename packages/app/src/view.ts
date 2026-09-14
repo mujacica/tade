@@ -1,4 +1,4 @@
-import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { stripTerminalSequences, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { keyCaps } from './keys.ts'
@@ -11,6 +11,8 @@ import {
   glyph,
   isAction,
   laneShown,
+  MARK_TONES,
+  markOf,
   matchActions,
   ORCHESTRATOR_TAB,
   projects,
@@ -21,7 +23,7 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
-import { PLAIN, type Skin } from './skin.ts'
+import { type Band, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
@@ -93,7 +95,8 @@ export interface Frame {
   /** The branch those changes are counted against. */
   base?: string | null
   /** What you have told Wilco about this project, newest first. */
-  notes?: readonly string[]
+  /** Notes about this project and everything, oldest first: named by when they were said. */
+  notes?: readonly { text: string; at: string }[]
   /** Today's spend, in total and by task. */
   spend?: Spend
   /**
@@ -547,6 +550,11 @@ interface Section {
   action?: { label: string; target: Target }
   /** Said quietly at the right of the heading: what the section is measured against. */
   note?: string
+  /**
+   * Its items stand on bands, and its rows carry their own room above and
+   * below them: the half-rows the bands reach into.
+   */
+  banded?: boolean
 }
 
 function renderSidebar(
@@ -570,13 +578,19 @@ function renderSidebar(
       label: 'AGENTS',
       count: tasks.length,
       action: { label: ' + ', target: { kind: 'action', name: 'new-agent' } },
+      banded: true,
       rows: (row) =>
         tasks.length === 0
-          ? [row().space(3).text('none yet — + starts one', skin.hint).build()]
-          : tasks.flatMap((task, i) => [
-              taskRow(row(), task, spend[task.task], skin),
-              ...(i < tasks.length - 1 ? [blank(width)] : []),
-            ]),
+          ? [
+              blank(width),
+              row().space(3).text('none yet — + starts one', skin.hint).build(),
+              blank(width),
+            ]
+          : bandedList(
+              tasks.map((task) => taskRow(row(), task, spend[task.task], skin, frame.now ?? 0)),
+              width,
+              skin,
+            ),
     },
     {
       id: 'changes',
@@ -607,13 +621,19 @@ function renderSidebar(
       label: 'NOTES',
       count: notes.length,
       action: { label: ' + ', target: { kind: 'action', name: 'add-note' } },
+      banded: true,
       rows: (row) =>
         notes.length === 0
-          ? [row().space(3).text('tell Wilco "remember …"', skin.hint).build()]
-          : notes.flatMap((text, i) => [
-              row().space(3).text(text, skin.hint).build(),
-              ...(i < notes.length - 1 ? [blank(width)] : []),
-            ]),
+          ? [
+              blank(width),
+              row().space(3).text('tell Wilco "remember …"', skin.hint).build(),
+              blank(width),
+            ]
+          : bandedList(
+              notes.map((note) => noteRow(row(), note, skin)),
+              width,
+              skin,
+            ),
     },
     {
       id: 'where',
@@ -629,10 +649,13 @@ function renderSidebar(
   const out: { text: string; hits: Hit[] }[] = []
   const make = () => new Row(width, skin, pointer)
   let previousOpen = false
+  let previousBanded = false
   sections.forEach((section, i) => {
-    if (i > 0 && previousOpen) out.push(blank(width))
+    // A banded section already ends on the room below its last item.
+    if (i > 0 && previousOpen && !previousBanded) out.push(blank(width))
     const open = !state.folded.includes(section.id)
     previousOpen = open
+    previousBanded = section.banded === true
     const head = make()
       .space()
       .text(`${open ? '▾' : '▸'} ${section.label}`, skin.label, {
@@ -648,7 +671,6 @@ function renderSidebar(
       head.right((r) => r.text(note, skin.hint).space())
     }
     out.push(head.build())
-    if (open && (section.id === 'agents' || section.id === 'notes')) out.push(blank(width))
     if (open) out.push(...section.rows(make))
   })
   // Tailing is for screens that grow at the bottom; a sidebar is read from the
@@ -782,36 +804,127 @@ function markTone(mark: string | null, skin: Skin): ((text: string) => string) |
   return null
 }
 
+/** An item down the side: its row, how it is lit, and what the room around it is part of. */
+interface ListItem {
+  row: { text: string; hits: Hit[] }
+  band: Band | null
+  target: Target
+}
+
+/**
+ * Items on bands. The row between two items holds half of each one's band, so
+ * the item you are on, or pointing at, stands two rows tall, and the room
+ * between items is part of them rather than padding: pointing anywhere on an
+ * item's band is pointing at the item. Only where a band is drawn, though — a
+ * click on empty room would press something you cannot see.
+ */
+function bandedList(
+  items: readonly ListItem[],
+  width: number,
+  skin: Skin,
+): { text: string; hits: Hit[] }[] {
+  const between = (above: ListItem | undefined, below: ListItem | undefined) => {
+    // The half nearest the pointer's next row is the one below, when both are lit.
+    const owner = below?.band ? below : above?.band ? above : null
+    return {
+      text: skin.bands(width, above?.band ?? null, below?.band ?? null),
+      hits: owner ? [rowHit(0, width, owner.target)] : [],
+    }
+  }
+  const out: { text: string; hits: Hit[] }[] = []
+  items.forEach((item, i) => {
+    out.push(between(items[i - 1], item))
+    const lit =
+      item.band === 'selected'
+        ? skin.selected(item.row.text)
+        : item.band === 'hovered'
+          ? skin.hovered(item.row.text)
+          : item.row.text
+    out.push({ text: lit, hits: item.row.hits })
+  })
+  if (items.length > 0) out.push(between(items.at(-1), undefined))
+  return out
+}
+
+/** Buttons at the end of an item: `×` and `≡`, each label + 4 columns, a space after each. */
+const ITEM_BUTTONS = 12
+
+/**
+ * An agent down the side: what it is doing, its name — cut short with `…`
+ * rather than pushing anything off the edge — and what it has cost. Under the
+ * pointer, a close and a menu button take the cost's place, each lit under the
+ * pointer in turn: close in red, since it is a close.
+ */
 function taskRow(
   row: Row,
   task: AgentPane & { focused: boolean },
   spent: { tokens: number; usd: number } | undefined,
   skin: Skin,
-): { text: string; hits: Hit[] } {
+  now: number,
+): ListItem {
   const target: Target = { kind: 'task', task: task.task }
-  const hover = row.pointer.hover
-  const hovered = hover !== null && 'task' in hover && hover.task === task.task
+  const close: Target = { kind: 'action', name: `close-task:${task.task}` }
+  const menu: Target = { kind: 'task-menu', task: task.task }
+  const pointed = [target, close, menu].some((one) => sameTarget(row.pointer.hover, one))
+  // Only where they are drawn: an invisible button is a trap.
+  const buttons = pointed
+  const cost =
+    !buttons && spent && (spent.usd > 0 || spent.tokens > 0)
+      ? spent.usd > 0
+        ? dollars(spent.usd)
+        : tokens(spent.tokens)
+      : ''
   row.text(task.focused ? '▌' : ' ', skin.signal, target)
-  row.text(glyph(task), toneOf(task, skin), target).space()
-  row.text(shownName(task), task.focused ? skin.you : (t) => t, target)
+  row.text(glyph(task, now), toneOf(task, skin), target).space()
+  const right = (cost ? visibleWidth(cost) + 1 : 0) + (buttons ? ITEM_BUTTONS : 0)
+  const room = Math.max(1, row.width - row.used - right - 1)
+  row.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
   row.right((r) => {
-    if (spent && (spent.usd > 0 || spent.tokens > 0)) {
-      r.text(spent.usd > 0 ? dollars(spent.usd) : tokens(spent.tokens), skin.hint, target).space()
-    }
-    // Close and menu marks, and their clicks, only where they are drawn: on
-    // the task you are on, or the one under the pointer. An invisible button
-    // is a trap.
-    if (task.focused || hovered) {
-      r.button('×', { kind: 'action', name: `close-task:${task.task}` }, 'danger').space()
-      r.button('≡', { kind: 'task-menu', task: task.task }).space()
-    } else {
-      r.space(11)
-    }
+    if (cost) r.text(cost, skin.hint, target).space()
+    if (!buttons) return
+    r.button('×', close, sameTarget(r.pointer.hover, close) ? 'danger' : 'rest').space()
+    r.button('≡', menu).space()
   })
   const built = row.build()
-  // The whole row is the task; the menu mark sits on top of it.
-  const hits = [rowHit(0, row.width, target), ...built.hits]
-  return { text: task.focused ? skin.selected(built.text) : built.text, hits }
+  return {
+    // The whole row is the agent; its buttons sit on top of it.
+    row: { text: built.text, hits: [rowHit(0, row.width, target), ...built.hits] },
+    band: task.focused ? 'selected' : pointed ? 'hovered' : null,
+    target,
+  }
+}
+
+/**
+ * A note down the side, cut short with `…`: its menu reads it whole. Under the
+ * pointer, a forget and a menu button, the way an agent has a close.
+ */
+function noteRow(row: Row, note: { text: string; at: string }, skin: Skin): ListItem {
+  const target: Target = { kind: 'note', at: note.at, text: note.text }
+  const forget: Target = { kind: 'action', name: `forget-note:${note.at}\u0000${note.text}` }
+  const menu: Target = { kind: 'menu', subject: { kind: 'note', at: note.at, text: note.text } }
+  const pointed = [target, forget, menu].some((one) => sameTarget(row.pointer.hover, one))
+  row.space(3)
+  const room = Math.max(1, row.width - row.used - (pointed ? ITEM_BUTTONS : 0) - 1)
+  // One line of it: the rest is in its menu.
+  const line = note.text.replace(/\s+/g, ' ').trim()
+  row.text(shortened(line, room), pointed ? (t) => t : skin.hint, target)
+  if (pointed) {
+    row.right((r) => {
+      r.button('×', forget, sameTarget(r.pointer.hover, forget) ? 'danger' : 'rest').space()
+      r.button('≡', menu).space()
+    })
+  }
+  const built = row.build()
+  return {
+    row: { text: built.text, hits: [rowHit(0, row.width, target), ...built.hits] },
+    band: pointed ? 'hovered' : null,
+    target,
+  }
+}
+
+/** Text that fits a width, ending in `…` when it had to be cut. */
+function shortened(text: string, room: number): string {
+  return visibleWidth(text) <= room ? text : truncateToWidth(text, Math.max(1, room), '…')
 }
 
 function changeRow(
@@ -872,11 +985,7 @@ export function shortPath(path: string, room: number): string {
 }
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
-  if (pane.waiting || pane.state === 'blocked') return skin.waiting
-  if (pane.state === 'failed') return skin.bad
-  if (pane.state === 'review' || pane.state === 'merged') return skin.done
-  if (pane.state === 'working') return skin.busy
-  return skin.hint
+  return skin[MARK_TONES[markOf(pane)]]
 }
 
 // ── Middle: the agent you are watching ───────────────────────────────────────

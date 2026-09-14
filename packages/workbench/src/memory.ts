@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { allNotes, type Note, NoteSchema, note, recall } from '@wilco/core'
+import { z } from 'zod'
 
 // Things you told Wilco, kept next to the journal and in the same shape:
 // append-only, one JSON object per line, the file itself the truth.
@@ -11,6 +12,17 @@ import { allNotes, type Note, NoteSchema, note, recall } from '@wilco/core'
 // one bad record must never stop Wilco from starting.
 
 const FILE = 'memory.jsonl'
+
+/**
+ * A note taken back. Appended like everything else, never a rewrite of the
+ * file: the note is named by when it was said and what it said, which together
+ * are one note and nothing else.
+ */
+const ForgetSchema = z.strictObject({
+  forget: z.strictObject({ at: z.string(), text: z.string() }),
+  by: z.string().default('unknown'),
+  at: z.string(),
+})
 
 export class Memory {
   private readonly path: string
@@ -33,6 +45,23 @@ export class Memory {
     appendFileSync(this.path, `${JSON.stringify(entry)}\n`)
     this.notes.push(entry)
     return entry
+  }
+
+  /**
+   * Take a note back: it is no longer recalled, here or after a restart. The
+   * file keeps both lines, so what was once said is not lost from the record.
+   */
+  forget(target: { at: string; text: string }, by = 'unknown', now: number = Date.now()): boolean {
+    const index = this.notes.findIndex((one) => one.at === target.at && one.text === target.text)
+    if (index < 0) return false
+    const entry = {
+      forget: { at: target.at, text: target.text },
+      by,
+      at: new Date(now).toISOString(),
+    }
+    appendFileSync(this.path, `${JSON.stringify(entry)}\n`)
+    this.notes.splice(index, 1)
+    return true
   }
 
   /** What is known while talking about `scope`, newest first. */
@@ -58,8 +87,17 @@ function load(path: string): Note[] {
   for (const line of raw.split('\n')) {
     if (line.trim() === '') continue
     try {
-      const parsed = NoteSchema.safeParse(JSON.parse(line))
-      if (parsed.success) notes.push(parsed.data)
+      const value: unknown = JSON.parse(line)
+      const parsed = NoteSchema.safeParse(value)
+      if (parsed.success) {
+        notes.push(parsed.data)
+        continue
+      }
+      const forgot = ForgetSchema.safeParse(value)
+      if (!forgot.success) continue
+      const { at, text } = forgot.data.forget
+      const index = notes.findIndex((one) => one.at === at && one.text === text)
+      if (index >= 0) notes.splice(index, 1)
     } catch {
       // A torn or hand-edited line. Keep the rest.
     }

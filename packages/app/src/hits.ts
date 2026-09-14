@@ -12,6 +12,8 @@ import type { MenuSubject } from './panels.ts'
 export type Target =
   | { kind: 'task'; task: string }
   | { kind: 'task-menu'; task: string }
+  /** A note under NOTES, named by when it was said and what it said. */
+  | { kind: 'note'; at: string; text: string }
   | { kind: 'lane'; task: string; lane: string }
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }

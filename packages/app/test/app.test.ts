@@ -801,6 +801,27 @@ describe('the window, wired up', () => {
     })
   })
 
+  it('forgets a note from the × that pointing at it shows', async () => {
+    terminal.rows = 60
+    client.remember('the staging key rotates on the 1st', 'app', 'test')
+    await start()
+    await until('the notes heading', () =>
+      screenOf(terminal.written).some((row) => row.includes('NOTES')),
+    )
+    // Notes start folded: opened the way a person would.
+    const heading = find('NOTES')
+    click(heading.col, heading.row)
+    await until('the note', () =>
+      screenOf(terminal.written).some((row) => row.includes('staging key')),
+    )
+    const note = find('staging key')
+    // The pointer moving over it, with no button held.
+    terminal.press(`\x1b[<35;${note.col + 1};${note.row + 1}M`)
+    await until('its buttons', () => (screenOf(terminal.written)[note.row] ?? '').includes('×'))
+    click((screenOf(terminal.written)[note.row] ?? '').indexOf('×'), note.row)
+    await until('the note forgotten', () => client.recallAll().length === 0)
+  })
+
   it('types to the orchestrator when clicked, and leaves the agent in view', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))

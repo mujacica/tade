@@ -11,6 +11,26 @@ import { Workbench } from '../src/workbench.ts'
 const NOW = Date.parse('2026-09-12T10:00:00Z')
 
 describe('Memory', () => {
+  it('forgets a note it is asked to, after a restart too, and keeps both lines', () => {
+    const home = tmp('wilco-mem-')
+    const memory = Memory.open(home)
+    const kept = memory.remember('deploys freeze on Fridays', null, 'test', NOW)
+    const taken = memory.remember('the staging key rotates on the 1st', 'checkout', 'test', NOW + 1)
+
+    expect(memory.forget({ at: taken.at, text: taken.text }, 'window', NOW + 2)).toBe(true)
+    expect(memory.all().map((n) => n.text)).toEqual([kept.text])
+    // A note that is not there is not forgotten twice.
+    expect(memory.forget({ at: taken.at, text: taken.text }, 'window', NOW + 3)).toBe(false)
+
+    expect(
+      Memory.open(home)
+        .all()
+        .map((n) => n.text),
+    ).toEqual([kept.text])
+    // Nothing rewritten: what was once said is still in the record.
+    expect(readFileSync(join(home, 'memory.jsonl'), 'utf8')).toContain('rotates on the 1st')
+  })
+
   it('has nothing to say before it is told anything', () => {
     const memory = Memory.open(tmp('wilco-mem-'))
     expect(memory.all()).toEqual([])

@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 import { stripTerminalSequences, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import type { Hit, Target } from './hits.ts'
 import { type Linker, linkedRow } from './links.ts'
+import { spinner } from './model.ts'
 import type { Skin } from './skin.ts'
 import { type Entry, type Transcript, toolName } from './transcript.ts'
 import { fit, type Pointer, Row } from './ui.ts'
@@ -16,13 +17,6 @@ export interface Line {
   text: string
   /** Row-relative: every hit is on row 0. */
   hits: Hit[]
-}
-
-const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-
-/** Which spinner frame to show at a moment: a tenth of a second each. */
-export function spinner(now: number): string {
-  return SPINNER[Math.floor(now / 100) % SPINNER.length] ?? '⠋'
 }
 
 /** Formatting the same answer at the same width again is wasted work on every frame. */

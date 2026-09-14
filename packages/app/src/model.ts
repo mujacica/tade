@@ -1,4 +1,4 @@
-import type { TaskState, WilcoEvent } from '@wilco/core'
+import { IDLE_REASON, type TaskState, type WilcoEvent } from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
 import type { Target } from './hits.ts'
 import type { Panel } from './panels.ts'
@@ -29,6 +29,8 @@ export interface AgentPane {
   /** Lane whose screen this pane draws, when the agent has one. */
   lane: string | null
   state: TaskState
+  /** Why it is in that state, as status says it. */
+  reason?: string
   /** Something is waiting on a human here. */
   waiting: boolean
   /** What it is waiting for, when that is an approval. */
@@ -194,6 +196,7 @@ export function initialState(): AppState {
 export interface TaskSnapshot {
   task: string
   state: TaskState
+  reason?: string
   title?: string | null
   branch?: string
   lane?: string | null
@@ -215,6 +218,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     branch: task.branch ?? '',
     lane: task.lane ?? null,
     state: task.state,
+    ...(task.reason ? { reason: task.reason } : {}),
     waiting: task.waiting ?? false,
     approval: task.approval ?? null,
     lanes: task.lanes ?? (task.lane ? [{ id: task.lane, kind: 'agent' }] : []),
@@ -830,9 +834,79 @@ export function sidebar(state: AppState): SidebarGroup[] {
   return [...groups.values()].sort((a, b) => a.project.localeCompare(b.project))
 }
 
-/** A single character that shows an agent's live state. Always a filled dot — color is the signal. */
-export function glyph(_pane: AgentPane): string {
-  return '●'
+/**
+ * What an agent is doing, as its mark says at a glance: working right now,
+ * idle with its session open, waiting on you, failed, finished, not running,
+ * or parked.
+ */
+export type AgentMark = 'working' | 'idle' | 'needs-you' | 'failed' | 'done' | 'stopped' | 'parked'
+
+export function markOf(
+  pane: Pick<AgentPane, 'state' | 'reason' | 'waiting' | 'approval'>,
+): AgentMark {
+  if (pane.waiting || pane.approval) return 'needs-you'
+  switch (pane.state) {
+    case 'working':
+      return 'working'
+    case 'failed':
+      return 'failed'
+    case 'parked':
+      return 'parked'
+    case 'review':
+    case 'merged':
+      return 'done'
+    // Its turn is over. Only waiting to be told something is not a decision to make.
+    case 'blocked':
+      return pane.reason === IDLE_REASON ? 'idle' : 'needs-you'
+    default:
+      return 'stopped'
+  }
+}
+
+/** Which of the skin's tones each mark is drawn in. */
+export const MARK_TONES: Readonly<Record<AgentMark, 'busy' | 'hint' | 'waiting' | 'bad' | 'done'>> =
+  {
+    working: 'busy',
+    idle: 'hint',
+    'needs-you': 'waiting',
+    failed: 'bad',
+    done: 'done',
+    stopped: 'hint',
+    parked: 'hint',
+  }
+
+const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+
+/** Which spinner frame to show at a moment: a tenth of a second each. */
+export function spinner(now: number): string {
+  return SPINNER[Math.floor(now / 100) % SPINNER.length] ?? '⠋'
+}
+
+/**
+ * The one character that shows what an agent is doing, by its shape as well
+ * as its colour: colour is decoration, and eight dots in five colours are eight
+ * identical dots to anyone who cannot tell the colours apart. Working turns.
+ */
+export function glyph(
+  pane: Pick<AgentPane, 'state' | 'reason' | 'waiting' | 'approval'>,
+  now = 0,
+): string {
+  switch (markOf(pane)) {
+    case 'working':
+      return spinner(now)
+    case 'idle':
+      return '●'
+    case 'needs-you':
+      return '!'
+    case 'failed':
+      return '✕'
+    case 'done':
+      return '✓'
+    case 'parked':
+      return '‖'
+    default:
+      return '○'
+  }
 }
 
 export function paneTitle(pane: AgentPane): string {

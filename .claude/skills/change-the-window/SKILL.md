@@ -84,6 +84,11 @@ file and cannot be tested.
   commands, never a second way of driving Wilco.
 - **Colour is decoration.** Every row must read correctly without it: `skinFor` returns the identity
   functions for `NO_COLOR`, a dumb terminal or a pipe, and tests render with the plain skin.
+- **What an agent is doing is one rule: `markOf`.** Seven marks — working (a spinner), idle, needs
+  you, failed, done, not running, parked — each its own shape from `glyph`, its colour from
+  `MARK_TONES`. Draw an agent's state anywhere through those; a second mapping from state to colour
+  is how every agent once wore the same dot. Whether an agent's turn is running comes from what it
+  said (`turn_started`, `idle`), never from its lane, whose screen changes either way.
 - **Work you start for someone is shown in the conversation.** An extension's action, the brief, a
   failure of the orchestrator: add it to `state.transcript` (`ran`, `said`, `suggest`, `problem` in
   `transcript.ts`) rather than as a `notice`, which the next notice overwrites and which has no room
@@ -110,6 +115,11 @@ file and cannot be tested.
   `App.submitPanel`, putting any failure back into the panel rather than behind it.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
+- **Items down the side stand on bands** (`bandedList` in `view.ts`). The row between two items
+  carries half of each one's band (`skin.bands`), so the item you are on or pointing at is two rows
+  tall without a row of its own; a gap row takes clicks only while a band is drawn in it. An item's
+  name is `shortened` with `…` before whatever is at its end, and its buttons (`×`, `≡`) appear
+  under the pointer, each lit in turn — never pushed off the edge by a long name.
 - **A panel draws only from its `PanelContext`.** Anything it needs that the app state does not hold
   (menu items, settings, models, a diff) goes through `Frame.panel`, filled in `App.panelFacts`, and
   anything its keys or clicks need goes through `PanelInputs` from `App.panelInputs`. **Add the fact

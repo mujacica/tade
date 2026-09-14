@@ -4,7 +4,7 @@ import type { ParsedDiff } from './diff.ts'
 import type { Hit } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { linkedRow } from './links.ts'
-import { type AgentPane, glyph } from './model.ts'
+import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
 import {
   ACCOUNTS,
   type BranchPanel,
@@ -1822,6 +1822,13 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
       .field(panel.text, inner - 2, { caret: true })
       .build(),
   ]
+  // A field shows the end of what is typed; a note is read whole, under it.
+  const aNote = panel.purpose === 'note' || panel.purpose === 'edit-note'
+  if (aNote && visibleWidth(panel.text) > inner - 5) {
+    for (const line of wrapTextWithAnsi(panel.text, inner - 3).slice(0, 8)) {
+      rows.push(row().space(2).text(line, skin.hint).build())
+    }
+  }
   if (panel.purpose === 'note') {
     rows.push(blank(inner))
     rows.push(
@@ -1852,7 +1859,7 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
           .button('Cancel', { kind: 'control', id: 'cancel' })
           .space()
           .button(
-            panel.busy ? 'Saving…' : panel.purpose === 'note' ? 'Save note ⏎' : 'Save ⏎',
+            panel.busy ? 'Saving…' : aNote ? 'Save note ⏎' : 'Save ⏎',
             { kind: 'control', id: 'save' },
             panel.busy ? 'off' : 'primary',
           )
@@ -2228,11 +2235,7 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
 }
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
-  if (pane.waiting || pane.state === 'blocked') return skin.waiting
-  if (pane.state === 'failed') return skin.bad
-  if (pane.state === 'review') return skin.done
-  if (pane.state === 'working') return skin.busy
-  return skin.hint
+  return skin[MARK_TONES[markOf(pane)]]
 }
 
 function pad(text: string, width: number): string {

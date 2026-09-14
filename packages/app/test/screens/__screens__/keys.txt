@@ -1,10 +1,10 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2  ╭─ Keys ───────────────────────────────────────────────────────────────────────────── esc ─╮s-5 ▾ ▌ ▐ × ▌ 
-              │                                                                                          │──────────────
-▌● stripe-v15 │ Push to talk              ▐ ctrl ▌+▐ space ▌  hold                                       │              
-              │ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines, commands                 │              
- ● refunds   $│ Next agent                ▐ tab ▌  the next agent, then the orchestrator                 │              
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄│                                                                                          │──────────────
+▌! stripe-v15 │ Push to talk              ▐ ctrl ▌+▐ space ▌  hold                                       │              
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀│ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines, commands                 │              
+ ⠋ refunds    │ Next agent                ▐ tab ▌  the next agent, then the orchestrator                 │              
               │ Previous agent            ▐ shift ▌+▐ tab ▌  back through the same                       │              
  ▾ CHANGES  3 │ Talk to Wilco             ▐ ctrl ▌+▐ / ▌  type to the orchestrator                       │              
   M package.js│ Next waiting agent        ▐ ctrl ▌+▐ q ▌  the agent waiting on you                       │              

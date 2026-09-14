@@ -58,6 +58,8 @@ export type MenuSubject =
   | { kind: 'harness'; task: string; current: string }
   /** A shell beside an agent, in its pane. */
   | { kind: 'lane'; task: string; lane: string; name: string }
+  /** A note, named by when it was said and what it said. */
+  | { kind: 'note'; at: string; text: string }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -179,13 +181,18 @@ export interface PromptPanel {
   kind: 'prompt'
   purpose:
     | 'note'
+    | 'edit-note'
     | 'new-branch'
     | 'rename-branch'
     | 'rename-terminal'
     | 'rename-lane'
     | 'run-command'
     | 'rename-agent'
-  /** The terminal or agent it is about, for renaming one or running a command in it. */
+  /**
+   * The terminal or agent it is about, for renaming one or running a command
+   * in it; for a note being changed, when it was said and what it said, joined
+   * by a NUL.
+   */
   target?: string
   title: string
   /** What the field is, said before it. */
@@ -224,6 +231,15 @@ export function terminalMenuItems(split = false): MenuItem[] {
       : { id: 'split-beside', label: 'Split: a new terminal beside', divider: true },
     ...(split ? [] : [{ id: 'split-below', label: 'Split: a new terminal below' }]),
     { id: 'close', label: 'Close', danger: true, divider: true },
+  ]
+}
+
+/** What can be done with a note: read and change it whole, have its words, or take it back. */
+export function noteMenuItems(): MenuItem[] {
+  return [
+    { id: 'edit', label: 'Edit…' },
+    { id: 'copy', label: 'Copy' },
+    { id: 'forget', label: 'Forget', danger: true, divider: true },
   ]
 }
 

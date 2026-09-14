@@ -1,4 +1,4 @@
-import { ConfigSchema, settingsOf, type WilcoEvent } from '@wilco/core'
+import { ConfigSchema, IDLE_REASON, settingsOf, type WilcoEvent } from '@wilco/core'
 import { parseDiff } from '../../src/diff.ts'
 import {
   type AppState,
@@ -139,10 +139,10 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
     { path: 'src/webhooks.ts', mark: 'M', added: 12, removed: 4 },
   ],
   notes: [
-    'the staging key rotates on the 1st',
-    'we pin major versions',
-    'refunds go through the ledger service',
-    'never force-push to main',
+    { text: 'the staging key rotates on the 1st', at: '2026-09-01T09:00:00.000Z' },
+    { text: 'we pin major versions', at: '2026-09-02T09:00:00.000Z' },
+    { text: 'refunds go through the ledger service', at: '2026-09-03T09:00:00.000Z' },
+    { text: 'never force-push to main', at: '2026-09-04T09:00:00.000Z' },
   ],
   base: 'main',
   spend: {
@@ -342,6 +342,70 @@ export const SCENARIOS: Scenario[] = [
     name: 'pointing-at-a-button',
     about: 'The pointer over Open project: hover is drawn, not left to the terminal.',
     state: { ...base(), hover: { kind: 'action', name: 'open-project' } },
+    frame: frame(),
+  },
+  {
+    name: 'every-kind-of-agent',
+    about:
+      'One agent of each kind, told apart by shape as well as colour: working turns, idle, waiting on you, failed, finished, not running, parked. Long names end in …, and the one under the pointer stands on a band with its close and menu.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), [
+          {
+            task: 'checkout/agent-spend',
+            state: 'working',
+            title: 'Agent spend invisible because the spend manager filters by project',
+            lane: 'checkout/agent-spend/agent',
+          },
+          {
+            task: 'checkout/notes-design',
+            state: 'blocked',
+            reason: IDLE_REASON,
+            title: 'Update notes panel to match the new agent rows',
+            lane: 'checkout/notes-design/agent',
+          },
+          {
+            task: 'checkout/stripe-v15',
+            state: 'blocked',
+            lane: 'checkout/stripe-v15/agent',
+            waiting: true,
+            approval: { tool: 'bash', summary: 'npm i stripe@15' },
+          },
+          { task: 'checkout/reload', state: 'failed', reason: 'agent exited with code 1' },
+          { task: 'checkout/refunds', state: 'review' },
+          { task: 'checkout/queue', state: 'queued' },
+          { task: 'checkout/later', state: 'parked' },
+        ]),
+        'checkout/notes-design',
+      ),
+      folded: ['changes', 'files', 'where'],
+      hover: { kind: 'task', task: 'checkout/stripe-v15' },
+    },
+    frame: frame({
+      spend: {
+        tokens: 900_000,
+        usd: 1.9,
+        hasCost: true,
+        byTask: {
+          'checkout/agent-spend': { tokens: 600_000, usd: 5.73 },
+          'checkout/stripe-v15': { tokens: 300_000, usd: 1.26 },
+        },
+      },
+    }),
+  },
+  {
+    name: 'pointing-at-a-note',
+    about:
+      'The pointer over a note: it stands on a band, cut short with … and with its forget and menu buttons at the end.',
+    state: {
+      ...base(),
+      folded: ['changes', 'files', 'where'],
+      hover: {
+        kind: 'note',
+        at: '2026-09-03T09:00:00.000Z',
+        text: 'refunds go through the ledger service',
+      },
+    },
     frame: frame(),
   },
   {

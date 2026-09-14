@@ -59,6 +59,7 @@ export function snapshotsFrom(
       snapshots.push({
         task: task.id,
         state: task.state,
+        reason: task.reason,
         title: task.title ?? null,
         branch: task.branch,
         lane: lane?.id ?? null,
@@ -426,7 +427,7 @@ export class Live {
   }
 
   /** What you have told Wilco that applies to a project, newest first. */
-  notes(project: string | null): string[] {
+  notes(project: string | null): { text: string; at: string }[] {
     const all: readonly Note[] = this.opts.client.recallAll()
     return all
       .filter(
@@ -435,7 +436,7 @@ export class Live {
       )
       .slice()
       .reverse()
-      .map((note) => note.text)
+      .map((note) => ({ text: note.text, at: note.at }))
   }
 
   /** Every `usage` event of the last seven days, for the Spend panel. */

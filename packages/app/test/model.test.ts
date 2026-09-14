@@ -1,6 +1,7 @@
-import type { WilcoEvent } from '@wilco/core'
+import { IDLE_REASON, type WilcoEvent } from '@wilco/core'
 import { describe, expect, it } from 'vitest'
 import {
+  type AgentPane,
   type AppState,
   FOCUS_GUARD_MS,
   focusBy,
@@ -12,6 +13,7 @@ import {
   initialState,
   keyAction,
   laneShown,
+  markOf,
   noteTyping,
   onEvent,
   parseCommand,
@@ -174,10 +176,32 @@ describe('what the window shows', () => {
     expect(groups[0]?.tasks[0]?.focused).toBe(true)
   })
 
-  it('gives every state the same filled dot — color is the signal', () => {
-    const glyphs = state().panes.map(glyph)
-    expect(new Set(glyphs).size).toBe(1)
-    expect(glyphs.every((g) => g === '●')).toBe(true)
+  it('marks what each agent is doing by its shape, not only its colour', () => {
+    const pane = (over: Partial<AgentPane>) => ({
+      state: 'working' as const,
+      waiting: false,
+      approval: null,
+      ...over,
+    })
+    const marks = {
+      working: pane({ state: 'working' }),
+      idle: pane({ state: 'blocked', reason: IDLE_REASON }),
+      'needs-you': pane({ state: 'blocked', reason: 'turn ended with failing tests' }),
+      failed: pane({ state: 'failed' }),
+      done: pane({ state: 'review' }),
+      stopped: pane({ state: 'queued' }),
+      parked: pane({ state: 'parked' }),
+    }
+    for (const [mark, one] of Object.entries(marks)) expect(markOf(one)).toBe(mark)
+    // Seven marks, seven shapes: readable without colour.
+    expect(new Set(Object.values(marks).map((one) => glyph(one, 0))).size).toBe(7)
+    // An approval is waiting on you whatever else is true, working included.
+    expect(markOf(pane({ state: 'working', approval: { tool: 'bash', summary: 'rm' } }))).toBe(
+      'needs-you',
+    )
+    // Working turns, a tenth of a second a step.
+    expect(glyph(marks.working, 0)).not.toBe(glyph(marks.working, 100))
+    expect(glyph(marks.idle, 0)).toBe(glyph(marks.idle, 100))
   })
 
   it('says what is waiting, and whether it is listening', () => {

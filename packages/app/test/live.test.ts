@@ -72,6 +72,8 @@ describe('snapshotsFrom', () => {
       {
         task: 'checkout/refunds',
         state: 'working',
+        // Why, as status says it: what tells an idle agent from one waiting on a decision.
+        reason: 'because',
         title: null,
         branch: expect.any(String),
         lane: null,
@@ -82,6 +84,7 @@ describe('snapshotsFrom', () => {
       {
         task: 'checkout/stripe-v15',
         state: 'blocked',
+        reason: 'because',
         title: null,
         branch: expect.any(String),
         lane: null,

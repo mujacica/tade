@@ -90,6 +90,8 @@ import {
   initialState,
   keyAction,
   laneShown,
+  MARK_TONES,
+  markOf,
   matchActions,
   nextWaiting,
   noteTyping,
@@ -159,6 +161,7 @@ import {
   menuPanel,
   modelPanel,
   nameFrom,
+  noteMenuItems,
   type OpenProjectPanel,
   type OpenRow,
   openProjectPanel,
@@ -806,6 +809,8 @@ export class App {
             })),
           terminal: activeTerminal(this.state),
         })
+      case 'note':
+        return noteMenuItems()
     }
   }
 
@@ -1452,6 +1457,10 @@ export class App {
       case 'task-menu':
         this.openMenu({ kind: 'task', task: target.task }, at)
         return
+      case 'note':
+        // A note cut short is read whole in its menu's title; the menu is what it offers.
+        this.openMenu({ kind: 'note', at: target.at, text: target.text }, at)
+        return
       case 'menu':
         this.openMenu(target.subject, at)
         return
@@ -1624,6 +1633,11 @@ export class App {
     if (action.startsWith('extension:')) {
       const [, name, id] = action.split(':')
       await this.runExtension(name ?? '', id ?? '')
+      return
+    }
+    if (action.startsWith('forget-note:')) {
+      const [at, ...text] = action.slice('forget-note:'.length).split('\u0000')
+      this.forgetNote({ at: at ?? '', text: text.join('\u0000') })
       return
     }
     if (action.startsWith('detach-image:')) {
@@ -2072,16 +2086,7 @@ export class App {
   private searchable(): SearchEntry[] {
     const entries: SearchEntry[] = []
     const panes = [...this.state.panes].sort((a, b) => Number(b.waiting) - Number(a.waiting))
-    const toneOf = (pane: (typeof panes)[number]): SearchEntry['tone'] =>
-      pane.waiting || pane.state === 'blocked'
-        ? 'waiting'
-        : pane.state === 'failed'
-          ? 'bad'
-          : pane.state === 'review'
-            ? 'done'
-            : pane.state === 'working'
-              ? 'busy'
-              : 'hint'
+    const toneOf = (pane: (typeof panes)[number]): SearchEntry['tone'] => MARK_TONES[markOf(pane)]
     for (const pane of panes) {
       if (pane.approval) {
         entries.push({
@@ -2336,7 +2341,9 @@ export class App {
                 ? 'Harness'
                 : subject.kind === 'lane'
                   ? subject.name
-                  : (subject.path.split('/').at(-1) ?? subject.path)
+                  : subject.kind === 'note'
+                    ? 'Note'
+                    : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -2363,7 +2370,36 @@ export class App {
         return this.chooseHarness(subject.task, item)
       case 'lane':
         return this.fromLaneMenu(subject.task, subject.lane, subject.name, item)
+      case 'note':
+        return this.fromNoteMenu(subject, item)
     }
+  }
+
+  /** What a note's menu does: change it, copy its words, or forget it. */
+  private async fromNoteMenu(note: { at: string; text: string }, item: string): Promise<void> {
+    if (item === 'edit') {
+      this.state = {
+        ...this.state,
+        panel: {
+          ...promptPanel('edit-note', 'Note', 'NOTE', note.text),
+          target: `${note.at}\u0000${note.text}`,
+        },
+      }
+      this.draw()
+      return
+    }
+    if (item === 'copy') {
+      await this.copy(note.text)
+      return
+    }
+    if (item === 'forget') this.forgetNote(note)
+  }
+
+  /** Take a note back. It is not recalled again, by anyone, after a restart too. */
+  private forgetNote(note: { at: string; text: string }): void {
+    const forgot = this.opts.client.forget(note, 'window')
+    this.state = notice(this.state, forgot ? 'forgot that note' : 'that note was already forgotten')
+    this.draw()
   }
 
   /** What a shell's menu does: rename it, show it beside or below the agent, or close it. */
@@ -2809,6 +2845,20 @@ export class App {
       if (panel.purpose === 'note') {
         const scope = panel.everywhere ? null : this.state.project
         this.opts.client.remember(text, scope, 'window')
+        this.state = notice({ ...this.state, panel: null }, 'noted')
+        return
+      }
+      if (panel.purpose === 'edit-note') {
+        const [at = '', ...said] = (panel.target ?? '').split('\u0000')
+        const was = this.opts.client
+          .recallAll()
+          .find((one) => one.at === at && one.text === said.join('\u0000'))
+        if (!was) return fail('That note is not there any more.')
+        if (was.text !== text) {
+          // Said again in its new words, about what it was about, and the old words taken back.
+          this.opts.client.remember(text, was.scope, 'window')
+          this.opts.client.forget({ at: was.at, text: was.text }, 'window')
+        }
         this.state = notice({ ...this.state, panel: null }, 'noted')
         return
       }
@@ -3621,11 +3671,14 @@ export class App {
       'paneScroll',
     )
     const terminal = await this.captureTerminal()
-    // While the orchestrator works, its spinner is news every frame.
+    // While the orchestrator or an agent down the side works, its spinner is news every frame.
     const working =
       this.state.transcript.thinking !== null ||
       this.state.transcript.entries.some(
         (entry) => entry.kind === 'tool' && entry.state === 'running',
+      ) ||
+      this.state.panes.some(
+        (pane) => pane.project === this.state.project && markOf(pane) === 'working',
       )
     if (screen !== this.screen || terminal || this.state.talkingSince !== null || working) {
       this.screen = screen
@@ -4988,6 +5041,8 @@ function subjectOf(target: Target): MenuSubject | null {
     case 'task':
     case 'task-menu':
       return { kind: 'task', task: target.task }
+    case 'note':
+      return { kind: 'note', at: target.at, text: target.text }
     case 'file':
       return { kind: 'file', path: target.path, folder: false }
     case 'folder':
