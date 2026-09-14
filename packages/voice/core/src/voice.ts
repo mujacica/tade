@@ -56,6 +56,7 @@ export interface VoiceWorkbench {
     project: string
     slug: string
     intent: string
+    by?: string
   }): Promise<{ id: string; worktree: string }>
   startAgent(request: { task: string; cwd: string; prompt: string }): Promise<unknown>
   /**
@@ -372,6 +373,7 @@ export class VoiceSurface {
           slug,
           // Word for word: nothing else can reconstruct why you started.
           intent: intent.intent,
+          by: 'you',
         })
         await this.opts.wilco.startAgent({
           task: created.id,

@@ -150,6 +150,43 @@ describe('running a tool', () => {
     ])
   })
 
+  it('marks an agent a tool starts as that extension’s, whatever the tool says', async () => {
+    const asked: { title: string; by?: string }[] = []
+    const window = {
+      pid: 1,
+      lanes: () => [],
+      startAgent: async (request: { title: string; by?: string }) => {
+        asked.push(request)
+        return { task: 'shop/umbrella', worktree: '/src/shop' }
+      },
+    }
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        tools: [
+          {
+            name: 'weather_umbrella',
+            description: 'Send someone out with an umbrella.',
+            parameters: object({}),
+            for: ['orchestrator'],
+            run: async (_input, ctx) => {
+              await ctx.wilco?.startAgent({
+                project: 'shop',
+                title: 'umbrella',
+                prompt: 'Fetch one.',
+                by: 'you',
+              })
+              return { text: 'sent' }
+            },
+          },
+        ],
+        actions: [],
+      },
+    )
+    await loaded.call('weather_umbrella', {}, { caller: { kind: 'orchestrator' }, wilco: window })
+    expect(asked.map((one) => one.by)).toEqual(['extension:weather'])
+  })
+
   it('says what is wrong: a missing input, a project that is not there, who may not call it', async () => {
     const loaded = await host()
     await expect(loaded.call('weather_now', {}, { caller: { kind: 'you' } })).rejects.toThrow(

@@ -297,7 +297,9 @@ export class ExtensionHost {
       if (!entry.extension.status) continue
       let timer: NodeJS.Timeout | undefined
       const item = await Promise.race([
-        entry.extension.status({ ...entry.ctx, wilco }).catch(() => null),
+        entry.extension
+          .status({ ...entry.ctx, wilco: asExtension(wilco, entry.extension.name) })
+          .catch(() => null),
         new Promise<null>((resolve) => {
           timer = setTimeout(() => resolve(null), timeoutMs)
           timer.unref?.()
@@ -325,7 +327,10 @@ export class ExtensionHost {
     if (!entry?.extension.view) throw new Error(`${name} has nothing to show`)
     return {
       title: entry.extension.title,
-      markdown: await entry.extension.view({ ...entry.ctx, wilco }),
+      markdown: await entry.extension.view({
+        ...entry.ctx,
+        wilco: asExtension(wilco, entry.extension.name),
+      }),
     }
   }
 
@@ -435,7 +440,7 @@ export class ExtensionHost {
           caller: options.caller,
           progress: (text) => emit('progress', text),
           signal: controller.signal,
-          wilco: options.wilco ?? null,
+          wilco: options.wilco ? asExtension(options.wilco, entry.extension.name) : null,
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
@@ -580,6 +585,18 @@ export class ExtensionHost {
       home: opts.home,
       now: opts.now ?? Date.now,
     }
+  }
+}
+
+/**
+ * The window as one extension sees it: whatever it starts is marked as its
+ * own, so an agent's tab and the journal say where the work came from.
+ */
+function asExtension(wilco: ExtensionWorkbench, name: string): ExtensionWorkbench {
+  return {
+    pid: wilco.pid,
+    lanes: () => wilco.lanes(),
+    startAgent: (request) => wilco.startAgent({ ...request, by: `extension:${name}` }),
   }
 }
 

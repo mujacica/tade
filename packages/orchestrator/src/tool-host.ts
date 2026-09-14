@@ -74,6 +74,7 @@ export class ToolHost {
           ...(p.base ? { base: String(p.base) } : {}),
           ...(p.context ? { context: String(p.context) } : {}),
           ...(Array.isArray(p.links) ? { links: linksOf(p.links) } : {}),
+          by: 'orchestrator',
         }),
       'extension/call': async (p) => {
         if (!opts.extensions) throw new Error('Wilco has no extensions loaded')

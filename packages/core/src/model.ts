@@ -66,8 +66,33 @@ export const TaskFile = z.object({
   workspace: z.enum(['checkout', 'worktree']).optional(),
   /** The harness its agent runs in, when it is not the route's. */
   harness: z.string().optional(),
+  /** Who asked for it (see `TaskOrigin`). Absent on tasks made before this was kept. */
+  by: z.string().optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
+
+/**
+ * Who asked for a task, as the task file and the journal say it: `you`,
+ * `orchestrator`, `extension:<name>` or `schedule:<name>`. A string rather than
+ * an object so it reads the same in the journal as it does in a file.
+ */
+export type TaskOrigin = { kind: 'you' | 'orchestrator' | 'extension' | 'schedule'; name: string }
+
+/** A task's `by`, read back. Anything unrecognised — or nothing — was you. */
+export function taskOrigin(by: string | null | undefined): TaskOrigin {
+  if (by === 'orchestrator') return { kind: 'orchestrator', name: 'orchestrator' }
+  const [kind, ...rest] = (by ?? '').split(':')
+  const name = rest.join(':')
+  if ((kind === 'extension' || kind === 'schedule') && name) return { kind, name }
+  return { kind: 'you', name: 'you' }
+}
+
+/** Write an origin the way `taskOrigin` reads it. */
+export function saidBy(origin: TaskOrigin): string {
+  return origin.kind === 'you' || origin.kind === 'orchestrator'
+    ? origin.kind
+    : `${origin.kind}:${origin.name}`
+}
 
 /** The harnesses there are, and what each is, for choosing between them. */
 export const HARNESS_CHOICES: readonly {

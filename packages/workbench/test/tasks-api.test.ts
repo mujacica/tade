@@ -60,7 +60,7 @@ describe('task and run RPC', () => {
     expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds', 'task.yaml'))).toBe(true)
     await expect(
       client.createTask({ project: 'app', slug: 'refunds', intent: 'again' }),
-    ).rejects.toThrow(/already exists/)
+    ).rejects.toThrow(/used before/)
     const removed = await client.removeTask({
       root: repo.root,
       worktree: one.worktree,
@@ -72,6 +72,44 @@ describe('task and run RPC', () => {
     expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds'))).toBe(false)
     expect(existsSync(join(repo.root, '.wilco', 'tasks', 'search', 'task.yaml'))).toBe(true)
     expect(existsSync(repo.root)).toBe(true)
+  })
+
+  it('never gives a name out twice, even once its task is gone', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      by: 'orchestrator',
+    })
+    await client.removeTask({
+      root: repo.root,
+      worktree: task.worktree,
+      branch: task.branch,
+      task: task.id,
+      force: true,
+    })
+    // Nothing on disk remembers it, and pi would still carry on its conversation.
+    await expect(
+      client.createTask({ project: 'app', slug: 'refunds', intent: 'again' }),
+    ).rejects.toThrow(/app\/refunds was used before/)
+    await client.createTask({ project: 'app', slug: 'a.b', intent: INTENT })
+    await expect(
+      client.createTask({ project: 'app', slug: 'a-b', intent: INTENT }),
+    ).rejects.toThrow(/carry on app\/a\.b's conversation/)
+  })
+
+  it('keeps who asked for a task, in its file and in the journal', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'fix',
+      intent: INTENT,
+      by: 'extension:sentry',
+    })
+    expect(
+      readFileSync(join(task.worktree, '.wilco', 'tasks', 'fix', 'task.yaml'), 'utf8'),
+    ).toContain('by: extension:sentry')
+    const [created] = await client.events({ types: ['task_created'] })
+    expect(created?.detail.by).toBe('extension:sentry')
   })
 
   it('runs a task in a harness of its own, and refuses one that cannot run yet', async () => {

@@ -91,6 +91,22 @@ describe('historyFrom', () => {
     expect(answered.tasks[0]?.lastInteractionAt).not.toBeNull()
   })
 
+  it('does not count a task someone else asked for as something you did', () => {
+    const history = historyFrom(
+      [
+        event('task_created', 'checkout/fix-shop-1f2', { detail: { by: 'extension:sentry' } }),
+        event('task_created', 'checkout/refunds', { detail: { by: 'you' } }),
+        // From before anyone said who asked: that was you.
+        event('task_created', 'checkout/older', {}),
+      ],
+      NOW,
+    )
+    const touched = (id: string) => history.tasks.find((t) => t.task === id)?.lastInteractionAt
+    expect(touched('checkout/fix-shop-1f2')).toBeNull()
+    expect(touched('checkout/refunds')).not.toBeNull()
+    expect(touched('checkout/older')).not.toBeNull()
+  })
+
   it('says how long ago in words', () => {
     expect(ago(30_000)).toBe('just now')
     expect(ago(5 * 60_000)).toBe('5m ago')

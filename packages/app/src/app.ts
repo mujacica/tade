@@ -3513,9 +3513,9 @@ export class App {
       if (taken.has(slug)) continue
       let task: Awaited<ReturnType<Workbench['createTask']>>
       try {
-        task = await this.opts.client.createTask({ project, slug, intent, detached })
+        task = await this.opts.client.createTask({ project, slug, intent, detached, by: 'you' })
       } catch (err) {
-        if (/branch already exists|already exists/.test(why(err))) continue
+        if (/already exists|used before/.test(why(err))) continue
         throw err
       }
       await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })

@@ -248,6 +248,7 @@ export function extensionWorkbench(
             intent: request.prompt,
             ...(request.context ? { context: request.context } : {}),
             ...(request.links ? { links: request.links } : {}),
+            by: request.by ?? 'extension:unknown',
           })
           await request.prepare?.(task.worktree)
           await wilco.startAgent({ task: task.id, cwd: task.worktree, prompt: request.prompt })
@@ -255,7 +256,8 @@ export function extensionWorkbench(
           return { task: task.id, worktree: task.worktree }
         } catch (err) {
           // The same work started twice gets a second name, not an error.
-          if (!/already exists/.test(err instanceof Error ? err.message : '') || n > 20) throw err
+          if (!/already exists|used before/.test(err instanceof Error ? err.message : '') || n > 20)
+            throw err
           slug = `${base}-${n}`
         }
       }

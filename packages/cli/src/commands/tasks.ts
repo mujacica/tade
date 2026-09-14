@@ -32,6 +32,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
           slug,
           intent: opts.intent,
           ...(opts.root ? { root: opts.root } : {}),
+          by: 'you',
         })
         if (opts.json) io.out(JSON.stringify(created, null, 2))
         else io.out(`${created.id}  ${created.branch}  ${created.worktree}`)

@@ -109,7 +109,13 @@ export function historyFrom(events: readonly WilcoEvent[], now: number): WorkHis
 
     existing.events += 1
     existing.lastEventAt = Math.max(existing.lastEventAt, when)
-    if (YOUR_DOING.has(event.type) || event.detail.by === 'you') {
+    // A task someone else asked for is not something you did; one that says
+    // nobody, from before that was kept, was.
+    const yours =
+      event.type === 'task_created'
+        ? (event.detail.by ?? 'you') === 'you'
+        : YOUR_DOING.has(event.type) || event.detail.by === 'you'
+    if (yours) {
       existing.lastInteractionAt = Math.max(existing.lastInteractionAt ?? 0, when)
     }
     if (event.type === 'state_change' && typeof event.detail.state === 'string') {

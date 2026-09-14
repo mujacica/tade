@@ -153,6 +153,8 @@ export interface ExtensionWorkbench {
     context?: string
     links?: readonly Link[]
     prepare?: (worktree: string) => Promise<void>
+    /** Who asked for it. Filled in by Wilco with the extension's name; an extension's own is replaced. */
+    by?: string
   }): Promise<{ task: string; worktree: string }>
   /** Wilco's own process: the window. */
   readonly pid: number

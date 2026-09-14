@@ -33,7 +33,14 @@ import type {
   WorkerHandle,
   WorkerModel,
 } from '@wilco/harnesses-core'
-import { findModel, noUsage, sessionFileFor, usableModels, usageOfTask } from '@wilco/harnesses-pi'
+import {
+  findModel,
+  noUsage,
+  sessionFileFor,
+  sessionIdFor,
+  usableModels,
+  usageOfTask,
+} from '@wilco/harnesses-pi'
 import { git } from '@wilco/status'
 import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
@@ -138,6 +145,8 @@ export interface CreateTaskRequest {
   links?: readonly { title: string; url: string }[]
   /** Where the agent works; the config's `agents.workspace` unless said. */
   workspace?: 'checkout' | 'worktree'
+  /** Who asked for it, as `TaskOrigin` says it: kept with the task and in the journal. */
+  by?: string
 }
 
 export interface RemoveTaskRequest {
@@ -609,6 +618,7 @@ export class Workbench {
     if (!root) {
       throw new Error(`unknown project "${req.project}": add it to config.yaml or pass a root`)
     }
+    await this.guardName(`${req.project}/${req.slug}`)
     const task = await createTask({
       project: req.project,
       root,
@@ -619,6 +629,7 @@ export class Workbench {
       ...(req.detached ? { detached: true } : {}),
       ...(req.context ? { context: req.context } : {}),
       ...(req.links ? { links: req.links } : {}),
+      ...(req.by ? { by: req.by } : {}),
       workspace: req.workspace ?? this.config.agents.workspace,
     })
     await this.log.append({
@@ -631,9 +642,30 @@ export class Workbench {
         base: task.base,
         // The journal is where "what was that about" gets answered.
         intent_spoken: req.intent,
+        ...(req.by ? { by: req.by } : {}),
       },
     })
     return task
+  }
+
+  /**
+   * Refuse a name any task has had. pi keeps a conversation by the task's name,
+   * so a new agent under a removed one's name would carry on its conversation —
+   * and two names that make the same session id, `a.b` and `a-b`, share one.
+   * The journal is what remembers a name after its task is gone.
+   */
+  private async guardName(id: string): Promise<void> {
+    const session = sessionIdFor(id)
+    const created = await this.log.read({ types: ['task_created'] }).catch(() => [])
+    const clash = created.find(
+      (event) => event.task && (event.task === id || sessionIdFor(event.task) === session),
+    )?.task
+    if (!clash) return
+    throw new Error(
+      clash === id
+        ? `${id} was used before, and a task's name is never used twice: pick another`
+        : `${id} would carry on ${clash}'s conversation, which was used before: pick another name`,
+    )
   }
 
   /**
