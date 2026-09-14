@@ -610,8 +610,12 @@ export class App {
   private thinkWith(thinker: Thinker): void {
     this.thinker = thinker
     thinker.onEvent?.((event) => {
-      if (this.speakingTurn && (event.type === 'delta' || event.type === 'message') && event.text) {
+      // Said as it streams. The whole message follows its pieces, and only
+      // closes them off: said again, every answer was heard twice at once.
+      if (this.speakingTurn && event.type === 'delta' && event.text) {
         this.voice?.speakChunk(event.text)
+      } else if (this.speakingTurn && event.type === 'message' && event.text) {
+        this.voice?.speakMessage(event.text)
       }
       this.state = this.anchored(
         withTranscript(this.state, fromThinker(this.state.transcript, event, this.now())),

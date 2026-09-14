@@ -161,10 +161,18 @@ export class VoiceSurface {
   private pending: Pending | null = null
   private lastAddressed: string | null = null
   private unsubscribe: Unsubscribe | null = null
-  private speechBuffer = ''
-  private speechQueue: string[] = []
-  private speechRunning = false
-  private speechStreamActive = false
+  /**
+   * What is being said, with everything waiting to be said after it: one
+   * voice at a time. A reply said over an announcement, or over itself, is
+   * noise, whichever of them was worth hearing.
+   */
+  private speaking: Promise<void> = Promise.resolve()
+  /** The words of a streaming reply short of a sentence's end, not said yet. */
+  private unsaid = ''
+  /** Whether the message arriving now is being said as it streams. */
+  private streaming = false
+  /** Whether the reply to what was said last has been spoken as it arrived. */
+  private spokeReply = false
 
   private constructor(opts: VoiceOptions) {
     this.opts = opts
@@ -208,6 +216,7 @@ export class VoiceSurface {
   /** Handle one thing you said. Returns what was said back. */
   async handle(utterance: string): Promise<string> {
     const at = this.now()
+    this.spokeReply = false
 
     // Answering the question we just asked.
     if (this.pending) {
@@ -269,8 +278,12 @@ export class VoiceSurface {
   ): Promise<string> {
     if (task) this.lastAddressed = task
     this.opts.onTurn?.({ utterance, intent: intent.kind, task, why, reply, at })
-    if (this.speechStreamActive) {
-      await this.flushSpeech()
+    if (this.spokeReply) {
+      // Said as it arrived: what is left of it, and never the whole of it again.
+      this.spokeReply = false
+      this.spokenAt.push(this.now())
+      this.flushSpeech()
+      await this.speaking
     } else {
       await this.say(reply)
     }
@@ -499,56 +512,63 @@ export class VoiceSurface {
   private async say(text: string): Promise<void> {
     if (text.trim() === '') return
     this.spokenAt.push(this.now())
-    await this.opts.speaker.speak(text)
+    await this.enqueue(text)
   }
 
-  /** Feed a streaming chunk of text to the voice queue. */
+  /**
+   * A piece of a reply as it streams in. Each sentence is said as soon as it
+   * ends, so a long answer starts being heard before it has finished arriving.
+   */
   speakChunk(text: string): void {
-    this.speechStreamActive = true
-    this.speechBuffer += text
+    this.streaming = true
+    this.spokeReply = true
+    this.unsaid += text
     const boundary = /[.!?]\s+|\n+/
-    let match = boundary.exec(this.speechBuffer)
-    while (match !== null) {
-      const sentence = this.speechBuffer.slice(0, match.index + match[0].length).trim()
-      this.speechBuffer = this.speechBuffer.slice(match.index + match[0].length)
-      if (sentence) this.speechQueue.push(sentence)
-      match = boundary.exec(this.speechBuffer)
+    for (let end = boundary.exec(this.unsaid); end; end = boundary.exec(this.unsaid)) {
+      const sentence = this.unsaid.slice(0, end.index + end[0].length).trim()
+      this.unsaid = this.unsaid.slice(end.index + end[0].length)
+      if (sentence) void this.enqueue(sentence)
     }
-    void this.runSpeechQueue()
   }
 
-  /** Speak any remaining buffered text, ending the stream. */
+  /**
+   * A whole message, once all of it has arrived. One that streamed has been
+   * said already, all but its last words; only one that did not is said now.
+   */
+  speakMessage(text: string): void {
+    if (!this.streaming) {
+      this.spokeReply = true
+      this.unsaid += text
+    }
+    this.flushSpeech()
+  }
+
+  /** Say what is left of a streaming reply, however short of a sentence it is. */
   flushSpeech(): void {
-    const remaining = this.speechBuffer.trim()
-    this.speechBuffer = ''
-    if (remaining) this.speechQueue.push(remaining)
-    void this.runSpeechQueue()
-    this.speechStreamActive = false
+    const rest = this.unsaid.trim()
+    this.unsaid = ''
+    this.streaming = false
+    if (rest) void this.enqueue(rest)
   }
 
-  private async runSpeechQueue(): Promise<void> {
-    if (this.speechRunning) return
-    this.speechRunning = true
-    try {
-      while (this.speechQueue.length > 0) {
-        const sentence = this.speechQueue.shift()
-        if (sentence) {
-          try {
-            await this.opts.speaker.speak(sentence)
-          } catch (err) {
-            const reason = err instanceof Error ? err.message : String(err)
-            this.opts.onTurn?.({
-              utterance: '',
-              intent: 'status',
-              reply: `Speech failed: ${reason}`,
-              at: this.now(),
-            })
-          }
-        }
+  /** Said once everything already waiting has been, never over it. */
+  private enqueue(text: string): Promise<void> {
+    const spoken = this.speaking.then(async () => {
+      try {
+        await this.opts.speaker.speak(text)
+      } catch (err) {
+        // Said where it can be read, rather than going quiet.
+        const reason = err instanceof Error ? err.message : String(err)
+        this.opts.onTurn?.({
+          utterance: '',
+          intent: 'status',
+          reply: `Speech failed: ${reason}`,
+          at: this.now(),
+        })
       }
-    } finally {
-      this.speechRunning = false
-    }
+    })
+    this.speaking = spoken
+    return spoken
   }
 
   private now(): number {

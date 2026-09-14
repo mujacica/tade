@@ -263,6 +263,44 @@ describe('the window, wired up', () => {
     )
   })
 
+  it('says what the orchestrator answers once, as it streams in', async () => {
+    const said: string[] = []
+    const speaker = await Speaker.create({
+      soundDir: tmp('wilco-app-sound-'),
+      platform: 'darwin',
+      run: async ({ command, args }) => {
+        if (command === 'say') said.push(args.at(-1) ?? '')
+      },
+    })
+    const listeners: Array<(event: ThinkerEvent) => void> = []
+    const answer = 'Refunds has an agent on it. Which opus: 4.6 or 5?'
+    await start({
+      speaker,
+      thinker: {
+        onEvent: (listener) => {
+          listeners.push(listener)
+          return () => {}
+        },
+        // As the orchestrator answers: in pieces, then the whole message, then the reply.
+        ask: async () => {
+          for (const text of ['Refunds has an agent on it. ', 'Which opus: 4.6 or 5?']) {
+            for (const listener of listeners) listener({ type: 'delta', text })
+          }
+          for (const listener of listeners) listener({ type: 'message', text: answer })
+          return answer
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'why is refunds slow') terminal.press(char)
+    terminal.press('\r')
+
+    await until('the answer to be said', () => said.includes('Which opus: 4.6 or 5?'))
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(said).toEqual(['Refunds has an agent on it.', 'Which opus: 4.6 or 5?'])
+  })
+
   it('brings back what you said with up, and finds it with ctrl+r, in the next window too', async () => {
     const asked: string[] = []
     const thinker = {

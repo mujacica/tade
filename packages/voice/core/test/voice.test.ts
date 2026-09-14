@@ -430,6 +430,79 @@ describe('VoiceSurface', () => {
       await new Promise((r) => setTimeout(r, 5))
       expect(turns.some((t) => t.reply.includes('Speech failed'))).toBe(true)
     })
+
+    // How the orchestrator's answer arrives: in pieces, then as one message,
+    // then as the reply to what was asked. Each of the three was once said.
+    const ANSWER = 'Refunds has an agent on it now. Which opus: 4.1, 4.6 or 5?'
+    const answering = (voice: () => VoiceSurface) => async () => {
+      voice().speakChunk('Refunds has an agent ')
+      voice().speakChunk('on it now. Which opus: 4.1, ')
+      voice().speakChunk('4.6 or 5?')
+      voice().speakMessage(ANSWER)
+      return ANSWER
+    }
+
+    it('says an answer once, however many ways it arrives', async () => {
+      let voice: VoiceSurface | null = null
+      const made = await surface(wilco, { ask: answering(() => voice as VoiceSurface) })
+      voice = made.voice
+      expect(await made.voice.handle('what about the refunds design')).toBe(ANSWER)
+      expect(made.said).toEqual(['Refunds has an agent on it now.', 'Which opus: 4.1, 4.6 or 5?'])
+    })
+
+    it('says a message that did not stream, once', async () => {
+      let voice: VoiceSurface | null = null
+      const made = await surface(wilco, {
+        ask: async () => {
+          voice?.speakMessage(ANSWER)
+          return ANSWER
+        },
+      })
+      voice = made.voice
+      await made.voice.handle('what about the refunds design')
+      expect(made.said).toEqual([ANSWER])
+    })
+
+    it('never talks over itself', async () => {
+      const said: string[] = []
+      let talking = 0
+      let most = 0
+      const speaker = await Speaker.create({
+        soundDir: tmp('wilco-voice-'),
+        platform: 'darwin',
+        run: async ({ command, args }) => {
+          if (command !== 'say') return
+          talking++
+          most = Math.max(most, talking)
+          await new Promise((r) => setTimeout(r, 15))
+          said.push(args.at(-1) ?? '')
+          talking--
+        },
+      })
+      let voice: VoiceSurface | null = null
+      voice = await VoiceSurface.start({
+        wilco,
+        speaker,
+        now: () => NOW,
+        localHour: () => 14,
+        vocabulary: async () => ({ tasks: ['app/migration'], projects: ['app'] }),
+        status: async () => '',
+        worktreeOf: async () => null,
+        ask: answering(() => voice as VoiceSurface),
+      })
+      const answered = voice.handle('what about the refunds design')
+      // Something that wants you, while the answer is still being said.
+      wilco.emit(event({ type: 'permission_request', urgency: 'blocking' }))
+      await answered
+      await new Promise((r) => setTimeout(r, 60))
+      expect(most).toBe(1)
+      // Everything said, each once, in whichever order it came.
+      expect([...said].sort()).toEqual([
+        'Refunds has an agent on it now.',
+        'Which opus: 4.1, 4.6 or 5?',
+        'migration is waiting on a decision',
+      ])
+    })
   })
 })
 
