@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1          ▐  +  ▌ │ checkout › refunds  ▐ agent ▌ ▐ + ▌╭─ ● search › pagination ────────────────────── × ─╮ 
                               │────────────────────────────────────│ wants approval                               12s │─
-▌⠋ refunds              $0.62 │                                    │ bash  rm -rf node_modules && npm ci              │ 
+ ▐ ⠋ refunds          $0.62 ▌ │                                    │ bash  rm -rf node_modules && npm ci              │ 
                               │                                    │                                                  │ 
  ▾ CHANGES  3         vs main │                                    │ ▐ Allow once ▌ ▐ Deny ▌ ▐ Show ▌                 │ 
   M package.json        +2 −1 │                                    ╰──────────────────────────────────────────────────╯ 

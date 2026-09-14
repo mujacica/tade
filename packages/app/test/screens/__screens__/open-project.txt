@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮▾ ▌ ▐ × ▌ 
           │ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │──────────
-▌! stripe-│                                                                                                  │          
+ ▐ ! strip│                                                                                                  │          
           │ RECENT                       │ ◆ this folder   no git                                            │          
- ⠋ refunds│ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
+   ⠋ refun│ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
           │ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
  ▾ CHANGES│                              │ ▸ search/       git · main                                     ›  │          
   M packag│                              │                                                                   │          

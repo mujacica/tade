@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
-▌! stripe-v15           $1.26 │                                                                                         
+ ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
                               │                                                                                         
- ⠋ refunds              $0.62 │                                                                                         
+   ⠋ refunds          $0.62   │                                                                                         
             ╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮            
  ▾ CHANGES  │ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                   │            
   M package.│ 38     const sig = req.headers['stripe-signature']                                           │            

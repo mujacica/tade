@@ -2,9 +2,9 @@
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB                                                     │▌ 
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──
-▌!│   1 │ import Stripe from 'stripe'                                                                                │  
+ ▐│   1 │ import Stripe from 'stripe'                                                                                │  
   │   2 │ import { refund } from './ledger.ts'                                                                       │  
- ⠋│   3 │                                                                                                            │  
+  │   3 │                                                                                                            │  
   │   4 │ /** Every event Stripe sends us, checked before anything acts on it. */                                    │  
  ▾│   5 │ export async function handle(body: string, sig: string): Promise<void> {                                   │  
   │   6 │   const key = process.env.STRIPE_WEBHOOK_SECRET                                                            │  

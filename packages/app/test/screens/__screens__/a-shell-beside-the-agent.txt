@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › st…  ▐ agent ▌  shell  ▐ ▾ ▌▐ × ▌ ▐ + ▌ ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
-▌! stripe-v15           $1.26 │                                            │ shell  typing here       ▐ ⇄ ▌ ▐ ⇅ ▌ ▐ × ▌ 
+ ▐ ! stripe-v15       $1.26 ▌ │                                            │ shell  typing here       ▐ ⇄ ▌ ▐ ⇅ ▌ ▐ × ▌ 
                               │                                            │~/src/checkout (wilco/stripe-v15) $ git diff
- ⠋ refunds              $0.62 │                                            │ src/webhooks.ts | 16 ++++++++++------      
+   ⠋ refunds          $0.62   │                                            │ src/webhooks.ts | 16 ++++++++++------      
                               │                                            │ 1 file changed, 12 insertions(+), 4 deletio
  ▾ CHANGES  3         vs main │                                            │~/src/checkout (wilco/stripe-v15) $         
   M package.json        +2 −1 │                                            │                                            

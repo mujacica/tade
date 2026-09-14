@@ -348,7 +348,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'every-kind-of-agent',
     about:
-      'One agent of each kind, told apart by shape as well as colour: working turns, idle, waiting on you, failed, finished, not running, parked. Long names end in …, and the one under the pointer stands on a band with its close and menu.',
+      'One agent of each kind, told apart by shape as well as colour: working turns, idle, waiting on you, failed, finished, not running, parked. Each agent is a tab with room around it: long names end in …, the one you are on has an accent, and the one under the pointer is lit with its close and menu.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), [
@@ -397,7 +397,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'pointing-at-a-note',
     about:
-      'The pointer over a note: it stands on a band, cut short with … and with its forget and menu buttons at the end.',
+      'The pointer over a note: it lights as a tab, cut short with … and with its forget and menu at the end.',
     state: {
       ...base(),
       folded: ['changes', 'files', 'where'],

@@ -115,13 +115,14 @@ file and cannot be tested.
   `App.submitPanel`, putting any failure back into the panel rather than behind it.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
-- **Items down the side stand on bands** (`bandedList` in `view.ts`). The row between two items is
-  laid on the band of whichever is lit (`skin.bands`), so the item you are on or pointing at is three
-  rows tall on one ground without a row of its own; a gap row takes clicks only while a band is drawn
-  in it. Grounds are a cell's background, never half-block characters: a terminal draws a glyph
-  inside the font's height, and with lines spaced out half blocks leave dark hairlines between rows.
-  An item's name is `shortened` with `…` before whatever is at its end, and its buttons (`×`, `≡`)
-  appear under the pointer, each lit in turn — never pushed off the edge by a long name.
+- **Items down the side are tabs** (`tabList`, `tabbed` in `view.ts`): one row each, a row of room
+  above and below, a margin and an end on each side (`skin.item`). The one you are on has an accent
+  for its left end and a ground; the one under the pointer a lighter ground; the rest nothing — in
+  the same columns, so lighting one moves nothing. A ground is a cell's background, never rows of
+  half-block characters: a terminal draws a glyph inside the font's height, and with lines spaced out
+  they leave dark hairlines. An item's name is `shortened` with `…` before whatever is at its end,
+  and its buttons are quiet glyphs (`Row.icon`: `×`, `≡`) that appear under the pointer and light in
+  turn — `×` in red — never pushed off the edge by a long name.
 - **`×` on an agent closes it**: stopped and taken off the list (`closeAgent`). It asks first only
   when that would lose something — a worktree of its own with work not merged. Stopping without
   removing is in its menu.

@@ -65,6 +65,22 @@ export class Row {
     )
   }
 
+  /**
+   * A glyph as a button, lit under the pointer and held down: `×`, `≡`. A
+   * destructive one is only red while the pointer is on it — at rest it is
+   * as quiet as the rest.
+   */
+  icon(label: string, target: Target, tone: 'plain' | 'danger' = 'plain'): this {
+    const state = sameTarget(this.pointer.pressed, target)
+      ? 'pressed'
+      : sameTarget(this.pointer.hover, target)
+        ? tone === 'danger'
+          ? 'danger'
+          : 'hover'
+        : 'rest'
+    return this.put(this.skin.icon(label, state), visibleWidth(label) + 2, target)
+  }
+
   tab(label: string, target: Target, on: boolean): this {
     const hover = sameTarget(this.pointer.hover, target)
     return this.put(this.skin.tabbed(label, on, hover), visibleWidth(label) + 4, target)

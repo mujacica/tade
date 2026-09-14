@@ -2,9 +2,9 @@
 ━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
  ▾ AGENTS │ ⌕ hooks.ts:42▏                                                                                   │▾ ▌ ▐ × ▌ 
           │     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
-▌! stripe-│                                                                                                  │          
+ ▐ ! strip│                                                                                                  │          
           │ FILES  4                                                                                         │          
- ⠋ refunds│▌ □ src/webhooks.ts  checkout                                                             line 42 │          
+   ⠋ refun│▌ □ src/webhooks.ts  checkout                                                             line 42 │          
           │  □ src/webhooks.ts  checkout › stripe-v15                                                line 42 │          
  ▾ CHANGES│  □ src/webhooks.test.ts  checkout                                                        line 42 │          
   M packag│  □ src/webhooks.test.ts  checkout › stripe-v15                                           line 42 │          

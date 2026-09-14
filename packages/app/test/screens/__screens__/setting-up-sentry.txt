@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
-▌! stripe-v15           $1.26 │                                                                                         
+ ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
             ╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
- ⠋ refunds  │ ◐ Needs setting up: no Sentry token                                                          │            
+   ⠋ refunds│ ◐ Needs setting up: no Sentry token                                                          │            
             │                                                                                              │            
  ▾ CHANGES  │  Create a user auth token with org:read, project:read, event:read and event:write.           │            
   M package.│  Paste it below, or log in with sentry-cli login and leave it empty.                         │            

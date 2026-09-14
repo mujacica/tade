@@ -15,6 +15,9 @@
 /** How a list item is lit: the one you are on, or the one under the pointer. */
 export type Band = 'selected' | 'hovered'
 
+/** A small glyph button's state: at rest, under the pointer, under it and destructive, held down. */
+export type IconState = 'rest' | 'hover' | 'danger' | 'pressed'
+
 /** A button's look. Hover and pressed are the pointer's; the rest are meaning. */
 export type Look =
   | 'rest'
@@ -68,15 +71,13 @@ export interface Skin {
   transmit(text: string): string
 
   /**
-   * The row between two list items, laid on the band of whichever is lit, so
-   * a lit item stands three rows tall without a row of its own. A whole cell's
-   * ground, never a half-block character: a terminal draws a glyph inside the
-   * font's height and the ground across the whole line, so half blocks leave a
-   * dark hairline between the rows wherever lines are spaced out. The selected
-   * one's band wins where two lit items meet. Blank when neither is lit, and
-   * always exactly `width` columns.
+   * A list item as a tab: its row on a ground between two ends, when lit, and
+   * the same columns blank when not — so nothing moves as it lights. The one
+   * you are on has an accent for its left end. Exactly the row's width + 2.
    */
-  bands(width: number, above: Band | null, below: Band | null): string
+  item(row: string, band: Band | null): string
+  /** A glyph as a button that takes no room of a pill: ` × `, exactly label + 2 columns. */
+  icon(label: string, state: IconState): string
 
   /** A whole row laid on the selection colour, resets and all. */
   selected(row: string): string
@@ -124,8 +125,15 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
 
 const identity = (text: string) => text
 
-/** The grounds of a lit list item, a shade and two above the window's. */
-const BANDS: Record<Band, number> = { selected: 237, hovered: 236 }
+/** The grounds of a lit tab down the side: pointed at, and the one you are on. */
+const TAB_GROUNDS: Record<Band, number> = { selected: 238, hovered: 236 }
+
+const ICONS: Record<IconState, [ground: number | null, ink: number, bold: boolean]> = {
+  rest: [null, 246, false],
+  hover: [241, 231, false],
+  danger: [167, 233, true],
+  pressed: [250, 233, false],
+}
 
 export const PLAIN: Skin = {
   colour: false,
@@ -149,7 +157,9 @@ export const PLAIN: Skin = {
   badge: (text) => `(${text.trim()})`.padEnd(text.length),
   field: (text) => text,
   transmit: identity,
-  bands: (width) => ' '.repeat(Math.max(0, width)),
+  // Without colour the one you are on is marked the way focus is marked everywhere else.
+  item: (row, band) => (band === 'selected' ? `▌${row} ` : ` ${row} `),
+  icon: (label) => ` ${label} `,
   selected: identity,
   hovered: identity,
   surface: identity,
@@ -185,13 +195,19 @@ export const COLOUR: Skin = {
   badge: paint(`${bg(238)}${fg(250)}`),
   field: (text, hint) => paint(`${bg(236)}${fg(hint ? 244 : 255)}`)(text),
   transmit: paint(`${bg(203)}${fg(231)}${BOLD}`),
-  bands: (width, above, below) => {
-    const cells = Math.max(0, width)
-    const band = above === 'selected' || below === 'selected' ? 'selected' : (above ?? below)
-    return band && cells > 0 ? `${bg(BANDS[band])}${' '.repeat(cells)}${RESET}` : ' '.repeat(cells)
+  item: (row, band) => {
+    if (!band) return ` ${row} `
+    const ground = TAB_GROUNDS[band]
+    // Half-width ends, which a terminal draws the full height of the row they are on.
+    const left = band === 'selected' ? fg(80) : fg(ground)
+    return `${left}▐${RESET}${under(ground)(row)}${fg(ground)}▌${RESET}`
   },
-  selected: under(BANDS.selected),
-  hovered: under(BANDS.hovered),
+  icon: (label, state) => {
+    const [ground, ink, bold] = ICONS[state]
+    return `${ground === null ? '' : bg(ground)}${fg(ink)}${bold ? BOLD : ''} ${label} ${RESET}`
+  },
+  selected: under(237),
+  hovered: under(236),
   surface: under(235),
 }
 

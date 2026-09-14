@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━╭─ Model for the orchestrator ─────────────────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━
  ▾ AGENTS  2│  ▏type to narrow: opus, kimi, openrouter…                                                    │h ▾ ▌ ▐ × ▌ 
             │ the orchestrator is on openrouter/anthropic/claude-opus-5                                    │────────────
-▌! stripe-v1│                                                                                              │            
+ ▐ ! stripe-│                                                                                              │            
             │  ● anthropic/claude-opus-5                                        Claude Opus 5 · openrouter │            
- ⠋ refunds  │▌   anthropic/claude-sonnet-5                                    Claude Sonnet 5 · openrouter │            
+   ⠋ refunds│▌   anthropic/claude-sonnet-5                                    Claude Sonnet 5 · openrouter │            
             │    moonshotai/kimi-k2.6                                               Kimi K2.6 · openrouter │            
  ▾ CHANGES  │    claude-opus-5                                                   Claude Opus 5 · anthropic │            
   M package.│                                                                                              │            

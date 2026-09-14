@@ -2,9 +2,9 @@
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│ ~/src/checkout/README.md  markdown · 14 lines · 412 B                                    ▐ Formatted ▌  Source   │▌ 
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──
-▌!│ checkout                                                                                                         │  
+ ▐│ checkout                                                                                                         │  
   │                                                                                                                  │  
- ⠋│ Takes the money, and gives it back when it has to.                                                               │  
+  │ Takes the money, and gives it back when it has to.                                                               │  
   │                                                                                                                  │  
  ▾│ Running it                                                                                                       │  
   │                                                                                                                  │  

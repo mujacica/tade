@@ -558,10 +558,7 @@ interface Section {
   action?: { label: string; target: Target }
   /** Said quietly at the right of the heading: what the section is measured against. */
   note?: string
-  /**
-   * Its items stand on bands, and its rows carry their own room above and
-   * below them: the half-rows the bands reach into.
-   */
+  /** Its items are tabs, and its rows carry their own room above and below them. */
   banded?: boolean
 }
 
@@ -594,10 +591,11 @@ function renderSidebar(
               row().space(3).text('none yet — + starts one', skin.hint).build(),
               blank(width),
             ]
-          : bandedList(
-              tasks.map((task) => taskRow(row(), task, spend[task.task], skin, frame.now ?? 0)),
+          : tabList(
+              tasks.map((task) =>
+                taskRow(width, skin, pointer, task, spend[task.task], frame.now ?? 0),
+              ),
               width,
-              skin,
             ),
     },
     {
@@ -637,10 +635,9 @@ function renderSidebar(
               row().space(3).text('tell Wilco "remember …"', skin.hint).build(),
               blank(width),
             ]
-          : bandedList(
-              notes.map((note) => noteRow(row(), note, skin)),
+          : tabList(
+              notes.map((note) => noteRow(width, skin, pointer, note)),
               width,
-              skin,
             ),
     },
     {
@@ -659,7 +656,7 @@ function renderSidebar(
   let previousOpen = false
   let previousBanded = false
   sections.forEach((section, i) => {
-    // A banded section already ends on the room below its last item.
+    // A section of tabs already ends on the room below its last one.
     if (i > 0 && previousOpen && !previousBanded) out.push(blank(width))
     const open = !state.folded.includes(section.id)
     previousOpen = open
@@ -812,70 +809,64 @@ function markTone(mark: string | null, skin: Skin): ((text: string) => string) |
   return null
 }
 
-/** An item down the side: its row, how it is lit, and what the room around it is part of. */
+/** An item down the side: its row, drawn as a tab, and how it is lit. */
 interface ListItem {
   row: { text: string; hits: Hit[] }
   band: Band | null
-  target: Target
 }
 
 /**
- * Items on bands. The row between two items is laid on the band of whichever
- * is lit, so the item you are on, or pointing at, stands three rows tall on one
- * unbroken ground, and the room between items is part of them rather than
- * padding: pointing anywhere on an item's band is pointing at the item. Only
- * where a band is drawn, though — a click on empty room would press something
- * you cannot see.
+ * Items down the side as tabs, a row of room above and below each: a tab
+ * never touches the one next to it, and lighting one moves nothing.
  */
-function bandedList(
-  items: readonly ListItem[],
-  width: number,
-  skin: Skin,
-): { text: string; hits: Hit[] }[] {
-  const between = (above: ListItem | undefined, below: ListItem | undefined) => {
-    // The row is the lit one's; where both are, the selected one's, as it is painted.
-    const lit = [below, above].filter((one) => one?.band)
-    const owner = lit.find((one) => one?.band === 'selected') ?? lit[0] ?? null
-    return {
-      text: skin.bands(width, above?.band ?? null, below?.band ?? null),
-      hits: owner ? [rowHit(0, width, owner.target)] : [],
-    }
-  }
-  const out: { text: string; hits: Hit[] }[] = []
-  items.forEach((item, i) => {
-    out.push(between(items[i - 1], item))
-    const lit =
-      item.band === 'selected'
-        ? skin.selected(item.row.text)
-        : item.band === 'hovered'
-          ? skin.hovered(item.row.text)
-          : item.row.text
-    out.push({ text: lit, hits: item.row.hits })
-  })
-  if (items.length > 0) out.push(between(items.at(-1), undefined))
+function tabList(items: readonly ListItem[], width: number): { text: string; hits: Hit[] }[] {
+  const out = [blank(width)]
+  for (const item of items) out.push(item.row, blank(width))
   return out
 }
 
-/** Buttons at the end of an item: `×` and `≡`, each label + 4 columns, a space after each. */
-const ITEM_BUTTONS = 12
+/** Columns a tab spends on itself: a margin and an end, on each side. */
+const TAB_EDGES = 4
+
+/** Two glyph buttons at the end of a tab, `×` and `≡`, and the room after them. */
+const TAB_ICONS = 7
 
 /**
- * An agent down the side: what it is doing, its name — cut short with `…`
- * rather than pushing anything off the edge — and what it has cost. Under the
- * pointer, a close and a menu button take the cost's place, each lit under the
- * pointer in turn: close in red, since it is a close.
+ * What is drawn inside a tab, laid on it: its ends and its ground when lit,
+ * and every hit moved to where the tab puts it. The whole row is the item;
+ * what sits on it is on top.
+ */
+function tabbed(
+  width: number,
+  skin: Skin,
+  band: Band | null,
+  inner: { text: string; hits: Hit[] },
+  target: Target,
+): { text: string; hits: Hit[] } {
+  return {
+    text: ` ${skin.item(inner.text, band)} `,
+    hits: [rowHit(0, width, target), ...shift(inner.hits, 0, TAB_EDGES / 2)],
+  }
+}
+
+/**
+ * An agent down the side, as a tab: what it is doing, its name — cut short
+ * with `…` rather than pushing anything off the edge — and what it has cost.
+ * Under the pointer, a close and a menu take the cost's place, each lit in
+ * turn: close in red, since it is a close.
  */
 function taskRow(
-  row: Row,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
   task: AgentPane & { focused: boolean; dragging?: boolean },
   spent: { tokens: number; usd: number } | undefined,
-  skin: Skin,
   now: number,
 ): ListItem {
   const target: Target = { kind: 'task', task: task.task }
   const close: Target = { kind: 'action', name: `close-task:${task.task}` }
   const menu: Target = { kind: 'task-menu', task: task.task }
-  const pointed = [target, close, menu].some((one) => sameTarget(row.pointer.hover, one))
+  const pointed = [target, close, menu].some((one) => sameTarget(pointer.hover, one))
   // Only where they are drawn: an invisible button is a trap. Not on the one in your hand.
   const buttons = pointed && !task.dragging
   const cost =
@@ -884,53 +875,42 @@ function taskRow(
         ? dollars(spent.usd)
         : tokens(spent.tokens)
       : ''
-  row.text(task.focused ? '▌' : ' ', skin.signal, target)
-  row.text(glyph(task, now), toneOf(task, skin), target).space()
-  const right = (cost ? visibleWidth(cost) + 1 : 0) + (buttons ? ITEM_BUTTONS : 0)
-  const room = Math.max(1, row.width - row.used - right - 1)
-  row.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
-  row.right((r) => {
+  // The one being dragged is lit wherever it would land.
+  const band: Band | null = task.focused || task.dragging ? 'selected' : pointed ? 'hovered' : null
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  inner.text(glyph(task, now), toneOf(task, skin), target).space()
+  const right = (cost ? visibleWidth(cost) + 1 : 0) + (buttons ? TAB_ICONS : 0)
+  const room = Math.max(1, inner.width - inner.used - right - 1)
+  inner.text(shortened(shownName(task), room), task.focused ? skin.you : (t) => t, target)
+  inner.right((r) => {
     if (cost) r.text(cost, skin.hint, target).space()
-    if (!buttons) return
-    r.button('×', close, sameTarget(r.pointer.hover, close) ? 'danger' : 'rest').space()
-    r.button('≡', menu).space()
+    if (buttons) r.icon('×', close, 'danger').icon('≡', menu).space()
   })
-  const built = row.build()
-  return {
-    // The whole row is the agent; its buttons sit on top of it.
-    row: { text: built.text, hits: [rowHit(0, row.width, target), ...built.hits] },
-    // The one being dragged is lit wherever it would land.
-    band: task.focused || task.dragging ? 'selected' : pointed ? 'hovered' : null,
-    target,
-  }
+  return { row: tabbed(width, skin, band, inner.build(), target), band }
 }
 
 /**
- * A note down the side, cut short with `…`: its menu reads it whole. Under the
- * pointer, a forget and a menu button, the way an agent has a close.
+ * A note down the side, as a tab, cut short with `…`: its menu reads it
+ * whole. Under the pointer, a forget and a menu, the way an agent has a close.
  */
-function noteRow(row: Row, note: { text: string; at: string }, skin: Skin): ListItem {
+function noteRow(
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  note: { text: string; at: string },
+): ListItem {
   const target: Target = { kind: 'note', at: note.at, text: note.text }
   const forget: Target = { kind: 'action', name: `forget-note:${note.at}\u0000${note.text}` }
   const menu: Target = { kind: 'menu', subject: { kind: 'note', at: note.at, text: note.text } }
-  const pointed = [target, forget, menu].some((one) => sameTarget(row.pointer.hover, one))
-  row.space(3)
-  const room = Math.max(1, row.width - row.used - (pointed ? ITEM_BUTTONS : 0) - 1)
+  const pointed = [target, forget, menu].some((one) => sameTarget(pointer.hover, one))
+  const band: Band | null = pointed ? 'hovered' : null
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  const room = Math.max(1, inner.width - inner.used - (pointed ? TAB_ICONS : 0) - 1)
   // One line of it: the rest is in its menu.
   const line = note.text.replace(/\s+/g, ' ').trim()
-  row.text(shortened(line, room), pointed ? (t) => t : skin.hint, target)
-  if (pointed) {
-    row.right((r) => {
-      r.button('×', forget, sameTarget(r.pointer.hover, forget) ? 'danger' : 'rest').space()
-      r.button('≡', menu).space()
-    })
-  }
-  const built = row.build()
-  return {
-    row: { text: built.text, hits: [rowHit(0, row.width, target), ...built.hits] },
-    band: pointed ? 'hovered' : null,
-    target,
-  }
+  inner.text(shortened(line, room), pointed ? (t) => t : skin.hint, target)
+  if (pointed) inner.right((r) => r.icon('×', forget, 'danger').icon('≡', menu).space())
+  return { row: tabbed(width, skin, band, inner.build(), target), band }
 }
 
 /** Text that fits a width, ending in `…` when it had to be cut. */

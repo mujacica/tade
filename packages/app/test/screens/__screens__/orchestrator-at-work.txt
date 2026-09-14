@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │                                                                                         
                               │   Nothing is running in checkout.                                                       
- ! stripe-v15           $1.26 │                                                                                         
+   ! stripe-v15       $1.26   │                                                                                         
                               │   ▐ + New agent ▌ ▐ Open project ▌                                                      
- ⠸ refunds              $0.62 │                                                                                         
+   ⠸ refunds          $0.62   │                                                                                         
                               │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │                                                                                         

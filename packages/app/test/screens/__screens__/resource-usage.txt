@@ -2,9 +2,9 @@
 ━━━━━╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
  ▾ AG│ Wilco is using 91% CPU and 783 MB of memory, across 7 processes.                                           │ × ▌ 
      │                                                                                                            │─────
-▌! st│ ### By project                                                                                             │     
+ ▐ ! │ ### By project                                                                                             │     
      │                                                                                                            │     
- ⠋ re│ ```                                                                                                        │     
+   ⠋ │ ```                                                                                                        │     
      │                 CPU               memory                                                                   │     
  ▾ CH│   checkout      ████████░░   76%  █████░░░░░  369 MB                                                       │     
   M p│   Wilco itself  ██░░░░░░░░   15%  █████░░░░░  414 MB                                                       │     

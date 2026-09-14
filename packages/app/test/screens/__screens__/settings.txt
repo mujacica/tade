@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮▌ ▐ × ▌ 
         │  search settings       │ Voice                                                                       │────────
-▌! strip│                        │ How you talk to Wilco, and how it talks back.                               │        
+ ▐ ! str│                        │ How you talk to Wilco, and how it talks back.                               │        
         │  Agents                │                                                                             │        
- ⠋ refun│  Models                │▌Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
+   ⠋ ref│  Models                │▌Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
         │  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
  ▾ CHANG│  Approvals      bypass │                                                                             │        
   M pack│▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        

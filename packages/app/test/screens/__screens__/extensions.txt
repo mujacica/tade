@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮▌ ▐ × ▌ 
         │ ● Dependencies  built-in · ready                                                             2 tools │────────
-▌! strip│   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │        
+ ▐ ! str│   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │        
         │   an agent’s worktree.                                                                               │        
- ⠋ refun│   ▐ Turn off ▌ ▐ Settings… ▌ ▐ Check dependencies ▌ ▐ Update dependencies (minor) ▌                  │        
+   ⠋ ref│   ▐ Turn off ▌ ▐ Settings… ▌ ▐ Check dependencies ▌ ▐ Update dependencies (minor) ▌                  │        
         │   ▐ Update dependencies (major) ▌                                                                    │        
  ▾ CHANG│                                                                                                      │        
   M pack│ ◐ Sentry  built-in · needs setup                                                             2 tools │        

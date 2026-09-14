@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1          ▐  +  ▌ │ search › pagination  ▐ agent ▌ ▐ + ▌      ▐ pi ▾ ▌ ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
-▌✓ pagination           $0.20 │                                                                                         
+ ▐ ✓ pagination       $0.20 ▌ │                                                                                         
                               │  Ready for review, and no agent is running.                                             
  ▾ CHANGES            vs main │                                                                                         
    nothing changed            │  ▐ Open its agent ▌ picks the conversation up where it stopped                          

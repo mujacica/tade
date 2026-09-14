@@ -2,9 +2,9 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2      ▐  +  ▌ │ checkou…  ▐ agent ▌  shell   ▐ + ▌                  
                           │─────────────────────────────────────────────────────
-▌! stripe-v15       $1.26 │    so src/webhooks.ts needs the new constructEvent s
+ ▐ ! stripe-v15   $1.26 ▌ │    so src/webhooks.ts needs the new constructEvent s
                           │                                                     
- ⠋ refunds          $0.62 │  ▸ Read src/webhooks.ts                             
+   ⠋ refunds      $0.62   │  ▸ Read src/webhooks.ts                             
                           │  ▸ Edit src/webhooks.ts  +12 −4                     
  ▾ CHANGES  3     vs main │  ▸ bash npm i stripe@15                             
   M package.json    +2 −1 │  ╭─ wants approval ──────────────────────────────╮  
