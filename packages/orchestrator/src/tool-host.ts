@@ -35,6 +35,12 @@ export interface ToolHostOptions {
    * sentence saying where, and the pictures among them.
    */
   handOff?: (cwd: string) => Promise<{ note: string; images: readonly WorkerImage[] }>
+  /**
+   * Where everything stands, as the window sees it. Only the process
+   * supervising the agents knows which of them are between turns; `wilco
+   * status` from outside it calls every running agent working.
+   */
+  status?: () => Promise<unknown>
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -76,6 +82,10 @@ export class ToolHost {
           ...(Array.isArray(p.links) ? { links: linksOf(p.links) } : {}),
           by: 'orchestrator',
         }),
+      'status/read': async () => {
+        if (!opts.status) throw new Error('this Wilco has no window to ask')
+        return opts.status()
+      },
       'extension/call': async (p) => {
         if (!opts.extensions) throw new Error('Wilco has no extensions loaded')
         return opts.extensions({

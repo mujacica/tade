@@ -28,8 +28,10 @@ import {
   type ToolHostOptions,
   workbenchExtensions,
 } from '@wilco/orchestrator'
+import { collectStatus } from '@wilco/status'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
+import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { gather } from './setup.ts'
@@ -119,6 +121,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
         handOff: (cwd) => handOff(cwd),
+        status: () =>
+          collectStatus({
+            config: client.config,
+            now: Date.now(),
+            home: homedir(),
+            cwd: process.cwd(),
+            pr: false,
+            liveness: livenessFrom(client),
+          }),
         orchestratorModel: async (said) => {
           const found = findModel(said, await usableModels())
           if (!found.ok) throw new Error(found.reason)

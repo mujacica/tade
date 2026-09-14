@@ -123,7 +123,12 @@ export default function wilcoTools(pi: PiApi): void {
     'wilco_status',
     'Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.',
     object({}),
-    async () => runCli(['status', '--json']),
+    // From the window when there is one: only it knows which agents are between
+    // turns, and the CLI would call every one of them working.
+    async () => {
+      const seen = await rpc('status/read', {}).catch(() => null)
+      return seen === null ? runCli(['status', '--json']) : JSON.stringify(seen, null, 2)
+    },
   )
 
   tool(

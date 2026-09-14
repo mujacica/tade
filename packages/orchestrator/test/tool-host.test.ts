@@ -130,3 +130,28 @@ describe('starting an agent for the orchestrator', () => {
     expect(started).toEqual([{ task: 'app/refunds', cwd: '/src/app', prompt: '' }])
   })
 })
+
+describe('where everything stands', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('is the window’s answer, and says so when there is no window to ask', async () => {
+    const path = join(tmp('wilco-tools-'), 'tools.sock')
+    const seen = { projects: [{ name: 'app', tasks: [{ id: 'app/refunds', state: 'blocked' }] }] }
+    host = await ToolHost.listen({
+      wilco: {} as Workbench,
+      path,
+      status: async () => seen,
+    })
+    expect((await call(path, 'status/read', {})).result).toEqual(seen)
+    await host.close()
+
+    const bare = join(tmp('wilco-tools-'), 'tools.sock')
+    host = await ToolHost.listen({ wilco: {} as Workbench, path: bare })
+    expect((await call(bare, 'status/read', {})).error?.message).toMatch(/no window to ask/)
+  })
+})
