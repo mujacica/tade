@@ -497,7 +497,8 @@ export class Live {
             links: task.links ?? [],
           })
           const worked = (task.git?.dirty.length ?? 0) > 0 || (task.git?.ahead ?? 0) > 0
-          if (!task.branch && worked) {
+          // Only an agent with a worktree of its own: the checkout's branch is everyone's.
+          if (!task.branch && worked && task.workspace !== 'checkout') {
             this.opts.onWork?.({
               id: task.id,
               project: project.name,

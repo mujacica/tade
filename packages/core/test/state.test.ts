@@ -313,6 +313,34 @@ const cases: Case[] = [
   },
 ]
 
+describe('a task sharing the checkout', () => {
+  const shared = (over: Partial<ProbeBundle>): ProbeBundle => ({
+    now: NOW,
+    parked: false,
+    git: git({ dirty: files(4), ahead: 2 }),
+    agents: [],
+    tests: 'unknown',
+    shared: true,
+    ...over,
+  })
+
+  it('is where its agent is, never what the shared files say', () => {
+    expect(deriveState(shared({})).state).toBe('queued')
+    expect(deriveState(shared({ agents: [lane({ turn: 'running' })] }))).toMatchObject({
+      state: 'working',
+      reason: 'agent running',
+    })
+    expect(deriveState(shared({ agents: [lane({ turn: 'idle' })] })).state).toBe('blocked')
+    expect(deriveState(shared({ agents: [lane({ alive: false, exitCode: null })] }))).toMatchObject(
+      { state: 'review', reason: 'agent stopped: its work is in the checkout' },
+    )
+    expect(deriveState(shared({ agents: [lane({ alive: false, exitCode: 2 })] })).state).toBe(
+      'failed',
+    )
+    expect(deriveState(shared({ parked: true })).state).toBe('parked')
+  })
+})
+
 describe('deriveState', () => {
   it('has a broad table', () => {
     expect(cases.length).toBeGreaterThanOrEqual(40)

@@ -31,12 +31,21 @@ export const WorkerRoute = z.strictObject({
 })
 export type WorkerRoute = z.infer<typeof WorkerRoute>
 
+/** Where agents do their work. */
+export const AGENT_WORKSPACES = ['checkout', 'worktree'] as const
+export type AgentWorkspace = (typeof AGENT_WORKSPACES)[number]
+
+/** When an agent commits: everything when done, only its own files, as it goes, or never. */
+export const COMMIT_RULES = ['when-done', 'own-files', 'as-you-go', 'never'] as const
+export type CommitRule = (typeof COMMIT_RULES)[number]
+
 export const ProjectConfigSchema = z.strictObject({
   root: z.string().min(1),
   brief: z.string().optional(),
   /** Names a route in `workers.routes`. */
   worker: RouteName.optional(),
-  max_parallel: z.int().positive().default(1),
+  /** At most this many agents at once; as many as you start unless set. */
+  max_parallel: z.int().positive().optional(),
   /**
    * How to check the work, run by `wilco check`. Without it, `review` means
    * "finished and clean" rather than "finished, clean and verified".
@@ -225,8 +234,46 @@ export const ConfigSchema = z
              * then whatever the system opens that kind of file with.
              */
             editor: z.enum(EDITORS).optional(),
+            /**
+             * The keys the window keeps for itself, by what they do. Anything
+             * not here goes to the agent or terminal you are typing at.
+             * Alt keys need a terminal that sends Option as Meta on macOS.
+             */
+            keys: z
+              .strictObject({
+                search: z.string().min(1).default('ctrl+k'),
+                next_agent: z.string().min(1).default('tab'),
+                previous_agent: z.string().min(1).default('shift+tab'),
+                orchestrator: z.string().min(1).default('alt+o'),
+                next_waiting: z.string().min(1).default('alt+w'),
+                new_agent: z.string().min(1).default('alt+a'),
+                new_terminal: z.string().min(1).default('alt+t'),
+                open_project: z.string().min(1).default('alt+r'),
+                extensions: z.string().min(1).default('alt+e'),
+                settings: z.string().min(1).default('alt+s'),
+                fill_bottom: z.string().min(1).default('alt+m'),
+                keys_sheet: z.string().min(1).default('f1'),
+                approve: z.string().min(1).default('a'),
+                deny: z.string().min(1).default('d'),
+              })
+              .prefault({}),
           })
           .prefault({}),
+      })
+      .prefault({}),
+    /** How agents work in a project, and what they are told about committing. */
+    agents: z
+      .strictObject({
+        /**
+         * `checkout`: every agent works in the project's own checkout, on the
+         * branch it is on, at the same time. `worktree`: each gets a git
+         * worktree of its own, and a branch named for its work.
+         */
+        workspace: z.enum(AGENT_WORKSPACES).default('checkout'),
+        /** When agents commit, and what. */
+        commit: z.enum(COMMIT_RULES).default('own-files'),
+        /** Anything else every agent should be told, in your words. */
+        instructions: z.string().optional(),
       })
       .prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),

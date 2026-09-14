@@ -183,8 +183,19 @@ export class Row {
     if (sameTarget(this.pointer.pressed, target)) return 'pressed'
     if ((look === 'rest' || look === 'add') && sameTarget(this.pointer.hover, target))
       return 'hover'
+    if (sameTarget(this.pointer.hover, target) && `${look}-hover` in TINTED_HOVER)
+      return `${look}-hover` as Look
     return look
   }
+}
+
+/** The looks with a hover of their own, rather than the plain one. */
+const TINTED_HOVER = {
+  'find-hover': true,
+  'create-hover': true,
+  'open-hover': true,
+  'extend-hover': true,
+  'configure-hover': true,
 }
 
 /** Stack built rows into a region. */

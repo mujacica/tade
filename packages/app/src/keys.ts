@@ -22,6 +22,44 @@ export interface KeyContext {
   kitty: boolean
   /** Talk is currently open, which is what a toggle press would close. */
   listening: boolean
+  /** The rest of the window's keys, by what they do: `surfaces.window.keys`. */
+  bindings?: Readonly<Record<string, string>>
+}
+
+/** What each binding is called once pressed, for the model to give meaning to. */
+const PRESSED: Record<string, string> = {
+  search: 'search',
+  next_agent: 'tab',
+  previous_agent: 'shift+tab',
+  orchestrator: 'orchestrator',
+  next_waiting: 'next-waiting',
+  new_agent: 'new-agent',
+  new_terminal: 'new-terminal',
+  open_project: 'open-project',
+  extensions: 'extensions',
+  settings: 'settings',
+  fill_bottom: 'bottom-max',
+  keys_sheet: 'keys',
+  approve: 'a',
+  deny: 'd',
+}
+
+/** The defaults, for a caller that has no config: what `surfaces.window.keys` starts as. */
+export const DEFAULT_BINDINGS: Readonly<Record<string, string>> = {
+  search: 'ctrl+k',
+  next_agent: 'tab',
+  previous_agent: 'shift+tab',
+  orchestrator: 'alt+o',
+  next_waiting: 'alt+w',
+  new_agent: 'alt+a',
+  new_terminal: 'alt+t',
+  open_project: 'alt+r',
+  extensions: 'alt+e',
+  settings: 'alt+s',
+  fill_bottom: 'alt+m',
+  keys_sheet: 'f1',
+  approve: 'a',
+  deny: 'd',
 }
 
 /**
@@ -45,12 +83,15 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   // Releases of anything else are protocol noise: the shell acts on presses.
   if (released) return null
 
-  if (key === 'tab' || key === 'shift+tab' || key === 'ctrl+c') return key
+  if (key === 'ctrl+c') return key
   // Search. Cmd+K arrives as super+k only where the terminal reports the Cmd
   // key at all; Terminal.app and most others keep Cmd for themselves.
-  if (key === 'ctrl+k' || key === 'super+k') return 'search'
-  // Only ever claimed while a pane is actually waiting, which the model knows.
-  if (key === 'a' || key === 'd') return key
+  if (key === 'super+k') return 'search'
+  const bindings = { ...DEFAULT_BINDINGS, ...ctx.bindings }
+  for (const [what, bound] of Object.entries(bindings)) {
+    // Letters are only ever claimed while they mean something, which the model knows.
+    if (bound.toLowerCase() === key) return PRESSED[what] ?? null
+  }
   return null
 }
 
@@ -86,10 +127,10 @@ export type TalkKeyCheck =
  * refused outright — you would never type it into your agent again. A key
  * something else uses is allowed with a warning that names what you would lose.
  */
-export function checkTalkKey(name: string): TalkKeyCheck {
+export function checkTalkKey(name: string, printable = false): TalkKeyCheck {
   const key = name.trim().toLowerCase()
   if (key === '') return { ok: false, reason: 'Press a key.' }
-  if (key === 'space' || [...key].length === 1 || /^shift\+.$/.test(key)) {
+  if (!printable && (key === 'space' || [...key].length === 1 || /^shift\+.$/.test(key))) {
     return {
       ok: false,
       reason: 'That types a character, and you have to be able to type it into your agent.',

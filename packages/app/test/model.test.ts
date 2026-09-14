@@ -14,8 +14,6 @@ import {
   onEvent,
   parseCommand,
   projects,
-  recallNewer,
-  recallOlder,
   resizeTo,
   searchKey,
   selectProject,
@@ -340,20 +338,6 @@ describe('the bottom panel', () => {
 
 describe('what you said before', () => {
   const history = ['status', 'park refunds', 'why is refunds slow']
-
-  it('comes back with up, newest first, and down returns to what you were typing', () => {
-    let state = setDictation(initialState(), 'half a th')
-    state = recallOlder(state, history)
-    expect(state.dictation).toBe('why is refunds slow')
-    state = recallOlder(recallOlder(recallOlder(state, history), history), history)
-    expect(state.dictation).toBe('status')
-    state = recallNewer(recallNewer(state, history), history)
-    expect(state.dictation).toBe('why is refunds slow')
-    state = recallNewer(state, history)
-    expect(state.dictation).toBe('half a th')
-    expect(state.recall).toBeNull()
-    expect(recallOlder(setDictation(initialState(), ''), []).dictation).toBe('')
-  })
 
   it('is searched back through as ctrl+r does, and escape puts the line back', () => {
     let state = startHistorySearch(setDictation(initialState(), 'draft'), history)

@@ -28,7 +28,8 @@ these: it is an extension (see `add-extension`), which agents can use too and th
 - **The description is the interface.** The model chooses tools by reading it, so say when to use
   the tool, not just what it does. `wilco_task_create` tells it to pass the human's words verbatim,
   because that field can never be reconstructed later, and to pass the `context` and `links` it
-  gathered, which become `.wilco/context.md` in the agent's worktree.
+  gathered, which are written beside the task (`.wilco/context.md` in a worktree,
+  `.wilco/tasks/<name>/context.md` in a shared checkout) for the agent to read first.
 - **Answer with `content`; fail by throwing.** pi reads a tool's `{ content: [{ type: 'text', text }] }`
   and nothing else, and marks a call failed only when it throws — the thrown message is what the
   model reads, so make it say what to do instead. The `tool()` helper does both: return a string or

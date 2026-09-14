@@ -17,7 +17,6 @@ import {
   type SandboxKind,
   spendFrom,
   startOfToday,
-  TASK_CONTEXT_FILE,
   type Unsubscribe,
   type WilcoEvent,
 } from '@wilco/core'
@@ -45,6 +44,8 @@ import {
   setParked,
   setTitle,
   type TaskWorktree,
+  taskContextPath,
+  taskFilePath,
 } from './tasks.ts'
 import {
   findTerminal,
@@ -128,12 +129,16 @@ export interface CreateTaskRequest {
   context?: string
   /** Where the work came from, kept with the task and shown beside it. */
   links?: readonly { title: string; url: string }[]
+  /** Where the agent works; the config's `agents.workspace` unless said. */
+  workspace?: 'checkout' | 'worktree'
 }
 
 export interface RemoveTaskRequest {
   root: string
   worktree: string
   branch: string
+  /** The task's id: what finds a task that shares the checkout. */
+  task?: string
   force?: boolean
 }
 
@@ -253,8 +258,8 @@ export class Workbench {
         },
         // Written into the task, not held: the branch may be named long after,
         // by a window opened later.
-        onTitle: (_task, worktree, title, named) => {
-          void setTitle(worktree, title, named).catch(() => {})
+        onTitle: (task, worktree, title, named) => {
+          void setTitle(worktree, title, named, task).catch(() => {})
         },
         // A tool an agent calls runs in this process, where the extensions are.
         onExtensionCall: async (call) => {
@@ -584,6 +589,7 @@ export class Workbench {
       ...(req.detached ? { detached: true } : {}),
       ...(req.context ? { context: req.context } : {}),
       ...(req.links ? { links: req.links } : {}),
+      workspace: req.workspace ?? this.config.agents.workspace,
     })
     await this.log.append({
       type: 'task_created',
@@ -591,6 +597,7 @@ export class Workbench {
       detail: {
         branch: task.branch,
         worktree: task.worktree,
+        workspace: task.workspace,
         base: task.base,
         // The journal is where "what was that about" gets answered.
         intent_spoken: req.intent,
@@ -624,6 +631,7 @@ export class Workbench {
     if (result.removed) {
       await this.log.append({
         type: 'task_removed',
+        ...(req.task ? { task: req.task } : {}),
         detail: { branch: req.branch, worktree: req.worktree, forced: req.force === true },
       })
     }
@@ -631,8 +639,12 @@ export class Workbench {
   }
 
   /** Set a task aside, or pick it back up. */
-  async parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }> {
-    const result = await setParked(worktree, parked)
+  async parkTask(
+    worktree: string,
+    parked: boolean,
+    task?: string,
+  ): Promise<{ task: string; parked: boolean }> {
+    const result = await setParked(worktree, parked, task)
     await this.log.append({
       type: 'state_change',
       task: result.task || null,
@@ -689,7 +701,7 @@ export class Workbench {
         }),
       await this.agentPrompt(req.task, req.cwd),
     )
-    const { chosen } = await this.taskFile(req.cwd)
+    const { chosen } = await this.taskFile(req.cwd, req.task)
     const spec = {
       run: lane as RunId,
       task: req.task,
@@ -733,9 +745,12 @@ export class Workbench {
   }
 
   /** What a task's file says: what was asked, and the name a person chose, if any. */
-  private async taskFile(cwd: string): Promise<{ intent: string; chosen: string | null }> {
+  private async taskFile(
+    cwd: string,
+    task?: string,
+  ): Promise<{ intent: string; chosen: string | null }> {
     try {
-      const file = parseYaml(await readFile(join(cwd, '.wilco', 'task.yaml'), 'utf8')) as {
+      const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
         intent_spoken?: unknown
         title?: unknown
         title_named?: unknown
@@ -754,8 +769,11 @@ export class Workbench {
   private async agentPrompt(task: string, cwd: string): Promise<string> {
     const project = task.split('/')[0] ?? ''
     const configured = this.config.projects[project]
-    const { intent } = await this.taskFile(cwd)
+    const { intent } = await this.taskFile(cwd, task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
+    const context = taskContextPath(cwd, task)
+    const shared = taskFilePath(cwd, task) !== join(cwd, '.wilco', 'task.yaml')
+    const agents = this.config.agents
     return composeAgentPrompt({
       task,
       project,
@@ -764,7 +782,10 @@ export class Workbench {
       intent,
       branch: head.ok ? head.stdout.trim() : '',
       notes: this.memory.recall(task),
-      context: existsSync(join(cwd, TASK_CONTEXT_FILE)),
+      context: existsSync(join(cwd, context)) ? context : null,
+      workspace: shared ? 'checkout' : 'worktree',
+      commit: agents.commit,
+      ...(agents.instructions ? { instructions: agents.instructions } : {}),
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
     })
   }
@@ -805,7 +826,7 @@ export class Workbench {
   async renameAgent(req: { task: string; worktree: string; title: string }): Promise<string> {
     const title = req.title.replace(/\s+/g, ' ').trim()
     if (!title) throw new Error('what should it be called?')
-    await setTitle(req.worktree, title, true)
+    await setTitle(req.worktree, title, true, req.task)
     const run = `${req.task}/agent` as RunId
     if (this.registry.get(run as unknown as LaneId)?.alive) {
       await this.workers.name(run, title).catch(() => {})

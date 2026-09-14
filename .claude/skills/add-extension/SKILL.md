@@ -24,13 +24,14 @@ tools registered by Wilco's own pi extensions, which call back to Wilco. What on
 - **Tools start with the extension's name**: `sentry_issues`, `deps_check`. The host refuses anything
   else, which is what keeps two extensions from shadowing each other or Wilco's own `wilco_*` tools.
 - **Say who a tool is for** (`for: ['orchestrator', 'agent']`). Anything that changes something
-  outside a worktree — resolving a Sentry issue — is `['orchestrator']` only, and its description
+  outside the project — resolving a Sentry issue — is `['orchestrator']` only, and its description
   says "only when asked".
 - **Work happens in agents.** A tool that changes a project calls `ctx.wilco.startAgent(...)` with a
   `context` (becomes `.wilco/context.md`), `links` (kept in `task.yaml`, shown under GIT) and
-  `prepare` (changes the worktree before the agent starts). When `ctx.wilco` is null there is no
+  `prepare` (changes the directory it will work in before it starts: the checkout or its
+  worktree, as `agents.workspace` says). When `ctx.wilco` is null there is no
   window: say so, don't do the work somewhere else. When `ctx.caller.kind === 'agent'`, work in
-  `ctx.caller.cwd`, which is that agent's worktree.
+  `ctx.caller.cwd`, which is where that agent works.
 - **`ready()` never touches the network** — it runs before the window opens. Return what to do
   ("set $SENTRY_AUTH_TOKEN…"), not that something failed.
 - **Every setting is declared** in `settings`. A key under `extensions.<name>` that is not declared is

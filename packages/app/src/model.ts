@@ -61,16 +61,15 @@ export interface AppState {
   lastInputAt: number | null
   /** A question the resolver asked, waiting for you to pick one. */
   question: { question: string; candidates: string[] } | null
+  /** How far back the focused agent's screen is scrolled, in lines; 0 follows its newest. */
+  paneScroll: number
+  /** How far back the terminal in front is scrolled, in lines; 0 follows its newest. */
+  terminalScroll: number
   /**
    * What is being dictated, or null when the line is closed. Typed today and
    * filled by a transcriber later: both feed the same sentence to the surface.
    */
   dictation: string | null
-  /**
-   * Where up and down have taken the line in what you said before, and what
-   * you had typed before the first up, to come back to.
-   */
-  recall: { at: number; draft: string } | null
   /** Searching back through what you said, as ctrl+r does in a shell. */
   historySearch: { query: string; skip: number; draft: string; missing: boolean } | null
   /**
@@ -141,12 +140,13 @@ export function initialState(): AppState {
     focused: null,
     transcript: emptyTranscript(),
     transcriptScroll: 0,
+    paneScroll: 0,
+    terminalScroll: 0,
     attached: [],
     listening: false,
     lastInputAt: null,
     question: null,
     dictation: null,
-    recall: null,
     historySearch: null,
     held: null,
     notice: null,
@@ -267,7 +267,9 @@ function refocus(state: AppState, panes: AgentPane[]): string | null {
 
 export function focusTask(state: AppState, task: string): AppState {
   const pane = state.panes.find((one) => one.task === task)
-  return pane ? { ...state, focused: task, project: pane.project, chose: true } : state
+  return pane
+    ? { ...state, focused: task, project: pane.project, chose: true, paneScroll: 0 }
+    : state
 }
 
 /** Move focus along the sidebar, wrapping at both ends. */
@@ -529,17 +531,28 @@ export function addTurn(state: AppState, turn: Turn): AppState {
  */
 export function conversing(state: AppState): boolean {
   if (state.bottom !== ORCHESTRATOR_TAB) return false
+  // Not for typing: opening the line must not move everything above it. A
+  // command being chosen needs the room for its list.
   return (
-    state.dictation !== null ||
     state.listening ||
+    (state.dictation?.startsWith('/') ?? false) ||
     state.transcript.thinking !== null ||
     state.transcript.entries.some((entry) => entry.kind === 'tool' && entry.state === 'running')
   )
 }
 
-/** Change the conversation, and follow it to its newest line. */
+/**
+ * Change the conversation. It follows the newest line — unless you have
+ * scrolled back to read, which something arriving must not undo; saying
+ * something yourself brings you back down.
+ */
 export function withTranscript(state: AppState, transcript: Transcript): AppState {
-  return { ...state, transcript, transcriptScroll: 0 }
+  const yours = transcript.entries.at(-1)?.kind === 'you'
+  return {
+    ...state,
+    transcript,
+    transcriptScroll: yours ? 0 : state.transcriptScroll,
+  }
 }
 
 /** Scroll the conversation back (positive) or forward, never past either end. */
@@ -555,25 +568,6 @@ export function setQuestion(state: AppState, question: AppState['question']): Ap
 /** Open, extend or close the dictation line. */
 export function setDictation(state: AppState, dictation: string | null): AppState {
   return { ...state, dictation }
-}
-
-/**
- * Up on the line: the line said before the one shown, or the newest when none
- * is. What you had typed is kept, for down to come back to.
- */
-export function recallOlder(state: AppState, history: readonly string[]): AppState {
-  if (history.length === 0) return state
-  const at = state.recall ? Math.max(0, state.recall.at - 1) : history.length - 1
-  const draft = state.recall?.draft ?? state.dictation ?? ''
-  return { ...state, dictation: history[at] ?? '', recall: { at, draft } }
-}
-
-/** Down on the line: the line said after the one shown, and past the newest, what you had typed. */
-export function recallNewer(state: AppState, history: readonly string[]): AppState {
-  if (!state.recall) return state
-  const at = state.recall.at + 1
-  if (at >= history.length) return { ...state, dictation: state.recall.draft, recall: null }
-  return { ...state, dictation: history[at] ?? '', recall: { at, draft: state.recall.draft } }
 }
 
 /** The line a search finds: the newest that contains it, or older ones for each ctrl+r again. */
@@ -628,7 +622,6 @@ export function searchKey(
     state: {
       ...state,
       historySearch: null,
-      recall: null,
       dictation: search.missing ? search.draft : state.dictation,
     },
     send: send && !search.missing,
@@ -761,12 +754,27 @@ export type KeyAction =
   | { kind: 'help' }
   | { kind: 'search' }
   | { kind: 'quit' }
+  /** Put the keyboard on the orchestrator's line. */
+  | { kind: 'orchestrator' }
+  /** Do what a button of that name does. */
+  | { kind: 'run'; action: string }
   | { kind: 'none' }
 
 /**
  * Keys the shell claims. Everything it doesn't claim is typed into the focused
  * agent, so an agent's own keybindings keep working.
  */
+/** Keys that do what a button does. */
+const RUNS = new Set([
+  'next-waiting',
+  'new-agent',
+  'new-terminal',
+  'open-project',
+  'extensions',
+  'settings',
+  'bottom-max',
+])
+
 export function keyAction(key: string, state: AppState): KeyAction {
   // A terminal with the keyboard gets tab for completion, ctrl+c to interrupt,
   // and every letter: only talking and search stay Wilco's.
@@ -774,6 +782,7 @@ export function keyAction(key: string, state: AppState): KeyAction {
     if (key === 'talk-down') return { kind: 'talk-start' }
     if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
     if (key === 'search') return { kind: 'search' }
+    if (key === 'orchestrator') return { kind: 'orchestrator' }
     return { kind: 'none' }
   }
   if (key === 'tab') return { kind: 'focus-next' }
@@ -784,10 +793,14 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
   if (key === 'ctrl+c') return { kind: 'quit' }
   if (key === 'search') return { kind: 'search' }
-  // Answering an approval is a single key only while one is actually waiting.
+  if (key === 'orchestrator') return { kind: 'orchestrator' }
+  if (key === 'keys') return { kind: 'run', action: 'keys' }
+  if (RUNS.has(key)) return { kind: 'run', action: key }
+  // Answering an approval is a single key only while one is actually waiting,
+  // and never while a line to Wilco is being typed.
   const focused = state.panes.find((pane) => pane.task === state.focused)
-  if (focused?.waiting && key === 'a') return { kind: 'approve' }
-  if (focused?.waiting && key === 'd') return { kind: 'deny' }
+  if (state.dictation === null && focused?.waiting && key === 'a') return { kind: 'approve' }
+  if (state.dictation === null && focused?.waiting && key === 'd') return { kind: 'deny' }
   return { kind: 'none' }
 }
 

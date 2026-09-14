@@ -11,6 +11,11 @@ export interface ProbeBundle {
   git: GitSnapshot | null
   agents: AgentSignal[]
   tests: TestSignal
+  /**
+   * The work is in a checkout other agents share, so its changes and commits
+   * are not this task's alone: they say nothing about where this task is.
+   */
+  shared?: boolean
 }
 
 export interface Derived {
@@ -51,6 +56,7 @@ const d = (state: TaskState, reason: string, stalled = false): Derived => ({
 })
 
 export function deriveState(b: ProbeBundle): Derived {
+  if (b.shared) return deriveShared(b)
   const { git, now } = b
 
   // Terminal states first: nothing below can override a merge.
@@ -102,6 +108,39 @@ export function deriveState(b: ProbeBundle): Derived {
 
   if (hasCleanWork && b.tests !== 'fail') return d('review', reviewReason(ahead, b.tests))
   if (dirty > 0) return d('working', `${dirty} uncommitted files, no agent attached`)
+  return d('queued', 'no agent has started')
+}
+
+/**
+ * A task in a shared checkout is where its agent is: the files and commits
+ * there are everyone's, so none of them can say it is finished or stuck.
+ */
+function deriveShared(b: ProbeBundle): Derived {
+  if (b.parked) return d('parked', 'parked by you')
+  if (b.git === null) return d('failed', 'checkout missing')
+  const live = b.agents.filter((a) => isLive(a, b.now))
+  const pending = live.flatMap((a) => a.pendingPermissions)
+  if (pending.length > 0) {
+    const more = pending.length > 1 ? ` (+${pending.length - 1} more)` : ''
+    return d('blocked', `wants approval: ${pending[0]}${more}`)
+  }
+  const looping = b.agents.find((a) => a.consecutiveFailures >= Thresholds.maxFailures)
+  if (looping) return d('failed', `${looping.consecutiveFailures} consecutive failures`)
+  const primary = mostRecent(live)
+  if (primary) {
+    if (primary.turn !== 'idle') {
+      const silent = primary.lastActivityAt === null ? 0 : b.now - primary.lastActivityAt
+      if (silent > Thresholds.stallMs) return d('working', `no output for ${minutes(silent)}`, true)
+      return d('working', 'agent running')
+    }
+    if (b.tests === 'fail') return d('blocked', 'turn ended with failing tests')
+    return d('blocked', 'agent idle, waiting for input')
+  }
+  const dead = mostRecent(b.agents)
+  if (dead?.exitCode !== null && dead?.exitCode !== undefined && dead.exitCode !== 0) {
+    return d('failed', `agent exited with code ${dead.exitCode}`)
+  }
+  if (dead) return d('review', 'agent stopped: its work is in the checkout')
   return d('queued', 'no agent has started')
 }
 

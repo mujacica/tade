@@ -31,4 +31,4 @@
                                                                                                                         
  ◉  speak — Wilco hears you until you let go                                                                            
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 

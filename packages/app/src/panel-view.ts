@@ -1,5 +1,5 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import type { Setting, SettingGroup } from '@wilco/core'
+import { KEY_BINDINGS, type Setting, type SettingGroup } from '@wilco/core'
 import type { ParsedDiff } from './diff.ts'
 import type { Hit } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
@@ -114,6 +114,8 @@ export interface PanelContext {
   /** The key you talk with, and how. */
   talkKey: string
   talkMode: 'hold' | 'toggle'
+  /** The window's other keys as set: `surfaces.window.keys`. */
+  bindings: Readonly<Record<string, string>>
   /** Agents that closing would stop. */
   running: number
   /** The project's branches, for switching its checkout. */
@@ -904,64 +906,56 @@ function visibleCells(text: string): number {
 
 function keysSheet(ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(66, ctx.width - 4)
+  const width = Math.min(92, ctx.width - 4)
   const inner = width - 2
   const label = (text: string) =>
-    new Row(inner, skin, ctx.pointer).space().text(pad(text, 17), skin.label)
+    new Row(inner, skin, ctx.pointer).space().text(pad(text, 26), skin.label)
   const talk = ctx.talkKey
   const rows: { text: string; hits: Hit[] }[] = [
     blank(inner),
-    label('TALK')
+    label('Push to talk')
       .keys(keyCaps(talk))
       .space(2)
-      .text(
-        `${ctx.releases && ctx.talkMode === 'hold' ? 'hold' : 'press to start, press to stop'} · yours to change`,
-        skin.hint,
-      )
+      .text(ctx.releases && ctx.talkMode === 'hold' ? 'hold' : 'press, press again', skin.hint)
       .build(),
+  ]
+  // Every other key the window keeps, as it is set now.
+  for (const binding of KEY_BINDINGS) {
+    const bound = ctx.bindings[binding.key] ?? binding.fallback
+    rows.push(
+      label(binding.title).keys(keyCaps(bound)).space(2).text(binding.means, skin.hint).build(),
+    )
+  }
+  rows.push(
     blank(inner),
-    label('SEARCH')
-      .keys(['ctrl', 'k'])
-      .space(2)
-      .text('agents, files, lines in files', skin.hint)
-      .build(),
-    label('SAID BEFORE')
+    label('On the orchestrator line')
       .keys(['↑'])
       .keys(['↓'])
       .space()
       .keys(['ctrl', 'r'])
       .space(2)
-      .text('what you typed', skin.hint)
+      .text('what you said before', skin.hint)
       .build(),
-    label('TERMINAL')
-      .text("click into it to type; tab, ctrl+c and esc are the shell's", skin.hint)
-      .build(),
-    label('NEXT AGENT').keys(['tab']).space(2).keys(['shift', 'tab']).build(),
-    label('ANSWER')
-      .keys(['a'])
-      .text(' allow  ', skin.hint)
-      .keys(['d'])
-      .text(' deny   ', skin.hint)
-      .text('only while one waits', skin.hint)
-      .build(),
-    label('IN A PANEL')
+    label('In a panel')
       .keys(['enter'])
       .space()
       .keys(['esc'])
       .space()
       .keys(['↑'])
       .keys(['↓'])
+      .space(2)
+      .text('the wheel scrolls it', skin.hint)
       .build(),
-    label('QUIT').keys(['ctrl', 'c']).build(),
+    label('Quit').keys(['ctrl', 'c']).build(),
     blank(inner),
     new Row(inner, skin)
       .space()
-      .text("Everything else goes to the agent you're watching.", skin.hint)
+      .text("Everything else goes to the agent or terminal you're typing at.", skin.hint)
       .build(),
     new Row(inner, skin, ctx.pointer)
       .right((r) => r.button('Change keys…', { kind: 'control', id: 'change-keys' }).space())
       .build(),
-  ]
+  )
   return box('Keys', rows, width, skin, { corner: 'esc' })
 }
 
@@ -1635,12 +1629,26 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   const width = 62
   const inner = width - 2
   const pressed = panel.capture?.key ?? null
-  const check = pressed ? checkTalkKey(pressed) : null
+  const setting = ctx.settings
+    .flatMap((group) => group.settings)
+    .find((one) => one.path === panel.capture?.path)
+  const talking = panel.capture?.path === 'surfaces.voice.talk.key'
+  const printable = setting?.type.kind === 'key' && setting.type.printable === true
+  const check = pressed ? checkTalkKey(pressed, printable) : null
   const row = () => new Row(inner, skin, ctx.pointer)
   const rows: { text: string; hits: Hit[] }[] = [
     { text: ' '.repeat(inner), hits: [] },
     row()
-      .right((r) => r.text('Press the keys you want to hold to talk.', skin.you).space(8))
+      .right((r) =>
+        r
+          .text(
+            talking
+              ? 'Press the keys you want to hold to talk.'
+              : `Press the keys for ${setting?.title ?? 'this'}.`,
+            skin.you,
+          )
+          .space(8),
+      )
       .build(),
     { text: ' '.repeat(inner), hits: [] },
   ]
@@ -1713,7 +1721,9 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   )
-  return box('Push to talk', rows, width, skin, { corner: 'esc' })
+  return box(talking ? 'Push to talk' : (setting?.title ?? 'Key'), rows, width, skin, {
+    corner: 'esc',
+  })
 }
 
 function fitTo(text: string, width: number): string {

@@ -93,6 +93,8 @@ file and cannot be tested.
 
 ## Controls and panels
 
+- **The footer's buttons each have a colour of their own** (`find`, `create`, `open`, `extend`,
+  `configure` looks, with `-hover` variants). A new button picks a look; it never reuses one.
 - **Build rows with `Row`, never by concatenating strings.** `new Row(width, skin, pointer)` then
   `.text()`, `.button()`, `.tab()`, `.keys()`, `.field()`, `.check()`… and `.right(r => …)` for the
   group pinned to the right edge. Each control records its own hit while it draws, measured before
@@ -162,8 +164,19 @@ file and cannot be tested.
 - **Every panel scrolls under the wheel.** `draw` lays a scroll hit under each panel, and the wheel
   becomes ↑/↓ for it — so a list panel must keep its selection in view (window its rows around the
   index) and use the height it has, rather than a fixed handful of rows.
-- **What you type to Wilco is journaled** (`said` events) and comes back with ↑/↓ and ctrl+r on the
-  line, only while the line is open — anywhere else those keys are the agent's.
+- **The orchestrator line is pi's own `Editor`** (cursor, wrapping, undo, paste markers), drawn by
+  the app into `Frame.input` and boxed by `inputBox`. Keep `state.dictation` in step with it
+  (`syncLine`) — everything else reads the dictation. Opening it never changes the panel's height.
+- **What you type to Wilco is journaled** (`said` events) and comes back with ↑/↓ (the editor's
+  history) and ctrl+r, only while the line is open — anywhere else those keys are the agent's.
+- **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
+  `appKey` names them, `keyAction` gives them meaning, the keys sheet and Keys settings read the
+  same list. A new shortcut is a binding there, never a literal key in `app.ts`.
+- **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
+  release (`Window.selection`); the terminal cannot, because the window reports the mouse.
+- **Agent panes and terminals scroll back** through their lane's scrollback: the wheel sets
+  `paneScroll`/`terminalScroll`, the tick captures that much further back, and typing returns to
+  the newest line.
 - **What drawing costs is tested** in `screens.test.ts` over every scenario. If a change makes a
   frame slow, cache what it formats (as the transcript and file viewer do) rather than raising it.
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`

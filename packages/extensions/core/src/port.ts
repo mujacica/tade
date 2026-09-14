@@ -140,10 +140,11 @@ export interface ExtensionSetup {
 /** What an open window can do for an extension that nothing else can. */
 export interface ExtensionWorkbench {
   /**
-   * Put an agent to work on something, in a worktree of its own: the context
-   * written where it will read it, the links kept with the task, and `prepare`
-   * given the worktree before the agent starts, for changes it should begin
-   * from.
+   * Put an agent to work on something — in the project's checkout or a
+   * worktree of its own, as the person has Wilco set up: the context written
+   * where it will read it, the links kept with the task, and `prepare` given
+   * the directory it will work in before it starts, for changes it should
+   * begin from.
    */
   startAgent(request: {
     project: string

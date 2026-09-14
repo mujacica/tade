@@ -318,7 +318,7 @@ export default function wilcoTools(pi: PiApi): void {
         const task = String(p.task)
         const worktree = await worktreeOf(task)
         if (!worktree) throw new Error(`no such task: ${task}`)
-        return rpc('task/park', { worktree, parked })
+        return rpc('task/park', { worktree, parked, task })
       },
     )
   }

@@ -15,20 +15,20 @@
        webhooks.ts            │                                                                                         
    ▸ test/                    │                                                                                         
      package.json             │                                                                                         
+     README.md                │                                                                                         
+                              │                                                                                         
+ ▸ NOTES  4           ▐  +  ▌ │                                                                                         
+ ▾ GIT                        │                                                                                         
+   repo     ~/src/checkout    │                                                                                         
+   branch   …lco/stripe-v15   │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
- › ▣ wilco-clipboard-1.png why does the refund button look like this▏                                                   
+─ ▣ wilco-clipboard-1.png ─ ───────────────────────────────────  enter sends · shift+enter new line · ↑ ctrl+r history ─
+ why does the refund button look like this▏                                                                             
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 

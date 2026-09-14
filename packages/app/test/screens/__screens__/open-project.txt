@@ -27,8 +27,8 @@
           │ Name   payroll                                                 ▐ Cancel ▌ ▐ Open ~/src/payroll ▌ │          
           │ click to choose · click again or → to go in · ← up · enter opens                                 │          
           ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯          
-                                                                                                                        
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 

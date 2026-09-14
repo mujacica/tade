@@ -4,16 +4,20 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
   type Component,
+  Editor,
   getKeybindings,
   isKeyRelease,
   ProcessTerminal,
   parseKey,
+  sliceByColumn,
+  stripTerminalSequences,
   type Terminal,
   TUI_KEYBINDINGS,
   TuiAltScreen,
   type TuiInputListenerResult,
   type TuiMouseEvent,
   type TuiMouseEventResult,
+  visibleWidth,
 } from '@earendil-works/pi-tui'
 import {
   type Config,
@@ -81,8 +85,6 @@ import {
   onEvent,
   parseCommand,
   projects,
-  recallNewer,
-  recallOlder,
   resizeTo,
   scrollSidebar,
   scrollTranscript,
@@ -209,7 +211,6 @@ const STATUS_MS = 5_000
 const MAX_SPEECH_MS = 120_000
 
 /** Backspace, and what some terminals send instead. */
-const BACKSPACE = /^(\x7f|\b)$/
 
 const HELP = 'tab moves · / lists commands · ctrl+space talks · ctrl+c quits'
 
@@ -232,20 +233,35 @@ export type PointerEvent =
 class Window implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
   private readonly onPointer: (event: PointerEvent) => boolean
+  private readonly onCopy: (text: string) => void
   private hits: readonly Hit[] = []
+  private rows: readonly string[] = []
   /** A divider is held: every movement until it is let go is a drag. */
   private dragging = false
+  /**
+   * Text being selected by dragging over it. The window reports the mouse, so
+   * the terminal cannot select for itself: dragging anywhere that is not a
+   * control selects here instead, and letting go copies it.
+   */
+  private selection: { from: Cell; to: Cell; moved: boolean } | null = null
 
-  constructor(frame: Window['frame'], onPointer: (event: PointerEvent) => boolean) {
+  constructor(
+    frame: Window['frame'],
+    onPointer: (event: PointerEvent) => boolean,
+    onCopy: (text: string) => void,
+  ) {
     this.frame = frame
     this.onPointer = onPointer
+    this.onCopy = onCopy
   }
 
   render(width: number): string[] {
     const { state, frame } = this.frame(width)
     const drawn = draw(state, frame)
     this.hits = drawn.hits
-    return drawn.rows
+    this.rows = drawn.rows
+    const chosen = this.selection?.moved ? ordered(this.selection) : null
+    return chosen ? highlighted(drawn.rows, chosen, width) : drawn.rows
   }
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -255,6 +271,10 @@ class Window implements Component {
       case 'drag':
         if (this.dragging) {
           return { handled: true, render: this.onPointer({ kind: 'drag', x: event.x, y: event.y }) }
+        }
+        if (event.type === 'drag' && this.selection) {
+          this.selection = { ...this.selection, to: { x: event.x, y: event.y }, moved: true }
+          return { handled: true, render: true }
         }
         return { handled: true, render: this.onPointer({ kind: 'move', target }) }
       case 'press':
@@ -270,10 +290,25 @@ class Window implements Component {
           return { handled: true }
         }
         if (event.button !== 'left') return undefined
-        return { handled: target !== null, render: this.onPointer({ kind: 'press', target }) }
-      case 'release':
+        // Anywhere that is not a control is text you might select.
+        this.selection = pressable(target)
+          ? null
+          : { from: { x: event.x, y: event.y }, to: { x: event.x, y: event.y }, moved: false }
+        return {
+          handled: target !== null || this.selection !== null,
+          render: this.onPointer({ kind: 'press', target }) || true,
+        }
+      case 'release': {
         this.dragging = false
-        return { handled: true, render: this.onPointer({ kind: 'release' }) }
+        const chosen = this.selection?.moved ? ordered(this.selection) : null
+        if (chosen) {
+          const text = selectedText(this.rows, chosen)
+          if (text.trim() !== '') this.onCopy(text)
+        }
+        // Kept lit until the next press, so you can see what was copied.
+        if (!chosen) this.selection = null
+        return { handled: true, render: this.onPointer({ kind: 'release' }) || chosen !== null }
+      }
       case 'click':
         if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
         this.onPointer({ kind: 'click', target, button: event.button, x: event.x, y: event.y })
@@ -410,6 +445,8 @@ export class App {
   private statuses: NonNullable<Frame['statuses']> = []
   /** What you said to Wilco, oldest first. */
   private history: string[] = []
+  /** pi's own editor, for the orchestrator's line. */
+  private readonly editor: Editor
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
@@ -477,6 +514,21 @@ export class App {
     // clickable: events arrive at the component with coordinates local to it.
     this.tui = new TuiAltScreen(this.terminal)
     freeViewportKeys()
+    const plain = (text: string) => text
+    this.editor = new Editor(
+      this.tui,
+      {
+        borderColor: plain,
+        selectList: {
+          selectedPrefix: plain,
+          selectedText: plain,
+          description: plain,
+          scrollInfo: plain,
+          noMatch: plain,
+        },
+      },
+      { paddingX: 1 },
+    )
     this.closed = new Promise((resolve) => {
       this.settle = resolve
     })
@@ -505,7 +557,9 @@ export class App {
   private thinkWith(thinker: Thinker): void {
     this.thinker = thinker
     thinker.onEvent?.((event) => {
-      this.state = withTranscript(this.state, fromThinker(this.state.transcript, event, this.now()))
+      this.state = this.anchored(
+        withTranscript(this.state, fromThinker(this.state.transcript, event, this.now())),
+      )
       this.draw()
     })
   }
@@ -837,7 +891,8 @@ export class App {
             repo: tilde(repo),
             branch: facts?.branch ?? live.branchAt(repo),
             base: focused ? live.baseOf(focused.task) : null,
-            worktree: worktree ? tilde(worktree) : null,
+            // Only a worktree of its own is worth a line: one sharing the checkout works in `repo`.
+            worktree: worktree && resolve(worktree) !== resolve(repo) ? tilde(worktree) : null,
             path: worktree ?? repo,
             shownPath: tilde(worktree ?? repo),
             links: facts?.links ?? [],
@@ -870,6 +925,8 @@ export class App {
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
       orchestratorAccount: this.thinkerAccount(),
+      bindings: this.opts.config.surfaces.window.keys,
+      ...this.inputFor(width),
       statuses: this.statuses,
       now: this.now(),
     }
@@ -896,6 +953,13 @@ export class App {
         }
         if (event.area === 'sidebar' && !panel) {
           this.state = scrollSidebar(this.state, event.rows)
+          return true
+        }
+        if ((event.area === 'pane' || event.area === 'terminal') && !panel) {
+          // The wheel up reads back through what was printed.
+          const which = event.area === 'pane' ? 'paneScroll' : 'terminalScroll'
+          this.state = { ...this.state, [which]: Math.max(0, this.state[which] - event.rows) }
+          this.soonTick()
           return true
         }
         if (event.area === 'transcript' && !panel) {
@@ -1015,8 +1079,6 @@ export class App {
     this.live = live
     this.linkers = this.opts.extensions?.linkers() ?? []
     this.watchExtensions()
-    // Never an empty project: the one you open in gets an agent, ready to type to.
-    this.ensureAgent(this.state.project)
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice = await VoiceSurface.start({
@@ -1056,6 +1118,7 @@ export class App {
       new Window(
         (width) => ({ state: this.state, frame: this.frameFor(live, width) }),
         (event) => this.pointer(event),
+        (text) => void this.copySelection(text),
       ),
     )
     this.release = this.tui.addInputListener((data) => this.onInput(data))
@@ -1102,8 +1165,11 @@ export class App {
         this.state.dictation !== null ||
         (this.state.focused === null && !activeTerminal(this.state))
       ) {
-        const text = paste.replace(/\s*\n\s*/g, ' ')
-        this.state = setDictation(this.state, `${this.state.dictation ?? ''}${text}`)
+        if (this.state.dictation === null) this.state = setDictation(this.state, '')
+        this.syncLine()
+        // As pi takes a paste: a long one becomes a marker, sent in full.
+        this.editor.handleInput(`\x1b[200~${paste}\x1b[201~`)
+        this.state = setDictation(this.state, this.editor.getText())
         this.draw()
         return { consume: true }
       }
@@ -1121,6 +1187,7 @@ export class App {
       listening: this.state.listening,
       talk: talk.key,
       toggle: talk.mode === 'toggle',
+      bindings: this.opts.config.surfaces.window.keys,
     })
     const action = key ? keyAction(key, this.state) : { kind: 'none' as const }
 
@@ -1158,6 +1225,17 @@ export class App {
       case 'search':
         this.openSearch()
         return { consume: true }
+      case 'orchestrator':
+        this.state = {
+          ...this.state,
+          bottom: ORCHESTRATOR_TAB,
+          dictation: this.state.dictation ?? '',
+        }
+        this.draw()
+        return { consume: true }
+      case 'run':
+        void this.run(action.action)
+        return { consume: true }
       case 'quit':
         this.quit()
         return { consume: true }
@@ -1168,6 +1246,7 @@ export class App {
     // A terminal with the keyboard gets every keystroke Wilco did not keep.
     const terminal = activeTerminal(this.state)
     if (terminal && this.state.keyboard === 'terminal' && this.state.dictation === null) {
+      this.state = { ...this.state, terminalScroll: 0 }
       void this.opts.client.write(terminal.id as LaneId, data).catch(() => {})
       this.soonTick()
       return { consume: true }
@@ -1179,14 +1258,13 @@ export class App {
     }
     // Nothing focused means the orchestrator is, and it is a thing you type
     // at: a window with no agents used to swallow every keystroke.
-    if (this.state.focused === null && ['up', 'ctrl+r'].includes(parseKey(data) ?? '')) {
+    if (
+      this.state.focused === null &&
+      (printable(data) || ['up', 'ctrl+r'].includes(parseKey(data) ?? ''))
+    ) {
       this.state = setDictation(this.state, '')
+      this.syncLine()
       this.type(data)
-      return { consume: true }
-    }
-    if (this.state.focused === null && printable(data)) {
-      this.state = setDictation(this.state, data)
-      this.draw()
       return { consume: true }
     }
     this.toLane(data)
@@ -1253,7 +1331,6 @@ export class App {
         this.state = selectProject(this.state, target.project)
         const root = this.opts.config.projects[target.project]?.root
         if (root) noteRecent(this.opts.home, target.project, root, this.now())
-        this.ensureAgent(target.project)
         break
       }
       case 'section':
@@ -1343,6 +1420,21 @@ export class App {
     switch (action) {
       case 'new-agent':
         await this.newAgent('')
+        return
+      case 'search':
+        this.openSearch()
+        return
+      case 'keys':
+        this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
+        this.draw()
+        return
+      case 'pane-end':
+        this.state = { ...this.state, paneScroll: 0 }
+        this.soonTick()
+        return
+      case 'terminal-end':
+        this.state = { ...this.state, terminalScroll: 0 }
+        this.soonTick()
         return
       case 'transcript-end':
         this.state = { ...this.state, transcriptScroll: 0 }
@@ -2086,6 +2178,19 @@ export class App {
     this.draw()
   }
 
+  /** Text selected by dragging over it, put on the clipboard. */
+  private async copySelection(text: string): Promise<void> {
+    const copied = await copyText(text, (data) => this.terminal.write(data))
+    const lines = text.split('\n').length
+    this.state = notice(
+      this.state,
+      copied
+        ? `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`
+        : 'could not copy',
+    )
+    this.draw()
+  }
+
   /** ctrl+v at the orchestrator: the screenshot on the clipboard, attached. */
   private async attachClipboard(): Promise<void> {
     const path = await clipboardImage()
@@ -2452,7 +2557,7 @@ export class App {
         const pane = this.state.panes.find((p) => p.task === task)
         const parked = pane?.state !== 'parked'
         try {
-          await this.opts.client.parkTask(worktree, parked)
+          await this.opts.client.parkTask(worktree, parked, task)
           await this.live?.refresh()
           this.state = notice(this.state, parked ? `parked ${task}` : `picked ${task} up again`)
         } catch (err) {
@@ -2487,6 +2592,7 @@ export class App {
         root: expandHome(root),
         worktree,
         branch: facts.branch,
+        task: panel.task,
         force: true,
       })
       if (!result.removed) {
@@ -2608,43 +2714,41 @@ export class App {
     }
   }
 
-  /** Edit the dictation line. Enter sends it, as holding the key again would. */
+  /**
+   * Type on the orchestrator's line. pi's own editor takes the keys — the
+   * cursor, words, undo, a paste, lines that wrap, ↑ for what was said —
+   * so the line behaves as pi's does. Enter sends it; escape abandons it.
+   */
   private type(data: string): void {
+    if (isKeyRelease(data)) return
     const key = parseKey(data)
     // Searching back through what you said: the search has the keys until it ends.
     if (this.state.historySearch) {
       const searched = searchKey(this.state, this.history, key, data)
       this.state = searched.state
+      if (!this.state.historySearch) this.editor.setText(this.state.dictation ?? '')
       if (searched.send) this.submit()
       else this.draw()
       return
     }
-    if (data === '\r' || data === '\n') {
-      this.submit()
-      return
-    }
-    // What you said before, as a shell and pi bring it back.
-    if (key === 'up' || key === 'down' || key === 'ctrl+r') {
-      this.state =
-        key === 'up'
-          ? recallOlder(this.state, this.history)
-          : key === 'down'
-            ? recallNewer(this.state, this.history)
-            : startHistorySearch(this.state, this.history)
+    if (key === 'ctrl+r') {
+      this.state = startHistorySearch(setDictation(this.state, this.editor.getText()), this.history)
       this.draw()
       return
     }
-    // Changing a line brought back makes it a new one.
-    this.state = { ...this.state, recall: null }
-    const current = this.state.dictation ?? ''
-    if (BACKSPACE.test(data)) {
-      this.state = setDictation(this.state, current.slice(0, -1))
-    } else if (data === '\x1b') {
-      // Escape abandons it rather than sending half a sentence, pictures and all.
-      this.state = setListening(setDictation({ ...this.state, attached: [] }, null), false)
-    } else if (!data.startsWith('\x1b')) {
-      this.state = setDictation(this.state, current + data)
+    if (key === 'enter') {
+      this.submit()
+      return
     }
+    if (key === 'escape') {
+      // Escape abandons it rather than sending half a sentence, pictures and all.
+      this.editor.setText('')
+      this.state = setListening(setDictation({ ...this.state, attached: [] }, null), false)
+      this.draw()
+      return
+    }
+    this.editor.handleInput(data)
+    this.state = setDictation(this.state, this.editor.getText())
     this.draw()
   }
 
@@ -2654,6 +2758,7 @@ export class App {
    */
   private rememberSaid(said: string): void {
     if (this.history.at(-1) !== said) this.history.push(said)
+    this.editor.addToHistory(said)
     if (this.history.length > HISTORY_MAX) this.history.splice(0, this.history.length - HISTORY_MAX)
     void this.opts.client.log
       .append({ type: 'said', task: null, detail: { text: said } })
@@ -2677,15 +2782,15 @@ export class App {
         keep(text)
     // Anything said while this was loading is newer than all of it.
     this.history = [...before, ...this.history]
+    for (const line of this.history.slice(-100)) this.editor.addToHistory(line)
   }
 
   /** Hand what was said to the surface, which works out who you meant. */
   private submit(): void {
-    const said = (this.state.dictation ?? '').trim()
-    this.state = setListening(
-      setDictation({ ...this.state, recall: null, historySearch: null }, null),
-      false,
-    )
+    this.syncLine()
+    const said = this.editor.getExpandedText().trim()
+    this.editor.setText('')
+    this.state = setListening(setDictation({ ...this.state, historySearch: null }, null), false)
     this.draw()
     // A command is carried out here; anything else is a sentence for Wilco.
     if (said.startsWith('/')) {
@@ -2794,9 +2899,16 @@ export class App {
    * see yet cannot take focus.
    */
   private async startTask(project: string, intent: string): Promise<string> {
-    const taken = new Set(
-      this.state.panes.filter((pane) => pane.project === project).map((pane) => pane.name),
-    )
+    // A name is never used twice: pi keeps a conversation by the task's name,
+    // so a new agent given an old one's would carry on its conversation.
+    const before = await this.opts.client.events({ types: ['task_created'] }).catch(() => [])
+    const taken = new Set([
+      ...this.state.panes.filter((pane) => pane.project === project).map((pane) => pane.name),
+      ...before
+        .map((event) => event.task ?? '')
+        .filter((task) => task.startsWith(`${project}/`))
+        .map((task) => task.slice(project.length + 1)),
+    ])
     // Said without words, it is an agent to look around with: no branch until
     // it changes something, and then one named for what it did.
     const detached = intent === ''
@@ -2819,9 +2931,9 @@ export class App {
   }
 
   /**
-   * An agent in a project you open, so there is always somewhere to type. Once
-   * per project per window, and only where there is none: it costs a worktree
-   * and no branch, and pi opening sends nothing to a model until you type.
+   * An agent in a project you have just added, so there is somewhere to type.
+   * Only then: a project whose agents you removed stays without one — opening
+   * the window again must never bring back what you took away.
    */
   private ensureAgent(project: string | null): void {
     if (!project || !this.live || this.opened.has(project)) return
@@ -3016,7 +3128,8 @@ export class App {
   /** Type into the agent you are watching, and hold focus while you do. */
   private toLane(data: string): void {
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
-    this.state = noteTyping(this.state, this.now())
+    // Typing at an agent is looking at its newest line.
+    this.state = { ...noteTyping(this.state, this.now()), paneScroll: 0 }
 
     // A half-typed line belongs to the prompt it was started at, so switching
     // agents abandons it rather than carrying it across.
@@ -3076,7 +3189,11 @@ export class App {
     if (lane) await this.fitLane(lane, size)
     this.watch(lane)
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : null)
-    const screen = await (this.live?.capture(lane, size.rows, this.skin.colour) ?? '')
+    const screen = this.scrolledBack(
+      await (this.live?.capture(lane, size.rows + this.state.paneScroll, this.skin.colour) ?? ''),
+      size.rows,
+      'paneScroll',
+    )
     const terminal = await this.captureTerminal()
     // While the orchestrator works, its spinner is news every frame.
     const working =
@@ -3099,6 +3216,20 @@ export class App {
    * How far the conversation can scroll back: its lines, less the rows the
    * strip shows them in. Laid out the way the view lays it out, at its width.
    */
+  /**
+   * Scrolled back, the lines you are reading stay where they are while new
+   * ones arrive below: the distance from the bottom grows by what was added.
+   */
+  private anchored(next: AppState): AppState {
+    const before = this.state
+    if (next.transcriptScroll === 0 || next.transcript === before.transcript) return next
+    const count = (transcript: AppState['transcript']) =>
+      transcriptLines(transcript, this.terminal.columns, PLAIN, { hover: null, pressed: null }, 0)
+        .length
+    const grown = count(next.transcript) - count(before.transcript)
+    return { ...next, transcriptScroll: Math.max(0, next.transcriptScroll + grown) }
+  }
+
   private transcriptRows(): number {
     const layout = resolveLayout(this.layout(), {
       width: this.terminal.columns,
@@ -3108,11 +3239,37 @@ export class App {
     const lines = transcriptLines(
       this.state.transcript,
       width,
-      PLAIN,
+      this.skin,
       { hover: null, pressed: null },
-      0,
+      this.now(),
+      this.linkers,
     )
-    return Math.max(0, lines.length - Math.max(0, layout.stripHeight - 2))
+    // As the strip lays it out: its tab row, then the conversation, then the
+    // input box, which is taller while what is typed wraps.
+    const room = layout.stripHeight - 1
+    const input = Math.min(
+      Math.max(3, room - 1),
+      this.state.dictation !== null ? this.editor.render(width).length : 3,
+    )
+    return Math.max(0, lines.length - Math.max(0, room - input))
+  }
+
+  /**
+   * A screen read further back than it is tall, cut to the part scrolled to.
+   * Scrolling past the oldest line there is stops at it.
+   */
+  private scrolledBack(
+    captured: string,
+    rows: number,
+    which: 'paneScroll' | 'terminalScroll',
+  ): string {
+    const back = this.state[which]
+    if (back === 0) return captured
+    const lines = captured.split('\n')
+    const most = Math.max(0, lines.length - rows)
+    if (back > most) this.state = { ...this.state, [which]: most }
+    const end = lines.length - this.state[which]
+    return lines.slice(Math.max(0, end - rows), end).join('\n')
   }
 
   private async captureTerminal(): Promise<boolean> {
@@ -3131,7 +3288,15 @@ export class App {
     }
     await this.fitLane(terminal.id, size)
     this.watch(terminal.id, 'terminal')
-    const screen = await (this.live?.capture(terminal.id, size.rows, this.skin.colour) ?? '')
+    const screen = this.scrolledBack(
+      await (this.live?.capture(
+        terminal.id,
+        size.rows + this.state.terminalScroll,
+        this.skin.colour,
+      ) ?? ''),
+      size.rows,
+      'terminalScroll',
+    )
     if (screen === this.terminalScreen) return false
     this.terminalScreen = screen
     return true
@@ -3346,6 +3511,25 @@ export class App {
    * answer says where to look instead of pretending.
    */
   /** The orchestrator's model as the config has it: `provider/id`, or the id alone. */
+  /**
+   * The line, as pi's editor draws it at this width, while it is open. What
+   * something else put there — a transcript, a command to finish — is taken
+   * into the editor first, so there is only ever one line.
+   */
+  private inputFor(width: number): Pick<Frame, 'input'> {
+    this.syncLine()
+    if (this.state.dictation === null) return {}
+    this.editor.focused = true
+    this.editor.borderColor = this.skin.signal
+    return { input: { lines: this.editor.render(width) } }
+  }
+
+  /** The editor holds what the state says the line holds. */
+  private syncLine(): void {
+    const wanted = this.state.dictation ?? ''
+    if (this.editor.getText() !== wanted) this.editor.setText(wanted)
+  }
+
   private thinkerAccount(): NonNullable<Frame['orchestratorAccount']> {
     const { provider, model } = this.opts.config.orchestrator
     const paying = provider ?? (model?.includes('/') ? (model.split('/')[0] ?? null) : null)
@@ -3665,7 +3849,7 @@ export class App {
       if (run.state === 'progress') {
         transcript = fromThinker(transcript, { type: 'progress', id: run.id, text: run.text }, at)
       }
-      this.state = withTranscript(this.state, transcript)
+      this.state = this.anchored(withTranscript(this.state, transcript))
       this.draw()
     })
   }
@@ -3901,7 +4085,6 @@ export class App {
     if (!chosen) return fail('Choose a folder, or a recent project.')
     if (chosen.kind === 'recent') {
       this.state = { ...selectProject(this.state, chosen.name), panel: null }
-      this.ensureAgent(chosen.name)
       noteRecent(this.opts.home, chosen.name, chosen.path, this.now())
       return
     }
@@ -3993,7 +4176,7 @@ export class App {
     const before = readFileSync(this.configPath, 'utf8')
     try {
       if (setting?.type.kind === 'key') {
-        const check = checkTalkKey(value)
+        const check = checkTalkKey(value, setting.type.printable === true)
         if (!check.ok) throw new Error(check.reason)
       }
       if (path === 'orchestrator.model') {
@@ -4177,6 +4360,48 @@ function vocabulary(tasks: readonly { task: string }[]): { tasks: string[]; proj
 function tilde(path: string): string {
   const home = process.env.HOME
   return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
+}
+
+/** A cell on the screen. */
+interface Cell {
+  x: number
+  y: number
+}
+
+/** A selection from where it starts to where it ends, reading order, whichever way it was dragged. */
+export function ordered(selection: { from: Cell; to: Cell }): { from: Cell; to: Cell } {
+  const { from, to } = selection
+  return from.y < to.y || (from.y === to.y && from.x <= to.x)
+    ? { from, to }
+    : { from: to, to: from }
+}
+
+/** The text a selection covers, one line per row, without the spaces that pad a row out. */
+export function selectedText(rows: readonly string[], chosen: { from: Cell; to: Cell }): string {
+  const lines: string[] = []
+  for (let y = chosen.from.y; y <= chosen.to.y; y++) {
+    const plain = stripTerminalSequences(rows[y] ?? '')
+    const start = y === chosen.from.y ? chosen.from.x : 0
+    const end = y === chosen.to.y ? chosen.to.x + 1 : visibleWidth(plain)
+    lines.push(sliceByColumn(plain, start, Math.max(0, end - start)).trimEnd())
+  }
+  return lines.join('\n')
+}
+
+/** Rows with a selection shown the way a terminal shows one: reversed. */
+export function highlighted(
+  rows: readonly string[],
+  chosen: { from: Cell; to: Cell },
+  width: number,
+): string[] {
+  return rows.map((row, y) => {
+    if (y < chosen.from.y || y > chosen.to.y) return row
+    const start = y === chosen.from.y ? chosen.from.x : 0
+    const end = y === chosen.to.y ? chosen.to.x + 1 : width
+    const plain = stripTerminalSequences(row)
+    const lit = sliceByColumn(plain, start, Math.max(0, end - start))
+    return `${sliceByColumn(row, 0, start)}\x1b[0m\x1b[7m${lit}\x1b[0m${sliceByColumn(row, end, Math.max(0, width - end))}`
+  })
 }
 
 /**

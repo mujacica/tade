@@ -112,15 +112,24 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   child would ever want to call it, it has become a daemon again — which is the thing we removed.
 - **An agent is a lane with pi in it**, named `<task>/agent`, talking in a pi session named after
   the task. That session id never changes, which is what makes reopening ordinary: the same command
-  line starts the conversation the first time and continues it every time after.
-- **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, its worktree, how its
-  branch gets named, your notes about the work, and its context file. Appended to the harness's
-  own instructions, never replacing them.
+  line starts the conversation the first time and continues it every time after — and why **a task
+  name is never used twice**: a new agent given an old one's name would carry on its conversation.
+- **Agents work where `agents.workspace` says.** `checkout` (the default): every agent in the
+  project's own checkout, on its branch, at once, each task a folder under `.wilco/tasks/<name>`;
+  its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it
+  removes only that folder. `worktree`: a worktree and branch each. Nothing that runs git on a
+  task's directory may assume the directory is the task's alone — ask `task.workspace`.
+- **Opening the window starts nothing.** An agent exists because someone asked for one; a project
+  whose agents were removed stays empty until asked again.
+- **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, where it works and
+  who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
+  notes about the work, and its context file. Appended to the harness's own instructions, never
+  replacing them.
 - **A name a person gives an agent is kept** (`title_named` in its task file) and given to its
   session; any other name is only a guess, replaced when a better one comes.
 - **Probes run detached.** Anything Wilco runs on a timer — git, ps, lsof, an extension's commands —
   runs in its own process group, or Terminal.app retitles the window after it every poll.
-- **A task's id is in its `.wilco/task.yaml`, not its branch.** An agent opened from the window
+- **A task's id is in its task file, not its branch.** In a worktree, an agent opened from the window
   starts on no branch (a detached worktree) and is given `wilco/<its title>` at its first change;
   its lanes and session keep the id it was made with. Status finds a branchless worktree only by that
   file, and never renames a branch it did not make.

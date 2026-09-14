@@ -77,7 +77,8 @@ export class ToolHost {
           callId: String(p.callId ?? ''),
         })
       },
-      'task/park': (p) => wilco.parkTask(String(p.worktree), p.parked === true),
+      'task/park': (p) =>
+        wilco.parkTask(String(p.worktree), p.parked === true, p.task ? String(p.task) : undefined),
       'task/rename': (p) =>
         wilco.renameAgent({
           task: String(p.task),

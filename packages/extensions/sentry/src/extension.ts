@@ -394,7 +394,7 @@ export const sentryExtension: WilcoExtension = {
     {
       name: 'sentry_fix',
       description:
-        "Start an agent on fixing a Sentry issue, in a worktree of its own. It is given everything Sentry knows — the stack trace, the most relevant frame, breadcrumbs, request, tags, the trace — in .wilco/context.md, the issue's link, and told to reproduce, fix, test, and commit with 'Fixes <SHORT-ID>' so Sentry resolves it on release. Add what you know that Sentry does not in note.",
+        "Start an agent on fixing a Sentry issue. It is given everything Sentry knows — the stack trace, the most relevant frame, breadcrumbs, request, tags, the trace — in its context file, the issue's link, and told to reproduce, fix, test, and commit with 'Fixes <SHORT-ID>' so Sentry resolves it on release. Add what you know that Sentry does not in note.",
       parameters: object(
         {
           issue,

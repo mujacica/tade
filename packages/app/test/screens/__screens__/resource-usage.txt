@@ -27,8 +27,8 @@
      │                     CPU               memory                                                               │     
      │   refunds           ████████░░   76%  █████░░░░░  361 MB                                                   │     
      │ ↑↓ scrolls · 1–26 of 53 · kept current while open                                                ▐ Close ▌ │     
-     ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯     
- ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯     
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌            91% · 783 MB │ claude-opus-5 ▾ │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                           $2.66 today ▾ 

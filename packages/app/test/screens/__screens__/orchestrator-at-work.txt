@@ -21,7 +21,6 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
 ❯ run the webhook tests and tell me what broke                                                                          
   ✓ status                                                                                                              
     2 agents, 1 waiting                                                                                                 
@@ -29,6 +28,7 @@
     no terminal called tests is open in checkout: open one first, or name another                                       
   ⠸ terminal open · checkout · tests                                                                                    
 ◆ Opening a tests terminal first, then▍                                                                                 
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 

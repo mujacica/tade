@@ -25,10 +25,9 @@ import { PUBLIC_REGISTRIES, type Registries } from './registries.ts'
 // deprecated, and an agent to bring it up to date.
 //
 // Checking is a question and can be asked by anyone, anywhere. Updating is
-// work, so it happens where work happens: in a worktree of its own, with an
-// agent that installs, runs the tests and fixes what the new versions broke.
-// Nothing here ever rewrites the project's own checkout — only an agent's
-// worktree, which is the agent's to change.
+// work, so it happens where work happens: with an agent that installs, runs
+// the tests and fixes what the new versions broke, wherever Wilco has its
+// agents work — the checkout, or a worktree of its own.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -156,7 +155,7 @@ export const depsExtension: WilcoExtension = {
     {
       name: 'deps_update',
       description:
-        "Update a project's dependencies to their newest releases, up to a level: patch, minor (the default) or major. From the orchestrator this starts an agent in a worktree of its own with the manifests already updated, which installs, runs the tests, fixes what broke and commits — it never touches the project's own checkout. From an agent it updates the manifests in that agent's worktree. Ranges and ceilings are left as written.",
+        "Update a project's dependencies to their newest releases, up to a level: patch, minor (the default) or major. From the orchestrator this starts an agent with the manifests already updated, which installs, runs the tests, fixes what broke and commits. From an agent it updates the manifests where that agent works. Ranges and ceilings are left as written.",
       parameters: object({
         project,
         level: oneOf(

@@ -62,11 +62,24 @@ export const TaskFile = z.object({
    * put there by whoever started it, so an agent and a person both find it.
    */
   links: z.array(z.object({ title: z.string(), url: z.string() })).default([]),
+  /** Where the agent works: the project's own checkout, or a worktree of its own. */
+  workspace: z.enum(['checkout', 'worktree']).optional(),
 })
 export type TaskFile = z.infer<typeof TaskFile>
 
 /** Beside the task file: what whoever started a task wanted the agent to know. */
 export const TASK_CONTEXT_FILE = '.wilco/context.md'
+
+/**
+ * Where the tasks working in a project's own checkout keep their files: one
+ * folder each, since they share the directory their work is in.
+ */
+export const SHARED_TASKS_DIR = '.wilco/tasks'
+
+/** The folder, relative to the checkout, holding one shared task's file and context. */
+export function sharedTaskDir(id: string): string {
+  return `${SHARED_TASKS_DIR}/${id.split('/').slice(1).join('-')}`
+}
 
 export const PrState = z.enum(['OPEN', 'MERGED', 'CLOSED'])
 
@@ -143,6 +156,9 @@ export const Task = z.object({
   title: z.string().optional(),
   /** Where the work came from: an issue, a trace. */
   links: z.array(z.object({ title: z.string(), url: z.string() })).optional(),
+  /** Where it works: the checkout, shared with other agents, or a worktree of its own. */
+  workspace: z.enum(['checkout', 'worktree']).optional(),
+  /** The directory its work is in: the project's checkout, or its worktree. */
   worktree: z.string(),
   created: z.string(),
   state: TaskState,

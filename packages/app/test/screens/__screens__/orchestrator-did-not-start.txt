@@ -25,10 +25,10 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-                                                                                                                        
 ❯ where are we                                                                                                          
 ✗ The orchestrator did not start: claude-opus-5 is not offered by anything you are signed in to (openrouter): pick one  
   in Settings                                                                                                           
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 

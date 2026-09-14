@@ -18,7 +18,7 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
-import { PLAIN, type Skin } from './skin.ts'
+import { type Look, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
@@ -154,6 +154,10 @@ export interface Frame {
   home?: string
   /** Who pays for the orchestrator's model: its provider, and how you are signed in to it. */
   orchestratorAccount?: { provider: string | null; credential: string | null }
+  /** The window's own keys as set, for the keys sheet. */
+  bindings?: Readonly<Record<string, string>>
+  /** The orchestrator's input, as its editor draws it, rules included, while it is being typed in. */
+  input?: { lines: string[] }
   /** What extensions keep in the status bar. */
   statuses?: readonly {
     extension: string
@@ -186,14 +190,15 @@ export interface Spend {
 export const BUTTONS: readonly {
   label: string
   action: string
-  look?: 'primary'
+  look: Look
   /** Left out where the footer is too narrow for it and what it costs: it is in ctrl+k too. */
   optional?: boolean
 }[] = [
-  { label: '+ New agent', action: 'new-agent' },
-  { label: 'Open project', action: 'open-project' },
-  { label: 'Extensions', action: 'extensions', optional: true },
-  { label: 'Settings', action: 'settings' },
+  { label: 'Search ctrl+k', action: 'search', look: 'find', optional: true },
+  { label: '+ New agent', action: 'new-agent', look: 'create' },
+  { label: 'Open project', action: 'open-project', look: 'open' },
+  { label: 'Extensions', action: 'extensions', look: 'extend', optional: true },
+  { label: 'Settings', action: 'settings', look: 'configure' },
 ]
 
 /** The whole window, one string per row, each exactly as wide as the window. */
@@ -295,6 +300,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     entries: extra.entries ?? [],
     talkKey: extra.talkKey ?? (frame.voice?.keys ?? ['ctrl', 'space']).join('+'),
     talkMode: extra.talkMode ?? 'hold',
+    bindings: frame.bindings ?? {},
     running: extra.running ?? state.panes.reduce((n, pane) => n + pane.lanes.length, 0),
     searching: extra.searching ?? false,
     viewing: extra.viewing ?? null,
@@ -906,6 +912,12 @@ function renderMain(
         .text('picks the conversation up where it stopped', skin.hint)
         .build(),
     )
+  } else if (state.paneScroll > 0) {
+    // Scrolled back: exactly the lines asked for, and a way back to the newest.
+    const lines = frame.screen.split('\n').slice(-(room - 1))
+    for (let gap = room - 1 - lines.length; gap > 0; gap--) rows.push(blank(width))
+    for (const line of lines) rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
+    rows.push(scrolledBar(state.paneScroll, 'pane-end', width, skin, pointer))
   } else {
     const lines = frame.screen.split('\n')
     // pi draws from the top of a terminal and stops where its prompt is, which
@@ -926,9 +938,13 @@ function renderMain(
         rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
     }
   }
-  // Anywhere on the agent's screen gives it the keyboard back.
+  // Anywhere on the agent's screen gives it the keyboard back, and the wheel
+  // scrolls back through what it said.
   rows.forEach((row, i) => {
-    if (i >= 2) row.hits.unshift(rowHit(0, width, { kind: 'pane' }))
+    if (i >= 2) {
+      row.hits.unshift(rowHit(0, width, { kind: 'pane' }))
+      row.hits.unshift(rowHit(0, width, { kind: 'scroll', area: 'pane' }))
+    }
   })
 
   while (rows.length < height) rows.push(blank(width))
@@ -1075,7 +1091,7 @@ function renderStrip(
   if (room <= 0) return { rows: rows.slice(0, height), hits }
 
   if (terminal) {
-    const drawn = terminalBody(frame.terminal, width, room, skin)
+    const drawn = terminalBody(frame.terminal, width, room, skin, state.terminalScroll, pointer)
     return { rows: [...rows, ...drawn.rows], hits: [...hits, ...shift(drawn.hits, 1)] }
   }
 
@@ -1121,54 +1137,34 @@ function renderStrip(
     body.push(quiet(skin.hint(`   ${state.question.candidates.join('  ·  ')}`)))
   }
 
+  // Choosing a command: the commands that fit, best first, in place of the conversation.
+  const commands: Line[] = []
   if (isAction(state.dictation)) {
     const found = matchActions(state, state.dictation ?? '')
-    for (const action of found.slice(0, Math.max(1, height - 2))) {
+    for (const action of found) {
       const line = ` ${action.name.padEnd(10)} ${action.about}`
-      body.push(quiet(action.ready ? line : skin.hint(line)))
+      commands.push(quiet(action.ready ? line : skin.hint(line)))
     }
-    if (found.length === 0) body.push(quiet(skin.hint('  no command like that')))
+    if (found.length === 0) commands.push(quiet(skin.hint('  no command like that')))
   }
 
+  // The line you type on, boxed as pi boxes its own — a rule above and below
+  // — and always there, so opening it moves nothing. Text that wraps grows
+  // the box upward into the conversation, never off the edge.
+  // Its bottom rule is the footer's, just below.
+  const inputHeight = Math.min(Math.max(2, room - 1), inputRows(state, frame).length + 1)
+  const bodyRoom = Math.max(0, room - inputHeight)
   // Scrolled back through the conversation, the newest lines wait below; the
-  // prompt row says so, and takes you back to them.
+  // box's top rule says so, and takes you back to them.
   const scroll = isAction(state.dictation)
     ? 0
-    : Math.min(state.transcriptScroll, Math.max(0, body.length - (room - 1)))
-
-  // The line you type on, always last. `◉` while the microphone is open, `›`
-  // while you type: the same line, and which one it is matters.
-  const prompt = new Row(width, skin, pointer).space()
-  if (state.dictation !== null) {
-    prompt.text(state.listening ? '◉' : '›', state.listening ? skin.bad : skin.signal).space()
-    // Pictures going with it, before the words about them.
-    for (const path of state.attached) {
-      prompt.text(`▣ ${path.split('/').at(-1) ?? path}`, skin.busy).space()
-    }
-    if (state.historySearch) {
-      // As a shell shows it: what you are looking for, then what it found.
-      const { query, missing } = state.historySearch
-      prompt.text(`search: ${query}▏`, missing ? skin.waiting : skin.signal).space(2)
-      prompt.text(missing ? 'nothing said like that' : (state.dictation ?? ''), skin.hint)
-      prompt.right((r) => r.text('ctrl+r older · enter sends · → keeps · esc', skin.hint).space())
-    } else {
-      prompt.text(`${state.dictation}▏`, skin.you)
-    }
-  } else if (state.held) {
-    prompt.text(`◌ ${state.held}▏`, skin.hint)
-  } else {
-    prompt.text('›', skin.hint).space()
-    prompt.right((r) => r.text('type, or hold ', skin.hint).keys(voice.keys).space())
-  }
-  if (scroll > 0) {
-    prompt.right((r) =>
-      r.button(`↓ ${scroll} newer`, { kind: 'action', name: 'transcript-end' }).space(),
-    )
-  }
+    : Math.min(state.transcriptScroll, Math.max(0, body.length - bodyRoom))
 
   const end = body.length - scroll
-  const shown = body.slice(Math.max(0, end - (room - 1)), end)
-  for (let gap = room - 1 - shown.length; gap > 0; gap--) {
+  const shown = isAction(state.dictation)
+    ? commands.slice(0, bodyRoom)
+    : body.slice(Math.max(0, end - bodyRoom), end)
+  for (let gap = bodyRoom - shown.length; gap > 0; gap--) {
     hits.push(rowHit(rows.length, width, { kind: 'scroll', area: 'transcript' }))
     hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
     rows.push(' '.repeat(width))
@@ -1180,11 +1176,90 @@ function renderStrip(
     hits.push(...shift(line.hits, rows.length))
     rows.push(line.text)
   }
-  const built = prompt.build()
-  hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
-  hits.push(...shift(built.hits, rows.length))
-  rows.push(built.text)
+  const box = inputBox(state, frame, width, inputHeight, skin, pointer, voice.keys, scroll)
+  for (let i = 0; i < box.rows.length; i++) {
+    hits.push(rowHit(rows.length + i, width, { kind: 'orchestrator' }))
+  }
+  hits.push(...shift(box.hits, rows.length))
+  rows.push(...box.rows)
   return { rows: rows.slice(0, height), hits }
+}
+
+/** What the input box holds, one row each: the editor's lines while typing, or one line saying what it is. */
+function inputRows(state: AppState, frame: Frame): string[] {
+  const typing = state.dictation !== null && !state.historySearch && frame.input
+  // The editor draws its own rules; the box draws them here, with what they carry.
+  return typing ? (frame.input?.lines ?? []).slice(1, -1) : ['']
+}
+
+function inputBox(
+  state: AppState,
+  frame: Frame,
+  width: number,
+  height: number,
+  skin: Skin,
+  pointer: Pointer,
+  talkKeys: readonly string[],
+  newer: number,
+): Drawn {
+  const open = state.dictation !== null
+  const rule = open ? skin.signal : skin.chrome
+  const hits: Hit[] = []
+
+  // The top rule: pictures going with the message on the left, and the way
+  // back to the newest line on the right.
+  const top = new Row(width, skin, pointer)
+  // Open to hear you, where there is no microphone to hold: said on the rule.
+  if (state.listening) top.text('─ ', rule).text('◉ listening', skin.bad).text(' ', rule)
+  if (state.attached.length > 0) {
+    top.text('─ ', rule)
+    for (const path of state.attached) {
+      top.text(`▣ ${path.split('/').at(-1) ?? path}`, skin.busy).text(' ─ ', rule)
+    }
+  }
+  const controls = (r: Row) => {
+    if (newer > 0) {
+      r.button(`↓ ${newer} newer`, { kind: 'action', name: 'transcript-end' }).text('─', rule)
+    } else if (open && !state.historySearch) {
+      r.text(' enter sends · shift+enter new line · ↑ ctrl+r history ', skin.hint).text('─', rule)
+    }
+  }
+  const probe = new Row(width, skin)
+  controls(probe)
+  // One short of meeting them: a right-hand group needs a column of room to sit in.
+  top.text('─'.repeat(Math.max(0, width - top.used - probe.used - 1)), rule)
+  top.right(controls)
+
+  const content: string[] = []
+  const typed = inputRows(state, frame)
+  if (open && !state.historySearch && frame.input) {
+    content.push(...typed.slice(-(height - 1)).map((line) => fit(line, width)))
+  } else {
+    const line = new Row(width, skin, pointer).space()
+    if (state.historySearch) {
+      // As a shell shows it: what you are looking for, then what it found.
+      const { query, missing } = state.historySearch
+      line.text(`search: ${query}▏`, missing ? skin.waiting : skin.signal).space(2)
+      line.text(missing ? 'nothing said like that' : (state.dictation ?? ''), skin.hint)
+      line.right((r) => r.text('ctrl+r older · enter sends · → keeps · esc', skin.hint).space())
+    } else if (state.listening) {
+      line.text('◉ ', skin.bad).text(state.dictation ?? '', skin.you)
+    } else if (open) {
+      line.text(`${state.dictation}▏`, skin.you)
+    } else if (state.held) {
+      line.text(`◌ ${state.held}▏`, skin.hint)
+    } else {
+      line.text('Ask Wilco anything', skin.hint)
+      line.right((r) => r.text('type, or hold ', skin.hint).keys(talkKeys).space())
+    }
+    const built = line.build()
+    hits.push(...shift(built.hits, content.length + 1))
+    content.push(built.text)
+  }
+  while (content.length < height - 1) content.push(' '.repeat(width))
+
+  const builtTop = top.build()
+  return { rows: [builtTop.text, ...content], hits: [...builtTop.hits, ...hits] }
 }
 
 /**
@@ -1248,7 +1323,14 @@ function bottomTabs(
  * A terminal's screen, tailing like an agent's. While finding in it, its
  * scrollback instead, with the line found in view and what matched lit.
  */
-function terminalBody(terminal: Frame['terminal'], width: number, room: number, skin: Skin): Drawn {
+function terminalBody(
+  terminal: Frame['terminal'],
+  width: number,
+  room: number,
+  skin: Skin,
+  scroll = 0,
+  pointer: Pointer = { hover: null, pressed: null },
+): Drawn {
   const rows: string[] = []
   const hits: Hit[] = []
   const find = terminal?.find
@@ -1269,13 +1351,39 @@ function terminalBody(terminal: Frame['terminal'], width: number, room: number, 
           : plain
       rows.push(here ? skin.selected(text) : text)
     })
+  } else if (scroll > 0) {
+    const lines = (terminal?.screen ?? '').split('\n').slice(-(room - 1))
+    for (const line of lines) rows.push(fit(line, width))
+    while (rows.length < room - 1) rows.push(' '.repeat(width))
+    const bar = scrolledBar(scroll, 'terminal-end', width, skin, pointer)
+    hits.push(...shift(bar.hits, rows.length))
+    rows.push(bar.text)
   } else {
     const lines = (terminal?.screen ?? '').split('\n')
     for (const line of lines.slice(-room)) rows.push(fit(line, width))
   }
   while (rows.length < room) rows.push(' '.repeat(width))
-  for (let i = 0; i < rows.length; i++) hits.push(rowHit(i, width, { kind: 'terminal' }))
+  const own = hits.splice(0)
+  for (let i = 0; i < rows.length; i++) {
+    hits.push(rowHit(i, width, { kind: 'scroll', area: 'terminal' }))
+    hits.push(rowHit(i, width, { kind: 'terminal' }))
+  }
+  hits.push(...own)
   return { rows, hits }
+}
+
+/** The last row of a screen scrolled back: how far, and the way to the newest line. */
+function scrolledBar(
+  lines: number,
+  action: string,
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+): { text: string; hits: Hit[] } {
+  return new Row(width, skin, pointer)
+    .text(`── ↑ ${lines} line${lines === 1 ? '' : 's'} back `, skin.chrome)
+    .right((r) => r.button('↓ newest', { kind: 'action', name: action }).space())
+    .build()
 }
 
 function renderFoot(
@@ -1290,7 +1398,7 @@ function renderFoot(
   const all = BUTTONS.reduce((used, button) => used + visibleWidth(button.label) + 5, 1)
   const roomy = all + 24 <= width
   for (const button of BUTTONS.filter((one) => roomy || !one.optional)) {
-    const look = button.action === 'new-agent' && !state.project ? 'off' : (button.look ?? 'rest')
+    const look = button.action === 'new-agent' && !state.project ? 'off' : button.look
     row.button(button.label, { kind: 'action', name: button.action }, look).space()
   }
   const spend = frame.spend

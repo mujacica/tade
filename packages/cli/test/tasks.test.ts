@@ -49,7 +49,8 @@ describe('wilco task and run commands', () => {
     // there when the next command runs: three invocations, three processes.
     writeFileSync(
       join(home, 'config.yaml'),
-      `workspace:\n  driver: tmux\nprojects:\n  app:\n    root: ${repo.root}\n`,
+      // Worktrees, because what these commands report and refuse is a worktree's.
+      `workspace:\n  driver: tmux\nagents:\n  workspace: worktree\nprojects:\n  app:\n    root: ${repo.root}\n`,
     )
     env = { WILCO_HOME: home, WILCO_NO_GH: '1', HOME: home }
   })

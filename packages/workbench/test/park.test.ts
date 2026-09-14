@@ -74,7 +74,7 @@ describe('task/park over the socket', () => {
     })
     expect(before.projects[0]?.tasks[0]).toMatchObject({ id: 'app/migration', state: 'queued' })
 
-    expect(await client.parkTask(task.worktree, true)).toEqual({
+    expect(await client.parkTask(task.worktree, true, task.id)).toEqual({
       task: 'app/migration',
       parked: true,
     })
@@ -98,8 +98,8 @@ describe('task/park over the socket', () => {
 
   it('picking it back up makes it ordinary again', async () => {
     const task = await client.createTask({ project: 'app', slug: 'migration', intent: INTENT })
-    await client.parkTask(task.worktree, true)
-    expect(await client.parkTask(task.worktree, false)).toMatchObject({ parked: false })
+    await client.parkTask(task.worktree, true, task.id)
+    expect(await client.parkTask(task.worktree, false, task.id)).toMatchObject({ parked: false })
 
     const status = await collectStatus({
       config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),

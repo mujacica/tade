@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import {
   type AgentSignal,
@@ -7,6 +7,8 @@ import {
   expandHome,
   isLive,
   type Project,
+  SHARED_TASKS_DIR,
+  sharedTaskDir,
   type Task,
   TaskFile,
   TaskId,
@@ -83,6 +85,7 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
       const task = await buildTask(ref, wt, baseRef, opts, liveness, sessions, claimed, warnings)
       if (task) tasks.push(task)
     }
+    tasks.push(...(await sharedTasks(ref, opts, liveness, warnings)))
 
     const inRepo = list.map((w) => w.path)
     const untracked = sessions.filter(
@@ -166,15 +169,83 @@ async function buildTask(
   }
 }
 
+/**
+ * The tasks working in the project's own checkout, side by side: each is a
+ * folder under `.wilco/tasks`. Their git facts are the checkout's, shared, so
+ * their state is their agent's — never the files, which are everyone's.
+ */
+async function sharedTasks(
+  ref: ProjectRef,
+  opts: StatusOptions,
+  liveness: LivenessProbe,
+  warnings: string[],
+): Promise<Task[]> {
+  let folders: string[]
+  try {
+    folders = (await readdir(join(ref.root, SHARED_TASKS_DIR), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+  } catch {
+    return []
+  }
+  if (folders.length === 0) return []
+  const g = await probeGit(ref.root, { baseRef: null, pr: opts.pr })
+  warnings.push(...g.warnings)
+  const out: Task[] = []
+  for (const folder of folders) {
+    const file = await readTaskFile(join(ref.root, SHARED_TASKS_DIR, folder), 'task.yaml')
+    if (file.kind !== 'ok') {
+      if (file.kind === 'invalid') {
+        warnings.push(`${ref.name}: ${SHARED_TASKS_DIR}/${folder}/task.yaml: ${file.error}`)
+      }
+      continue
+    }
+    const tf = file.value
+    const id = tf.id?.startsWith(`${ref.name}/`) ? tf.id : `${ref.name}/${folder}`
+    if (!TaskId.safeParse(id).success || sharedTaskDir(id) !== `${SHARED_TASKS_DIR}/${folder}`) {
+      warnings.push(`${ref.name}: ${SHARED_TASKS_DIR}/${folder} does not name a task`)
+      continue
+    }
+    const agents = await liveness.lanes(id)
+    const derived = deriveState({
+      now: opts.now,
+      parked: tf.parked,
+      git: g.snapshot,
+      agents,
+      tests: 'unknown',
+      shared: true,
+    })
+    out.push({
+      id,
+      project: ref.name,
+      intent_spoken: tf.intent_spoken,
+      branch: g.snapshot?.branch ?? '',
+      ...(tf.title ? { title: tf.title } : {}),
+      ...(tf.links.length > 0 ? { links: tf.links } : {}),
+      workspace: 'checkout',
+      worktree: ref.root,
+      created: tf.created.toISOString(),
+      ...derived,
+      git: g.snapshot,
+      agents: agents.sort((a, b) => cmp(a.sessionId, b.sessionId)),
+      lanes: (await liveness.records?.(id)) ?? [],
+    })
+  }
+  return out
+}
+
 type TaskFileRead =
   | { kind: 'ok'; value: TaskFile }
   | { kind: 'absent' }
   | { kind: 'invalid'; error: string }
 
-async function readTaskFile(worktree: string): Promise<TaskFileRead> {
+async function readTaskFile(
+  dir: string,
+  file = join('.wilco', 'task.yaml'),
+): Promise<TaskFileRead> {
   let text: string
   try {
-    text = await readFile(join(worktree, '.wilco', 'task.yaml'), 'utf8')
+    text = await readFile(join(dir, file), 'utf8')
   } catch {
     return { kind: 'absent' }
   }

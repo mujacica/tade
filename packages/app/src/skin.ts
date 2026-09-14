@@ -23,6 +23,20 @@ export type Look =
   | 'off'
   /** Makes another of something: a `+` that has to be found at a glance. */
   | 'add'
+  /**
+   * The footer's buttons, each its own colour so each is found by colour
+   * before it is read, with a lighter ground under the pointer.
+   */
+  | 'find'
+  | 'find-hover'
+  | 'create'
+  | 'create-hover'
+  | 'open'
+  | 'open-hover'
+  | 'extend'
+  | 'extend-hover'
+  | 'configure'
+  | 'configure-hover'
 
 export interface Skin {
   readonly colour: boolean
@@ -106,6 +120,16 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   danger: [167, 233, true],
   off: [236, 240, false],
   add: [238, 80, true],
+  find: [23, 159, false],
+  'find-hover': [30, 231, false],
+  create: [22, 157, true],
+  'create-hover': [28, 231, true],
+  open: [24, 153, false],
+  'open-hover': [31, 231, false],
+  extend: [54, 183, false],
+  'extend-hover': [91, 231, false],
+  configure: [58, 229, false],
+  'configure-hover': [100, 231, false],
 }
 
 const identity = (text: string) => text

@@ -281,20 +281,22 @@ describe('the window, wired up', () => {
       'both journaled',
       async () => (await client.events({ types: ['said'] })).length === 2,
     )
-    const line = () =>
-      screenOf(terminal.written).find((row) => row.startsWith(' ◉') || row.startsWith(' ›')) ?? ''
+    // The line as pi's editor draws it: the words, then the cursor after them.
+    const onLine = (text: string) => () =>
+      screenOf(terminal.written).some((row) => row.trimEnd() === ` ${text}`)
 
-    // Up twice is the one before last; enter sends it again.
+    // Up twice is the one before last; down comes back.
     terminal.press('\x00')
     terminal.press('\x1b[A')
     terminal.press('\x1b[A')
-    await until('the older line back', () => line().includes('why is refunds slow▏'))
+    await until('the older line back', onLine('why is refunds slow'))
     terminal.press('\x1b[B')
-    await until('the newer line back', () => line().includes('what changed in search▏'))
+    await until('the newer line back', onLine('what changed in search'))
     terminal.press('\x1b')
 
     // A new window finds it in the journal: ctrl+r, a few letters, enter.
     await app?.stop()
+    terminal.written = ''
     await start({ thinker })
     await until('the first frame', () => terminal.written.includes('refunds'))
     terminal.press('\x00')
@@ -856,11 +858,13 @@ describe('the window, wired up', () => {
 })
 
 describe('a project with nothing in it', () => {
-  it('gets an agent on opening, with no branch until it changes something', async () => {
+  it('starts agents in the checkout together, and in worktree mode names a branch at the first change', async () => {
     const repo = mkrepo()
     repo.commit('first')
     const home = tmp('wilco-app-')
-    writeFileSync(join(home, 'config.yaml'), `projects:\n  empty:\n    root: ${repo.root}\n`)
+    const yaml = (workspace: string) =>
+      `projects:\n  empty:\n    root: ${repo.root}\nagents:\n  workspace: ${workspace}\n`
+    writeFileSync(join(home, 'config.yaml'), yaml('worktree'))
     const client = await Workbench.open({ home })
     const terminal = new FakeTerminal()
     const speaker = await Speaker.create({
@@ -870,7 +874,10 @@ describe('a project with nothing in it', () => {
     })
     const app = await App.start({
       client,
-      config: ConfigSchema.parse({ projects: { empty: { root: repo.root } } }),
+      config: ConfigSchema.parse({
+        projects: { empty: { root: repo.root } },
+        agents: { workspace: 'worktree' },
+      }),
       home,
       cwd: repo.root,
       terminal,
@@ -878,14 +885,35 @@ describe('a project with nothing in it', () => {
       frameMs: 50,
     })
     try {
-      const made = async () => (await client.events({ types: ['task_created'] }))[0]
+      // Opening the window makes nothing: an agent is started when you ask for one.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      expect(await client.events({ types: ['task_created'] })).toEqual([])
+      const button = () => {
+        const lines = screenOf(terminal.written)
+        for (let row = lines.length - 1; row >= 0; row--) {
+          const col = lines[row]?.indexOf('+ New agent') ?? -1
+          if (col >= 0) return { col, row }
+        }
+        return null
+      }
       const deadline = Date.now() + 20_000
+      while (!button()) {
+        if (Date.now() > deadline) throw new Error('no New agent button')
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      const at = button() as { col: number; row: number }
+      terminal.press(`\x1b[<0;${at.col + 3};${at.row + 1}M`)
+      terminal.press(`\x1b[<0;${at.col + 3};${at.row + 1}m`)
+      const made = async () => (await client.events({ types: ['task_created'] }))[0]
       while (!(await made())) {
         if (Date.now() > deadline) throw new Error('no agent was opened')
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
       const created = await made()
-      expect(created).toMatchObject({ task: 'empty/agent-1', detail: { branch: '' } })
+      expect(created).toMatchObject({
+        task: 'empty/agent-1',
+        detail: { branch: '', workspace: 'worktree' },
+      })
 
       // Its first change is what gives it a branch.
       const worktree = String(created?.detail.worktree)

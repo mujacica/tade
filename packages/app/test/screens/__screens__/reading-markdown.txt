@@ -27,8 +27,8 @@
   │                                                                                                                  │  
   │                                                                                                                  │  
   │                                                                                                                  │  
-  │                                                                                                                  │  
- ❯│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│  
- ›│ rows 1–14 of 14  ↑↓ scroll · space a page · e editor                  ▐ Copy path ▌ ▐ Open in editor ▌ ▐ Close ▌ │▌ 
+ ❯│                                                                                                                  │  
+──│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│─ 
+ A│ rows 1–14 of 14  ↑↓ scroll · space a page · e editor                  ▐ Copy path ▌ ▐ Open in editor ▌ ▐ Close ▌ │▌ 
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯──
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 

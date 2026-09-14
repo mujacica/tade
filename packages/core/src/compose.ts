@@ -1,6 +1,5 @@
 import type { Config } from './config.ts'
 import type { Note } from './memory.ts'
-import { TASK_CONTEXT_FILE } from './model.ts'
 import { type Skill, skillText } from './skills.ts'
 
 // What the orchestrator is told about your world before it says anything.
@@ -29,8 +28,8 @@ export interface ComposeInput {
 const ROLE = [
   'You are Wilco: a control room for running coding agents on this machine.',
   'You delegate. You do not edit code yourself — you create tasks, start agents in them, steer them, and answer questions about what is happening.',
-  "An agent is pi running in a terminal of its own, in that task's git worktree, talking in a session named after the task. Starting one and coming back to one are the same thing.",
-  'When you start an agent on something you have looked into, give it what you found: the context and links you pass become .wilco/context.md in its worktree, which it reads before it starts.',
+  "An agent is pi running in a terminal of its own, talking in a session named after its task. Agents work in the project's checkout together, or each in a git worktree of its own, as the settings say. Starting one and coming back to one are the same thing.",
+  'When you start an agent on something you have looked into, give it what you found: the context and links you pass are written beside its task, and it reads them before it starts.',
   'Terminals along the bottom of the window belong to projects. Open one to run what the human asks you to run — the tests, a dev server — and read it to see what it printed. Everything typed there, they watch being typed.',
   "You own none of the truth. What is running is the driver's to report, what happened is the journal's, what the work looks like is git's — you read them and say what they mean.",
 ].join('\n')
@@ -74,6 +73,11 @@ function describePosture(config: Config): string {
       : 'Agents run inside Wilco and stop when it closes. Say so if somebody is about to rely on one surviving.',
   )
   lines.push(
+    config.agents.workspace === 'checkout'
+      ? `Agents work together in each project's own checkout, on the branch it is on, so several can change one project at once; each is told ${COMMIT_SAID[config.agents.commit]}.`
+      : `Each agent works in a git worktree and branch of its own, named for its work; each is told ${COMMIT_SAID[config.agents.commit]}.`,
+  )
+  lines.push(
     config.approvals.mode === 'policy'
       ? 'Approvals are on: risky commands are held until a human answers, and you may be asked to relay that.'
       : 'Approvals are off, so nothing is ever held up. Every tool call is still recorded, so you can say afterwards what an agent did.',
@@ -113,22 +117,47 @@ function describeNotes(input: ComposeInput): string {
   return ['Things you have been told, in the words they were said:', ...lines].join('\n')
 }
 
+/** A commit rule, said as part of a sentence to the orchestrator. */
+const COMMIT_SAID: Record<'when-done' | 'own-files' | 'as-you-go' | 'never', string> = {
+  'when-done': 'to commit everything when it has finished',
+  'own-files': 'to commit only its own files when it has finished',
+  'as-you-go': 'to commit as it goes',
+  never: 'never to commit, so the person commits',
+}
+
+/** What an agent is told about committing, for each rule. */
+export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'never', string> = {
+  'when-done':
+    'When you have finished what you were asked and it passes its checks, commit all of it in one commit whose message says why.',
+  'own-files':
+    'When you have finished and it passes its checks, commit only the files you changed yourself: add each by its path — never git add -A, git add . or git commit -a — and leave anyone else’s changes uncommitted.',
+  'as-you-go':
+    'Commit each piece of work as soon as it is done and passes its checks, in small commits whose messages say why. Wilco shows the person your changes and commits, and treats a clean tree with commits as ready for review.',
+  never: 'Do not commit. Leave your changes uncommitted: the person reviews and commits them.',
+}
+
 export interface AgentPromptInput {
   /** `project/name`. */
   task: string
   project: string
-  /** Where it works: its own worktree. */
+  /** Where it works: the project's checkout, or a worktree of its own. */
   worktree: string
-  /** The project's own checkout, which it must leave alone. */
+  /** The project's own checkout: shared in `checkout` mode, left alone in `worktree` mode. */
   root: string | null
+  /** Whether it shares the checkout with other agents or has a worktree of its own. */
+  workspace?: 'checkout' | 'worktree'
+  /** When it commits, and what. */
+  commit?: 'when-done' | 'own-files' | 'as-you-go' | 'never'
+  /** What the person wants every agent told, in their words. */
+  instructions?: string
   /** What was asked when the task was made, word for word; empty for an agent opened to look around. */
   intent: string
   /** Its branch, or empty until Wilco names one at its first change. */
   branch: string
   /** What you have told Wilco that is about this task, its project, or everything. */
   notes?: readonly Note[]
-  /** Someone left it `.wilco/context.md`. */
-  context: boolean
+  /** Where someone left it what to know, relative to where it works; null when nobody did. */
+  context: string | null
   /** How this project checks its work, when the config says. */
   testCommand?: string
 }
@@ -150,16 +179,25 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
         ? `It was started with: "${intent}"`
         : 'It was opened without a request: wait to be told what to do.'
     }`,
-    `You work in a git worktree of your own, ${input.worktree}. Keep every change in it${
-      input.root ? `, and never change the project’s own checkout at ${input.root}` : ''
-    }.`,
-    input.branch
-      ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
-      : 'You have no branch yet. Wilco creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
-    'Commit when a piece of work is done and passes its checks, with a message that says why. Wilco shows the person your changes and your commits, and treats a clean tree with commits as ready for their review.',
+    ...(input.workspace === 'checkout'
+      ? [
+          `You work directly in the project’s checkout, ${input.worktree}, ${
+            input.branch ? `on the branch ${input.branch}` : 'on a detached HEAD'
+          }, at the same time as other agents working in the same files. Do not switch, create or rename branches.`,
+          'Other agents change files here while you work: read a file again right before you edit it, never undo or overwrite a change you did not make, and never run what throws others’ work away — git stash, git checkout or restore of files, git reset --hard, git clean.',
+        ]
+      : [
+          `You work in a git worktree of your own, ${input.worktree}. Keep every change in it${
+            input.root ? `, and never change the project’s own checkout at ${input.root}` : ''
+          }.`,
+          input.branch
+            ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
+            : 'You have no branch yet. Wilco creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
+        ]),
+    COMMIT_TELLS[input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')],
     input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null,
     input.context
-      ? `Whoever started this task left what you need to know in ${TASK_CONTEXT_FILE}, with links to where the work came from. Read it before anything else.`
+      ? `Whoever started this task left what you need to know in ${input.context}, with links to where the work came from. Read it before anything else.`
       : null,
     'When you finish or get stuck, say so plainly in your last message: that is what the person sees when they come back to you.',
   ].filter((fact): fact is string => fact !== null)
@@ -168,6 +206,10 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
     'You are running inside Wilco, a control room for coding agents on this machine. A person watches this terminal from Wilco’s window, talks to you here, and may also reach you through Wilco’s orchestrator: a message that arrives while you work is theirs.',
     facts.map((fact) => `- ${fact}`).join('\n'),
   ]
+  const instructions = input.instructions?.trim()
+  if (instructions) {
+    sections.push(`The person’s own rules for every agent, in their words:\n${instructions}`)
+  }
   const notes = input.notes ?? []
   if (notes.length > 0) {
     sections.push(

@@ -234,7 +234,7 @@ describe('the orchestrator strip', () => {
   })
 
   it('shows the line the moment it opens, before anything is said', () => {
-    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain('› ▏')
+    expect(renderApp(setDictation(state(), ''), frame()).join('\n')).toContain(' ▏')
   })
 
   it('marks the line differently while the microphone is open', () => {

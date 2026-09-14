@@ -47,7 +47,11 @@ export interface VoiceWorkbench {
   steerAgent(task: string, message: string): Promise<void>
   /** Switch a running agent's model, said as people say it. Optional: a surface without it says so. */
   setAgentModel?(task: string, said: string): Promise<{ provider: string; id: string }>
-  parkTask(worktree: string, parked: boolean): Promise<{ task: string; parked: boolean }>
+  parkTask(
+    worktree: string,
+    parked: boolean,
+    task?: string,
+  ): Promise<{ task: string; parked: boolean }>
   createTask(request: {
     project: string
     slug: string
@@ -302,7 +306,7 @@ export class VoiceSurface {
         const worktree = await this.opts.worktreeOf(task)
         if (!worktree) return `I don't know where ${short(task)} lives.`
         const parked = intent.kind === 'park'
-        await this.opts.wilco.parkTask(worktree, parked)
+        await this.opts.wilco.parkTask(worktree, parked, task)
         return `${parked ? 'Parked' : 'Picked up'} ${short(task)}.`
       }
       case 'steer': {

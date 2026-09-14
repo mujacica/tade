@@ -35,7 +35,12 @@ describe('task and run RPC', () => {
   })
 
   it('creates a task in the configured project and records the intent verbatim', async () => {
-    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
 
     expect(task).toMatchObject({ id: 'app/refunds', branch: 'wilco/refunds' })
     expect(existsSync(join(task.worktree, '.wilco', 'task.yaml'))).toBe(true)
@@ -45,6 +50,28 @@ describe('task and run RPC', () => {
     expect(event?.detail.intent_spoken).toBe(INTENT)
   })
 
+  it('creates tasks side by side in the checkout, and removing one leaves the checkout alone', async () => {
+    const one = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const two = await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })
+    expect(one).toMatchObject({ workspace: 'checkout', worktree: repo.root, branch: 'main' })
+    expect(two.worktree).toBe(repo.root)
+    expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds', 'task.yaml'))).toBe(true)
+    await expect(
+      client.createTask({ project: 'app', slug: 'refunds', intent: 'again' }),
+    ).rejects.toThrow(/already exists/)
+    const removed = await client.removeTask({
+      root: repo.root,
+      worktree: one.worktree,
+      branch: one.branch,
+      task: one.id,
+      force: true,
+    })
+    expect(removed).toEqual({ removed: true, branchDeleted: false })
+    expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds'))).toBe(false)
+    expect(existsSync(join(repo.root, '.wilco', 'tasks', 'search', 'task.yaml'))).toBe(true)
+    expect(existsSync(repo.root)).toBe(true)
+  })
+
   it('refuses a project it has never heard of', async () => {
     await expect(client.createTask({ project: 'nope', slug: 'x', intent: 'y' })).rejects.toThrow(
       /unknown project/,
@@ -52,7 +79,12 @@ describe('task and run RPC', () => {
   })
 
   it('removes a finished task and records that too', async () => {
-    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
     const result = await client.removeTask({
       root: repo.root,
       worktree: task.worktree,
@@ -65,7 +97,12 @@ describe('task and run RPC', () => {
   })
 
   it('refuses to remove work nobody has merged', async () => {
-    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
     repo.commit('unmerged work', { 'a.ts': '1' }, task.worktree)
 
     const result = await client.removeTask({
@@ -85,7 +122,12 @@ describe('task and run RPC', () => {
   })
 
   it('starts an agent in a lane in the task worktree, then stops it', async () => {
-    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
     // No prompt: the agent starts and waits, so this needs no model.
     const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
 

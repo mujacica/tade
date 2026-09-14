@@ -48,7 +48,7 @@ export type Target =
   | { kind: 'inert' }
 
 /** Somewhere the wheel moves what is shown: the sidebar, a panel, the conversation. */
-export type ScrollArea = 'sidebar' | 'panel' | 'transcript'
+export type ScrollArea = 'sidebar' | 'panel' | 'transcript' | 'pane' | 'terminal'
 
 export interface Hit {
   /** Inclusive row, zero-based from the top of the window. */

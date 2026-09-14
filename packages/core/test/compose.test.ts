@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composePrompt } from '../src/compose.ts'
+import { composeAgentPrompt, composePrompt } from '../src/compose.ts'
 import { ConfigSchema } from '../src/config.ts'
 import type { Note } from '../src/memory.ts'
 
@@ -116,5 +116,51 @@ describe('what it is told about this machine', () => {
   it('tells it what it cannot do, and what does it instead', () => {
     // Otherwise "turn approvals on" gets either a flat refusal or a pretence.
     expect(composePrompt({ config: ConfigSchema.parse({}) })).toContain('wilco config')
+  })
+})
+
+describe('composeAgentPrompt', () => {
+  const base = {
+    task: 'shop/refunds',
+    project: 'shop',
+    worktree: '/src/shop',
+    root: '/src/shop',
+    intent: 'retry refunds once',
+    branch: 'main',
+    context: null,
+  }
+
+  it('tells an agent sharing the checkout to work beside the others, and how to commit', () => {
+    const told = composeAgentPrompt({
+      ...base,
+      workspace: 'checkout',
+      commit: 'own-files',
+      instructions: 'Run pnpm check before you commit.',
+    })
+    expect(told).toContain('directly in the project’s checkout, /src/shop, on the branch main')
+    expect(told).toContain('never undo or overwrite a change you did not make')
+    expect(told).toContain('commit only the files you changed yourself')
+    expect(told).toContain('Run pnpm check before you commit.')
+    expect(told).not.toContain('worktree of your own')
+  })
+
+  it('keeps an agent in a worktree to it, and says each commit rule its own way', () => {
+    const told = composeAgentPrompt({
+      ...base,
+      worktree: '/h/worktrees/shop-refunds',
+      branch: 'wilco/refunds',
+      workspace: 'worktree',
+      commit: 'never',
+      context: '.wilco/context.md',
+    })
+    expect(told).toContain('a git worktree of your own, /h/worktrees/shop-refunds')
+    expect(told).toContain('never change the project’s own checkout at /src/shop')
+    expect(told).toContain('Do not commit.')
+    expect(told).toContain('in .wilco/context.md')
+    for (const rule of ['when-done', 'as-you-go'] as const) {
+      expect(composeAgentPrompt({ ...base, workspace: 'checkout', commit: rule })).toMatch(
+        /commit/i,
+      )
+    }
   })
 })

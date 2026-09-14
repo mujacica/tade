@@ -9,13 +9,16 @@
 ```
 
 A voice-first control room for the coding agents on your own machine. Every agent is
-[pi](https://github.com/earendil-works/pi) in a git worktree of its own; Wilco is the window over
-all of them and the orchestrator you talk to — by voice or by typing.
+[pi](https://github.com/earendil-works/pi), working in your project's checkout alongside the others
+or in a git worktree of its own; Wilco is the window over all of them and the orchestrator you talk
+to — by voice or by typing.
 
 Wilco keeps no state of its own. tmux or the window owns the processes, pi owns the conversations,
 git owns the work, and status is always read from them, so closing Wilco loses nothing.
 
-- **Agents in worktrees**: each on its own branch, named when it first changes something.
+- **Agents together, or apart**: by default every agent works in the checkout on its branch at the
+  same time; set `agents.workspace: worktree` for a worktree and branch each. `agents.commit` says
+  when they commit, and `agents.instructions` is anything else every agent should be told.
 - **An orchestrator you talk to**: hold `ctrl+space` or type. It starts, steers and stops agents,
   runs commands in terminals, and shows its work as it goes.
 - **One window**: agents, files, changes, git, notes, terminals, search (`ctrl+k`), a file viewer.

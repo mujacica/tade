@@ -18,6 +18,9 @@ State is derived by one pure function, `deriveState(bundle)` in
   so keep it under ~40 characters and concrete ("wants approval: npm i stripe@15").
 - `blocked` means "waiting on a human". `review` means "finished, needs eyes" and requires
   commits ahead **and** a clean tree **and** tests not failing. Don't blur these.
+- **A task sharing the checkout (`bundle.shared`) goes through `deriveShared`**, which never reads
+  the files or commits: they are every agent's. Its state is its agent's alone — a rule about dirty
+  files or commits belongs in `deriveState` only.
 
 ## Steps
 

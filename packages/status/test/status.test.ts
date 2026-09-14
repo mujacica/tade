@@ -157,6 +157,29 @@ describe('collectStatus', () => {
     expect(task(ws, 'app/agent-1')?.branch).toBe('wilco/refund-retries')
   })
 
+  it('finds agents working side by side in the checkout, each by its own folder', async () => {
+    const r = mkrepo()
+    for (const [slug, title] of [
+      ['refunds', 'refund retries'],
+      ['search', 'faster search'],
+    ] as const) {
+      mkdirSync(join(r.root, '.wilco', 'tasks', slug), { recursive: true })
+      writeFileSync(
+        join(r.root, '.wilco', 'tasks', slug, 'task.yaml'),
+        `id: app/${slug}\nproject: app\nintent_spoken: "${title}"\ncreated: 2026-09-11T11:00:00Z\nworkspace: checkout\n`,
+      )
+    }
+    // Files changed in the checkout are everyone's: they do not make a task "working".
+    writeFileSync(join(r.root, 'shared.ts'), 'export {}\n')
+    const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
+    expect(
+      ws.projects[0]?.tasks.map((t) => [t.id, t.workspace, t.worktree, t.branch, t.state]),
+    ).toEqual([
+      ['app/refunds', 'checkout', r.root, 'main', 'queued'],
+      ['app/search', 'checkout', r.root, 'main', 'queued'],
+    ])
+  })
+
   describe('never throws', () => {
     it('corrupt .git', async () => {
       const r = mkrepo()

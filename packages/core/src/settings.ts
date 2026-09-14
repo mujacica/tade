@@ -1,4 +1,4 @@
-import { type Config, EDITORS } from './config.ts'
+import { AGENT_WORKSPACES, COMMIT_RULES, type Config, EDITORS } from './config.ts'
 
 // The settings a person actually changes, and what each one means.
 //
@@ -30,7 +30,7 @@ export type SettingKind =
   | { kind: 'hours' }
   | { kind: 'flag' }
   /** A key or combination, chosen by pressing it. */
-  | { kind: 'key' }
+  | { kind: 'key'; printable?: boolean }
   /** A model from the harness's catalog, as `provider/id`. */
   | { kind: 'model' }
 
@@ -79,8 +79,37 @@ export function settingsOf(config: Config): SettingGroup[] {
     {
       id: 'agents',
       title: 'Agents',
-      about: 'Where agents run, and what happens to them when Wilco closes.',
+      about: 'Where agents work, what they commit, and what happens to them when Wilco closes.',
       settings: [
+        {
+          path: 'agents.workspace',
+          title: 'Where agents work',
+          means:
+            'checkout: all of them in the project’s checkout, on its branch, at once; worktree: each in a worktree and branch of its own',
+          value: config.agents.workspace,
+          fallback: 'checkout',
+          type: { kind: 'choice', options: [...AGENT_WORKSPACES] },
+          live: true,
+        },
+        {
+          path: 'agents.commit',
+          title: 'When agents commit',
+          means:
+            'own-files: their own files when done; when-done: everything when done; as-you-go: small commits; never: you commit',
+          value: config.agents.commit,
+          fallback: 'own-files',
+          type: { kind: 'choice', options: [...COMMIT_RULES] },
+          live: true,
+        },
+        {
+          path: 'agents.instructions',
+          title: 'Rules for every agent',
+          means: 'told to each agent as it starts, in your words',
+          value: config.agents.instructions ?? '',
+          fallback: '',
+          type: { kind: 'text', placeholder: 'run pnpm check before committing' },
+          live: true,
+        },
         {
           path: 'workspace.driver',
           title: 'Where agents run',
@@ -339,7 +368,8 @@ export function settingsOf(config: Config): SettingGroup[] {
     {
       id: 'keys',
       title: 'Keys',
-      about: 'The few keys Wilco keeps for itself. Everything else goes to your agent.',
+      about:
+        'The keys Wilco keeps for itself. Everything else goes to your agent. Alt keys need Option as Meta in macOS terminals.',
       settings: [
         {
           path: 'surfaces.voice.talk.key',
@@ -350,10 +380,108 @@ export function settingsOf(config: Config): SettingGroup[] {
           type: { kind: 'key' },
           live: true,
         },
+        ...KEY_BINDINGS.map(
+          (binding): Setting => ({
+            path: `surfaces.window.keys.${binding.key}`,
+            title: binding.title,
+            means: binding.means,
+            value: config.surfaces.window.keys[binding.key],
+            fallback: binding.fallback,
+            type: binding.printable ? { kind: 'key', printable: true } : { kind: 'key' },
+            live: true,
+          }),
+        ),
       ],
     },
   ]
 }
+
+/** Every key the window keeps, by what it does: the Keys settings and the keys sheet both read this. */
+export const KEY_BINDINGS: readonly {
+  key: keyof Config['surfaces']['window']['keys']
+  title: string
+  means: string
+  fallback: string
+  /** Claimed only while it means something — an approval waiting — so a letter is fine. */
+  printable?: boolean
+}[] = [
+  {
+    key: 'search',
+    title: 'Search',
+    means: 'agents, files, lines in files, commands',
+    fallback: 'ctrl+k',
+  },
+  {
+    key: 'next_agent',
+    title: 'Next agent',
+    means: 'move to the next agent, then the orchestrator',
+    fallback: 'tab',
+  },
+  {
+    key: 'previous_agent',
+    title: 'Previous agent',
+    means: 'move back through the same',
+    fallback: 'shift+tab',
+  },
+  {
+    key: 'orchestrator',
+    title: 'Talk to Wilco',
+    means: 'put the keyboard on the orchestrator line',
+    fallback: 'alt+o',
+  },
+  {
+    key: 'next_waiting',
+    title: 'Next waiting agent',
+    means: 'go to the agent that is waiting on you',
+    fallback: 'alt+w',
+  },
+  {
+    key: 'new_agent',
+    title: 'New agent',
+    means: 'start an agent in the project you are in',
+    fallback: 'alt+a',
+  },
+  {
+    key: 'new_terminal',
+    title: 'New terminal',
+    means: 'open a terminal in the bottom panel',
+    fallback: 'alt+t',
+  },
+  {
+    key: 'open_project',
+    title: 'Open project',
+    means: 'add or go to a repository',
+    fallback: 'alt+r',
+  },
+  {
+    key: 'extensions',
+    title: 'Extensions',
+    means: 'turn extensions on and off, set them up',
+    fallback: 'alt+e',
+  },
+  { key: 'settings', title: 'Settings', means: 'this panel', fallback: 'alt+s' },
+  {
+    key: 'fill_bottom',
+    title: 'Bottom panel fills window',
+    means: 'the conversation or terminal takes the window',
+    fallback: 'alt+m',
+  },
+  { key: 'keys_sheet', title: 'Keys', means: 'the sheet of every key', fallback: 'f1' },
+  {
+    key: 'approve',
+    title: 'Allow',
+    means: 'allow what an agent asked, only while one waits',
+    fallback: 'a',
+    printable: true,
+  },
+  {
+    key: 'deny',
+    title: 'Deny',
+    means: 'deny what an agent asked, only while one waits',
+    fallback: 'd',
+    printable: true,
+  },
+]
 
 /** One line per setting, for a list you choose from. */
 export function describeSetting(setting: Setting): string {

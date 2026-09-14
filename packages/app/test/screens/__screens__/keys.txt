@@ -1,34 +1,34 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌ pi · claude-opus-5 ▾ · ctx ███░░░░░ 41% 
-▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
- ○ refunds            $0.62   │                                                                                         
-                              │                                                                                         
- ▾ CHANGES  3         vs ma╭─ Keys ─────────────────────────────────────────────────── esc ─╮                           
-  M package.json        +2 │                                                                │                           
-  A src/webhooks.test.ts  +│ TALK             ▐ ctrl ▌+▐ space ▌  hold · yours to change    │                           
-  M src/webhooks.ts    +12 │                                                                │                           
-                           │ SEARCH           ▐ ctrl ▌+▐ k ▌  agents, files, lines in files │                           
- ▾ FILES                   │ SAID BEFORE      ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you typed     │                           
-   ▾ src/                  │ TERMINAL         click into it to type; tab, ctrl+c and esc are│,                          
-       webhooks.test.ts    │ NEXT AGENT       ▐ tab ▌  ▐ shift ▌+▐ tab ▌                    │                           
-       webhooks.ts         │ ANSWER           ▐ a ▌ allow  ▐ d ▌ deny   only while one waits│                           
-   ▸ test/                 │ IN A PANEL       ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌                  │                           
-     package.json          │ QUIT             ▐ ctrl ▌+▐ c ▌                                │                           
-     README.md             │                                                                │                           
-                           │ Everything else goes to the agent you're watching.             │───╮                       
- ▸ NOTES  4           ▐  + │                                               ▐ Change keys… ▌ │   │                       
- ▾ GIT                     ╰────────────────────────────────────────────────────────────────╯   │                       
-   repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
-   branch   …lco/stripe-v15   │                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
+▌● stripe-v15 ╭─ Keys ───────────────────────────────────────────────────────────────────────────── esc ─╮──────────────
+ ○ refunds    │                                                                                          │              
+              │ Push to talk              ▐ ctrl ▌+▐ space ▌  hold                                       │              
+ ▾ CHANGES  3 │ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines in files, commands        │              
+  M package.js│ Next agent                ▐ tab ▌  move to the next agent, then the orchestrator         │              
+  A src/webhoo│ Previous agent            ▐ shift ▌+▐ tab ▌  move back through the same                  │              
+  M src/webhoo│ Talk to Wilco             ▐ alt ▌+▐ o ▌  put the keyboard on the orchestrator line       │              
+              │ Next waiting agent        ▐ alt ▌+▐ w ▌  go to the agent that is waiting on you          │              
+ ▾ FILES      │ New agent                 ▐ alt ▌+▐ a ▌  start an agent in the project you are in        │              
+   ▾ src/     │ New terminal              ▐ alt ▌+▐ t ▌  open a terminal in the bottom panel             │              
+       webhook│ Open project              ▐ alt ▌+▐ r ▌  add or go to a repository                       │              
+       webhook│ Extensions                ▐ alt ▌+▐ e ▌  turn extensions on and off, set them up         │              
+   ▸ test/    │ Settings                  ▐ alt ▌+▐ s ▌  this panel                                      │              
+     package.j│ Bottom panel fills window ▐ alt ▌+▐ m ▌  the conversation or terminal takes the window   │              
+     README.md│ Keys                      ▐ F1 ▌  the sheet of every key                                 │              
+              │ Allow                     ▐ a ▌  allow what an agent asked, only while one waits         │              
+ ▸ NOTES  4   │ Deny                      ▐ d ▌  deny what an agent asked, only while one waits          │              
+ ▾ GIT        │                                                                                          │              
+   repo     ~/│ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
+   branch   …l│ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │              
+━ ▐ orchestrat│ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+              │                                                                                          │              
+              │ Everything else goes to the agent or terminal you're typing at.                          │              
+              │                                                                         ▐ Change keys… ▌ │              
+              ╰──────────────────────────────────────────────────────────────────────────────────────────╯              
                                                                                                                         
  ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
- ›                                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌                claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 
+ ▐ Search ctrl+k ▌ ▐ + New agent ▌ ▐ Open project ▌ ▐ Extensions ▌ ▐ Settings ▌         claude-opus-5 ▾ │ $2.66 today ▾ 
