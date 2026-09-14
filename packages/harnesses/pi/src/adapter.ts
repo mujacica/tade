@@ -25,6 +25,8 @@ import { SignalChannel } from './channel.ts'
 // one adapter covers API keys, subscriptions and local models alike.
 
 export const EXTENSION_PATH = fileURLToPath(new URL('./wilco.ts', import.meta.url))
+/** Rewrites requests a provider in between would refuse; loaded into every pi Wilco starts. */
+export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url))
 
 /**
  * The session a task's agent talks in, for the life of the task.
@@ -51,6 +53,57 @@ export function runSocket(runDir: string, run: string): string {
 }
 
 /** The pi binary that ships with this package. */
+/**
+ * A provider's error as a sentence: `400 {"error":{"message":"…"}}` becomes
+ * the message and its status, and anything else is kept as it came.
+ */
+export function providerError(raw: string): string {
+  const text = raw.trim()
+  if (!text) return 'the model returned an error without saying why'
+  const match = /^(\d{3})\s+(\{[\s\S]*\})$/.exec(text)
+  if (match) {
+    try {
+      const body = JSON.parse(match[2] ?? '') as {
+        error?: { message?: unknown } | string
+        message?: unknown
+      }
+      const said =
+        typeof body.error === 'string'
+          ? body.error
+          : typeof body.error?.message === 'string'
+            ? body.error.message
+            : typeof body.message === 'string'
+              ? body.message
+              : null
+      if (said) return `${said} (${match[1]})`
+    } catch {
+      // Not JSON after all: keep it whole.
+    }
+  }
+  return text.length > 500 ? `${text.slice(0, 500)}…` : text
+}
+
+/** A pi event that reports something going wrong, as a sentence; null for anything else. */
+export function problemOf(message: Record<string, unknown>): string | null {
+  if (message.type === 'auto_retry_start') {
+    const attempt = Number(message.attempt ?? 0)
+    const most = Number(message.maxAttempts ?? 0)
+    const seconds = Math.round(Number(message.delayMs ?? 0) / 1000)
+    return `the model failed, trying again${most ? ` (${attempt} of ${most})` : ''}${seconds ? ` in ${seconds}s` : ''}: ${providerError(String(message.errorMessage ?? ''))}`
+  }
+  if (message.type === 'auto_retry_end' && message.success === false) {
+    return `the model kept failing and pi gave up: ${providerError(String(message.finalError ?? ''))}`
+  }
+  if (message.type === 'extension_error') {
+    const path = String(message.extensionPath ?? 'an extension')
+    return `${path.split('/').at(-1)} failed in ${String(message.event ?? 'an event')}: ${String(message.error ?? '')}`
+  }
+  if (message.type === 'compaction_end' && typeof message.errorMessage === 'string') {
+    return message.errorMessage
+  }
+  return null
+}
+
 export function piBinary(): string {
   // pi's exports map declares no `require` condition and does not expose
   // package.json, so neither require.resolve nor a subpath resolve works here.
@@ -202,6 +255,8 @@ export class PiAdapter implements WorkerAdapter {
           sessionIdFor(spec.task),
           '-e',
           EXTENSION_PATH,
+          '-e',
+          COMPAT_PATH,
           ...extrasArgs(spec),
           ...this.opts.args,
           // Last, so the opening instruction is not mistaken for a flag.
@@ -280,6 +335,8 @@ export class PiAdapter implements WorkerAdapter {
           '--session-dir',
           join(this.opts.runDir, 'sessions'),
           ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
+          '-e',
+          COMPAT_PATH,
           ...extrasArgs(spec),
           ...this.opts.args,
         ],
@@ -578,11 +635,17 @@ export class PiAdapter implements WorkerAdapter {
     // one, a caller waiting to speak again would otherwise never be told the
     // agent had finished.
     if (!this.opts.supervise && message.type === 'turn_end') {
+      // A request the provider refused still ends the turn — with nothing
+      // said — so why is on the message, and must travel with it.
+      const ended = message.message as { stopReason?: string; errorMessage?: string } | undefined
+      const status =
+        ended?.stopReason === 'error' ? 'error' : ended?.stopReason === 'aborted' ? 'aborted' : 'ok'
       this.dispatch(run.handle.run, {
         type: 'turn_done',
         run: run.handle.run,
         at: Date.now(),
-        status: 'ok',
+        status,
+        ...(status === 'error' ? { reason: providerError(ended?.errorMessage ?? '') } : {}),
       })
       return
     }
@@ -620,6 +683,18 @@ export class PiAdapter implements WorkerAdapter {
           usd: usage.cost?.total ?? 0,
         })
       }
+      return
+    }
+    // What went wrong on the way, that pi carries on after. Each is said, so
+    // whoever is watching can fix the cause rather than wonder at the silence.
+    const problem = problemOf(message)
+    if (problem) {
+      this.dispatch(run.handle.run, {
+        type: 'problem',
+        run: run.handle.run,
+        at: Date.now(),
+        text: problem,
+      })
       return
     }
     if (!this.opts.supervise && message.type === 'agent_settled') {

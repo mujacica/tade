@@ -47,6 +47,8 @@ function skillsRoot(): string {
 
 interface ToolContext {
   cwd: string
+  /** pi's model catalog, for switching this session to a model Wilco found. */
+  modelRegistry?: { find?(provider: string, id: string): unknown }
 }
 /**
  * What a tool hands back: pi reads `content` and nothing else, and counts a
@@ -72,6 +74,8 @@ interface ToolDefinition {
 }
 interface PiApi {
   registerTool(tool: ToolDefinition): void
+  /** Switches this session only; the default for new sessions is left alone. */
+  setModel?(model: unknown): Promise<boolean>
 }
 
 const SOCKET = process.env.WILCO_SOCKET ?? ''
@@ -97,7 +101,7 @@ export default function wilcoTools(pi: PiApi): void {
     name: string,
     description: string,
     parameters: Record<string, unknown>,
-    run: (params: Record<string, unknown>, callId: string) => Promise<unknown>,
+    run: (params: Record<string, unknown>, callId: string, ctx: ToolContext) => Promise<unknown>,
     label = name.replace(/^wilco_/, 'wilco: ').replace(/_/g, ' '),
   ): void => {
     pi.registerTool({
@@ -105,10 +109,10 @@ export default function wilcoTools(pi: PiApi): void {
       label,
       description,
       parameters,
-      async execute(id, params) {
+      async execute(id, params, _signal, _update, ctx) {
         // A failure is thrown, so pi marks the call failed and the model is
         // told what went wrong in words it can choose another route from.
-        const result = await run(params ?? {}, id)
+        const result = await run(params ?? {}, id, ctx)
         const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
         return { content: [{ type: 'text', text }], details: {} }
       },
@@ -232,6 +236,26 @@ export default function wilcoTools(pi: PiApi): void {
         id?: string
       }
       return `${String(p.task)} is switching to ${chosen.provider ? `${chosen.provider}/` : ''}${chosen.id ?? String(p.model)}.`
+    },
+  )
+
+  tool(
+    'wilco_orchestrator_model',
+    'Switch the model you — the orchestrator — think with: "use opus 5 yourself", "change your model to sonnet". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Wilco starts. For an agent\'s model use wilco_agent_model; for "both", call each.',
+    object({ model: string('the model as the human said it') }, ['model']),
+    async (p, _id, ctx) => {
+      const chosen = (await rpc('orchestrator/model', { model: String(p.model) })) as {
+        provider: string
+        id: string
+      }
+      const found = ctx.modelRegistry?.find?.(chosen.provider, chosen.id)
+      if (!found || !pi.setModel) {
+        throw new Error(
+          `${chosen.provider}/${chosen.id} is saved for the next start, but this session could not switch to it now`,
+        )
+      }
+      await pi.setModel(found)
+      return `The orchestrator is on ${chosen.provider}/${chosen.id} from its next reply, and will start on it next time.`
     },
   )
 

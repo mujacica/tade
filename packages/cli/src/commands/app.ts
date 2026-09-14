@@ -16,7 +16,7 @@ import {
 import type { ExtensionWorkbench } from '@wilco/extensions-core'
 import { piBinary } from '@wilco/harnesses-pi/adapter'
 import { installedPieces } from '@wilco/harnesses-pi/installed'
-import { credentials, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
+import { credentials, findModel, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
 import {
   decideProposal,
   extensionWorkbench,
@@ -111,10 +111,18 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // A terminal the orchestrator opens or runs something in comes to the
       // front of the window, which starts after the socket does.
       let showTerminal: (terminal: string) => void = () => {}
+      let keepOrchestratorModel: (model: { provider: string; id: string }) => void = () => {}
       const tools = await ToolHost.listen({
         wilco: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
+        orchestratorModel: async (said) => {
+          const found = findModel(said, await usableModels())
+          if (!found.ok) throw new Error(found.reason)
+          const chosen = { provider: found.provider, id: found.id }
+          keepOrchestratorModel(chosen)
+          return chosen
+        },
         extensions: async (call) =>
           (
             await extensions.call(call.tool, call.input, {
@@ -154,6 +162,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })
         showTerminal = (terminal) => void app.showTerminal(terminal)
+        keepOrchestratorModel = (model) => app.thinkerMovedTo(model)
         // An agent an extension starts is put in front of you, like one you started.
         windowForExtensions = extensionWorkbench(client, (task) => app.showTask(task))
         app.useExtensionWorkbench(windowForExtensions)

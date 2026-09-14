@@ -133,8 +133,16 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     run: RunId,
     at: z.number(),
     status: z.enum(['ok', 'error', 'aborted']),
+    /** Why a turn ended in error, as the provider said it. */
+    reason: z.string().optional(),
   }),
   z.object({ type: z.literal('failed'), run: RunId, at: z.number(), error: z.string() }),
+  /**
+   * Something went wrong that the agent carries on after: a request it is
+   * retrying, a harness extension that threw, a compaction that failed. Said
+   * so a person can go and fix it, never swallowed.
+   */
+  z.object({ type: z.literal('problem'), run: RunId, at: z.number(), text: z.string() }),
   /** No turn in flight and nothing queued: the agent is waiting on a human. */
   z.object({ type: z.literal('idle'), run: RunId, at: z.number() }),
   z.object({

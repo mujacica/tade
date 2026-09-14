@@ -85,6 +85,23 @@ describe('the conversation', () => {
     expect(lines).toContain('✗ status')
   })
 
+  it('says why the model would not answer, once, while the orchestrator keeps going', () => {
+    let current = thinking(youSaid(emptyTranscript(), 'change your model to opus 5', 0), 0)
+    const refused = {
+      type: 'error',
+      reason: 'Mid-conversation reasoning effort is not supported (400)',
+    } as const
+    current = fromThinker(current, refused, 1)
+    current = fromThinker(current, refused, 2)
+    const lines = text(current, 120).join('\n')
+    expect(lines).toContain(
+      '✗ The orchestrator could not answer: Mid-conversation reasoning effort is not supported (400)',
+    )
+    expect(lines.split('could not answer').length).toBe(2)
+    expect(current.thinking).not.toBeNull()
+    expect(fromThinker(current, { type: 'idle' }, 3).thinking).toBeNull()
+  })
+
   it("routes Wilco's own commands visibly, and does not repeat the orchestrator's answer", () => {
     const grammar = fromTurn(youSaid(emptyTranscript(), 'park the stripe one', 0), {
       utterance: 'park the stripe one',

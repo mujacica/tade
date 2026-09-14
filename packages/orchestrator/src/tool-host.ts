@@ -24,6 +24,11 @@ export interface ToolHostOptions {
   path: string
   /** A terminal was opened or used, so the window can put it in front of you. */
   onTerminal?: (terminal: string) => void
+  /**
+   * Finds the model the orchestrator was asked to think with and keeps it for
+   * the next start. Without it, the orchestrator cannot change its own model.
+   */
+  orchestratorModel?: (said: string) => Promise<{ provider: string; id: string }>
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -80,6 +85,11 @@ export class ToolHost {
           title: String(p.title),
         }),
       'worker/model': (p) => wilco.setAgentModel(String(p.task), String(p.model)),
+      'orchestrator/model': (p) => {
+        if (!opts.orchestratorModel)
+          throw new Error('this window cannot change the orchestrator model')
+        return opts.orchestratorModel(String(p.model))
+      },
       'worker/start': (p) =>
         wilco.startAgent({
           task: String(p.task) as never,

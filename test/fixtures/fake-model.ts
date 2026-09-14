@@ -12,6 +12,8 @@ export interface FakeModelOptions {
   tool?: { name: string; arguments: Record<string, unknown> }
   /** What it says once the tool result comes back. */
   finalText?: string
+  /** Refuse every request with this status and body, as a provider does a request it will not route. */
+  refuse?: { status: number; body: unknown }
 }
 
 export interface FakeModel {
@@ -35,6 +37,11 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
         requests.push(JSON.parse(body) as Record<string, unknown>)
       } catch {
         requests.push({ unparseable: body })
+      }
+      if (opts.refuse) {
+        res.writeHead(opts.refuse.status, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(opts.refuse.body))
+        return
       }
       const first = requests.length === 1 && opts.tool !== undefined
       const toolCall = opts.tool

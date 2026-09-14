@@ -52,6 +52,7 @@ export type ThinkerEvent =
   | { type: 'tool_done'; id: string; ok: boolean; text: string }
   | { type: 'idle' }
   | { type: 'failed'; reason: string }
+  | { type: 'error'; reason: string }
   | { type: 'exited'; code: number | null }
 
 export interface Transcript {
@@ -105,7 +106,16 @@ export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
       .slice(since + 1)
       .some((entry) => entry.kind === 'said' || entry.kind === 'tool' || entry.kind === 'problem')
     const settled = { ...transcript, thinking: null }
-    if (answered || turn.reply.trim() === '') return settled
+    if (answered) return settled
+    // Nothing shown and nothing said is the silence this conversation exists
+    // to prevent: say that much, at least.
+    if (turn.reply.trim() === '') {
+      return push(settled, {
+        kind: 'problem',
+        text: 'The orchestrator finished without saying anything.',
+        at: turn.at,
+      })
+    }
     return push(settled, {
       kind: 'said',
       text: turn.reply,
@@ -185,6 +195,14 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
         { ...settleStreaming(transcript), thinking: null },
         { kind: 'problem', text: `The orchestrator stopped: ${event.reason}`, at },
       )
+    case 'error': {
+      const text = `The orchestrator could not answer: ${event.reason}`
+      // pi reports a refused request and then its retry of it; the same words
+      // twice in a row are one problem.
+      if (last?.kind === 'problem' && last.text === text) return transcript
+      // Still thinking: pi may be retrying, and `idle` says when it is not.
+      return push(settleStreaming(transcript), { kind: 'problem', text, at })
+    }
     case 'exited': {
       const running = entries.some((entry) => entry.kind === 'tool' && entry.state === 'running')
       let next: Transcript = { ...settleStreaming(transcript), thinking: null }

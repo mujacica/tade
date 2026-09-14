@@ -126,6 +126,23 @@
     }
   },
   {
+    "name": "wilco_orchestrator_model",
+    "description": "Switch the model you — the orchestrator — think with: \"use opus 5 yourself\", \"change your model to sonnet\". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Wilco starts. For an agent's model use wilco_agent_model; for \"both\", call each.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "the model as the human said it"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_park",
     "description": "Set a task aside. Nothing is lost: the worktree stays and it can be picked back up.",
     "parameters": {

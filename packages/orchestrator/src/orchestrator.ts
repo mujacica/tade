@@ -91,6 +91,8 @@ export type OrchestratorEvent =
   | { type: 'tool_done'; id: string; ok: boolean; text: string }
   | { type: 'idle' }
   | { type: 'failed'; reason: string }
+  /** A turn the model could not finish — a refused request — while pi itself keeps running. */
+  | { type: 'error'; reason: string }
   | { type: 'exited'; code: number | null }
 
 export class Orchestrator {
@@ -99,6 +101,7 @@ export class Orchestrator {
   private readonly toolListeners = new Set<(tool: string) => void>()
   private readonly idleListeners = new Set<() => void>()
   private readonly eventListeners = new Set<(event: OrchestratorEvent) => void>()
+  private readonly errorListeners = new Set<(reason: string) => void>()
   /** Why it stopped, once it has: asking it anything after that cannot work. */
   private gone: string | null = null
 
@@ -187,6 +190,14 @@ export class Orchestrator {
         emit({ type: 'tool', id: signal.callId, tool: signal.tool, input: signal.input })
       } else if (signal.type === 'tool_result') {
         emit({ type: 'tool_done', id: signal.callId, ok: signal.ok, text: signal.summary })
+      } else if (
+        (signal.type === 'turn_done' && signal.status === 'error') ||
+        signal.type === 'problem'
+      ) {
+        const reason =
+          signal.type === 'problem' ? signal.text : (signal.reason ?? 'the model returned an error')
+        for (const listener of orchestrator.errorListeners) listener(reason)
+        emit({ type: 'error', reason })
       } else if (signal.type === 'idle') {
         for (const listener of orchestrator.idleListeners) listener()
         emit({ type: 'idle' })
@@ -247,7 +258,9 @@ export class Orchestrator {
     images: readonly WorkerImage[] = [],
   ): Promise<string> {
     const parts: string[] = []
+    const errors: string[] = []
     const offMessage = this.onMessage((part) => parts.push(part))
+    const offError = this.onError((reason) => errors.push(reason))
     let offIdle: Unsubscribe = () => {}
     const settled = new Promise<void>((resolve) => {
       offIdle = this.onIdle(resolve)
@@ -262,8 +275,12 @@ export class Orchestrator {
         return parts.join(' ').trim() || 'Still thinking about that one.'
       }
       if (this.gone && parts.length === 0) return `The orchestrator stopped: ${this.gone}`
+      if (parts.length === 0 && errors.length > 0) {
+        return `The orchestrator could not answer: ${errors.at(-1)}`
+      }
       return parts.join(' ').trim()
     } finally {
+      offError()
       offMessage()
       offIdle()
     }
@@ -272,6 +289,12 @@ export class Orchestrator {
   onMessage(listener: (text: string) => void): Unsubscribe {
     this.messageListeners.add(listener)
     return () => this.messageListeners.delete(listener)
+  }
+
+  /** Fires when a turn ends in an error the model could not get past. */
+  onError(listener: (reason: string) => void): Unsubscribe {
+    this.errorListeners.add(listener)
+    return () => this.errorListeners.delete(listener)
   }
 
   /** Which tool it reached for, so a surface can show its working. */

@@ -182,6 +182,23 @@ describe('Orchestrator', () => {
     ).rejects.toThrow(/no-such-provider/)
   }, 90_000)
 
+  it('says why the model would not answer, instead of going quiet', async () => {
+    const events: OrchestratorEvent[] = []
+    const chat = await start({
+      refuse: {
+        status: 400,
+        body: { error: { message: 'Mid-conversation reasoning effort is not supported' } },
+      },
+    })
+    chat.onEvent((event) => events.push(event))
+    const answer = await chat.askFor('change your model to opus 5', 20_000)
+    expect(answer).toMatch(
+      /^The orchestrator could not answer: .*Mid-conversation reasoning effort/,
+    )
+    expect(events.some((event) => event.type === 'error')).toBe(true)
+    expect(chat.stopped).toBeNull()
+  })
+
   it('waits for the whole answer when asked to', async () => {
     // Surfaces that speak in turns need the reply, not a stream of parts.
     const chat = await start({ finalText: 'Two tasks, nothing blocked.' })
@@ -201,6 +218,30 @@ describe('Orchestrator', () => {
     await chat.ask('where are we')
     await until(() => said.length > 0)
     expect(said[0]).toBe('Still here.')
+  }, 90_000)
+
+  it('switches its own model when asked, and hands it to the window to keep', async () => {
+    const asked: string[] = []
+    await tools.close()
+    tools = await ToolHost.listen({
+      wilco,
+      path: join(home, 'tools.sock'),
+      orchestratorModel: async (said) => {
+        asked.push(said)
+        return { provider: 'wilco-test', id: 'fake' }
+      },
+    })
+    const events: OrchestratorEvent[] = []
+    const chat = await start({
+      tool: { name: 'wilco_orchestrator_model', arguments: { model: 'opus 5' } },
+      finalText: 'Switched.',
+    })
+    chat.onEvent((event) => events.push(event))
+    expect(await chat.askFor('change your model to opus 5', 30_000)).toContain('Switched.')
+    expect(asked).toEqual(['opus 5'])
+    const done = events.find((event) => event.type === 'tool_done')
+    expect(done).toMatchObject({ ok: true })
+    expect(done?.type === 'tool_done' ? done.text : '').toContain('wilco-test/fake')
   }, 90_000)
 
   it("reaches for Wilco's own tools and reports which one", async () => {

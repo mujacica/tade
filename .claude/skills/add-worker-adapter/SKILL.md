@@ -24,10 +24,16 @@ closes, which is the thing this design exists to avoid.
 ## The contract
 
 - Emit `WorkerSignal`s: `started`, `turn_started`, `titled`, `message`, `message_delta`, `tool_call`,
-  `tool_result`, `extension_call`, `permission_request`, `turn_done`, `failed`, `idle`, `context`,
-  `usage`, `exited`. These are zod schemas because they cross a socket. A process that exits before
-  it answers anything says why with `failed`, from what it wrote to stderr — never leave a caller to
-  time out.
+  `tool_result`, `extension_call`, `permission_request`, `turn_done`, `failed`, `problem`, `idle`,
+  `context`, `usage`, `exited`. These are zod schemas because they cross a socket. A process that
+  exits before it answers anything says why with `failed`, from what it wrote to stderr — never leave
+  a caller to time out. A turn the provider refused is `turn_done` with `status: 'error'` and the
+  provider's `reason`; anything else that goes wrong while the agent carries on (a retry, a harness
+  extension that threw) is `problem`. Both end up in front of the person — the orchestrator's
+  refusals once ended in silence, because nothing carried the reason.
+- **A request a provider in between refuses is rewritten in the harness**, not worked around in the
+  config: pi's are in `harnesses/pi/src/compat.ts`, loaded into every pi Wilco starts, each with a
+  test of the payload before and after.
 - Accept `WorkerCommand`s back: `decision`, `steer`, `queue`, `abort`, `shutdown`, `name`, `model`,
   `extension_result`. `name` and `model` change only this agent's session: never the harness's default
   for new sessions, which is how one agent's model once leaked into every other.

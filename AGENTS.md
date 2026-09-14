@@ -102,6 +102,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Nothing inherited is written to disk.** A lane's spec keeps only the environment Wilco set
   (`withoutInherited`); the rest is everyone's shell environment, tokens included, and a relaunch
   inherits it again. Wilco's own files that could hold such things are written `0600`.
+- **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
+  that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
+  on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
 - **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
   throws; anything else reaches the model as an empty answer that looks like success.
 - **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its

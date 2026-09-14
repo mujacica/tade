@@ -522,6 +522,20 @@ export class App {
    */
   keepThinkerModel(model: { provider?: string; id: string }): void {
     if (this.opts.config.orchestrator.model) return
+    this.saveThinkerModel(model)
+  }
+
+  /**
+   * The orchestrator switched its own model, because it was asked to: kept for
+   * the next start and shown on its tab, without restarting what it is doing.
+   */
+  thinkerMovedTo(model: { provider: string; id: string }): void {
+    this.saveThinkerModel(model)
+    this.state = notice(this.state, `the orchestrator is now on ${model.provider}/${model.id}`)
+    this.draw()
+  }
+
+  private saveThinkerModel(model: { provider?: string; id: string }): void {
     try {
       writeSetting(this.configPath, 'orchestrator.provider', model.provider)
       writeSetting(this.configPath, 'orchestrator.model', model.id)

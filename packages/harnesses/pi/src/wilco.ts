@@ -406,9 +406,19 @@ export default function wilcoExtension(pi: PiApi): void {
     await pi.setModel(found).catch(() => false)
   }
 
-  pi.on('turn_end', ((_event: unknown, ctx: PiContext) => {
+  pi.on('turn_end', ((
+    event: { message?: { stopReason?: string; errorMessage?: string } },
+    ctx: PiContext,
+  ) => {
     latest = ctx
-    send({ type: 'turn_done', status: 'ok' })
+    const stop = event?.message?.stopReason
+    send({
+      type: 'turn_done',
+      status: stop === 'error' ? 'error' : stop === 'aborted' ? 'aborted' : 'ok',
+      ...(stop === 'error' && event.message?.errorMessage
+        ? { reason: event.message.errorMessage }
+        : {}),
+    })
     const usage = ctx.getContextUsage?.()
     if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
     reportSpend(ctx)

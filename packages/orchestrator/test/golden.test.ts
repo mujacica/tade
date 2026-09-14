@@ -52,6 +52,7 @@ describe('the tools the orchestrator has', () => {
       'wilco_approve',
       'wilco_deny',
       'wilco_logs',
+      'wilco_orchestrator_model',
       'wilco_park',
       'wilco_propose_extension',
       'wilco_propose_skill',
