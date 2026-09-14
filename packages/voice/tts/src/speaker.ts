@@ -70,6 +70,8 @@ export function toneWav(spec: ToneSpec, sampleRate = SAMPLE_RATE): Buffer {
 export interface Command {
   command: string
   args: string[]
+  /** Milliseconds before the process is killed; 0 or absent means no limit. */
+  timeout?: number
 }
 
 export type Runner = (command: Command) => Promise<void>
@@ -160,10 +162,10 @@ export class Speaker {
 
 function defaultVoice(platform: NodeJS.Platform, rate: number): ((text: string) => Command) | null {
   if (platform === 'darwin') {
-    return (text) => ({ command: 'say', args: ['-r', String(rate), text] })
+    return (text) => ({ command: 'say', args: ['-r', String(rate), text], timeout: 0 })
   }
   if (platform === 'linux') {
-    return (text) => ({ command: 'spd-say', args: ['--wait', text] })
+    return (text) => ({ command: 'spd-say', args: ['--wait', text], timeout: 0 })
   }
   return null
 }
@@ -174,9 +176,11 @@ function defaultPlayer(platform: NodeJS.Platform): ((file: string) => Command) |
   return null
 }
 
-const execRunner: Runner = ({ command, args }) =>
+const execRunner: Runner = ({ command, args, timeout }) =>
   new Promise((resolve, reject) => {
-    execFile(command, args, detachedFor(20_000), (err) => (err ? reject(err) : resolve()))
+    execFile(command, args, detachedFor(timeout ?? 20_000), (err) =>
+      err ? reject(err) : resolve(),
+    )
   })
 
 /**

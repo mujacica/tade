@@ -83,6 +83,13 @@ describe('Speaker', () => {
     expect(calls).toEqual([])
   })
 
+  it('gives speech commands no timeout so long text is not cut off', async () => {
+    const { calls, run } = recorder()
+    const speaker = await Speaker.create({ soundDir: tmp('wilco-sound-'), platform: 'darwin', run })
+    await speaker.speak('A very long sentence that could take more than twenty seconds.')
+    expect(calls[0]?.timeout).toBe(0)
+  })
+
   it('writes the earcons once, ready to play', async () => {
     const soundDir = tmp('wilco-sound-')
     const speaker = await Speaker.create({ soundDir, platform: 'darwin', run: recorder().run })
