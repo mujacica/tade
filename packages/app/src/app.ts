@@ -159,6 +159,7 @@ import {
   imageMenuItems,
   laneMenuItems,
   type MenuSubject,
+  type ModelChoice,
   type ModelPanel,
   menuItems,
   menuPanel,
@@ -175,6 +176,7 @@ import {
   type ProposalView,
   panelClick,
   panelKey,
+  priceSaid,
   promptPanel,
   type SettingsPanel,
   searchPanel,
@@ -614,7 +616,7 @@ export class App {
   /** Search's results for the last query, so a redraw does not rank every file again. */
   private results: { key: string; entries: SearchEntry[] } | null = null
   /** The models an agent can be started on, once they have been read. */
-  private models: { id: string; provider: string; name: string }[] = []
+  private models: ModelChoice[] = []
   /** Providers the harness is signed in to, once read. */
   private accounts: string[] = []
   /** How each provider is paid for, once read. */
@@ -995,11 +997,15 @@ export class App {
 
   /** Models an agent can start on, as choices grouped by provider. */
   private get choices(): Choice[] {
-    return this.models.map((model) => ({
-      value: model.id,
-      label: model.id.split('/').slice(1).join('/') || model.id,
-      group: model.provider,
-    }))
+    return this.models.map((model) => {
+      const price = priceSaid(model)
+      return {
+        value: model.id,
+        label: model.id.split('/').slice(1).join('/') || model.id,
+        group: model.provider,
+        ...(price ? { note: price } : {}),
+      }
+    })
   }
 
   /**

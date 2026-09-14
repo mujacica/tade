@@ -1,6 +1,9 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { exitReason } from '../src/adapter.ts'
-import { type AvailableModel, chooseModel, findModel } from '../src/models.ts'
+import { type AvailableModel, availableModels, chooseModel, findModel } from '../src/models.ts'
 
 // Which model a configured name means. A bare name the harness would find in
 // four catalogs made it exit before reading a word, and no name at all took
@@ -62,6 +65,40 @@ describe('why pi went away', () => {
   it('falls back to the exit code when it said nothing', () => {
     expect(exitReason(3, '')).toBe('pi exited with code 3')
     expect(exitReason(null, '')).toBe('pi was stopped')
+  })
+})
+
+describe('the catalog', () => {
+  it('says what each model costs, and nothing it cannot read', async () => {
+    const home = tmp('pi-home-')
+    mkdirSync(join(home, '.pi', 'agent'), { recursive: true })
+    // Shaped the way pi keeps it: per provider, per model, dollars per million tokens.
+    writeFileSync(
+      join(home, '.pi', 'agent', 'models-store.json'),
+      JSON.stringify({
+        openrouter: {
+          models: [
+            {
+              id: 'moonshotai/kimi-k2.6',
+              name: 'Kimi K2.6',
+              cost: { input: 0.95, output: 4, cacheRead: 0.16, cacheWrite: 0 },
+              contextWindow: 262144,
+            },
+            { id: 'auto', name: 'Auto Router', cost: { input: 'depends', output: 0 } },
+          ],
+        },
+      }),
+    )
+    expect(await availableModels(home)).toEqual([
+      {
+        id: 'openrouter/moonshotai/kimi-k2.6',
+        provider: 'openrouter',
+        name: 'Kimi K2.6',
+        price: { input: 0.95, output: 4, cacheRead: 0.16, cacheWrite: 0 },
+        contextWindow: 262144,
+      },
+      { id: 'openrouter/auto', provider: 'openrouter', name: 'Auto Router' },
+    ])
   })
 })
 

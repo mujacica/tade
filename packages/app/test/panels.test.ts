@@ -16,6 +16,9 @@ import {
   laneMenuItems,
   panelClick,
   panelKey,
+  perMillion,
+  priceCells,
+  priceSaid,
   promptPanel,
   type SetupFieldView,
   searchPanel,
@@ -442,5 +445,40 @@ describe('the Reload panel', () => {
     }
     expect(panelClick(panel, 'cancel', {})).toMatchObject({ submit: false, panel: null })
     expect(panelClick(panel, 'reload', {})).toMatchObject({ submit: true, choice: 'reload' })
+  })
+})
+
+describe('what a model costs', () => {
+  it('is said per million tokens the way a person reads a price', () => {
+    expect([5, 0.95, 12.5, 0.016, 150, 0].map(perMillion)).toEqual([
+      '$5',
+      '$0.95',
+      '$12.50',
+      '$0.016',
+      '$150',
+      '$0',
+    ])
+  })
+
+  it('is in, out and read back from the cache — or free, or whatever a router picks', () => {
+    const model = (id: string, input: number, output: number, cacheRead: number) => ({
+      id,
+      provider: 'openrouter',
+      name: id,
+      price: { input, output, cacheRead, cacheWrite: 0 },
+    })
+    expect(priceCells(model('openrouter/moonshotai/kimi-k2.6', 0.95, 4, 0.16))).toEqual([
+      '$0.95',
+      '$4',
+      '$0.16',
+    ])
+    expect(priceSaid(model('openrouter/moonshotai/kimi-k2.6', 0.95, 4, 0.16))).toBe(
+      '$0.95 in · $4 out · $0.16 cached',
+    )
+    expect(priceCells(model('openrouter/google/gemma-4-31b-it:free', 0, 0, 0))[0]).toBe('free')
+    expect(priceCells(model('openrouter/openrouter/free', 0, 0, 0))[0]).toBe('free')
+    expect(priceCells(model('openrouter/auto', 0, 0, 0))[0]).toBe('varies')
+    // Not in the catalog: nothing is said rather than a guess.
+    expect(priceSaid({ id: 'x/y', provider: 'x', name: 'y' })).toBeNull()
   })
 })

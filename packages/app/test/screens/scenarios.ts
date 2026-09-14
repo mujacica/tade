@@ -804,7 +804,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'choosing-a-model',
     about:
-      'Clicking the orchestrator’s model: every model you are signed in to, filtered as you type, the current one marked.',
+      'Clicking the orchestrator’s model: every model you are signed in to, filtered as you type, the current one marked, with what each costs in, out and read back from the cache.',
     state: { ...base(), panel: { ...modelPanel('orchestrator'), index: 1 } },
     frame: frame({
       panel: {
@@ -813,14 +813,32 @@ export const SCENARIOS: Scenario[] = [
             id: 'openrouter/anthropic/claude-opus-5',
             provider: 'openrouter',
             name: 'Claude Opus 5',
+            price: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
           },
           {
             id: 'openrouter/anthropic/claude-sonnet-5',
             provider: 'openrouter',
             name: 'Claude Sonnet 5',
+            price: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
           },
-          { id: 'openrouter/moonshotai/kimi-k2.6', provider: 'openrouter', name: 'Kimi K2.6' },
-          { id: 'anthropic/claude-opus-5', provider: 'anthropic', name: 'Claude Opus 5' },
+          {
+            id: 'openrouter/moonshotai/kimi-k2.6',
+            provider: 'openrouter',
+            name: 'Kimi K2.6',
+            price: { input: 0.95, output: 4, cacheRead: 0.16, cacheWrite: 0 },
+          },
+          {
+            id: 'openrouter/nvidia/nemotron-3-super-120b-a12b:free',
+            provider: 'openrouter',
+            name: 'Nemotron 3 Super (free)',
+            price: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          },
+          {
+            id: 'anthropic/claude-opus-5',
+            provider: 'anthropic',
+            name: 'Claude Opus 5',
+            price: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+          },
         ],
         modelTarget: 'the orchestrator',
         currentModel: 'openrouter/anthropic/claude-opus-5',

@@ -19,6 +19,19 @@ export interface AvailableModel {
   provider: string
   /** The human name, where the catalog gives one. */
   name: string
+  /** What it costs, in US dollars per million tokens, where the catalog says. */
+  price?: ModelPrice
+  /** How many tokens it can hold, where the catalog says. */
+  contextWindow?: number
+}
+
+/** US dollars per million tokens, as the harness's catalog prices a model. */
+export interface ModelPrice {
+  input: number
+  output: number
+  /** Reading back what was cached, which is most of what a long session reads. */
+  cacheRead: number
+  cacheWrite: number
 }
 
 function piHome(home = homedir()): string {
@@ -36,11 +49,34 @@ export async function availableModels(home = homedir()): Promise<AvailableModel[
     for (const model of models) {
       const id = (model as { id?: unknown })?.id
       if (typeof id !== 'string' || id === '') continue
-      const name = (model as { name?: unknown })?.name
-      out.push({ id: `${provider}/${id}`, provider, name: typeof name === 'string' ? name : id })
+      const { name, cost, contextWindow } = model as {
+        name?: unknown
+        cost?: Record<string, unknown>
+        contextWindow?: unknown
+      }
+      const price = priceOf(cost)
+      out.push({
+        id: `${provider}/${id}`,
+        provider,
+        name: typeof name === 'string' ? name : id,
+        ...(price ? { price } : {}),
+        ...(typeof contextWindow === 'number' && contextWindow > 0 ? { contextWindow } : {}),
+      })
     }
   }
   return out
+}
+
+/** A catalog's prices, when every one of them is a number; nothing when any is not. */
+function priceOf(cost: Record<string, unknown> | undefined): ModelPrice | null {
+  if (!cost || typeof cost !== 'object') return null
+  const number = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+  const input = number(cost.input)
+  const output = number(cost.output)
+  const cacheRead = number(cost.cacheRead) ?? 0
+  const cacheWrite = number(cost.cacheWrite) ?? 0
+  return input === null || output === null ? null : { input, output, cacheRead, cacheWrite }
 }
 
 /** The providers with credentials on this machine. */
