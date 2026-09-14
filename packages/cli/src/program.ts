@@ -81,7 +81,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)
   registerNotes(program, io, setExit)
-  registerSpend(program, io, setExit)
+  registerSpend(program, io)
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)
   registerExtensions(program, io, setExit)
