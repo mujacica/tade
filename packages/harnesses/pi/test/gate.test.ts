@@ -148,6 +148,15 @@ function writeProviderExtension(dir: string): string {
     api: 'openai-completions',
     models: [
       {
+        id: 'thinker',
+        name: 'Thinker',
+        reasoning: true,
+        input: ['text'],
+        cost: ${JSON.stringify(PRICES)},
+        contextWindow: 128000,
+        maxTokens: 4096,
+      },
+      {
         id: 'fake',
         name: 'Fake',
         reasoning: false,
@@ -357,6 +366,50 @@ describe('approval gate', () => {
     } finally {
       agent.kill()
     }
+  }, 90_000)
+})
+
+// How hard it thinks, told to a REAL pi and read back from what it took.
+describe('how hard it thinks', () => {
+  let adapter: PiAdapter | null = null
+  let model: FakeModel | null = null
+
+  afterEach(async () => {
+    await adapter?.shutdown()
+    await model?.close()
+    adapter = null
+    model = null
+  })
+
+  it('takes a level told over its channel, and says the one it settled on', async () => {
+    const runDir = tmp('wilco-think-')
+    model = await fakeModel('true')
+    adapter = new PiAdapter({
+      runDir,
+      approvals: 'bypass',
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+    })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal('think', (s) => signals.push(s))
+    await adapter.start({
+      run: 'think',
+      task: 'app/think',
+      cwd: tmp('wilco-think-work-'),
+      prompt: '',
+      model: { provider: 'wilco-test', id: 'thinker' },
+      thinking: 'low',
+    })
+    const said = (level: string) =>
+      signals.some((one) => one.type === 'started' && one.thinking === level)
+    // Asked while loading, pi throws, and a throw there once took the agent down with it.
+    const failed = () => signals.find((one) => one.type === 'failed')
+    // Started at the level it was given…
+    await until(() => said('low') || failed() !== undefined)
+    expect(failed()).toBeUndefined()
+    // …and moved when told, for this session.
+    await adapter.setThinking('think', 'high')
+    await until(() => said('high'))
   }, 90_000)
 })
 

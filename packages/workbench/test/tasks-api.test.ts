@@ -188,6 +188,21 @@ describe('task and run RPC', () => {
     expect(returning.spec.args).not.toContain('--model')
   }, 60_000)
 
+  it('starts new agents as hard-thinking as was last chosen, and refuses a level there is not', async () => {
+    await expect(client.setAgentThinking('app/refunds', 'ludicrous')).rejects.toThrow(
+      /not a thinking level/,
+    )
+    writeFileSync(
+      join(home, 'config.yaml'),
+      `projects:\n  app:\n    root: ${repo.root}\n    max_parallel: 2\nworkers:\n  routes:\n    default:\n      thinking: high\n`,
+    )
+    await client.close()
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: tmp('wilco-sessions-') })
+    const task = await client.createTask({ project: 'app', slug: 'deep', intent: INTENT })
+    const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
+    expect(lane.spec.args.join(' ')).toContain('--thinking high')
+  }, 60_000)
+
   it('refuses a second agent on the same task, even when the project allows two', async () => {
     const task = await client.createTask({ project: 'app', slug: 'search', intent: INTENT })
     await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })

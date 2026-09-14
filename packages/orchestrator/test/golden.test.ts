@@ -55,6 +55,7 @@ describe('the tools the orchestrator has', () => {
       'wilco_agent_harness',
       'wilco_agent_model',
       'wilco_agent_rename',
+      'wilco_agent_thinking',
       'wilco_approvals',
       'wilco_approve',
       'wilco_deny',

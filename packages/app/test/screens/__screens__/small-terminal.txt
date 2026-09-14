@@ -1,6 +1,6 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌    ● 1  ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2      ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌     
+ ▾ AGENTS  2      ▐  +  ▌ │ checkou…  ▐ agent ▌  shell   ▐ + ▌                  
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│─────────────────────────────────────────────────────
 ▌! stripe-v15       $1.26 │    so src/webhooks.ts needs the new constructEvent s
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                     

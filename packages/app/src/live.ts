@@ -445,9 +445,13 @@ export class Live {
   }
 
   /** What an agent last said it runs on. */
-  vitals(task: string | null): { model: string | null; contextPercent: number | null } | null {
+  vitals(
+    task: string | null,
+  ): { model: string | null; thinking: string | null; contextPercent: number | null } | null {
     const vitals = task ? this.opts.client.vitals(task) : null
-    return vitals ? { model: vitals.model, contextPercent: vitals.contextPercent } : null
+    return vitals
+      ? { model: vitals.model, thinking: vitals.thinking, contextPercent: vitals.contextPercent }
+      : null
   }
 
   /** What has been spent since midnight, in total and by task. */

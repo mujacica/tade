@@ -25,6 +25,7 @@ class FakeAdapter implements WorkerAdapter {
     permissionGate: true,
     steer: true,
     modelSwitch: true,
+    thinking: true,
     visibleUi: false,
     resume: false,
     images: false,
@@ -67,6 +68,7 @@ class FakeAdapter implements WorkerAdapter {
     this.answers.push({ run, callId, ...result })
   }
   async setModel(): Promise<void> {}
+  async setThinking(): Promise<void> {}
   async name(): Promise<void> {}
   async abort(): Promise<void> {}
   async stop(run: RunId): Promise<void> {

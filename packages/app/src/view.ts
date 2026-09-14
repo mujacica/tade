@@ -106,11 +106,13 @@ export interface Frame {
   route?: {
     harness: string
     model: string | null
+    /** How hard new agents think, when a level was chosen. */
+    thinking?: string | null
     provider: string | null
     credential?: string | null
   }
   /** What it says it actually runs on, and how full its context is. */
-  vitals?: { model: string | null; contextPercent: number | null } | null
+  vitals?: { model: string | null; thinking?: string | null; contextPercent: number | null } | null
   /** The Spend panel's view, when it is open. */
   spendView?: SpendView | null
   /** What the open panel needs that the window does not: a menu, a diff, models. */
@@ -1003,59 +1005,91 @@ function renderMain(
   if (!pane) return renderWelcome(state, frame, width, height, skin, pointer)
 
   const shown = laneShown(state, pane)
-  const header = new Row(width, skin, pointer)
-    .space()
-    .text(`${pane.project} › ${shownName(pane)}`, skin.you)
-    .space(2)
   // A tab per lane — the agent, and any shell beside it — and + for another.
-  if (pane.lanes.length === 0) header.tab('agent', { kind: 'task', task: pane.task }, true)
-  const labels = laneLabels(pane.lanes)
-  labels.forEach(({ id, label }) => {
-    const target: Target = { kind: 'lane', task: pane.task, lane: id }
-    header.tab(label, target, id === shown)
-    const kind = pane.lanes.find((lane) => lane.id === id)?.kind
-    if (kind === 'agent') return
-    // A shell's menu and close, on the tab you point at or are on; the room is
-    // kept either way, so pointing never moves the tabs.
-    const menu: Target = {
-      kind: 'menu',
-      subject: { kind: 'lane', task: pane.task, lane: id, name: label },
+  const tabs = (r: Row) => {
+    if (pane.lanes.length === 0) r.tab('agent', { kind: 'task', task: pane.task }, true)
+    for (const { id, label } of laneLabels(pane.lanes)) {
+      const target: Target = { kind: 'lane', task: pane.task, lane: id }
+      r.tab(label, target, id === shown)
+      const kind = pane.lanes.find((lane) => lane.id === id)?.kind
+      if (kind === 'agent') continue
+      // A shell's menu and close, on the tab you point at or are on; the room is
+      // kept either way, so pointing never moves the tabs.
+      const menu: Target = {
+        kind: 'menu',
+        subject: { kind: 'lane', task: pane.task, lane: id, name: label },
+      }
+      const close: Target = { kind: 'action', name: `close-lane:${id}` }
+      const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
+      if (id === shown || pointed || state.splits[pane.task]?.lane === id) {
+        r.button('▾', menu).button('×', close, 'danger')
+      }
     }
-    const close: Target = { kind: 'action', name: `close-lane:${id}` }
-    const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
-    if (id === shown || pointed || state.splits[pane.task]?.lane === id) {
-      header.button('▾', menu).button('×', close, 'danger')
-    }
-  })
-  header.space().button('+', { kind: 'action', name: 'new-shell' }, 'add')
+    r.space().button('+', { kind: 'action', name: 'new-shell' }, 'add')
+  }
+
   const route = frame.route
   const vitals = frame.vitals
-  if (route || vitals) {
-    // What the agent says it runs on beats what the config hoped for.
-    const model = vitals?.model ?? route?.model
-    // Its harness and its model are controls: click either to change it for this agent.
-    const harness: Target = { kind: 'action', name: `harness:${pane.task}` }
-    const switcher: Target = { kind: 'action', name: `model:${pane.task}` }
-    const percent = vitals?.contextPercent ?? null
-    const controls = (withContext: boolean) => (r: Row) => {
-      r.button(`${route?.harness ?? 'pi'} ▾`, harness).space()
-      r.button(`${model ? shortModel(model) : 'its default model'} ▾`, switcher)
-      if (withContext && percent !== null) {
-        const tone = percent >= 85 ? skin.bad : percent >= 60 ? skin.waiting : skin.busy
-        r.text(' ctx ', skin.hint)
-          .meter(percent / 100, 6, tone)
-          .text(` ${Math.round(percent)}%`, skin.hint)
-      }
-      r.space()
-      // Close this agent, when it is running.
-      if (pane.lane !== null) {
-        r.button('×', { kind: 'action', name: `close-task:${pane.task}` }, 'danger').space()
-      }
+  // What the agent says it runs on beats what the config hoped for.
+  const model = vitals?.model ?? route?.model
+  // Its harness, its model and how hard it thinks are controls: click one to change it for this agent.
+  const harness: Target = { kind: 'action', name: `harness:${pane.task}` }
+  const switcher: Target = { kind: 'action', name: `model:${pane.task}` }
+  const thinker: Target = { kind: 'action', name: `thinking:${pane.task}` }
+  // How hard it thinks, as it said; before it has, what new agents are given.
+  const thinking = vitals?.thinking ?? route?.thinking ?? null
+  const percent = vitals?.contextPercent ?? null
+  type Shown = { context: boolean; thinking: 'long' | 'short' | 'none'; harness: boolean }
+  const controls = (show: Shown) => (r: Row) => {
+    if (show.harness) r.button(`${route?.harness ?? 'pi'} ▾`, harness).space()
+    r.button(`${model ? shortModel(model) : 'its default model'} ▾`, switcher)
+    if (show.thinking !== 'none') {
+      const label =
+        show.thinking === 'long'
+          ? `thinking${thinking ? ` ${thinking}` : ''} ▾`
+          : `${thinking ?? 'think'} ▾`
+      r.space().button(label, thinker)
     }
-    // Shed the context meter before the controls, where the header is short of room.
+    if (show.context && percent !== null) {
+      const tone = percent >= 85 ? skin.bad : percent >= 60 ? skin.waiting : skin.busy
+      r.text(' ctx ', skin.hint)
+        .meter(percent / 100, 6, tone)
+        .text(` ${Math.round(percent)}%`, skin.hint)
+    }
+    r.space()
+    // Close this agent, when it is running.
+    if (pane.lane !== null) {
+      r.button('×', { kind: 'action', name: `close-task:${pane.task}` }, 'danger').space()
+    }
+  }
+  const measure = (build: (r: Row) => void) => {
     const probe = new Row(width, skin)
-    controls(true)(probe)
-    header.right(controls(header.used + probe.used + 1 <= width))
+    build(probe)
+    return probe.used
+  }
+  const hasControls = Boolean(route || vitals)
+  // The name gives way before the controls do: cut short, it still says whose
+  // agent this is, and a model you cannot change is a control you lost.
+  const least = hasControls
+    ? measure(controls({ context: false, thinking: 'short', harness: false })) + 1
+    : 0
+  const header = new Row(width, skin, pointer).space()
+  const title = `${pane.project} › ${shownName(pane)}`
+  header.text(shortened(title, Math.max(8, width - 3 - measure(tabs) - least)), skin.you).space(2)
+  tabs(header)
+  if (hasControls) {
+    // Where the header is short of room, shed in this order: the context
+    // meter, the word "thinking", the harness — one agent in a hundred changes
+    // it — and then the thinking level. The model and the close always stay.
+    const tries: Shown[] = [
+      { context: true, thinking: 'long', harness: true },
+      { context: false, thinking: 'long', harness: true },
+      { context: false, thinking: 'short', harness: true },
+      { context: false, thinking: 'short', harness: false },
+      { context: false, thinking: 'none', harness: false },
+    ]
+    const fits = tries.find((show) => header.used + measure(controls(show)) + 1 <= width)
+    header.right(controls(fits ?? { context: false, thinking: 'none', harness: false }))
   }
 
   const rows: { text: string; hits: Hit[] }[] = [

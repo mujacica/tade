@@ -19,6 +19,8 @@ import {
   spendFrom,
   startOfToday,
   type TaskId,
+  THINKING_LEVELS,
+  type ThinkingLevel,
   type Unsubscribe,
   type WilcoEvent,
   writeSetting,
@@ -730,6 +732,7 @@ export class Workbench {
       (await sessionFileFor(req.task, this.sessionsRoot ? { root: this.sessionsRoot } : {}).catch(
         () => null,
       )) !== null
+    const thinking = req.thinking ?? (resuming ? undefined : this.thinkingFor(req.task))
     const spec = {
       run: lane as RunId,
       task: req.task,
@@ -738,6 +741,7 @@ export class Workbench {
       ...(chosen ? { title: chosen } : {}),
       ...(extras ? { extras } : {}),
       model: req.model ?? (resuming ? undefined : this.modelFor(req.task)),
+      ...(thinking ? { thinking } : {}),
       lane,
       sandbox: {
         kind: req.sandbox ?? this.sandboxFor(req.task),
@@ -751,6 +755,7 @@ export class Workbench {
       ...req,
       run: lane as RunId,
       model: spec.model,
+      ...(spec.thinking ? { thinking: spec.thinking } : {}),
       harness,
       ...(extras ? { extras } : {}),
     })
@@ -949,14 +954,23 @@ export class Workbench {
    * the same model whatever anyone chose.
    */
   keepAgentModel(task: string, model: { provider: string; id: string }): void {
+    this.keepAgentRoute(task, { provider: model.provider, model: model.id })
+  }
+
+  /** Change the route new agents in a task's project start on: in the file, and here. */
+  private keepAgentRoute(
+    task: string,
+    change: { provider?: string; model?: string; thinking?: ThinkingLevel },
+  ): void {
     const project = task.split('/')[0]
     const route = resolveRoute(this.config, project ? { project } : {})
     const path = join(this.home, 'config.yaml')
     try {
-      writeSetting(path, `workers.routes.${route.name}.provider`, model.provider)
-      writeSetting(path, `workers.routes.${route.name}.model`, model.id)
+      for (const [key, value] of Object.entries(change)) {
+        writeSetting(path, `workers.routes.${route.name}.${key}`, value)
+      }
     } catch {
-      // A config that cannot be written: this agent switched, and new ones
+      // A config that cannot be written: this agent changed, and new ones
       // start where they did before.
       return
     }
@@ -965,12 +979,28 @@ export class Workbench {
       ...this.config,
       workers: {
         ...this.config.workers,
-        routes: {
-          ...this.config.workers.routes,
-          [route.name]: { ...kept, provider: model.provider, model: model.id },
-        },
+        routes: { ...this.config.workers.routes, [route.name]: { ...kept, ...change } },
       },
     }
+  }
+
+  /**
+   * How hard an agent thinks from its next turn on — and new agents from
+   * their first, until another level is chosen: kept beside the agent model.
+   */
+  async setAgentThinking(task: string, level: string): Promise<ThinkingLevel> {
+    const chosen = THINKING_LEVELS.find((one) => one === level.trim().toLowerCase())
+    if (!chosen) {
+      throw new Error(`${level} is not a thinking level: ${THINKING_LEVELS.join(', ')}`)
+    }
+    const run = `${task}/agent` as RunId
+    if (!this.registry.get(run as unknown as LaneId)?.alive) {
+      throw new Error(`${task} has no agent running: open it first`)
+    }
+    // What it settled on is said back by the agent: a model that cannot think that hard takes less.
+    await this.workers.setThinking(run, chosen)
+    this.keepAgentRoute(task, { thinking: chosen })
+    return chosen
   }
 
   /**
@@ -1094,6 +1124,12 @@ export class Workbench {
    * the route picks the model — which nothing was doing, so choosing a route
    * changed the sandbox and nothing else.
    */
+  /** How hard new agents in a task's project think, when a level was chosen. */
+  private thinkingFor(task: string): ThinkingLevel | undefined {
+    const project = task.split('/')[0]
+    return resolveRoute(this.config, project ? { project } : {}).thinking
+  }
+
   private modelFor(task: string): WorkerModel | undefined {
     const project = task.split('/')[0]
     const route = resolveRoute(this.config, project ? { project } : {})

@@ -1,4 +1,4 @@
-import type { LaneId, SandboxSpec, TaskId, Unsubscribe } from '@wilco/core'
+import type { LaneId, SandboxSpec, TaskId, ThinkingLevel, Unsubscribe } from '@wilco/core'
 import { z } from 'zod'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
@@ -24,6 +24,8 @@ export interface WorkerSpec {
   /** The opening instruction, verbatim from the human. */
   prompt: string
   model?: WorkerModel
+  /** How hard it thinks, from its first turn: the harness's default when absent. */
+  thinking?: ThinkingLevel
   /** Lane to render into, for adapters that show a UI. */
   lane?: LaneId
   env?: Record<string, string>
@@ -67,6 +69,8 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     at: z.number(),
     sessionId: z.string().nullable().default(null),
     model: z.string().nullable().default(null),
+    /** How hard it is thinking now, as the harness took the level it was given. */
+    thinking: z.string().nullable().default(null),
   }),
   z.object({ type: z.literal('turn_started'), run: RunId, at: z.number() }),
   /**
@@ -214,6 +218,8 @@ export const WorkerCommand = z.discriminatedUnion('type', [
   z.object({ type: z.literal('shutdown') }),
   /** A name for the work, chosen by a person: the agent's session takes it too. */
   z.object({ type: z.literal('name'), title: z.string() }),
+  /** How hard to think from the next turn on, for this session only. */
+  z.object({ type: z.literal('thinking'), level: z.string() }),
   /** Switch the model the agent is running on, for this session only. */
   z.object({ type: z.literal('model'), provider: z.string().default(''), id: z.string() }),
   /** What an extension tool the agent called answered. */
@@ -258,6 +264,8 @@ export interface WorkerCapabilities {
   steer: boolean
   /** Can change model without restarting the run. */
   modelSwitch: boolean
+  /** Can be told how hard to think without restarting the run. */
+  thinking: boolean
   /** Renders its own interface in a lane. */
   visibleUi: boolean
   /** Can resume a previous session. */
@@ -316,6 +324,8 @@ export interface WorkerAdapter {
   /** Answer an `extension_call` with what the tool said. */
   answer(run: RunId, callId: string, result: { ok: boolean; text: string }): Promise<void>
   setModel(run: RunId, model: WorkerModel): Promise<void>
+  /** How hard to think from the next turn on, for this session. */
+  setThinking(run: RunId, level: ThinkingLevel): Promise<void>
   /** Give the agent's work a name a person chose; the harness's own session takes it too. */
   name(run: RunId, title: string): Promise<void>
   /** Stop the current turn, leaving the run alive. */

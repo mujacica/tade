@@ -78,6 +78,9 @@ interface PiApi {
   setSessionName?(name: string): void
   /** Switch this session's model, leaving the default for new sessions alone. */
   setModel?(model: unknown): Promise<boolean>
+  /** How hard this session thinks: set, clamped to what its model can do, for this session only. */
+  getThinkingLevel?(): string
+  setThinkingLevel?(level: string): void
   sendUserMessage?(
     content: string,
     options?: { deliverAs?: 'steer' | 'followUp' },
@@ -140,6 +143,21 @@ export default function wilcoExtension(pi: PiApi): void {
     socket.write(`${JSON.stringify({ ...message, run: RUN, at: Date.now() })}\n`)
   }
 
+  /**
+   * How hard the session thinks, once pi can say. Asked while extensions are
+   * still loading — which is when the socket first connects — pi throws, and a
+   * throw there takes the whole agent down with it. So: only after an event has
+   * handed us a session, and never with an exception.
+   */
+  const thinkingNow = (): string | null => {
+    if (!latest) return null
+    try {
+      return pi.getThinkingLevel?.() ?? null
+    } catch {
+      return null
+    }
+  }
+
   const failPending = (reason: string): void => {
     for (const [, resolve] of pending) resolve({ block: true, reason })
     pending.clear()
@@ -191,6 +209,14 @@ export default function wilcoExtension(pi: PiApi): void {
         void switchModel(String(command.provider ?? ''), String(command.id ?? ''))
         return
       }
+      case 'thinking':
+        // pi says the level it settled on, through `thinking_level_select`.
+        try {
+          pi.setThinkingLevel?.(String(command.level ?? ''))
+        } catch {
+          // Not a session yet: the level it starts with is on its command line.
+        }
+        return
       case 'abort':
         latest?.abort()
         return
@@ -217,7 +243,12 @@ export default function wilcoExtension(pi: PiApi): void {
     socket.on('connect', () => {
       connected = true
       buffer = ''
-      send({ type: 'started', sessionId: null, model: latest ? modelOf(latest) : null })
+      send({
+        type: 'started',
+        sessionId: null,
+        model: latest ? modelOf(latest) : null,
+        thinking: thinkingNow(),
+      })
       // Whether it is in the middle of something: a window that opened while
       // it worked would otherwise take it for idle, or idle for working.
       if (latest) send({ type: latest.isIdle() ? 'idle' : 'turn_started' })
@@ -308,7 +339,12 @@ export default function wilcoExtension(pi: PiApi): void {
    */
   const sayVitals = (ctx: PiContext) => {
     latest = ctx
-    send({ type: 'started', sessionId: null, model: modelOf(ctx) })
+    send({
+      type: 'started',
+      sessionId: null,
+      model: modelOf(ctx),
+      thinking: thinkingNow(),
+    })
     const usage = ctx.getContextUsage?.()
     if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
   }
@@ -322,6 +358,8 @@ export default function wilcoExtension(pi: PiApi): void {
     sayVitals(ctx)
   }) as never)
   pi.on('model_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
+  // A new model can think less than the last; either way the level it has now is said.
+  pi.on('thinking_level_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
 
   /**
    * What the work is called, so Wilco can name the agent's branch and you can

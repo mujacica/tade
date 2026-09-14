@@ -1,6 +1,6 @@
  WILCO  ▐ checkout ▌ ▐  +  ▌                 ● 2 waiting  ● 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  7          ▐  +  ▌ │ checkout › Update notes panel to match the new agent rows  ▐ agent ▌ ▐ + ▌              
+ ▾ AGENTS  7          ▐  +  ▌ │ checkout › Update notes panel to…  ▐ agent ▌ ▐ + ▌ ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
  ⠋ Agent spend invisib… $5.73 │                                                                                         
 ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│                                                                                         

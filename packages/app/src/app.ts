@@ -35,6 +35,7 @@ import {
   reflectionPrompt,
   resolveRoute,
   settingsOf,
+  THINKING_LEVELS,
 } from '@wilco/core'
 import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
 import { git } from '@wilco/status'
@@ -180,6 +181,7 @@ import {
   settingsPanel,
   spendPanel,
   terminalMenuItems,
+  thinkingMenuItems,
 } from './panels.ts'
 import {
   ago,
@@ -885,6 +887,8 @@ export class App {
         })
       case 'note':
         return noteMenuItems()
+      case 'thinking':
+        return thinkingMenuItems(subject.current)
     }
   }
 
@@ -1072,6 +1076,7 @@ export class App {
       route: {
         harness: route.harness,
         model: route.model ?? null,
+        thinking: route.thinking ?? null,
         provider,
         credential: provider ? credentialLabel(this.credentials[provider]) : null,
       },
@@ -1688,6 +1693,23 @@ export class App {
     if (action.startsWith('close-task:')) {
       const task = action.slice('close-task:'.length)
       await this.stopAgent(task)
+      return
+    }
+    if (action.startsWith('thinking:')) {
+      const task = action.slice('thinking:'.length)
+      const project = task.split('/')[0]
+      const current =
+        this.live?.vitals(task)?.thinking ??
+        resolveRoute(this.opts.config, project ? { project } : {}).thinking ??
+        null
+      const menu = menuPanel({ kind: 'thinking', task, current }, 'Thinking', {
+        row: 3,
+        col: Math.max(0, this.terminal.columns - 30),
+      })
+      // The keyboard starts on the level it is at.
+      const index = Math.max(0, THINKING_LEVELS.indexOf((current ?? '') as never))
+      this.state = { ...this.state, panel: { ...menu, index } }
+      this.draw()
       return
     }
     if (action.startsWith('harness:')) {
@@ -2425,9 +2447,11 @@ export class App {
                 ? 'Harness'
                 : subject.kind === 'lane'
                   ? subject.name
-                  : subject.kind === 'note'
-                    ? 'Note'
-                    : (subject.path.split('/').at(-1) ?? subject.path)
+                  : subject.kind === 'thinking'
+                    ? 'Thinking'
+                    : subject.kind === 'note'
+                      ? 'Note'
+                      : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -2456,7 +2480,25 @@ export class App {
         return this.fromLaneMenu(subject.task, subject.lane, subject.name, item)
       case 'note':
         return this.fromNoteMenu(subject, item)
+      case 'thinking':
+        return this.chooseThinking(subject.task, item)
     }
+  }
+
+  /** How hard an agent thinks from its next turn, and new agents from their first. */
+  private async chooseThinking(task: string, level: string): Promise<void> {
+    try {
+      const chosen = await this.opts.client.setAgentThinking(task, level)
+      const loaded = await loadConfig(this.configPath)
+      if (loaded.ok) this.opts.config = loaded.config
+      this.state = notice(
+        this.state,
+        `${task} thinks at ${chosen} from its next turn, and new agents start there`,
+      )
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
   }
 
   /** What a note's menu does: change it, copy its words, or forget it. */

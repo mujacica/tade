@@ -66,6 +66,28 @@
     }
   },
   {
+    "name": "wilco_agent_thinking",
+    "description": "Set how hard an agent thinks before it answers — off, minimal, low, medium, high, xhigh or max — from its next turn: \"think harder on refunds\", \"less thinking for agent-1\". New agents think that hard too, until another level is chosen. A model that cannot think that hard takes the most it can. The agent must be running.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "type": "string",
+          "description": "task id, like checkout/refunds"
+        },
+        "level": {
+          "type": "string",
+          "description": "off, minimal, low, medium, high, xhigh or max"
+        }
+      },
+      "required": [
+        "task",
+        "level"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_approvals",
     "description": "Commands agents are waiting for permission to run.",
     "parameters": {

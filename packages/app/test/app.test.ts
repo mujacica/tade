@@ -822,6 +822,30 @@ describe('the window, wired up', () => {
     expect(kept.order.app.indexOf('app/search')).toBeLessThan(kept.order.app.indexOf('app/refunds'))
   })
 
+  it('opens how hard an agent thinks from the button beside its model', async () => {
+    terminal.columns = 160
+    await start()
+    await until('the thinking button', () =>
+      screenOf(terminal.written).some(
+        (row) => row.includes('thinking ▾') || row.includes('think ▾'),
+      ),
+    )
+    const button = (() => {
+      const lines = screenOf(terminal.written)
+      for (let row = lines.length - 1; row >= 0; row--) {
+        const col = (lines[row] ?? '').search(/think(ing)? ▾/)
+        if (col >= 0) return { col, row }
+      }
+      throw new Error('no thinking button')
+    })()
+    terminal.written = ''
+    click(button.col + 1, button.row)
+    await until('the levels', () => {
+      const shown = screenOf(terminal.written).join('\n')
+      return shown.includes('Thinking') && shown.includes('xhigh') && shown.includes('max')
+    })
+  })
+
   it('forgets a note from the × that pointing at it shows', async () => {
     terminal.rows = 60
     client.remember('the staging key rotates on the 1st', 'app', 'test')

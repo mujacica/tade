@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { sandboxed, type Unsubscribe } from '@wilco/core'
+import { sandboxed, type ThinkingLevel, type Unsubscribe } from '@wilco/core'
 import {
   type PermissionDecision,
   type RunId,
@@ -187,6 +187,7 @@ export class PiAdapter implements WorkerAdapter {
     permissionGate: true,
     steer: true,
     modelSwitch: true,
+    thinking: true,
     // Workers run as pi in a lane (`launchSpec()` + `supervise()`), which is
     // visible. The headless protocol is for the orchestrator, whose interface
     // Wilco draws itself.
@@ -252,6 +253,7 @@ export class PiAdapter implements WorkerAdapter {
         args: [
           this.opts.bin,
           ...this.modelArgs(spec.model),
+          ...(spec.thinking ? ['--thinking', spec.thinking] : []),
           '--session-id',
           sessionIdFor(spec.task),
           '-e',
@@ -333,6 +335,7 @@ export class PiAdapter implements WorkerAdapter {
           '--mode',
           'rpc',
           ...this.modelArgs(spec.model),
+          ...(spec.thinking ? ['--thinking', spec.thinking] : []),
           '--session-dir',
           join(this.opts.runDir, 'sessions'),
           ...(this.opts.supervise ? ['-e', EXTENSION_PATH] : []),
@@ -458,6 +461,19 @@ export class PiAdapter implements WorkerAdapter {
     const entry = this.require(run)
     if (!entry.channel?.connected) throw new Error(`${run} is not connected: open its agent first`)
     entry.channel.send({ type: 'name', title })
+  }
+
+  async setThinking(run: RunId, level: ThinkingLevel): Promise<void> {
+    const entry = this.require(run)
+    // As with a model: asked over its channel, pi changes this session and
+    // leaves every new session's default alone.
+    if (!entry.child) {
+      if (!entry.channel?.connected)
+        throw new Error(`${run} is not connected: open its agent first`)
+      entry.channel.send({ type: 'thinking', level })
+      return
+    }
+    await this.rpc(entry, { type: 'set_thinking_level', level })
   }
 
   async setModel(run: RunId, model: WorkerModel): Promise<void> {

@@ -1,4 +1,4 @@
-import type { Setting, SettingGroup } from '@wilco/core'
+import { type Setting, type SettingGroup, THINKING_LEVELS } from '@wilco/core'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 
@@ -60,6 +60,8 @@ export type MenuSubject =
   | { kind: 'lane'; task: string; lane: string; name: string }
   /** A note, named by when it was said and what it said. */
   | { kind: 'note'; at: string; text: string }
+  /** How hard an agent thinks: `current` as it last said, or what new agents are given. */
+  | { kind: 'thinking'; task: string; current: string | null }
 
 /** A menu, opened from a ≡ or a right-click, where it was clicked. */
 export interface MenuPanel {
@@ -232,6 +234,19 @@ export function terminalMenuItems(split = false): MenuItem[] {
     ...(split ? [] : [{ id: 'split-below', label: 'Split: a new terminal below' }]),
     { id: 'close', label: 'Close', danger: true, divider: true },
   ]
+}
+
+/**
+ * How hard an agent can be told to think, least to most, the one it is at
+ * marked. A model that cannot think that hard takes the most it can, and says
+ * which.
+ */
+export function thinkingMenuItems(current: string | null): MenuItem[] {
+  return THINKING_LEVELS.map((level) => ({
+    id: level,
+    label: `${level === current ? '● ' : '  '}${level}`,
+    note: level === current ? 'now' : '',
+  }))
 }
 
 /** What can be done with a note: read and change it whole, have its words, or take it back. */

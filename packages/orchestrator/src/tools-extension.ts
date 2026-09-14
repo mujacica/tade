@@ -248,6 +248,25 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
+    'wilco_agent_thinking',
+    'Set how hard an agent thinks before it answers — off, minimal, low, medium, high, xhigh or max — from its next turn: "think harder on refunds", "less thinking for agent-1". New agents think that hard too, until another level is chosen. A model that cannot think that hard takes the most it can. The agent must be running.',
+    object(
+      {
+        task: string('task id, like checkout/refunds'),
+        level: string('off, minimal, low, medium, high, xhigh or max'),
+      },
+      ['task', 'level'],
+    ),
+    async (p) => {
+      const done = (await rpc('worker/thinking', {
+        task: String(p.task),
+        level: String(p.level),
+      })) as { level: string }
+      return `${String(p.task)} thinks at ${done.level} from its next turn, and new agents will too.`
+    },
+  )
+
+  tool(
     'wilco_agent_harness',
     'Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Wilco says which harnesses exist and which it can run yet.',
     object(

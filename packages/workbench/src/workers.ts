@@ -4,6 +4,7 @@ import {
   decideApproval,
   type SandboxKind,
   type TaskId,
+  type ThinkingLevel,
   type Tier,
 } from '@wilco/core'
 import {
@@ -45,6 +46,8 @@ export interface StartRunRequest {
   extras?: WorkerExtras
   /** The harness it runs in; the default one unless said. */
   harness?: string
+  /** How hard it thinks from its first turn; the harness's default unless said. */
+  thinking?: ThinkingLevel
   /** Pictures to send with the opening prompt. */
   images?: readonly WorkerImage[]
 }
@@ -101,6 +104,8 @@ interface RunState {
 /** What an agent is running on right now, as it last said. Never journalled. */
 export interface RunVitals {
   model: string | null
+  /** How hard it is thinking, as the harness took the level it was given. */
+  thinking: string | null
   contextTokens: number | null
   contextPercent: number | null
 }
@@ -194,6 +199,7 @@ export class WorkerSupervisor {
         cwd: request.cwd,
         prompt: request.prompt,
         ...(request.model ? { model: request.model } : {}),
+        ...(request.thinking ? { thinking: request.thinking } : {}),
         ...(request.extras ? { extras: request.extras } : {}),
         ...(request.images ? { images: request.images } : {}),
         // The worktree is both the policy boundary and the sandbox boundary:
@@ -244,6 +250,11 @@ export class WorkerSupervisor {
   async setModel(run: RunId, model: WorkerModel): Promise<void> {
     this.require(run)
     await this.adapterOf(run).setModel(run, model)
+  }
+
+  async setThinking(run: RunId, level: ThinkingLevel): Promise<void> {
+    this.require(run)
+    await this.adapterOf(run).setThinking(run, level)
   }
 
   async name(run: RunId, title: string): Promise<void> {
@@ -426,18 +437,19 @@ export class WorkerSupervisor {
   private noteVitals(
     task: string,
     signal:
-      | { type: 'started'; model: string | null }
+      | { type: 'started'; model: string | null; thinking?: string | null }
       | { type: 'context'; tokens: number | null; percent: number | null },
   ): void {
     const was = this.vitalsByTask.get(task) ?? {
       model: null,
+      thinking: null,
       contextTokens: null,
       contextPercent: null,
     }
     this.vitalsByTask.set(
       task,
       signal.type === 'started'
-        ? { ...was, model: signal.model ?? was.model }
+        ? { ...was, model: signal.model ?? was.model, thinking: signal.thinking ?? was.thinking }
         : { ...was, contextTokens: signal.tokens, contextPercent: signal.percent },
     )
   }

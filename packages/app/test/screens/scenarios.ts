@@ -34,6 +34,7 @@ import {
   searchPanel,
   settingsPanel,
   spendPanel,
+  thinkingMenuItems,
 } from '../../src/panels.ts'
 import { type SearchEntry, searchResults } from '../../src/search.ts'
 import { COLOUR } from '../../src/skin.ts'
@@ -161,7 +162,7 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
     provider: 'anthropic',
     credential: 'signed in',
   },
-  vitals: { model: 'anthropic/claude-opus-5', contextPercent: 41 },
+  vitals: { model: 'anthropic/claude-opus-5', thinking: 'high', contextPercent: 41 },
   voice: { keys: ['ctrl', 'space'], available: true },
   ...over,
 })
@@ -970,6 +971,23 @@ export const SCENARIOS: Scenario[] = [
         items: menuItems({ lane: 'checkout/stripe-v15/agent', state: 'blocked' }, 3),
       },
     }),
+  },
+  {
+    name: 'choosing-how-hard-it-thinks',
+    about:
+      'The thinking button beside the model, opened: every level from off to max, the one the agent is at marked.',
+    state: {
+      ...base(),
+      panel: menuPanel(
+        { kind: 'thinking', task: 'checkout/stripe-v15', current: 'high' },
+        'Thinking',
+        {
+          row: 3,
+          col: 84,
+        },
+      ),
+    },
+    frame: frame({ panel: { items: thinkingMenuItems('high') } }),
   },
   {
     name: 'file-menu',

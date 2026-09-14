@@ -1,23 +1,23 @@
  WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ● 1  ● 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│─────────────────────────────────────────────────────────────────────────────────────────
-▌! stripe-v15           $1.26 │                                                                                         
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                                                         
- ⠋ refunds              $0.62 │                                                                                         
-                           ╭─ Remove stripe-v15? ───────────────────────────────────── esc ─╮                           
- ▾ CHANGES  3         vs ma│                                                                │                           
-  M package.json        +2 │ Its worktree has work that isn't merged:                       │                           
-  A src/webhooks.test.ts  +│   M package.json                                               │                           
-  M src/webhooks.ts    +12 │   A src/webhooks.test.ts                                       │                           
-                           │   M src/webhooks.ts                                            │,                          
- ▾ FILES                   │   3 commits on wilco/stripe-v15 that main doesn't have         │                           
-   ▾ src/                  │                                                                │                           
-       webhooks.test.ts    │ Removing deletes the worktree and the branch. The agent's      │                           
-       webhooks.ts         │ conversation stays in pi's sessions.                           │                           
-   ▸ test/                 │                                                                │                           
-     package.json          │                                  ▐ Keep it ▌ ▐ Remove anyway ▌ │───╮                       
-     README.md             ╰────────────────────────────────────────────────────────────────╯   │                       
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄│─────────────────────────────────────────────────────╭─ Thinking ─────────────────╮──────
+▌! stripe-v15           $1.26 │                                                     │▌   off                     │      
+▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀│                                                     │    minimal                 │      
+ ⠋ refunds              $0.62 │                                                     │    low                     │      
+                              │                                                     │    medium                  │      
+ ▾ CHANGES  3         vs main │                                                     │  ● high                now │      
+  M package.json        +2 −1 │                                                     │    xhigh                   │      
+  A src/webhooks.test.ts  +48 │                                                     │    max                     │      
+  M src/webhooks.ts    +12 −4 │                                                     ╰────────────────────────────╯      
+                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ FILES                      │    so src/webhooks.ts needs the new constructEvent signature.                           
+   ▾ src/                     │                                                                                         
+       webhooks.test.ts       │  ▸ Read src/webhooks.ts                                                                 
+       webhooks.ts            │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   ▸ test/                    │  ▸ bash npm i stripe@15                                                                 
+     package.json             │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+     README.md                │  │ bash  npm i stripe@15                                        │                       
                               │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
  ▸ NOTES  4           ▐  +  ▌ │  ╰──────────────────────────────────────────────────────────────╯                       
  ▾ GIT                        │                                                                                         

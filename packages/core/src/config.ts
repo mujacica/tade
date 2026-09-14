@@ -23,12 +23,22 @@ const RouteName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/)
  * which owns credentials, so a subscription, an API key and a local endpoint
  * are all just different routes.
  */
+/**
+ * How hard an agent thinks before it answers, least to most. A harness takes
+ * the nearest its model can do: a model that cannot think at all is `off`
+ * whatever it is asked.
+ */
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
+
 export const WorkerRoute = z.strictObject({
   harness: Harness.default('pi'),
   /** Harness provider name, e.g. `anthropic`, `openrouter`, `ollama`. */
   provider: z.string().optional(),
   /** Model id; may be `provider/id`. */
   model: z.string().optional(),
+  /** How hard new agents think: the harness's own default when unset. */
+  thinking: z.enum(THINKING_LEVELS).optional(),
   // `container` was here and did nothing; a sandbox you can select and not get
   // is worse than one that is not offered.
   sandbox: z.enum(['none', 'bwrap', 'seatbelt']).default('none'),

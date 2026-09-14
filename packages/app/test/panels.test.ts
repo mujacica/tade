@@ -22,6 +22,7 @@ import {
   setupControls,
   spendPanel,
   terminalMenuItems,
+  thinkingMenuItems,
 } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 import { spendView } from '../src/spend.ts'
@@ -272,6 +273,16 @@ describe('finding in a terminal', () => {
       'clear',
       'unsplit',
       'close',
+    ])
+    // Every level, least to most, the one it is at marked.
+    expect(thinkingMenuItems('high').map((item) => item.label.trim())).toEqual([
+      'off',
+      'minimal',
+      'low',
+      'medium',
+      '● high',
+      'xhigh',
+      'max',
     ])
     // A harness not runnable yet is offered, and said to be not yet.
     const harnesses = harnessMenuItems(

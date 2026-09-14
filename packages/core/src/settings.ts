@@ -1,4 +1,11 @@
-import { AGENT_WORKSPACES, COMMIT_RULES, type Config, EDITORS, HARNESS_IDS } from './config.ts'
+import {
+  AGENT_WORKSPACES,
+  COMMIT_RULES,
+  type Config,
+  EDITORS,
+  HARNESS_IDS,
+  THINKING_LEVELS,
+} from './config.ts'
 
 // The settings a person actually changes, and what each one means.
 //
@@ -155,6 +162,15 @@ export function settingsOf(config: Config): SettingGroup[] {
             : '',
           fallback: 'the harness decides',
           type: { kind: 'model' },
+          live: true,
+        },
+        {
+          path: `workers.routes.${config.workers.default}.thinking`,
+          title: 'Agent thinking',
+          means: 'how hard new agents think; each agent can be changed from its pane',
+          value: route?.thinking ?? '',
+          fallback: 'the harness decides',
+          type: { kind: 'choice', options: [...THINKING_LEVELS] },
           live: true,
         },
         {

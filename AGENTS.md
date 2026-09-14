@@ -119,11 +119,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it
   removes only that folder. `worktree`: a worktree and branch each. Nothing that runs git on a
   task's directory may assume the directory is the task's alone — ask `task.workspace`.
-- **A model chosen for an agent is the model new agents start on**, until another is chosen: it is
-  kept in the agent route (`workers.routes.<route>.model`), which Settings shows as the agent model.
-  Only new agents are given it — one coming back to its conversation keeps the model its session was
+- **A model or thinking level chosen for an agent is what new agents start on**, until another is
+  chosen: kept in the agent route (`workers.routes.<route>.model`, `.thinking`), which Settings shows.
+  Only new agents are given them — one coming back to its conversation keeps what its session was
   on. Left unset, pi picks by what you are signed in to, which is how every agent once ran on the
-  same model whatever anyone chose.
+  same model whatever anyone chose. Nothing may ask pi anything while its extensions load: it
+  throws, and a throw there takes the agent down.
 - **Harnesses come from one registry** (`HARNESS_ADAPTERS` in the workbench, `HARNESS_CHOICES` in
   core for what to offer). A task may name its own (`harness` in its task file); the supervisor
   keeps an adapter per harness and answers each run with the one it started in. Never `new` an

@@ -92,6 +92,9 @@ export class ToolHost {
           title: String(p.title),
         }),
       'worker/model': (p) => wilco.setAgentModel(String(p.task), String(p.model)),
+      'worker/thinking': async (p) => ({
+        level: await wilco.setAgentThinking(String(p.task), String(p.level)),
+      }),
       'worker/harness': (p) =>
         wilco.setAgentHarness({
           task: String(p.task),
