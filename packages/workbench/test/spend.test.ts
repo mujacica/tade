@@ -18,7 +18,7 @@ describe('accounting for a closed window', () => {
   let sessionsRoot: string
   let wilco: Workbench | null = null
 
-  /** A harness session for this task, with one priced message in it. */
+  /** A harness session for this task, with one priced reply in it, shaped the way pi writes one. */
   function session(task: string, usd: number, tokens: number): void {
     const dir = join(sessionsRoot, `-src-${task.replace(/\//g, '-')}-`)
     mkdirSync(dir, { recursive: true })
@@ -26,7 +26,19 @@ describe('accounting for a closed window', () => {
       join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor(task)}.jsonl`),
       `${JSON.stringify({
         type: 'message',
-        usage: { input: tokens, output: 0, totalTokens: tokens, cost: { total: usd } },
+        message: {
+          role: 'assistant',
+          provider: 'openrouter',
+          model: 'moonshotai/kimi-k2.6',
+          usage: {
+            input: tokens,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: tokens,
+            cost: { total: usd },
+          },
+        },
       })}\n`,
     )
   }
@@ -63,6 +75,8 @@ describe('accounting for a closed window', () => {
     expect(spend.byTask['app/refunds']?.tokens).toBe(1_200)
     expect(spend.byTask['app/refunds']?.usd).toBeCloseTo(0.42)
     expect(spend.total.hasCost).toBe(true)
+    // On the model it ran on, not on "unknown".
+    expect(spend.byModel['openrouter/moonshotai/kimi-k2.6']?.tokens).toBe(1_200)
   })
 
   it('does not charge the same tokens twice on the next open', async () => {

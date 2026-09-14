@@ -19,6 +19,7 @@ import {
   type WorkerSpec,
 } from '@wilco/harnesses-core'
 import { SignalChannel } from './channel.ts'
+import { type Spent, spentBy, spentByMessage } from './usage.ts'
 
 // Drives pi as a Wilco worker: pi runs the agent, Wilco supervises it through
 // the extension channel. Model and provider are pi's business, which is how
@@ -650,40 +651,18 @@ export class PiAdapter implements WorkerAdapter {
       return
     }
     // What a message cost. A supervised run is told by the extension, which
-    // counts across the whole session; without one, each finished assistant
-    // message carries its own usage, and a run nobody counts is money nobody
-    // sees — the orchestrator is exactly that run.
+    // counts across the whole session; without one, each finished message and
+    // each compaction carries its own usage, and a run nobody counts is money
+    // nobody sees — the orchestrator is exactly that run.
     if (!this.opts.supervise && message.type === 'message_end') {
-      const said = message.message as
-        | {
-            role?: string
-            model?: string
-            usage?: {
-              input?: number
-              output?: number
-              cacheRead?: number
-              cacheWrite?: number
-              totalTokens?: number
-              cost?: { total?: number }
-            }
-          }
-        | undefined
-      const usage = said?.role === 'assistant' ? said.usage : undefined
-      if (usage && ((usage.totalTokens ?? 0) > 0 || (usage.cost?.total ?? 0) > 0)) {
-        this.dispatch(run.handle.run, {
-          type: 'usage',
-          run: run.handle.run,
-          at: Date.now(),
-          model: typeof said?.model === 'string' ? said.model : null,
-          input: usage.input ?? 0,
-          output: usage.output ?? 0,
-          cacheRead: usage.cacheRead ?? 0,
-          cacheWrite: usage.cacheWrite ?? 0,
-          tokens: usage.totalTokens ?? 0,
-          usd: usage.cost?.total ?? 0,
-        })
-      }
+      const said = message.message as { model?: unknown } | undefined
+      this.spent(run, spentByMessage(said), typeof said?.model === 'string' ? said.model : null)
       return
+    }
+    if (!this.opts.supervise && message.type === 'compaction_end') {
+      // No return: a compaction that failed is also a problem to say, below.
+      const result = message.result as { usage?: unknown } | undefined
+      this.spent(run, spentBy({ type: 'compaction', usage: result?.usage }), null)
     }
     // What went wrong on the way, that pi carries on after. Each is said, so
     // whoever is watching can fix the cause rather than wonder at the silence.
@@ -722,6 +701,18 @@ export class PiAdapter implements WorkerAdapter {
         summary: said ? said.slice(0, 2_000) : String(message.toolName ?? ''),
       })
     }
+  }
+
+  /** Say what something cost, when it cost anything. */
+  private spent(run: Run, spent: Spent | null, model: string | null): void {
+    if (!spent || (spent.tokens <= 0 && spent.usd <= 0)) return
+    this.dispatch(run.handle.run, {
+      type: 'usage',
+      run: run.handle.run,
+      at: Date.now(),
+      model,
+      ...spent,
+    })
   }
 
   private rpc(run: Run, command: Record<string, unknown>): Promise<RpcResponse> {

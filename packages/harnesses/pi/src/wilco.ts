@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { connect, type Socket } from 'node:net'
+import { addSpent, nothingSpent, type Spent, spentBy } from './usage.ts'
 
 // The Wilco supervision extension for pi.
 //
 // pi loads this file directly, so it is deliberately SELF-CONTAINED: no
 // imports from the Wilco workspace, because the extension runs inside pi's
-// module resolution, not ours. It speaks the same JSONL shapes as
+// module resolution, not ours. The one import is `usage.ts` beside it, which
+// imports nothing: what a session spent has to be counted the same way here
+// and from pi's files afterwards. It speaks the same JSONL shapes as
 // `WorkerSignal` / `WorkerCommand` in @wilco/core; the Wilco side validates.
 //
 // Without WILCO_RUN_SOCKET in the environment this is inert, so a human
@@ -34,7 +37,7 @@ interface PiContext {
   isIdle(): boolean
   getContextUsage?(): { tokens: number | null; percent: number | null } | undefined
   /** The harness prices each message against its own model catalog. */
-  sessionManager?: { getEntries?(): Array<{ usage?: PiUsage } | null> }
+  sessionManager?: { getEntries?(): unknown[] }
   model?: { id?: string; provider?: string } | string
   /** The harness's model catalog: finding a model to switch to, and asking one for a name. */
   modelRegistry?: {
@@ -51,15 +54,6 @@ interface PiContext {
   }
 }
 
-/** What the harness records per message. Everything optional: it is theirs. */
-interface PiUsage {
-  input?: number
-  output?: number
-  cacheRead?: number
-  cacheWrite?: number
-  totalTokens?: number
-  cost?: { total?: number }
-}
 /** A tool as Wilco lists it for an agent: what pi needs to register it. */
 interface ToolSpec {
   name: string
@@ -112,7 +106,7 @@ const GATED = process.env.WILCO_APPROVALS === 'policy'
 const RETRY_MS = 2_000
 
 /** Session totals as last reported, so each turn sends only the difference. */
-let spent = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
+let spent: Spent = nothingSpent()
 /**
  * Whether `spent` has been set from the session this process opened. A resumed
  * session arrives with its whole history, which was reported by the process
@@ -316,10 +310,12 @@ export default function wilcoExtension(pi: PiApi): void {
     if (usage) send({ type: 'context', tokens: usage.tokens, percent: usage.percent })
   }
   pi.on('session_start', ((_event: unknown, ctx: PiContext) => {
-    if (!seeded) {
-      spent = sessionTotals(ctx)
-      seeded = true
-    }
+    // Every session this process opens — the first, a new one, one resumed or
+    // forked — arrives with a history someone else already counted. Counting
+    // on from the last one's totals would report nothing until the new session
+    // outgrew them.
+    spent = sessionTotals(ctx)
+    seeded = true
     sayVitals(ctx)
   }) as never)
   pi.on('model_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
@@ -432,19 +428,12 @@ export default function wilcoExtension(pi: PiApi): void {
     return ctx.model?.provider ? `${ctx.model.provider}/${id}` : id
   }
 
-  /** Everything the session has spent, from its own running totals. */
-  function sessionTotals(ctx: PiContext): typeof spent {
-    const entries = ctx.sessionManager?.getEntries?.() ?? []
-    const total = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
-    for (const entry of entries) {
-      const usage = entry?.usage
-      if (!usage) continue
-      total.input += usage.input ?? 0
-      total.output += usage.output ?? 0
-      total.cacheRead += usage.cacheRead ?? 0
-      total.cacheWrite += usage.cacheWrite ?? 0
-      total.tokens += usage.totalTokens ?? 0
-      total.usd += usage.cost?.total ?? 0
+  /** Everything the session has spent, counted the way pi counts it. */
+  function sessionTotals(ctx: PiContext): Spent {
+    let total = nothingSpent()
+    for (const entry of ctx.sessionManager?.getEntries?.() ?? []) {
+      const cost = spentBy(entry)
+      if (cost) total = addSpent(total, cost)
     }
     return total
   }

@@ -372,6 +372,8 @@ export class Workbench {
         task: lane.task,
         detail: {
           ...missing,
+          // What it last ran on, so the spend lands on a model rather than on "unknown".
+          ...(session.model ? { model: session.model } : {}),
           source: 'session',
           reason: 'spent while Wilco was closed',
         },

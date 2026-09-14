@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { sessionIdFor } from './adapter.ts'
+import { modelOfMessage, spentBy } from './usage.ts'
 
 // Reading what an agent did out of pi's own session, rather than out of what
 // it told us at the time.
@@ -13,8 +14,9 @@ import { sessionIdFor } from './adapter.ts'
 // that survives us being closed, and this is how the gap gets filled in.
 //
 // The format is pi's and private. Nothing here assumes more than "JSONL, one
-// object per line, some of which have a `usage`", and anything else is
-// skipped: a session we cannot read is a gap in the accounting, never an error.
+// entry per line", priced the way `spentBy` says pi prices them, and anything
+// else is skipped: a session we cannot read is a gap in the accounting, never
+// an error.
 
 /** Where pi keeps sessions, unless told otherwise. */
 export function sessionsRoot(home = homedir()): string {
@@ -28,12 +30,23 @@ export interface SessionUsage {
   cacheWrite: number
   tokens: number
   usd: number
-  /** How many priced messages were counted, so "none yet" is distinguishable. */
+  /** How many priced entries were counted, so "none yet" is distinguishable. */
   messages: number
+  /** The model its last reply ran on, as `provider/id`. */
+  model: string | null
 }
 
 export function noUsage(): SessionUsage {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0, messages: 0 }
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    tokens: 0,
+    usd: 0,
+    messages: 0,
+    model: null,
+  }
 }
 
 /**
@@ -63,28 +76,29 @@ export async function sessionFileFor(
   return found.sort().at(-1) ?? null
 }
 
-/** What a session has cost so far, summed over every message pi priced. */
+/** What a session has cost so far: every entry pi priced, as its own totals count them. */
 export async function usageOf(file: string): Promise<SessionUsage> {
   const total = noUsage()
   const text = await readFile(file, 'utf8').catch(() => '')
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
-    let entry: { usage?: Record<string, unknown> }
+    let entry: unknown
     try {
-      entry = JSON.parse(line) as { usage?: Record<string, unknown> }
+      entry = JSON.parse(line)
     } catch {
       // A half-written last line is what a live session looks like.
       continue
     }
-    const usage = entry.usage
-    if (!usage) continue
-    total.input += number(usage.input)
-    total.output += number(usage.output)
-    total.cacheRead += number(usage.cacheRead)
-    total.cacheWrite += number(usage.cacheWrite)
-    total.tokens += number(usage.totalTokens)
-    total.usd += number((usage.cost as { total?: unknown } | undefined)?.total)
+    const spent = spentBy(entry)
+    if (!spent) continue
+    total.input += spent.input
+    total.output += spent.output
+    total.cacheRead += spent.cacheRead
+    total.cacheWrite += spent.cacheWrite
+    total.tokens += spent.tokens
+    total.usd += spent.usd
     total.messages += 1
+    total.model = modelOfMessage((entry as { message?: unknown }).message) ?? total.model
   }
   return total
 }
@@ -96,8 +110,4 @@ export async function usageOfTask(
 ): Promise<SessionUsage> {
   const file = await sessionFileFor(task, opts)
   return file ? usageOf(file) : noUsage()
-}
-
-function number(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }

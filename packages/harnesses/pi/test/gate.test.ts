@@ -29,6 +29,19 @@ interface FakeModel {
   close(): Promise<void>
 }
 
+/**
+ * What the fake model says every answer used: mostly its cache read back, as
+ * a long session's answers are.
+ */
+const REPORTED = {
+  prompt_tokens: 1_000,
+  completion_tokens: 100,
+  total_tokens: 1_100,
+  prompt_tokens_details: { cached_tokens: 800 },
+}
+/** The fake model's prices, in dollars per million tokens. */
+const PRICES = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 }
+
 /** Minimal OpenAI-completions server: one tool call, then a final answer. */
 async function fakeModel(command: string): Promise<FakeModel> {
   const state = { requests: 0 }
@@ -62,10 +75,12 @@ async function fakeModel(command: string): Promise<FakeModel> {
               ],
             },
             { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+            { choices: [], usage: REPORTED },
           ]
         : [
             { choices: [{ index: 0, delta: { role: 'assistant', content: 'All done.' } }] },
             { choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] },
+            { choices: [], usage: REPORTED },
           ]
       const stream = /"stream"\s*:\s*true/.test(body)
       if (!stream) {
@@ -89,7 +104,7 @@ async function fakeModel(command: string): Promise<FakeModel> {
             object: 'chat.completion',
             model: 'fake',
             choices: [{ index: 0, message, finish_reason: first ? 'tool_calls' : 'stop' }],
-            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+            usage: REPORTED,
           }),
         )
         return
@@ -137,7 +152,7 @@ function writeProviderExtension(dir: string): string {
         name: 'Fake',
         reasoning: false,
         input: ['text'],
-        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        cost: ${JSON.stringify(PRICES)},
         contextWindow: 128000,
         maxTokens: 4096,
       },
@@ -343,4 +358,85 @@ describe('approval gate', () => {
       agent.kill()
     }
   }, 90_000)
+})
+
+// What a turn cost, proven against a REAL pi pricing a REAL session.
+//
+// A person reads what an agent spent in two places — pi's footer, and Wilco's
+// Spend panel — and the two must agree. A count checked only against a session
+// file written by hand agrees with whoever wrote the file.
+describe('what a turn costs', () => {
+  let adapter: PiAdapter | null = null
+  let model: FakeModel | null = null
+
+  afterEach(async () => {
+    await adapter?.shutdown()
+    await model?.close()
+    adapter = null
+    model = null
+  })
+
+  /** Everything the usage signals added up to. */
+  function spent(signals: readonly WorkerSignal[]) {
+    const total = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0 }
+    for (const signal of signals) {
+      if (signal.type !== 'usage') continue
+      total.input += signal.input
+      total.output += signal.output
+      total.cacheRead += signal.cacheRead
+      total.cacheWrite += signal.cacheWrite
+      total.tokens += signal.tokens
+      total.usd += signal.usd
+    }
+    return total
+  }
+
+  it.each([
+    ['told by the supervision extension, as an agent’s is', true],
+    ['read from pi’s own events, as the orchestrator’s is', false],
+  ])(
+    'adds up every answer, %s',
+    async (_how, supervise) => {
+      const runDir = tmp('wilco-cost-')
+      const cwd = tmp('wilco-cost-work-')
+      const marker = join(cwd, 'the-command-ran')
+      model = await fakeModel(`touch ${marker}`)
+
+      adapter = new PiAdapter({
+        runDir,
+        supervise,
+        approvals: 'bypass',
+        args: ['-e', writeProviderExtension(runDir)],
+        env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      })
+      const signals: WorkerSignal[] = []
+      adapter.onSignal('cost', (s) => signals.push(s))
+      await adapter.start({
+        run: 'cost',
+        task: 'app/cost',
+        cwd,
+        prompt: 'run the command',
+        model: { provider: 'wilco-test', id: 'fake' },
+      })
+
+      // Two answers: the tool call, and the last word after it.
+      const answers = 2
+      await until(() => (model?.requests ?? 0) >= answers && existsSync(marker))
+      await until(() => spent(signals).tokens >= answers * REPORTED.total_tokens)
+
+      const input = REPORTED.prompt_tokens - REPORTED.prompt_tokens_details.cached_tokens
+      const cacheRead = REPORTED.prompt_tokens_details.cached_tokens
+      const output = REPORTED.completion_tokens
+      expect(spent(signals)).toMatchObject({
+        input: answers * input,
+        output: answers * output,
+        cacheRead: answers * cacheRead,
+        tokens: answers * REPORTED.total_tokens,
+      })
+      const perAnswer =
+        (input * PRICES.input + output * PRICES.output + cacheRead * PRICES.cacheRead) / 1_000_000
+      expect(spent(signals).usd).toBeCloseTo(answers * perAnswer, 10)
+    },
+    90_000,
+  )
 })
