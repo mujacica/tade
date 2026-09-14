@@ -166,8 +166,9 @@ export function chooseModel(
  * The model someone meant by what they said — "opus 5", "kimi k2.6", "sonnet" —
  * among the ones you can use. Words are compared without spaces, dashes or
  * dots, a whole name beats part of one, and of equals the plainest wins (no
- * `:batch`). When two different models fit equally, it says which, rather than
- * picking one for you.
+ * `:batch`). A name said without a version means the newest of that line:
+ * "opus" is Opus 5, the way people say it. When two different models fit
+ * equally, it says which, rather than picking one for you.
  */
 export function findModel(
   said: string,
@@ -202,6 +203,13 @@ export function findModel(
       .replace(/:[\w-]+$/, '')
       .split('/')
       .at(-1) ?? id
+  // Said without a version, a name means the newest of its line, however the
+  // line has been spelled over the years: "haiku" is Haiku 4.5, not Claude 3.
+  if (best.score < 3 && !/\d/.test(said)) {
+    const newest = newestOfOneLine(said, [...new Set(scored.map((one) => base(one.id)))])
+    const chosen = newest ? scored.find((one) => base(one.id) === newest) : undefined
+    if (chosen) return { ok: true, provider: chosen.model.provider, id: chosen.id }
+  }
   if (next && next.score === best.score && base(next.id) !== base(best.id)) {
     const options = [
       ...new Set(scored.filter((one) => one.score === best.score).map((one) => base(one.id))),
@@ -209,6 +217,45 @@ export function findModel(
     return { ok: false, reason: `"${said}" could be ${options.slice(0, 5).join(', ')}: say which` }
   }
   return { ok: true, provider: best.model.provider, id: best.id }
+}
+
+/**
+ * The newest of models that are all versions of the one line that was named —
+ * `claude-3-haiku`, `claude-haiku-4.5` — or null when they are different lines:
+ * `kimi-k2.6` and `kimi-k3` are two models, and so are `gemini-pro` and
+ * `gemini-flash`.
+ */
+function newestOfOneLine(said: string, ids: readonly string[]): string | null {
+  const words = (text: string) =>
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean)
+  // An alias for whatever is newest names no version, so it is not one.
+  const versioned = ids.filter((id) => !words(id).includes('latest'))
+  const line = (id: string) =>
+    words(id)
+      .filter((word) => !/^\d+$/.test(word))
+      .sort()
+      .join(' ')
+  const lines = [...new Set(versioned.map(line))]
+  if (lines.length !== 1) return null
+  // Every word said has to be part of the name: "opus latest" asked for the alias.
+  const named = (lines[0] ?? '').split(' ')
+  if (!words(said).every((word) => named.includes(word))) return null
+  // Versions are small numbers. A long one, or one with a leading zero, is a
+  // date or a build stamped on the id, and says nothing about which is newer.
+  const version = (id: string) =>
+    words(id)
+      .filter((word) => /^(0|[1-9]\d{0,2})$/.test(word))
+      .map(Number)
+  const newer = (a: number[], b: number[]) => {
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if ((a[i] ?? -1) !== (b[i] ?? -1)) return (a[i] ?? -1) > (b[i] ?? -1)
+    }
+    return false
+  }
+  return versioned.reduce((best, id) => (newer(version(id), version(best)) ? id : best))
 }
 
 async function readJson(path: string): Promise<unknown> {

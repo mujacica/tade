@@ -201,11 +201,14 @@ export default function wilcoTools(pi: PiApi): void {
 
   tool(
     'wilco_run_start',
-    'Start an agent working on an existing task. The prompt is what the agent is told first.',
+    'Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Wilco finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.',
     object(
       {
         task: string('task id, like checkout/refunds'),
         prompt: string('what to tell the agent first'),
+        model: string(
+          'the model to start it on, as the human said it: "opus", "kimi k2.6". Only when they named one.',
+        ),
       },
       ['task'],
     ),
@@ -213,13 +216,18 @@ export default function wilcoTools(pi: PiApi): void {
       const task = String(p.task)
       const worktree = await worktreeOf(task)
       if (!worktree) throw new Error(`no such task: ${task}`)
-      return rpc('worker/start', { task, cwd: worktree, prompt: String(p.prompt ?? '') })
+      return rpc('worker/start', {
+        task,
+        cwd: worktree,
+        prompt: String(p.prompt ?? ''),
+        ...(p.model ? { model: String(p.model) } : {}),
+      })
     },
   )
 
   tool(
     'wilco_agent_model',
-    'Switch the model an agent is running on, for that agent only: "switch refunds to opus 5", "use kimi in agent-1". Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running.',
+    'Switch the model an agent is running on, for that agent only: "switch refunds to opus 5", "use kimi in agent-1". Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to wilco_run_start instead.',
     object(
       {
         task: string('task id, like checkout/refunds'),

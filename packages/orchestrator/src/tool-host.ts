@@ -29,6 +29,12 @@ export interface ToolHostOptions {
    * the next start. Without it, the orchestrator cannot change its own model.
    */
   orchestratorModel?: (said: string) => Promise<{ provider: string; id: string }>
+  /**
+   * What goes with the prompt of an agent the orchestrator starts: the files
+   * attached to what it is answering, put where the agent works (`cwd`), a
+   * sentence saying where, and the pictures among them.
+   */
+  handOff?: (cwd: string) => Promise<{ note: string; images: readonly WorkerImage[] }>
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -97,13 +103,23 @@ export class ToolHost {
           throw new Error('this window cannot change the orchestrator model')
         return opts.orchestratorModel(String(p.model))
       },
-      'worker/start': (p) =>
-        wilco.startAgent({
+      'worker/start': async (p) => {
+        // The model is settled before anything starts: one that cannot be
+        // found is a question for the human, never a run on some other model.
+        const model = p.model ? await wilco.resolveModel(String(p.model)) : undefined
+        const prompt = String(p.prompt ?? '')
+        const cwd = String(p.cwd)
+        // Files go with something to say about them. A start that says nothing
+        // opens the agent, and must not set it working on a picture alone.
+        const handed = prompt.trim() && opts.handOff ? await opts.handOff(cwd) : null
+        return wilco.startAgent({
           task: String(p.task) as never,
-          cwd: String(p.cwd),
-          prompt: String(p.prompt),
-          ...(Array.isArray(p.images) ? { images: p.images as WorkerImage[] } : {}),
-        }),
+          cwd,
+          prompt: handed?.note ? `${prompt}\n\n${handed.note}` : prompt,
+          ...(model ? { model } : {}),
+          ...(handed?.images.length ? { images: handed.images } : {}),
+        })
+      },
       'worker/list': () => wilco.runs(),
       'worker/pending': (p) => wilco.pendingApprovals(p.task ? String(p.task) : undefined),
       'worker/steer': async (p) => {

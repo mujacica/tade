@@ -920,10 +920,19 @@ export class Workbench {
     if (!this.registry.get(run as unknown as LaneId)?.alive) {
       throw new Error(`${task} has no agent running: open it first`)
     }
+    const found = await this.resolveModel(said)
+    // What it switched to is journalled by the agent itself, as the model its usage is priced at.
+    await this.workers.setModel(run, found)
+    return found
+  }
+
+  /**
+   * The model someone named, among the ones they are signed in to. Throws what
+   * to ask them when it is not one model: before anything is started on it.
+   */
+  async resolveModel(said: string): Promise<{ provider: string; id: string }> {
     const found = findModel(said, await usableModels())
     if (!found.ok) throw new Error(found.reason)
-    // What it switched to is journalled by the agent itself, as the model its usage is priced at.
-    await this.workers.setModel(run, { provider: found.provider, id: found.id })
     return { provider: found.provider, id: found.id }
   }
 

@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -7,6 +7,7 @@ import {
   clipboardImage,
   clipboardState,
   filePaths,
+  handOffFiles,
   imagePaths,
   pasted,
   readImage,
@@ -58,6 +59,32 @@ describe('a dropped picture', () => {
     expect(readImage(png)).toEqual({ path: png, data: 'iVBORw==', mimeType: 'image/png' })
     expect(readImage(join(dir, 'missing.png'))).toBeNull()
     expect(readImage(join(dir, 'a.txt'))).toBeNull()
+  })
+})
+
+describe('files handed to an agent', () => {
+  it('are copied where it works and named in what it is told, pictures sent along', async () => {
+    const from = tmp('wilco-attached-')
+    const shot = join(from, 'shot.png')
+    const notes = join(from, 'notes.txt')
+    writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
+    writeFileSync(notes, 'the numbers')
+    const cwd = tmp('wilco-checkout-')
+
+    const handed = await handOffFiles([shot, notes, join(from, 'deleted.png')], cwd)
+    expect(existsSync(join(cwd, '.wilco', 'attachments', 'shot.png'))).toBe(true)
+    expect(existsSync(join(cwd, '.wilco', 'attachments', 'notes.txt'))).toBe(true)
+    expect(handed.note).toBe(
+      'Attachments are in .wilco/attachments/: shot.png, notes.txt. Also attached, but gone before it could be copied: deleted.png.',
+    )
+    expect(handed.images.map((image) => image.mimeType)).toEqual(['image/png'])
+  })
+
+  it('are nothing at all when nothing was attached', async () => {
+    const cwd = tmp('wilco-checkout-')
+    expect(await handOffFiles([], cwd)).toEqual({ note: '', images: [] })
+    // Not even the folder: an agent's checkout is not ours to litter.
+    expect(existsSync(join(cwd, '.wilco'))).toBe(false)
   })
 })
 

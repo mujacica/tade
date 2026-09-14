@@ -91,6 +91,59 @@ describe('the model someone meant', () => {
     expect(findModel('Kimi K2.6', catalog)).toMatchObject({ ok: true, id: 'moonshotai/kimi-k2.6' })
   })
 
+  it('means the newest of a line when no version is said', () => {
+    const opuses: AvailableModel[] = [
+      { id: 'openrouter/anthropic/claude-opus-4', provider: 'openrouter', name: 'Claude Opus 4' },
+      { id: 'openrouter/anthropic/claude-opus-5', provider: 'openrouter', name: 'Claude Opus 5' },
+      { id: 'openrouter/anthropic/claude-opus-4.1', provider: 'openrouter', name: 'Opus 4.1' },
+      { id: 'openrouter/anthropic/claude-opus-4.6', provider: 'openrouter', name: 'Opus 4.6' },
+      // A release date is not a version: this is Opus 4, whatever the number says.
+      { id: 'anthropic/claude-opus-4-20250514', provider: 'anthropic', name: 'Claude Opus 4' },
+      // An alias for the newest is not a version either.
+      {
+        id: 'openrouter/~anthropic/claude-opus-latest',
+        provider: 'openrouter',
+        name: 'Opus Latest',
+      },
+    ]
+    // "Use opus for it" is Opus 5, as anyone saying it means.
+    expect(findModel('opus', opuses)).toEqual({
+      ok: true,
+      provider: 'openrouter',
+      id: 'anthropic/claude-opus-5',
+    })
+    // Opus 4, released on 2025-05-14, is older than 4.6, however large its date.
+    expect(findModel('Opus', opuses.slice(2))).toMatchObject({
+      ok: true,
+      id: 'anthropic/claude-opus-4.6',
+    })
+    // A version said is the one meant, or a question: never the newest instead.
+    expect(findModel('opus 4.6', opuses)).toMatchObject({
+      ok: true,
+      id: 'anthropic/claude-opus-4.6',
+    })
+    const four = findModel('opus 4', opuses)
+    expect(four.ok ? four.id : four.reason).not.toMatch(/4\.[16]|opus-5/)
+    // Asked for by name, the alias is what was meant.
+    expect(findModel('opus latest', opuses)).toMatchObject({
+      ok: true,
+      id: '~anthropic/claude-opus-latest',
+    })
+  })
+
+  it('knows a line by its words, however it was spelled over the years', () => {
+    const haikus: AvailableModel[] = [
+      { id: 'openrouter/anthropic/claude-3-haiku', provider: 'openrouter', name: 'Claude 3 Haiku' },
+      { id: 'openrouter/anthropic/claude-haiku-4.5', provider: 'openrouter', name: 'Haiku 4.5' },
+      {
+        id: 'openrouter/anthropic/claude-haiku-4.5:batch',
+        provider: 'openrouter',
+        name: 'Haiku 4.5 (batch)',
+      },
+    ]
+    expect(findModel('haiku', haikus)).toMatchObject({ ok: true, id: 'anthropic/claude-haiku-4.5' })
+  })
+
   it('asks which when two different models fit', () => {
     const found = findModel('kimi', catalog)
     expect(found.ok).toBe(false)

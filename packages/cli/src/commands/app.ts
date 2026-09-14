@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process'
-import { copyFile, mkdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, extname, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
 import {
@@ -15,7 +14,6 @@ import {
   wilcoHome,
 } from '@wilco/core'
 import type { ExtensionWorkbench } from '@wilco/extensions-core'
-import type { WorkerImage } from '@wilco/harnesses-core'
 import { piBinary } from '@wilco/harnesses-pi/adapter'
 import { installedPieces } from '@wilco/harnesses-pi/installed'
 import { credentials, findModel, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
@@ -27,6 +25,7 @@ import {
   orchestratorExtensions,
   proposedExtensions,
   ToolHost,
+  type ToolHostOptions,
   workbenchExtensions,
 } from '@wilco/orchestrator'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
@@ -114,10 +113,12 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // front of the window, which starts after the socket does.
       let showTerminal: (terminal: string) => void = () => {}
       let keepOrchestratorModel: (model: { provider: string; id: string }) => void = () => {}
+      let handOff: NonNullable<ToolHostOptions['handOff']> = async () => ({ note: '', images: [] })
       const tools = await ToolHost.listen({
         wilco: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
+        handOff: (cwd) => handOff(cwd),
         orchestratorModel: async (said) => {
           const found = findModel(said, await usableModels())
           if (!found.ok) throw new Error(found.reason)
@@ -174,46 +175,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         windowForExtensions = extensionWorkbench(client, (task) => app.showTask(task))
         app.useExtensionWorkbench(windowForExtensions)
 
-        // Forward attachments from the orchestrator to agents when work is handed off.
-        const originalStartAgent = client.startAgent.bind(client)
-        client.startAgent = async (req) => {
-          const attachments = app.popAttachments()
-          if (attachments.length > 0) {
-            const dir = join(req.cwd, '.wilco', 'attachments')
-            await mkdir(dir, { recursive: true })
-            const names: string[] = []
-            const images: WorkerImage[] = []
-            const TYPES: Record<string, string> = {
-              '.png': 'image/png',
-              '.jpg': 'image/jpeg',
-              '.jpeg': 'image/jpeg',
-              '.gif': 'image/gif',
-              '.webp': 'image/webp',
-            }
-            for (const path of attachments) {
-              const name = basename(path)
-              await copyFile(path, join(dir, name))
-              names.push(name)
-              const mimeType = TYPES[extname(path).toLowerCase()]
-              if (mimeType) {
-                const data = await readFile(path)
-                if (data.length <= 20 * 1024 * 1024) {
-                  images.push({ data: data.toString('base64'), mimeType })
-                }
-              }
-            }
-            const mention =
-              names.length === 1
-                ? `An attachment is in .wilco/attachments/${names[0]}.`
-                : `Attachments are in .wilco/attachments/: ${names.join(', ')}.`
-            req = {
-              ...req,
-              prompt: mention + (req.prompt ? `\n\n${req.prompt}` : ''),
-              ...(images.length > 0 ? { images } : {}),
-            }
-          }
-          return originalStartAgent(req)
-        }
+        // Files you attached go to the agents the orchestrator starts in answer.
+        handOff = (cwd) => app.handOff(cwd)
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty

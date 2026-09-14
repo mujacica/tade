@@ -66,6 +66,7 @@ import {
   clipboardImage,
   clipboardState,
   filePaths,
+  handOffFiles,
   imagePaths,
   isImagePath,
   pasted,
@@ -447,8 +448,12 @@ export class App {
   private thinker: Thinker | null = null
   /** The pictures that went with what was said last, until the orchestrator is asked. */
   private sending: string[] = []
-  /** Paths attached to the last message, forwarded when an agent is started. */
-  private lastAttachments: string[] = []
+  /**
+   * The files attached to what the orchestrator is answering, for the agents it
+   * starts while it does. Only until it has answered: a picture belongs to the
+   * message it came with, not to whatever is started next.
+   */
+  private answering: readonly string[] = []
   /** Text the extensions know how to open, asked once: working it out reads files. */
   private linkers: readonly Linker[] = []
   /** What each field of the setup panel offers, once looked up. */
@@ -693,11 +698,12 @@ export class App {
     return this.closed
   }
 
-  /** Paths attached to the last message to the orchestrator, for forwarding to agents. */
-  popAttachments(): string[] {
-    const paths = this.lastAttachments
-    this.lastAttachments = []
-    return paths
+  /**
+   * What goes with the prompt of an agent the orchestrator starts while
+   * answering you: the files you attached, copied where it works.
+   */
+  handOff(cwd: string): Promise<{ note: string; images: WorkerImageFile[] }> {
+    return handOffFiles(this.answering, cwd)
   }
 
   async stop(): Promise<void> {
@@ -3507,7 +3513,8 @@ export class App {
     // Shown the moment it is sent, not once something has answered it. The
     // pictures waiting go with it, and only with it.
     this.sending = this.state.attached
-    this.lastAttachments = [...this.state.attached]
+    const attached = [...this.state.attached]
+    this.answering = attached
     this.state = withTranscript(
       { ...this.state, attached: [] },
       youSaid(this.state.transcript, said, this.now(), this.state.attached),
@@ -3525,6 +3532,10 @@ export class App {
           problem(this.state.transcript, why(err), this.now()),
         )
         this.draw()
+      })
+      .finally(() => {
+        // Answered: what came with it goes to no agent started after.
+        if (this.answering === attached) this.answering = []
       })
   }
 

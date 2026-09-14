@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { copyFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { extname, join } from 'node:path'
+import { basename, extname, join } from 'node:path'
 
 // Pictures: screenshots dropped on the window or pasted into it.
 //
@@ -123,6 +124,44 @@ export function readImage(path: string): { path: string; data: string; mimeType:
   } catch {
     return null
   }
+}
+
+/**
+ * Files handed to an agent: copied into `.wilco/attachments` where it works,
+ * so it can open them, a sentence saying where they are, and the pictures
+ * among them to send with its prompt. A file gone by now is said to be gone,
+ * rather than dropped without a word.
+ */
+export async function handOffFiles(
+  paths: readonly string[],
+  cwd: string,
+): Promise<{ note: string; images: { path: string; data: string; mimeType: string }[] }> {
+  if (paths.length === 0) return { note: '', images: [] }
+  const dir = join(cwd, '.wilco', 'attachments')
+  const copied: string[] = []
+  const gone: string[] = []
+  const images: { path: string; data: string; mimeType: string }[] = []
+  for (const path of paths) {
+    const name = basename(path)
+    try {
+      await mkdir(dir, { recursive: true })
+      await copyFile(path, join(dir, name))
+      copied.push(name)
+      const image = readImage(path)
+      if (image) images.push(image)
+    } catch {
+      gone.push(name)
+    }
+  }
+  const notes = [
+    copied.length === 1
+      ? `An attachment is in .wilco/attachments/${copied[0]}.`
+      : copied.length > 1
+        ? `Attachments are in .wilco/attachments/: ${copied.join(', ')}.`
+        : '',
+    gone.length > 0 ? `Also attached, but gone before it could be copied: ${gone.join(', ')}.` : '',
+  ]
+  return { note: notes.filter(Boolean).join(' '), images }
 }
 
 type Run = (command: string, args: string[]) => Promise<{ ok: boolean; stdout: string }>
