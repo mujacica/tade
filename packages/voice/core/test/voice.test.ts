@@ -2,7 +2,13 @@ import type { WilcoEvent } from '@wilco/core'
 import { Speaker } from '@wilco/voice-tts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { slugify, VoiceSurface, type VoiceTerminals, type VoiceWorkbench } from '../src/voice.ts'
+import {
+  slugify,
+  type Turn,
+  VoiceSurface,
+  type VoiceTerminals,
+  type VoiceWorkbench,
+} from '../src/voice.ts'
 
 // The voice surface with a scripted workbench and a speaker that only records:
 // what is under test is which verb a sentence became, and what came back.
@@ -382,6 +388,47 @@ describe('VoiceSurface', () => {
       await new Promise((r) => setTimeout(r, 5))
       expect(said).toEqual([])
       expect(tones).toEqual(['blocked.wav'])
+    })
+  })
+
+  describe('streaming speech', () => {
+    it('speaks sentences as chunks arrive, not all at the end', async () => {
+      const { voice, said } = await surface(wilco)
+      voice.speakChunk('First sentence. ')
+      voice.speakChunk('Second sentence. ')
+      voice.speakChunk('Third')
+      await new Promise((r) => setTimeout(r, 5))
+      expect(said).toEqual(['First sentence.', 'Second sentence.'])
+      voice.flushSpeech()
+      await new Promise((r) => setTimeout(r, 5))
+      expect(said).toEqual(['First sentence.', 'Second sentence.', 'Third'])
+    })
+
+    it('reports a speech failure rather than going quiet', async () => {
+      const turns: Turn[] = []
+      const brokenSpeaker = {
+        capabilities: { speech: true, sound: false },
+        speak: async () => {
+          throw new Error('audio device busy')
+        },
+        earcon: async () => {},
+        toneFile: () => '',
+      } as unknown as Speaker
+      const voice = await VoiceSurface.start({
+        wilco,
+        speaker: brokenSpeaker,
+        now: () => NOW,
+        localHour: () => 14,
+        vocabulary: async () => ({ tasks: [], projects: [] }),
+        status: async () => '',
+        worktreeOf: async () => null,
+        onTurn: (turn) => turns.push(turn),
+      })
+      voice.speakChunk('Say this.')
+      await new Promise((r) => setTimeout(r, 5))
+      voice.flushSpeech()
+      await new Promise((r) => setTimeout(r, 5))
+      expect(turns.some((t) => t.reply.includes('Speech failed'))).toBe(true)
     })
   })
 })

@@ -392,7 +392,7 @@ export class PiAdapter implements WorkerAdapter {
     const sessionId = state?.data?.sessionId
     if (typeof sessionId === 'string') run.handle.sessionId = sessionId
 
-    if (spec.prompt.trim().length > 0) await this.prompt(spec.run, spec.prompt)
+    if (spec.prompt.trim().length > 0) await this.prompt(spec.run, spec.prompt, spec.images ?? [])
     return { ...run.handle }
   }
 

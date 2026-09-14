@@ -17,6 +17,7 @@ import {
   parseCommand,
   projectNumber,
   projects,
+  removeAttachment,
   resizeTo,
   searchKey,
   selectProject,
@@ -330,6 +331,7 @@ describe('the bottom panel', () => {
     }
     expect(keyAction('talk-down', inTerminal).kind).toBe('talk-start')
     expect(keyAction('search', inTerminal).kind).toBe('search')
+    expect(keyAction('reload', state())).toEqual({ kind: 'run', action: 'reload' })
     expect(keyAction('tab', showOrchestrator(inTerminal)).kind).toBe('focus-next')
   })
 
@@ -410,5 +412,51 @@ describe('what you said before', () => {
       state: { dictation: 'draft' },
     })
     expect(historyMatch(history, { query: 'STATUS', skip: 0 })).toBe('status')
+  })
+})
+
+describe('the orchestrator draft', () => {
+  it('survives switching focus to an agent and back', () => {
+    // The orchestrator is "focused" when dictation is non-null; the agent
+    // stays visible behind it, so focused keeps pointing at the last agent.
+    const onOrchestrator = { ...state(), dictation: 'hello there' }
+    const toAgent = focusBy(onOrchestrator, 1)
+    expect(toAgent.dictation).toBeNull()
+    expect(toAgent.orchestratorDraft).toBe('hello there')
+    expect(toAgent.focused).toBe('checkout/stripe-v15')
+    const back = focusBy(toAgent, -1)
+    expect(back.dictation).toBe('hello there')
+    expect(back.focused).toBe('checkout/stripe-v15')
+  })
+
+  it('survives opening a terminal and coming back', () => {
+    const tabs = [{ id: 't1', project: 'checkout', name: 'tests' }]
+    const onOrchestrator = { ...state(), focused: null, dictation: 'park refunds' }
+    const toTerminal = showTerminal(withTerminals(onOrchestrator, tabs), 't1')
+    expect(toTerminal.dictation).toBeNull()
+    expect(toTerminal.orchestratorDraft).toBe('park refunds')
+    const back = showOrchestrator(toTerminal)
+    expect(back.dictation).toBe('park refunds')
+  })
+
+  it('keeps the newest draft when typing after returning', () => {
+    const toAgent = focusBy({ ...state(), focused: null, dictation: 'first draft' }, 1)
+    const back = showOrchestrator(toAgent)
+    expect(back.dictation).toBe('first draft')
+    const retyped = { ...back, dictation: 'second draft' }
+    const awayAgain = focusBy(retyped, 1)
+    expect(awayAgain.orchestratorDraft).toBe('second draft')
+  })
+})
+
+describe('attachments', () => {
+  it('removes individual attachments without disturbing the rest', () => {
+    const withAttached = { ...state(), attached: ['/a.png', '/b.txt', '/c.png'] }
+    const one = removeAttachment(withAttached, '/b.txt')
+    expect(one.attached).toEqual(['/a.png', '/c.png'])
+    const none = removeAttachment(one, '/a.png')
+    expect(none.attached).toEqual(['/c.png'])
+    const last = removeAttachment(none, '/c.png')
+    expect(last.attached).toEqual([])
   })
 })

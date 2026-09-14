@@ -34,11 +34,17 @@ function compare(name: string, actual: string): void {
 /** The tool surface, as the model is handed it. */
 function toolSurface() {
   const tools: Array<{ name: string; description: string; parameters: unknown }> = []
-  wilcoTools({
-    registerTool: (tool: { name: string; description: string; parameters: unknown }) => {
-      tools.push({ name: tool.name, description: tool.description, parameters: tool.parameters })
-    },
-  } as never)
+  const saved = process.env.WILCO_EXTENSION_TOOLS
+  delete process.env.WILCO_EXTENSION_TOOLS
+  try {
+    wilcoTools({
+      registerTool: (tool: { name: string; description: string; parameters: unknown }) => {
+        tools.push({ name: tool.name, description: tool.description, parameters: tool.parameters })
+      },
+    } as never)
+  } finally {
+    if (saved !== undefined) process.env.WILCO_EXTENSION_TOOLS = saved
+  }
   return tools.sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -59,6 +65,7 @@ describe('the tools the orchestrator has', () => {
       'wilco_propose_skill',
       'wilco_remember',
       'wilco_resume',
+      'wilco_run_cleanup',
       'wilco_run_list',
       'wilco_run_start',
       'wilco_run_stop',

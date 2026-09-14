@@ -452,6 +452,73 @@ describe('the window, wired up', () => {
     expect(sent[0]?.images.map((image) => image.mimeType)).toEqual(['image/png'])
   })
 
+  it('keeps several screenshots, and each can be removed', async () => {
+    const dir = tmp('wilco-multi-shot-')
+    const a = join(dir, 'a.png')
+    const b = join(dir, 'b.png')
+    writeFileSync(a, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    writeFileSync(b, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Drop the first.
+    terminal.press(asPaste(a))
+    await until('the question', () =>
+      screenOf(terminal.written).some((row) => row.includes('Send a.png to')),
+    )
+    terminal.press('\r')
+    await until('first attached', () =>
+      screenOf(terminal.written).some((row) => row.includes('▣ a.png')),
+    )
+    // Drop the second.
+    terminal.press(asPaste(b))
+    await until('the question again', () =>
+      screenOf(terminal.written).some((row) => row.includes('Send b.png to')),
+    )
+    terminal.press('\r')
+    await until('both attached', () =>
+      screenOf(terminal.written).some((row) => row.includes('▣ a.png') && row.includes('▣ b.png')),
+    )
+    // Remove the first by clicking its ×.
+    const lines = screenOf(terminal.written)
+    const row = lines.findIndex((line) => line.includes('▣ a.png') && line.includes('▣ b.png'))
+    expect(row).toBeGreaterThanOrEqual(0)
+    const aX = (lines[row] ?? '').indexOf('×', (lines[row] ?? '').indexOf('▣ a.png'))
+    expect(aX).toBeGreaterThanOrEqual(0)
+    terminal.press(`\x1b[<0;${aX + 1};${row + 1}M`)
+    terminal.press(`\x1b[<0;${aX + 1};${row + 1}m`)
+    await until('only the second remains', () =>
+      screenOf(terminal.written).some((row) => !row.includes('▣ a.png') && row.includes('▣ b.png')),
+    )
+  })
+
+  it('attaches a non-image file dropped on the orchestrator', async () => {
+    const dir = tmp('wilco-file-')
+    const txt = join(dir, 'notes.txt')
+    writeFileSync(txt, 'these are notes')
+    const sent: { text: string; images: readonly { mimeType: string }[] }[] = []
+    await start({
+      thinker: {
+        ask: async (text, images = []) => {
+          sent.push({ text, images })
+          return 'got it'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press(asPaste(txt))
+    await until('the question', () =>
+      screenOf(terminal.written).some((row) => row.includes('Send notes.txt to')),
+    )
+    terminal.press('\r')
+    await until('the file waiting on the line', () =>
+      screenOf(terminal.written).some((row) => row.includes('▣ notes.txt')),
+    )
+    for (const char of 'read this') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator to be asked', () => sent.length === 1)
+    expect(sent[0]?.images).toEqual([])
+  })
+
   it('comes back to the pane you were watching', async () => {
     const first = await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
@@ -523,6 +590,37 @@ describe('the window, wired up', () => {
     await started.stop()
     // Whoever is waiting on the window is released, or this never resolves.
     await started.wait()
+  })
+
+  it('reloads when the reload key is pressed and nothing is running', async () => {
+    let reloaded = false
+    await start({
+      reloadWindow: async () => {
+        reloaded = true
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x1b[114;6u')
+    await until('reload to be called', () => reloaded)
+  })
+
+  it('warns before reloading when lanes cannot survive', async () => {
+    await client.openTerminal({ project: 'app' })
+    let reloaded = false
+    await start({
+      reloadWindow: async () => {
+        reloaded = true
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+    terminal.press('\x1b[114;6u')
+    await until('the reload panel', () => terminal.written.includes('Reload Wilco?'))
+    expect(reloaded).toBe(false)
+    // Dismiss the panel so the test ends cleanly.
+    terminal.written = ''
+    terminal.press('\x1b')
+    await until('the panel to close', () => !terminal.written.includes('Reload Wilco?'))
   })
 
   /** A left click, as a terminal in SGR mouse mode sends it: press, then release. */

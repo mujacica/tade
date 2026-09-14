@@ -2,7 +2,7 @@ import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import type { LaneId } from '@wilco/core'
-import type { PermissionDecision, RunId } from '@wilco/harnesses-core'
+import type { PermissionDecision, RunId, WorkerImage } from '@wilco/harnesses-core'
 import type { Workbench } from '@wilco/workbench'
 
 // How the orchestrator's tools reach the workbench.
@@ -102,6 +102,7 @@ export class ToolHost {
           task: String(p.task) as never,
           cwd: String(p.cwd),
           prompt: String(p.prompt),
+          ...(Array.isArray(p.images) ? { images: p.images as WorkerImage[] } : {}),
         }),
       'worker/list': () => wilco.runs(),
       'worker/pending': (p) => wilco.pendingApprovals(p.task ? String(p.task) : undefined),

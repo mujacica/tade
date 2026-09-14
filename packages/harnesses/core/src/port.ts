@@ -36,6 +36,8 @@ export interface WorkerSpec {
   extras?: WorkerExtras
   /** A name a person gave the work, for the harness's own session to carry. */
   title?: string
+  /** Pictures to send with the opening prompt. */
+  images?: readonly WorkerImage[]
 }
 
 /**

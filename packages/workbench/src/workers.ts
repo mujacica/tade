@@ -13,6 +13,7 @@ import {
   type WorkerAdapter,
   type WorkerExtras,
   type WorkerHandle,
+  type WorkerImage,
   type WorkerModel,
   WorkerNotFoundError,
   type WorkerSignal,
@@ -44,6 +45,8 @@ export interface StartRunRequest {
   extras?: WorkerExtras
   /** The harness it runs in; the default one unless said. */
   harness?: string
+  /** Pictures to send with the opening prompt. */
+  images?: readonly WorkerImage[]
 }
 
 /** An agent running one of Wilco's extension tools. */
@@ -186,6 +189,7 @@ export class WorkerSupervisor {
         prompt: request.prompt,
         ...(request.model ? { model: request.model } : {}),
         ...(request.extras ? { extras: request.extras } : {}),
+        ...(request.images ? { images: request.images } : {}),
         // The worktree is both the policy boundary and the sandbox boundary:
         // the one place a worker is meant to be changing anything.
         ...(request.sandbox && request.sandbox !== 'none'

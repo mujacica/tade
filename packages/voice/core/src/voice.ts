@@ -161,6 +161,10 @@ export class VoiceSurface {
   private pending: Pending | null = null
   private lastAddressed: string | null = null
   private unsubscribe: Unsubscribe | null = null
+  private speechBuffer = ''
+  private speechQueue: string[] = []
+  private speechRunning = false
+  private speechStreamActive = false
 
   private constructor(opts: VoiceOptions) {
     this.opts = opts
@@ -265,7 +269,11 @@ export class VoiceSurface {
   ): Promise<string> {
     if (task) this.lastAddressed = task
     this.opts.onTurn?.({ utterance, intent: intent.kind, task, why, reply, at })
-    await this.say(reply)
+    if (this.speechStreamActive) {
+      await this.flushSpeech()
+    } else {
+      await this.say(reply)
+    }
     return reply
   }
 
@@ -492,6 +500,55 @@ export class VoiceSurface {
     if (text.trim() === '') return
     this.spokenAt.push(this.now())
     await this.opts.speaker.speak(text)
+  }
+
+  /** Feed a streaming chunk of text to the voice queue. */
+  speakChunk(text: string): void {
+    this.speechStreamActive = true
+    this.speechBuffer += text
+    const boundary = /[.!?]\s+|\n+/
+    let match = boundary.exec(this.speechBuffer)
+    while (match !== null) {
+      const sentence = this.speechBuffer.slice(0, match.index + match[0].length).trim()
+      this.speechBuffer = this.speechBuffer.slice(match.index + match[0].length)
+      if (sentence) this.speechQueue.push(sentence)
+      match = boundary.exec(this.speechBuffer)
+    }
+    void this.runSpeechQueue()
+  }
+
+  /** Speak any remaining buffered text, ending the stream. */
+  flushSpeech(): void {
+    const remaining = this.speechBuffer.trim()
+    this.speechBuffer = ''
+    if (remaining) this.speechQueue.push(remaining)
+    void this.runSpeechQueue()
+    this.speechStreamActive = false
+  }
+
+  private async runSpeechQueue(): Promise<void> {
+    if (this.speechRunning) return
+    this.speechRunning = true
+    try {
+      while (this.speechQueue.length > 0) {
+        const sentence = this.speechQueue.shift()
+        if (sentence) {
+          try {
+            await this.opts.speaker.speak(sentence)
+          } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err)
+            this.opts.onTurn?.({
+              utterance: '',
+              intent: 'status',
+              reply: `Speech failed: ${reason}`,
+              at: this.now(),
+            })
+          }
+        }
+      }
+    } finally {
+      this.speechRunning = false
+    }
   }
 
   private now(): number {

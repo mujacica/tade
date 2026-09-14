@@ -6,6 +6,7 @@ import {
   asPaste,
   clipboardImage,
   clipboardState,
+  filePaths,
   imagePaths,
   pasted,
   readImage,
@@ -57,6 +58,27 @@ describe('a dropped picture', () => {
     expect(readImage(png)).toEqual({ path: png, data: 'iVBORw==', mimeType: 'image/png' })
     expect(readImage(join(dir, 'missing.png'))).toBeNull()
     expect(readImage(join(dir, 'a.txt'))).toBeNull()
+  })
+})
+
+describe('a dropped file', () => {
+  const exists = (path: string) => path.startsWith('/shots/')
+
+  it('includes non-image files as well as pictures', () => {
+    expect(filePaths('/shots/Screenshot.png /shots/notes.txt', exists)).toEqual([
+      '/shots/Screenshot.png',
+      '/shots/notes.txt',
+    ])
+    expect(filePaths("'/shots/a b.jpg' /shots/c.txt", exists)).toEqual([
+      '/shots/a b.jpg',
+      '/shots/c.txt',
+    ])
+  })
+
+  it('is not a sentence that mentions a path', () => {
+    expect(filePaths('look at /shots/a.png please', exists)).toEqual([])
+    expect(filePaths('/elsewhere/a.png', exists)).toEqual([])
+    expect(filePaths('', exists)).toEqual([])
   })
 })
 

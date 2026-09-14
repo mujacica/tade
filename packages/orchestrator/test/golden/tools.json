@@ -273,6 +273,23 @@
     }
   },
   {
+    "name": "wilco_run_cleanup",
+    "description": "Stop agents that match a state filter: idle (not actively working), done (ready to merge, in review state), failed, or all (any non-working agent). Use when the human asks to clean up finished or failed agents.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "type": "string",
+          "description": "which agents to stop: idle, done, failed, or all"
+        }
+      },
+      "required": [
+        "filter"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "wilco_run_list",
     "description": "The agents working right now, and the task each is on. One agent per task at most.",
     "parameters": {

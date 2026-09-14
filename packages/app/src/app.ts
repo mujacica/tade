@@ -65,7 +65,9 @@ import {
   asPaste,
   clipboardImage,
   clipboardState,
+  filePaths,
   imagePaths,
+  isImagePath,
   pasted,
   readImage,
   shellQuote,
@@ -96,6 +98,7 @@ import {
   parseCommand,
   projectNumber,
   projects,
+  removeAttachment,
   resizeTo,
   scrollSidebar,
   scrollTranscript,
@@ -412,6 +415,11 @@ export interface AppOptions {
    * conversation. Without it, a new model applies when Wilco next starts.
    */
   restartThinker?: () => Promise<void>
+  /**
+   * Restart the window with the same arguments so changes can be tried live.
+   * The callback should stop the app, release the home lock, and re-exec.
+   */
+  reloadWindow?: () => Promise<void>
   /** What Wilco wrote for itself and is waiting on you: to list, and to decide. */
   proposals?: {
     list(): ProposalView[]
@@ -439,6 +447,8 @@ export class App {
   private thinker: Thinker | null = null
   /** The pictures that went with what was said last, until the orchestrator is asked. */
   private sending: string[] = []
+  /** Paths attached to the last message, forwarded when an agent is started. */
+  private lastAttachments: string[] = []
   /** Text the extensions know how to open, asked once: working it out reads files. */
   private linkers: readonly Linker[] = []
   /** What each field of the setup panel offers, once looked up. */
@@ -491,6 +501,7 @@ export class App {
   private readonly editor: Editor
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
+  private speakingTurn = false
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
     null
   /** What each terminal has printed, read when search opens. */
@@ -599,6 +610,9 @@ export class App {
   private thinkWith(thinker: Thinker): void {
     this.thinker = thinker
     thinker.onEvent?.((event) => {
+      if (this.speakingTurn && (event.type === 'delta' || event.type === 'message') && event.text) {
+        this.voice?.speakChunk(event.text)
+      }
       this.state = this.anchored(
         withTranscript(this.state, fromThinker(this.state.transcript, event, this.now())),
       )
@@ -673,6 +687,13 @@ export class App {
   /** Resolves when the window has been closed. */
   wait(): Promise<void> {
     return this.closed
+  }
+
+  /** Paths attached to the last message to the orchestrator, for forwarding to agents. */
+  popAttachments(): string[] {
+    const paths = this.lastAttachments
+    this.lastAttachments = []
+    return paths
   }
 
   async stop(): Promise<void> {
@@ -1232,8 +1253,9 @@ export class App {
         return { consume: true }
       }
       const paths = imagePaths(paste)
-      if (paths.length > 0) {
-        this.askWhereImagesGo(paths)
+      const files = filePaths(paste)
+      if (paths.length > 0 || files.length > 0) {
+        this.askWhereImagesGo(paths.length > 0 ? paths : files)
         return { consume: true }
       }
       // Words pasted at the orchestrator's line are typed into it, on one line.
@@ -1450,6 +1472,7 @@ export class App {
           ...this.state,
           keyboard: 'terminal',
           dictation: null,
+          orchestratorDraft: this.state.dictation ?? this.state.orchestratorDraft,
           splitFocus: target.side === 'split',
         }
         break
@@ -1458,6 +1481,7 @@ export class App {
           ...this.state,
           keyboard: 'pane',
           dictation: null,
+          orchestratorDraft: this.state.dictation ?? this.state.orchestratorDraft,
           splitFocus: target.side === 'split',
         }
         break
@@ -1592,6 +1616,12 @@ export class App {
       await this.runExtension(name ?? '', id ?? '')
       return
     }
+    if (action.startsWith('detach-image:')) {
+      const path = action.slice('detach-image:'.length)
+      this.state = removeAttachment(this.state, path)
+      this.draw()
+      return
+    }
     switch (action) {
       case 'new-agent':
         await this.newAgent('')
@@ -1613,6 +1643,9 @@ export class App {
       case 'keys':
         this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
         this.draw()
+        return
+      case 'reload':
+        this.reload()
         return
       case 'pane-end':
         this.state = { ...this.state, paneScroll: 0 }
@@ -1959,6 +1992,9 @@ export class App {
         }
         await this.stop()
         return
+      case 'reload':
+        await this.opts.reloadWindow?.()
+        return
       case 'settings': {
         if (choice?.startsWith('write:')) {
           const [path, value] = choice.slice('write:'.length).split('\u0000')
@@ -2004,6 +2040,22 @@ export class App {
       return
     }
     void this.stop()
+  }
+
+  /**
+   * Reload, asking first only when reloading would stop something: agents that
+   * live inside this window and cannot be found again once it is gone.
+   */
+  private reload(): void {
+    const capabilities = this.opts.client.driver.capabilities
+    const running =
+      this.state.panes.reduce((n, pane) => n + pane.lanes.length, 0) + this.state.terminals.length
+    if (running > 0 && !capabilities.detach) {
+      this.state = { ...this.state, panel: { kind: 'reload', field: 'cancel', busy: false } }
+      this.draw()
+      return
+    }
+    void this.opts.reloadWindow?.()
   }
 
   /** Everything search knows without looking at the disk, what needs you first. */
@@ -2402,12 +2454,23 @@ export class App {
       }
       // Pasted the way the terminal would have: the agent reads the picture
       // from its path, and you finish the sentence at its prompt.
-      this.state = { ...focusTask(this.state, id), keyboard: 'pane', dictation: null }
+      this.state = {
+        ...focusTask(this.state, id),
+        keyboard: 'pane',
+        dictation: null,
+        orchestratorDraft: this.state.dictation ?? this.state.orchestratorDraft,
+      }
       await this.opts.client
         .write(pane.lane as LaneId, asPaste(paths.join(' ')))
         .catch((err) => (this.state = notice(this.state, why(err))))
     } else if (kind === 'terminal') {
-      this.state = { ...this.state, bottom: id, keyboard: 'terminal', dictation: null }
+      this.state = {
+        ...this.state,
+        bottom: id,
+        keyboard: 'terminal',
+        dictation: null,
+        orchestratorDraft: this.state.dictation ?? this.state.orchestratorDraft,
+      }
       await this.opts.client
         .write(id as LaneId, paths.map(shellQuote).join(' '))
         .catch((err) => (this.state = notice(this.state, why(err))))
@@ -2421,13 +2484,15 @@ export class App {
     const readable = paths.filter((path) => readImage(path) !== null)
     this.state = {
       ...this.state,
-      attached: [...new Set([...this.state.attached, ...readable])],
+      attached: [...new Set([...this.state.attached, ...paths])],
       bottom: ORCHESTRATOR_TAB,
       dictation: this.state.dictation ?? '',
       notice:
         readable.length < paths.length
-          ? `${paths.length - readable.length} could not be read: a picture over 20 MB, or not a picture`
-          : 'say or type what to do with it',
+          ? `${paths.length - readable.length} could not be read as a picture: over 20 MB, or not an image`
+          : paths.length === 1
+            ? 'say or type what to do with it'
+            : `say or type what to do with them`,
     }
     this.draw()
   }
@@ -3418,11 +3483,16 @@ export class App {
     this.draw()
     const images = this.sending.flatMap((path) => readImage(path) ?? [])
     this.sending = []
+    this.speakingTurn =
+      this.opts.config.surfaces.voice.speak && !this.opts.config.surfaces.voice.muted
     try {
       return await this.thinker.ask(text, images)
     } catch (err) {
       this.state = withTranscript(this.state, problem(this.state.transcript, why(err), this.now()))
       return ''
+    } finally {
+      this.speakingTurn = false
+      this.voice?.flushSpeech()
     }
   }
 
@@ -3433,6 +3503,7 @@ export class App {
     // Shown the moment it is sent, not once something has answered it. The
     // pictures waiting go with it, and only with it.
     this.sending = this.state.attached
+    this.lastAttachments = [...this.state.attached]
     this.state = withTranscript(
       { ...this.state, attached: [] },
       youSaid(this.state.transcript, said, this.now(), this.state.attached),
@@ -4925,7 +4996,9 @@ function capitalise(text: string): string {
 
 /** A menu's title for pictures: who gets this one, or these. */
 function imagesTitle(paths: readonly string[]): string {
-  return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} pictures`} to`
+  const allImages = paths.every((p) => isImagePath(p))
+  const noun = paths.length === 1 ? 'file' : allImages ? 'pictures' : 'files'
+  return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} ${noun}`} to`
 }
 
 /** The first line of Markdown, as it would be said: no emphasis, no code marks, no link targets. */

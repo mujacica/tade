@@ -94,6 +94,20 @@ export function imagePaths(text: string, exists: (path: string) => boolean = exi
     : []
 }
 
+/**
+ * Every file path a paste is made of, when that is all it is: one path or
+ * several, as a terminal writes them for dropped files, each a file that is
+ * there. Anything else — a sentence that mentions a path — is text, and gets
+ * an empty list.
+ */
+export function filePaths(text: string, exists: (path: string) => boolean = existsSync): string[] {
+  const words = shellWords(text.trim()).map((word) =>
+    word.startsWith('file://') ? decodeURIComponent(word.slice('file://'.length)) : word,
+  )
+  if (words.length === 0) return []
+  return words.every((word) => word.startsWith('/') && exists(word)) ? words : []
+}
+
 /** A path written so a shell reads it back as one word. */
 export function shellQuote(path: string): string {
   return /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`

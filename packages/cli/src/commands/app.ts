@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
+import { copyFile, mkdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { basename, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { App } from '@wilco/app'
 import {
@@ -14,6 +15,7 @@ import {
   wilcoHome,
 } from '@wilco/core'
 import type { ExtensionWorkbench } from '@wilco/extensions-core'
+import type { WorkerImage } from '@wilco/harnesses-core'
 import { piBinary } from '@wilco/harnesses-pi/adapter'
 import { installedPieces } from '@wilco/harnesses-pi/installed'
 import { credentials, findModel, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
@@ -141,6 +143,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         await orchestrator?.stop().catch(() => {})
       }
       try {
+        let shouldReload = false
         const app = await App.start({
           client,
           config: cfg.config,
@@ -154,6 +157,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
           restartThinker: () => restartThinker(),
+          reloadWindow: async () => {
+            shouldReload = true
+            await app.stop()
+          },
           proposals: {
             list: () => proposedExtensions(extensionsRoot),
             decide: (name, verdict) => decideProposal(extensionsRoot, name, verdict),
@@ -166,6 +173,47 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // An agent an extension starts is put in front of you, like one you started.
         windowForExtensions = extensionWorkbench(client, (task) => app.showTask(task))
         app.useExtensionWorkbench(windowForExtensions)
+
+        // Forward attachments from the orchestrator to agents when work is handed off.
+        const originalStartAgent = client.startAgent.bind(client)
+        client.startAgent = async (req) => {
+          const attachments = app.popAttachments()
+          if (attachments.length > 0) {
+            const dir = join(req.cwd, '.wilco', 'attachments')
+            await mkdir(dir, { recursive: true })
+            const names: string[] = []
+            const images: WorkerImage[] = []
+            const TYPES: Record<string, string> = {
+              '.png': 'image/png',
+              '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg',
+              '.gif': 'image/gif',
+              '.webp': 'image/webp',
+            }
+            for (const path of attachments) {
+              const name = basename(path)
+              await copyFile(path, join(dir, name))
+              names.push(name)
+              const mimeType = TYPES[extname(path).toLowerCase()]
+              if (mimeType) {
+                const data = await readFile(path)
+                if (data.length <= 20 * 1024 * 1024) {
+                  images.push({ data: data.toString('base64'), mimeType })
+                }
+              }
+            }
+            const mention =
+              names.length === 1
+                ? `An attachment is in .wilco/attachments/${names[0]}.`
+                : `Attachments are in .wilco/attachments/: ${names.join(', ')}.`
+            req = {
+              ...req,
+              prompt: mention + (req.prompt ? `\n\n${req.prompt}` : ''),
+              ...(images.length > 0 ? { images } : {}),
+            }
+          }
+          return originalStartAgent(req)
+        }
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty
@@ -248,6 +296,13 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // Closing while it is still starting would leave a model process
           // behind with nothing to talk to.
           await starting
+        }
+        if (shouldReload) {
+          const child = spawn(process.execPath, process.argv.slice(1), {
+            stdio: 'inherit',
+            detached: true,
+          })
+          child.unref()
         }
       } catch (err) {
         io.err(err instanceof Error ? err.message : String(err))

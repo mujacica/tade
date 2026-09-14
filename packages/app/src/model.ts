@@ -115,6 +115,8 @@ export interface AppState {
   keyboard: 'pane' | 'terminal'
   /** Sizes you dragged the dividers to, over the ones the config gives. */
   sizes: { sidebarWidth?: number; stripHeight?: number }
+  /** Text saved from the orchestrator line when focus moves away, restored on refocus. */
+  orchestratorDraft: string
   /** A divider being dragged. */
   resizing: 'sidebar' | 'bottom' | 'split' | 'terminal-split' | null
   /** A second lane shown with an agent's own, by task: a shell beside it, or below. */
@@ -185,6 +187,7 @@ export function initialState(): AppState {
     splits: {},
     terminalSplit: null,
     splitFocus: false,
+    orchestratorDraft: '',
   }
 }
 
@@ -305,9 +308,15 @@ export function focusBy(state: AppState, delta: number): AppState {
   const at = ring.indexOf(here)
   const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length
   const focused = ring[next] ?? null
-  if (focused === null) return { ...state, dictation: state.dictation ?? '' }
+  if (focused === null) return { ...state, dictation: state.dictation ?? state.orchestratorDraft }
   const project = state.panes.find((pane) => pane.task === focused)?.project ?? state.project
-  return { ...state, focused, project, dictation: null }
+  return {
+    ...state,
+    focused,
+    project,
+    dictation: null,
+    orchestratorDraft: state.dictation ?? state.orchestratorDraft,
+  }
 }
 
 /** What an agent is shown as: what its work is called, once it has said, else its name. */
@@ -537,6 +546,7 @@ export function showTerminal(state: AppState, id: string): AppState {
     bottom: id,
     keyboard: 'terminal',
     dictation: null,
+    orchestratorDraft: state.dictation ?? state.orchestratorDraft,
     bottomMode: state.bottomMode === 'min' ? 'open' : state.bottomMode,
   }
 }
@@ -547,7 +557,7 @@ export function showOrchestrator(state: AppState): AppState {
     ...state,
     bottom: ORCHESTRATOR_TAB,
     keyboard: 'pane',
-    dictation: state.dictation ?? '',
+    dictation: state.dictation ?? state.orchestratorDraft,
     bottomMode: state.bottomMode === 'min' ? 'open' : state.bottomMode,
   }
 }
@@ -874,6 +884,7 @@ const RUNS = new Set([
   'extensions',
   'settings',
   'bottom-max',
+  'reload',
 ])
 
 /** `agent-3` and `project-2`, as the key names them. */
@@ -931,6 +942,10 @@ export function keyAction(key: string, state: AppState): KeyAction {
   if (state.dictation === null && focused?.waiting && key === 'a') return { kind: 'approve' }
   if (state.dictation === null && focused?.waiting && key === 'd') return { kind: 'deny' }
   return { kind: 'none' }
+}
+
+export function removeAttachment(state: AppState, path: string): AppState {
+  return { ...state, attached: state.attached.filter((p) => p !== path) }
 }
 
 function short(task: string): string {
