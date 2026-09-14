@@ -118,8 +118,9 @@ describe('the tabs', () => {
 
 describe('what is clickable', () => {
   it('puts a hit on every tab, task, file and button', () => {
+    // Tall enough for FILES: agents are two-line tabs, and the sidebar scrolls.
     const { rows, hits } = draw(state(), {
-      ...frame(),
+      ...frame({ height: 40 }),
       files: [
         { path: 'src', name: 'src', depth: 0, folder: true, open: false },
         { path: 'README.md', name: 'README.md', depth: 0, folder: false, open: false },

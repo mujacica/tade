@@ -3,24 +3,24 @@
  ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮▌ ▐ × ▌ 
         │  search settings       │ Voice                                                                       │────────
  ▐ ! str│                        │ How you talk to Wilco, and how it talks back.                               │        
-        │  Agents                │                                                                             │        
-   ⠋ ref│  Models                │ Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
-        │  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
- ▾ CHANG│  Approvals      bypass │                                                                             │        
-  M pack│▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
-  A src/│  Window                │                                                                             │        
-  M src/│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
-        │  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
- ▾ FILES│  Keys                  │ Microphone        │  ▏                                         │ on restart │        
-   ▾ src│  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
-       w│                        │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
-       w│                        │ Spoken replies    │ IN THE CLOUD                   needs a key │            │        
-   ▸ tes│                        │ Interruptions     │  OpenAI · whisper-1                        │ on restart │        
-     pac│                        │ Quiet hours       │  Groq · whisper-large-v3                   │ on restart │        
-     REA│                        │                   ╰────────────────────────────────────────────╯            │        
+ ▐   wan│  Agents                │                                                                             │        
+        │  Models                │ Push to talk      ▐ ctrl ▌+▐ space ▌   ▐ Change… ▌                          │        
+   ⠋ ref│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
+     wor│  Approvals      bypass │                                                                             │        
+        │▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
+ ▾ CHANG│  Window                │                                                                             │        
+  M pack│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
+  A src/│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
+  M src/│  Keys                  │ Microphone        │  ▏                                         │ on restart │        
+        │  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
+ ▾ FILES│                        │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
+   ▾ src│                        │ Spoken replies    │ IN THE CLOUD                   needs a key │            │        
+       w│                        │ Interruptions     │  OpenAI · whisper-1                        │ on restart │        
+       w│                        │ Quiet hours       │  Groq · whisper-large-v3                   │ on restart │        
+   ▸ tes│                        │                   ╰────────────────────────────────────────────╯            │        
+     pac│                        │                                                                             │        
+     REA│                        │                                                                             │        
         │                        │                                                                             │        
- ▸ NOTES│                        │                                                                             │        
- ▾ GIT  │                        │                                                                             │        
 ━ ▐ orch│                        │                                                                             │ ▐ ▾ ▌ ━
         │                        │                                                                             │        
         │                        │                                                                             │        

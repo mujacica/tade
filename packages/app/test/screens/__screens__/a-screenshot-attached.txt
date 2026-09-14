@@ -3,9 +3,11 @@
  ▾ AGENTS  2          ▐  +  ▌ │                                                                                         
                               │   Nothing is running in checkout.                                                       
    ! stripe-v15       $1.26   │                                                                                         
-                              │   ▐ + New agent ▌ ▐ Open project ▌                                                      
-   ⠋ refunds          $0.62   │                                                                                         
-                              │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
+     wants you to approve …   │   ▐ + New agent ▌ ▐ Open project ▌                                                      
+                              │                                                                                         
+   ⠋ refunds          $0.62   │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
+     working                  │                                                                                         
+                              │                                                                                         
  ▾ CHANGES  3         vs main │                                                                                         
   M package.json        +2 −1 │                                                                                         
   A src/webhooks.test.ts  +48 │                                                                                         
@@ -19,8 +21,6 @@
      package.json             │                                                                                         
      README.md                │                                                                                         
                               │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▾ GIT                        │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

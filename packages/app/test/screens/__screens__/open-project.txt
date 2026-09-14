@@ -3,10 +3,12 @@
  ▾ AGENTS ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮▾ ▌ ▐ × ▌ 
           │ ▐ ‹ ▌▐ › ▌▐ ↑ ▌  ~ / src                                           ▏                             │──────────
  ▐ ! strip│                                                                                                  │          
-          │ RECENT                       │ ◆ this folder   no git                                            │          
-   ⠋ refun│ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
-          │ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
- ▾ CHANGES│                              │ ▸ search/       git · main                                     ›  │          
+ ▐   wants│ RECENT                       │ ◆ this folder   no git                                            │          
+          │ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
+   ⠋ refun│ wilco      ~/wilco           │▌▸ payroll/      no git                                         ›  │          
+     worki│                              │ ▸ search/       git · main                                     ›  │          
+          │                              │                                                                   │          
+ ▾ CHANGES│                              │                                                                   │          
   M packag│                              │                                                                   │          
   A src/we│                              │                                                                   │          
   M src/we│                              │                                                                   │          
@@ -17,10 +19,8 @@
        web│                              │                                                                   │          
    ▸ test/│                              │                                                                   │          
      packa│                              │                                                                   │          
-     READM│                              │                                                                   │          
-          │                              │                                                                   │          
- ▸ NOTES  │                                                                                                  │          
- ▾ GIT    │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
+     READM│                                                                                                  │          
+          │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
 ━ ▐ orches│   so Wilco needs one before it can start work there.                                             │ ▌ ▐ ▾ ▌ ━
           │   ■ git init, and commit what's there as the first commit                                        │          
           │                                                                                                  │          

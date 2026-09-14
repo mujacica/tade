@@ -3,24 +3,24 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────╭─ Thinking ─────────────────╮──────
  ▐ ! stripe-v15       $1.26 ▌ │                                                     │▌   off                     │      
-                              │                                                     │    minimal                 │      
-   ⠋ refunds          $0.62   │                                                     │    low                     │      
-                              │                                                     │    medium                  │      
- ▾ CHANGES  3         vs main │                                                     │  ● high                now │      
-  M package.json        +2 −1 │                                                     │    xhigh                   │      
-  A src/webhooks.test.ts  +48 │                                                     │    max                     │      
-  M src/webhooks.ts    +12 −4 │                                                     ╰────────────────────────────╯      
-                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ FILES                      │    so src/webhooks.ts needs the new constructEvent signature.                           
-   ▾ src/                     │                                                                                         
-       webhooks.test.ts       │  ▸ Read src/webhooks.ts                                                                 
-       webhooks.ts            │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   ▸ test/                    │  ▸ bash npm i stripe@15                                                                 
-     package.json             │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-     README.md                │  │ bash  npm i stripe@15                                        │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▸ NOTES  4           ▐  +  ▌ │  ╰──────────────────────────────────────────────────────────────╯                       
- ▾ GIT                        │                                                                                         
+ ▐   wants you to approve … ▌ │                                                     │    minimal                 │      
+                              │                                                     │    low                     │      
+   ⠋ refunds          $0.62   │                                                     │    medium                  │      
+     working                  │                                                     │  ● high                now │      
+                              │                                                     │    xhigh                   │      
+ ▾ CHANGES  3         vs main │                                                     │    max                     │      
+  M package.json        +2 −1 │                                                     ╰────────────────────────────╯      
+  A src/webhooks.test.ts  +48 │  ● Upgrading stripe to v15. The webhook signature API changed,                          
+  M src/webhooks.ts    +12 −4 │    so src/webhooks.ts needs the new constructEvent signature.                           
+                              │                                                                                         
+ ▾ FILES                      │  ▸ Read src/webhooks.ts                                                                 
+   ▾ src/                     │  ▸ Edit src/webhooks.ts  +12 −4                                                         
+       webhooks.test.ts       │  ▸ bash npm i stripe@15                                                                 
+       webhooks.ts            │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   ▸ test/                    │  │ bash  npm i stripe@15                                        │                       
+     package.json             │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+     README.md                │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

@@ -3,14 +3,16 @@
  ▾ AGENTS │ ⌕ hooks.ts:42▏                                                                                   │▾ ▌ ▐ × ▌ 
           │     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
  ▐ ! strip│                                                                                                  │          
-          │ FILES  4                                                                                         │          
-   ⠋ refun│▌ □ src/webhooks.ts  checkout                                                             line 42 │          
-          │  □ src/webhooks.ts  checkout › stripe-v15                                                line 42 │          
- ▾ CHANGES│  □ src/webhooks.test.ts  checkout                                                        line 42 │          
-  M packag│  □ src/webhooks.test.ts  checkout › stripe-v15                                           line 42 │          
-  A src/we│ IN FILES  2                                                                                      │          
-  M src/we│  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventAs│          
-          │  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                       │          
+ ▐   wants│ FILES  4                                                                                         │          
+          │▌ □ src/webhooks.ts  checkout                                                             line 42 │          
+   ⠋ refun│  □ src/webhooks.ts  checkout › stripe-v15                                                line 42 │          
+     worki│  □ src/webhooks.test.ts  checkout                                                        line 42 │          
+          │  □ src/webhooks.test.ts  checkout › stripe-v15                                           line 42 │          
+ ▾ CHANGES│ IN FILES  2                                                                                      │          
+  M packag│  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventAs│          
+  A src/we│  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                       │          
+  M src/we│                                                                                                  │          
+          │                                                                                                  │          
  ▾ FILES  │                                                                                                  │          
    ▾ src/ │                                                                                                  │          
        web│                                                                                                  │          
@@ -19,8 +21,6 @@
      packa│                                                                                                  │          
      READM│                                                                                                  │          
           │                                                                                                  │          
- ▸ NOTES  │                                                                                                  │          
- ▾ GIT    │                                                                                                  │          
 ━ ▐ orches│                                                                                                  │ ▌ ▐ ▾ ▌ ━
           │                                                                                                  │          
           │                                                                                                  │          

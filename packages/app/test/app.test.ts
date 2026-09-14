@@ -892,10 +892,9 @@ describe('the window, wired up', () => {
     // Notes start folded: opened the way a person would.
     const heading = find('NOTES')
     click(heading.col, heading.row)
-    await until('the note', () =>
-      screenOf(terminal.written).some((row) => row.includes('staging key')),
-    )
-    const note = find('staging key')
+    // Found by a word on its first line: a note that runs on breaks onto a second.
+    await until('the note', () => screenOf(terminal.written).some((row) => row.includes('staging')))
+    const note = find('staging')
     // The pointer moving over it, with no button held.
     terminal.press(`\x1b[<35;${note.col + 1};${note.row + 1}M`)
     await until('its buttons', () => (screenOf(terminal.written)[note.row] ?? '').includes('×'))

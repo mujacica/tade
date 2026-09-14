@@ -809,19 +809,19 @@ function markTone(mark: string | null, skin: Skin): ((text: string) => string) |
   return null
 }
 
-/** An item down the side: its row, drawn as a tab, and how it is lit. */
+/** An item down the side: its rows, drawn as a tab, and how it is lit. */
 interface ListItem {
-  row: { text: string; hits: Hit[] }
+  rows: { text: string; hits: Hit[] }[]
   band: Band | null
 }
 
 /**
- * Items down the side as tabs, a row of room above and below each: a tab
- * never touches the one next to it, and lighting one moves nothing.
+ * Items down the side as tabs, a row of room between them: a tab never
+ * touches the one next to it, and lighting one moves nothing.
  */
 function tabList(items: readonly ListItem[], width: number): { text: string; hits: Hit[] }[] {
   const out = [blank(width)]
-  for (const item of items) out.push(item.row, blank(width))
+  for (const item of items) out.push(...item.rows, blank(width))
   return out
 }
 
@@ -846,6 +846,48 @@ function tabbed(
   return {
     text: ` ${skin.item(inner.text, band)} `,
     hits: [rowHit(0, width, target), ...shift(inner.hits, 0, TAB_EDGES / 2)],
+  }
+}
+
+/**
+ * A tab's second row: what is said quietly under its first, lit with it. A
+ * tab is two rows because two rows is what reads as a tab and not a line —
+ * one row was too thin, and three all ground was too heavy.
+ */
+function secondRow(
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  band: Band | null,
+  said: string,
+  target: Target,
+  indent: number,
+): { text: string; hits: Hit[] } {
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer)
+  inner.space(indent).text(shortened(said, Math.max(1, inner.width - indent - 1)), skin.hint)
+  return tabbed(width, skin, band, inner.build(), target)
+}
+
+/** What an agent is doing, in a few words, for the row under its name. */
+function doing(pane: AgentPane): string {
+  const reason = pane.reason ?? ''
+  switch (markOf(pane)) {
+    case 'working':
+      return reason && reason !== 'agent running' ? `working · ${reason}` : 'working'
+    case 'idle':
+      return 'idle · waiting for you'
+    case 'needs-you':
+      return pane.approval ? `wants you to approve ${pane.approval.summary}` : reason
+    case 'done':
+      return reason.startsWith('agent stopped')
+        ? 'stopped · its work is in the checkout'
+        : reason || 'finished'
+    case 'failed':
+      return reason || 'failed'
+    case 'parked':
+      return 'parked'
+    default:
+      return 'not started'
   }
 }
 
@@ -886,7 +928,14 @@ function taskRow(
     if (cost) r.text(cost, skin.hint, target).space()
     if (buttons) r.icon('×', close, 'danger').icon('≡', menu).space()
   })
-  return { row: tabbed(width, skin, band, inner.build(), target), band }
+  return {
+    rows: [
+      tabbed(width, skin, band, inner.build(), target),
+      // What it is doing, in words, under its name.
+      secondRow(width, skin, pointer, band, doing(task), target, 3),
+    ],
+    band,
+  }
 }
 
 /**
@@ -905,12 +954,29 @@ function noteRow(
   const pointed = [target, forget, menu].some((one) => sameTarget(pointer.hover, one))
   const band: Band | null = pointed ? 'hovered' : null
   const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
-  const room = Math.max(1, inner.width - inner.used - (pointed ? TAB_ICONS : 0) - 1)
-  // One line of it: the rest is in its menu.
+  // Its buttons' room is kept whether they are shown or not: where a note breaks
+  // decides how many rows it takes, and pointing at it must not move the list.
+  const room = Math.max(1, inner.width - inner.used - TAB_ICONS - 1)
   const line = note.text.replace(/\s+/g, ' ').trim()
-  inner.text(shortened(line, room), pointed ? (t) => t : skin.hint, target)
+  // Two lines of it when it runs on, one when it does not: the rest is in its menu.
+  const first = visibleWidth(line) > room ? cutAtWord(line, room) : line
+  inner.text(shortened(first, room), pointed ? (t) => t : skin.hint, target)
   if (pointed) inner.right((r) => r.icon('×', forget, 'danger').icon('≡', menu).space())
-  return { row: tabbed(width, skin, band, inner.build(), target), band }
+  const rest = line.slice(first.length).trim()
+  return {
+    rows: [
+      tabbed(width, skin, band, inner.build(), target),
+      ...(rest ? [secondRow(width, skin, pointer, band, rest, target, 1)] : []),
+    ],
+    band,
+  }
+}
+
+/** As much of a line as fits, ending at a word where one ends in time. */
+function cutAtWord(line: string, room: number): string {
+  const cut = line.slice(0, room)
+  const space = cut.lastIndexOf(' ')
+  return space > room / 2 ? cut.slice(0, space) : cut
 }
 
 /** Text that fits a width, ending in `…` when it had to be cut. */

@@ -3,24 +3,24 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
+ ▐   wants you to approve … ▌ │                                                                                         
                               │                                                                                         
    ⠋ refunds          $0.62   │                                                                                         
-                              │                                                                                         
- ▾ CHANGES  3         vs╭─ New note ───────────────────────────────────────────────────── esc ─╮                        
-  M package.json        │                                                                      │                        
-  A src/webhooks.test.ts│ NOTE ABOUT CHECKOUT                                                  │                        
-  M src/webhooks.ts    +│  The staging key rotates on the 1st▏                                 │                        
+     working            ╭─ New note ───────────────────────────────────────────────────── esc ─╮                        
                         │                                                                      │                        
- ▾ FILES                │ ◉ About checkout   ○ About everything                                │                        
-   ▾ src/               │ Kept word for word. Saying "remember …" to Wilco does the same.      │                        
-       webhooks.test.ts │                                                                      │                        
-       webhooks.ts      │                                           ▐ Cancel ▌ ▐ Save note ⏎ ▌ │                        
-   ▸ test/              ╰──────────────────────────────────────────────────────────────────────╯                        
-     package.json             │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-     README.md                │  │ bash  npm i stripe@15                                        │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▸ NOTES  4           ▐  +  ▌ │  ╰──────────────────────────────────────────────────────────────╯                       
- ▾ GIT                        │                                                                                         
+ ▾ CHANGES  3         vs│ NOTE ABOUT CHECKOUT                                                  │                        
+  M package.json        │  The staging key rotates on the 1st▏                                 │                        
+  A src/webhooks.test.ts│                                                                      │                        
+  M src/webhooks.ts    +│ ◉ About checkout   ○ About everything                                │                        
+                        │ Kept word for word. Saying "remember …" to Wilco does the same.      │                        
+ ▾ FILES                │                                                                      │                        
+   ▾ src/               │                                           ▐ Cancel ▌ ▐ Save note ⏎ ▌ │                        
+       webhooks.test.ts ╰──────────────────────────────────────────────────────────────────────╯                        
+       webhooks.ts            │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   ▸ test/                    │  │ bash  npm i stripe@15                                        │                       
+     package.json             │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+     README.md                │  ╰──────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

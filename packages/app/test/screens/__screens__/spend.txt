@@ -3,24 +3,24 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
-                       ╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
-   ⠋ refunds          $│ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
+ ▐   wants you to appro╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
+                       │ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
+   ⠋ refunds          $│                                                                        │                       
+     working           │ by ▐ Agent ▌  Project    Model                                         │                       
                        │                                                                        │                       
- ▾ CHANGES  3         v│ by ▐ Agent ▌  Project    Model                                         │                       
-  M package.json       │                                                                        │                       
-  A src/webhooks.test.t│ WHO                 MODEL            TOKENS  SHARE           COST      │                       
-  M src/webhooks.ts    │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
-                       │ ! stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
- ▾ FILES               │ ⠋ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
-   ▾ src/              │ ✓ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
-       webhooks.test.ts│                                                                        │                       
-       webhooks.ts     │ BUDGETS                                                                │                       
-   ▸ test/             │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
-     package.json      │ search     $0.20                    no budget — set one                │                       
-     README.md         │                                                                        │                       
-                       │ Prices as pi reports them.                                             │                       
- ▸ NOTES  4           ▐╰────────────────────────────────────────────────────────────────────────╯                       
- ▾ GIT                        │                                                                                         
+ ▾ CHANGES  3         v│ WHO                 MODEL            TOKENS  SHARE           COST      │                       
+  M package.json       │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
+  A src/webhooks.test.t│ ! stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
+  M src/webhooks.ts    │ ⠋ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
+                       │ ✓ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
+ ▾ FILES               │                                                                        │                       
+   ▾ src/              │ BUDGETS                                                                │                       
+       webhooks.test.ts│ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
+       webhooks.ts     │ search     $0.20                    no budget — set one                │                       
+   ▸ test/             │                                                                        │                       
+     package.json      │ Prices as pi reports them.                                             │                       
+     README.md         ╰────────────────────────────────────────────────────────────────────────╯                       
+                              │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

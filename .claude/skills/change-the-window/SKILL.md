@@ -115,10 +115,13 @@ file and cannot be tested.
   `App.submitPanel`, putting any failure back into the panel rather than behind it.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
-- **Items down the side are tabs** (`tabList`, `tabbed` in `view.ts`): one row each, a row of room
-  above and below, a margin and an end on each side (`skin.item`). The one you are on has an accent
-  for its left end and a ground; the one under the pointer a lighter ground; the rest nothing — in
-  the same columns, so lighting one moves nothing. A ground is a cell's background, never rows of
+- **Items down the side are tabs** (`tabList`, `tabbed` in `view.ts`): an agent is two rows — its
+  name, and what it is doing under it (`doing`) — and a note is two rows only where its words run
+  on, broken where they would break with its buttons showing; a row of room between tabs, a margin
+  and an end on each side (`skin.item`). One row read as a line and three rows of ground as a slab;
+  two was chosen by looking at all three drawn. The one you are on has an accent for its left end and
+  a ground; the one under the pointer a lighter ground; the rest nothing — in the same columns and
+  the same rows, so lighting one moves nothing. A ground is a cell's background, never rows of
   half-block characters: a terminal draws a glyph inside the font's height, and with lines spaced out
   they leave dark hairlines. An item's name is `shortened` with `…` before whatever is at its end,
   and its buttons are quiet glyphs (`Row.icon`: `×`, `≡`) that appear under the pointer and light in

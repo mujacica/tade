@@ -3,24 +3,24 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
-            ╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
-   ⠋ refunds│ ◐ Needs setting up: no Sentry token                                                          │            
-            │                                                                                              │            
- ▾ CHANGES  │  Create a user auth token with org:read, project:read, event:read and event:write.           │            
-  M package.│  Paste it below, or log in with sentry-cli login and leave it empty.                         │            
-  A src/webh│  Say which Sentry project each of your projects sends to.                                    │            
-  M src/webh│ Create a token ↗                                                                             │            
-            │                                                                                              │            
- ▾ FILES    │ Auth token       sntryu_…                                                                    │            
-   ▾ src/   │                 kept in your config; $SENTRY_AUTH_TOKEN wins when set                        │            
-       webho│ Organization     acme▏                                                                       │            
-       webho│                 its slug, as in the URL                                                      │            
-   ▸ test/  │                 ▐ acme ▌ ▐ acme-labs ▌                                                       │            
-     package│ Projects         checkout: checkout-web                                                      │            
-     README.│                 your project: its Sentry project, comma separated                            │            
-            │                                                                                              │            
- ▸ NOTES  4 │                                                                                              │            
- ▾ GIT      │ tab moves · enter presses · space turns on and off              ▐ Close ▌ ▐ Save and check ▌ │            
+ ▐   wants y╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
+            │ ◐ Needs setting up: no Sentry token                                                          │            
+   ⠋ refunds│                                                                                              │            
+     working│  Create a user auth token with org:read, project:read, event:read and event:write.           │            
+            │  Paste it below, or log in with sentry-cli login and leave it empty.                         │            
+ ▾ CHANGES  │  Say which Sentry project each of your projects sends to.                                    │            
+  M package.│ Create a token ↗                                                                             │            
+  A src/webh│                                                                                              │            
+  M src/webh│ Auth token       sntryu_…                                                                    │            
+            │                 kept in your config; $SENTRY_AUTH_TOKEN wins when set                        │            
+ ▾ FILES    │ Organization     acme▏                                                                       │            
+   ▾ src/   │                 its slug, as in the URL                                                      │            
+       webho│                 ▐ acme ▌ ▐ acme-labs ▌                                                       │            
+       webho│ Projects         checkout: checkout-web                                                      │            
+   ▸ test/  │                 your project: its Sentry project, comma separated                            │            
+     package│                                                                                              │            
+     README.│                                                                                              │            
+            │ tab moves · enter presses · space turns on and off              ▐ Close ▌ ▐ Save and check ▌ │            
 ━ ▐ orchestr╰──────────────────────────────────────────────────────────────────────────────────────────────╯ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         

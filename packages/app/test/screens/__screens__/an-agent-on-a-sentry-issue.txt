@@ -3,8 +3,10 @@
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
+ ▐   wants you to approve … ▌ │                                                                                         
                               │                                                                                         
    ⠋ refunds          $0.62   │                                                                                         
+     working                  │                                                                                         
                               │                                                                                         
  ▸ CHANGES  3         vs main │                                                                                         
  ▸ FILES                      │                                                                                         
@@ -13,14 +15,12 @@
    repo     ~/src/checkout    │                                                                                         
    branch   …co/fix-shop-1a   │                                                                                         
    from     main              │                                                                                         
-   about    SHOP-1A ↗         │                                                                                         
-   about    trace a1b2c3d4 ↗  │                                                                                         
-   worktree …kout-fix-shop-1a │Reading .wilco/context.md for SHOP-1A before touching src/refunds.ts                     
-   path     /Users/me/.wilco/ │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-            worktrees/        │  │ bash  npm i stripe@15                                        │                       
-            checkout-fix-shop │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-            -1a               │  ╰──────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+   about    SHOP-1A ↗         │Reading .wilco/context.md for SHOP-1A before touching src/refunds.ts                     
+   about    trace a1b2c3d4 ↗  │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   worktree …kout-fix-shop-1a │  │ bash  npm i stripe@15                                        │                       
+   path     /Users/me/.wilco/ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+            worktrees/        │  ╰──────────────────────────────────────────────────────────────╯                       
+            checkout-fix-shop │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
                                                                                                                         
