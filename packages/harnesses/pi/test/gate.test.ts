@@ -26,6 +26,8 @@ async function until(check: () => boolean | Promise<boolean>, timeout = 30_000):
 interface FakeModel {
   url: string
   requests: number
+  /** What each request asked, in order. */
+  bodies: readonly string[]
   close(): Promise<void>
 }
 
@@ -44,7 +46,7 @@ const PRICES = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 }
 
 /** Minimal OpenAI-completions server: one tool call, then a final answer. */
 async function fakeModel(command: string): Promise<FakeModel> {
-  const state = { requests: 0 }
+  const state = { requests: 0, bodies: [] as string[] }
   const server: Server = createServer((req, res) => {
     let body = ''
     req.on('data', (c) => {
@@ -52,6 +54,7 @@ async function fakeModel(command: string): Promise<FakeModel> {
     })
     req.on('end', () => {
       state.requests++
+      state.bodies.push(body)
       const first = state.requests === 1
       const chunks = first
         ? [
@@ -130,6 +133,9 @@ async function fakeModel(command: string): Promise<FakeModel> {
     url: `http://127.0.0.1:${port}/v1`,
     get requests() {
       return state.requests
+    },
+    get bodies() {
+      return state.bodies
     },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   }
@@ -492,4 +498,45 @@ describe('what a turn costs', () => {
     },
     90_000,
   )
+})
+
+describe('saying something while it works', () => {
+  let adapter: PiAdapter | null = null
+  let model: FakeModel | null = null
+
+  afterEach(async () => {
+    await adapter?.shutdown()
+    await model?.close()
+    adapter = null
+    model = null
+  })
+
+  it('waits for the turn to end rather than being refused, and then answers it', async () => {
+    const runDir = tmp('wilco-busy-')
+    // The first answer runs a command that takes a while: the turn is still going.
+    model = await fakeModel('sleep 2')
+    adapter = new PiAdapter({
+      runDir,
+      supervise: false,
+      args: ['-e', writeProviderExtension(runDir)],
+      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+    })
+    const signals: WorkerSignal[] = []
+    adapter.onSignal('busy', (s) => signals.push(s))
+    await adapter.start({
+      run: 'busy',
+      task: 'app/busy',
+      cwd: tmp('wilco-busy-work-'),
+      prompt: 'run the command',
+      model: { provider: 'wilco-test', id: 'fake' },
+    })
+    await until(() => (model?.requests ?? 0) >= 1)
+
+    // Mid-turn: pi used to refuse this outright, and whatever was said was lost.
+    await adapter.prompt('busy', 'and then check the refunds', [], { whenBusy: 'queue' })
+    await until(() => (model?.bodies ?? []).some((body) => body.includes('check the refunds')))
+    // After the turn it was on, not across it: the command's answer came first.
+    const asked = (model?.bodies ?? []).findIndex((body) => body.includes('check the refunds'))
+    expect(asked).toBeGreaterThanOrEqual(2)
+  }, 90_000)
 })

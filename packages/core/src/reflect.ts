@@ -52,7 +52,7 @@ export function reflectionPrompt(task: string): string {
   const project = task.split('/')[0] ?? task
   return [
     `${task} has finished.`,
-    'Look back at it with wilco_summary and wilco_logs.',
+    'Look back at it with wilco_logs.',
     'If — and only if — something about working here surprised you, and knowing it earlier would',
     'have changed what you did, write it down with wilco_propose_skill and scope it to',
     `${project}.`,

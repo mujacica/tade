@@ -74,6 +74,7 @@ import {
   readImage,
   shellQuote,
 } from './images.ts'
+import { addNews, type News, taskNews, withNews } from './inbox.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -211,6 +212,7 @@ import {
   suggest,
   type ThinkerEvent,
   thinking,
+  wilcoDid,
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
@@ -445,6 +447,8 @@ class Window implements Component {
  */
 export interface Thinker {
   ask(text: string, images?: readonly WorkerImageFile[]): Promise<string>
+  /** Tell it something without cutting across what it is doing: after its turn, if it is on one. */
+  tell?(text: string): Promise<void>
   onEvent?(listener: (event: ThinkerEvent) => void): () => void
 }
 
@@ -630,6 +634,10 @@ export class App {
   private restored = false
   /** Tasks being looked back at right now, so two polls cannot double up. */
   private readonly reflecting = new Set<string>()
+  /** What happened that the orchestrator has not heard yet: it goes with the next thing said to it. */
+  private news: News[] = []
+  /** The tasks as last seen, so what changed between two looks is news. */
+  private seenTasks: readonly TaskSnapshot[] | null = null
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private router: RouterState = initialRouter()
@@ -1260,6 +1268,12 @@ export class App {
           this.state = focusTask(this.state, this.remembered.focused)
           this.restored = this.state.panes.length > 0
         }
+        if (this.seenTasks) {
+          for (const text of taskNews(this.seenTasks, tasks)) {
+            this.news = addNews(this.news, text, this.now())
+          }
+        }
+        this.seenTasks = tasks
         void this.reflect(tasks)
         this.draw()
       },
@@ -3708,8 +3722,19 @@ export class App {
     this.sending = []
     this.speakingTurn =
       this.opts.config.surfaces.voice.speak && !this.opts.config.surfaces.voice.muted
+    // What happened since it last heard goes with what you said, so what
+    // answers you knows it — and is shown, since it is part of what was asked.
+    if (this.news.length > 0) {
+      const told = this.news.map((one) => one.text).join('; ')
+      this.state = withTranscript(
+        this.state,
+        wilcoDid(this.state.transcript, `told the orchestrator: ${told}`, this.now()),
+      )
+    }
+    const message = withNews(text, this.news, clockOf)
+    this.news = []
     try {
-      return await this.thinker.ask(text, images)
+      return await this.thinker.ask(message, images)
     } catch (err) {
       this.state = withTranscript(this.state, problem(this.state.transcript, why(err), this.now()))
       return ''
@@ -4773,8 +4798,22 @@ export class App {
       await this.opts.client.log
         .append({ type: 'reflected', task, detail: { by: 'orchestrator' } })
         .catch(() => {})
-      await thinker.ask(reflectionPrompt(task)).catch(() => '')
+      await this.tell(reflectionPrompt(task)).catch(() => {})
     }
+  }
+
+  /**
+   * Tell the orchestrator something now rather than with the next thing you
+   * say: after the turn it is on, never across it. Sent in the middle of your
+   * question, it used to be refused, and was lost.
+   */
+  private async tell(text: string): Promise<void> {
+    const thinker = this.thinker
+    if (!thinker) return
+    const message = withNews(text, this.news, clockOf, 'Wilco says:')
+    this.news = []
+    if (thinker.tell) await thinker.tell(message)
+    else await thinker.ask(message)
   }
 
   /**
@@ -5224,6 +5263,12 @@ async function copyText(text: string, write: (data: string) => void): Promise<bo
   }
   write(`\x1b]52;c;${Buffer.from(text).toString('base64')}\x07`)
   return true
+}
+
+/** The time of day something happened, the way news is said: `14:02`. */
+function clockOf(at: number): string {
+  const time = new Date(at)
+  return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
 }
 
 function why(err: unknown): string {

@@ -313,8 +313,17 @@ export interface WorkerAdapter {
    * orchestrator — never for work you are meant to watch.
    */
   start(spec: WorkerSpec): Promise<WorkerHandle>
-  /** Send an instruction, to be handled when the agent is ready for it. */
-  prompt(run: RunId, message: string, images?: readonly WorkerImage[]): Promise<void>
+  /**
+   * Send an instruction. One sent while the agent is in the middle of a turn
+   * goes into that turn (`steer`, unless said) or waits for it to end (`queue`)
+   * — never refused for arriving at a busy moment.
+   */
+  prompt(
+    run: RunId,
+    message: string,
+    images?: readonly WorkerImage[],
+    opts?: { whenBusy?: 'steer' | 'queue' },
+  ): Promise<void>
   /** Deliver a message into the current turn. */
   steer(run: RunId, message: string): Promise<void>
   /** Deliver a message after the current turn finishes. */

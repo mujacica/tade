@@ -232,6 +232,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                       120_000,
                       images.map(({ data, mimeType }) => ({ data, mimeType })),
                     ),
+                  tell: (text) => started.tell(text),
                   onEvent: (listener) => started.onEvent(listener),
                 })
                 // Nothing chosen, so the harness picked: keep what it picked, so the

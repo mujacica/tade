@@ -301,6 +301,39 @@ describe('the window, wired up', () => {
     expect(said).toEqual(['Refunds has an agent on it.', 'Which opus: 4.6 or 5?'])
   })
 
+  it('tells the orchestrator what finished while nobody asked, with the next thing you say', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // The window has seen refunds with nothing done yet; then its work lands.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    repo.commit(
+      'refunds charge once',
+      { 'refunds.ts': 'once' },
+      join(repo.root, '..', 'worktrees', 'app-refunds'),
+    )
+    await until(
+      'refunds finished on screen',
+      () => screenOf(terminal.written).some((row) => row.includes('✓ refunds')),
+      15_000,
+    )
+    terminal.press('\x00')
+    for (const char of 'how is it going') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator asked', () => asked.length === 1)
+    expect(asked[0]).toContain('- ')
+    expect(asked[0]).toContain('app/refunds finished')
+    // Your words last, under their own heading, exactly as you typed them.
+    expect(asked[0]?.endsWith('What they said:\nhow is it going')).toBe(true)
+  }, 30_000)
+
   it('brings back what you said with up, and finds it with ctrl+r, in the next window too', async () => {
     const asked: string[] = []
     const thinker = {

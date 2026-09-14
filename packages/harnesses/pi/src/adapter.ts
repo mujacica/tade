@@ -166,7 +166,6 @@ interface Run {
   /** Null when the run is not supervised. */
   channel: SignalChannel | null
   pendingRpc: Map<string, (response: RpcResponse) => void>
-  streaming: boolean
   stdout: string
   /** The last things it wrote to stderr, which is where pi says why it would not start. */
   stderr: string
@@ -302,7 +301,6 @@ export class PiAdapter implements WorkerAdapter {
       child: null,
       channel,
       pendingRpc: new Map(),
-      streaming: false,
       stdout: '',
       stderr: '',
       rpcId: 0,
@@ -365,7 +363,6 @@ export class PiAdapter implements WorkerAdapter {
       child,
       channel,
       pendingRpc: new Map(),
-      streaming: false,
       stdout: '',
       stderr: '',
       rpcId: 0,
@@ -400,15 +397,25 @@ export class PiAdapter implements WorkerAdapter {
     return { ...run.handle }
   }
 
-  async prompt(run: RunId, message: string, images: readonly WorkerImage[] = []): Promise<void> {
+  async prompt(
+    run: RunId,
+    message: string,
+    images: readonly WorkerImage[] = [],
+    opts: { whenBusy?: 'steer' | 'queue' } = {},
+  ): Promise<void> {
     const entry = this.require(run)
     const attached =
       images.length > 0 ? { images: images.map((image) => ({ type: 'image', ...image })) } : {}
-    // A prompt sent mid-turn is rejected unless it says how to arrive.
-    const command = entry.streaming
-      ? { type: 'prompt', message, ...attached, streamingBehavior: 'steer' }
-      : { type: 'prompt', message, ...attached }
-    await this.rpc(entry, command)
+    // pi refuses a prompt that arrives mid-turn unless it says how to arrive,
+    // and ignores the saying when it is not busy — so it is always said. Knowing
+    // whether a turn is running from out here was a race: between two turns of
+    // one answer, or a moment after sending, it looked idle and was not.
+    await this.rpc(entry, {
+      type: 'prompt',
+      message,
+      ...attached,
+      streamingBehavior: opts.whenBusy === 'queue' ? 'followUp' : 'steer',
+    })
   }
 
   /** The model a headless run is actually on, which is not always the one asked for. */
@@ -571,8 +578,6 @@ export class PiAdapter implements WorkerAdapter {
   private dispatch(run: RunId, signal: WorkerSignal): void {
     const entry = this.runs.get(run)
     if (!entry) return
-    if (signal.type === 'turn_started') entry.streaming = true
-    if (signal.type === 'turn_done' || signal.type === 'idle') entry.streaming = false
     for (const listener of this.listeners.get(run) ?? []) {
       try {
         listener(signal)

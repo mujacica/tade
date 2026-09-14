@@ -236,6 +236,16 @@ export class Orchestrator {
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, images)
   }
 
+  /**
+   * Say something that is not an interruption: a turn of its own when it is
+   * free, and after the turn it is on when it is not. What Wilco tells it
+   * unasked arrives this way, so it never cuts across what you asked.
+   */
+  async tell(text: string): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
+  }
+
   /** Why it is not running, or null while it is. */
   get stopped(): string | null {
     return this.gone
