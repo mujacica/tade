@@ -1144,6 +1144,7 @@ export class App {
     this.live = live
     this.linkers = this.opts.extensions?.linkers() ?? []
     this.watchExtensions()
+    this.reopenLost()
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice = await VoiceSurface.start({
@@ -3273,7 +3274,27 @@ export class App {
   }
 
   /** Open the agent in front of you: the conversation picks up where it stopped. */
-  private async openAgent(task: string | null = this.state.focused): Promise<void> {
+  /**
+   * Agents that were working when Wilco last closed — not stopped, not
+   * removed, and not ended on their own — opened again where they left off, as
+   * though the window had never gone. Once each per window, and without taking
+   * you away from where you are.
+   */
+  private reopenLost(): void {
+    const lost = this.opts.client
+      .lanes()
+      .filter((lane) => lane.kind === 'agent' && !lane.alive && lane.lost === true)
+    for (const lane of lost) {
+      const pane = this.state.panes.find((one) => one.task === lane.task)
+      if (!pane || pane.lane || this.reopened.has(lane.task) || this.opening.has(lane.task))
+        continue
+      if (!this.live?.worktreeOf(lane.task)) continue
+      this.reopened.add(lane.task)
+      void this.openAgent(lane.task, false)
+    }
+  }
+
+  private async openAgent(task: string | null = this.state.focused, focus = true): Promise<void> {
     if (!task) return
     const worktree = this.live?.worktreeOf(task)
     if (!worktree) {
@@ -3287,7 +3308,8 @@ export class App {
     try {
       await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt: '' })
       await this.live?.refresh()
-      this.state = focusTask(notice(this.state, `opened ${task} where it left off`), task)
+      const told = notice(this.state, `opened ${task} where it left off`)
+      this.state = focus ? focusTask(told, task) : told
     } catch (err) {
       this.state = notice(this.state, why(err))
     } finally {

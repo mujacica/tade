@@ -984,8 +984,8 @@ function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
       .text('pty', skin.busy)
       .text(', so closing stops them. Their')
       .build(),
-    row().space().text('conversations are kept, and each one picks up where it').build(),
-    row().space().text('stopped the next time you open its task.').build(),
+    row().space().text('conversations are kept, and they open again where they').build(),
+    row().space().text('stopped the next time Wilco opens.').build(),
     blank(inner),
     row().space().text('Under tmux they would keep working after you close.', skin.hint).build(),
     row()

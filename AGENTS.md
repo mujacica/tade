@@ -123,8 +123,11 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   core for what to offer). A task may name its own (`harness` in its task file); the supervisor
   keeps an adapter per harness and answers each run with the one it started in. Never `new` an
   adapter at a call site.
-- **Opening the window starts nothing.** An agent exists because someone asked for one; a project
-  whose agents were removed stays empty until asked again.
+- **Opening the window starts nothing new, and brings back what was working.** An agent exists
+  because someone asked for one; a project whose agents were removed stays empty until asked again.
+  An agent that was running when Wilco closed — not stopped, not removed, not ended on its own — is
+  marked `lost` in `lanes.json` when the next window cannot find it, and that window opens it again
+  where it left off. Stopping, removing or exiting clears the mark.
 - **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, where it works and
   who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
   notes about the work, and its context file. Appended to the harness's own instructions, never

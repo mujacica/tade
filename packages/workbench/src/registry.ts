@@ -59,6 +59,13 @@ export const LaneRecord = z.object({
   alive: z.boolean(),
   exitCode: z.number().nullable(),
   lastOutputAt: z.number().nullable(),
+  /**
+   * It was running when Wilco last closed, and did not come back with it:
+   * nobody stopped it and it did not end on its own. What the window opens
+   * again, where it left off. Cleared by closing it, by it exiting, and by
+   * starting it again.
+   */
+  lost: z.boolean().optional(),
 })
 export type LaneRecord = z.infer<typeof LaneRecord>
 
@@ -152,7 +159,8 @@ export class LaneRegistry {
       // the work back. When it is here, the driver's handle is fresher.
       const record: LaneRecord = handle
         ? { ...lane, spec: handle.spec, pid: handle.pid, title: handle.title, alive: handle.alive }
-        : { ...lane, alive: false }
+        : // Alive when the file was last written and gone now: the window closed on it.
+          { ...lane, alive: false, ...(lane.alive ? { lost: true } : {}) }
       this.lanes.set(lane.id, record)
       if (record.alive) await this.readopt(record)
       else if (lane.alive) {
@@ -314,6 +322,8 @@ export class LaneRegistry {
     await this.driver.close(id)
     this.flushOutput(id)
     record.alive = false
+    // Closed on purpose: not something to open again behind anyone's back.
+    delete record.lost
     for (const un of this.unsubscribes.get(id) ?? []) un()
     this.unsubscribes.delete(id)
     await this.log.append({ type: 'lane_closed', lane: id, task: record.task })
@@ -355,6 +365,8 @@ export class LaneRegistry {
     const stopExit = this.driver.onExit(id, ({ code, signal }) => {
       record.alive = false
       record.exitCode = code
+      // It ended while we watched: that is its own doing, not the window's.
+      delete record.lost
       this.flushOutput(id)
       void this.log
         .append({ type: 'lane_exited', lane: id, task: record.task, detail: { code, signal } })

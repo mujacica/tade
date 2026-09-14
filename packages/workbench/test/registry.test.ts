@@ -130,6 +130,26 @@ describe('the lane registry, across a restart', () => {
       expect(relaunched.alive).toBe(true)
     })
 
+    it('marks what the window closed on as lost, and never what was stopped or ended by itself', async () => {
+      const first = await session(new PtyDriver({ scrollback: 200 }))
+      await lane(first, 'app/refunds/agent')
+      await lane(first, 'app/search/agent')
+      await lane(first, 'app/stopped/agent')
+      await first.close('app/stopped/agent' as LaneId)
+      await first.detach()
+
+      const second = await session(new PtyDriver({ scrollback: 200 }))
+      expect(second.get('app/refunds/agent' as LaneId)).toMatchObject({ alive: false, lost: true })
+      expect(second.get('app/stopped/agent' as LaneId)?.lost).toBeUndefined()
+      // Still lost to a window after that one, until something is done about it.
+      await second.detach()
+      const third = await session(new PtyDriver({ scrollback: 200 }))
+      expect(third.get('app/search/agent' as LaneId)?.lost).toBe(true)
+      // Started again, it is just running.
+      const back = await third.relaunch('app/refunds/agent' as LaneId)
+      expect(back.lost).toBeUndefined()
+    })
+
     it('says why it is gone, in terms of what the driver can do', async () => {
       const first = await session(new PtyDriver({ scrollback: 200 }))
       await lane(first, 'app/refunds/agent')
