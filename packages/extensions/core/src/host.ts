@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { whenProblem } from '@wilco/core'
 import type {
   Audience,
   BriefItem,
@@ -9,12 +10,17 @@ import type {
   ExecResult,
   ExtensionAction,
   ExtensionContext,
+  ExtensionWatch,
   ExtensionWorkbench,
+  Finding,
+  JsonSchema,
   Link,
   Linker,
   ProjectRef,
   StatusItem,
   ToolAnswer,
+  WatchAgent,
+  WatchContext,
   WilcoExtension,
 } from './port.ts'
 import { inputProblem } from './schema.ts'
@@ -88,14 +94,66 @@ export interface HostOptions {
   expandHome?: (path: string) => string
 }
 
+/** A watch an extension offers, as a schedule is turned on with it. */
+export interface WatchOffer {
+  /** `<extension>.<id>`, which is what a schedule names it by. */
+  id: string
+  extension: string
+  title: string
+  means: string
+  /** How often it looks unless told otherwise. */
+  every: string
+  /** What it can be turned on with; null when nothing. */
+  input: JsonSchema | null
+  /** Why it cannot look now — its extension needs setting up, is off, is broken — or null. */
+  problem: string | null
+}
+
 interface Entry {
   extension: WilcoExtension
   loaded: LoadedExtension
   ctx: ExtensionContext
 }
 
+/** Why an extension cannot be used now, or null when it is ready. */
+function notReady(entry: Entry): string | null {
+  const { state, title, problem } = entry.loaded
+  if (state === 'ready') return null
+  if (state === 'off') return `${title} is turned off`
+  const because = problem ? `: ${problem}` : ''
+  return state === 'needs setup'
+    ? `${title} needs setting up${because}`
+    : `${title} is broken${because}`
+}
+
+/** A promise that settles in time, or is given up on — its work told to stop — with why. */
+async function inTime<T>(
+  work: Promise<T>,
+  limit: number,
+  late: string,
+  controller: AbortController,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort()
+          reject(new Error(late))
+        }, limit)
+        timer.unref?.()
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 /** Ten minutes: a dependency update or a Seer analysis is slow, and a hung one must still end. */
 const TOOL_TIMEOUT_MS = 10 * 60_000
+/** A watch's look is meant to be cheap: a minute is already a slow one. */
+const WATCH_TIMEOUT_MS = 60_000
 const BRIEF_TIMEOUT_MS = 10_000
 
 export class ExtensionHost {
@@ -339,6 +397,116 @@ export class ExtensionHost {
     return this.entries.map((entry) => entry.loaded)
   }
 
+  /**
+   * Every watch there is, as `<extension>.<id>`, with why it cannot look now
+   * when its extension is not ready: one that needs setting up is still worth
+   * offering, and saying what it needs.
+   */
+  watches(): WatchOffer[] {
+    return this.entries.flatMap((entry) =>
+      (entry.extension.watches ?? []).map((watch) => ({
+        id: `${entry.extension.name}.${watch.id}`,
+        extension: entry.extension.name,
+        title: watch.title,
+        means: watch.means,
+        every: watch.every,
+        input: watch.input ?? null,
+        problem: notReady(entry),
+      })),
+    )
+  }
+
+  /**
+   * Why a watch cannot be turned on with this input, or null when it can: one
+   * that does not exist, or input it does not take. An extension that is not
+   * ready yet is no reason: a watch waits for it, and says so when it looks.
+   */
+  watchProblem(id: string, input: Readonly<Record<string, unknown>>): string | null {
+    const found = this.watchCalled(id)
+    if ('problem' in found) return found.problem
+    return found.watch.input ? inputProblem(found.watch.input, { ...input }) : null
+  }
+
+  /**
+   * Look with a watch, for a project: what it found, where the next look
+   * starts, and what an agent on a finding would be told. Throws with why it
+   * could not look — no such watch, an extension that is not ready, a look that
+   * failed, took too long, or found something it could not name.
+   */
+  async look(
+    id: string,
+    request: {
+      project: string
+      input: Readonly<Record<string, unknown>>
+      since: string | null
+      turnedOn: string
+      timeoutMs?: number
+    },
+  ): Promise<{
+    found: Finding[]
+    since: string | null
+    agent: (finding: Finding) => Promise<WatchAgent>
+  }> {
+    const called = this.watchCalled(id)
+    if ('problem' in called) throw new Error(called.problem)
+    const { entry, watch } = called
+    const problem = notReady(entry)
+    if (problem) throw new Error(problem)
+    const controller = new AbortController()
+    const ctx: WatchContext = {
+      ...entry.ctx,
+      watching: entry.ctx.project(request.project),
+      input: request.input,
+      since: request.since,
+      turnedOn: request.turnedOn,
+      signal: controller.signal,
+    }
+    const limit = request.timeoutMs ?? WATCH_TIMEOUT_MS
+    const looked = await inTime(
+      Promise.resolve().then(() => watch.check(ctx)),
+      limit,
+      `${id} took longer than ${Math.round(limit / 1000)}s to look, and was given up on`,
+      controller,
+    )
+    const found: Finding[] = []
+    for (const finding of looked.found ?? []) {
+      if (typeof finding?.key !== 'string' || finding.key === '' || !finding.title) {
+        throw new Error(`${id} found something without a key and a title to know it by`)
+      }
+      // The same thing said twice in one look is one finding.
+      if (!found.some((one) => one.key === finding.key)) found.push(finding)
+    }
+    return {
+      found,
+      since: looked.since ?? request.since,
+      agent: async (finding) => {
+        const agent = await inTime(
+          Promise.resolve().then(() => watch.agent(finding, ctx)),
+          limit,
+          `${id} took longer than ${Math.round(limit / 1000)}s to say what to tell an agent about ${finding.key}`,
+          controller,
+        )
+        if (!agent?.title || !agent.prompt) {
+          throw new Error(`${id} said nothing to tell an agent about ${finding.key}`)
+        }
+        return agent
+      },
+    }
+  }
+
+  /** A watch by its `<extension>.<id>`, or why there is none. */
+  private watchCalled(id: string): { entry: Entry; watch: ExtensionWatch } | { problem: string } {
+    const dot = id.indexOf('.')
+    const name = dot < 0 ? id : id.slice(0, dot)
+    const entry = this.entries.find((one) => one.extension.name === name)
+    const watch = entry?.extension.watches?.find((one) => one.id === id.slice(dot + 1))
+    if (entry && watch && dot > 0) return { entry, watch }
+    const all = this.watches().map((one) => one.id)
+    return {
+      problem: `there is no watch called ${id}${all.length > 0 ? ` (there is ${all.join(', ')})` : ''}`,
+    }
+  }
+
   /** The tools a caller of this kind is offered: only from extensions that are ready. */
   specs(audience: Audience): ToolSpec[] {
     return this.ready().flatMap((entry) =>
@@ -509,6 +677,11 @@ export class ExtensionHost {
         lines.push(
           `- ${loaded.title}${tools.length > 0 ? ` (${tools.join(', ')})` : ''}: ${said || loaded.description}`,
         )
+        for (const watch of extension.watches ?? []) {
+          lines.push(
+            `  Watch ${extension.name}.${watch.id} (every ${watch.every} unless told otherwise): ${watch.means}`,
+          )
+        }
       } else if (loaded.state === 'needs setup') {
         lines.push(
           `- ${loaded.title} is installed but not set up: ${loaded.problem}. Say so when it is asked for.`,
@@ -640,6 +813,25 @@ export function shapeProblem(extension: WilcoExtension): string | null {
   for (const action of extension.actions ?? []) {
     if (!seen.has(action.tool))
       return `its action ${action.id} runs ${action.tool}, which it does not have`
+  }
+  const watches = new Set<string>()
+  for (const watch of extension.watches ?? []) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(watch.id ?? '')) {
+      return `its watch "${String(watch.id)}" is not a usable name: lowercase letters, digits and dashes`
+    }
+    if (watches.has(watch.id)) return `it has two watches called ${watch.id}`
+    watches.add(watch.id)
+    if (!watch.title || !watch.means) return `its watch ${watch.id} needs a title and what it means`
+    const every = whenProblem({ every: String(watch.every) })
+    if (every || !/^\d/.test(String(watch.every).trim())) {
+      return `its watch ${watch.id} looks every "${watch.every}", which is not a length like 30m, 1h or 1d`
+    }
+    if (watch.input && watch.input.type !== 'object') {
+      return `its watch ${watch.id} takes input that is not an object`
+    }
+    if (typeof watch.check !== 'function' || typeof watch.agent !== 'function') {
+      return `its watch ${watch.id} needs a check and an agent`
+    }
   }
   return null
 }

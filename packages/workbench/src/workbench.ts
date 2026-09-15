@@ -58,6 +58,7 @@ import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './reg
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import {
   beginFrom,
+  branchSlug,
   createTask,
   nameTask,
   type RemoveResult,
@@ -829,6 +830,8 @@ export class Workbench {
     if (!due.run || schedule.does.kind !== 'agent') {
       await this.log.append({
         type: 'schedule_fired',
+        // A watch looks on a clock: what it finds is news, the looking is not.
+        ...(schedule.does.kind === 'watch' ? { urgency: 'routine' as const } : {}),
         detail: { schedule: id, due: at, missed: due.missed, ran: due.run },
       })
       return { task: null }
@@ -867,6 +870,83 @@ export class Workbench {
       return { task: task.id }
     }
     throw new Error(`every name like ${stem} is taken in ${schedule.project}`)
+  }
+
+  /**
+   * A watch looked: how much it found, which was new, how much of that waits
+   * for its next look, and where that look starts — or why it could not look.
+   */
+  async watchChecked(
+    id: string,
+    look:
+      | { found: number; fresh: readonly string[]; left: number; since: string | null }
+      | { problem: string },
+  ): Promise<void> {
+    await this.log.append({
+      type: 'watch_checked',
+      detail: { schedule: id, ...look },
+    })
+  }
+
+  /**
+   * Something a watch found for the first time, written down so it never
+   * starts work twice. Given what to tell an agent, its work is made as queued
+   * work named for what it is about, which the queue starts as soon as there is
+   * room, in the project's own workspace. Otherwise it was told to someone, or
+   * could not be started on, and why. A start that fails is written down with
+   * why too: tried again at every look, it would fail at every look.
+   */
+  async watchFound(
+    id: string,
+    finding: { key: string; title: string },
+    outcome:
+      | {
+          agent: {
+            title: string
+            prompt: string
+            context?: string
+            links?: readonly { title: string; url: string }[]
+          }
+        }
+      | { told: string }
+      | { problem: string },
+  ): Promise<{ task: string | null }> {
+    const schedule = this.kept.get(id)
+    if (!schedule) throw new Error(`there is no schedule called ${id}`)
+    const found = { schedule: id, key: finding.key, title: finding.title }
+    if (!('agent' in outcome)) {
+      await this.log.append({ type: 'watch_found', detail: { ...found, ...outcome } })
+      return { task: null }
+    }
+    const { agent } = outcome
+    const stem = branchSlug(agent.title)
+    try {
+      for (let n = 1; n <= 50; n++) {
+        const slug = n === 1 ? stem : `${stem}-${n}`
+        let task: TaskWorktree
+        try {
+          task = await this.createTask({
+            project: schedule.project,
+            slug,
+            intent: agent.prompt,
+            by: `schedule:${id}`,
+            ...(agent.context ? { context: agent.context } : {}),
+            ...(agent.links && agent.links.length > 0 ? { links: agent.links } : {}),
+            start: { after: [], prompt: agent.prompt, touches: [] },
+          })
+        } catch (err) {
+          if (/already exists|used before/.test(err instanceof Error ? err.message : '')) continue
+          throw err
+        }
+        await this.log.append({ type: 'watch_found', task: task.id, detail: found })
+        return { task: task.id }
+      }
+      throw new Error(`every name like ${stem} is taken in ${schedule.project}`)
+    } catch (err) {
+      const problem = err instanceof Error ? err.message : String(err)
+      await this.log.append({ type: 'watch_found', detail: { ...found, problem } })
+      throw err
+    }
   }
 
   /**

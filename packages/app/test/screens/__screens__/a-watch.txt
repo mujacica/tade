@@ -1,0 +1,44 @@
+ WILCO  ▐ checkout ▌ ▐  +  ▌                 ! 1 waiting  ⠋ 2 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  3          ▐  +  ▌ │ checkout › New Sentry err…  ◎ every hour            ▐ Run now ▌ ▐ ‖ Pause ▌ ▐ ≡ ▌ ▐ × ▌ 
+                              │─────────────────────────────────────────────────────────────────────────────────────────
+   ✕ fix-charge               │                                                                                         
+     tests failed twice       │  Every hour, it looks with sentry.new-errors, and starts work on what it finds.         
+                              │                                                                                         
+   ⠋ bump-mailer              │  NEXT       Mon 14 Sep 10:00 · Mon 14 Sep 11:00 · Mon 14 Sep 12:00                      
+     working                  │  IF MISSED  runs once when Wilco next opens                                             
+                              │  AT MOST    2 agents from one look; the rest wait for the next                          
+   ⠋ fix-checkout-3e          │  FROM       sentry · turned on by you                                                   
+     working                  │                                                                                         
+                              │  FOUND                                                                                  
+ ▾ SMART QUEUE  9    ▐ plan ▌ │  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
+   all  next  timed           │                    Sentry answered 502: Bad Gateway                                     
+                              │  Mon 14 Sep 09:00  ⠋ fix-checkout-3e · CHECKOUT-3E: TypeError: Cannot read properties…  
+   ◷ release-notes    18:00   │  Sun 13 Sep 16:00  fix-checkout-3a · CHECKOUT-3A: RangeError: Invalid currency code     
+     ❯ waits for its time     │                                                                                         
+                              │  LOOKS                                                                                  
+   ↻ morning brief    08:45   │  Mon 14 Sep 09:00  found 3, 3 new, 1 waits for the next look                            
+     ◆ every weekday at 08…   │  Mon 14 Sep 08:00  found 1, nothing new                                                 
+                              │  Mon 14 Sep 07:00  could not look: Sentry is rate limiting these requests (429): try …  
+   ↻ deps weekly      09:00   │                                                                                         
+     ❯ every Monday at 09:…   │                                                                                         
+                              │                                                                                         
+ ▐ ◎ New Sentry erro… 10:00 ▌ │                                                                                         
+ ▐   sentry · every hour    ▌ │                                                                                         
+                              │                                                                                         
+   ‖ perf nightly    paused   │                                                                                         
+     ❯ every day at 02:00     │                                                                                         
+                              │                                                                                         
+ ▸ CHANGES  3         vs main │                                                                                         
+ ▸ FILES                      │                                                                                         
+━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+                                                                                                                        
+ ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

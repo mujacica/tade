@@ -155,3 +155,59 @@ describe('where everything stands', () => {
     expect((await call(bare, 'status/read', {})).error?.message).toMatch(/no window to ask/)
   })
 })
+
+describe('putting work on a clock', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('hands the window a watch as asked, looking as often as the watch says when no rule is given', async () => {
+    const path = join(tmp('wilco-tools-'), 'tools.sock')
+    const asked: Record<string, unknown>[] = []
+    host = await ToolHost.listen({
+      wilco: {} as Workbench,
+      path,
+      queue: {
+        describe: async () => '',
+        change: async () => '',
+        plan: async () => '',
+        schedule: async (req) => {
+          asked.push(req as unknown as Record<string, unknown>)
+          return 'scheduled'
+        },
+      },
+    })
+    const base = { name: 'New errors', project: 'app', said: 'fix new errors as they come' }
+    // An empty rule is no rule: the watch's own.
+    expect(
+      (
+        await call(path, 'queue/schedule', {
+          ...base,
+          when: {},
+          watch: 'sentry.new-errors',
+          input: { query: 'level:error' },
+          found: 'ask',
+          most: 3,
+        })
+      ).result,
+    ).toBe('scheduled')
+    expect(asked[0]).toEqual({
+      ...base,
+      watch: 'sentry.new-errors',
+      input: { query: 'level:error' },
+      found: 'ask',
+      most: 3,
+    })
+    expect(
+      (await call(path, 'queue/schedule', { ...base, watch: 'sentry.new-errors', input: 'all' }))
+        .error?.message,
+    ).toMatch(/input is what the watch is turned on with/)
+    expect(
+      (await call(path, 'queue/schedule', { ...base, when: { every: 3 }, agent: 'x' })).error
+        ?.message,
+    ).toMatch(/when is not a rule/)
+  })
+})

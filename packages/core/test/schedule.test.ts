@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import type { WilcoEvent } from '../src/events.ts'
 import {
   describeWhen,
   dueNow,
   momentOf,
+  newFindings,
   ON_TIME_MS,
   runsOf,
   scheduleEnded,
   type When,
   wallClock,
+  watchedFrom,
   whenProblem,
 } from '../src/schedule.ts'
 
@@ -213,5 +216,76 @@ describe('when a schedule runs, in words', () => {
     expect(describeWhen({ at: '2026-09-15T18:00:00Z' }, clock)).toBe('once, 2026-09-15 18:00')
     expect(describeWhen({ every: '1h', count: 5 }, clock)).toBe('every hour, 5 times')
     expect(describeWhen({ cron: '0 9 * * 1-5' }, clock)).toBe('on cron 0 9 * * 1-5')
+  })
+})
+
+describe('what a watch has done', () => {
+  let seq = 0
+  const event = (
+    type: WilcoEvent['type'],
+    detail: Record<string, unknown>,
+    task: string | null = null,
+  ): WilcoEvent => ({
+    seq: seq++,
+    ts: new Date(at('2026-09-15T09:00:00Z') + seq * 60_000).toISOString(),
+    type,
+    urgency: 'routine',
+    task,
+    lane: null,
+    run: null,
+    detail,
+  })
+
+  it('starts the next look where the last look that worked left off, and remembers every finding', () => {
+    const events = [
+      event('watch_checked', {
+        schedule: 'errors',
+        found: 2,
+        fresh: ['a', 'b'],
+        left: 0,
+        since: 'one',
+      }),
+      event('watch_found', { schedule: 'errors', key: 'a', title: 'A' }, 'app/fix-a'),
+      event('watch_found', { schedule: 'errors', key: 'b', title: 'B', told: 'orchestrator' }),
+      event('watch_found', { schedule: 'other', key: 'c', title: 'C' }),
+      event('watch_checked', { schedule: 'errors', problem: 'Sentry is down' }),
+    ]
+    const watched = watchedFrom(events, 'errors')
+    expect(watched.since).toBe('one')
+    expect([...watched.seen]).toEqual(['a', 'b'])
+    expect(watched.looks.map((look) => look.problem)).toEqual(['Sentry is down', null])
+    expect(watched.findings.map((one) => [one.key, one.task, one.told])).toEqual([
+      ['b', null, 'orchestrator'],
+      ['a', 'app/fix-a', null],
+    ])
+    // A look that left some for next time said to start where it did: nowhere yet.
+    const again = watchedFrom(
+      [
+        ...events,
+        event('watch_checked', {
+          schedule: 'errors',
+          found: 5,
+          fresh: ['d'],
+          left: 3,
+          since: null,
+        }),
+      ],
+      'errors',
+    )
+    expect(again.since).toBeNull()
+  })
+
+  it('acts on what was never found, as far as one look may, and counts the rest', () => {
+    const found = [{ key: 'a' }, { key: 'b' }, { key: 'c' }, { key: 'd' }]
+    expect(newFindings(found, new Set(['b']), 2)).toEqual({
+      fresh: [{ key: 'a' }, { key: 'c' }, { key: 'd' }],
+      acting: [{ key: 'a' }, { key: 'c' }],
+      left: 1,
+    })
+    expect(newFindings(found, new Set(['a', 'b', 'c', 'd']), 2)).toEqual({
+      fresh: [],
+      acting: [],
+      left: 0,
+    })
   })
 })

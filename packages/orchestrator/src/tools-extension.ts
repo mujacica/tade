@@ -302,7 +302,7 @@ export default function wilcoTools(pi: PiApi): void {
 
   tool(
     'wilco_schedule',
-    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it either starts an agent (agent: what to tell it) or asks you something (ask). It runs while Wilco is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
+    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given. It runs while Wilco is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
     object(
       {
         name: string('what it is called, in a few words'),
@@ -326,6 +326,22 @@ export default function wilcoTools(pi: PiApi): void {
         }),
         agent: string('start an agent each time, told this'),
         ask: string('ask you this each time, instead of starting an agent'),
+        watch: string("look with this extension's watch each time, like sentry.new-errors"),
+        input: {
+          type: 'object',
+          description: 'what the watch is turned on with, when it takes anything',
+        },
+        found: {
+          type: 'string',
+          enum: ['agent', 'ask'],
+          description:
+            'what each new thing a watch finds becomes: an agent on it (the default), or a question for you',
+        },
+        most: {
+          type: 'number',
+          description:
+            'at most this many new things one look acts on; the rest wait for the next (2 unless said)',
+        },
         done,
         missed: {
           type: 'string',
@@ -334,7 +350,7 @@ export default function wilcoTools(pi: PiApi): void {
             'what happens to runs that came due while Wilco was closed: once (the default) or skip',
         },
       },
-      ['name', 'project', 'said', 'when'],
+      ['name', 'project', 'said'],
     ),
     (p) => rpc('queue/schedule', p),
   )

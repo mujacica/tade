@@ -324,6 +324,71 @@ const queueSchedules: ScheduleView[] = [
   },
 ]
 
+/** A watch Sentry offers, turned on: what it found at its last look, and each look. */
+const sentryWatch: ScheduleView = {
+  id: 'new-sentry-errors',
+  name: 'New Sentry errors',
+  project: 'checkout',
+  said: '',
+  kind: 'watch',
+  does: 'looks with sentry.new-errors, and starts work on what it finds',
+  prompt: '',
+  when: 'every hour',
+  once: false,
+  next: [
+    Date.parse('2026-09-14T10:00:00Z'),
+    Date.parse('2026-09-14T11:00:00Z'),
+    Date.parse('2026-09-14T12:00:00Z'),
+  ],
+  paused: false,
+  by: 'extension:sentry',
+  missed: 'once',
+  runs: [],
+  watch: {
+    id: 'sentry.new-errors',
+    turnedOnBy: 'you',
+    found: 'agent',
+    most: 2,
+    looks: [
+      { at: Date.parse('2026-09-14T09:00:00Z'), found: 3, fresh: 3, left: 1, problem: null },
+      { at: Date.parse('2026-09-14T08:00:00Z'), found: 1, fresh: 0, left: 0, problem: null },
+      {
+        at: Date.parse('2026-09-14T07:00:00Z'),
+        found: 0,
+        fresh: 0,
+        left: 0,
+        problem: 'Sentry is rate limiting these requests (429): try again in a minute',
+      },
+    ],
+    findings: [
+      {
+        at: Date.parse('2026-09-14T09:00:00Z'),
+        key: '4413',
+        title: 'CHECKOUT-3F: Error: card_declined is not handled',
+        task: null,
+        told: null,
+        problem: 'Sentry answered 502: Bad Gateway',
+      },
+      {
+        at: Date.parse('2026-09-14T09:00:00Z'),
+        key: '4412',
+        title: "CHECKOUT-3E: TypeError: Cannot read properties of undefined (reading 'amount')",
+        task: 'checkout/fix-checkout-3e',
+        told: null,
+        problem: null,
+      },
+      {
+        at: Date.parse('2026-09-13T16:00:00Z'),
+        key: '4398',
+        title: 'CHECKOUT-3A: RangeError: Invalid currency code',
+        task: 'checkout/fix-checkout-3a',
+        told: null,
+        problem: null,
+      },
+    ],
+  },
+}
+
 let seq = 0
 const usage = (task: string | null, model: string, tokens: number, usd: number): WilcoEvent => ({
   seq: ++seq,
@@ -590,6 +655,35 @@ export const SCENARIOS: Scenario[] = [
       clock: utcClock,
       date: utcDate,
       schedules: queueSchedules,
+    }),
+  },
+  {
+    name: 'a-watch',
+    about:
+      'A watch Sentry offers, turned on and open: how often it looks and what it starts, how many one look acts on, who turned it on, what it found and what became of each, and how each look went.',
+    state: {
+      ...openSchedule(
+        withTasks(withProjects(initialState(), ['checkout']), [
+          ...queueTasks,
+          {
+            task: 'checkout/fix-checkout-3e',
+            state: 'working',
+            lane: 'checkout/fix-checkout-3e/agent',
+            by: 'schedule:new-sentry-errors',
+          },
+        ]),
+        'new-sentry-errors',
+      ),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      queueFilter: 'timed',
+    },
+    frame: frame({
+      screen: '',
+      height: 44,
+      clock: utcClock,
+      date: utcDate,
+      schedules: [...queueSchedules, sentryWatch],
     }),
   },
   {
@@ -923,6 +1017,7 @@ export const SCENARIOS: Scenario[] = [
             unknownSettings: [],
             configurable: true,
             folder: null,
+            watches: [],
           },
           {
             name: 'sentry',
@@ -937,6 +1032,17 @@ export const SCENARIOS: Scenario[] = [
             unknownSettings: ['orgg'],
             configurable: true,
             folder: null,
+            watches: [
+              {
+                id: 'new-errors',
+                title: 'New Sentry errors',
+                means:
+                  'Looks for issues first seen in Sentry since its last look, and starts an agent on each with everything Sentry knows, to find the cause, fix it and test it.',
+                every: '1h',
+                project: 'checkout',
+                on: null,
+              },
+            ],
           },
           {
             name: 'standup',
@@ -950,6 +1056,7 @@ export const SCENARIOS: Scenario[] = [
             unknownSettings: [],
             configurable: false,
             folder: '/Users/me/.wilco/extensions/active/standup',
+            watches: [],
           },
         ],
         proposals: [

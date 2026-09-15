@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { WilcoEvent } from './events.ts'
 import { DONE_RULES } from './model.ts'
 
 // Work on a clock.
@@ -67,7 +68,10 @@ export const ScheduleDoes = z.discriminatedUnion('kind', [
      * orchestrator. Not called `then`, which makes any object look like a promise.
      */
     found: z.enum(['agent', 'ask']).default('agent'),
-    /** At most this many agents from one look. */
+    /**
+     * At most this many new things acted on from one look — agents started, or
+     * told to the orchestrator. The rest wait for its next look.
+     */
     most: z.number().int().positive().default(2),
   }),
 ])
@@ -481,6 +485,106 @@ export function describeWhen(
     return said(`${days.length > 0 ? `on the ${listed(days)} of ` : ''}every month${at}`)
   }
   return said(`every ${every}`)
+}
+
+/** One look a watch took, as the journal has it. */
+export interface WatchLook {
+  at: number
+  found: number
+  /** How many of those it had not found before. */
+  fresh: number
+  /** How many new ones wait for its next look, past the most one look acts on. */
+  left: number
+  /** Why it could not look; null when it did. */
+  problem: string | null
+}
+
+/** Something a watch found, and what became of it. */
+export interface WatchFinding {
+  at: number
+  key: string
+  title: string
+  /** The work started on it; null when it was told instead, or could not start. */
+  task: string | null
+  /** Who was told about it instead of work starting. */
+  told: string | null
+  problem: string | null
+}
+
+/** What a watch has done: where its next look starts, what it has found, and its looks. */
+export interface Watched {
+  /** Where its next look starts, as its last look that worked said; null before one has. */
+  since: string | null
+  /** Every key it has found, so one finding never starts work twice. */
+  seen: ReadonlySet<string>
+  /** Newest first. */
+  looks: WatchLook[]
+  /** Newest first. */
+  findings: WatchFinding[]
+}
+
+/** What a watch schedule has done, from the journal. Pure: events in, facts out. */
+export function watchedFrom(events: readonly WilcoEvent[], schedule: string): Watched {
+  let since: string | null = null
+  const seen = new Set<string>()
+  const looks: WatchLook[] = []
+  const findings: WatchFinding[] = []
+  for (const event of events) {
+    if (event.detail.schedule !== schedule) continue
+    const at = Date.parse(event.ts)
+    const text = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
+    const count = (value: unknown) => (typeof value === 'number' ? value : 0)
+    if (event.type === 'watch_checked') {
+      const problem = text(event.detail.problem)
+      if (!problem && 'since' in event.detail) since = text(event.detail.since)
+      looks.push({
+        at,
+        found: count(event.detail.found),
+        fresh: Array.isArray(event.detail.fresh) ? event.detail.fresh.length : 0,
+        left: count(event.detail.left),
+        problem,
+      })
+    } else if (event.type === 'watch_found') {
+      const key = text(event.detail.key)
+      if (!key) continue
+      seen.add(key)
+      findings.push({
+        at,
+        key,
+        title: text(event.detail.title) ?? key,
+        task: event.task,
+        told: text(event.detail.told),
+        problem: text(event.detail.problem),
+      })
+    }
+  }
+  return { since, seen, looks: looks.reverse(), findings: findings.reverse() }
+}
+
+/** How one look went, in a few words: `found 3, 2 new, 1 waits for the next look`, or why it could not look. */
+export function describeLook(look: WatchLook): string {
+  if (look.problem) return `could not look: ${look.problem}`
+  if (look.found === 0) return 'found nothing'
+  const fresh = look.fresh === 0 ? 'nothing new' : `${look.fresh} new`
+  const waits =
+    look.left > 0 ? `, ${look.left} ${look.left === 1 ? 'waits' : 'wait'} for the next look` : ''
+  return `found ${look.found}, ${fresh}${waits}`
+}
+
+/**
+ * What in a look is new, and what of that is acted on now: the first `most`
+ * of what was never found before, in the order the watch gave them. How many
+ * more wait is said, so a look that leaves some can start its next look where
+ * this one started, and find them again.
+ */
+export function newFindings<T extends { key: string }>(
+  found: readonly T[],
+  seen: ReadonlySet<string>,
+  most: number,
+): { fresh: T[]; acting: T[]; left: number } {
+  const fresh = found.filter((one) => !seen.has(one.key))
+  const acting = fresh.slice(0, Math.max(0, most))
+  return { fresh, acting, left: fresh.length - acting.length }
 }
 
 /** Moments said in a schedule's own time zone: `Tue 15 Sep 09:00`. */

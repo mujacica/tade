@@ -144,6 +144,24 @@ function link(title: string, url: string): Link {
   return { title, url }
 }
 
+/** What an agent fixing an issue is told, however it came to be started. */
+function fixPrompt(shortId: string, title: string): string {
+  return [
+    `Fix Sentry issue ${shortId}: ${title}.`,
+    'Everything Sentry knows about it is in .wilco/context.md: the stack trace, the frame in your code that matters, what happened before, the request and the trace.',
+    'Find the cause rather than guarding the symptom, add a test that fails without the fix, and commit with',
+    `"Fixes ${shortId}" in the message so Sentry resolves it when it is released.`,
+    'sentry_issue, sentry_trace and sentry_events read more from Sentry if you need it.',
+  ].join(' ')
+}
+
+/**
+ * How far before one look the next starts. Sentry takes a moment to take an
+ * event in, so an issue can be first seen just before a look and arrive after
+ * it; Wilco knows which issues it has found, so looking twice costs nothing.
+ */
+const OVERLAP_MS = 10 * 60_000
+
 async function detailsOf(
   sentry: SentryApi,
   said: string,
@@ -420,13 +438,7 @@ export const sentryExtension: WilcoExtension = {
         const started = await ctx.wilco.startAgent({
           project: wilco,
           title: `fix ${shortId}`,
-          prompt: [
-            `Fix Sentry issue ${shortId}: ${String(details.issue.title ?? '')}.`,
-            'Everything Sentry knows about it is in .wilco/context.md: the stack trace, the frame in your code that matters, what happened before, the request and the trace.',
-            'Find the cause rather than guarding the symptom, add a test that fails without the fix, and commit with',
-            `"Fixes ${shortId}" in the message so Sentry resolves it when it is released.`,
-            'sentry_issue, sentry_trace and sentry_events read more from Sentry if you need it.',
-          ].join(' '),
+          prompt: fixPrompt(shortId, String(details.issue.title ?? '')),
           context: [input.note ? `> ${String(input.note)}\n` : '', details.text]
             .filter(Boolean)
             .join('\n'),
@@ -454,6 +466,55 @@ export const sentryExtension: WilcoExtension = {
       tool: 'sentry_issues',
       input: { sort: 'freq' },
       project: true,
+    },
+  ],
+  watches: [
+    {
+      id: 'new-errors',
+      title: 'New Sentry errors',
+      means:
+        'Looks for issues first seen in Sentry since its last look, and starts an agent on each with everything Sentry knows, to find the cause, fix it and test it.',
+      every: '1h',
+      input: object({
+        query: string(
+          "a Sentry search narrowing what counts, like 'level:error' or '!culprit:*vendor*'; every unresolved issue unless said",
+        ),
+      }),
+      check: async (ctx) => {
+        const sentry = api(ctx)
+        const { slugs } = slugsFor(ctx, ctx.watching.name)
+        // Nothing that was already there when it was turned on is new.
+        const from = ctx.since && !Number.isNaN(Date.parse(ctx.since)) ? ctx.since : ctx.turnedOn
+        const narrower = typeof ctx.input.query === 'string' ? ctx.input.query.trim() : ''
+        const query = ['is:unresolved', narrower, `firstSeen:>=${from}`].filter(Boolean).join(' ')
+        const page = await sentry.issues({
+          projects: slugs,
+          query,
+          sort: 'new',
+          period: '14d',
+          limit: 25,
+        })
+        return {
+          found: page.items.map((found) => ({
+            key: String(found.id ?? shortIdOf(found)),
+            title: `${shortIdOf(found)}: ${String(found.title ?? '')}`,
+            ...(typeof found.permalink === 'string'
+              ? { links: [link(shortIdOf(found), found.permalink)] }
+              : {}),
+          })),
+          since: new Date(Math.max(Date.parse(from), ctx.now() - OVERLAP_MS)).toISOString(),
+        }
+      },
+      agent: async (finding, ctx) => {
+        const details = await detailsOf(api(ctx), finding.key)
+        const shortId = shortIdOf(details.issue)
+        return {
+          title: `fix ${shortId}`,
+          prompt: fixPrompt(shortId, String(details.issue.title ?? '')),
+          context: details.text,
+          links: details.links,
+        }
+      },
     },
   ],
   brief: async (ctx) => {
@@ -496,6 +557,7 @@ export const sentryExtension: WilcoExtension = {
       'For "what broke" or "check Sentry", call sentry_issues (sort new, query is:unresolved firstSeen:-24h for what is new) and summarise: how many, the few that matter and why — frequency, users affected, how recent, whether it is in your own code.',
       'For one issue, sentry_issue. To decide what to fix, weigh events, users and recency, and say which you would fix first.',
       'To fix one, sentry_fix: it starts an agent with the stack trace and everything else in its context, so do not retell it.',
+      'To have new errors fixed as they come, turn on the watch sentry.new-errors with wilco_schedule, when asked to.',
       'Always give issues by short id with their link, so they can be opened.',
       'Never resolve, ignore or assign an issue unless asked to; that is sentry_update_issue.',
     ].join(' ')

@@ -137,6 +137,70 @@ export interface ExtensionSetup {
   links?: readonly Link[]
 }
 
+/** Something a watch found: what it is, and a key that stays the same every time it is found. */
+export interface Finding {
+  key: string
+  title: string
+  /** More about it, for the agent that starts on it: written into its context. */
+  detail?: string
+  links?: readonly Link[]
+}
+
+/** What a watch looks with. */
+export interface WatchContext extends ExtensionContext {
+  /** The project it watches. */
+  watching: ProjectRef
+  /** What it was turned on with. */
+  input: Readonly<Record<string, unknown>>
+  /** Where its last look left off, as that look said; null the first time. */
+  since: string | null
+  /** When it was turned on, as an ISO time: what was already there then is not new. */
+  turnedOn: string
+  signal: AbortSignal
+}
+
+/** An agent on one finding: what its task is called, what it is told, and what it reads first. */
+export interface WatchAgent {
+  title: string
+  prompt: string
+  context?: string
+  links?: readonly Link[]
+}
+
+/**
+ * Work an extension can watch for: a cheap look, on a clock, at whether there
+ * is anything to do — and what an agent is told about each thing it finds.
+ *
+ * Nothing is watched until someone turns it on, which makes it a schedule like
+ * any other: paused, renamed or removed the same way. Wilco keeps where each
+ * look left off and every key it has found, so a watch keeps nothing itself and
+ * one finding never starts two agents.
+ */
+export interface ExtensionWatch {
+  /** Its name in the extension: `new-errors`. Turned on, it is `<extension>.<id>`. */
+  id: string
+  title: string
+  /** What it looks for and what it starts, in a sentence. */
+  means: string
+  /** How often it looks unless told otherwise, as a schedule says it: `30m`, `1h`, `1d`. */
+  every: string
+  /** What it can be turned on with, as a tool's parameters are said. Checked before it is. */
+  input?: JsonSchema
+  /**
+   * Look, and say what there is. No model: it runs on a clock, and a look that
+   * finds nothing costs nothing. Nothing found is an empty list, never a throw;
+   * it throws, with why, only when it cannot look at all. What it returns as
+   * `since` is handed to its next look, which may find some of the same things
+   * again: Wilco knows which it has seen.
+   */
+  check(ctx: WatchContext): Promise<{ found: readonly Finding[]; since?: string }>
+  /**
+   * What an agent starting on one finding is told. Asked only for what work is
+   * started on, so this is where anything slow to fetch about a finding belongs.
+   */
+  agent(finding: Finding, ctx: WatchContext): Promise<WatchAgent> | WatchAgent
+}
+
 /** What an open window can do for an extension that nothing else can. */
 export interface ExtensionWorkbench {
   /**
@@ -228,6 +292,8 @@ export interface WilcoExtension {
   ready?(ctx: ExtensionContext): Promise<string | null> | string | null
   tools?: readonly ExtensionTool[]
   actions?: readonly ExtensionAction[]
+  /** Work it can watch for, on a clock. Offered; nothing is watched until someone turns one on. */
+  watches?: readonly ExtensionWatch[]
   /** What belongs in the brief, when anything does. */
   brief?(ctx: ExtensionContext): Promise<readonly BriefItem[]>
   /** Told to the orchestrator: when to reach for this, and how. */

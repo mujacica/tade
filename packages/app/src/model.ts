@@ -3,6 +3,8 @@ import {
   IDLE_REASON,
   type QueueState,
   type TaskState,
+  type WatchFinding,
+  type WatchLook,
   type WilcoEvent,
 } from '@wilco/core'
 import type { Turn } from '@wilco/voice-core'
@@ -89,6 +91,19 @@ export interface ScheduleView {
   missed: 'once' | 'skip'
   /** What it did each time it came due, newest first. */
   runs: readonly { due: number; ran: boolean; missed: number; task: string | null }[]
+  /** For a watch: what it looks with, and what its looks found, newest first. */
+  watch?: {
+    /** `<extension>.<id>`. */
+    id: string
+    /** Who turned it on, as `TaskOrigin` says it: the schedule's own `by` is its extension. */
+    turnedOnBy: string
+    /** What each new finding becomes. */
+    found: 'agent' | 'ask'
+    /** At most this many acted on from one look. */
+    most: number
+    looks: readonly WatchLook[]
+    findings: readonly WatchFinding[]
+  }
 }
 
 /** Which queued work the SMART QUEUE shows: all of it, what waits on agents, or what waits for a time. */

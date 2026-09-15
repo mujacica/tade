@@ -76,6 +76,14 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the journal and the clock. There is no daemon: runs that came due while no window was open are
   caught up once or skipped, as the schedule says, never once per run missed. An agent a schedule
   starts is queued work named for it and the day, in the project's own workspace.
+- **A watch is a schedule that looks before it acts.** An extension offers it (`watches`): a cheap
+  `check`, no model, and what an agent on each finding is told. Nothing is watched until someone
+  turns one on, and then it is a schedule like any other. Wilco keeps where each look left off and
+  every key found (`watch_checked`, `watch_found`), so a watch keeps nothing itself and one finding
+  never starts work twice — a start that failed included. One look acts on at most `most` new
+  findings, as queued work named for them or told to the orchestrator; the rest wait for the next
+  look, which starts where this one did. A look that cannot look is said when it starts going
+  wrong, not at every look.
 - **Wilco tells the orchestrator; it never talks over it.** What happened waits and goes with the
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and

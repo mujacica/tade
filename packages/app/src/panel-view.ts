@@ -44,6 +44,7 @@ import {
   setupControls,
   usesDropdown,
   visibleSettings,
+  watchControl,
 } from './panels.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Skin } from './skin.ts'
@@ -439,6 +440,32 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     }
     if (view.folder) items.push({ id: `folder:${view.name}`, label: 'Open folder' })
     buttons(items)
+    // What it offers to watch: a schedule like any other once it is on.
+    for (const watch of view.state === 'broken' ? [] : view.watches) {
+      const control = watchControl(view.name, watch)
+      const title = row()
+        .text('   ')
+        .text('◎', watch.on ? skin.done : skin.hint)
+        .space()
+        .text(watch.title, skin.you)
+        .text(`  every ${watch.every}`, skin.hint)
+      title.right((r) => {
+        if (watch.on) r.text(`on in ${watch.project ?? ''}  `, skin.done)
+        if (control) {
+          r.button(watch.on ? 'Show' : `Watch ${watch.project ?? ''}`, {
+            kind: 'control',
+            id: control,
+          })
+        } else {
+          r.text('open a project to watch it', skin.hint)
+        }
+        r.space()
+      })
+      lines.push({ ...title.build(), chosen: control !== null && control === chosen })
+      for (const piece of wrapTextWithAnsi(watch.means, Math.max(10, inner - 6))) {
+        lines.push(row().text('     ').text(piece, skin.hint).build())
+      }
+    }
     lines.push(blank(inner))
   }
   if (ctx.extensions.length === 0) {

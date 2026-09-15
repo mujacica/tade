@@ -1,6 +1,6 @@
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Schedule } from '@wilco/core'
+import { type Schedule, watchedFrom } from '@wilco/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { foldSchedules, readSchedules } from '../src/schedules.ts'
@@ -122,6 +122,99 @@ describe('schedules', () => {
     expect((await client.events({ types: ['schedule_fired'] })).at(-1)?.detail).toMatchObject({
       ran: false,
       missed: 3,
+    })
+  })
+
+  it('writes down what a watch finds, once each, and makes queued work named for what it is about', async () => {
+    await client.setSchedule(
+      deps({
+        id: 'new-errors',
+        name: 'New Sentry errors',
+        when: { every: '1h' },
+        does: { kind: 'watch', watch: 'sentry.new-errors', input: {}, found: 'agent', most: 2 },
+      }),
+      'you',
+    )
+    await client.watchChecked('new-errors', {
+      found: 3,
+      fresh: ['4411', '4412', '4413'],
+      left: 1,
+      since: null,
+    })
+    const brief = {
+      title: 'fix SHOP-1A',
+      prompt: 'Fix Sentry issue SHOP-1A.',
+      context: '## Stack trace\n\nsrc/refunds.ts:42',
+      links: [{ title: 'SHOP-1A', url: 'https://acme.sentry.io/issues/4411/' }],
+    }
+    const made = await client.watchFound(
+      'new-errors',
+      { key: '4411', title: 'SHOP-1A: TypeError' },
+      { agent: brief },
+    )
+    expect(made.task).toBe('app/fix-shop-1a')
+    // The same title again is a second name, never the first one's conversation.
+    const again = await client.watchFound(
+      'new-errors',
+      { key: '4412', title: 'SHOP-1A again' },
+      { agent: brief },
+    )
+    expect(again.task).toBe('app/fix-shop-1a-2')
+    const folder = join(repo.root, '.wilco', 'tasks', 'fix-shop-1a')
+    const file = readFileSync(join(folder, 'task.yaml'), 'utf8')
+    expect(file).toContain('by: schedule:new-errors')
+    expect(file).toContain('prompt: Fix Sentry issue SHOP-1A.')
+    expect(file).toContain('https://acme.sentry.io/issues/4411/')
+    expect(readFileSync(join(folder, 'context.md'), 'utf8')).toContain('src/refunds.ts:42')
+
+    await client.watchFound(
+      'new-errors',
+      { key: '4413', title: 'SHOP-1C' },
+      { told: 'orchestrator' },
+    )
+    await client.watchFound(
+      'new-errors',
+      { key: '4414', title: 'SHOP-1D' },
+      { problem: 'rate limited' },
+    )
+    await client.watchChecked('new-errors', { problem: 'Sentry is down' })
+
+    const watched = watchedFrom(
+      await client.events({ types: ['watch_checked', 'watch_found'] }),
+      'new-errors',
+    )
+    expect([...watched.seen]).toEqual(['4411', '4412', '4413', '4414'])
+    expect(watched.findings.map((one) => [one.key, one.task, one.told, one.problem])).toEqual([
+      ['4414', null, null, 'rate limited'],
+      ['4413', null, 'orchestrator', null],
+      ['4412', 'app/fix-shop-1a-2', null, null],
+      ['4411', 'app/fix-shop-1a', null, null],
+    ])
+    expect(watched.looks.map((one) => [one.found, one.fresh, one.left, one.problem])).toEqual([
+      [0, 0, 0, 'Sentry is down'],
+      [3, 3, 1, null],
+    ])
+    // A look that could not look leaves where the next one starts alone.
+    expect(watched.since).toBeNull()
+
+    // Work that cannot be made is written down with why, so the next look does not try again.
+    renameSync(join(repo.root, '.git'), join(repo.root, '.git-away'))
+    try {
+      await expect(
+        client.watchFound(
+          'new-errors',
+          { key: '4415', title: 'SHOP-1E' },
+          { agent: { ...brief, title: 'fix SHOP-1E' } },
+        ),
+      ).rejects.toThrow(/no commit to work from/)
+    } finally {
+      renameSync(join(repo.root, '.git-away'), join(repo.root, '.git'))
+    }
+    const last = watchedFrom(await client.events({ types: ['watch_found'] }), 'new-errors')
+    expect(last.findings[0]).toMatchObject({
+      key: '4415',
+      task: null,
+      problem: expect.stringContaining('no commit to work from'),
     })
   })
 })

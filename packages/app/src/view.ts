@@ -1,5 +1,5 @@
 import { stripTerminalSequences, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
-import { DONE_RULE_MEANS, type QueueState, taskOrigin } from '@wilco/core'
+import { DONE_RULE_MEANS, describeLook, type QueueState, taskOrigin } from '@wilco/core'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { keyCaps } from './keys.ts'
@@ -1112,12 +1112,16 @@ function schedulesHere(state: AppState, frame: Frame): number {
     .length
 }
 
-/** How a schedule is marked: once, on repeat, or a watch; paused, it is only paused. */
+/**
+ * How a schedule is marked: once, on repeat, or a watch; paused, it is only
+ * paused; a watch whose last look could not look needs you.
+ */
 function scheduleMark(
   one: ScheduleView,
   skin: Skin,
 ): { glyph: string; tone: (text: string) => string } {
   if (one.paused) return { glyph: '‖', tone: skin.faded }
+  if (one.watch?.looks[0]?.problem) return { glyph: '!', tone: skin.waiting }
   if (one.kind === 'watch') return { glyph: '◎', tone: skin.hint }
   return { glyph: one.once ? '◷' : '↻', tone: skin.hint }
 }
@@ -1164,7 +1168,8 @@ function scheduleRow(
     }
   })
   const by = askedMark(one.by)
-  const said = `${[...by].length === 1 ? `${by} ` : `${by} · `}${one.when}`
+  const failing = one.paused ? null : (one.watch?.looks[0]?.problem ?? null)
+  const said = `${[...by].length === 1 ? `${by} ` : `${by} · `}${failing ? 'could not look' : one.when}`
   return {
     rows: [
       tabbed(width, skin, band, inner.build(), target),
@@ -1229,7 +1234,12 @@ function renderSchedule(
     rows.push(r.build())
   }
   const said = (text: string) => shortened(text, Math.max(1, width - 16))
-  line((r) => r.text(said(`${capitalised(one.when)}, it ${one.does}.`), skin.you))
+  for (const text of wrapWords(
+    `${capitalised(one.when)}, it ${one.does}.`,
+    Math.max(10, width - 6),
+  ).slice(0, 2)) {
+    line((r) => r.text(text, skin.you))
+  }
   if (one.prompt.trim()) {
     rows.push(blank(width))
     line((r) => r.text(one.kind === 'ask' ? 'ASKS' : 'TELLS ITS AGENT', skin.label))
@@ -1250,11 +1260,58 @@ function renderSchedule(
   )
   fact('IF MISSED', one.missed === 'once' ? 'runs once when Wilco next opens' : 'skipped')
   const from = askedBy(one.by)
+  const who = (name: string) =>
+    name === 'you' ? 'you' : name === 'orchestrator' ? 'the orchestrator' : name
+  const watch = one.watch
+  if (watch) {
+    const acts = watch.found === 'agent' ? (watch.most === 1 ? 'agent' : 'agents') : 'told'
+    fact('AT MOST', `${watch.most} ${acts} from one look; the rest wait for the next`)
+  }
   fact(
     'FROM',
-    `${from === 'you' ? 'you' : from === 'orchestrator' ? 'the orchestrator' : from}${one.said ? ` · “${one.said}”` : ''}`,
+    `${who(from)}${watch ? ` · turned on by ${who(askedBy(watch.turnedOnBy))}` : ''}${one.said ? ` · “${one.said}”` : ''}`,
   )
-  if (one.runs.length > 0) {
+  if (watch) {
+    const room = Math.max(1, width - 4 - 18)
+    if (watch.findings.length > 0) {
+      rows.push(blank(width))
+      line((r) => r.text('FOUND', skin.label))
+      for (const each of watch.findings.slice(0, 6)) {
+        line((r) => {
+          r.text(clock(each.at).padEnd(18), skin.hint)
+          const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
+          if (task) {
+            r.text(glyph(task, frame.now ?? 0), toneOf(task, skin))
+              .space()
+              .text(shortened(`${shownName(task)} · ${each.title}`, Math.max(1, room - 2)))
+          } else if (each.task) {
+            r.text(
+              shortened(`${inProject(one.project, each.task)} · ${each.title}`, room),
+              skin.hint,
+            )
+          } else if (each.told) {
+            r.text(shortened(`told ${who(each.told)} · ${each.title}`, room), skin.hint)
+          } else {
+            r.text(shortened(`could not start · ${each.title}`, room), skin.waiting)
+          }
+        })
+        if (!each.task && !each.told && each.problem) {
+          line((r) => r.text(' '.repeat(18)).text(shortened(each.problem ?? '', room), skin.hint))
+        }
+      }
+    }
+    if (watch.looks.length > 0) {
+      rows.push(blank(width))
+      line((r) => r.text('LOOKS', skin.label))
+      for (const look of watch.looks.slice(0, 6)) {
+        line((r) =>
+          r
+            .text(clock(look.at).padEnd(18), skin.hint)
+            .text(shortened(describeLook(look), room), look.problem ? skin.waiting : skin.hint),
+        )
+      }
+    }
+  } else if (one.runs.length > 0) {
     rows.push(blank(width))
     line((r) => r.text('RUNS', skin.label))
     for (const each of one.runs.slice(0, 8)) {

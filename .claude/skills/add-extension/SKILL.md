@@ -12,7 +12,7 @@ tools registered by Wilco's own pi extensions, which call back to Wilco. What on
 
 | Path | What |
 |---|---|
-| `packages/extensions/core/src/port.ts` | `WilcoExtension`, tools, actions, brief items, linkers, context |
+| `packages/extensions/core/src/port.ts` | `WilcoExtension`, tools, actions, watches, brief items, linkers, context |
 | `packages/extensions/core/src/host.ts` | `ExtensionHost`: loads, checks, runs, briefs, prompts |
 | `packages/extensions/core/src/conformance.ts` | The suite every extension passes |
 | `packages/extensions/<name>/` | A built-in extension: `src/extension.ts`, `skills/`, `test/` |
@@ -50,9 +50,18 @@ tools registered by Wilco's own pi extensions, which call back to Wilco. What on
 - **`heard` on an action is for narrow phrases only** ("how much is Wilco using"): matched against the
   whole utterance and run with no model. Anything looser is the orchestrator's, through the tool's
   description. Give the answer a `said` sentence, because the markdown is not for speaking.
-- **Watching costs something; measure it.** Anything polled gets a performance test (see
+- **Polling costs something; measure it.** Anything polled gets a performance test (see
   `extensions/resources`): one command for the whole picture, bounded history, a time limit in the
   test.
+- **A watch finds work on a clock** (`watches`): `check(ctx)` looks cheaply — no model, a minute at
+  most — and returns findings with a `key` that stays the same each time the same thing is found,
+  and a `since` its next look starts from (`ctx.since`, or `ctx.turnedOn` the first time: what was
+  there before it was turned on is not new). Overlap the cursor rather than risk a gap; Wilco drops
+  what it has seen. `agent(finding, ctx)` is asked only for what work starts on, so fetch the
+  details there, and write them as `context`. Nothing found is an empty list; throw only when it
+  cannot look, with why. Declare what it takes as `input`, and how often it looks as `every`
+  (`30m`, `1h`). Wilco does the rest: turning it on, the journal, the queue, telling people.
+  Test it through `host.look(...)` with a fake `fetch` (see `extensions/sentry`).
 - **Tests never reach the network.** Pass `fetch` to `ExtensionHost.load`, and `env: {}` — `pnpm run`
   puts its own `npm_config_*` in the environment. Use `mkrepo` for anything reading a project.
 

@@ -18,10 +18,12 @@ import {
   summariseWork,
   type TaskState,
   type Upstream,
+  type Watched,
   type WilcoEvent,
   type WorkHistory,
   type WorkSummary,
   type Workspace,
+  watchedFrom,
   workedFrom,
 } from '@wilco/core'
 import { collectStatus, git } from '@wilco/status'
@@ -53,6 +55,9 @@ const QUEUE_READS = [
   'queue_held',
   'queue_changed',
   'schedule_fired',
+  // What a watch has found, which is never forgotten: one finding, one piece of work.
+  'watch_checked',
+  'watch_found',
 ] as const
 
 /** A schedule's runs as the journal has them, newest last. */
@@ -341,6 +346,11 @@ export class Live {
         missed: typeof event.detail.missed === 'number' ? event.detail.missed : 0,
         task: event.task,
       }))
+  }
+
+  /** What a watch schedule has done — its looks, what it found, where it looks next — from the whole journal. */
+  watchedOf(schedule: string): Watched {
+    return watchedFrom(this.queueEvents, schedule)
   }
 
   /**

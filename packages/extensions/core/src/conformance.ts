@@ -99,5 +99,34 @@ export function extensionConformance(
         expect(orchestratorTools.includes(tool.name)).toBe(tool.for.includes('orchestrator'))
       }
     })
+
+    it('offers its watches to be turned on, and refuses input they do not take', async () => {
+      const host = await load()
+      const offered = host.watches()
+      for (const watch of extension.watches ?? []) {
+        const id = `${extension.name}.${watch.id}`
+        expect(offered.find((one) => one.id === id)).toMatchObject({ problem: null })
+        const required = Array.isArray(watch.input?.required)
+          ? (watch.input.required as string[])
+          : []
+        if (required.length === 0) expect(host.watchProblem(id, {})).toBeNull()
+        else expect(host.watchProblem(id, {})).toMatch(/is needed/)
+      }
+    })
+
+    it('says why a watch cannot look when it is not set up, rather than looking', async () => {
+      const host = await load({ settings: {}, env: {} })
+      if (host.list()[0]?.state === 'ready') return
+      for (const watch of extension.watches ?? []) {
+        await expect(
+          host.look(`${extension.name}.${watch.id}`, {
+            project: 'here',
+            input: {},
+            since: null,
+            turnedOn: new Date(0).toISOString(),
+          }),
+        ).rejects.toThrow(host.list()[0]?.problem ?? /./)
+      }
+    })
   })
 }

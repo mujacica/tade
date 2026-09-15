@@ -46,6 +46,10 @@ export const EventType = z.enum([
   'schedule_fired',
   /** A schedule was made, renamed, paused, resumed or removed, and by whom. */
   'schedule_changed',
+  /** A watch looked: how much it found, how much was new, where its next look starts — or why it could not. */
+  'watch_checked',
+  /** Something a watch found for the first time, and the work started on it or who was told. */
+  'watch_found',
   // agents
   'run_started',
   'run_exited',
@@ -88,6 +92,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   queue_changed: 'notable',
   schedule_fired: 'notable',
   schedule_changed: 'notable',
+  // Routine: it looks on a clock, and a look that found nothing is not news.
+  // What it found is, and that is `watch_found`.
+  watch_checked: 'routine',
+  watch_found: 'notable',
   run_started: 'notable',
   run_exited: 'notable',
   tool_call: 'routine',

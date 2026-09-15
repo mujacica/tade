@@ -35,6 +35,7 @@ import {
   type LaneId,
   loadConfig,
   needsReflection,
+  newFindings,
   orchestratorRoute,
   type Plan,
   parseQuietHours,
@@ -45,11 +46,13 @@ import {
   reflectionPrompt,
   resolveRoute,
   type Schedule,
+  type ScheduleDoes,
   settingsOf,
   startFrom,
   THINKING_LEVELS,
   taskOrigin,
   type When,
+  watchedFrom,
 } from '@wilco/core'
 import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
 import { git } from '@wilco/status'
@@ -221,6 +224,7 @@ import {
 import {
   describeQueue,
   describeSchedule,
+  foundMessage,
   heldMessage,
   planAnswer,
   scheduleView,
@@ -676,6 +680,8 @@ export class App {
   private scheduling: Promise<void> | null = null
   /** When each schedule was last run from this window, before the journal says so. */
   private readonly fired = new Map<string, number>()
+  /** Watches looking now, so a slow look is never started twice. */
+  private readonly lookingWith = new Map<string, Promise<string>>()
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private router: RouterState = initialRouter()
@@ -4505,6 +4511,9 @@ export class App {
 
   /** The extensions, as the panel shows them. */
   private extensionViews(): ExtensionView[] {
+    const offers = this.opts.extensions?.watches() ?? []
+    const project = this.state.project
+    const schedules = this.opts.client.schedules()
     return (this.opts.extensions?.list() ?? []).map((one) => ({
       name: one.name,
       title: one.title,
@@ -4517,7 +4526,44 @@ export class App {
       unknownSettings: one.unknownSettings,
       configurable: this.opts.extensions?.setupOf(one.name) !== null,
       folder: one.source === 'yours' ? one.path : null,
+      watches: offers
+        .filter((offer) => offer.extension === one.name)
+        .map((offer) => ({
+          id: offer.id.slice(one.name.length + 1),
+          title: offer.title,
+          means: offer.means,
+          every: offer.every,
+          project,
+          on:
+            schedules.find(
+              (each) =>
+                each.project === project &&
+                each.does.kind === 'watch' &&
+                each.does.watch === offer.id,
+            )?.id ?? null,
+        })),
     }))
+  }
+
+  /**
+   * Turn a watch on in a project, as you: a schedule named for the watch, or
+   * for the watch and the project when it is already on somewhere else, looking
+   * as often as the watch says. Said in a line: when it looks, and what it waits
+   * for when its extension cannot look yet.
+   */
+  private async turnOnWatch(watch: string, project: string): Promise<string> {
+    const offer = this.opts.extensions?.watches().find((one) => one.id === watch)
+    if (!offer) throw new Error(`there is no watch called ${watch}`)
+    const elsewhere = this.opts.client
+      .schedules()
+      .some((one) => one.id === scheduleIdOf(offer.title) && one.project !== project)
+    const name = elsewhere ? `${offer.title} in ${project}` : offer.title
+    await this.queueTools().schedule({ name, project, said: '', watch, by: 'you' })
+    const view = this.scheduleViews().find((one) => one.id === scheduleIdOf(name))
+    const first = view?.next[0]
+    const when = first === undefined ? '' : `, first at ${whenShort(first, this.now())}`
+    const yet = offer.problem ? `; it cannot look yet: ${offer.problem}` : ''
+    return `${name} is on in ${project}: it looks ${view?.when ?? `every ${offer.every}`}${when}${yet}`
   }
 
   /** Something pressed in the Extensions panel. */
@@ -4543,6 +4589,15 @@ export class App {
           if (folder) await this.reveal(folder, true)
           return stay(null)
         }
+        case 'watch': {
+          const project = this.state.project
+          if (!project) return stay('Open a project to watch it')
+          return stay(await this.turnOnWatch(`${name}.${rest[1] ?? ''}`, project))
+        }
+        case 'watching':
+          this.state = openSchedule({ ...this.state, panel: null }, name)
+          this.draw()
+          return
         case 'toggle': {
           const was = host?.list().find((one) => one.name === name)
           const on = was?.state === 'off'
@@ -5044,30 +5099,55 @@ export class App {
       },
       schedule: async (req) => {
         const now = this.now()
-        const id =
-          req.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 40) || 'schedule'
+        const id = scheduleIdOf(req.name)
         const existing = this.opts.client.schedules().find((one) => one.id === id)
-        const does =
-          req.ask !== undefined
-            ? { kind: 'ask' as const, prompt: req.ask }
-            : {
-                kind: 'agent' as const,
-                prompt: req.agent ?? '',
-                ...(req.done ? { done: req.done } : {}),
-              }
-        if (!does.prompt.trim())
+        const ways = [req.agent, req.ask, req.watch].filter((way) => way !== undefined)
+        if (ways.length !== 1) {
+          throw new Error(
+            'say what it does each time with one of: agent (what to tell it), ask, or watch',
+          )
+        }
+        let does: ScheduleDoes
+        let when = req.when
+        let waits = ''
+        if (req.watch !== undefined) {
+          const host = this.opts.extensions
+          const offer = host?.watches().find((one) => one.id === req.watch)
+          const refused = host
+            ? host.watchProblem(req.watch, req.input ?? {})
+            : 'this window runs no extensions'
+          if (refused || !offer) throw new Error(refused ?? `there is no watch called ${req.watch}`)
+          if (req.most !== undefined && !(Number.isInteger(req.most) && req.most > 0)) {
+            throw new Error(
+              'most is how many new things one look acts on: a whole number, 1 or more',
+            )
+          }
+          does = {
+            kind: 'watch',
+            watch: req.watch,
+            input: { ...(req.input ?? {}) },
+            found: req.found ?? 'agent',
+            most: req.most ?? 2,
+          }
+          when ??= { every: offer.every }
+          // Turned on while its extension cannot look is allowed, and said.
+          if (offer.problem) waits = ` It cannot look yet: ${offer.problem}.`
+        } else if (req.ask !== undefined) {
+          does = { kind: 'ask', prompt: req.ask }
+        } else {
+          does = { kind: 'agent', prompt: req.agent ?? '', ...(req.done ? { done: req.done } : {}) }
+        }
+        if (does.kind !== 'watch' && !does.prompt.trim()) {
           throw new Error('say what it does each time: agent (what to tell it) or ask')
+        }
+        if (!when) throw new Error('say when it runs: at, every or cron')
         const kept = await this.opts.client.setSchedule(
           {
             id,
             name: req.name,
             project: req.project,
             said: req.said,
-            when: req.when,
+            when,
             does,
             missed: req.missed ?? 'once',
             by: req.by ?? 'orchestrator',
@@ -5079,7 +5159,7 @@ export class App {
         const view = scheduleView(kept, this.live?.runsOf(kept.id) ?? [], now)
         this.draw()
         const next = view.next.map((at) => whenShort(at, now))
-        return `${kept.name} (${kept.id}): ${view.when}, ${view.does}. ${next.length > 0 ? `Next: ${next.join(', ')}.` : 'It has nothing left to run.'}`
+        return `${kept.name} (${kept.id}): ${view.when}, ${view.does}. ${next.length > 0 ? `Next: ${next.join(', ')}.` : 'It has nothing left to run.'}${waits}`
       },
       change: async (req) => {
         if (req.schedule) {
@@ -5088,8 +5168,12 @@ export class App {
           if (req.change === 'start') {
             const one = this.opts.client.schedules().find((each) => each.id === id)
             if (!one) throw new Error(`there is no schedule called ${id}`)
-            await this.fire(one, { run: true, due: this.now(), missed: 0 })
-            return `${one.name} ran now.`
+            const said = await this.fire(
+              one,
+              { run: true, due: this.now(), missed: 0 },
+              { asked: true },
+            )
+            return said ? `${said}.` : `${one.name} ran now.`
           }
           if (
             req.change === 'rename' ||
@@ -5180,7 +5264,14 @@ export class App {
     const now = this.now()
     return this.opts.client
       .schedules()
-      .map((one) => scheduleView(one, this.live?.runsOf(one.id) ?? [], now))
+      .map((one) =>
+        scheduleView(
+          one,
+          this.live?.runsOf(one.id) ?? [],
+          now,
+          one.does.kind === 'watch' ? this.live?.watchedOf(one.id) : undefined,
+        ),
+      )
   }
 
   /** What is done to a schedule from the window: yours, and at once. */
@@ -5200,7 +5291,7 @@ export class App {
       } else if (change === 'run') {
         const one = this.opts.client.schedules().find((each) => each.id === id)
         if (!one) throw new Error(`there is no schedule called ${id}`)
-        await this.fire(one, { run: true, due: this.now(), missed: 0 })
+        await this.fire(one, { run: true, due: this.now(), missed: 0 }, { asked: true })
       } else if (change === 'pause' || change === 'resume' || change === 'remove') {
         await this.opts.client.changeSchedule({ id, change, by: 'you' })
         if (change === 'remove' && this.state.schedule === id) {
@@ -5233,8 +5324,7 @@ export class App {
     if (!live) return
     const now = this.now()
     for (const one of this.opts.client.schedules()) {
-      // A watch looks with an extension's check, which this window does not run yet.
-      if (one.paused || one.does.kind === 'watch') continue
+      if (one.paused) continue
       const runs = live.runsOf(one.id)
       const last = Math.max(
         runs.at(-1)?.due ?? Number.NEGATIVE_INFINITY,
@@ -5263,7 +5353,8 @@ export class App {
   private async fire(
     one: Schedule & { paused: boolean },
     due: { run: boolean; due: number; missed: number },
-  ): Promise<void> {
+    how: { asked?: boolean } = {},
+  ): Promise<string> {
     this.fired.set(one.id, due.due)
     const { task } = await this.opts.client.fireSchedule(one.id, due, this.now())
     const missed =
@@ -5273,6 +5364,11 @@ export class App {
     let said: string
     if (!due.run) {
       said = `${one.name} skipped what came due while Wilco was closed${missed}`
+    } else if (one.does.kind === 'watch') {
+      // Looking is not news; what it finds is, and the look says it. One asked
+      // for is waited on, so whoever asked hears what it found, nothing included.
+      const looking = this.lookWith(one, how.asked === true)
+      return how.asked ? await looking : ''
     } else if (one.does.kind === 'agent') {
       said = `${one.name} ran: ${task ?? 'its agent'} is queued${missed}`
       void this.advanceQueue()
@@ -5286,6 +5382,124 @@ export class App {
     this.news = addNews(this.news, said, this.now())
     this.state = withTranscript(this.state, wilcoDid(this.state.transcript, said, this.now()))
     this.draw()
+    return said
+  }
+
+  /**
+   * One look with a watch. What it found is written down first; then what is
+   * new, as far as the most one look acts on, becomes queued work — or is told
+   * to the orchestrator — and the rest waits for the next look, which starts
+   * where this one did so it finds them again. Said where you would look, except
+   * a look nobody asked for that found nothing new; one that could not look is
+   * said when it starts going wrong, not at every look while it stays wrong.
+   * One look at a time per watch: a slow one is never started twice.
+   */
+  private lookWith(one: Schedule & { paused: boolean }, asked = false): Promise<string> {
+    const running = this.lookingWith.get(one.id)
+    if (running) return running
+    const looking = this.doLookWith(one, asked).finally(() => this.lookingWith.delete(one.id))
+    this.lookingWith.set(one.id, looking)
+    return looking
+  }
+
+  private async doLookWith(one: Schedule & { paused: boolean }, asked: boolean): Promise<string> {
+    const does = one.does
+    if (does.kind !== 'watch') return ''
+    const client = this.opts.client
+    const watched = this.live?.watchedOf(one.id) ?? watchedFrom([], one.id)
+    const say = (said: string, bad = false) => {
+      this.news = addNews(this.news, said, this.now())
+      this.state = withTranscript(
+        this.state,
+        bad
+          ? problem(this.state.transcript, said, this.now())
+          : wilcoDid(this.state.transcript, said, this.now()),
+      )
+      this.draw()
+      return said
+    }
+    let looked: Awaited<ReturnType<ExtensionHost['look']>>
+    try {
+      const host = this.opts.extensions
+      if (!host) throw new Error('this window runs no extensions')
+      looked = await host.look(does.watch, {
+        project: one.project,
+        input: does.input,
+        since: watched.since,
+        turnedOn: one.created,
+      })
+    } catch (err) {
+      const reason = why(err)
+      await client.watchChecked(one.id, { problem: reason }).catch(() => {})
+      const said = `${one.name} could not look: ${reason}`
+      if (asked || watched.looks[0]?.problem !== reason) return say(said, true)
+      return said
+    }
+    const { fresh, acting, left } = newFindings(looked.found, watched.seen, does.most)
+    await client.watchChecked(one.id, {
+      found: looked.found.length,
+      fresh: fresh.map((finding) => finding.key),
+      left,
+      since: left > 0 ? watched.since : looked.since,
+    })
+    if (acting.length === 0) {
+      const said = `${one.name} looked: ${looked.found.length === 0 ? 'found nothing' : 'nothing new'}`
+      if (asked) {
+        this.state = notice(this.state, said)
+        this.draw()
+      }
+      return said
+    }
+    const waits =
+      left > 0 ? `; ${left} more ${left === 1 ? 'waits' : 'wait'} for its next look` : ''
+    if (does.found === 'ask') {
+      for (const finding of acting) {
+        await client.watchFound(one.id, finding, { told: 'orchestrator' }).catch(() => {})
+      }
+      void this.tell(
+        foundMessage({
+          name: one.name,
+          watch: does.watch,
+          project: one.project,
+          who: askedByWords(one.by),
+          found: acting,
+          left,
+        }),
+      ).catch(() => {})
+      const said = `${one.name} found ${fresh.length} new: the orchestrator is told${waits}`
+      this.state = withTranscript(this.state, wilcoDid(this.state.transcript, said, this.now()))
+      this.draw()
+      return said
+    }
+    const started: string[] = []
+    const failed: string[] = []
+    for (const finding of acting) {
+      try {
+        const agent = await looked.agent(finding).catch(async (err: unknown) => {
+          // Written down as found, with why: tried again at every look, it would say so at every look.
+          await client.watchFound(one.id, finding, { problem: why(err) }).catch(() => {})
+          throw err
+        })
+        const { task } = await client.watchFound(one.id, finding, {
+          agent: { ...agent, links: agent.links ?? finding.links ?? [] },
+        })
+        if (task) started.push(task)
+      } catch (err) {
+        failed.push(`${finding.title} (${why(err)})`)
+      }
+    }
+    if (started.length > 0) {
+      await this.live?.refresh()
+      void this.advanceQueue()
+    }
+    const parts = [
+      started.length > 0 ? `queued ${joined(started)}` : '',
+      failed.length > 0 ? `could not start work on ${failed.join('; ')}` : '',
+    ].filter(Boolean)
+    return say(
+      `${one.name} found ${fresh.length} new: ${parts.join('; ')}${waits}`,
+      started.length === 0,
+    )
   }
 
   /** A task's own rule met — an idle turn, committed work, a merge — written down, once. */
@@ -5765,14 +5979,34 @@ export interface ScheduleRequest {
   name: string
   project: string
   said: string
-  when: When
+  /** When it runs; for a watch, how often it looks, which is the watch's own unless said. */
+  when?: When
   /** Start an agent each time, told this. */
   agent?: string
   /** Ask the orchestrator this each time. */
   ask?: string
+  /** Look with an extension's watch each time: `<extension>.<id>`. */
+  watch?: string
+  /** What the watch is turned on with. */
+  input?: Readonly<Record<string, unknown>>
+  /** What each new thing a watch finds becomes: an agent on it, or a question for the orchestrator. */
+  found?: 'agent' | 'ask'
+  /** At most this many new things acted on from one look. */
+  most?: number
   done?: DoneRule
   missed?: 'once' | 'skip'
   by?: string
+}
+
+/** A schedule's id, for good, from the name it was first given: made again under it, it is changed. */
+function scheduleIdOf(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'schedule'
+  )
 }
 
 /** Who made a schedule, in words for the orchestrator. */

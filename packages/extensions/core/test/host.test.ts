@@ -45,6 +45,29 @@ function weather(overrides: Partial<WilcoExtension> = {}): WilcoExtension {
     agents: (_ctx, project) =>
       `The weather where ${project.name} is kept is available as weather_now.`,
     linkers: () => [{ pattern: 'RAIN-\\d+', url: 'https://weather.example/$&' }],
+    watches: [
+      {
+        id: 'rain',
+        title: 'Rain',
+        means: 'Looks for rain over a project, and starts an agent to bring the washing in.',
+        every: '30m',
+        input: object({ heavier: string('only rain heavier than this, in mm') }),
+        check: async (ctx) => ({
+          found:
+            ctx.settings.raining === true
+              ? [
+                  { key: `rain-${ctx.watching.name}`, title: `Rain over ${ctx.watching.name}` },
+                  { key: `rain-${ctx.watching.name}`, title: 'the same rain, said twice' },
+                ]
+              : [],
+          since: `after ${ctx.since ?? ctx.turnedOn}`,
+        }),
+        agent: (finding, ctx) => ({
+          title: `bring in ${finding.key}`,
+          prompt: `It is raining in ${String(ctx.settings.city)}: ${finding.title}.`,
+        }),
+      },
+    ],
     harness: { pi: { skills: ['skills/umbrella'] } },
     ...overrides,
   }
@@ -233,6 +256,85 @@ describe('running a tool', () => {
   })
 })
 
+describe('watching', () => {
+  const look = { project: 'shop', input: {}, since: null, turnedOn: '2026-09-15T08:00:00.000Z' }
+
+  it('offers what it can watch, and turns one on only with input it takes', async () => {
+    const loaded = await host()
+    expect(loaded.watches()).toEqual([
+      {
+        id: 'weather.rain',
+        extension: 'weather',
+        title: 'Rain',
+        means: 'Looks for rain over a project, and starts an agent to bring the washing in.',
+        every: '30m',
+        input: expect.objectContaining({ type: 'object' }),
+        problem: null,
+      },
+    ])
+    expect(loaded.watchProblem('weather.rain', { heavier: 3 })).toBe('heavier should be a string')
+    expect(loaded.watchProblem('weather.snow', {})).toBe(
+      'there is no watch called weather.snow (there is weather.rain)',
+    )
+    // Not set up yet is no reason to refuse it: it says so, and waits.
+    const unready = await host({})
+    expect(unready.watchProblem('weather.rain', {})).toBeNull()
+    expect(unready.watches()[0]?.problem).toBe(
+      'Weather needs setting up: set extensions.weather.city',
+    )
+  })
+
+  it('looks with what it was turned on with and where it left off, and says what an agent is told', async () => {
+    const loaded = await host({ city: 'Vienna', raining: true })
+    const first = await loaded.look('weather.rain', look)
+    // The same thing found twice in one look is one finding.
+    expect(first.found).toEqual([{ key: 'rain-shop', title: 'Rain over shop' }])
+    expect(first.since).toBe('after 2026-09-15T08:00:00.000Z')
+    const again = await loaded.look('weather.rain', { ...look, since: first.since })
+    expect(again.since).toBe('after after 2026-09-15T08:00:00.000Z')
+    await expect(first.agent(first.found[0]!)).resolves.toEqual({
+      title: 'bring in rain-shop',
+      prompt: 'It is raining in Vienna: Rain over shop.',
+    })
+  })
+
+  it('says why it could not look, and gives up on one that never answers', async () => {
+    await expect((await host({})).look('weather.rain', look)).rejects.toThrow(
+      'Weather needs setting up: set extensions.weather.city',
+    )
+    await expect((await host()).look('weather.rain', { ...look, project: 'nope' })).rejects.toThrow(
+      'there is no project called nope',
+    )
+    const rain = weather().watches![0]!
+    const slow = await host(
+      { city: 'Vienna' },
+      { watches: [{ ...rain, check: () => new Promise(() => {}) }] },
+    )
+    await expect(slow.look('weather.rain', { ...look, timeoutMs: 50 })).rejects.toThrow(
+      'weather.rain took longer than 0s to look, and was given up on',
+    )
+    const nameless = await host(
+      { city: 'Vienna' },
+      { watches: [{ ...rain, check: async () => ({ found: [{ key: '', title: 'something' }] }) }] },
+    )
+    await expect(nameless.look('weather.rain', look)).rejects.toThrow('without a key')
+  })
+
+  it('refuses a watch put together wrong', async () => {
+    const rain = weather().watches![0]!
+    for (const [watches, problem] of [
+      [[{ ...rain, every: 'fortnight' }], 'not a length like 30m'],
+      [[{ ...rain, every: 'week' }], 'not a length like 30m'],
+      [[rain, rain], 'two watches called rain'],
+      [[{ ...rain, id: 'Rain Now' }], 'not a usable name'],
+      [[{ ...rain, input: { type: 'string' } }], 'input that is not an object'],
+    ] as const) {
+      const loaded = await host({ city: 'Vienna' }, { watches })
+      expect(loaded.list()[0]?.problem).toContain(problem)
+    }
+  })
+})
+
 describe('what extensions tell everyone else', () => {
   it('fills the brief, and leaves out one that fails', async () => {
     const loaded = await ExtensionHost.load({
@@ -260,7 +362,11 @@ describe('what extensions tell everyone else', () => {
 
   it('tells the orchestrator what it can use, and what is not set up yet', async () => {
     expect((await host()).orchestratorPrompt()).toBe(
-      'Extensions:\n- Weather (weather_now, weather_change): Use weather_now before deciding whether to deploy.',
+      [
+        'Extensions:',
+        '- Weather (weather_now, weather_change): Use weather_now before deciding whether to deploy.',
+        '  Watch weather.rain (every 30m unless told otherwise): Looks for rain over a project, and starts an agent to bring the washing in.',
+      ].join('\n'),
     )
     expect((await host({})).orchestratorPrompt()).toContain(
       'Weather is installed but not set up: set extensions.weather.city',

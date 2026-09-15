@@ -1,9 +1,11 @@
 import {
   defaultClock,
+  describeLook,
   describeWhen,
   runsOf,
   scheduleEnded,
   taskOrigin,
+  watchedFrom,
   wilcoHome,
 } from '@wilco/core'
 import { readJournal } from '@wilco/workbench/events'
@@ -26,6 +28,7 @@ export function registerSchedules(program: Command, io: Io): void {
       const home = wilcoHome()
       const kept = readSchedules(home)
       const fired = await readJournal(home, { types: ['schedule_fired'] })
+      const watching = await readJournal(home, { types: ['watch_checked', 'watch_found'] })
       const now = Date.now()
       const shown = kept.map((one) => {
         const runs = fired.filter((event) => event.detail.schedule === one.id)
@@ -41,15 +44,25 @@ export function registerSchedules(program: Command, io: Io): void {
               Number.POSITIVE_INFINITY,
               1,
             )[0] ?? null)
-        return { schedule: one, next, ran }
+        const watched = one.does.kind === 'watch' ? watchedFrom(watching, one.id) : null
+        return { schedule: one, next, ran, watched }
       })
       if (opts.json) {
         io.out(
           JSON.stringify(
-            shown.map(({ schedule, next, ran }) => ({
+            shown.map(({ schedule, next, ran, watched }) => ({
               ...schedule,
               next: next === null ? null : new Date(next).toISOString(),
               ran,
+              ...(watched
+                ? {
+                    watched: {
+                      since: watched.since,
+                      looks: watched.looks.slice(0, 10),
+                      findings: watched.findings,
+                    },
+                  }
+                : {}),
             })),
             null,
             2,
@@ -63,21 +76,29 @@ export function registerSchedules(program: Command, io: Io): void {
         )
         return
       }
-      for (const { schedule, next } of shown) {
+      for (const { schedule, next, watched } of shown) {
         const origin = taskOrigin(schedule.by)
+        const clock = defaultClock(schedule.when)
         const does =
           schedule.does.kind === 'agent'
             ? 'starts an agent'
             : schedule.does.kind === 'ask'
               ? 'asks the orchestrator'
-              : `watches with ${schedule.does.watch}`
+              : `watches with ${schedule.does.watch}, and ${schedule.does.found === 'ask' ? 'tells the orchestrator' : 'starts work on'} what it finds`
         const when = schedule.paused
           ? 'paused'
           : next === null
             ? 'nothing left to run'
-            : `next ${defaultClock(schedule.when)(next)}`
+            : `next ${clock(next)}`
         io.out(`${schedule.id}  ${schedule.project}  ${describeWhen(schedule.when)}, ${does}`)
         io.out(`  ${when} · made by ${origin.name}`)
+        const look = watched?.looks[0]
+        if (watched && look) {
+          const started = watched.findings.filter((finding) => finding.task).length
+          io.out(
+            `  last looked ${clock(look.at)}: ${describeLook(look)} · found ${watched.findings.length} in all, work started on ${started}`,
+          )
+        }
       }
     })
 }

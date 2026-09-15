@@ -524,6 +524,21 @@ export interface ExtensionView {
   configurable: boolean
   /** Its folder, for one of yours. */
   folder: string | null
+  /** What it offers to watch, and whether each is on in the project you are in. */
+  watches: readonly WatchOfferView[]
+}
+
+/** A watch an extension offers, as the Extensions panel shows it. */
+export interface WatchOfferView {
+  /** Its name in the extension: `new-errors`. */
+  id: string
+  title: string
+  means: string
+  every: string
+  /** The project it would watch: the one you are in. Null when you are in none. */
+  project: string | null
+  /** The schedule watching it there, once it is on. */
+  on: string | null
 }
 
 /** What an extension shows when its status is clicked: a document, kept fresh while open. */
@@ -554,8 +569,9 @@ export function extensionsPanel(): ExtensionsPanel {
 
 /**
  * Every control in the panel, in the order the keyboard moves through them:
- * for each extension, turning it on or off, setting it up, its actions and its
- * folder; then, for each proposal, reading, approving and turning it down.
+ * for each extension, turning it on or off, setting it up, its actions, its
+ * folder, and watching what it offers to watch — or showing the watch, once it
+ * is on; then, for each proposal, reading, approving and turning it down.
  */
 export function extensionControls(
   views: readonly ExtensionView[],
@@ -569,11 +585,25 @@ export function extensionControls(
     if (view.state === 'ready')
       controls.push(...view.actions.map((action) => `action:${view.name}:${action.id}`))
     if (view.folder) controls.push(`folder:${view.name}`)
+    if (view.state === 'broken') continue
+    for (const watch of view.watches) {
+      const control = watchControl(view.name, watch)
+      if (control) controls.push(control)
+    }
   }
   for (const proposal of proposals) {
     controls.push(`read:${proposal.name}`, `approve:${proposal.name}`, `reject:${proposal.name}`)
   }
   return controls
+}
+
+/**
+ * What a watch's button does: show the schedule watching it, once one is on;
+ * turn it on in the project you are in; or nothing, when you are in none.
+ */
+export function watchControl(extension: string, watch: WatchOfferView): string | null {
+  if (watch.on) return `watching:${watch.on}`
+  return watch.project ? `watch:${extension}:${watch.id}` : null
 }
 
 /** Setting an extension up, or changing its settings: a guide, and fields. */

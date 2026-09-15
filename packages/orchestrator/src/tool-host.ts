@@ -60,9 +60,13 @@ export interface ToolHostOptions {
       name: string
       project: string
       said: string
-      when: When
+      when?: When
       agent?: string
       ask?: string
+      watch?: string
+      input?: Record<string, unknown>
+      found?: 'agent' | 'ask'
+      most?: number
       done?: DoneRule
       missed?: 'once' | 'skip'
     }): Promise<string>
@@ -127,21 +131,35 @@ export class ToolHost {
           change: String(p.change ?? ''),
         }),
       'queue/schedule': async (p) => {
-        const when = When.safeParse(p.when ?? {})
-        if (!when.success) {
+        // A watch looks as often as it says it should unless told otherwise: an
+        // empty rule is no rule, not one that can never be kept.
+        const unsaid =
+          p.when === undefined ||
+          p.when === null ||
+          (typeof p.when === 'object' && Object.keys(p.when).length === 0)
+        const when = unsaid ? null : When.safeParse(p.when)
+        if (when && !when.success) {
           throw new Error(
             `when is not a rule: ${when.error.issues.map((issue) => issue.message).join('; ')}`,
           )
         }
         const text = (value: unknown) => (typeof value === 'string' ? value : '')
         const missed = p.missed === 'skip' ? 'skip' : p.missed === 'once' ? 'once' : undefined
+        const found = p.found === 'ask' ? 'ask' : p.found === 'agent' ? 'agent' : undefined
+        if (p.input !== undefined && (typeof p.input !== 'object' || p.input === null)) {
+          throw new Error('input is what the watch is turned on with: an object')
+        }
         return queueOf(opts).schedule({
           name: text(p.name),
           project: text(p.project),
           said: text(p.said),
-          when: when.data,
+          ...(when?.success ? { when: when.data } : {}),
           ...(p.agent !== undefined ? { agent: text(p.agent) } : {}),
           ...(p.ask !== undefined ? { ask: text(p.ask) } : {}),
+          ...(p.watch !== undefined ? { watch: text(p.watch) } : {}),
+          ...(p.input !== undefined ? { input: p.input as Record<string, unknown> } : {}),
+          ...(found ? { found } : {}),
+          ...(typeof p.most === 'number' ? { most: p.most } : {}),
           ...(p.done ? { done: doneRuleOf(p.done) } : {}),
           ...(missed ? { missed } : {}),
         })

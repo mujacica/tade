@@ -364,6 +364,75 @@ describe('acting on Sentry', () => {
   })
 })
 
+describe('watching Sentry for new errors', () => {
+  it('looks for issues first seen since it last looked, and briefs an agent from what Sentry knows', async () => {
+    const { fetcher, asked } = sentry({
+      'GET https://us.sentry.io/api/0/organizations/acme/issues/4411/': () => Response.json(issue),
+    })
+    const extensions = await host(fetcher)
+    const first = await extensions.look('sentry.new-errors', {
+      project: 'shop',
+      input: { query: 'level:error' },
+      since: null,
+      turnedOn: '2026-09-14T06:00:00.000Z',
+    })
+    const listed = asked.find((one) => one.url.pathname.endsWith('/issues/'))
+    // Nothing already there when it was turned on is new.
+    expect(listed?.url.searchParams.get('query')).toBe(
+      'is:unresolved level:error firstSeen:>=2026-09-14T06:00:00.000Z',
+    )
+    expect(listed?.url.searchParams.get('sort')).toBe('new')
+    expect(listed?.url.searchParams.getAll('project')).toEqual(['7'])
+    expect(first.found).toEqual([
+      {
+        key: '4411',
+        title: `SHOP-1A: ${issue.title}`,
+        links: [{ title: 'SHOP-1A', url: 'https://acme.sentry.io/issues/4411/' }],
+      },
+    ])
+    // The next look starts a little before this one: Sentry takes a moment to take an event in.
+    expect(first.since).toBe('2026-09-14T08:50:00.000Z')
+
+    // Only what work starts on is fetched in full.
+    expect(asked.some((one) => one.url.pathname.includes('/events/recommended/'))).toBe(false)
+    const agent = await first.agent(first.found[0]!)
+    expect(agent).toMatchObject({ title: 'fix SHOP-1A' })
+    expect(agent.prompt).toContain('"Fixes SHOP-1A"')
+    expect(agent.context).toContain('## Most relevant frame')
+    expect(agent.links?.[0]).toEqual({
+      title: 'SHOP-1A',
+      url: 'https://acme.sentry.io/issues/4411/',
+    })
+
+    // A later look starts where the last one left off.
+    asked.length = 0
+    await extensions.look('sentry.new-errors', {
+      project: 'shop',
+      input: {},
+      since: first.since,
+      turnedOn: '2026-09-14T06:00:00.000Z',
+    })
+    expect(
+      asked.find((one) => one.url.pathname.endsWith('/issues/'))?.url.searchParams.get('query'),
+    ).toBe('is:unresolved firstSeen:>=2026-09-14T08:50:00.000Z')
+  })
+
+  it('says why it cannot look, rather than finding nothing', async () => {
+    const { fetcher } = sentry({
+      'GET https://us.sentry.io/api/0/organizations/acme/issues/': () =>
+        Response.json({ detail: 'Invalid token' }, { status: 401 }),
+    })
+    await expect(
+      (await host(fetcher)).look('sentry.new-errors', {
+        project: 'shop',
+        input: {},
+        since: null,
+        turnedOn: '2026-09-14T06:00:00.000Z',
+      }),
+    ).rejects.toThrow('did not accept the token')
+  })
+})
+
 describe('setting Sentry up', () => {
   it('says where the token is, and offers the organizations it can see', async () => {
     const { fetcher } = sentry({

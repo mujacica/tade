@@ -23,7 +23,8 @@ git owns the work, and status is always read from them, so closing Wilco loses n
   runs commands in terminals, and shows its work as it goes.
 - **A smart queue**: ask for several changes at once and the orchestrator plans them — what can run
   together starts, and the rest waits in the SMART QUEUE and starts by itself when what it waits on
-  has finished.
+  has finished. Work can be put on a clock too, and extensions offer watches that start agents on
+  what they find.
 - **One window**: agents, files, changes, git, notes, terminals, search (`ctrl+k`), a file viewer.
 - **Extensions**: dependencies and Sentry built in, with your own beside them.
 - **The brief**: what is stopped, what is moving, and what extensions found — `wilco brief`, or
@@ -68,7 +69,9 @@ from **Settings**.
   dependencies in checkout"*.
 - **Sentry** reads issues, traces, logs, spans and metrics, and starts agents on fixes with
   everything Sentry knows in their context: *"check Sentry for new errors and tell me what to fix"*.
-  It uses your sentry-cli credentials; set the organization:
+  Its **New Sentry errors** watch looks every hour and starts an agent on each new issue — *"fix new
+  Sentry errors as they come"*, or **Watch** it from Extensions. It uses your sentry-cli
+  credentials; set the organization:
 
   ```yaml
   extensions:

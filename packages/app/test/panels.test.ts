@@ -26,6 +26,7 @@ import {
   spendPanel,
   terminalMenuItems,
   thinkingMenuItems,
+  watchControl,
 } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 import { spendView } from '../src/spend.ts'
@@ -322,6 +323,7 @@ describe('the Extensions panel', () => {
       unknownSettings: [],
       configurable: true,
       folder: null,
+      watches: [],
     },
     {
       name: 'sentry',
@@ -335,6 +337,25 @@ describe('the Extensions panel', () => {
       unknownSettings: [],
       configurable: true,
       folder: null,
+      // Offered while it still needs setting up: turned on, it waits, and says why.
+      watches: [
+        {
+          id: 'new-errors',
+          title: 'New Sentry errors',
+          means: 'Starts an agent on each new issue.',
+          every: '1h',
+          project: 'shop',
+          on: null,
+        },
+        {
+          id: 'regressions',
+          title: 'Regressions',
+          means: 'Starts an agent on each issue that came back.',
+          every: '1h',
+          project: 'shop',
+          on: 'regressions',
+        },
+      ],
     },
   ]
   const proposals = [{ name: 'notes', kind: 'tool' as const, why: 'x', path: '/p/notes.ts' }]
@@ -346,6 +367,8 @@ describe('the Extensions panel', () => {
       'action:deps:check',
       'toggle:sentry',
       'setup:sentry',
+      'watch:sentry:new-errors',
+      'watching:regressions',
       'read:notes',
       'approve:notes',
       'reject:notes',
@@ -363,6 +386,15 @@ describe('the Extensions panel', () => {
       submit: true,
       choice: 'approve:notes',
     })
+  })
+
+  it('offers a watch only where there is a project to watch', () => {
+    const watch = views[1]!.watches[0]!
+    expect(watchControl('sentry', watch)).toBe('watch:sentry:new-errors')
+    expect(watchControl('sentry', { ...watch, project: null })).toBeNull()
+    expect(watchControl('sentry', { ...watch, project: null, on: 'new-sentry-errors' })).toBe(
+      'watching:new-sentry-errors',
+    )
   })
 })
 
