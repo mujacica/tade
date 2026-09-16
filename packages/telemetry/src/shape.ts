@@ -1,9 +1,10 @@
 import type { WilcoEvent } from '@wilco/core'
-import type { FromEvent, Level, Measure, Note, Trouble } from './port.ts'
+import type { FromEvent, Level, Measure } from './port.ts'
 
-// What goes on the wire, worked out in pure functions: where a DSN points,
-// what a journal event is worth sending as, what a stack looks like once the
-// machine's own paths are out of it, and the envelope it all travels in.
+// What may be sent, worked out in pure functions: where a DSN points, what a
+// journal event is worth sending as, and what is taken out of everything
+// before it goes. The SDK does the protocol; this is the policy, which is the
+// part Wilco has to decide for itself.
 //
 // Everything here is a value in and a value out, so what Wilco would send can
 // be read in a test instead of sniffed on a network.
@@ -35,11 +36,6 @@ export function readDsn(dsn: string): Dsn | null {
     key: url.username,
     project,
   }
-}
-
-/** What a request signs itself with. */
-export function auth(dsn: Dsn, release: string): string {
-  return `Sentry sentry_version=7, sentry_client=wilco/${release}, sentry_key=${dsn.key}`
 }
 
 /**
@@ -137,162 +133,6 @@ export function about(
     else if (typeof value === 'boolean') out[key] = value
   }
   return out
-}
-
-/** A stack frame, as Sentry draws one. */
-export interface Frame {
-  filename: string
-  function?: string
-  lineno?: number
-  colno?: number
-  in_app: boolean
-}
-
-const AT = /^\s*at\s+(?:(?<fn>.+?)\s+\()?(?<file>[^()]+?):(?<line>\d+):(?<col>\d+)\)?\s*$/
-
-/**
- * A stack as frames, oldest first, which is the order Sentry draws them in.
- * Frames in `node_modules` or node's own internals are not Wilco's code, and
- * are marked so the ones you can do something about stand out.
- */
-export function framesOf(stack: string, home: string): Frame[] {
-  const frames: Frame[] = []
-  for (const line of stack.split('\n')) {
-    const found = AT.exec(line)?.groups
-    if (!found?.file) continue
-    const file = found.file.replace(/^file:\/\//, '')
-    frames.push({
-      filename: scrub(file, home),
-      ...(found.fn ? { function: found.fn } : {}),
-      lineno: Number(found.line),
-      colno: Number(found.col),
-      in_app: !file.includes('node_modules') && !file.startsWith('node:'),
-    })
-  }
-  return frames.reverse()
-}
-
-/** What was thrown, as a kind and a sentence. */
-export function saidOf(error: unknown): { type: string; value: string; stack: string } {
-  if (error instanceof Error) {
-    return { type: error.name || 'Error', value: error.message, stack: error.stack ?? '' }
-  }
-  if (typeof error === 'string') return { type: 'Error', value: error, stack: '' }
-  return {
-    type: 'Error',
-    value: JSON.stringify(error)?.slice(0, VALUE_MAX) ?? 'something',
-    stack: '',
-  }
-}
-
-export interface Where {
-  release: string
-  environment: string
-  home: string
-  /** One trace for this window, so everything it sent reads as one run. */
-  trace: string
-  now: number
-  id: string
-}
-
-/** One thing that went wrong, as the event Sentry keeps. */
-export function troubleEvent(trouble: Trouble, where: Where): Record<string, unknown> {
-  const said = saidOf(trouble.error)
-  const message = scrub(said.value, where.home)
-  const frames = framesOf(said.stack, where.home)
-  const tags: Record<string, string> = {
-    where: trouble.where,
-    ...(trouble.task ? { task: trouble.task } : {}),
-    ...(trouble.project ? { project: trouble.project } : {}),
-  }
-  return {
-    event_id: where.id,
-    timestamp: where.now / 1000,
-    platform: 'node',
-    level: trouble.level ?? 'error',
-    logger: 'wilco',
-    release: where.release,
-    environment: where.environment,
-    contexts: {
-      runtime: { name: 'node', version: process.version },
-      os: { name: process.platform },
-      trace: { trace_id: where.trace, span_id: where.id.slice(0, 16) },
-    },
-    tags,
-    extra: trouble.about ?? {},
-    ...(trouble.fingerprint ? { fingerprint: [...trouble.fingerprint] } : {}),
-    ...(frames.length > 0
-      ? { exception: { values: [{ type: said.type, value: message, stacktrace: { frames } }] } }
-      : { message: { formatted: `${trouble.where}: ${message}` } }),
-  }
-}
-
-/** A value as Sentry's items type them. */
-function typed(value: string | number | boolean): {
-  value: string | number | boolean
-  type: string
-} {
-  if (typeof value === 'boolean') return { value, type: 'boolean' }
-  if (typeof value === 'number') {
-    return Number.isInteger(value) ? { value, type: 'integer' } : { value, type: 'double' }
-  }
-  return { value, type: 'string' }
-}
-
-function attributes(
-  about: Readonly<Record<string, string | number | boolean>> | undefined,
-  where: Where,
-): Record<string, { value: string | number | boolean; type: string }> {
-  const out: Record<string, { value: string | number | boolean; type: string }> = {
-    'sentry.release': typed(where.release),
-    'sentry.environment': typed(where.environment),
-  }
-  for (const [key, value] of Object.entries(about ?? {})) out[key] = typed(value)
-  return out
-}
-
-/** Lines to read, as the item a batch of logs travels in. */
-export function logItems(notes: readonly Note[], where: Where): Record<string, unknown> {
-  return {
-    items: notes.map((note) => ({
-      timestamp: note.at / 1000,
-      trace_id: where.trace,
-      level: note.level,
-      body: scrub(note.said, where.home).slice(0, VALUE_MAX * 4),
-      attributes: attributes(note.about, where),
-    })),
-  }
-}
-
-/** Numbers to watch, as the item a batch of them travels in. */
-export function metricItems(measures: readonly Measure[], where: Where): Record<string, unknown> {
-  return {
-    items: measures.map((measure) => ({
-      timestamp: measure.at / 1000,
-      trace_id: where.trace,
-      name: measure.name,
-      type: measure.kind,
-      value: measure.value,
-      ...(measure.unit ? { unit: measure.unit } : {}),
-      attributes: attributes(measure.about, where),
-    })),
-  }
-}
-
-/** One item of an envelope: what it is, and what is in it. */
-export interface Item {
-  header: Record<string, unknown>
-  payload: unknown
-}
-
-/** An envelope, as bytes: a header line, then each item's header and body. */
-export function envelope(header: Record<string, unknown>, items: readonly Item[]): string {
-  const lines = [JSON.stringify(header)]
-  for (const item of items) {
-    const body = JSON.stringify(item.payload)
-    lines.push(JSON.stringify({ ...item.header, length: Buffer.byteLength(body) }), body)
-  }
-  return `${lines.join('\n')}\n`
 }
 
 /** Events nobody needs to see twice, and events that are nobody's business. */

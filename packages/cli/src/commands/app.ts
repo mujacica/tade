@@ -55,6 +55,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
     .description('The window: every project, the agent you are watching, and the orchestrator')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action(async (opts: { config: string }) => {
+      const opened = Date.now()
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
         io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
@@ -88,7 +89,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const safe = program.opts().safe === true
       // Where Wilco's own trouble goes, if anywhere: nothing is sent until a
       // DSN is set, and what a crash takes down is sent on the way out.
-      const report = reporterFor(cfg.config)
+      const report = await reporterFor(cfg.config)
       let restoreTerminal: () => Promise<void> = async () => {}
       const stopWatching = report.on
         ? watchProcess(report, {
@@ -100,15 +101,31 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         : () => {}
       // Loaded before anything that hands them out: the workbench gives agents
       // their tools, the host gives the orchestrator its, the window runs them.
+      // How long Wilco takes to open, in the parts it is made of.
+      const timingOpen = report.doing({
+        name: 'open the window',
+        op: 'wilco.open',
+        startedAt: opened,
+      })
+      const loadingExtensions = timingOpen.inside({
+        name: 'load the extensions',
+        op: 'wilco.extensions',
+      })
       const extensions = await loadExtensions({ config: cfg.config, home, safe })
+      loadingExtensions.end()
       const extensionsRoot = expandHome(cfg.config.orchestrator.extensions)
       // What an extension may ask of the window, once there is one.
       let windowForExtensions: ExtensionWorkbench | null = null
       let client: Workbench
+      const openingWorkbench = timingOpen.inside({
+        name: 'open the workbench',
+        op: 'wilco.workbench',
+      })
       try {
         client = await Workbench.open({
           home,
           extensions: workbenchExtensions(extensions, home, () => windowForExtensions),
+          report,
         })
       } catch (err) {
         io.err(
@@ -119,8 +136,12 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               : String(err),
         )
         setExit(Exit.error)
+        openingWorkbench.wrong(err)
+        openingWorkbench.end()
+        timingOpen.end()
         return
       }
+      openingWorkbench.end()
 
       // Everything the journal says, for whoever is watching Wilco itself.
       const stopReporting = reportJournal(report, client)
@@ -200,6 +221,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           home,
           cwd: process.cwd(),
           ...(canHear ? { recorder, transcriber } : {}),
+          report,
           // What an agent can be started on: the models you are signed in to.
           models: () => usableModels(),
           accounts: () => loggedInProviders(),
@@ -218,6 +240,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           extensions,
           harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })
+        timingOpen.end()
         restoreTerminal = () => app.stop().catch(() => {})
         showTerminal = (terminal) => void app.showTerminal(terminal)
         keepOrchestratorModel = (model) => app.thinkerMovedTo(model)

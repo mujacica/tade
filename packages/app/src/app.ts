@@ -58,6 +58,7 @@ import {
 } from '@wilco/core'
 import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
 import { git } from '@wilco/status'
+import type { Reporter } from '@wilco/telemetry'
 import {
   type AudioClip,
   type Recorder,
@@ -279,6 +280,11 @@ const REPAINT_MS = 2_000
 const HISTORY_MAX = 1_000
 /** How often extensions are asked what they keep in the status bar. */
 const STATUS_MS = 5_000
+/**
+ * A look at the tasks slower than this is worth knowing about: the window
+ * looks every couple of seconds, so one this slow is already late for the next.
+ */
+const SLOW_LOOK_MS = 2_000
 /** How often the clipboard is looked at for a picture, while the orchestrator's line is open. */
 const CLIPBOARD_MS = 3_000
 
@@ -529,6 +535,11 @@ export interface AppOptions {
   extensions?: ExtensionHost
   /** What the window lets an extension do: start an agent on something. */
   extensionWorkbench?: ExtensionWorkbench
+  /**
+   * Where Wilco's own trouble goes. The window reports what it cannot show
+   * you: a look at the tasks that took far longer than the time between two.
+   */
+  report?: Reporter
   /**
    * Start the orchestrator again, on what the config now says, carrying on its
    * conversation. Without it, a new model applies when Wilco next starts.
@@ -4005,10 +4016,30 @@ export class App {
       return
     }
     this.looking = true
+    // Timed by the clock, not the app's: how long a look really took is the
+    // question, and a test's clock stands still.
+    const started = Date.now()
     try {
       await this.look()
     } finally {
       this.looking = false
+      // Only the ones worth asking about: a look is meant to be cheap, and one
+      // slower than the time between two is Wilco getting in its own way.
+      const took = Date.now() - started
+      if (took > SLOW_LOOK_MS) {
+        this.opts.report
+          ?.doing({
+            name: 'a look at the tasks',
+            op: 'wilco.look',
+            startedAt: started,
+            attributes: {
+              'wilco.tasks': this.state.panes.length,
+              'wilco.agents': this.opts.client.runs().length,
+              'wilco.projects': Object.keys(this.opts.config.projects).length,
+            },
+          })
+          .end()
+      }
     }
     if (this.lookAgain) {
       this.lookAgain = false

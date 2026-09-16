@@ -19,34 +19,35 @@ afterEach(async () => {
   window = null
 })
 
-/** A Sentry that keeps the envelopes it was posted. */
+/** Somewhere for the envelopes to go instead of a network, as items. */
 function sentry() {
-  const sent: Record<string, unknown>[][] = []
-  const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
-    sent.push(
-      String(init?.body ?? '')
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line) as Record<string, unknown>),
-    )
-    return new Response('', { status: 200 })
-  }) as typeof fetch
-  return { fetcher, sent }
+  const sent: unknown[] = []
+  const sink = (envelope: unknown) => sent.push(envelope)
+  const items = () =>
+    sent.flatMap((envelope) => {
+      const [, list] = envelope as [unknown, [Record<string, unknown>, Record<string, unknown>][]]
+      return list.map(([header, payload]) => ({ type: String(header.type), payload }))
+    })
+  return { sink, sent, items }
 }
 
 const config = (telemetry: Record<string, unknown>) =>
   ConfigSchema.parse({ projects: {}, telemetry })
 
-it('sends nothing at all until somewhere to send it is set', () => {
-  expect(reporterFor(config({})).on).toBe(false)
-  expect(reporterFor(config({ dsn: DSN, driver: 'none' })).on).toBe(false)
-  expect(reporterFor(config({ dsn: DSN })).on).toBe(true)
+it('sends nothing at all until somewhere to send it is set', async () => {
+  expect((await reporterFor(config({}))).on).toBe(false)
+  expect((await reporterFor(config({ dsn: DSN, driver: 'none' }))).on).toBe(false)
+  const on = await reporterFor(config({ dsn: DSN }), { sink: () => {} })
+  expect(on.on).toBe(true)
+  await on.close()
 })
 
-it('takes the DSN from the environment, for people who keep it out of files', () => {
+it('takes the DSN from the environment, for people who keep it out of files', async () => {
   process.env.WILCO_TELEMETRY_DSN = DSN
   try {
-    expect(reporterFor(config({})).on).toBe(true)
+    const report = await reporterFor(config({}), { sink: () => {} })
+    expect(report.on).toBe(true)
+    await report.close()
   } finally {
     delete process.env.WILCO_TELEMETRY_DSN
   }
@@ -57,12 +58,12 @@ it("reports what the journal says about Wilco itself, and nothing about anyone's
   const home = tmp('wilco-telemetry-')
   writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
   window = await Workbench.open({ home })
-  const { fetcher, sent } = sentry()
+  const { sink, sent, items } = sentry()
   const loaded = await loadConfig(join(home, 'config.yaml'))
   if (!loaded.ok) throw new Error('the fixture config would not load')
-  const report = reporterFor(
+  const report = await reporterFor(
     { ...loaded.config, telemetry: { ...loaded.config.telemetry, dsn: DSN } },
-    { fetch: fetcher, everyMs: 10_000 },
+    { sink },
   )
   const stop = reportJournal(report, window)
 
@@ -77,13 +78,16 @@ it("reports what the journal says about Wilco itself, and nothing about anyone's
     task: 'app/refunds',
     detail: { tokens: 900, usd: 0.12 },
   })
-  await report.flush()
+  await report.flush(2_000)
   stop()
 
   const text = JSON.stringify(sent)
   // Wilco's own warning is an issue somebody could fix.
-  const issue = sent[0]?.[2] as { message?: { formatted: string }; level?: string }
-  expect(issue.message?.formatted).toBe('wilco: tmux is not installed')
+  const issue = items().find((item) => item.type === 'event')?.payload as {
+    message?: string
+    level?: string
+  }
+  expect(issue.message).toBe('wilco: tmux is not installed')
   expect(issue.level).toBe('warning')
   // What happened around it is there to read, by name.
   expect(text).toContain('task_created app/refunds')
@@ -98,18 +102,25 @@ it("reports what the journal says about Wilco itself, and nothing about anyone's
 it('reports a command that ended in a crash, on its way out', async () => {
   const home = tmp('wilco-telemetry-crash-')
   writeFileSync(`${home}/config.yaml`, `telemetry:\n  dsn: ${DSN}\n`)
-  const was = { HOME: process.env.WILCO_HOME, fetch: globalThis.fetch }
-  const { fetcher, sent } = sentry()
+  const wasHome = process.env.WILCO_HOME
+  const sent: unknown[] = []
   process.env.WILCO_HOME = home
-  globalThis.fetch = fetcher
+  process.env.WILCO_TELEMETRY_SINK = 'test'
   try {
-    await reportCrash(new Error('it fell over'), ['node', 'wilco', 'status', '--json'])
+    await reportCrash(new Error('it fell over'), ['node', 'wilco', 'status', '--json'], {
+      sink: (envelope) => sent.push(envelope),
+    })
   } finally {
-    globalThis.fetch = was.fetch
-    if (was.HOME === undefined) delete process.env.WILCO_HOME
-    else process.env.WILCO_HOME = was.HOME
+    delete process.env.WILCO_TELEMETRY_SINK
+    if (wasHome === undefined) delete process.env.WILCO_HOME
+    else process.env.WILCO_HOME = wasHome
   }
-  const event = sent[0]?.[2] as { tags?: { where?: string }; level?: string }
+  const event = sent
+    .flatMap((envelope) => {
+      const [, list] = envelope as [unknown, [Record<string, unknown>, Record<string, unknown>][]]
+      return list.map(([header, payload]) => ({ type: String(header.type), payload }))
+    })
+    .find((item) => item.type === 'event')?.payload as { tags?: { where?: string }; level?: string }
   expect(event.tags?.where).toBe('wilco status')
   expect(event.level).toBe('fatal')
 }, 30_000)

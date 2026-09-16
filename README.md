@@ -86,15 +86,18 @@ from **Settings**.
 
 ### Wilco's own trouble
 
-Wilco can report itself to a Sentry project of yours: crashes and the warnings it writes down as
-issues, what happened around them as logs, tokens and money as metrics. Nothing is sent until you
-say where, and what is sent is the shape of what happened — never your code, what you said, or what
-an agent wrote.
+Wilco can report itself to a Sentry project of yours, through Sentry's own SDK: crashes and the
+warnings it writes down as issues, what happened around them as logs, and every agent turn as a
+trace — `gen_ai` spans with the model, the tools it called and what it cost, which is what Sentry's
+agent monitoring is drawn from. Nothing is sent until you say where, and what is sent is the shape
+of what happened — never your code, what you said, or what an agent wrote.
 
 ```yaml
 telemetry:
   dsn: https://…@…ingest.sentry.io/…   # a DSN, from that project's Client Keys; empty sends nothing
   environment: laptop                   # which Wilco this is
+  agents: true                          # time turns, tools and tokens (on)
+  traces: 0.1                           # how much of Wilco's own work is timed
 ```
 
 `$WILCO_TELEMETRY_DSN` does the same without putting it in a file, and **Settings › Reporting** has

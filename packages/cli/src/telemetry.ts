@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import { type Config, defaultConfigPath, loadConfig, type Unsubscribe } from '@wilco/core'
 import { openReporter, type Reporter, saw } from '@wilco/telemetry'
 import type { Workbench } from '@wilco/workbench'
@@ -14,11 +15,14 @@ import { version } from './version.ts'
 /** Where a DSN can be, when it is not in the config file. */
 const DSN_ENV = 'WILCO_TELEMETRY_DSN'
 
+/** Where Wilco itself is, so a frame in its own code is one you could fix. */
+const ROOT = fileURLToPath(new URL('../../../', import.meta.url))
+
 /** The reporter for this run: `none` unless somewhere to send was set. */
 export function reporterFor(
   config: Config,
-  opts: { fetch?: typeof fetch; now?: () => number; everyMs?: number } = {},
-): Reporter {
+  opts: { sink?: (envelope: unknown) => void; now?: () => number } = {},
+): Promise<Reporter> {
   const dsn = config.telemetry.dsn.trim() || (process.env[DSN_ENV] ?? '').trim()
   return openReporter(
     { ...config.telemetry, dsn },
@@ -26,6 +30,7 @@ export function reporterFor(
       release: `wilco@${version()}`,
       // Paths are scrubbed against the person's own home, so nothing says who they are.
       home: homedir(),
+      root: ROOT,
       ...opts,
     },
   )
@@ -57,11 +62,15 @@ export function reportJournal(reporter: Reporter, client: Workbench): Unsubscrib
  * A command that ended in a crash, reported on its way out. Read from the
  * config on the error path only: a command that worked never opens this.
  */
-export async function reportCrash(error: unknown, argv: readonly string[]): Promise<void> {
+export async function reportCrash(
+  error: unknown,
+  argv: readonly string[],
+  opts: { sink?: (envelope: unknown) => void } = {},
+): Promise<void> {
   try {
     const loaded = await loadConfig(defaultConfigPath())
     if (!loaded.ok) return
-    const reporter = reporterFor(loaded.config)
+    const reporter = await reporterFor(loaded.config, opts)
     if (!reporter.on) return
     const command = argv.slice(2).find((arg) => !arg.startsWith('-')) ?? 'wilco'
     reporter.trouble({ error, where: `wilco ${command}`, level: 'fatal' })

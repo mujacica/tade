@@ -1,4 +1,14 @@
-import type { Reporter } from './port.ts'
+import type { Reporter, Span } from './port.ts'
+
+/** A span that times nothing, so no call site has to ask whether one is real. */
+export const noSpan: Span = {
+  about() {},
+  inside() {
+    return noSpan
+  },
+  wrong() {},
+  end() {},
+}
 
 /**
  * The reporter for when nothing is sent, which is Wilco unless someone says
@@ -12,6 +22,9 @@ export function noReporter(): Reporter {
     trouble() {},
     note() {},
     measure() {},
+    doing() {
+      return noSpan
+    },
     async flush() {},
     async close() {},
   }

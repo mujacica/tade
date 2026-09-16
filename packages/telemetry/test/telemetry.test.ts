@@ -1,46 +1,26 @@
+import { fileURLToPath } from 'node:url'
 import type { WilcoEvent } from '@wilco/core'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { reporterConformance } from '../src/conformance.ts'
 import { noReporter } from '../src/none.ts'
 import { openReporter, saw } from '../src/open.ts'
+import type { Reporter } from '../src/port.ts'
 import { sentryReporter } from '../src/sentry.ts'
-import {
-  about,
-  envelope,
-  framesOf,
-  fromEvent,
-  readDsn,
-  scrub,
-  shapeOf,
-  troubleEvent,
-} from '../src/shape.ts'
+import { about, fromEvent, readDsn, scrub, shapeOf } from '../src/shape.ts'
 
-// What Wilco sends about itself. Nothing here reaches a network: every send is
-// answered here, and what would have gone on the wire is read as text.
+// What Wilco sends about itself. Nothing reaches a network: the SDK is given
+// somewhere else to put its envelopes, and what would have gone on the wire is
+// read back here.
+//
+// One at a time: the SDK has one client per process, so a reporter is closed
+// before the next is opened.
 
 const DSN = 'https://abc123@o1.ingest.sentry.io/4507'
 const HOME = '/Users/someone'
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 reporterConformance('sentry', sentryReporter, { dsn: DSN })
-reporterConformance('none', () => noReporter(), { dsn: DSN })
-
-/** A Sentry that keeps what it was sent, in the order it arrived. */
-function sentry(status = 200, headers: Record<string, string> = {}) {
-  const sent: { url: string; auth: string; items: Record<string, unknown>[] }[] = []
-  const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
-    const lines = String(init?.body ?? '')
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line) as Record<string, unknown>)
-    sent.push({
-      url: String(url),
-      auth: String((init?.headers as Record<string, string>)?.['x-sentry-auth'] ?? ''),
-      items: lines,
-    })
-    return new Response('', { status, headers })
-  }) as typeof fetch
-  return { fetcher, sent }
-}
+reporterConformance('none', async () => noReporter(), { dsn: DSN })
 
 const event = (over: Partial<WilcoEvent> = {}): WilcoEvent => ({
   seq: 1,
@@ -61,12 +41,10 @@ describe('where it is sent', () => {
       key: 'abc123',
       project: '4507',
     })
-    // A Sentry of your own, behind a path.
     expect(readDsn('https://k@sentry.acme.internal/inner/42')?.url).toBe(
       'https://sentry.acme.internal/inner/api/42/envelope/',
     )
     expect(readDsn('https://sentry.io/4507')).toBeNull()
-    expect(readDsn('https://abc@sentry.io/')).toBeNull()
     expect(readDsn('not a url')).toBeNull()
     expect(readDsn('')).toBeNull()
   })
@@ -157,23 +135,9 @@ describe('what a journal event is worth', () => {
       HOME,
     )
     expect(spend.trouble).toBeUndefined()
-    expect(spend.measures).toEqual([
-      {
-        at: Date.parse('2026-09-16T09:00:00.000Z'),
-        name: 'wilco.tokens',
-        kind: 'distribution',
-        value: 1200,
-        unit: 'token',
-        about: { by: 'agent', model: 'opus' },
-      },
-      {
-        at: Date.parse('2026-09-16T09:00:00.000Z'),
-        name: 'wilco.cost',
-        kind: 'distribution',
-        value: 0.42,
-        unit: 'usd',
-        about: { by: 'agent', model: 'opus' },
-      },
+    expect(spend.measures?.map((one) => [one.name, one.value, one.unit])).toEqual([
+      ['wilco.tokens', 1200, 'token'],
+      ['wilco.cost', 0.42, 'usd'],
     ])
     const failed = fromEvent(
       event({ type: 'failed', detail: { reason: 'the model refused' } }),
@@ -185,225 +149,177 @@ describe('what a journal event is worth', () => {
   })
 })
 
-describe('what a crash looks like', () => {
-  it('is its stack, oldest first, with what is not Wilco’s marked and no home in it', () => {
-    const stack = [
-      'TypeError: cannot read properties of undefined',
-      `    at draw (${HOME}/wilco/packages/app/src/view.ts:120:7)`,
-      `    at Object.tick (${HOME}/wilco/node_modules/pi-tui/index.js:9:1)`,
-      '    at node:internal/process/task_queues:95:5',
-    ].join('\n')
-    expect(framesOf(stack, HOME)).toEqual([
-      { filename: 'node:internal/process/task_queues', lineno: 95, colno: 5, in_app: false },
-      {
-        filename: '~/wilco/node_modules/pi-tui/index.js',
-        function: 'Object.tick',
-        lineno: 9,
-        colno: 1,
-        in_app: false,
-      },
-      {
-        filename: '~/wilco/packages/app/src/view.ts',
-        function: 'draw',
-        lineno: 120,
-        colno: 7,
-        in_app: true,
-      },
-    ])
+/** Everything the SDK would have sent, as items of `[header, payload]`. */
+function items(sent: unknown[]): { type: string; payload: Record<string, unknown> }[] {
+  return sent.flatMap((envelope) => {
+    const [, list] = envelope as [unknown, [Record<string, unknown>, Record<string, unknown>][]]
+    return list.map(([header, payload]) => ({ type: String(header.type), payload }))
   })
-
-  it('is an event with where it happened, what it was about, and the version it happened in', () => {
-    const error = new Error('it fell over')
-    error.stack = `Error: it fell over\n    at draw (${HOME}/wilco/packages/app/src/view.ts:1:1)`
-    const payload = troubleEvent(
-      { error, where: 'the window', task: 'app/refunds', project: 'app', level: 'error' },
-      {
-        release: '9.9.9',
-        environment: 'laptop',
-        home: HOME,
-        trace: 'a'.repeat(32),
-        now: 1_000,
-        id: 'b'.repeat(32),
-      },
-    )
-    expect(payload).toMatchObject({
-      event_id: 'b'.repeat(32),
-      timestamp: 1,
-      level: 'error',
-      release: '9.9.9',
-      environment: 'laptop',
-      tags: { where: 'the window', task: 'app/refunds', project: 'app' },
-    })
-    const values = (payload.exception as { values: { value: string }[] }).values
-    expect(values[0]?.value).toBe('it fell over')
-    // Nothing that has no stack is dropped: it is said instead.
-    const said = troubleEvent(
-      { error: 'the driver would not start', where: 'wilco' },
-      {
-        release: '9.9.9',
-        environment: 'laptop',
-        home: HOME,
-        trace: 'a'.repeat(32),
-        now: 1_000,
-        id: 'c'.repeat(32),
-      },
-    )
-    expect(said.message).toEqual({ formatted: 'wilco: the driver would not start' })
-  })
-})
+}
 
 describe('sending', () => {
-  const opened = (fetcher: typeof fetch, over: Record<string, unknown> = {}) =>
-    openReporter(
+  let reporter: Reporter | null = null
+
+  afterEach(async () => {
+    await reporter?.close()
+    reporter = null
+  })
+
+  const open = async (over: Record<string, unknown> = {}, sink?: (e: unknown) => void) => {
+    reporter = await openReporter(
       {
         driver: 'sentry',
         dsn: DSN,
         errors: true,
         logs: true,
         metrics: true,
+        traces: 1,
+        agents: true,
         environment: 'test',
         ...over,
       },
-      { release: '9.9.9', home: HOME, fetch: fetcher, everyMs: 10_000 },
+      { release: 'wilco@9.9.9', home: HOME, root: ROOT, ...(sink ? { sink } : {}) },
     )
+    return reporter
+  }
 
-  it('posts an envelope Sentry can read, signed with the key from the DSN', async () => {
-    const { fetcher, sent } = sentry()
-    const reporter = opened(fetcher)
-    reporter.trouble({ error: new Error('boom'), where: 'the window' })
-    reporter.note({
-      at: 1_000,
+  it('sends a crash as an issue, with where it happened and nothing of whose machine it was', async () => {
+    const sent: unknown[] = []
+    const report = await open({}, (envelope) => sent.push(envelope))
+    report.trouble({
+      error: new Error(`it fell over reading ${HOME}/.wilco/config.yaml`),
+      where: 'the window',
+      task: 'app/refunds',
+      project: 'app',
+      about: { driver: 'pty' },
+    })
+    await report.flush(1_000)
+
+    const issue = items(sent).find((item) => item.type === 'event')?.payload as {
+      tags: Record<string, string>
+      release: string
+      environment: string
+      contexts: { wilco?: Record<string, unknown> }
+      exception: { values: { value: string; stacktrace: { frames: Record<string, unknown>[] } }[] }
+    }
+    expect(issue.tags).toMatchObject({ where: 'the window', task: 'app/refunds', project: 'app' })
+    expect(issue.release).toBe('wilco@9.9.9')
+    expect(issue.environment).toBe('test')
+    expect(issue.contexts.wilco).toMatchObject({ driver: 'pty' })
+    expect(issue.exception.values[0]?.value).toBe('it fell over reading ~/.wilco/config.yaml')
+    // The frames are Wilco's own, with the lines around them to read.
+    const own = issue.exception.values[0]?.stacktrace.frames.filter((frame) => frame.in_app) ?? []
+    expect(own.length).toBeGreaterThan(0)
+    expect(own.at(-1)?.context_line).toBeTruthy()
+    expect(JSON.stringify(sent)).not.toContain(HOME)
+  })
+
+  it('keeps the lines of Wilco’s own files, and of nobody else’s', async () => {
+    const sent: unknown[] = []
+    const report = await open({}, (envelope) => sent.push(envelope))
+    // Thrown from inside a dependency: its source is not Wilco's to send.
+    await new Promise<void>((done) => {
+      setTimeout(() => {
+        report.trouble({ error: new Error('from somewhere else'), where: 'a timer' })
+        done()
+      }, 1)
+    })
+    await report.flush(1_000)
+    const issue = items(sent).find((item) => item.type === 'event')?.payload as {
+      exception: { values: { stacktrace: { frames: Record<string, unknown>[] } }[] }
+    }
+    for (const frame of issue.exception.values[0]?.stacktrace.frames ?? []) {
+      if (frame.in_app !== true) expect(frame.context_line).toBeUndefined()
+    }
+  })
+
+  it('times what an agent does as the work of a model, whatever else it is told to time', async () => {
+    const sent: unknown[] = []
+    // Wilco's own work is not timed at all here; an agent's turn still is.
+    const report = await open({ traces: 0, agents: true }, (envelope) => sent.push(envelope))
+    const turn = report.doing({
+      name: 'invoke_agent app/refunds',
+      op: 'gen_ai.invoke_agent',
+      attributes: { 'gen_ai.agent.name': 'app/refunds', 'gen_ai.request.model': 'opus' },
+      startedAt: Date.now() - 4_000,
+    })
+    turn.inside({ name: 'execute_tool bash', op: 'gen_ai.execute_tool' }).end()
+    turn.about({ 'gen_ai.usage.total_tokens': 1200 })
+    turn.end()
+    report.doing({ name: 'a status poll', op: 'wilco.poll' }).end()
+    await report.flush(1_000)
+
+    const all = items(sent)
+    const transaction = all.find((item) => item.type === 'transaction')?.payload as {
+      transaction: string
+      contexts: { trace: { op: string; data: Record<string, unknown> } }
+      start_timestamp: number
+      timestamp: number
+    }
+    expect(transaction.transaction).toBe('invoke_agent app/refunds')
+    expect(transaction.contexts.trace.op).toBe('gen_ai.invoke_agent')
+    expect(transaction.contexts.trace.data).toMatchObject({
+      'gen_ai.agent.name': 'app/refunds',
+      'gen_ai.request.model': 'opus',
+      'gen_ai.usage.total_tokens': 1200,
+    })
+    expect(transaction.timestamp - transaction.start_timestamp).toBeGreaterThan(3)
+    // The poll was not timed, and its name is nowhere.
+    expect(JSON.stringify(sent)).not.toContain('a status poll')
+  })
+
+  it('sends lines to read and numbers to watch', async () => {
+    const sent: unknown[] = []
+    const report = await open({}, (envelope) => sent.push(envelope))
+    report.note({
+      at: Date.now(),
       level: 'info',
       said: 'run_started app/refunds',
       about: { task: 'app/refunds' },
     })
-    reporter.measure({ at: 1_000, name: 'wilco.agents', kind: 'gauge', value: 2 })
-    await reporter.flush()
-
-    expect(sent[0]?.url).toBe('https://o1.ingest.sentry.io/api/4507/envelope/')
-    expect(sent[0]?.auth).toContain('sentry_key=abc123')
-    expect(sent[0]?.auth).toContain('sentry_client=wilco/9.9.9')
-    // The crash goes on its own, then the lines and numbers together.
-    expect(sent[0]?.items[1]).toMatchObject({ type: 'event' })
-    expect(sent[1]?.items.map((item) => item.type)).toEqual([
-      undefined,
-      'log',
-      undefined,
-      'trace_metric',
-      undefined,
-    ])
-    const logs = sent[1]?.items[2] as {
-      items: { body: string; attributes: Record<string, unknown> }[]
+    report.measure({ at: Date.now(), name: 'wilco.agents', kind: 'gauge', value: 2 })
+    await report.flush(1_000)
+    const all = items(sent)
+    const logs = all.find((item) => item.type === 'log')?.payload as {
+      items: { body: string; attributes: Record<string, { value: unknown }> }[]
     }
-    expect(logs.items[0]).toMatchObject({
-      body: 'run_started app/refunds',
-      level: 'info',
-      attributes: {
-        task: { value: 'app/refunds', type: 'string' },
-        'sentry.release': { value: '9.9.9', type: 'string' },
-      },
-    })
-    const metrics = sent[1]?.items[4] as { items: { name: string; value: number; type: string }[] }
-    expect(metrics.items[0]).toMatchObject({ name: 'wilco.agents', value: 2, type: 'gauge' })
-    await reporter.close()
-  })
-
-  it('sends the same trouble once a minute, however often it happens', async () => {
-    const { fetcher, sent } = sentry()
-    let clock = 1_000
-    const reporter = openReporter(
-      { driver: 'sentry', dsn: DSN, errors: true, logs: false, metrics: false },
-      { release: '9.9.9', home: HOME, fetch: fetcher, now: () => clock, everyMs: 10_000 },
-    )
-    for (let i = 0; i < 5; i++) {
-      reporter.trouble({
-        error: new Error('the same thing'),
-        where: 'the window',
-        fingerprint: ['x'],
-      })
-    }
-    await reporter.flush()
-    expect(sent).toHaveLength(1)
-    clock += 61_000
-    reporter.trouble({
-      error: new Error('the same thing'),
-      where: 'the window',
-      fingerprint: ['x'],
-    })
-    await reporter.flush()
-    expect(sent).toHaveLength(2)
-    await reporter.close()
-  })
-
-  it('waits when Sentry says to, and never grows without end', async () => {
-    const { fetcher, sent } = sentry(429, { 'retry-after': '120' })
-    let clock = 1_000
-    const reporter = openReporter(
-      { driver: 'sentry', dsn: DSN, errors: false, logs: true, metrics: false },
-      { release: '9.9.9', home: HOME, fetch: fetcher, now: () => clock, everyMs: 10_000 },
-    )
-    reporter.note({ at: clock, level: 'info', said: 'one' })
-    await reporter.flush()
-    expect(sent).toHaveLength(1)
-    // Told to wait two minutes: nothing goes until then, and what piles up is bounded.
-    for (let i = 0; i < 2_000; i++) reporter.note({ at: clock, level: 'info', said: `line ${i}` })
-    await reporter.flush()
-    expect(sent).toHaveLength(1)
-    clock += 121_000
-    await reporter.flush()
-    expect(sent).toHaveLength(2)
-    const lines = sent[1]?.items[2] as { items: unknown[] }
-    expect(lines.items.length).toBeLessThanOrEqual(500)
-    await reporter.close()
-  })
-
-  it('is off unless it is told where to send', () => {
-    expect(
-      openReporter(
-        { driver: 'sentry', dsn: '', errors: true, logs: true, metrics: true },
-        { release: '1', home: HOME },
-      ).on,
-    ).toBe(false)
-    expect(
-      openReporter(
-        { driver: 'none', dsn: DSN, errors: true, logs: true, metrics: true },
-        { release: '1', home: HOME },
-      ).on,
-    ).toBe(false)
-    expect(
-      openReporter(
-        { driver: 'sentry', dsn: 'nonsense', errors: true, logs: true, metrics: true },
-        { release: '1', home: HOME },
-      ).on,
-    ).toBe(false)
+    expect(logs.items[0]?.body).toBe('run_started app/refunds')
+    expect(logs.items[0]?.attributes.task?.value).toBe('app/refunds')
+    expect(all.some((item) => item.type.includes('metric'))).toBe(true)
   })
 
   it('reports a journal event as whatever it is worth, and nothing when it is worth nothing', async () => {
-    const { fetcher, sent } = sentry()
-    const reporter = opened(fetcher)
-    saw(reporter, event({ type: 'said', detail: { text: 'fix the charge' } }), HOME)
+    const sent: unknown[] = []
+    const report = await open({}, (envelope) => sent.push(envelope))
+    saw(report, event({ type: 'said', detail: { text: 'fix the charge' } }), HOME)
     saw(
-      reporter,
+      report,
       event({ type: 'warning', task: null, detail: { message: 'tmux is not installed' } }),
       HOME,
     )
-    saw(reporter, event({ type: 'run_started' }), HOME)
-    await reporter.flush()
-    expect(sent).toHaveLength(2)
-    const issue = sent[0]?.items[2] as { message?: { formatted: string }; level: string }
-    expect(issue.message?.formatted).toBe('wilco: tmux is not installed')
+    saw(report, event({ type: 'run_started' }), HOME)
+    await report.flush(1_000)
+    const issue = items(sent).find((item) => item.type === 'event')?.payload as {
+      message?: string
+      level?: string
+    }
+    expect(issue.message).toBe('wilco: tmux is not installed')
     expect(issue.level).toBe('warning')
-    await reporter.close()
+    expect(JSON.stringify(sent)).not.toContain('fix the charge')
   })
-})
 
-describe('the envelope', () => {
-  it('is a header, then each item with the length of what follows', () => {
-    const text = envelope({ dsn: DSN }, [{ header: { type: 'event' }, payload: { a: 1 } }])
-    const lines = text.trim().split('\n')
-    expect(JSON.parse(lines[0] ?? '')).toEqual({ dsn: DSN })
-    expect(JSON.parse(lines[1] ?? '')).toEqual({ type: 'event', length: 7 })
-    expect(lines[2]).toBe('{"a":1}')
-    expect(text.endsWith('\n')).toBe(true)
+  it('is off unless it is told where to send', async () => {
+    const off = {
+      driver: 'sentry',
+      errors: true,
+      logs: true,
+      metrics: true,
+      traces: 1,
+      agents: true,
+    }
+    const here = { release: 'wilco@9.9.9', home: HOME }
+    expect((await openReporter({ ...off, dsn: '' }, here)).on).toBe(false)
+    expect((await openReporter({ ...off, dsn: 'nonsense' }, here)).on).toBe(false)
+    expect((await openReporter({ ...off, driver: 'none', dsn: DSN }, here)).on).toBe(false)
   })
 })

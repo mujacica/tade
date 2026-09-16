@@ -322,6 +322,18 @@ export const ConfigSchema = z
         logs: z.boolean().default(true),
         /** Tokens, money and how many agents are running, as metrics. */
         metrics: z.boolean().default(true),
+        /**
+         * How much of what Wilco itself does is timed, from 0 to 1: opening the
+         * window, a slow look at the tasks. Agents' turns are timed whatever
+         * this says, because there are few of them and each one matters.
+         */
+        traces: z.number().min(0).max(1).default(0.1),
+        /**
+         * Time what agents do as the work of a model — turns, the tools they
+         * call, what they cost — which is what Sentry draws its agent
+         * monitoring from.
+         */
+        agents: z.boolean().default(true),
         /** Which Wilco this is, in Sentry's environment filter. */
         environment: z.string().default('laptop'),
       })

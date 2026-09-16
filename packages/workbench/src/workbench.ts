@@ -49,6 +49,7 @@ import {
   usageOfTask,
 } from '@wilco/harnesses-pi'
 import { git } from '@wilco/status'
+import type { Reporter } from '@wilco/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
 import { EventLog } from './events.ts'
@@ -112,6 +113,11 @@ export interface WorkbenchOptions {
    * is — only that there may be more to hand an agent than its prompt.
    */
   extensions?: WorkbenchExtensions
+  /**
+   * Where Wilco's own trouble goes. Nothing is sent unless the window opened
+   * one that sends; what it is for here is timing agents' turns.
+   */
+  report?: Reporter
 }
 
 export interface WorkbenchExtensions {
@@ -304,6 +310,7 @@ export class Workbench {
           autoAllow: config.approvals.auto_allow,
           rules: config.approvals.rules,
         },
+        ...(opts.report ? { report: opts.report } : {}),
         // Written into the task, not held: the branch may be named long after,
         // by a window opened later.
         onTitle: (task, worktree, title, named) => {

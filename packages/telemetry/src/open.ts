@@ -4,11 +4,11 @@ import { REPORTERS, type Reporter, type ReporterOptions } from './port.ts'
 import { sentryReporter } from './sentry.ts'
 import { fromEvent } from './shape.ts'
 
-// Opening a reporter, and the three things that feed one: the journal, the
-// process, and whatever else chooses to say something went wrong.
+// Opening a reporter, and the things that feed one: the journal, the process,
+// and whatever else chooses to say something went wrong.
 
 REPORTERS.sentry = sentryReporter
-REPORTERS.none = () => noReporter()
+REPORTERS.none = async () => noReporter()
 
 /** What the config says about reporting, as a reporter is opened from it. */
 export interface TelemetryConfig {
@@ -17,39 +17,52 @@ export interface TelemetryConfig {
   errors: boolean
   logs: boolean
   metrics: boolean
+  /** How much of what Wilco does is timed, 0 to 1. Agents' turns are always. */
+  traces: number
+  /** Time what agents do, as the work of a model: turns, tool calls, tokens. */
+  agents: boolean
   environment?: string | undefined
+}
+
+/** What a reporter needs that the config does not say. */
+export interface TelemetryHere {
+  release: string
+  /** The person's home, replaced with `~` in everything sent. */
+  home: string
+  /** Where Wilco itself is, so a stack frame in it is one you could fix. */
+  root?: string
+  /** Somewhere to put what would have been sent, for tests. */
+  sink?: (envelope: unknown) => void
+  now?: () => number
 }
 
 /**
  * The reporter this Wilco runs with. Nothing is sent unless somewhere to send
- * it was set, so the answer is `none` until someone asks for more.
+ * it was set, so the answer is `none` until someone asks for more — and a
+ * reporter that cannot be opened is never the reason Wilco does not open.
  */
-export function openReporter(
+export async function openReporter(
   config: TelemetryConfig,
-  extras: {
-    release: string
-    home: string
-    fetch?: typeof fetch
-    now?: () => number
-    everyMs?: number
-  },
-): Reporter {
+  here: TelemetryHere,
+): Promise<Reporter> {
   const dsn = (config.dsn ?? '').trim()
   const make = REPORTERS[config.driver]
   if (!dsn || !make) return noReporter()
   const options: ReporterOptions = {
     dsn,
-    release: extras.release,
+    release: here.release,
     environment: config.environment ?? 'laptop',
     errors: config.errors,
     logs: config.logs,
     metrics: config.metrics,
-    home: extras.home,
-    ...(extras.fetch ? { fetch: extras.fetch } : {}),
-    ...(extras.now ? { now: extras.now } : {}),
-    ...(extras.everyMs ? { everyMs: extras.everyMs } : {}),
+    traces: config.traces,
+    agents: config.agents,
+    home: here.home,
+    ...(here.root ? { root: here.root } : {}),
+    ...(here.sink ? { sink: here.sink } : {}),
+    ...(here.now ? { now: here.now } : {}),
   }
-  return make(options)
+  return make(options).catch(() => noReporter())
 }
 
 /** A journal event, reported as whatever it is worth: an issue, a line, a number. */

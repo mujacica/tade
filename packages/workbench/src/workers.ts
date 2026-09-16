@@ -19,6 +19,7 @@ import {
   WorkerNotFoundError,
   type WorkerSignal,
 } from '@wilco/harnesses-core'
+import { type AgentTurns, agentTurns, noReporter, type Reporter } from '@wilco/telemetry'
 import type { EventLog } from './events.ts'
 
 // Runs agents and decides what they may do. Every tool call arrives here held;
@@ -90,6 +91,8 @@ export interface WorkerSupervisorOptions {
    * it threw — goes back to the agent as the tool's result.
    */
   onExtensionCall?: (call: ExtensionCall) => Promise<string>
+  /** Where Wilco's own trouble goes, and what times its agents' turns. */
+  report?: Reporter
 }
 
 interface RunState {
@@ -134,6 +137,9 @@ export class WorkerSupervisor {
    */
   private readonly refused = new Map<string, Set<string>>()
 
+  /** Each agent's turn while it is in it, as the work of a model. */
+  private readonly timing: AgentTurns
+
   constructor(opts: WorkerSupervisorOptions) {
     this.adapter = opts.adapter
     this.adapters = { [opts.adapter.id]: opts.adapter, ...opts.adapters }
@@ -141,6 +147,7 @@ export class WorkerSupervisor {
     this.approvals = opts.approvals
     this.onTitle = opts.onTitle
     this.onExtensionCall = opts.onExtensionCall
+    this.timing = agentTurns(opts.report ?? noReporter())
   }
 
   /**
@@ -372,6 +379,7 @@ export class WorkerSupervisor {
       if (key.startsWith(`${run}:`)) this.pendingApprovals.delete(key)
     }
     this.refused.delete(run)
+    this.timing.gone(run)
     const state = this.runs.get(run)
     state?.stop()
     this.runs.delete(run)
@@ -391,6 +399,7 @@ export class WorkerSupervisor {
         await this.onPermissionRequest(run, signal, state)
         return
       case 'turn_done':
+        this.timing.done(run, { status: signal.status, at: signal.at })
         await this.log.append({ type: 'turn_done', task, run, detail: { status: signal.status } })
         return
       case 'failed':
@@ -401,6 +410,14 @@ export class WorkerSupervisor {
         return
       case 'turn_started':
         this.turns.set(run, 'running')
+        if (task) {
+          this.timing.started(run, {
+            task,
+            model: this.vitalsByTask.get(task)?.model ?? null,
+            harness: state?.adapter.id,
+            at: signal.at,
+          })
+        }
         return
       case 'done':
         await this.log.append({
@@ -431,6 +448,7 @@ export class WorkerSupervisor {
         return
       case 'usage':
         if (task && signal.model) this.noteVitals(task, { type: 'started', model: signal.model })
+        this.timing.usage(run, signal)
         // What the turn cost, as the harness priced it. The journal is where
         // spend is read back from, so it goes in whether or not anyone asked.
         await this.log.append({
@@ -448,9 +466,17 @@ export class WorkerSupervisor {
           },
         })
         return
+      // Timed, not written down: what an agent did inside a turn is the shape
+      // of the turn, and the journal keeps what was decided about it instead.
+      case 'tool_call':
+        this.timing.tool(run, { callId: signal.callId, tool: signal.tool, at: signal.at })
+        return
+      case 'tool_result':
+        this.timing.toolDone(run, { callId: signal.callId, ok: signal.ok, at: signal.at })
+        return
       default:
-        // Turn starts, streamed messages and tool results are noise in the
-        // journal; tool calls are recorded when they are decided.
+        // Streamed messages are noise in the journal; tool calls are recorded
+        // when they are decided.
         return
     }
   }

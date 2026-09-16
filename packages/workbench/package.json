@@ -16,6 +16,7 @@
     "@wilco/harnesses-core": "workspace:*",
     "@wilco/harnesses-pi": "workspace:*",
     "@wilco/status": "workspace:*",
+    "@wilco/telemetry": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "yaml": "^2.9.0",
     "zod": "^4.6.2"

@@ -443,6 +443,26 @@ export function settingsOf(config: Config): SettingGroup[] {
           live: false,
         },
         {
+          path: 'telemetry.agents',
+          title: 'What agents do',
+          means:
+            'time turns, the tools they call and what they cost, which is what agent monitoring is drawn from',
+          value: String(config.telemetry.agents),
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: false,
+        },
+        {
+          path: 'telemetry.traces',
+          title: 'How much of Wilco is timed',
+          means:
+            'from 0 to 1: opening the window, a look at the tasks that took too long. Agents’ turns are timed whatever this says',
+          value: String(config.telemetry.traces),
+          fallback: '0.1',
+          type: { kind: 'number' },
+          live: false,
+        },
+        {
           path: 'telemetry.environment',
           title: 'Which Wilco this is',
           means: 'the environment an issue is filed under: laptop, ci, the name of a machine',

@@ -1,184 +1,201 @@
-import { randomUUID } from 'node:crypto'
-import type { Measure, Note, Reporter, ReporterOptions, Trouble } from './port.ts'
-import {
-  auth,
-  type Dsn,
-  envelope,
-  type Item,
-  logItems,
-  metricItems,
-  readDsn,
-  troubleEvent,
-  type Where,
-} from './shape.ts'
+import type { Event, Span as SentrySpan, StackFrame } from '@sentry/node'
+import { noSpan } from './none.ts'
+import type { Attributes, Reporter, ReporterOptions, Span, Work } from './port.ts'
+import { readDsn, scrub, shapeOf } from './shape.ts'
 
-// Sending Wilco's own trouble to Sentry, over its envelope endpoint.
+// Wilco's own trouble, in Sentry's own SDK.
 //
-// Plain requests rather than an SDK, for the same reason the Sentry extension
-// reads Sentry with plain requests: it is one implementation, it needs nothing
-// installed, and what it would send can be read in a test. Nothing here is
-// allowed to matter — a send that fails, a Sentry that is down, a DSN that is
-// wrong: all of it is dropped quietly, because a window that crashed while
-// reporting a crash is the worst thing this could be.
+// The SDK rather than the envelope protocol by hand, because what is wanted
+// here is not a request: it is a tracer — spans for what Wilco does, `gen_ai`
+// spans for what its agents do, logs beside them, and all the parts nobody
+// should write twice (sampling, batching, back-off, release health).
+//
+// It is loaded only when there is a DSN, so a Wilco that reports nothing pays
+// nothing for the choice. Nothing is instrumented automatically: Wilco's own
+// work is named where it happens, which is the part worth reading, and the
+// hooks Node's ESM loader would need are left alone.
 
-/** How much is held while Sentry is unreachable. Dropped oldest first. */
-const TROUBLE_MAX = 50
-const NOTE_MAX = 500
-const MEASURE_MAX = 500
-/** The same trouble again within this is the same trouble: a loop sends one. */
-const AGAIN_MS = 60_000
-const SEND_MS = 15_000
-const EVERY_MS = 5_000
+/** How long anything reported may be: enough to read, never a document. */
+const VALUE_MAX = 200
 
-/** A run of Wilco as one trace, so everything it sent reads together. */
-function traceId(): string {
-  return randomUUID().replace(/-/g, '')
-}
-
-export function sentryReporter(options: ReporterOptions): Reporter {
-  const dsn: Dsn | null = options.dsn ? readDsn(options.dsn) : null
-  const send = options.fetch ?? globalThis.fetch.bind(globalThis)
-  const now = options.now ?? Date.now
-  const trace = traceId()
-  const troubles: Trouble[] = []
-  const notes: Note[] = []
-  const measures: Measure[] = []
-  const said = new Map<string, number>()
-  let quietUntil = 0
-  let sending: Promise<void> | null = null
-  let timer: NodeJS.Timeout | null = null
-  let closed = false
-
-  const where = (): Where => ({
+/** What the SDK is told, and what it is told not to do. */
+async function start(options: ReporterOptions): Promise<typeof import('@sentry/node')> {
+  const Sentry = await import('@sentry/node')
+  Sentry.init({
+    dsn: options.dsn,
     release: options.release,
     environment: options.environment,
-    home: options.home,
-    trace,
-    now: now(),
-    id: traceId(),
+    enableLogs: options.logs,
+    // Agents' turns are few and worth every one; Wilco's own work is constant.
+    tracesSampler: ({ attributes, name }) => {
+      const op = String(attributes?.['sentry.op'] ?? '')
+      if (op.startsWith('gen_ai.')) return options.agents ? 1 : 0
+      return name === '' ? 0 : options.traces
+    },
+    // Nothing automatic: no http or file instrumentation, and none of the ESM
+    // loader hooks it would need — a window must not have its terminal written
+    // over by somebody else's deprecation warning.
+    defaultIntegrations: false,
+    registerEsmLoaderHooks: false,
+    integrations: [
+      Sentry.dedupeIntegration(),
+      Sentry.linkedErrorsIntegration(),
+      Sentry.functionToStringIntegration(),
+      // The lines around a frame, so an agent sent to fix it can read it.
+      Sentry.contextLinesIntegration(),
+    ],
+    beforeSend: (event) => (options.errors ? clean(event, options) : null),
+    beforeSendTransaction: (event) => clean(event, options),
+    beforeSendLog: (log) => (options.logs ? log : null),
+    ...(options.sink
+      ? {
+          transport: () => ({
+            send: async (envelope: unknown) => {
+              options.sink?.(envelope)
+              return {}
+            },
+            flush: async () => true,
+          }),
+        }
+      : {}),
   })
+  return Sentry
+}
 
-  /** The clock runs only while there is something to send. */
-  function start(): void {
-    if (timer || closed || !dsn) return
-    timer = setInterval(() => void flush(), options.everyMs ?? EVERY_MS)
-    timer.unref?.()
+/**
+ * What leaves, once: the machine's name and its paths gone, and source lines
+ * kept only for Wilco's own files — the frames of anything else are somebody
+ * else's code, which is not Wilco's to send anywhere.
+ */
+function clean<T extends Event>(event: T, options: ReporterOptions): T {
+  event.server_name = undefined
+  const root = options.root ?? ''
+  for (const one of event.exception?.values ?? []) {
+    for (const frame of one.stacktrace?.frames ?? []) keepOwn(frame, options.home, root)
+    if (one.value) one.value = scrub(one.value, options.home).slice(0, VALUE_MAX * 4)
   }
+  if (typeof event.message === 'string') event.message = scrub(event.message, options.home)
+  return event
+}
 
-  function stop(): void {
-    if (timer) clearInterval(timer)
-    timer = null
+function keepOwn(frame: StackFrame, home: string, root: string): void {
+  const file = frame.abs_path ?? frame.filename ?? ''
+  // Wilco installed is itself inside a `node_modules`, so what matters is
+  // whether there is another one under it: that is somebody else's code.
+  const own =
+    root !== '' && file.startsWith(root) && !file.slice(root.length).includes('node_modules')
+  frame.in_app = own
+  if (!own) {
+    frame.pre_context = undefined
+    frame.context_line = undefined
+    frame.post_context = undefined
   }
+  if (frame.filename) frame.filename = scrub(frame.filename, home)
+  if (frame.abs_path) frame.abs_path = scrub(frame.abs_path, home)
+}
 
-  function keep<T>(queue: T[], item: T, most: number): void {
-    queue.push(item)
-    while (queue.length > most) queue.shift()
-    start()
+/** A span of the SDK's, as the port has one. */
+function wrap(Sentry: typeof import('@sentry/node'), span: SentrySpan): Span {
+  return {
+    about(attributes: Attributes) {
+      span.setAttributes({ ...attributes })
+    },
+    inside(work: Work) {
+      return wrap(
+        Sentry,
+        Sentry.withActiveSpan(span, () =>
+          Sentry.startInactiveSpan({
+            name: work.name,
+            op: work.op,
+            ...(work.attributes ? { attributes: { ...work.attributes } } : {}),
+            ...(work.startedAt ? { startTime: work.startedAt } : {}),
+          }),
+        ),
+      )
+    },
+    wrong(error: unknown) {
+      span.setStatus({ code: 2, message: 'internal_error' })
+      Sentry.captureException(error)
+    },
+    end(at?: number) {
+      span.end(at)
+    },
   }
+}
 
-  async function post(items: readonly Item[]): Promise<void> {
-    if (!dsn || items.length === 0) return
-    const body = envelope({ sent_at: new Date(now()).toISOString(), dsn: options.dsn }, items)
-    try {
-      const answer = await send(dsn.url, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-sentry-envelope',
-          'x-sentry-auth': auth(dsn, options.release),
-          'user-agent': `wilco/${options.release}`,
-        },
-        body,
-        signal: AbortSignal.timeout(SEND_MS),
-      })
-      if (answer.status === 429) {
-        // Told to wait: hold everything until then rather than hammering.
-        const after = Number(answer.headers.get('retry-after') ?? '')
-        const limits = /^(\d+)/.exec(answer.headers.get('x-sentry-rate-limits') ?? '')
-        const seconds = Number.isFinite(after) && after > 0 ? after : Number(limits?.[1] ?? 60)
-        quietUntil = now() + Math.min(seconds, 3_600) * 1000
-      }
-    } catch {
-      // Unreachable, refused, or too slow. Nothing Wilco does depends on this.
-    }
+export async function sentryReporter(options: ReporterOptions): Promise<Reporter> {
+  const dsn = options.dsn ? readDsn(options.dsn) : null
+  if (!dsn) {
+    const { noReporter } = await import('./none.ts')
+    return { ...noReporter(), id: 'sentry' }
   }
-
-  async function drain(): Promise<void> {
-    if (!dsn || now() < quietUntil) return
-    const going = troubles.splice(0, troubles.length)
-    const lines = notes.splice(0, notes.length)
-    const numbers = measures.splice(0, measures.length)
-    // One event to an envelope, which is what Sentry keeps them as.
-    for (const trouble of going) {
-      await post([{ header: { type: 'event' }, payload: troubleEvent(trouble, where()) }])
-    }
-    const items: Item[] = []
-    if (lines.length > 0) {
-      items.push({
-        header: {
-          type: 'log',
-          item_count: lines.length,
-          content_type: 'application/vnd.sentry.items.log+json',
-        },
-        payload: logItems(lines, where()),
-      })
-    }
-    if (numbers.length > 0) {
-      items.push({
-        header: {
-          type: 'trace_metric',
-          item_count: numbers.length,
-          content_type: 'application/vnd.sentry.items.trace-metric+json',
-        },
-        payload: metricItems(numbers, where()),
-      })
-    }
-    if (items.length > 0) await post(items)
-    if (troubles.length === 0 && notes.length === 0 && measures.length === 0) stop()
-  }
-
-  function flush(ms?: number): Promise<void> {
-    if (!dsn) return Promise.resolve()
-    sending = (sending ?? Promise.resolve()).then(drain).catch(() => {})
-    const going = sending
-    if (ms === undefined) return going
-    return Promise.race([
-      going,
-      new Promise<void>((done) => {
-        const timeout = setTimeout(done, ms)
-        timeout.unref?.()
-      }),
-    ])
-  }
+  const Sentry = await start(options)
+  const now = options.now ?? Date.now
+  // One session for this run of Wilco: what makes "how often does it crash" a
+  // question with an answer.
+  Sentry.startSession()
+  let closed = false
 
   return {
     id: 'sentry',
-    on: dsn !== null,
+    on: true,
     trouble(trouble) {
-      if (!dsn || closed || !options.errors) return
-      // A crash loop is one issue: the same thing again within the minute waits.
-      const key = (trouble.fingerprint ?? [trouble.where, String(trouble.error)]).join('|')
-      const last = said.get(key)
-      if (last !== undefined && now() - last < AGAIN_MS) return
-      said.set(key, now())
-      if (said.size > 200) said.delete(said.keys().next().value ?? '')
-      keep(troubles, trouble, TROUBLE_MAX)
-      // What took the process down has one moment to be sent, and this is it.
-      if (trouble.level === 'fatal') void flush()
+      if (closed || !options.errors) return
+      Sentry.withScope((scope) => {
+        scope.setTag('where', trouble.where)
+        if (trouble.task) scope.setTag('task', trouble.task)
+        if (trouble.project) scope.setTag('project', trouble.project)
+        if (trouble.fingerprint) scope.setFingerprint([...trouble.fingerprint])
+        scope.setLevel(trouble.level ?? 'error')
+        scope.setContext('wilco', { ...(trouble.about ?? {}) })
+        const error = trouble.error
+        if (error instanceof Error) Sentry.captureException(error)
+        else {
+          // Nothing with a stack to group by: what it says is what it is.
+          const said = typeof error === 'string' ? error : JSON.stringify(error)
+          scope.setFingerprint([...(trouble.fingerprint ?? ['wilco', shapeOf(said ?? '')])])
+          Sentry.captureMessage(`${trouble.where}: ${scrub(said ?? 'something', options.home)}`)
+        }
+      })
     },
     note(note) {
-      if (!dsn || closed || !options.logs) return
-      keep(notes, note, NOTE_MAX)
+      if (closed || !options.logs) return
+      const said = scrub(note.said, options.home).slice(0, VALUE_MAX * 4)
+      const about = { ...(note.about ?? {}) }
+      if (note.level === 'error') Sentry.logger.error(said, about)
+      else if (note.level === 'warning') Sentry.logger.warn(said, about)
+      else if (note.level === 'debug') Sentry.logger.debug(said, about)
+      else Sentry.logger.info(said, about)
     },
     measure(measure) {
-      if (!dsn || closed || !options.metrics) return
-      keep(measures, measure, MEASURE_MAX)
+      if (closed || !options.metrics) return
+      const at = { ...(measure.about ?? {}), ...(measure.unit ? { unit: measure.unit } : {}) }
+      if (measure.kind === 'counter') Sentry.metrics.count(measure.name, measure.value, at)
+      else if (measure.kind === 'gauge') Sentry.metrics.gauge(measure.name, measure.value, at)
+      else Sentry.metrics.distribution(measure.name, measure.value, at)
     },
-    flush,
+    doing(work) {
+      // Whether it is worth keeping is the sampler's to say, in one place.
+      if (closed) return noSpan
+      return wrap(
+        Sentry,
+        Sentry.startInactiveSpan({
+          name: work.name,
+          op: work.op,
+          ...(work.attributes ? { attributes: { ...work.attributes } } : {}),
+          ...(work.startedAt ? { startTime: work.startedAt } : {}),
+        }),
+      )
+    },
+    async flush(ms = 2_000) {
+      await Sentry.flush(ms).catch(() => false)
+    },
     async close() {
       if (closed) return
       closed = true
-      await flush(2_000)
-      stop()
+      Sentry.endSession()
+      await Sentry.close(2_000).catch(() => false)
+      void now
     },
   }
 }

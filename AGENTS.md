@@ -142,12 +142,24 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
 - **Wilco reports its own trouble, never your work.** `telemetry.dsn` — empty by default — sends
   Wilco's crashes and the warnings it writes down to a Sentry project of yours, with what happened
-  around them as logs and what was spent as numbers, so the Sentry extension can watch Wilco itself
-  and hand an agent its own bug. What may be sent is an allow-list (`KEPT` in `telemetry/shape.ts`):
-  names, counts and Wilco's own words. What you said, what an agent wrote, task titles, prompts and
-  notes are never in it, paths are scrubbed to `~`, and anything credential-shaped is taken out. A
-  reporter never throws, never blocks and never grows without a bound: a window that crashed while
-  reporting a crash is worse than one that reported nothing.
+  around them as logs and every agent turn as a trace, so the Sentry extension can watch Wilco
+  itself and hand an agent its own bug. What may be sent is an allow-list (`KEPT` in
+  `telemetry/shape.ts`): names, counts and Wilco's own words. What you said, what an agent wrote,
+  task titles, prompts and notes are never in it, paths are scrubbed to `~`, anything
+  credential-shaped is taken out, and the lines around a stack frame are kept only for Wilco's own
+  files. A reporter never throws and never blocks: a window that crashed while reporting a crash is
+  worse than one that reported nothing.
+- **An agent's turn is the work of a model, and is timed as one.** The supervisor sees a turn start,
+  the tools it calls and what it cost, so that is where it is timed (`agentTurns`): a
+  `gen_ai.invoke_agent` span per turn with `gen_ai.execute_tool` spans inside it, the model and the
+  tokens on it. Never from the journal, which knows when a turn ended but not when the agent was
+  waiting to be asked. Sampling is the reporter's one decision: turns are always kept, Wilco's own
+  work is kept at `telemetry.traces`.
+- **Sentry's SDK, and nothing automatic.** The extension reads Sentry with plain requests; reporting
+  uses `@sentry/node`, because what is wanted is a tracer and the parts nobody should write twice.
+  It is imported only when there is a DSN, with `defaultIntegrations: false` and
+  `registerEsmLoaderHooks: false`: Wilco names its own work where it happens, and a window must
+  never have its terminal written over by somebody else's deprecation warning.
 - **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
   throws; anything else reaches the model as an empty answer that looks like success.
 - **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its

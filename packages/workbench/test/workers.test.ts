@@ -10,6 +10,7 @@ import type {
   WorkerSpec,
 } from '@wilco/harnesses-core'
 import { PermissionNotPendingError } from '@wilco/harnesses-core'
+import type { Reporter, Span, Work } from '@wilco/telemetry'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
@@ -124,10 +125,15 @@ const logged = (
   type: Parameters<EventLog['read']>[0] extends never ? never : string,
 ) => log.read({ types: [type] as never })
 
-async function setup(mode: 'bypass' | 'policy') {
+async function setup(mode: 'bypass' | 'policy', report?: Reporter) {
   const log = await EventLog.open({ path: join(tmp('wilco-workers-'), 'events.jsonl') })
   const adapter = new FakeAdapter()
-  const supervisor = new WorkerSupervisor({ adapter, log, approvals: { mode } })
+  const supervisor = new WorkerSupervisor({
+    adapter,
+    log,
+    approvals: { mode },
+    ...(report ? { report } : {}),
+  })
   const handle = await supervisor.start({
     run: 'r1',
     task: 'app/refunds',
@@ -511,5 +517,124 @@ describe('WorkerSupervisor', () => {
         PermissionNotPendingError,
       )
     })
+  })
+})
+
+describe('what an agent does, as the work of a model', () => {
+  /** A reporter that keeps the spans it was asked for, and how they nest. */
+  function timing() {
+    const spans: {
+      name: string
+      op: string
+      attributes: Record<string, unknown>
+      startedAt?: number
+      endedAt?: number | 'open'
+      inside: string[]
+    }[] = []
+    const make = (work: Work): Span => {
+      const kept = {
+        name: work.name,
+        op: work.op,
+        attributes: { ...(work.attributes ?? {}) },
+        ...(work.startedAt ? { startedAt: work.startedAt } : {}),
+        endedAt: 'open' as number | 'open',
+        inside: [] as string[],
+      }
+      spans.push(kept)
+      return {
+        about: (attributes) => Object.assign(kept.attributes, attributes),
+        inside: (child) => {
+          kept.inside.push(child.name)
+          return make(child)
+        },
+        wrong: () => {},
+        end: (at) => {
+          kept.endedAt = at ?? Date.now()
+        },
+      }
+    }
+    const report = {
+      id: 'keeping',
+      on: true,
+      trouble: () => {},
+      note: () => {},
+      measure: () => {},
+      doing: make,
+      flush: async () => {},
+      close: async () => {},
+    } as Reporter
+    return { report, spans }
+  }
+
+  it('times a turn, the tools it called and what it cost, and nothing of what was said', async () => {
+    const { report, spans } = timing()
+    const { adapter, supervisor } = await setup('bypass', report)
+    adapter.emit('r1', { type: 'started', sessionId: null, model: 'openrouter/opus' })
+    adapter.emit('r1', { type: 'turn_started', at: 1_000 })
+    adapter.emit('r1', {
+      type: 'tool_call',
+      callId: 'c1',
+      tool: 'bash',
+      input: { command: 'pnpm test' },
+      at: 1_100,
+    })
+    adapter.emit('r1', {
+      type: 'tool_result',
+      callId: 'c1',
+      ok: true,
+      summary: 'tests passed',
+      at: 1_400,
+    })
+    adapter.emit('r1', {
+      type: 'usage',
+      model: 'openrouter/opus',
+      input: 900,
+      output: 120,
+      cacheRead: 40,
+      cacheWrite: 0,
+      tokens: 1_060,
+      usd: 0.31,
+    })
+    adapter.emit('r1', { type: 'turn_done', status: 'ok', at: 2_000 })
+    await until(() => spans.every((span) => span.endedAt !== 'open'))
+
+    const turn = spans.find((span) => span.op === 'gen_ai.invoke_agent')
+    expect(turn).toMatchObject({
+      name: 'invoke_agent app/refunds',
+      startedAt: 1_000,
+      endedAt: 2_000,
+      inside: ['execute_tool bash'],
+    })
+    expect(turn?.attributes).toMatchObject({
+      'gen_ai.operation.name': 'invoke_agent',
+      'gen_ai.agent.name': 'app/refunds',
+      'gen_ai.request.model': 'openrouter/opus',
+      'gen_ai.usage.input_tokens': 900,
+      'gen_ai.usage.output_tokens': 120,
+      'gen_ai.usage.total_tokens': 1_060,
+      'gen_ai.usage.input_tokens.cached': 40,
+      'gen_ai.cost.total_tokens': 0.31,
+      'wilco.project': 'app',
+      'wilco.harness': 'fake',
+    })
+    const tool = spans.find((span) => span.op === 'gen_ai.execute_tool')
+    expect(tool).toMatchObject({ name: 'execute_tool bash', startedAt: 1_100, endedAt: 1_400 })
+    // What the agent was asked, what it answered and what a tool was given are
+    // not the shape of the work, and are nowhere in it.
+    expect(JSON.stringify(spans)).not.toContain('pnpm test')
+    expect(JSON.stringify(spans)).not.toContain('tests passed')
+    expect(JSON.stringify(spans)).not.toContain('fix the refund flow')
+    await supervisor.shutdown()
+  })
+
+  it('ends a turn its agent never finished, when the agent is gone', async () => {
+    const { report, spans } = timing()
+    const { adapter, supervisor } = await setup('bypass', report)
+    adapter.emit('r1', { type: 'turn_started', at: 1_000 })
+    adapter.emit('r1', { type: 'tool_call', callId: 'c1', tool: 'bash', input: {}, at: 1_100 })
+    adapter.emit('r1', { type: 'exited', code: 1 })
+    await until(() => spans.length === 2 && spans.every((span) => span.endedAt !== 'open'))
+    expect(spans.map((span) => span.op)).toEqual(['gen_ai.invoke_agent', 'gen_ai.execute_tool'])
+    await supervisor.shutdown()
   })
 })

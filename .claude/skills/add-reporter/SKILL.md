@@ -12,9 +12,10 @@ extension can watch Wilco and hand an agent its own bug. It is off until someone
 
 | Path | What |
 |---|---|
-| `packages/telemetry/src/port.ts` | the `Reporter` port: `trouble`, `note`, `measure`, `flush`, `close`, and `REPORTERS` |
-| `packages/telemetry/src/shape.ts` | everything pure: the DSN, what may be sent (`KEPT`), scrubbing, stacks, envelopes, what a journal event is worth |
-| `packages/telemetry/src/sentry.ts` | the one that sends: queues, batches, backs off, gives up |
+| `packages/telemetry/src/port.ts` | the `Reporter` port: `trouble`, `note`, `measure`, `doing`, `flush`, `close`, and `REPORTERS` |
+| `packages/telemetry/src/shape.ts` | the policy, pure: the DSN, what may be sent (`KEPT`), scrubbing, what a journal event is worth |
+| `packages/telemetry/src/sentry.ts` | the one that sends: Sentry's SDK, what it is told not to do, what is scrubbed on the way out |
+| `packages/telemetry/src/agents.ts` | a turn as the work of a model: `gen_ai` spans, their tools, their tokens |
 | `packages/telemetry/src/none.ts` | the one that sends nothing, which is Wilco unless asked |
 | `packages/telemetry/src/conformance.ts` | the suite every reporter passes |
 | `packages/cli/src/telemetry.ts` | the one place that opens one, feeds it the journal, and reports a crash |
@@ -30,8 +31,12 @@ extension can watch Wilco and hand an agent its own bug. It is off until someone
 - **Paths and credentials go before anything leaves.** `scrub` replaces the person's home with `~`
   and takes out anything credential-shaped. Call it on every string you add, not at the call site.
 - **Nothing may fail because reporting did.** Every reporter swallows its own trouble: a send that
-  throws, a Sentry that is down, a DSN that is nonsense. Queues are bounded and drop the oldest;
-  a 429 is waited out; the same trouble twice in a minute is sent once, so a crash loop is one issue.
+  throws, a Sentry that is down, a DSN that is nonsense. The SDK does the queueing, batching and
+  back-off; a reporter that cannot even be opened answers `none` rather than stopping Wilco.
+- **Spans are named where the work is.** `doing(work)` answers a span that must be ended;
+  `inside(work)` is what happened within it. Nothing is instrumented automatically, so a span that
+  is not worth a name is not worth having. Time work that is already over with `startedAt`, which is
+  how a poll is timed only when it was slow.
 - **Never block.** `flush(ms)` gives up after `ms`; `close()` gets two seconds on the way out and
   no more. Nothing waits on a network to draw a frame or to quit.
 - **Off is the default, and it is a working reporter.** `openReporter` answers `none` when there is
@@ -55,5 +60,9 @@ somebody's text.
 `open.ts`), pass `reporterConformance('<name>', …)` in the package's test, and add its name to the
 `telemetry.driver` enum in the config schema.
 
-Then: `pnpm check` on its own, and never a test that reaches a network — pass `fetch` in and read
-what would have gone on the wire.
+**Timing something new.** Take a `Reporter` where the work happens and name the span for what a
+person would call it. For anything a model does, use `agents.ts` rather than writing `gen_ai`
+attributes at the call site: the conventions are Sentry's, and they belong in one place.
+
+Then: `pnpm check` on its own, and never a test that reaches a network — give the reporter a `sink`
+and read the envelopes it would have sent.
