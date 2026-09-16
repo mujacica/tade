@@ -1,0 +1,15 @@
+{
+  "name": "@wilco/telemetry",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conformance": "./src/conformance.ts"
+  },
+  "dependencies": {
+    "@wilco/core": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}

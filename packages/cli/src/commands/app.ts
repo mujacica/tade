@@ -29,11 +29,13 @@ import {
   workbenchExtensions,
 } from '@wilco/orchestrator'
 import { collectStatus } from '@wilco/status'
+import { watchProcess } from '@wilco/telemetry'
 import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
 import { HomeBusyError, Workbench } from '@wilco/workbench'
 import { livenessFrom } from '@wilco/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
+import { reporterFor, reportJournal } from '../telemetry.ts'
 import { gather } from './setup.ts'
 
 /** Run the wizard attached to this terminal, and report how it went. */
@@ -84,6 +86,18 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
 
       const home = wilcoHome()
       const safe = program.opts().safe === true
+      // Where Wilco's own trouble goes, if anywhere: nothing is sent until a
+      // DSN is set, and what a crash takes down is sent on the way out.
+      const report = reporterFor(cfg.config)
+      let restoreTerminal: () => Promise<void> = async () => {}
+      const stopWatching = report.on
+        ? watchProcess(report, {
+            where: 'the window',
+            // The terminal comes back before anything else: a crash that left
+            // it in raw mode is a crash you cannot read.
+            onFatal: () => restoreTerminal(),
+          })
+        : () => {}
       // Loaded before anything that hands them out: the workbench gives agents
       // their tools, the host gives the orchestrator its, the window runs them.
       const extensions = await loadExtensions({ config: cfg.config, home, safe })
@@ -107,6 +121,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         setExit(Exit.error)
         return
       }
+
+      // Everything the journal says, for whoever is watching Wilco itself.
+      const stopReporting = reportJournal(report, client)
 
       // The way back for the orchestrator's own tools: it runs as pi in its
       // own process, so `wilco_run_start` has to reach us somehow. One socket,
@@ -201,6 +218,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           extensions,
           harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })
+        restoreTerminal = () => app.stop().catch(() => {})
         showTerminal = (terminal) => void app.showTerminal(terminal)
         keepOrchestratorModel = (model) => app.thinkerMovedTo(model)
         // An agent an extension starts is put in front of you, like one you started.
@@ -307,6 +325,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       } finally {
         await stopOrchestrator()
         await tools.close().catch(() => {})
+        stopWatching()
+        stopReporting()
+        // What is queued has a moment to be sent, and never more than that.
+        await report.close()
         // Lets go of the lanes; under tmux the agents carry on working.
         await client.close().catch(() => {})
       }

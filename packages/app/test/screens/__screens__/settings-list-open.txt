@@ -11,9 +11,9 @@
  ▾ CHANG│  Window                │                                                                             │        
   M pack│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
   A src/│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
-  M src/│  Keys                  │ Microphone        │  ▏                                         │ on restart │        
-        │  Accounts          ● 1 │                   │ ON THIS MACHINE            private, no key │            │        
- ▾ FILES│                        │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
+  M src/│  Reporting             │ Microphone        │  ▏                                         │ on restart │        
+        │  Keys                  │                   │ ON THIS MACHINE            private, no key │            │        
+ ▾ FILES│  Accounts          ● 1 │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
    ▾ src│                        │ Spoken replies    │ IN THE CLOUD                   needs a key │            │        
        w│                        │ Interruptions     │  OpenAI · whisper-1                        │ on restart │        
        w│                        │ Quiet hours       │  Groq · whisper-large-v3                   │ on restart │        

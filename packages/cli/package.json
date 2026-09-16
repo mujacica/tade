@@ -13,17 +13,18 @@
   "dependencies": {
     "@wilco/app": "workspace:*",
     "@wilco/core": "workspace:*",
-    "@wilco/workbench": "workspace:*",
+    "@wilco/extensions-core": "workspace:*",
     "@wilco/harnesses-core": "workspace:*",
     "@wilco/harnesses-pi": "workspace:*",
     "@wilco/orchestrator": "workspace:*",
     "@wilco/status": "workspace:*",
+    "@wilco/telemetry": "workspace:*",
     "@wilco/voice-core": "workspace:*",
     "@wilco/voice-stt": "workspace:*",
     "@wilco/voice-tts": "workspace:*",
+    "@wilco/workbench": "workspace:*",
     "commander": "^15.0.0",
-    "yaml": "^2.9.0",
-    "@wilco/extensions-core": "workspace:*"
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@wilco/drivers-core": "workspace:*",

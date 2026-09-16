@@ -84,6 +84,9 @@ importers:
       '@wilco/status':
         specifier: workspace:*
         version: link:../status
+      '@wilco/telemetry':
+        specifier: workspace:*
+        version: link:../telemetry
       '@wilco/voice-core':
         specifier: workspace:*
         version: link:../voice/core
@@ -260,6 +263,15 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+
+  packages/telemetry:
+    dependencies:
+      '@wilco/core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
   packages/voice/core:
     dependencies:

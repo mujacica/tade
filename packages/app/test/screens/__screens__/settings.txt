@@ -11,9 +11,9 @@
  ▾ CHANG│  Window                │                                                                             │        
   M pack│  Projects           3  │ Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
   A src/│  Budgets           ● 1 │                                                                             │        
-  M src/│  Keys                  │ Microphone         MacBook Pro Microphone                      ↻ on restart │        
-        │  Accounts          ● 1 │                   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁  ▐ Test ▌                                  │        
- ▾ FILES│                        │ Muted             ●━━ off                                                   │        
+  M src/│  Reporting             │ Microphone         MacBook Pro Microphone                      ↻ on restart │        
+        │  Keys                  │                   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁  ▐ Test ▌                                  │        
+ ▾ FILES│  Accounts          ● 1 │ Muted             ●━━ off                                                   │        
    ▾ src│                        │ Spoken replies    ━━● on                                                    │        
        w│                        │ Interruptions      ‹  6  ›   an hour, at most                  ↻ on restart │        
        w│                        │ Quiet hours        22:00    to  07:00                          ↻ on restart │        

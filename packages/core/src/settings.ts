@@ -400,6 +400,60 @@ export function settingsOf(config: Config): SettingGroup[] {
       })),
     },
     {
+      id: 'telemetry',
+      title: 'Reporting',
+      about:
+        'Where Wilco reports its own crashes and warnings, so you can see them and hand them to an agent. Nothing is sent until you say where; what is sent is the shape of what happened, never your code or what you said.',
+      settings: [
+        {
+          path: 'telemetry.dsn',
+          title: 'Send to',
+          means:
+            'a Sentry DSN, from that project’s Client Keys; empty sends nothing, and $WILCO_TELEMETRY_DSN does the same without a file',
+          value: config.telemetry.dsn,
+          fallback: 'nothing is sent',
+          type: { kind: 'text', placeholder: 'https://…@…ingest.sentry.io/…' },
+          live: false,
+        },
+        {
+          path: 'telemetry.errors',
+          title: 'Crashes and warnings',
+          means: 'send them as issues, which is what an agent can be put on',
+          value: String(config.telemetry.errors),
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: false,
+        },
+        {
+          path: 'telemetry.logs',
+          title: 'What happened around them',
+          means: 'send tasks, runs, the queue and schedules as logs, to read beside an issue',
+          value: String(config.telemetry.logs),
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: false,
+        },
+        {
+          path: 'telemetry.metrics',
+          title: 'Numbers',
+          means: 'send tokens, money and how many agents are running',
+          value: String(config.telemetry.metrics),
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: false,
+        },
+        {
+          path: 'telemetry.environment',
+          title: 'Which Wilco this is',
+          means: 'the environment an issue is filed under: laptop, ci, the name of a machine',
+          value: config.telemetry.environment,
+          fallback: 'laptop',
+          type: { kind: 'text', placeholder: 'laptop' },
+          live: false,
+        },
+      ],
+    },
+    {
       id: 'keys',
       title: 'Keys',
       about:

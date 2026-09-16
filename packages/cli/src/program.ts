@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
 import { collectStatus } from '@wilco/status'
@@ -21,13 +20,10 @@ import { registerTasks } from './commands/tasks.ts'
 import { registerVoice } from './commands/voice.ts'
 import { formatStatus } from './format.ts'
 import { defaultIo, Exit, type Io } from './io.ts'
+import { reportCrash } from './telemetry.ts'
+import { version } from './version.ts'
 
 export { Exit, type Io } from './io.ts'
-
-function version(): string {
-  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
-  return pkg.version
-}
 
 export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   const program = new Command('wilco')
@@ -104,6 +100,9 @@ export async function run(argv: string[], io: Io = defaultIo): Promise<number> {
       return err.exitCode === 0 ? Exit.ok : Exit.invalidInput
     }
     io.err(err instanceof Error ? (err.stack ?? err.message) : String(err))
+    // A command that ended this way is Wilco's own trouble: said here, and
+    // sent to whoever is watching Wilco itself, when anybody is.
+    await reportCrash(err, argv)
     return Exit.error
   }
   return code

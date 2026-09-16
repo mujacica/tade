@@ -299,6 +299,33 @@ export const ConfigSchema = z
         instructions: z.string().optional(),
       })
       .prefault({}),
+    /**
+     * Where Wilco's own trouble goes: its crashes, the warnings it writes down,
+     * what its agents spent. Nothing is sent until a DSN is set, and what is
+     * sent is the shape of what happened — never your code, what you said, or
+     * what an agent wrote. It is your own Sentry project, so the Sentry
+     * extension can watch it and hand its own bugs to an agent.
+     */
+    telemetry: z
+      .strictObject({
+        /** Which reporter: `sentry`, or `none` to send nothing whatever else says. */
+        driver: z.enum(['sentry', 'none']).default('sentry'),
+        /**
+         * The Sentry project to send to, as a DSN. Empty — the default — sends
+         * nothing at all. `$WILCO_TELEMETRY_DSN` does the same without putting
+         * it in a file.
+         */
+        dsn: z.string().default(''),
+        /** Crashes, and the warnings Wilco writes down, as issues to fix. */
+        errors: z.boolean().default(true),
+        /** What happened around them — tasks, runs, the queue — as logs. */
+        logs: z.boolean().default(true),
+        /** Tokens, money and how many agents are running, as metrics. */
+        metrics: z.boolean().default(true),
+        /** Which Wilco this is, in Sentry's environment filter. */
+        environment: z.string().default('laptop'),
+      })
+      .prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
     /**
      * Settings for each extension, by its name. Which keys mean something is

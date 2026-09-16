@@ -84,6 +84,35 @@ from **Settings**.
 - **Resources** keeps what Wilco and everything it runs is using in the status bar; click it for the
   breakdown by project, kind, agent and process: *"how much memory is Wilco using?"*
 
+### Wilco's own trouble
+
+Wilco can report itself to a Sentry project of yours: crashes and the warnings it writes down as
+issues, what happened around them as logs, tokens and money as metrics. Nothing is sent until you
+say where, and what is sent is the shape of what happened — never your code, what you said, or what
+an agent wrote.
+
+```yaml
+telemetry:
+  dsn: https://…@…ingest.sentry.io/…   # a DSN, from that project's Client Keys; empty sends nothing
+  environment: laptop                   # which Wilco this is
+```
+
+`$WILCO_TELEMETRY_DSN` does the same without putting it in a file, and **Settings › Reporting** has
+the switches for errors, logs and metrics.
+
+Point Wilco's own repository and the watch at it, and it fixes itself:
+
+```yaml
+projects:
+  wilco: { root: ~/src/wilco }
+extensions:
+  sentry:
+    projects: { wilco: your-wilco-sentry-project }
+```
+
+Then *"watch wilco for new errors"* — every hour, each new issue in Wilco becomes an agent in the
+Wilco checkout with the stack trace in its context.
+
 Turn them on and off, set them up and approve what Wilco wrote for itself from **Extensions**. Your
 own go in `~/.wilco/extensions/active/<name>/extension.ts`.
 

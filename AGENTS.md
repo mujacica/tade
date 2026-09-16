@@ -140,6 +140,14 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
   that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
+- **Wilco reports its own trouble, never your work.** `telemetry.dsn` — empty by default — sends
+  Wilco's crashes and the warnings it writes down to a Sentry project of yours, with what happened
+  around them as logs and what was spent as numbers, so the Sentry extension can watch Wilco itself
+  and hand an agent its own bug. What may be sent is an allow-list (`KEPT` in `telemetry/shape.ts`):
+  names, counts and Wilco's own words. What you said, what an agent wrote, task titles, prompts and
+  notes are never in it, paths are scrubbed to `~`, and anything credential-shaped is taken out. A
+  reporter never throws, never blocks and never grows without a bound: a window that crashed while
+  reporting a crash is worse than one that reported nothing.
 - **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
   throws; anything else reaches the model as an empty answer that looks like success.
 - **There is no server.** The one socket left is the `ToolHost`: a channel from the window to its
@@ -220,6 +228,7 @@ implementations of it.
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
 | `packages/extensions/core` | the `WilcoExtension` port, the host that runs extensions, their suite |
+| `packages/telemetry` | the `Reporter` port and its suite: where Wilco's own trouble goes |
 | `packages/extensions/{deps,sentry,resources}` | the extensions that ship with Wilco |
 | `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
 | `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
