@@ -9,7 +9,7 @@
      working                  │  │   tests failed twice │      │   ◆ fix-charge fail… │ │    │   ◆ after add-refun… │   
                               │  ╰──────────────────────╯      ╰──────────────────────╯ │    ╰──────────────────────╯   
  ▾ SMART QUEUE  5    ▐ plan ▌ │                                                         │                               
-   all  next  timed           │  ╭──────────────────────╮                               │                               
+   all  next  timed   ‖ pause │  ╭──────────────────────╮                               │                               
                               │  │ ⠋ bump-mailer        │───────────────────────────────╯                               
    ! add-refunds       held   │  │   working            │                                                               
      ◆ fix-charge failed: …   │  ╰──────────────────────╯                                                               

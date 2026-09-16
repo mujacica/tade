@@ -9,7 +9,7 @@
      working                  │  ▐ Wait for a retry ▌ ▐ Start anyway ▌ ▐ Remove ▌                                       
                               │                                                                                         
  ▾ SMART QUEUE  8    ▐ plan ▌ │  WAITS ON                                                                               
-   all  next  timed           │  ✕ fix-charge  tests failed twice                                                       
+   all  next  timed   ‖ pause │  ✕ fix-charge  tests failed twice                                                       
                               │    both change src/charge.ts                                                            
  ▐ ! add-refunds       held ▌ │                                                                                         
  ▐   ◆ fix-charge failed: … ▌ │  WILL BE TOLD                                                                           

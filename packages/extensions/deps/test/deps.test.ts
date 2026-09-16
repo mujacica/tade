@@ -208,6 +208,52 @@ describe('checking and updating a project', () => {
     expect(repo.git('status', '--porcelain')).toBe('')
   })
 
+  it('watches for vulnerable dependencies, and says what an agent on one is told', async () => {
+    const repo = project()
+    const extensions = await host(
+      repo.root,
+      registry(answers, { requests: ['GHSA-9wx4-h78v-vm56', 'PYSEC-2023-74'] }),
+    )
+    const looked = await extensions.look('deps.vulnerabilities', {
+      project: 'shop',
+      input: { level: 'minor' },
+      since: null,
+      turnedOn: '2026-09-15T08:00:00.000Z',
+    })
+    expect(looked.found).toEqual([
+      {
+        key: 'pypi:requests:GHSA-9wx4-h78v-vm56+PYSEC-2023-74',
+        title: 'requests ==2.31.0: GHSA-9wx4-h78v-vm56, PYSEC-2023-74',
+        detail: expect.stringContaining('https://osv.dev/vulnerability/PYSEC-2023-74'),
+        links: [
+          {
+            title: 'GHSA-9wx4-h78v-vm56',
+            url: 'https://osv.dev/vulnerability/GHSA-9wx4-h78v-vm56',
+          },
+          { title: 'PYSEC-2023-74', url: 'https://osv.dev/vulnerability/PYSEC-2023-74' },
+        ],
+      },
+    ])
+    const agent = await looked.agent(looked.found[0]!)
+    expect(agent.title).toBe('update requests')
+    expect(agent.prompt).toContain('deps_update with packages ["requests"] and level minor')
+    expect(agent.prompt).toContain('run `pnpm test`')
+    expect(agent.context).toContain(
+      'In `api/requirements.txt` (requirements). The newest release is 2.32.3 (minor ahead).',
+    )
+
+    // Nothing found because OSV could not be asked is not nothing found.
+    const offline = await host(repo.root, registry(answers, {}))
+    await expect(
+      offline.look('deps.vulnerabilities', {
+        project: 'shop',
+        input: {},
+        since: null,
+        turnedOn: '2026-09-15T08:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({ found: [] })
+  })
+
   it("hands an update to a new agent in its own worktree, and never touches the project's checkout", async () => {
     const repo = project()
     const extensions = await host(repo.root, registry(answers))

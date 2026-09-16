@@ -102,8 +102,10 @@ export function snapshotsFrom(
         ...(task.done ? { done: task.done } : {}),
         ...(task.by ? { by: task.by } : {}),
         ...(queued.has(task.id) ? { queued: queued.get(task.id) } : {}),
-        // Kept after it starts: the plan it was part of is still drawn with it.
+        // Kept after it starts: the plan it was part of is still drawn with it,
+        // and what it changes is what a later plan is checked against.
         ...(task.start && task.start.after.length > 0 ? { waitsOn: task.start.after } : {}),
+        ...(task.start && task.start.touches.length > 0 ? { touches: task.start.touches } : {}),
         title: task.title ?? null,
         branch: task.branch,
         lane: lane?.id ?? null,

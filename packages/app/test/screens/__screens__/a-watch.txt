@@ -12,7 +12,7 @@
      working                  │                                                                                         
                               │  FOUND                                                                                  
  ▾ SMART QUEUE  9    ▐ plan ▌ │  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
-   all  next  timed           │                    Sentry answered 502: Bad Gateway                                     
+   all  next  timed   ‖ pause │                    Sentry answered 502: Bad Gateway                                     
                               │  Mon 14 Sep 09:00  ⠋ fix-checkout-3e · CHECKOUT-3E: TypeError: Cannot read properties…  
    ◷ release-notes    18:00   │  Sun 13 Sep 16:00  fix-checkout-3a · CHECKOUT-3A: RangeError: Invalid currency code     
      ❯ waits for its time     │                                                                                         

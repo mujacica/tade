@@ -9,7 +9,7 @@
      working                  │  ! add-refunds  ◆ fix-charge failed: tests failed twice                                 
                               │    it emails what refund() returns                                                      
  ▾ SMART QUEUE  5    ▐ plan ▌ │  ⠋ bump-mailer  working                                                                 
-   all  next  timed           │    the mailer’s send() changes in v4                                                    
+   all  next  timed   ‖ pause │    the mailer’s send() changes in v4                                                    
                               │                                                                                         
    ! add-refunds       held   │  WILL BE TOLD                                                                           
      ◆ fix-charge failed: …   │  │ Email the customer when a refund goes through: use the new mailer, and say how much  

@@ -66,7 +66,8 @@ from **Settings**.
 
 - **Dependencies** checks npm, pnpm catalogs, PyPI, crates.io and Go modules for what is behind,
   vulnerable or deprecated, and hands updates to an agent: *"verify and update all the
-  dependencies in checkout"*.
+  dependencies in checkout"*. Its **Vulnerable dependencies** watch looks daily and starts an agent
+  on each package with a known advisory.
 - **Sentry** reads issues, traces, logs, spans and metrics, and starts agents on fixes with
   everything Sentry knows in their context: *"check Sentry for new errors and tell me what to fix"*.
   Its **New Sentry errors** watch looks every hour and starts an agent on each new issue — *"fix new

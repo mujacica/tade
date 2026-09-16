@@ -9,7 +9,7 @@
      [38;5;244mworking[0m                  [38;5;30m│[0m  [38;5;179m![0m add-refunds  [38;5;244m◆ fix-charge failed: tests failed twice[0m                                 
                               [38;5;30m│[0m    [38;5;244mit emails what refund() returns[0m                                                      
  [38;5;248m[1m▾ SMART QUEUE[0m [48;5;238m[38;5;250m 5 [0m   [38;5;238m▐[0m[48;5;238m[38;5;255m plan [0m[38;5;238m▌[0m [38;5;30m│[0m  [38;5;80m⠋[0m bump-mailer  [38;5;244mworking[0m                                                                 
-   [38;5;246mall[0m  [38;5;255m[1mnext[0m  [38;5;246mtimed[0m           [38;5;30m│[0m    [38;5;244mthe mailer’s send() changes in v4[0m                                                    
+   [38;5;246mall[0m  [38;5;255m[1mnext[0m  [38;5;246mtimed[0m   [38;5;246m‖ pause[0m [38;5;30m│[0m    [38;5;244mthe mailer’s send() changes in v4[0m                                                    
                               [38;5;30m│[0m                                                                                         
    [38;5;179m![0m add-refunds       [38;5;179mheld[0m   [38;5;30m│[0m  [38;5;248m[1mWILL BE TOLD[0m                                                                           
      [38;5;244m◆ fix-charge failed: [0m…[0m[0m   [38;5;30m│[0m  [38;5;30m│[0m Email the customer when a refund goes through: use the new mailer, and say how much  

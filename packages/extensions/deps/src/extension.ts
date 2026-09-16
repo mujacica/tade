@@ -222,6 +222,82 @@ export const depsExtension: WilcoExtension = {
       },
     },
   ],
+  watches: [
+    {
+      id: 'vulnerabilities',
+      title: 'Vulnerable dependencies',
+      means:
+        'Checks what a project depends on against OSV, and starts an agent on each package with a known vulnerability to move it forward, install, test and commit.',
+      every: '1d',
+      input: object({
+        level: oneOf(
+          ['patch', 'minor', 'major'],
+          'how far an update may go; minor unless said, and major only where nothing else fixes it',
+        ),
+      }),
+      check: async (ctx) => {
+        const found = await report(ctx, ctx.watching.root, () => {})
+        // Nothing found because nothing could be asked is not nothing found.
+        if (!found.report.checkedVulnerabilities) {
+          throw new Error(
+            ctx.settings.vulnerabilities === false
+              ? 'vulnerability lookups are off: unset extensions.deps.vulnerabilities'
+              : 'OSV could not be asked about these dependencies',
+          )
+        }
+        return {
+          found: found.report.findings
+            .filter((one) => one.vulnerabilities.length > 0)
+            .map((one) => {
+              const ids = [...one.vulnerabilities].sort()
+              const dep = one.dependency
+              return {
+                // The same package with the same advisories is the same finding;
+                // a new advisory against it is a new one.
+                key: `${dep.ecosystem}:${dep.name}:${ids.join('+')}`,
+                title: `${dep.name} ${dep.spec}: ${ids.join(', ')}`,
+                detail: [
+                  `# ${dep.name} ${dep.spec}`,
+                  '',
+                  [
+                    `In \`${dep.manifest}\` (${dep.group}).`,
+                    one.latest
+                      ? `The newest release is ${one.latest}${one.behind ? ` (${one.behind} ahead)` : ''}.`
+                      : '',
+                    one.leftAlone ? `Its requirement ${one.leftAlone}.` : '',
+                  ]
+                    .filter((part) => part !== '')
+                    .join(' '),
+                  '',
+                  'Known vulnerabilities:',
+                  '',
+                  ...ids.map((id) => `- ${id}: https://osv.dev/vulnerability/${id}`),
+                ].join('\n'),
+                links: ids.map((id) => ({
+                  title: id,
+                  url: `https://osv.dev/vulnerability/${id}`,
+                })),
+              }
+            }),
+        }
+      },
+      agent: (finding, ctx) => {
+        const name = finding.key.split(':')[1] ?? finding.title
+        const level = typeof ctx.input.level === 'string' ? ctx.input.level : 'minor'
+        return {
+          title: `update ${name}`,
+          prompt: [
+            `${name} has a known vulnerability, in .wilco/context.md with its advisories.`,
+            `Read them first, then call deps_update with packages ["${name}"] and level ${level} to move it forward in this worktree.`,
+            'If that is not enough to clear the advisory, say so and go as far as it takes, reading the changelog for what breaks.',
+            `Then install${ctx.watching.test ? `, run \`${ctx.watching.test}\`` : ' and run the tests'}, fix what the update broke, and commit.`,
+          ].join(' '),
+          ...(finding.detail ? { context: finding.detail } : {}),
+          ...(finding.links ? { links: finding.links } : {}),
+        }
+      },
+    },
+  ],
   actions: [
     { id: 'check', title: 'Check dependencies', tool: 'deps_check', project: true },
     {

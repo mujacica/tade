@@ -107,6 +107,30 @@ describe('probeGit on real repos', () => {
     expect(res.snapshot?.ahead).toBe(0)
   })
 
+  it('detects a squash merge, where the work is in the base but the commits are not', async () => {
+    const r = mkrepo()
+    const wt = r.addTask('squash', { project: 'p' })
+    const taskBase = r.head()
+    r.commit('first half', { 'feature.ts': 'half\n' }, wt)
+    r.commit('second half', { 'feature.ts': 'whole\n' }, wt)
+    let res = await probeGit(wt, { baseRef: 'main', taskBase, ...noPr })
+    expect(res.snapshot?.mergedIntoBase).toBe(false)
+
+    // What a "Squash and merge" leaves behind: the same files, none of the commits.
+    r.git('merge', '-q', '--squash', 'wilco/squash')
+    r.git('commit', '-q', '-m', 'the feature (#12)')
+    res = await probeGit(wt, { baseRef: 'main', taskBase, ...noPr })
+    expect(res.snapshot?.mergedIntoBase).toBe(true)
+    // Its commits are still its own: it is ahead and behind, and merged all the same.
+    expect(res.snapshot?.ahead).toBe(2)
+    expect(res.snapshot?.behind).toBe(1)
+
+    // More work after the merge is work the base does not have.
+    r.commit('one more thing', { 'feature.ts': 'more\n' }, wt)
+    res = await probeGit(wt, { baseRef: 'main', taskBase, ...noPr })
+    expect(res.snapshot?.mergedIntoBase).toBe(false)
+  })
+
   it('a missing worktree degrades to null with a warning', async () => {
     const r = mkrepo()
     const wt = r.addTask('gone', { project: 'p' })

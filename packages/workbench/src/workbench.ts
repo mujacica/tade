@@ -16,6 +16,7 @@ import {
   type Note,
   noSpend,
   type Plan,
+  type PlanBusy,
   type QueueChange,
   resolveRoute,
   runtimeDir,
@@ -688,7 +689,12 @@ export class Workbench {
    * waits on — or none of them, with every reason, when the plan cannot be
    * kept. Making is not starting: the queue starts whatever is ready.
    */
-  async planTasks(plan: Plan, by = 'orchestrator'): Promise<PlanMade> {
+  async planTasks(
+    plan: Plan,
+    by = 'orchestrator',
+    /** Work the project already has, so the plan is checked against it too. */
+    busy: readonly PlanBusy[] = [],
+  ): Promise<PlanMade> {
     const configured = this.config.projects[plan.project]
     if (!configured) {
       throw new Error(`unknown project "${plan.project}": add it to config.yaml first`)
@@ -700,7 +706,7 @@ export class Workbench {
       if (event.type === 'task_created') tasks.add(event.task)
       else tasks.delete(event.task)
     }
-    const check = checkPlan(plan, { workspace: this.config.agents.workspace, tasks })
+    const check = checkPlan(plan, { workspace: this.config.agents.workspace, tasks, busy })
     if (!check.ok) throw new Error(`the plan was not made: ${check.problems.join('; ')}`)
     // Every model named for the work settled first: a plan that starts half its
     // agents and then cannot tell which model the rest meant is a mess to undo.

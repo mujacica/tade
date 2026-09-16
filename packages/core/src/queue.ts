@@ -274,15 +274,29 @@ export type PlanCheck =
 
 const NAME = /^[a-z0-9][a-z0-9._-]*$/
 
+/** Work the project already has that a plan cannot see, and what it will change. */
+export interface PlanBusy {
+  task: string
+  /** What it is doing, in a word or two: `working`, `queued`. */
+  said: string
+  touches: readonly string[]
+}
+
+/** What a plan is checked against: how the project works, and what is already there. */
+export interface PlanContext {
+  workspace: 'checkout' | 'worktree'
+  /** Every task the project has, so a wait on one of them is a wait Wilco can keep. */
+  tasks: ReadonlySet<string>
+  /** Work already going or waiting to go: a plan can collide with that too. */
+  busy?: readonly PlanBusy[]
+}
+
 /**
  * Whether a plan can be kept, and in what order its tasks are made. Refused
  * whole rather than half made: a plan with a cycle in it, or a wait on
  * something that does not exist, would leave work waiting for ever.
  */
-export function checkPlan(
-  plan: Plan,
-  context: { workspace: 'checkout' | 'worktree'; tasks: ReadonlySet<string> },
-): PlanCheck {
+export function checkPlan(plan: Plan, context: PlanContext): PlanCheck {
   const problems: string[] = []
   const names = new Set<string>()
   if (plan.agents.length === 0) problems.push('a plan needs at least one agent')
@@ -352,7 +366,7 @@ export function checkPlan(
     placed.add(idOf(next.name))
   }
 
-  return { ok: true, order, waitsOn, warnings: overlaps(plan, waitsOn, context.workspace) }
+  return { ok: true, order, waitsOn, warnings: overlaps(plan, waitsOn, context) }
 }
 
 /**
@@ -364,8 +378,9 @@ export function checkPlan(
 function overlaps(
   plan: Plan,
   waitsOn: ReadonlyMap<string, { task: string; why: string }[]>,
-  workspace: 'checkout' | 'worktree',
+  context: PlanContext,
 ): string[] {
+  const workspace = context.workspace
   const id = (name: string) => `${plan.project}/${name}`
   /** Everything an agent waits on, directly or through what it waits on. */
   const reach = (name: string): Set<string> => {
@@ -383,12 +398,26 @@ function overlaps(
     return seen
   }
   const warnings: string[] = []
+  const shares = (mine: readonly string[], theirs: readonly string[]) =>
+    mine.filter((path) => theirs.some((other) => sameOrInside(path, other)))
+  // Work the project already has is not in the plan, and nothing waits for it
+  // unless the orchestrator says so: say what it will run into while it can.
+  for (const one of plan.agents) {
+    for (const busy of context.busy ?? []) {
+      if (reach(one.name).has(busy.task)) continue
+      const shared = shares(one.touches, busy.touches)
+      if (shared.length === 0) continue
+      warnings.push(
+        workspace === 'checkout'
+          ? `${one.name} and ${busy.task}, which is ${busy.said}, both change ${joined(shared)}, in one checkout`
+          : `${one.name} and ${busy.task}, which is ${busy.said}, both change ${joined(shared)}: merging both may conflict`,
+      )
+    }
+  }
   for (const [i, one] of plan.agents.entries()) {
     for (const other of plan.agents.slice(i + 1)) {
       if (reach(one.name).has(id(other.name)) || reach(other.name).has(id(one.name))) continue
-      const shared = one.touches.filter((path) =>
-        other.touches.some((theirs) => sameOrInside(path, theirs)),
-      )
+      const shared = shares(one.touches, other.touches)
       if (shared.length === 0) continue
       warnings.push(
         workspace === 'checkout'

@@ -298,6 +298,8 @@ export interface TaskSnapshot {
   by?: string
   queued?: QueuedView | null
   waitsOn?: readonly { task: string; why: string }[]
+  /** What it was planned to change: what a plan made later is checked against. */
+  touches?: readonly string[]
 }
 
 /**

@@ -178,6 +178,37 @@ export interface GitProbeResult {
 /** Paths Wilco itself writes into a worktree; never counted as dirty. */
 const OWN_PATHS = /^\.wilco(\/|$)/
 
+/**
+ * Whether merging a branch into the base would change nothing, which is what a
+ * branch that was squash-merged looks like: its commits are nowhere in the
+ * base, but everything they did is.
+ *
+ * Kept by the two commits it was asked about, because it is a whole three-way
+ * merge and the probe runs every couple of seconds; the same two commits can
+ * only ever give the same answer. Needs a git that can merge without a
+ * worktree (2.38); an older one simply never sees a squash merge.
+ */
+const merges = new Map<string, boolean>()
+const MERGES_KEPT = 500
+
+async function givesNothing(worktree: string, baseRef: string, head: string): Promise<boolean> {
+  const base = await git(worktree, ['rev-parse', `${baseRef}^{tree}`])
+  if (!base.ok) return false
+  const baseTree = base.stdout.trim()
+  const key = `${worktree}\u0000${head}\u0000${baseTree}`
+  const known = merges.get(key)
+  if (known !== undefined) return known
+  const merged = await git(worktree, ['merge-tree', '--write-tree', baseRef, head], 20_000)
+  // Conflicts mean there is certainly something left; so does a git too old for this.
+  const answer = merged.ok && merged.stdout.split('\n')[0]?.trim() === baseTree
+  if (merges.size >= MERGES_KEPT) {
+    const oldest = merges.keys().next().value
+    if (oldest !== undefined) merges.delete(oldest)
+  }
+  merges.set(key, answer)
+  return answer
+}
+
 export async function probeGit(worktree: string, opts: GitProbeOptions): Promise<GitProbeResult> {
   const warnings: string[] = []
   const st = await git(worktree, [
@@ -224,6 +255,11 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
     if (opts.taskBase && !status.oid.startsWith(opts.taskBase)) {
       const anc = await git(worktree, ['merge-base', '--is-ancestor', 'HEAD', opts.baseRef])
       mergedIntoBase = anc.ok
+      // A squash merge puts the work in the base under a commit of its own, so
+      // there is no ancestry to follow: ask whether anything is left to merge.
+      if (!mergedIntoBase && (ahead ?? 0) > 0 && status.paths.every((p) => OWN_PATHS.test(p))) {
+        mergedIntoBase = await givesNothing(worktree, opts.baseRef, status.oid)
+      }
     }
   }
 

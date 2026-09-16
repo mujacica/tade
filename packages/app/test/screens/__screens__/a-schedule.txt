@@ -9,7 +9,7 @@
      working                  │  │ Update dependencies within their major versions, run the tests, and commit what      
                               │  │ changed.                                                                             
  ▾ SMART QUEUE  8    ▐ plan ▌ │                                                                                         
-   all  next  timed           │  NEXT       Mon 14 Sep 09:00 · Mon 21 Sep 09:00 · Mon 28 Sep 09:00                      
+   all  next  timed   ‖ pause │  NEXT       Mon 14 Sep 09:00 · Mon 21 Sep 09:00 · Mon 28 Sep 09:00                      
                               │  IF MISSED  runs once when Wilco next opens                                             
    ◷ release-notes    18:00   │  FROM       you · “every monday morning update our dependencies”                        
      ❯ waits for its time     │                                                                                         

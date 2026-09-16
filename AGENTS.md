@@ -62,7 +62,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   person or the orchestrator marks it, or the window sees the task's own rule met and writes that
   down once. The rule is `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` —
   chosen by whoever made the task. Never infer it from a turn ending (an agent that asked a question
-  looks the same) or from a checkout agent having stopped (status calls that `review`).
+  looks the same) or from a checkout agent having stopped (status calls that `review`). A branch
+  that was squash-merged counts as merged: its commits are nowhere in the base, so when there is no
+  ancestry to follow Wilco asks whether merging it would still change anything.
 - **Queued work is a task that has not started**, with `start` in its task file: what it waits on
   and why, not before when, and what its agent is told. The window starts it by rule
   (`readyToStart`) on every look at the tasks — never a model deciding again — as far as
@@ -70,6 +72,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   or going holds it (`queue_held`), said once to the orchestrator, which asks the person; their
   choice (`queue_changed`) is written down and read back. In a worktree it begins on top of what it
   waited on (`startFrom`), or from the base when that was merged, and keeps its own `.wilco` files.
+  A plan is checked against what the project is already on — agents working, work an earlier plan
+  left queued — and says what it will run into rather than refusing: what an agent will touch is a
+  reading of the code, and the orchestrator may know better.
 - **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
   to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
   it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,

@@ -910,6 +910,83 @@ describe('the window, wired up', () => {
     )
   }, 60_000)
 
+  it('warns when a plan runs into work the project already has, which no plan can see', async () => {
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'fix the charge, then bill for it',
+      agents: [
+        { name: 'charge-first', said: 'fix the charge', prompt: '', after: [], touches: [] },
+        {
+          name: 'bill-after',
+          said: 'then bill for it',
+          prompt: '',
+          after: [{ agent: 'charge-first', why: 'it changes how a charge is made' }],
+          touches: ['src/charge.ts'],
+        },
+      ],
+    })
+    const answer = await window.queueTools().plan({
+      project: 'app',
+      said: 'now refunds',
+      agents: [
+        {
+          name: 'refunds-next',
+          said: 'now refunds',
+          prompt: '',
+          after: [],
+          touches: ['src/charge.ts'],
+        },
+      ],
+    })
+    expect(answer).toContain(
+      'Watch out: refunds-next and app/bill-after, which is queued, both change src/charge.ts',
+    )
+  }, 60_000)
+
+  it('holds a whole project’s queue from the SMART QUEUE, and starts it again', async () => {
+    terminal.columns = 120
+    terminal.rows = 60
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'one now, one after',
+      agents: [
+        { name: 'first-one', said: 'one now', prompt: '', after: [], touches: [] },
+        {
+          name: 'second-one',
+          said: 'one after',
+          prompt: '',
+          after: [{ agent: 'first-one', why: 'they touch the same thing' }],
+          touches: [],
+        },
+      ],
+    })
+    await until('the queue on screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('all  next  timed')),
+    )
+    const pause = find('‖ pause')
+    click(pause.col + 1, pause.row)
+    await until('everything held', () =>
+      screenOf(terminal.written).some((row) => row.includes("app's queue is held")),
+    )
+    // Its own work finishing starts nothing while the queue is held.
+    await client.markDone('app/first-one', { by: 'you' })
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(client.runs().some((run) => run.task === 'app/second-one')).toBe(false)
+    expect(await window.queueTools().describe()).toContain('paused with the queue')
+
+    const resume = find('▶ resume')
+    click(resume.col + 1, resume.row)
+    await until(
+      'it starts again',
+      () => client.runs().some((run) => run.task === 'app/second-one'),
+      15_000,
+    )
+  }, 60_000)
+
   it('runs a schedule when it comes due: its agent starts, or the orchestrator is asked', async () => {
     terminal.columns = 120
     terminal.rows = 60

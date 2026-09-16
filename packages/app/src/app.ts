@@ -38,9 +38,11 @@ import {
   newFindings,
   orchestratorRoute,
   type Plan,
+  type PlanBusy,
   parseQuietHours,
   parseSetting,
   QUEUE_CHANGES,
+  queuePaused,
   queueStateOf,
   readyToStart,
   reflectionPrompt,
@@ -1174,6 +1176,7 @@ export class App {
       ...this.inputFor(width),
       statuses: this.statuses,
       schedules: this.scheduleViews(),
+      queuePaused: this.queueHeld(),
       clock: (at: number) => whenShort(at, this.now()),
       date: (at: number) => {
         const time = new Date(at)
@@ -1807,6 +1810,29 @@ export class App {
     if (action.startsWith('queue-filter:')) {
       const filter = QUEUE_FILTERS.find((one) => one === action.slice('queue-filter:'.length))
       if (filter) this.state = { ...this.state, queueFilter: filter, scroll: this.state.scroll }
+      this.draw()
+      return
+    }
+    if (action === 'queue-all-pause' || action === 'queue-all-resume') {
+      const project = this.state.project
+      if (!project) return
+      await this.opts.client
+        .changeQueued({
+          project,
+          change: action === 'queue-all-pause' ? 'pause' : 'resume',
+          by: 'you',
+        })
+        .catch((err: unknown) => {
+          this.state = notice(this.state, why(err))
+        })
+      await this.live?.refresh()
+      if (action === 'queue-all-resume') await this.advanceQueue()
+      this.state = notice(
+        this.state,
+        action === 'queue-all-pause'
+          ? `${project}'s queue is held: nothing new starts until you say`
+          : `${project}'s queue is going again`,
+      )
       this.draw()
       return
     }
@@ -5232,7 +5258,23 @@ export class App {
           : `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
       },
       plan: async (plan) => {
-        const made = await this.opts.client.planTasks(plan)
+        // Checked against what the project is already on, which no plan can see:
+        // agents working now, and work an earlier plan left waiting to start.
+        const busy: PlanBusy[] = []
+        for (const task of this.live?.tasks ?? []) {
+          if (!task.task.startsWith(`${plan.project}/`)) continue
+          const touches = task.queued ? task.queued.touches : (task.touches ?? [])
+          if (touches.length === 0) continue
+          const said = task.queued
+            ? 'queued'
+            : task.state === 'working'
+              ? 'working'
+              : task.state === 'blocked'
+                ? 'waiting on you'
+                : ''
+          if (said) busy.push({ task: task.task, said, touches })
+        }
+        const made = await this.opts.client.planTasks(plan, 'orchestrator', busy)
         await this.live?.refresh()
         const started = await this.advanceQueue()
         const live = this.live
@@ -5257,6 +5299,12 @@ export class App {
         })
       },
     }
+  }
+
+  /** Whether the project in front of you has its whole queue held back. */
+  private queueHeld(): boolean {
+    const project = this.state.project
+    return project !== null && queuePaused(this.live?.queueFacts().events ?? [], project)
   }
 
   /** Every schedule, as the SMART QUEUE shows it. */

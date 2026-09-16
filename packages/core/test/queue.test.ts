@@ -312,4 +312,37 @@ describe('a plan', () => {
       'bump-mailer and refund-emails can run at the same time and both change src/mail/, in one checkout',
     ])
   })
+
+  it('warns about work the project already has on the same things, which no plan can see', () => {
+    const busy = [{ task: 'shop/fix-charge', said: 'working', touches: ['src/charge.ts'] }]
+    const check = checkPlan(
+      {
+        project: 'shop',
+        said: '',
+        agents: [
+          agent('add-refunds', { touches: ['src/charge.ts', 'src/refunds.ts'] }),
+          // Told to wait for both of them, so it is never at the same time as either.
+          agent('later', {
+            touches: ['src/charge.ts'],
+            after: [
+              { agent: 'shop/fix-charge', why: 'it changes charge first' },
+              { agent: 'add-refunds', why: 'so does it' },
+            ],
+          }),
+          agent('elsewhere', { touches: ['docs/'] }),
+        ],
+      },
+      { ...context, tasks: new Set(['shop/fix-charge']), busy },
+    )
+    expect(check.ok && check.warnings).toEqual([
+      'add-refunds and shop/fix-charge, which is working, both change src/charge.ts, in one checkout',
+    ])
+    const worktrees = checkPlan(
+      { project: 'shop', said: '', agents: [agent('add-refunds', { touches: ['src/charge.ts'] })] },
+      { workspace: 'worktree', tasks: new Set(['shop/fix-charge']), busy },
+    )
+    expect(worktrees.ok && worktrees.warnings).toEqual([
+      'add-refunds and shop/fix-charge, which is working, both change src/charge.ts: merging both may conflict',
+    ])
+  })
 })
