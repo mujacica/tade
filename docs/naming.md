@@ -661,6 +661,43 @@ most ownable name in this document — npm, PyPI, crates and `.sh` free, `.ai` p
 *Ownership with no baggage at all* → **`vokko.sh`** or **`kruvo.sh`**. *A story* → **`banken.sh`**, the
 watchdog, with Spike as the logo. *Self-explanation* → **`termyard.sh`**.
 
+### The blend family: Tade · Taide · Tuide
+
+Compressing the category into one word is the right tradition — **tmux** is *terminal multiplexer*,
+**npm** is *node package manager*, **Deno** is an anagram of *Node*. So **T**erminal **A**gentic
+**IDE** → *Taide*, and T + UI + IDE → *Tuide*.
+
+English orthography helps here: the pattern *consonant – a – consonant – e* is reliably /eɪ/ (made,
+fade, jade, wade), so **Tade and Taide are both read /teɪd/ — "tayd"** by an English speaker. *Tuide*
+is the odd one out: /twaɪd/, /ˈtuːɪd/ or /ˈtwiːd/, take your pick.
+
+| | npm | `.sh` | `.dev` | `.ai` | Other |
+|---|---|---|---|---|---|
+| **Taide** | **✓** | **✓** | **✓** | **for sale** | `heytaide.com` ✓; GitHub org dormant (0 repos); nothing on HN |
+| Tade | ✗ npm **security holding package** | **✓** | ✗ | ✗ parked | **`tadelabs.com` and `tadeai.com` already registered** |
+| Tuide | **✓** | **✓** | **✓** | — | pronunciation is anyone's guess |
+| Tayd · Taid | **✓** | **✓** | **✓** | — | same sound, unambiguous, but look like deliberate misspellings |
+
+**Taide is the one to take**, for four reasons beyond availability:
+
+1. **It carries the positioning inside the word** — **T**erminal **A**gentic **IDE**. The origin story
+   is one sentence long, which is what a coinage needs.
+2. **It reads as *aide***, and an aide is an officer's assistant — the thing that takes your intent
+   and turns it into other people's work. That is the product, and it is the same insight that made
+   Sarge work, without the bark.
+3. **It is fully ownable**: npm, `.sh`, `.dev` and `heytaide.com` are free and **`taide.ai` is listed
+   for sale**, so even the `.ai` is purchasable. *Tade* is not: npm holds the name as a security
+   holding package, and somebody has already taken `tadelabs.com` and `tadeai.com`.
+4. *Taide* means **art** in Finnish — free of charge, and rather fitting for a tool about craft.
+
+**Two risks, stated plainly.** Anyone who *hears* /teɪd/ will type `tade`, `tayd` or `taid` — so buy
+`tade.sh`, `tayd.sh` and `taid.sh` as redirects while they are free (all three are). And one syllable
+is a weak wake word: "Hey Taide" can come back as *trade*, *Ted* or *Tate*, so test it aloud in a
+real session before committing the voice surface to it.
+
+> **Taide** — the agent orchestration IDE for your terminal · `taide.sh`
+> `taide status` · `taide brief` · "Hey Taide" · packages `@taide/*` · mascot: Spike, mask and all
+
 ### Termyard — the explanatory option
 
 **`term`** is how every developer clips *terminal* (`$TERM`, terminal emulator, "open a term"), and a
