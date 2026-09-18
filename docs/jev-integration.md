@@ -117,7 +117,7 @@ What does exist, and is worth knowing: TypeSafe publish an MIT-licensed
 [`system-one-adapter-python`](https://github.com/typesafe-ai/system-one-adapter-python) — the same
 `system_one` call implemented on top of OpenAI or Anthropic with structured outputs, meant for
 comparing them. That is a ready-made argument (and prior art) for the fallback implementation in
-section 5.
+section 6.
 
 ### Auth, SDKs, errors
 
@@ -405,6 +405,16 @@ or more than 255 (Jev's cardinality limit); a `rate` has fewer than two levels; 
 budget. Its description must carry the warning that this model answers the question as written and
 cannot count, do arithmetic, or compare dates — that belongs in code.
 
+```ts
+jev_findings({ project?: string, since?: string, task?: string }) : ToolAnswer
+for: ['orchestrator', 'agent']
+```
+What the review has flagged and what became of it — read straight out of the journal's `watch_found`
+lines. **It asks Jev nothing**: no network, no key, instant, works with the window closed. It is the
+answer to "what did last night turn up", which is the question people will actually ask, and it is
+what the window's Ctrl+K action and status view are built on (section 5). Throws only on an unknown
+project or a task that does not exist; an empty list is an answer.
+
 And the watch:
 
 ```ts
@@ -439,7 +449,7 @@ TypeSafe's four published eval workflows is literally agent-trace triage.
 These tools belong **in the Sentry extension**, named `sentry_*` — tool names start with their
 extension's name, and cross-extension tool calls are not a thing the host offers (nor should they be:
 the credentials live with the extension). Sentry gets the judge as a library, not as another
-extension's tool. See section 5.
+extension's tool. See section 6.
 
 ### `sentry_triage`
 
@@ -530,7 +540,118 @@ showing the last look, what fired, and what it cost. The resources extension is 
 
 ---
 
-## 5. Standalone tools, or in Wilco?
+## 5. In the window: Ctrl+K, the status bar, and what you can say
+
+Everything above is reachable by talking to the orchestrator. That is already most of the value and
+needs no window work at all: once `jev_review` and `jev_grep` exist, "what did Jev flag in the last
+hour" is a sentence. What follows is what the window adds, split into **what costs nothing** and
+**what costs a port change** — because those are very different decisions.
+
+### What Ctrl+K is today
+
+Ctrl+K (`keys.search`, rebindable) opens Search: one box for an agent, a file in any agent's
+worktree, a line inside one, a line in a terminal's scrollback, something to do, a project, a
+setting. Three things about it decide everything below:
+
+- **`searchResults` is pure and synchronous.** Nothing in it may call anything. Results that need
+  work — files from `git ls-files`, lines from `git grep` — arrive in `sources` when they arrive,
+  and the panel carries a `busy` flag while they do.
+- **Matching is a fuzzy score over text, and `#` search is `git grep -F -i`: fixed strings, not
+  patterns.** What you type is what you mean. Nothing in the box understands a question.
+- **Extension actions are already in it.** The window's entry list loops over
+  `extensions.actions()` and puts each one under ACTIONS, with the extension's title beside it and
+  `>` to narrow to actions.
+
+### Tier 1 — free today, no new extension points
+
+Declare `actions` on the `jev` extension and they appear in Ctrl+K the moment it loads, as
+`run:extension:jev:<id>`, and — with `heard` — as phrases you can say with no model in the way:
+
+```ts
+actions: [
+  { id: 'review', title: 'Review the latest commits', tool: 'jev_review',
+    input: { ref: 'HEAD~5..HEAD' }, project: true,
+    heard: [/^(review|check) (the )?(last|latest) commits?$/i] },
+  { id: 'flagged', title: 'What Jev flagged', tool: 'jev_findings', project: true,
+    heard: [/^what did jev (find|flag)/i] },
+]
+```
+
+`jev_findings` is worth calling out because it is the cheapest tool in this whole document: it reads
+`watch_found` out of the journal and asks Jev nothing. No network, no key, instant, and it is the
+answer to "what did the overnight review turn up" — which is the question people will actually ask.
+
+The rest of the window comes along for the ride, all of it already supported by the port:
+
+| Surface | What it shows | What it costs us |
+|---|---|---|
+| Ctrl+K → ACTIONS | the two actions above | declaring them |
+| Voice | the same, through `heard`, no model | one regex each, kept narrow |
+| Status bar | `status()`: `jev · 41 read · 2 flagged · 0.7¢` | must be cheap and shared — cache the last look, never ask on the timer |
+| Its `view()` | the markdown a click opens: the last look, what fired, at what probability, and what it cost | a function that renders the journal |
+| Brief | `brief()`: "Jev flagged 3 things in last night's commits", with `ask` = "tell me which are worth fixing" | one function |
+| The news line and transcript | `watch_found` already reaches both | nothing |
+| GIT panel | a finding's `links` are kept on the task and shown there | nothing |
+| Extensions panel | `setup()`: the guide that tells a person how to get the key (section 8) | one function |
+
+**The one thing Tier 1 cannot do**, and it is the interesting one: an `ExtensionAction` carries a
+*fixed* `input`. There is nowhere to type a question. So "ask Jev something about these logs" cannot
+be an action — today it is a sentence to the orchestrator, which calls `jev_grep` with what you
+said. That is not a bad answer; it is just not Ctrl+K.
+
+### Tier 2 — `?` in the search box: asking instead of matching
+
+The obvious next move, and the one to be careful about. Search has scopes: `@` agents, `#` in files,
+`>` actions. Add `?`:
+
+```
+?  which of these tests touch the queue when a task is removed
+```
+
+Same candidates search already has in hand — file names, the lines `git grep` found, terminal
+scrollback, agent names — but ranked by whether they **answer the question** rather than whether they
+contain the letters. One request, one yes/no question per candidate, all evaluated in parallel
+against one state: around 200 candidates per request (Jev's option cardinality is 255, and the state
+budget binds first), roughly **$0.0001 an ask**, a few hundred milliseconds. This is the single
+surface where Jev's shape is most obviously right: `git grep` cannot do it, and a frontier model is
+far too slow to put behind a text box.
+
+What it would take, concretely:
+
+| Where | What changes |
+|---|---|
+| `packages/app/src/search.ts` | a `SearchKind` for answered results, a `GROUPS` entry, a `SCOPES` entry for `?`. Still pure: the answers arrive in `sources`, like `matches` do. |
+| `packages/app/src/panels.ts` | the search panel keeps the asked query and its `busy` state |
+| `packages/app/src/app.ts` | gather candidates, ask, carry out the choice |
+| the extension port | **new surface**: something an extension offers that ranks candidates for a query |
+
+And the rules it has to obey, none of which are negotiable:
+
+- **Never ask per keystroke.** `#` already waits for three characters before it greps; `?` waits for
+  Enter, or a clear pause. 70–500ms per call times every keystroke is a slow box and a pointless
+  bill.
+- **Never block a frame, never empty the box.** An ask that fails — rate limited, offline, no key —
+  leaves the ordinary fuzzy results exactly as they are and adds a quiet note saying why. A search
+  box that throws is worse than one that never learned to answer questions.
+- **The window must not know TypeSafe exists.** The app asks *an extension*; the extension asks a
+  judge; the judge happens to be Jev. Anything else drags a vendor's name into `app.ts`.
+- **Offered only when something can answer it** — a declared capability, checked the way the window
+  checks every other one, never `extension.name === 'jev'`. With no key, `?` is simply not a scope,
+  and the chips under the box do not offer it.
+- **It is a new extension point, so the conformance suite comes first** (R4), and the port's
+  vocabulary is "rank these candidates against this question", not anything Jev-shaped (R2).
+- **It is drawn every frame, so it gets a performance test** — the standing rule for anything on a
+  timer or in the draw path.
+
+**Recommendation: build Tier 1 with the extension, and hold Tier 2** until the review loop has run
+for a few weeks. Not because it is hard — it is maybe two days — but because it is the one surface
+in Wilco that must never get slower or stranger, it adds a port, and the same question typed to the
+orchestrator gets answered today with no new code at all. If Tier 2 does get built, it should be
+because people were reaching for `?` and finding it missing, which is a thing we will be able to see.
+
+---
+
+## 6. Standalone tools, or in Wilco?
 
 ### Recommendation
 
@@ -618,7 +739,7 @@ suite is already the contract.
 
 ---
 
-## 6. Other things the novelty unlocks, ranked
+## 7. Other things the novelty unlocks, ranked
 
 Ranked by how much of an edge **Jev specifically** gives over calling a general model — which is high
 when the work is (a) high volume, (b) a bounded decision, (c) latency- or budget-bound, and (d)
@@ -667,8 +788,81 @@ better for having a number you can threshold. It collapses to nothing when the a
 
 Products beyond Wilco, if we ever wanted them, in the same order of edge: a CI review gate built on
 the same question pack (every PR, every push, cents a month); a "question your logs" CLI; a
-supervisor sidecar for other people's agent harnesses. All three are section-5 decisions, and my
+supervisor sidecar for other people's agent harnesses. All three are section-6 decisions, and my
 recommendation there is to defer all of them until the rubric has proven itself on our own commits.
+
+---
+
+## 8. Getting a key
+
+Jev is in **selective early access**: there is a console you can log in to and a waitlist, and I
+could not verify from outside which one you land in. Checked 2026-09-18; all of it may have loosened
+since, because they say they are letting people in as fast as they can.
+
+**1. Ask for access.** Three doors, and they are worth going through together:
+
+- **The console:** <https://console.typesafe.ai/login> — "Continue with Google", or an emailed code.
+  This is the front door and it may be all you need.
+- **The waitlist:** the *Join Waitlist* button on <https://typesafe.ai>. Their launch post asks
+  people to say **which decisions they want to automate** — so say it: "reviewing every commit our
+  coding agents make, and triaging error-tracker issues and logs, in an agent control room". That is
+  close to two of their own four eval workflows (security incident response, agent-trace
+  observability), which is the most interesting thing you can tell them.
+- **Discord** (<https://discord.gg/typesafe>) is where access and jaggedness questions get answered
+  fastest; `hello@typesafe.ai` for anything else, `sales@typesafe.ai` for higher rate limits,
+  enterprise terms or zero data retention.
+
+**2. Try it before you have a key of your own.** The Playground
+(<https://console.typesafe.ai/playground>) runs a state and a set of questions in the browser once
+you are logged in. Paste a real diff from this repository in as the state and one of the questions
+from section 3 — five minutes there tells you more about whether this works than the rest of this
+document.
+
+**3. Create the key.** <https://console.typesafe.ai/settings/keys> (their docs also link
+`/keys`, which redirects). One key per machine, so one can be revoked without stopping the others.
+
+**4. Put it in the environment, never in a file.** Same rule as the Sentry token: Wilco reads it
+from the environment and never keeps a copy, nothing inherited is written to disk, and a lane's
+saved spec holds only what Wilco set.
+
+```sh
+# in ~/.zshrc (or wherever your shell reads), then start Wilco from a new terminal
+export TYPESAFE_API_KEY="…the key the console gave you…"
+```
+
+The extension reads `$TYPESAFE_API_KEY` unless `extensions.jev.key_env` names another variable, and
+until it finds one `ready()` says exactly that sentence in the Extensions panel rather than failing
+anywhere else.
+
+**5. Check it before wiring anything to it.** Two commands, no Wilco involved:
+
+```sh
+curl -s https://api.typesafe.ai/v1/models -H "Authorization: Bearer $TYPESAFE_API_KEY"
+
+curl -s https://api.typesafe.ai/v1/systemone \
+  -H "Authorization: Bearer $TYPESAFE_API_KEY" -H 'content-type: application/json' \
+  -d '{"state":"the payout job retries forever when Stripe returns 429",
+       "model":"jev-1.13.0",
+       "questions":{"bug":{"type":"noul","instructions":"Does this describe a bug that will keep happening until someone changes the code?"}}}'
+```
+
+What the answers mean: `401` the key is missing or wrong · `422` the question or state was malformed,
+and the body names the field · `429` over the rate limit (250k tokens/sec, 1,200 requests/min, and
+they warn these move) · `529` they are overloaded — back off and retry, do not hammer it.
+
+**6. Know what leaves the machine before you turn the watch on.** This is the part to decide with
+your eyes open: **the review loop sends your diffs to a third party.** TypeSafe say on their Models
+page that Jev is not trained on customer requests or responses, and offer zero data retention to
+enterprise customers — I have not seen those terms. For a repository where that is not acceptable,
+the loop still works: point the judge at the LLM-backed or scripted implementation (section 6), or
+run the watch only on projects where it is fine. The setting that decides it should be per project,
+and nothing should be sending diffs anywhere the first time Wilco starts — a watch is off until
+somebody turns it on, which is exactly the right default here.
+
+**7. Spending.** At $0.042 per million input tokens with output free, the whole 200-commit experiment
+in the appendix is about fifteen cents, and a busy day of reviewing every commit is well under a
+dollar. `extensions.jev.budget` caps requests per look so a repository import or a rebase storm
+cannot turn into a bill you find out about later.
 
 ---
 
@@ -700,6 +894,10 @@ Everything in this section is a gap, not a claim:
   either.
 - **No SLA, uptime history or incident record** — it is three days old. A review loop that depends on
   it must degrade to "could not look" and say so, never to silence.
+- **Whether an account gets a working key straight away.** `console.typesafe.ai` offers an ordinary
+  Google/email login, and the docs point at a keys page behind it — but the product is described as
+  selective early access with a waitlist, and I could not log in to find out which it is. Section 8
+  assumes you may have to wait.
 - **Not verified:** the ZDR terms beyond a mention on their Models page; whether `usage.input_tokens`
   is what you are billed for; whether the 1,200 rpm limit is per key or per account; how latency
   behaves as question count grows (they claim "barely changes" — the writeup asks for the same number
@@ -725,5 +923,13 @@ thing that turns any of the above into a decision.
    in one file, `found: 'ask'` by default. A sketch of it is in
    [`extensions/proposed/jev/extension.ts`](../extensions/proposed/jev/extension.ts) — inert, as
    proposals are.
-5. `jev_grep`, then `sentry_triage` and `sentry_grep`.
-6. Only then ask again whether anything should leave the repository.
+5. Tier 1 of the window (section 5): two actions, a status item with its view, a brief line. All of
+   it is declaration, none of it is new machinery, and it is what makes the loop visible to somebody
+   who is not reading the journal.
+6. `jev_grep`, then `sentry_triage` and `sentry_grep`.
+7. `?` in Ctrl+K (section 5, Tier 2) — only if people are reaching for it. It adds an extension
+   point, so: conformance suite, declared capability, performance test.
+8. Only then ask again whether anything should leave the repository.
+
+And before any of it: a key (section 8), and five minutes in the Playground with a real diff out of
+this repository pasted in as the state.
