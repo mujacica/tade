@@ -8,11 +8,12 @@ here can be re-run before anyone acts on it.
 **Revisions.** Pass 1 optimised for a *brandable* name and produced long, careful words
 (Watchwright, Yardmaster, Airboss) — the wrong target: this product is **spoken to**, and you will
 want to say "Hey ⟨name⟩" next to "Hey Claude" and "Hey Gemini" without either of them answering.
-Pass 2 put callability first and landed on **Sarge**. Pass 3 — this one — keeps that register (short,
-human, a role you can call out) but adds **softness** as a hard criterion, because Sarge is a bark:
-/sɑːrdʒ/ ends in an affricate after an r-colored vowel, which is the harshest shape English has.
-So §6 is a new set of soft-mouthed candidates and a new recommendation; the hard ones stay in §5 and
-the long ones in [Appendix A](#appendix-a--the-longer-brandable-names).
+Pass 2 put callability first and landed on **Sarge**. Pass 3 added **softness** as a hard criterion,
+because Sarge is a bark: /sɑːrdʒ/ ends in an affricate after an r-colored vowel, the harshest shape
+English has — that set is §6. Pass 4 asked for a name **out of the work itself** — the IDE, the
+workshop, the crew of agents — which is §7. So there are now three registers, compared in §8:
+§5 hard and self-explaining (**Sarge**), §6 soft and human (**Marlo**), §7 from the work (**Andon**).
+The long brandable names stay in [Appendix A](#appendix-a--the-longer-brandable-names).
 
 ## 1. What is being named
 
@@ -351,51 +352,103 @@ flies*, which is a good pair for a tool that watches and shows identity. `ensign
 **Willa** — softest of all and keeps Wilco's `Wil-`, PyPI and crates free, `willa.sh` free. Held back
 by `willa.ai` already resolving, a Kafka DSL at ★138, and an invoicing product of the same name.
 
-## 7. Shortlist and recommendation
+## 7. Short and from the work — workshop, IDE and agent vocabulary
 
-| | **Marlo** | **Wilkie** | **Talko** | *(Sarge)* |
-|---|---|---|---|---|
-| Register | a colleague | the same name, softened | a product | a drill sergeant |
-| Soft in the mouth | yes (one `r`, open ending) | **yes** (no `r`, light `k`) | yes | **no** — /sɑːrdʒ/ |
-| Wake phrase | "Hey Marlo" (4 syl) | "Hey Wilkie" (4 syl) | "Hey Talko" (4 syl) | "Hey Sarge" (3 syl) |
-| Cross-trigger risk | low | low | low | very low |
-| False trigger in speech | none | none | none | very low |
-| Binary | `marlo` (5) | `wilkie` (6) | `talko` (5) | `sarge` (5) |
-| npm bare name | **free** | **free** | **free** | dead since 2017 |
-| crates / PyPI | free / taken | — / — | **free / free** | taken / taken |
-| `.sh` | **free** | **free** | **free** | **free** |
-| `hey*.com` | taken | **free** | **free** | `getsarge.com` free |
-| GitHub handle | exists, **0 repos** | active user → variant | near-dormant (1 repo) | active user → variant |
-| Dev/AI collision | none (Marlowe DSL is adjacent noise) | **none found** | none (dead MS app) | none found |
-| Explains itself | no | no | partly | **yes** |
+A name out of the world the tool lives in, rather than a ship or a squad. Three sub-registers were
+checked: **the IDE** (caret, palette, gutter, minimap, pane, lane, buffer, scratch), **the workshop**
+(bench, anvil, smithy, kiln, forge, foundry, atelier, jig, lathe, trestle, tenon, mallet, spindle,
+bobbin, heddle, weft, loom, shuttle, wright, cartwright, mason, sawyer, weaver, draper, scribe), and
+**the agent collective** (crew, swarm, fleet, guild, squad, roster, cohort, troupe).
 
-**Recommendation: Marlo.** Binary `marlo`, wake word "Hey Marlo", home `marlo.sh`, packages
-`@marlo/*` with `@marlo/cli` providing the binary.
+**The finding: this is the most picked-over vocabulary on the internet**, because it is the dev-tool
+namespace itself. Of roughly fifty words checked, **one** had a free npm name (`cartwright`) and
+**one** had a free `.sh` (`mallet`). Worse, the good ones are owned by tools people already use:
 
-It keeps everything that made Sarge right — two syllables, human, a name you call out rather than a
-feature you describe — and none of what made it hard: no affricate, no clipped ending, nothing that
-sounds like an order being given. "Hey Marlo, brief me" is a sentence you can say a hundred times a
-day without flinching, and `marlo status` is five letters. It is also the most **ownable** name in
-the soft set: npm, `@marlo`, crates.io and `marlo.sh` are all free today, and the GitHub handle sits
-empty. The one thing it does not do is explain itself — but neither does Claude, Siri, Alexa or
-Jules, and for a thing you speak to, being *someone* is the meaning. If anyone asks, the answer is
-short and true: **Marlo is who you send to find out what's really happening.**
+| Word | Why it's gone |
+|---|---|
+| Bench | **In an AI context "bench" reads as *benchmark*** (AgentBench, SWE-bench) — fatal, before you even reach Bench Accounting |
+| Forge · Foundry | SourceForge/Forgejo; Palantir Foundry **and** Foundry (the Ethereum toolkit) |
+| Anvil | `anvil.works` (Python app platform) **and** `anvil`, Foundry's own local node |
+| Smithy | AWS Smithy (API modelling language) |
+| Kilim | `kilim/kilim` ★1783 — *lightweight threads for Java*: the same concept as lanes |
+| Shoji | `ShojiWM` ★658 — a Wayland compositor, i.e. panes and windows |
+| Loom · Mux · Trunk | Atlassian's Loom; mux.com; trunk.io |
+| Dojo · Kata | Dojo Toolkit and Starknet Dojo; Kata Containers |
+| Artisan · Scratch · Buffer · Caret | Laravel's `artisan`; MIT Scratch; Buffer; a Chrome editor |
+| Crew · Swarm · Fleet · Guild | CrewAI; OpenAI Swarm; JetBrains Fleet; Guild Education |
 
-- **Take Wilkie if continuity matters** — it is the softest name here that still has a stop in it, it
-  keeps Wilco's first syllable so nothing already said about the product goes stale, and npm, `.sh`
-  and `heywilkie.com` are all free. It is the warmest option and the least serious-sounding.
-- **Take Talko if owning the word outright matters most** — npm, PyPI, crates, `.sh` and `hey*.com`
-  all free, `.ai` for sale, and a coined word is the only genuinely defensible trademark.
-- **Keep Sarge only if the bark is the point** — it is the one name that needs no explanation, and
-  §5 still makes its case. Everything above exists because "Hey Sarge" fifty times a day is a lot of
-  sergeant.
-- **Whichever it is, register in one sitting** (npm scope, `.sh`, the `hey*.com`, a GitHub org —
-  expect to need a variant for the handle) and re-run §3's checks the same morning. §4(c) is why.
+The survivors, and what they'd cost:
 
-## 8. What a rename would touch
+| Name | Meaning in one beat | Say it | npm | `.sh` | Other | Collision |
+|---|---|---|---|---|---|---|
+| **Andon** | the board showing every station on the line — and the cord anyone can pull to stop it | "Hey Andon" (4 syl, soft, no `r`) | ✗ (active lean lib) | **✓** | `.com/.dev/.ai` ✗ | `PrimeFoldTools/andon` ★163 — "a Lean quality system for AI-assisted work" |
+| **Obeya** | "big room": the one room where the whole project's state is on the walls | "Hey Obeya" (5 syl, soft) | **✓** | **✓** | `heyobeya.com` **✓** | GitHub handle active (26 repos); `obeya.ai` resolves |
+| **Jig** | the fixture that holds the work so every part comes out right | "Hey Jig" (3 syl, `-dʒ` ending) | ✗ (dormant) | ✗ | `heyjig.com` **✓**, `jig.ai` for sale | JigSpace holds `jig.com`; `jigsaw` repos are loud |
+| **Lanework** | the work in the lanes — the product's own vocabulary | "Hey Lanework" (5 syl, soft) | **✓** | **✓** | `heylanework.com` **✓** | none found |
+| **Cartwright** | the wright who builds what the work rides on | "Hey Cartwright" (5 syl) | **✓** | ✗ | `heycartwright.com` **✓** | none in dev/AI |
+| **Mallet** | the soft hammer — persuasion, not force | "Hey Mallet" (4 syl, soft) | ✗ | **✓** | `heymallet.com` **✓** | MALLET, the NLP toolkit |
+
+### Andon — the best description of this product found in any register
+
+On a Toyota line the **andon** is the board above the floor showing the state of every station, and
+the cord any worker can pull to stop the line when something is wrong. Read this repo's own rules
+back: *status is a query, not a memory* · *nothing goes wrong silently* · *a lane is alive only if the
+driver hands it back* · `wilco_run_stop`. It is the same idea, already named, by people who ran
+thousands of parallel workers a day. It also answers the Sarge objection: /ˈændɒn/ has no r-colored
+vowel and no affricate — two nasals and one light stop, five letters, stress on the first syllable,
+spells itself, and sounds enough like a name to be addressable.
+
+The cost is ownership: npm `andon` is an **active** package (a lean-manufacturing library, v1.0.16),
+so the CLI ships as `@andon/cli`; `andon.com` is an industrial distributor; only `andon.sh` is free.
+And `PrimeFoldTools/andon` (★163) is already "a Lean quality system for AI-assisted work" — the same
+metaphor, one step away from the same product. **Obeya** is the more ownable half of the same idea
+(npm, `.sh` and `heyobeya.com` all free) at the price of a pronunciation people must be taught once.
+
+## 8. Shortlist and recommendation
+
+Three registers, three finalists. They are not really competing on availability — all three are
+obtainable — they are competing on **what you want the name to do**.
+
+| | **Sarge** §5 | **Marlo** §6 | **Andon** §7 |
+|---|---|---|---|
+| What the name says | the one who runs your crew | someone you send to find out | the board that shows the line, and stops it |
+| Understood with no explanation | **yes** | no | after one sentence |
+| Soft in the mouth | **no** — /sɑːrdʒ/ | yes | **yes** (two nasals, one light stop) |
+| Wake phrase | "Hey Sarge" (3 syl) | "Hey Marlo" (4 syl) | "Hey Andon" (4 syl) |
+| Binary | `sarge` (5) | `marlo` (5) | `andon` (5) |
+| npm bare name | dead since 2017 | **free** | ✗ active lean lib → `@andon/cli` |
+| crates / PyPI | taken / taken | free / taken | — |
+| `.sh` | **free** | **free** | **free** |
+| `hey*.com` | `getsarge.com` free | taken | taken |
+| GitHub handle | active user → variant | exists, **0 repos** | active user → variant |
+| Dev/AI collision | none found | none (Marlowe DSL is noise) | `PrimeFoldTools/andon` ★163, adjacent |
+| Fits *this* product | the relationship | the personality | **the mechanism** |
+
+**If the name must explain itself: Sarge.** Nothing else in this document tells a stranger what the
+product is in one word. `sarge.sh`, `@sarge/cli`, `getsarge.com`.
+
+**If it must be soft and human: Marlo.** Everything Sarge got right minus the bark, and the most
+ownable of the soft set: npm, `@marlo`, crates.io, `marlo.sh` free and an empty GitHub handle.
+
+**If it must come from the work: Andon.** The truest description found in any register — the status
+board over the line plus the cord that stops it — and soft in the mouth, which Sarge is not. Ships
+as `@andon/cli` on `andon.sh`; **Obeya** is the same idea with npm, `.sh` and `heyobeya.com` all
+free, if ownership beats familiarity.
+
+My order, if forced: **Sarge** (comprehension wins products), **Andon** (if you want the name to
+describe the machine rather than the relationship), **Marlo** (if you want to like saying it most).
+All three fail the same way if you wait: see §4(c).
+
+- **Register in one sitting** — npm package + scope, GitHub org (expect to need a variant for the
+  handle), `.sh`, and any `hey*.com` — and re-run §3's checks the same morning.
+- **Settle it out loud, not on paper.** Say "Hey ⟨name⟩, brief me" and "Hey ⟨name⟩, stop the deps
+  agent" fifteen times in a real session, for each finalist. The one that stops registering as a
+  word after an hour is the one to keep.
+
+## 9. What a rename would touch
 
 Measured, not estimated: **2881 occurrences of "wilco" (case-insensitive) across 380 tracked files.**
-Grouped by what breaks if you get it wrong. (Examples use `marlo`.)
+Grouped by what breaks if you get it wrong. (Examples use `marlo`; substitute whichever wins.)
 
 **Free to change — cosmetic, nothing depends on it**
 
