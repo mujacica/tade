@@ -602,7 +602,66 @@ Which leaves the conclusion where the compound sweep left it: **a coinage buys o
 meaning; a Japanese word buys meaning and pays in a pronunciation lesson; a compound of two familiar
 words is the only option that gets both** — and is still, just, available.
 
-### Termyard — the recommendation
+### The TLD carries the category, so the name doesn't have to
+
+This reframing is correct and it is how the category already works: **`bun.sh`**, **`astral.sh`**
+(uv, ruff), **`zed.dev`**, **`vite.dev`**, **`biome.dev`**, **`go.dev`**. `.sh` says *shell*, `.dev`
+says *development*. So the division of labour is:
+
+| Carries | What |
+|---|---|
+| the TLD | the category signal — `.sh` for terminal, `.dev` for development |
+| the name | identity only; a coinage is enough |
+| the tagline | "the agent orchestration IDE for your terminal" |
+| the mascot | the personality — Spike, mask and all |
+
+That removes the requirement that the *name* contain "term" or "dev", which is the only thing
+Termyard was compensating for — and it widens the field considerably. **With the GitHub handle also
+out of scope** (the repo will live on a private account), the scoring reduces to: npm, a `.sh` or
+`.dev` we would print, no collision in dev or AI, and a sound that survives daily use.
+
+**A methodology note that matters here:** `whois.nic.sh` **rate-limits**, and under load it answers in
+a way that reads as "registered". A parallel sweep therefore reported `obeya.sh`, `talko.sh`,
+`deban.sh` and `banken.sh` as taken; re-run sequentially with a four-second pause, **all four are
+free**. Any `.sh` result in this document that was not checked sequentially should be re-checked
+before anyone acts on it.
+
+### Two findings on Obeya
+
+`obeya.sh` is **free** — and so is npm `obeya` and `heyobeya.com`, with nothing on `.ai`. But the word
+is already commercialised twice, both times next door to us:
+
+- **iObeya** (`iobeya.com`) — "Digital Obeya Platform™ for Operational Excellence", an established
+  enterprise SaaS for visual management. Exactly the *idea* of this product, sold to enterprises.
+- **Oobeya** (`oobeya.io`) — an engineering-intelligence / DORA-metrics platform, with its own HN
+  posts. That one is squarely in developer tooling.
+
+Neither blocks the name — different marks, different spellings — but "Obeya" would arrive in a
+neighbourhood where two companies already trade on the word, and a reader who knows either will
+assume a relationship. Worth knowing before falling for it; it was otherwise the truest description
+of this product found in any language. (Also: English speakers see **obey** inside it, which is the
+exact servility the rename is trying to leave behind.)
+
+### Where it stands, with the GitHub handle out of scope
+
+| Name | Reads as | npm | `.sh` | `.dev` | `.ai` | Collision in dev/AI |
+|---|---|---|---|---|---|---|
+| **Talko** | *it talks* — the voice-first differentiator | **✓** | **✓** | ✗ | for sale | none live (Ray Ozzie's app died in 2015; its HN posts have 1–2 points) |
+| **Obeya** | the big room where all the work is visible | **✓** | **✓** | ✗ | parked | **iObeya**, **Oobeya** |
+| **Banken** 番犬 | watchdog — function and mascot in one | **✓** | **✓** | **✓** | parked | none; German reads "banks" |
+| **Deban** 出番 | "your turn to go on" — the queue | **✓** | **✓** | **✓** | **✓** | none; English reads "de-ban" |
+| **Vokko** | pure coinage, faint *vox* | **✓** | **✓** | **✓** | — | none found |
+| **Kruvo** | pure coinage, faint *crew* | **✓** | **✓** | **✓** | — | none found |
+| Tenvo · Yarvo · Tarvo · Terno · Obero | coinages | **✓** | **✓** | **✓** | — | none found |
+| **Termyard** · Tendyard · Crewyard | the yard where terminals / work / the crew are marshalled | **✓** | **✓** | **✓** | **✓** | none |
+
+**Pick by what you want to buy with the name.** *Transparency* → **`talko.sh`**: five letters, two
+syllables, one pronunciation, says the one thing no competitor says (you talk to it), and it is the
+most ownable name in this document — npm, PyPI, crates and `.sh` free, `.ai` purchasable.
+*Ownership with no baggage at all* → **`vokko.sh`** or **`kruvo.sh`**. *A story* → **`banken.sh`**, the
+watchdog, with Spike as the logo. *Self-explanation* → **`termyard.sh`**.
+
+### Termyard — the explanatory option
 
 **`term`** is how every developer clips *terminal* (`$TERM`, terminal emulator, "open a term"), and a
 **yard** is the place where many units are marshalled, parked and worked on at once — railyard,
