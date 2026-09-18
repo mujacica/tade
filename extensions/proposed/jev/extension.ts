@@ -3,8 +3,15 @@
 // built-in under `packages/extensions/jev`) and Wilco is started again.
 //
 // What it is for, and what was decided and why, is in `docs/jev-integration.md`.
-// Read that first. In particular this sketch deliberately does NOT do two
-// things the real one must:
+// Read that first — and note that the watch below is the FIRST DRAFT's shape:
+// every commit, on a clock, one finding per commit. Section 4 of the document
+// supersedes it, for reasons the document argues: the unit is a task's whole
+// diff against its base, the moment is when that branch has stopped moving,
+// and what Jev flags is read by something that can explain it before anybody
+// is told. The tools and the settings below still stand; the watch is kept as
+// written so the two drafts can be compared.
+//
+// This sketch also deliberately does NOT do two things the real one must:
 //
 //   - talk to TypeSafe directly. The real one takes a `Judge` from
 //     `packages/judges/core` by name, so a second implementation (an

@@ -3,6 +3,11 @@
 A proposal. Nothing here is built; no existing code changes. Written 2026-09-18, against `jev-1.13`
 (released 2026-09-15, three days old at the time of writing).
 
+Revised 2026-09-18 after arguing it through: ask and grep moved to the front and became the
+foundation, the Sentry-specific tools were dropped (triage is `jev_ask` pointed at what Sentry
+already returns), the review loop changed its unit, its moment and the way it raises what it finds,
+and the record it leaves got a section of its own.
+
 Sources, so a later reader can check what has moved: the writeup we were handed
 ([Anthony Maio, *Jev: The Language Model That Won't Talk*, 2026-09-16][writeup]), TypeSafe's launch
 post ([*Introducing System One Models & Jev*, 2026-09-15][launch]), the docs
@@ -91,7 +96,7 @@ relevant to us: it reads instructions literally; it cannot count or do arithmeti
 it degrades with indirection ("a property of a property"); accuracy falls as the state fills with
 material the question does not need; **it does not treat state as hostile** — content written to
 steer it can steer it; and structural invariants you would expect (a noul and its negation summing
-to 1) do not hold. Every one of those has a consequence in section 3.
+to 1) do not hold. Every one of those has a consequence in sections 3 and 4.
 
 ---
 
@@ -117,7 +122,7 @@ What does exist, and is worth knowing: TypeSafe publish an MIT-licensed
 [`system-one-adapter-python`](https://github.com/typesafe-ai/system-one-adapter-python) — the same
 `system_one` call implemented on top of OpenAI or Anthropic with structured outputs, meant for
 comparing them. That is a ready-made argument (and prior art) for the fallback implementation in
-section 6.
+section 7.
 
 ### Auth, SDKs, errors
 
@@ -213,13 +218,132 @@ Two rules for the entry, both from TypeSafe's own docs:
 
 ---
 
-## 3. The review loop: every agent's code change, asked of Jev
+## 3. Ask and grep: the two tools everything else is built on
 
-### The shape
+Two tools, and a third that reads what they did. **Everything else in this document is one of these
+two pointed at something specific** — which is why there is no section about the Sentry extension
+any more. Triaging issues is `jev_ask` with the issues as the state. Reading logs is `jev_grep` over
+what `sentry_events` already returns. A tool per source is a tool per source forever, and it drags
+one extension's credentials into another's code for nothing.
 
-> Every commit an agent makes is read by Jev against a fixed set of security and correctness
-> questions plus this repository's own rules. What it reports goes to the orchestrator, which decides
-> and queues fix work behind whatever the agent is already doing.
+### `jev_ask`
+
+```ts
+jev_ask({
+  state: string | object,   // what to judge: text, or records as JSON
+  questions: Array<{ id, kind: 'yes-no'|'pick'|'rate', ask: string, options?, levels? }>,
+}) : ToolAnswer             // one answer per question: probability, or the pick/level with confidence
+for: ['orchestrator', 'agent']
+```
+
+The whole model in one tool. Give it a diff, an issue list, a paragraph someone pasted, a config
+file, the output of another tool, and ask up to a few dozen bounded questions about it at once.
+
+Throws when: `questions` is empty; two questions share an `id`; a `pick` has fewer than two options
+or more than 255 (Jev's cardinality limit); a `rate` has fewer than two levels; the state is over
+budget, naming how much to cut. Its description carries the warning that matters most: this model
+answers the question **as written**, cannot count, cannot do arithmetic, cannot compare dates, and
+will be steered by text that argues with it — so keep the maths in code and the questions literal.
+
+### `jev_grep`
+
+```ts
+jev_grep({
+  question: string,                                   // in plain words, not a pattern
+  source: 'text'|'journal'|'transcript'|'lane'|'file',
+  text?: string,                                      // when the source is text: paste it in
+  task?: string, lane?: string, file?: string,
+  period?: string, limit?: number,                    // rows to read; 200 unless said
+  keep?: number,                                      // probability to keep a row; 0.6 unless said
+}) : ToolAnswer                                       // the lines that matched, likeliest first
+for: ['orchestrator', 'agent']
+```
+
+Grep that reads. It chunks the lines into batches that fit the state budget and asks **one yes/no
+question per line** in a single request per batch — all evaluated in parallel against the shared
+state, which is what makes it affordable: 200 lines of log is around 3k tokens, roughly **$0.0001 a
+batch**. Then the sorting and the cutoff happen in code.
+
+`text` is the important source and the reason there is no Sentry tool: whatever another tool just
+returned can be piped straight in. `journal` reads `events.jsonl` through `readJournal` (no window
+needed); `transcript` reads an agent's pi session; `lane` reads scrollback; `file` reads a file in a
+project Wilco knows.
+
+Throws when: `question` is empty; `source` is not one of the five; `text` is missing for `text`, or a
+named task, lane or file does not exist; a path is outside every known project (never read an
+arbitrary path because a model asked); the key is missing or TypeSafe answers 401/422/429/529. It
+does **not** throw on nothing found — that is an answer, and often the useful one.
+
+### `jev_findings`
+
+```ts
+jev_findings({ project?: string, since?: string, task?: string }) : ToolAnswer
+for: ['orchestrator', 'agent']
+```
+
+What the watch has looked at, what it flagged, and what came of it — read out of the journal and the
+review log. **It asks Jev nothing**: no network, no key, instant, works with the window closed.
+Section 5 is what it renders and why that record has to exist. Throws only on an unknown project or
+task; an empty list is an answer.
+
+### Triage with no triage tool
+
+What `sentry_triage` would have been, done in the conversation instead:
+
+1. The orchestrator calls `sentry_issues` — which already exists — for the last day's unresolved
+   issues.
+2. It calls `jev_ask` with those issues as the state and a handful of questions: *does the stack
+   trace point at our own code · could this be a security problem (four levels) · how badly is a
+   person affected (four levels) · does this read like something that used to work · is there enough
+   here to fix it without reproducing it first*.
+3. It ranks them with a weighted sum it can show you, says which it would fix first and why, and
+   hands the top one to `sentry_fix`, which already exists too.
+
+No new Sentry code, no shared credentials, and the rubric is visible in the conversation where it can
+be argued with rather than buried in an extension. The same three steps work on anything that comes
+as a list: dependency advisories from `deps_check`, failing tests, a pile of CI logs, whatever
+somebody pastes. The cost is that the orchestrator has to bring the questions, so its prompt carries
+two or three worked rubrics as examples — cheaper to maintain than a tool per source.
+
+### How each surface gets them
+
+- **The orchestrator**: `orchestrator(ctx)` tells it when to reach for which — grep for "find me the
+  lines that…", ask for "judge these against…", findings for "what did the review turn up" — and
+  warns it never to treat a probability as a verdict.
+- **pi agents**: both are `for: ['agent']`, so every agent is handed them by its harness through the
+  `ToolHost` as its own tools, no agent-side setup. Alongside goes a pi skill (`harness.pi.skills`)
+  with the jaggedness list in it: literal reading, no counting, no date maths, no explanations — so
+  an agent writes questions that work and does not take 0.91 as gospel.
+- **The window**: Ctrl+K, the status item and the brief, in section 6.
+
+---
+
+## 4. Watching what agents commit
+
+### What changed, and why
+
+The first draft of this section reviewed **every commit** on a fifteen-minute clock and turned each
+finding into queued work. The arithmetic kills it: eight hazard questions over twenty commits a day
+is 160 judgements, and at even a 2% false-fire rate that is three bogus findings a day — each one
+costing somebody a diff read, because Jev cannot say why. Three a day is how a tool gets switched
+off in a week. So three changes, and they are the whole difference between this working and not:
+
+**The unit is a task's diff, not a commit.** `base...HEAD` of the task's branch, with the task's
+`intent_spoken` in the state. Ten times fewer units, each one something a person actually cares
+about, and it makes room for the question nobody else is asking: *does this change do what was
+asked, and what else did it do?* A commit is a step; a task is a change.
+
+**The moment is when a branch stops moving**, not when a clock ticks. A look is `git rev-parse` per
+task branch — nothing at all when nothing moved. A branch whose head changed and has then been
+still for ten minutes gets read; so does one whose task is done. That is where a review is worth
+having, and it means an agent mid-flow is never reviewed twice while it types.
+
+**Two stages: Jev picks what to look at, and something that can write says why.** Stage one is Jev
+over the diff, cheap, everything. Stage two runs only on what clears the high threshold: one agent
+turn that reads the flagged diff and either writes a paragraph saying what is wrong and fixes it, or
+says "false positive" — and that verdict is recorded (section 5). This is the cascade pattern from
+TypeSafe's own cookbook, and it is the answer to the thing that worried me most: **what reaches a
+person is never a bare number, it is a sentence somebody wrote.**
 
 ### Is it a watch, an extension with tools, or a git hook?
 
@@ -246,7 +370,7 @@ once when it starts failing — already exists and is tested:
 | What we need | What already does it |
 |---|---|
 | Turn it on, per project, with settings | `wilco_schedule` → a `watch` schedule (`ExtensionWatch`, `host.watches()`) |
-| Look every 15 minutes | `Schedule.when` + `dueNow`; the window's `doLookWith` |
+| Look every 10 minutes, and cost nothing when nothing moved | `Schedule.when` + `dueNow`; the window's `doLookWith` |
 | Where the last look left off | `ctx.since` ← `watchedOf(id).since`, from `watch_checked` |
 | One finding, one piece of work, ever | `watch_found` keys → `watchedFrom(...).seen` → `newFindings(found, seen, most)` |
 | Don't start ten agents at 3am | `does.most` (default 2); the rest wait for the next look, which starts where this one did |
@@ -269,42 +393,51 @@ answering twice is fine.
   was told or why it could not start. A key already in that set is never acted on again, including a
   start that failed (which is deliberate: retried every look, it would fail every look).
 
-The **key** is what makes this work, so it has to be chosen carefully:
+The **key** is what makes this work, so it has to be chosen carefully. With the task as the unit:
 
 ```
-<commit sha>:<question id>        e.g. 8fc21ab:shell_injection
+<task>:<question id>        e.g. fix-payout-retry:authz_removed
 ```
 
-Not the sha alone (one commit can have two different problems, and the second must still start work);
-not the question alone (the same class of problem in a later commit is new); not anything containing
-a line number or a file path (a rebase, a reformat or a later edit would make the same problem look
-new). Amended commits and rebases do change the sha and will be found again — accepted: in a
-worktree the review runs on the branch as it stands, and a re-review after a rebase is a cheap
-false positive, where a missed real one is not.
+One task, one question, one piece of work — ever. Not the sha (which a rebase or an amend changes,
+so the same problem would be raised again and again in a branch that is still being worked on); not
+the question alone (the same class of problem in another task is genuinely new); not anything with a
+file or a line in it (a reformat would make it look new).
+
+The trade-off, stated: a question that fires early in a long task and again later, about different
+code, is raised **once**. I think that is right — the second one lands in a review of the whole diff
+that already mentions the first — and the review log keeps the later head, so nothing is lost. If it
+turns out to matter, the key gains the base it was measured from and everything else stays as it is.
 
 ### What the look actually does
 
 `check(ctx)` — no model in the harness sense, but it does call Jev, which is the judgement that
 decides whether there is a finding at all. Bounded so it stays a *cheap look*:
 
-1. `git log --since` / `<cursor sha>..HEAD` across the project's task branches (via the existing
-   `git()` helper in `packages/status`, which already runs detached with a timeout), newest first,
-   capped at `commits_per_look` (default 20).
-2. For each commit: `git show --stat` plus the patch, with lockfiles, generated files and binaries
-   dropped, truncated per file. The state is a JSON object — commit message, files, the task's
-   `intent_spoken`, the diff — not a blob of prose, because [State](https://docs.typesafe.ai/concepts/state)
-   takes structure and jaggedness #5 punishes irrelevant bulk.
-3. One request per commit, every question in it (see below).
-4. A finding per question whose probability clears `report`. Title = the question's own words plus
-   the commit subject, because **there is no explanation to quote**.
-5. `since` = the newest reviewed sha, overlapped by one commit, since the seen-set makes overlap free.
+1. **For each task branch in the project, `git rev-parse`** (through the existing `git()` helper in
+   `packages/status`, which already runs detached with a timeout). Heads unchanged since the last
+   look, and heads that moved in the last ten minutes, are left alone. **Usually this is where the
+   look ends, and it has cost four milliseconds and no money.**
+2. For a branch that is ready: `git diff <base>...<head>` with lockfiles, generated files and
+   binaries dropped, split per file and truncated. The state is a JSON object — the task's
+   `intent_spoken`, the branch, the files, the diff — not a blob of prose, because
+   [State](https://docs.typesafe.ai/concepts/state) takes structure and jaggedness #5 punishes
+   irrelevant bulk.
+3. One request per file (or per few small files), every question in each. A file the questions
+   cannot be about — a fixture, a lockfile that slipped through — is skipped in code, not asked
+   about.
+4. Combine in code: a question fires for the task if it clears `report` in any file, and the finding
+   names the file with the highest probability. Title = the question's own words, the task, the
+   file.
+5. `since` = the heads reviewed, so the next look knows what has moved.
 
-Budget, so this stays honest: the watch timeout is **60 seconds** and the whole point is that a look
-which finds nothing costs nothing. 20 commits × one request each, claimed 0.3–0.5s, well inside 1,200
-requests/minute. Cost: a 1,500-line diff is roughly 60,000 characters, call it 15k tokens, one input
-charge for all questions → **~$0.0006 per commit**; 200 commits in a day is **about 13 cents**. Those
-are my arithmetic on their published price, not a measurement. The `budget` setting caps requests per
-look so a repository import cannot turn into a bill.
+Budget, so this stays honest: the watch timeout is **60 seconds**, and the common look does no work
+at all. A task of a dozen files is a dozen requests at a claimed 0.3–0.5s, comfortably inside both
+the timeout and 1,200 requests/minute. Cost: a 500-line task diff is roughly 20,000 characters,
+call it 5k tokens over a dozen requests → **about a tenth of a cent per task reviewed**; fifteen task
+reviews a day is **under two cents**. Stage two is where the real money is — one agent turn per
+confirmed finding — and it is capped by `most` (two per look by default), which is the number that
+actually governs the bill. All of that is arithmetic on published prices, not a measurement.
 
 ### The questions
 
@@ -323,8 +456,10 @@ authz_removed      Does this change remove or weaken a permission check on an ex
 path_traversal     Does this change build a filesystem path out of a value that came from outside?
 unsafe_exec        Does this change run code that was built from data at runtime (eval, new Function)?
 error_swallowed    Does this change catch an error and continue without reporting it anywhere?
-test_missing       Does this change alter behaviour without adding or changing a test in the
-                   same commit?
+test_missing       Does this change alter behaviour without adding or changing a test that covers
+                   it?
+did_what_was_asked (yes-no) Does this change do what the task said it would? The task's own words
+                   are in the state, and this is the question no linter can ask.
 severity           (score) How bad would it be to ship this as it stands?
                    ["nothing to say", "worth a comment", "fix before release", "must not ship"]
 area               (choice) Which part of the system does this change? <the repo's own subsystems>
@@ -349,20 +484,33 @@ kind_fixture       Does this change make a test fixture tidier than a real repos
 The noul catches the version written as a switch on a name three files away, which is the one that
 gets through.)
 
-### From a finding to work, without stepping on the agent that is still typing
+### Raising it: a sentence somebody wrote, not a number
 
 The human's ask — *"report to orchestrator that will keep running agents after they are done with
-their current tasks"* — maps exactly onto `found: 'ask'`, and that should be the **default**:
+their current tasks"* — maps onto `found: 'ask'`, which stays the **default**. What is new is stage
+two in the middle, so that nothing reaches a person as a bare probability:
 
-1. The watch finds `8fc21ab:shell_injection`.
+1. The watch finds `fix-payout-retry:authz_removed` at 0.88.
 2. `watchFound(..., { told: 'orchestrator' })` writes it down — so it is never found "for the first
-   time" again — and the window sends the orchestrator a message with the finding, under the rule
-   that Wilco tells the orchestrator and never talks over it.
-3. The orchestrator decides. When the fix should wait for the agent that wrote the code, it calls
-   `wilco_plan` with `after: [{ agent: '<that task>', why: 'it is still changing these files' }]`, and
-   the queue does the waiting — by rule, on every look at the tasks, as far as `max_parallel` allows.
-   In a shared checkout that wait is not politeness, it is the thing that stops two agents editing
-   the same file.
+   time" again — and the window tells the orchestrator, under the rule that Wilco tells the
+   orchestrator and never talks over it.
+3. **Stage two.** For a finding over `act`, the orchestrator reads the flagged diff itself (or starts
+   a short-lived agent for it) and comes back with one of two things: a paragraph saying what is
+   wrong and what it would do, or "false positive, here is why". Either way it is written down
+   (section 5). This costs one turn per confirmed finding and it is what buys the explanation Jev
+   cannot give.
+4. Only then does work get made, and only for what survived stage two. When the fix should wait for
+   the agent that wrote the code, that is `wilco_plan` with
+   `after: [{ agent: '<that task>', why: 'it is still changing these files' }]`, and the queue does
+   the waiting — by rule, on every look at the tasks, as far as `max_parallel` allows. In a shared
+   checkout that wait is not politeness, it is the thing that stops two agents editing the same file.
+
+**Raise in batches, never one at a time.** A task review that flags three things is one message with
+three lines in it, not three interruptions; `most` caps what any single look acts on, and the rest
+wait for the next look. Overnight, nothing is raised at all — it lands in the brief in the morning
+as one line, with `ask` set to "tell me which are worth fixing", which is how the orchestrator gets
+invited rather than barging in. Nothing here is ever `blocking`: a review finding is `notable` at
+most, because nothing is running into a wall.
 
 `found: 'agent'` (start work straight away) stays available for a project where reviews should never
 wait, but note what it does today: work created by a watch is queued with `after: []`, so it is ready
@@ -379,10 +527,11 @@ Names start with the extension's name, per the host's rule.
 ```ts
 jev_review({
   project?: string,   // the Wilco project; the one you are in when there is one
-  ref?: string,       // a commit, a range (main..HEAD), or a task name; HEAD unless said
+  task?: string,      // review this task's whole diff against its base — the watch's own unit
+  ref?: string,       // or a commit or range, when you want exactly that; HEAD~1..HEAD unless said
   paths?: string[],   // only these files
   threshold?: number, // report at or above this probability; the setting unless said
-}) : ToolAnswer        // a table: question, probability, confidence, file, commit
+}) : ToolAnswer        // a table: question, probability, confidence, file
 for: ['orchestrator', 'agent']
 ```
 Throws when: there is no TypeSafe key (`ready()` says so first, so the tool is not even offered);
@@ -392,37 +541,20 @@ returning a cheerful nothing); the state is over budget even after truncation, n
 TypeSafe answers 401/422/429/529, with the status and what to do. It does **not** throw on "found
 nothing": that is an answer.
 
-```ts
-jev_ask({
-  state: string | object,        // what to judge
-  questions: Array<{ id, type: 'yes-no'|'pick'|'rate', ask: string, options?, levels? }>,
-}) : ToolAnswer
-for: ['orchestrator', 'agent']
-```
-The escape hatch, and the thing an agent uses to try a rubric before anyone writes it into the file.
-Throws when: `questions` is empty; two questions share an `id`; a `pick` has fewer than two options
-or more than 255 (Jev's cardinality limit); a `rate` has fewer than two levels; the state is over
-budget. Its description must carry the warning that this model answers the question as written and
-cannot count, do arithmetic, or compare dates — that belongs in code.
-
-```ts
-jev_findings({ project?: string, since?: string, task?: string }) : ToolAnswer
-for: ['orchestrator', 'agent']
-```
-What the review has flagged and what became of it — read straight out of the journal's `watch_found`
-lines. **It asks Jev nothing**: no network, no key, instant, works with the window closed. It is the
-answer to "what did last night turn up", which is the question people will actually ask, and it is
-what the window's Ctrl+K action and status view are built on (section 5). Throws only on an unknown
-project or a task that does not exist; an empty list is an answer.
+`jev_ask` and `jev_grep` (section 3) are the other half of the on-demand path: an agent can ask the
+rubric of its own work before it says it is finished, and a person can ask something the rubric does
+not cover without anyone editing a file.
 
 And the watch:
 
 ```ts
 watches: [{
-  id: 'review', title: 'Review what agents commit', every: '15m',
-  means: 'Reads every new commit in the project with Jev, against the security, correctness and
-          house-rule questions, and reports what it finds.',
-  input: { threshold?: number, questions?: string[], include?: string[], exclude?: string[] },
+  id: 'review', title: 'Review what agents change', every: '10m',
+  means: 'When an agent’s branch stops moving, reads its whole diff with Jev — security,
+          correctness, and this repository’s own rules — then has what it flags read by
+          something that can explain it, and reports that.',
+  input: { threshold?: number, questions?: string[], settle?: string,
+           include?: string[], exclude?: string[] },
 }]
 ```
 
@@ -439,108 +571,97 @@ watches: [{
 
 ---
 
-## 4. Powering the Sentry extension
+## 5. The record: what looked, what it found, and what came of it
 
-The Sentry extension already reads issues, events, traces, logs, metrics, and hands an agent a fix
-with everything Sentry knows in its context. What it cannot do today is **judge**: which of 40 new
-issues matters, and what is in a thousand log lines. Those are both System One shapes, and one of
-TypeSafe's four published eval workflows is literally agent-trace triage.
+Three questions. As the design stands so far, Wilco answers one and a half of them:
 
-These tools belong **in the Sentry extension**, named `sentry_*` — tool names start with their
-extension's name, and cross-extension tool calls are not a thing the host offers (nor should they be:
-the credentials live with the extension). Sentry gets the judge as a library, not as another
-extension's tool. See section 6.
+| Question | Answered by | Today |
+|---|---|---|
+| What did the watch do? | `watch_checked` | yes — how many read, how many fired, how many new, where the next look starts, or why it could not look |
+| What did it find? | `watch_found` | yes — one line per finding, the first time only, with the task it became or who was told |
+| Was it right? | nothing | **no** |
 
-### `sentry_triage`
+The third is the one that decides whether running any of this was worth it, and an agent's parting
+sentence does not answer it: after a month you would have "Jev made 140 findings" and no way to say
+whether that was good. So the record is part of the build, not something bolted on when somebody
+finally asks.
 
-```ts
-sentry_triage({
-  project?: string,     // Wilco project or Sentry slug; yours when you are an agent
-  query?: string,       // a Sentry search; 'is:unresolved firstSeen:-24h' unless said
-  period?: string,      // 24h unless said
-  limit?: number,       // up to 100; 25 unless said
-}) : ToolAnswer          // issues ranked, with the numbers behind the rank
-for: ['orchestrator', 'agent']
+### What is derived, and what is kept
+
+**Derived — never a second source of truth.** Looks, findings, what was raised, what became of it:
+all of that is already in the journal plus git, and `jev_findings` works it out on demand, the way
+status does. Which looks happened and what they cost, what fired, which finding became which task,
+whether that task finished, and whether it committed anything touching the file that was flagged.
+
+**Kept — because it cannot be derived.** One append-only file, `<home>/jev/reviews.jsonl`, one line
+per review:
+
+```json
+{"at":"2026-09-18T02:14:09Z","project":"wilco","task":"fix-payout-retry",
+ "base":"8fc21ab","head":"41d0c7e","model":"jev-1.13.0","files":12,"cost_usd":0.0011,
+ "answers":{"authz_removed":0.88,"test_missing":0.71,"shell_injection":0.04},
+ "raised":["authz_removed"],
+ "verdict":{"authz_removed":{"was":"confirmed","by":"orchestrator",
+             "said":"the middleware check moved inside a branch that skips it for internal callers"}}}
 ```
 
-One Jev request per issue — state is the issue as `sentry_issue` already renders it (title, culprit,
-counts, users, release, the relevant own-code frame, breadcrumbs) — asking:
+Two things in there earn their keep:
 
-```
-ours            (noul)  Does the stack trace point at this project's own code rather than a
-                        dependency or the platform?
-security        (score) Could this error be a security problem?
-                        ["no", "information leak", "auth or data exposure", "exploitable"]
-user_impact     (score) How badly is a person using the product affected?
-                        ["not noticed", "annoying", "blocked from finishing", "data lost"]
-regression      (noul)  Does this read like something that used to work and stopped?
-enough_to_fix   (noul)  Is there enough here to find the cause without reproducing it first?
-fix_size        (score) How big is the change likely to be? ["one line", "one file", "several
-                        files", "a design question"]
-```
+- **Every answer, not only the ones that fired.** Keep just what cleared 0.6 and you can never ask
+  what 0.75 would have done: every threshold change becomes an experiment to re-run instead of a
+  question to re-ask. The whole vector is a few hundred bytes.
+- **The model version.** The first time the answers drift after a TypeSafe release, that field is
+  the entire investigation.
 
-Code does the ranking — a weighted sum with the weights in the same file as the questions — and the
-answer says the numbers, because a rank nobody can argue with is a rank nobody trusts. It **suggests**
-`sentry_fix` for the top few above `act`; it never calls it, and never resolves, ignores or assigns
-anything (that is `sentry_update_issue`, orchestrator-only, only when asked).
+Honest about the invariant. *A watch keeps nothing itself* — and this file is **evidence, not
+state**: delete it and the watch behaves identically, it just goes blind about itself. That is the
+test I would apply to any file a watch wants to write, and this one passes it. Nothing in the loop
+reads it to decide anything.
 
-Throws when: Sentry access is missing (the existing `api(ctx)` message); no TypeSafe key; the query
-is rejected by Sentry (pass their message through); a partial failure — Jev answered for some issues
-and not others — is **not** a throw, it is a table with the failures named in it, because half a
-triage is still worth reading.
+### The verdict, derived where it can be
 
-### `sentry_grep` — asking questions of logs
+Stage two produces the verdict in words, and words are what a person reads. What gets *counted*
+should be derived, because a count of prose is not a count:
 
-The jev-grep the human asked for, aimed at the logs and spans Sentry already holds:
+- the finding became a task, the task finished, and it committed a change touching the flagged file
+  → **acted on**;
+- the task finished having changed nothing, or its agent said plainly that it was wrong → **not a
+  problem**;
+- removed, held, or still going → **neither, yet**.
 
-```ts
-sentry_grep({
-  question: string,      // in plain words: 'which of these are the same payment failing twice?'
-  dataset?: 'logs'|'errors'|'spans',   // logs unless said
-  query?: string,        // a Sentry search to narrow it first — do this, it is free
-  project?: string, period?: string,
-  limit?: number,        // rows to read, up to 1000; 200 unless said
-  keep?: number,         // probability to keep a row; 0.6 unless said
-}) : ToolAnswer           // the rows that matched, most likely first, with their probabilities
-for: ['orchestrator', 'agent']
-```
+That is `task_done` plus git: no new event type, nobody having to remember to fill a form in, and
+the same trick as everywhere else here — status is a query.
 
-How it works, from TypeSafe's own line-by-line search cookbook: chunk the rows into batches that fit
-the state budget, and ask **one noul per row** in a single request per batch ("does this line match:
-`<question>`"), all evaluated in parallel against the shared state. 200 rows of log at ~15 tokens
-each is ~3k tokens of state — well inside the limit and roughly **$0.0001 a batch**. Then sort by
-probability in code and show what cleared `keep`.
+### What you can read
 
-Throws when: `question` is empty; `dataset` is not one of the three; no rows come back for the query
-(says so — an empty grep is an answer, so this one does *not* throw); the key or Sentry access is
-missing; a batch is refused by TypeSafe with 422, naming the row that was too long.
+`jev_findings` renders it, the window's `view()` shows the same thing, and both come from one
+function:
 
-The same tool shape, over Wilco's own material rather than Sentry's, belongs in the `jev` extension:
+- **This week**: looked / read / fired / raised / acted on / not a problem, per project.
+- **By question**: how often each fired, and how often it was right. This is the table that matters,
+  because **the answer to a question that never fires truly is to delete the question.** A rubric
+  nobody prunes becomes noise, and noise is how the loop dies.
+- **Calibration**: probability bucket against how often it was acted on. Ten rows and a count.
+  This is the number TypeSafe have not published; after a few hundred reviews we would have our own,
+  for our own work, which is the only version that matters.
+- **Recall, against history**: the one measurement that shows what it *misses*, and the only one that
+  cannot come from running it forward. We have a free labelled set — commits that a revert followed,
+  and commits whose fix carries `Fixes <SHORT-ID>`. Run the rubric over their parents and see whether
+  it would have fired. Cheap, repeatable, and the honest answer to "what is it not catching".
 
-```ts
-jev_grep({
-  question: string,
-  source: 'journal'|'transcript'|'lane'|'file',
-  task?: string, lane?: string, file?: string,
-  period?: string, limit?: number, keep?: number,
-}) : ToolAnswer
-for: ['orchestrator', 'agent']
-```
+In the morning it is one line in the brief — "Jev read 6 task diffs overnight and flagged 2" — with
+`ask` set to "tell me which are worth fixing". The record in the place people already look, and an
+invitation rather than an interruption.
 
-`journal` reads `events.jsonl` through `readJournal` (no window needed — a question you cannot ask
-while a window is open is a question people stop asking); `transcript` reads an agent's pi session;
-`lane` reads scrollback from the driver; `file` reads a file in a project. This is how "why did that
-agent stop", "which turn first mentioned the migration", and "did anything touch the database" get
-answered without reading 4,000 lines. Throws on: an unknown source; `transcript`/`lane` naming a task
-or lane that does not exist; a file outside the projects Wilco knows (never read an arbitrary path
-because a model asked); the same key/budget cases as above.
-
-Also worth having, cheap, and not a tool: a `status()` item — `jev 41 asked · 0.7¢` — with `view()`
-showing the last look, what fired, and what it cost. The resources extension is the model for it.
+Optionally, and off unless asked for: the same digest written into the project as
+`.wilco/reviews/<week>.md` and committed as Wilco, the way everything Wilco writes for itself is
+under git. That is for a team that wants the review history to travel with the repository and be
+arguable in a pull request. It is a copy of a derived thing, so it is a convenience, never the
+source.
 
 ---
 
-## 5. In the window: Ctrl+K, the status bar, and what you can say
+## 6. In the window: Ctrl+K, the status bar, and what you can say
 
 Everything above is reachable by talking to the orchestrator. That is already most of the value and
 needs no window work at all: once `jev_review` and `jev_grep` exist, "what did Jev flag in the last
@@ -577,9 +698,10 @@ actions: [
 ]
 ```
 
-`jev_findings` is worth calling out because it is the cheapest tool in this whole document: it reads
-`watch_found` out of the journal and asks Jev nothing. No network, no key, instant, and it is the
-answer to "what did the overnight review turn up" — which is the question people will actually ask.
+`jev_findings` (sections 3 and 5) is the one worth putting in the box: it asks Jev nothing, costs
+nothing, works with no key and no network, and answers "what did the overnight review turn up" —
+which is the question people will actually ask, and the one thing here that must never make them
+wait.
 
 The rest of the window comes along for the ride, all of it already supported by the port:
 
@@ -592,7 +714,7 @@ The rest of the window comes along for the ride, all of it already supported by 
 | Brief | `brief()`: "Jev flagged 3 things in last night's commits", with `ask` = "tell me which are worth fixing" | one function |
 | The news line and transcript | `watch_found` already reaches both | nothing |
 | GIT panel | a finding's `links` are kept on the task and shown there | nothing |
-| Extensions panel | `setup()`: the guide that tells a person how to get the key (section 8) | one function |
+| Extensions panel | `setup()`: the guide that tells a person how to get the key (section 9) | one function |
 
 **The one thing Tier 1 cannot do**, and it is the interesting one: an `ExtensionAction` carries a
 *fixed* `input`. There is nowhere to type a question. So "ask Jev something about these logs" cannot
@@ -651,7 +773,7 @@ because people were reaching for `?` and finding it missing, which is a thing we
 
 ---
 
-## 6. Standalone tools, or in Wilco?
+## 7. Standalone tools, or in Wilco?
 
 ### Recommendation
 
@@ -662,9 +784,10 @@ because people were reaching for `?` and finding it missing, which is a thing we
 2. **`packages/judges/jev`** and **`packages/judges/scripted`** — the HTTP client, and a judge that
    answers from a table (what tests and `--safe` use; also the honest way to demo the loop with no
    key).
-3. **The extensions**: a new `jev` extension (review watch, `jev_review`, `jev_ask`, `jev_grep`), and
-   `sentry_triage` / `sentry_grep` added to the Sentry extension. Both take a judge from the registry
-   by name; neither knows TypeSafe's URL.
+3. **One extension**, `jev`: `jev_ask`, `jev_grep`, `jev_findings`, `jev_review`, and the review
+   watch. It takes a judge from the registry by name and never knows TypeSafe's URL. **No other
+   extension changes** — Sentry keeps its own tools, and triaging its issues is `jev_ask` pointed at
+   what they return.
 
 Nothing else. No npm package, no MCP server, no separate CLI.
 
@@ -739,16 +862,17 @@ suite is already the contract.
 
 ---
 
-## 7. Other things the novelty unlocks, ranked
+## 8. Other things the novelty unlocks, ranked
 
 Ranked by how much of an edge **Jev specifically** gives over calling a general model — which is high
 when the work is (a) high volume, (b) a bounded decision, (c) latency- or budget-bound, and (d)
 better for having a number you can threshold. It collapses to nothing when the answer needs prose.
 
-1. **Reviewing every change, from every agent, always** (section 3). The edge is not quality — a
-   frontier model reviews better — it is that at ~$0.0006 and half a second per commit you review
-   100% instead of sampling, and you get a probability to route on. This is the one that changes what
-   Wilco can promise.
+1. **Reading every change, from every agent, always** (section 4). The edge is not quality — a
+   frontier model reviews better — it is that for a tenth of a cent a task you read 100% instead of
+   sampling, and get a probability to route on: Jev decides what deserves a real reader, and a real
+   reader says why. This is the one that changes what Wilco can promise, and the one still to be
+   proved.
 2. **Turn-level supervision of agents.** Wilco sees every turn, tool call and cost. A judgement on
    each one has to be sub-second and free or it cannot exist: *is this agent looping? did this turn
    end without saying anything? is this tool call destructive in a way the policy has not named? is
@@ -757,13 +881,15 @@ better for having a number you can threshold. It collapses to nothing when the a
    TypeSafe's own second-best eval workflow is exactly this shape (agent trace observability, 71.6%).
    Strong edge, and it is the use case the writeup singles out: the harness gets more important, not
    less.
-3. **Log, trace and transcript grep** (section 4). A semantic filter over material nobody reads at
+3. **Log, trace and transcript grep** (section 3). A semantic filter over material nobody reads at
    all today, at $0.0001 per 200 lines. Frontier models can do it; nobody runs them over a million
-   log lines. Strong edge, mostly on cost.
-4. **Sentry triage and ranking** (section 4). Volume is lower (tens of issues, not thousands of
-   lines), so the cost edge is smaller and a frontier model is 5–10 points better at the judgement.
-   Real, but the weakest of the "obvious" four — worth doing because it shares all the machinery
-   with 1–3.
+   log lines. Strong edge, mostly on cost — and the safest of the lot, because a person is right
+   there and a wrong line costs a glance. **Build this one first.**
+4. **Triage of anything that arrives as a list** (section 3): Sentry issues, dependency advisories,
+   failing tests, whatever got pasted. Ranking is forgiving — you read the top five anyway — so
+   being wrong is cheap, but the volume is low enough that a frontier model is affordable too. The
+   reason it is worth having is that it costs **no code at all**: `jev_ask` with the list as the
+   state, and the rubric written in the conversation.
 5. **Queue and plan safety.** Before `wilco_plan` starts two agents in one checkout: *will these two
    change the same files?* Would run on every plan, must be fast, and a probability is genuinely the
    right output. Marked down because it needs indirection (a property of a plan of a repository) and
@@ -788,12 +914,12 @@ better for having a number you can threshold. It collapses to nothing when the a
 
 Products beyond Wilco, if we ever wanted them, in the same order of edge: a CI review gate built on
 the same question pack (every PR, every push, cents a month); a "question your logs" CLI; a
-supervisor sidecar for other people's agent harnesses. All three are section-6 decisions, and my
+supervisor sidecar for other people's agent harnesses. All three are section-7 decisions, and my
 recommendation there is to defer all of them until the rubric has proven itself on our own commits.
 
 ---
 
-## 8. Getting a key
+## 9. Getting a key
 
 Jev is in **selective early access**: there is a console you can log in to and a waitlist, and I
 could not verify from outside which one you land in. Checked 2026-09-18; all of it may have loosened
@@ -815,7 +941,7 @@ since, because they say they are letting people in as fast as they can.
 **2. Try it before you have a key of your own.** The Playground
 (<https://console.typesafe.ai/playground>) runs a state and a set of questions in the browser once
 you are logged in. Paste a real diff from this repository in as the state and one of the questions
-from section 3 — five minutes there tells you more about whether this works than the rest of this
+from section 4 — five minutes there tells you more about whether this works than the rest of this
 document.
 
 **3. Create the key.** <https://console.typesafe.ai/settings/keys> (their docs also link
@@ -854,7 +980,7 @@ they warn these move) · `529` they are overloaded — back off and retry, do no
 your eyes open: **the review loop sends your diffs to a third party.** TypeSafe say on their Models
 page that Jev is not trained on customer requests or responses, and offer zero data retention to
 enterprise customers — I have not seen those terms. For a repository where that is not acceptable,
-the loop still works: point the judge at the LLM-backed or scripted implementation (section 6), or
+the loop still works: point the judge at the LLM-backed or scripted implementation (section 7), or
 run the watch only on projects where it is fine. The setting that decides it should be per project,
 and nothing should be sending diffs anywhere the first time Wilco starts — a watch is off until
 somebody turns it on, which is exactly the right default here.
@@ -902,8 +1028,12 @@ Everything in this section is a gap, not a claim:
   is what you are billed for; whether the 1,200 rpm limit is per key or per account; how latency
   behaves as question count grows (they claim "barely changes" — the writeup asks for the same number
   to be measured by someone else, and so should we).
-- **The cost arithmetic in section 3 is mine**, from their per-token price and my estimate of diff
+- **The cost arithmetic in section 4 is mine**, from their per-token price and my estimate of diff
   size. Nothing has measured a real diff.
+- **The false-positive rate I argue from is invented.** "2% per question" is a number I chose to
+  show the shape of the problem, not one anybody has measured. The whole case for reviewing a task
+  rather than a commit rests on it, and the backtest in the appendix is what would replace it with
+  something real.
 
 A first step that settles most of this cheaply: get one key, take 200 commits out of this
 repository's history, run the question pack over them, and compare what it flags against what code
@@ -914,22 +1044,34 @@ thing that turns any of the above into a decision.
 
 ## Appendix: what to build first, in order
 
+The order changed once the argument was written down. **Ask and grep come before the watch**: they
+are useful the day they land, a wrong answer costs a glance rather than an agent run, and a fortnight
+of using them tells you what the model is actually like before anything unattended is pointed at your
+commits.
+
 1. `packages/judges/core` — port + conformance suite + `JUDGES` registry, with `scripted` passing it.
    No network, no extension, nothing user-visible.
 2. `packages/judges/jev` — the client, against a recorded transcript in tests.
-3. The measurement above: 200 real commits, one afternoon, a table of what fired and what was true.
-   **Go/no-go on that table**, before any of the rest.
-4. `packages/extensions/jev` — `jev_review`, `jev_ask`, the `review` watch, questions and thresholds
-   in one file, `found: 'ask'` by default. A sketch of it is in
+3. `packages/extensions/jev` with **`jev_ask` and `jev_grep` only**, for the orchestrator and for
+   agents, plus the pi skill that says how to write a question and what the model cannot do. This is
+   the whole of section 3, it is a few hundred lines, and it is where triage-without-a-triage-tool
+   comes from for free.
+4. **The backtest, before any watch exists**: the rubric over 200 real commits from this repository's
+   history, and over the parents of everything a revert or a `Fixes` commit followed. A table of what
+   fired, what was true, and what it missed. About fifteen cents and an afternoon. **Go/no-go on that
+   table** — and if the answer is no, everything above still stands on its own.
+5. The review watch (section 4): task diffs, settle time, two stages, `found: 'ask'`, questions and
+   thresholds in one file. A sketch is in
    [`extensions/proposed/jev/extension.ts`](../extensions/proposed/jev/extension.ts) — inert, as
-   proposals are.
-5. Tier 1 of the window (section 5): two actions, a status item with its view, a brief line. All of
-   it is declaration, none of it is new machinery, and it is what makes the loop visible to somebody
-   who is not reading the journal.
-6. `jev_grep`, then `sentry_triage` and `sentry_grep`.
-7. `?` in Ctrl+K (section 5, Tier 2) — only if people are reaching for it. It adds an extension
+   proposals are, and written against the first draft's per-commit shape, so read section 4 first.
+6. The record (section 5): `reviews.jsonl`, the derived verdict, `jev_findings`, the tables. It goes
+   in **with** the watch, not after it — a month of findings nobody can score is a month wasted.
+7. Tier 1 of the window (section 6): two actions, a status item with its view, a brief line. All
+   declaration, no new machinery, and it is what makes the loop visible to somebody who is not
+   reading the journal.
+8. `?` in Ctrl+K (section 6, Tier 2) — only if people are reaching for it. It adds an extension
    point, so: conformance suite, declared capability, performance test.
-8. Only then ask again whether anything should leave the repository.
+9. Only then ask again whether anything should leave the repository.
 
-And before any of it: a key (section 8), and five minutes in the Playground with a real diff out of
+And before any of it: a key (section 9), and five minutes in the Playground with a real diff out of
 this repository pasted in as the state.
