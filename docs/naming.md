@@ -11,9 +11,13 @@ want to say "Hey ⟨name⟩" next to "Hey Claude" and "Hey Gemini" without eithe
 Pass 2 put callability first and landed on **Sarge**. Pass 3 added **softness** as a hard criterion,
 because Sarge is a bark: /sɑːrdʒ/ ends in an affricate after an r-colored vowel, the harshest shape
 English has — that set is §6. Pass 4 asked for a name **out of the work itself** — the IDE, the
-workshop, the crew of agents — which is §7. So there are now three registers, compared in §8:
-§5 hard and self-explaining (**Sarge**), §6 soft and human (**Marlo**), §7 from the work (**Andon**).
-The long brandable names stay in [Appendix A](#appendix-a--the-longer-brandable-names).
+workshop, the crew of agents — which is §7, and its recommendation (**Andon**) turned out to be an
+AI company, which is why §3 now includes a **company and launch sniff** and why everything earlier
+was re-checked with it. Pass 5 asks whether the product should be branded an **"Agentic Terminal
+IDE"** — §8 — because the positioning decides which shelf the name comes off. §9 is the shortlist:
+**Jig** if it is an IDE, **Sarge** if it is a crew you talk to, **Talko** or **Obeya** if owning the
+word matters most. The long brandable names stay in
+[Appendix A](#appendix-a--the-longer-brandable-names).
 
 ## 1. What is being named
 
@@ -90,6 +94,17 @@ answers were trusted. This matters: `www.registry.google/rdap/domain/<x>.dev` re
 | GitHub | `gh api users/<n>` · `gh api search/repositories -f q='<n> in:name' -f sort=stars` | handle + top repos read by hand |
 | PyPI / crates.io | `pypi.org/pypi/<n>/json` · `crates.io/api/v1/crates/<n>` | 404 free |
 | Products/companies | `<title>` of `<n>.com` and `<n>.ai`; Wikipedia `list=search` | who actually holds it |
+| **Company sniff** | `<title>` of `<n>.ai`, `<n>labs.com`, `<n>ai.com`, `use<n>.com`, `get<n>.com` | **the AI land grab lives here** |
+| **Launch sniff** | `hn.algolia.com/api/v1/search?query=<n>&tags=story` | Show HN / Launch HN, with points |
+
+**Why those last two exist.** Pass 4 recommended **Andon** — and Andon was already **Andon Labs**
+(`andonlabs.com`, the AI-evals lab behind Vending-Bench, ~1,300 points across its HN launches) and
+**Andon AI** (`andonai.com`, "Production AI for complex operations"). Neither had an npm package, a
+GitHub org, or a `.com`/`.dev` that said anything, so every check in the table above passed. With no
+working web search (see the limits below), a name can look clean and be a company. The `<n>labs.com`
+/ `<n>ai.com` / `use<n>.com` title fetch plus HN's open Algolia index is the cheap substitute, and it
+is now run on every candidate. **Everything recommended before pass 5 was re-checked with it**, which
+is how `marloai.com` and `usemarlo.com` turned up (see §9).
 
 **Limits, stated plainly.**
 
@@ -377,75 +392,147 @@ namespace itself. Of roughly fifty words checked, **one** had a free npm name (`
 | Artisan · Scratch · Buffer · Caret | Laravel's `artisan`; MIT Scratch; Buffer; a Chrome editor |
 | Crew · Swarm · Fleet · Guild | CrewAI; OpenAI Swarm; JetBrains Fleet; Guild Education |
 
-The survivors, and what they'd cost:
+### The second wall: the AI land grab
 
-| Name | Meaning in one beat | Say it | npm | `.sh` | Other | Collision |
-|---|---|---|---|---|---|---|
-| **Andon** | the board showing every station on the line — and the cord anyone can pull to stop it | "Hey Andon" (4 syl, soft, no `r`) | ✗ (active lean lib) | **✓** | `.com/.dev/.ai` ✗ | `PrimeFoldTools/andon` ★163 — "a Lean quality system for AI-assisted work" |
-| **Obeya** | "big room": the one room where the whole project's state is on the walls | "Hey Obeya" (5 syl, soft) | **✓** | **✓** | `heyobeya.com` **✓** | GitHub handle active (26 repos); `obeya.ai` resolves |
-| **Jig** | the fixture that holds the work so every part comes out right | "Hey Jig" (3 syl, `-dʒ` ending) | ✗ (dormant) | ✗ | `heyjig.com` **✓**, `jig.ai` for sale | JigSpace holds `jig.com`; `jigsaw` repos are loud |
-| **Lanework** | the work in the lanes — the product's own vocabulary | "Hey Lanework" (5 syl, soft) | **✓** | **✓** | `heylanework.com` **✓** | none found |
-| **Cartwright** | the wright who builds what the work rides on | "Hey Cartwright" (5 syl) | **✓** | ✗ | `heycartwright.com` **✓** | none in dev/AI |
-| **Mallet** | the soft hammer — persuasion, not force | "Hey Mallet" (4 syl, soft) | ✗ | **✓** | `heymallet.com` **✓** | MALLET, the NLP toolkit |
+**Andon is dead** — `andonlabs.com` is the AI-evals lab (Vending-Bench, Pion, ~1,300 HN points) and
+`andonai.com` is "Production AI for complex operations". It passed every registry check and was still
+taken, which is what added the company sniff in §3. Run on this whole register, the sniff kills most
+of it:
 
-### Andon — the best description of this product found in any register
+| Word | What the sniff found |
+|---|---|
+| Andon | **Andon Labs** + **Andon AI** — both in AI agents |
+| Cradle | `cradle.ai`, `cradlelabs.com`, `usecradle.com` (Cradle, the protein-design company) |
+| Easel | `easel.com` is Inventables' CNC software; `easellabs.com`; Show HN "Easel" ★346p |
+| Mallet | `mallet.ai`, `malletai.com`, plus MALLET the NLP toolkit |
+| Gimlet | `gimlet.ai`, Gimlet Media (Spotify) |
+| Loupe | `loupe.ai`, `loupelabs.com`, Etsy's Loupe monitoring stack |
+| Skein | `skein.ai`, **Skein Labs**, **Skein AI Systems**, Schneier's Skein hash |
+| Kerf | `kerfai.com`, and Kerf the array language |
+| Holdfast | **HoldFast AI** (`holdfastai.com`), `useholdfast.com` |
+| Sawhorse | `sawhorse.ai` — "your quotes, with a brain" |
+| Docket | **DocketLabs**, **DocketAI**, `usedocket.com` |
+| Millwright | Show HN: "Millwright — self-hosted LLM router"; "Millwright: Smarter Tool Selection from Agent Experience" |
+| Lanework | `lanework.ai`, and one letter from **Lacework** (the $8.3bn security company) |
+| Collet | `usecollet.com`; and Yann Collet is a household name in this field (zstd) |
+| Galley | `galley.ai`, `galleylabs.com`, HN: "Galley: orchestrator for local Docker containers" |
+| Steno · Platen · Stave · Kumiko · Tiro | `steno.ai` · `platen.ai` · `stave.ai` + Stave Labs · `kumiko.ai` + **Kumiko Labs** · `tiro.com` = Tiro Typeworks |
 
-On a Toyota line the **andon** is the board above the floor showing the state of every station, and
-the cord any worker can pull to stop the line when something is wrong. Read this repo's own rules
-back: *status is a query, not a memory* · *nothing goes wrong silently* · *a lane is alive only if the
-driver hands it back* · `wilco_run_stop`. It is the same idea, already named, by people who ran
-thousands of parallel workers a day. It also answers the Sarge objection: /ˈændɒn/ has no r-colored
-vowel and no affricate — two nasals and one light stop, five letters, stress on the first syllable,
-spells itself, and sounds enough like a name to be addressable.
+**Take this as the rule, not the exception: every short concrete noun now has an `X.ai` or an
+`X Labs` on it.** Which means a short real word can only be chosen with eyes open — the question is
+whether its namesake is a *company in our market* (fatal) or a *parked page* (survivable).
 
-The cost is ownership: npm `andon` is an **active** package (a lean-manufacturing library, v1.0.16),
-so the CLI ships as `@andon/cli`; `andon.com` is an industrial distributor; only `andon.sh` is free.
-And `PrimeFoldTools/andon` (★163) is already "a Lean quality system for AI-assisted work" — the same
-metaphor, one step away from the same product. **Obeya** is the more ownable half of the same idea
-(npm, `.sh` and `heyobeya.com` all free) at the price of a pronunciation people must be taught once.
+### What survived the sniff
 
-## 8. Shortlist and recommendation
+| Name | Meaning in one beat | npm | `.sh` | `hey*.com` | AI-space sniff |
+|---|---|---|---|---|---|
+| **Jig** | the shop-built fixture that holds the work so every part comes out right | ✗ dormant 2013 | ✗ | **✓** | **clean** — no Jig AI, no Jig Labs, `jig.ai` for sale |
+| **Obeya** | "big room": the one room where the whole project's state is on the walls | **✓** | **✓** | **✓** | **clean** — nothing on `.ai`, no Labs, nothing on HN |
+| **Dado** | the groove cut across a board that another piece seats into | ✗ | **✓** | **✓** | **clean** — nothing anywhere; GitHub handle empty |
+| **Cartwright** | the wright who builds what the work rides on | **✓** | ✗ | **✓** | clean (`.com` is a for-sale parking page) |
+| **Intarsia** | many small pieces inlaid to make one surface | **✓** | **✓** | **✓** | `intarsia.ai` resolves (no content) |
+| **Bodkin** | the blunt needle that opens a way without cutting threads | **✓** | **✓** | **✓** | `bodkinai.com` "coming soon", `bodkinlabs.com` live |
 
-Three registers, three finalists. They are not really competing on availability — all three are
-obtainable — they are competing on **what you want the name to do**.
+### Jig — the strongest of them, and its three honest costs
 
-| | **Sarge** §5 | **Marlo** §6 | **Andon** §7 |
-|---|---|---|---|
-| What the name says | the one who runs your crew | someone you send to find out | the board that shows the line, and stops it |
-| Understood with no explanation | **yes** | no | after one sentence |
-| Soft in the mouth | **no** — /sɑːrdʒ/ | yes | **yes** (two nasals, one light stop) |
-| Wake phrase | "Hey Sarge" (3 syl) | "Hey Marlo" (4 syl) | "Hey Andon" (4 syl) |
-| Binary | `sarge` (5) | `marlo` (5) | `andon` (5) |
-| npm bare name | dead since 2017 | **free** | ✗ active lean lib → `@andon/cli` |
-| crates / PyPI | taken / taken | free / taken | — |
-| `.sh` | **free** | **free** | **free** |
-| `hey*.com` | `getsarge.com` free | taken | taken |
-| GitHub handle | active user → variant | exists, **0 repos** | active user → variant |
-| Dev/AI collision | none found | none (Marlowe DSL is noise) | `PrimeFoldTools/andon` ★163, adjacent |
-| Fits *this* product | the relationship | the personality | **the mechanism** |
+A jig is the fixture a shop builds *for itself* so that every repetition of a job comes out the same.
+It is already a programmer's metaphor — Rob Napier's "Go Is a Shop-Built Jig" is a well-read essay
+(★145p on HN) — and it is what this product physically does: a worktree, a lane and a harness are the
+jig that holds an agent's work steady. `jig` is also the best binary in this document: three
+characters, a real word, free on any normal PATH.
 
-**If the name must explain itself: Sarge.** Nothing else in this document tells a stranger what the
-product is in one word. `sarge.sh`, `@sarge/cli`, `getsarge.com`.
+The costs, in order:
 
-**If it must be soft and human: Marlo.** Everything Sarge got right minus the bark, and the most
-ownable of the soft set: npm, `@marlo`, crates.io, `marlo.sh` free and an empty GitHub handle.
+1. **Thin ownership.** `jig.com` is JigSpace (AR presentations), `.dev`/`.sh`/`.io` are taken, npm
+   `jig` is dormant since 2013 (a Jenkins-IRC bridge) → ship `@jig/cli`. Free: `heyjig.com`, and
+   `jig.ai` is listed for sale. No Jig Labs, no Jig AI — rarer than it sounds.
+2. **One syllable is a weak wake word.** "Hey Jig" is three syllables total with a /dʒ/ onset shared
+   with Gemini; short wake words false-accept more often than long ones.
+3. **Two brand-safety flags to clear before it goes on a website.** The idiom **"the jig is up"**
+   (≈ *you have been rumbled, it's over*) will follow the name around; and "jig" carries a dated
+   ethnic-slur sense in some English dictionaries. Neither is a reason to stop — both are a reason to
+   put it through a brand review rather than falling in love first.
 
-**If it must come from the work: Andon.** The truest description found in any register — the status
-board over the line plus the cord that stops it — and soft in the mouth, which Sarge is not. Ships
-as `@andon/cli` on `andon.sh`; **Obeya** is the same idea with npm, `.sh` and `heyobeya.com` all
-free, if ownership beats familiarity.
+## 8. Positioning: is "Agentic Terminal IDE" the right frame?
 
-My order, if forced: **Sarge** (comprehension wins products), **Andon** (if you want the name to
-describe the machine rather than the relationship), **Marlo** (if you want to like saying it most).
-All three fail the same way if you wait: see §4(c).
+Partly, and the two halves fail differently.
 
-- **Register in one sitting** — npm package + scope, GitHub org (expect to need a variant for the
-  handle), `.sh`, and any `hey*.com` — and re-run §3's checks the same morning.
-- **Settle it out loud, not on paper.** Say "Hey ⟨name⟩, brief me" and "Hey ⟨name⟩, stop the deps
-  agent" fifteen times in a real session, for each finalist. The one that stops registering as a
-  word after an hour is the one to keep.
+**"Terminal" is the true and defensible part.** It is where the product actually lives — lanes are
+terminals, the drivers are tmux and pty, the window is a TUI — and it separates this from every
+GUI-fork competitor. Keep it.
 
-## 9. What a rename would touch
+**"Agentic" is commodity, and worse, it is someone else's claim.** "Agentic IDE" is Windsurf's launch
+phrase and AWS **Kiro**'s headline ("a new agentic IDE", ★1063p on HN); "agentic development
+environment" now belongs to **JetBrains** (`air.dev`), Spotify's **Xirp**, **OpenChamber** and
+**Emdash** (★206p). There is even a Show HN for an "OSS agent-first terminal IDE". Adopting the
+phrase puts this product inside a frame owned by companies with a hundred times the marketing budget,
+and invites the one comparison it loses.
+
+**"IDE" is a useful category borrow that overclaims.** An IDE is where *you* write code: editor,
+completion, LSP, debugger, refactoring. This has a file **viewer**, git, changes, terminals, search
+and a conversation — it is where you *supervise people writing code*. Call it an IDE and the first
+thing a sceptic does is try to edit a file, fail, and file it as a bad IDE. Two ways out: build
+editing and earn the word, or use IDE only comparatively ("an IDE for supervising agents, not writing
+code").
+
+**What I would actually do.** Split the two audiences:
+
+- **For search and strangers** (GitHub description, meta title, HN title): keep it plain and
+  category-borrowing but not their exact phrase — *"a terminal IDE for a crew of coding agents"*.
+- **For humans** (README first line, the app itself): the thing only this product is — *"the control
+  room for the coding agents on your machine"*. Voice, many lanes, derived status. That is a category
+  you can own rather than one you are renting.
+
+**And it changes the name class.** An IDE is named like a *place or an instrument* — Vim, Zed, Helix,
+Fleet, Kiro, Warp, Zellij, Ghostty. A colleague is named like a *person* — Claude, Devin, Jules,
+Marlo. If the branding leads with "terminal IDE", a person-name works against it, and §7's set (Jig,
+Obeya, Dado) is the right shelf. If the branding leads with the voice and the crew, §5–§6 (Sarge,
+Marlo, Wilkie) is. **Pick the positioning first; the name follows from it.**
+
+## 9. Shortlist and recommendation
+
+**Decide the positioning first (§8), because it picks the shelf.**
+
+| If the branding leads with… | then the name should be… | finalists |
+|---|---|---|
+| a **terminal IDE for agents** | a place or an instrument | **Jig** · Obeya · Dado |
+| a **crew you talk to** | a person or a role | **Sarge** · Wilkie · (Marlo) |
+| **neither — own the word outright** | coined | **Talko** · Watchwright |
+
+| | **Jig** §7 | **Sarge** §5 | **Obeya** §7 | **Talko** §5 |
+|---|---|---|---|---|
+| What it says | the fixture that holds the work | the one who runs your crew | the room where all the work is visible | it talks |
+| Fits "terminal IDE" | **yes** | no (sounds like an assistant) | yes | half |
+| Understood with no explanation | after one sentence | **yes** | after one sentence | partly |
+| Wake phrase | "Hey Jig" (3 syl, weakest) | "Hey Sarge" (3 syl) | "Hey Obeya" (5 syl) | "Hey Talko" (4 syl) |
+| Binary | **`jig` (3)** | `sarge` (5) | `obeya` (5) | `talko` (5) |
+| npm bare name | ✗ dormant 2013 | ✗ dormant 2017 | **✓** | **✓** |
+| `.sh` · `hey*.com` | ✗ · **✓** | **✓** · `getsarge.com` | **✓** · **✓** | **✓** · **✓** |
+| AI-space sniff | **clean** (`jig.ai` for sale) | parked pages only (`sarge.ai`, `sargelabs.com`) | **clean** | dead MS app only |
+| Watch out for | "the jig is up"; slur sense to clear | the bark | pronunciation | says nothing |
+
+**Two corrections this pass forced, both from the §3 sniff:**
+
+- **Andon is out.** Andon Labs and Andon AI, both in AI agents. It was the pass-4 recommendation.
+- **Marlo is demoted.** `marloai.com` is "Marlo, the marketing operating system for consumer brands"
+  and `usemarlo.com` is "Marlo – AI Powered Brochure Generator" — two live AI products. Not in dev
+  tools, so not fatal, but it is no longer the clean name it looked like in §6. **Sarge**'s namesakes,
+  by contrast, are parked pages with no titles.
+
+**My call, given the "Agentic Terminal IDE" direction: Jig**, with the brand-safety check run first
+and `@jig/cli` + `heyjig.com` + a bid on `jig.ai` as the plan. It is the only name here that sounds
+like a terminal tool, means something true about the product, gives a three-character binary, and is
+clean in AI space. **If the slur sense or "the jig is up" is a no, take Obeya** — same shelf, better
+ownership (npm, `.sh`, `hey*.com` all free), one pronunciation to teach. **If you go back to leading
+with the voice, it is Sarge**, for the reason it has always been: it is the only name in five passes
+that a stranger understands without a sentence of help.
+
+- **Register in one sitting** — npm package + scope, GitHub org (expect a variant), `.sh`, `hey*.com`
+  — and re-run §3, including the company and launch sniffs, the same morning.
+- **Settle it out loud.** Say "Hey ⟨name⟩, brief me" and "Hey ⟨name⟩, stop the deps agent" fifteen
+  times in a real session. The one that stops registering as a word after an hour is the one.
+
+## 10. What a rename would touch
 
 Measured, not estimated: **2881 occurrences of "wilco" (case-insensitive) across 380 tracked files.**
 Grouped by what breaks if you get it wrong. (Examples use `marlo`; substitute whichever wins.)
