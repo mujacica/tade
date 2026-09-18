@@ -1934,9 +1934,7 @@ function renderMain(
     r.button(`${model ? shortModel(model) : 'its default model'} ▾`, switcher)
     if (show.thinking !== 'none') {
       const label =
-        show.thinking === 'long'
-          ? `thinking${thinking ? ` ${thinking}` : ''} ▾`
-          : `${thinking ?? 'think'} ▾`
+        show.thinking === 'long' ? `${thinking ?? 'thinking'} ▾` : `${thinking ?? 'think'} ▾`
       r.space().button(label, thinker)
     }
     if (show.context && percent !== null) {
