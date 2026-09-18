@@ -489,6 +489,29 @@ Marlo. If the branding leads with "terminal IDE", a person-name works against it
 Obeya, Dado) is the right shelf. If the branding leads with the voice and the crew, §5–§6 (Sarge,
 Marlo, Wilkie) is. **Pick the positioning first; the name follows from it.**
 
+### The category label: three words, not five
+
+"Orchestrated terminal agentic IDE" is five words of jargon, and a label nobody can repeat is not a
+label. Rules that hold up: **one borrowed noun** (IDE — free comprehension), **one true modifier**
+(terminal, *or* agents — not both plus two more), and **orchestration belongs in the verb, not the
+label**, because it is what the product *does*, not what it *is*.
+
+| Label | Verdict |
+|---|---|
+| "agentic IDE" | **taken** — Kiro's headline and Windsurf's launch phrase |
+| "agentic development environment" (ADE) | **taken** — JetBrains `air.dev`, Spotify's Xirp, OpenChamber, Emdash ★206p |
+| "orchestrated terminal agentic IDE" | unrepeatable; four modifiers, no claim |
+| **"terminal IDE for coding agents"** | clear, searchable, and not anyone's slogan yet |
+| **"agent orchestration IDE"** | the most accurate three words; "orchestration" is still open in IDE framing |
+| **"agent control room"** | the human-facing line — a category you own rather than rent |
+
+Evidence that the orchestration words are worth taking: **`tutti.com` is parked for sale and
+advertised as "AI Agent Orchestration"**. Domainers have already priced this category.
+
+So: *"⟨Name⟩ — the terminal IDE for orchestrating coding agents"* for search and strangers, and
+*"the control room for the coding agents on your machine"* for humans. Same product, two audiences,
+neither sentence borrowed from Kiro.
+
 ## 9. Shortlist and recommendation
 
 **Decide the positioning first (§8), because it picks the shelf.**
@@ -526,6 +549,52 @@ clean in AI space. **If the slur sense or "the jig is up" is a no, take Obeya** 
 ownership (npm, `.sh`, `hey*.com` all free), one pronunciation to teach. **If you go back to leading
 with the voice, it is Sarge**, for the reason it has always been: it is the only name in five passes
 that a stranger understands without a sentence of help.
+
+### A brand over a tool: `jig` plus something that owns the `.ai`
+
+Splitting the two is normal and it solves Jig's ownership problem: **Bun** ships from **Oven**, `uv`
+and `ruff` from **Astral**, `docker` from Docker Inc, `zed` from Zed Industries. The binary stays
+three characters; the brand carries the website, the npm scope and the trademark.
+
+| Brand candidate | npm | `.dev` | `.sh` | **`.ai`** | `hey*.com` | GitHub handle | Note |
+|---|---|---|---|---|---|---|---|
+| **Jigsmith** | **✓** | **✓** | **✓** | **✓** | **✓** | **✓ free** | `.com` is a ceilidh band — and a jig *is* a dance. Otherwise a clean sweep. |
+| **Jigantic** | **✓** | **✓** | **✓** | **✓** | **✓** | **✓** (0 repos) | `.com` registered but dead. Availability is excellent; the meaning fights us (see below). |
+| **Shopbuilt** | **✓** | **✓** | **✓** | ✗ | **✓** | ✓ (0 repos) | From "Go Is a Shop-Built Jig" (★145p + ★103p). Says *we build our own tools*. |
+| Toolroom | ✓ | ✗ | ✓ | ✗ | ✓ | org, 8 repos | `toolroomai.com` is live; Toolroom Records. |
+| Jigwright | ✗ | ✗ | ✓ | ✓ | ✓ | org | `jigwright.com` is live: "tools for people who build things". |
+| Shopwright · Benchwright | ✓ · ✗ | ✓ · ✗ | ✓ · ✓ | ✗ · ✗ | ✓ · ✓ | — | `shopwright.ai` and `benchwright.ai` are both live products. |
+
+**Jigsmith is the pick**: the smith who makes the jigs, which is precisely the relationship between
+the company and the tool, and it is the **first name in five passes with `.ai` free** — along with
+npm, `.dev`, `.sh`, the `hey*.com` and an unclaimed GitHub handle. Coinage is why: every short real
+noun has an `X.ai` on it (§7), and a compound of two real words still reads instantly.
+
+**On Jigantic.** Structurally fine and unusually available, but the semantics work against the
+product: it means *gigantic*, and this thing's whole boast is that it is light — *"Wilco stays light,
+and proves it"*, one `ps` for the whole process table, no daemon, no state of its own. It is also a
+pun, which caps how serious the brand can sound, gets misspelled as *gigantic*, and mis-hears on a
+podcast. Keep it if playful is the intent (Bun, Yarn and Ghostty are playful and did fine); choose
+**Jigsmith** or **Shopbuilt** if the brand has to carry credibility with a sceptical engineer.
+
+### Nicer-sounding alternatives that survived the §3 sniff
+
+If `jig` itself is out, these are the ones left standing — all checked against npm, domains, GitHub,
+HN and the `X.ai` / `X Labs` sniff:
+
+| Name | Meaning in one beat | Free |
+|---|---|---|
+| **Obeya** | the big room where all the work is visible | npm · `.sh` · `heyobeya.com` |
+| **Descant** | the independent line sung above the others | npm · `.sh` · `heydescant.com` (only `descantlabs.com` exists) — but near-homophone of *descent* |
+| **Dado** | the groove another piece seats into | `.sh` · `heydado.com` · empty GitHub handle; nothing anywhere else |
+| **Intarsia** | many small pieces inlaid into one surface | npm · `.dev` · `.sh` · `hey*.com` |
+| **Cartwright** | the wright who builds what the work rides on | npm · `hey*.com` |
+| **Talko** | it talks | npm · PyPI · crates · `.sh` · `hey*.com`, `.ai` for sale |
+
+The music register is otherwise gone: **Clef** (Clef Labs + the 2FA startup), **Fugue** (Snyk's
+acquisition + the CRDT algorithm), **Rostrum** (Rostrum AI + Rostrum Labs + Rostrum Records),
+**Divisi** (`divisi.ai`), **Tutti** (parked as "AI Agent Orchestration"), **Pronto** (Pronto.ai),
+**Baton**, **Maestro**, **Coda**, **Presto**, **Allegro** — all taken in or near this market.
 
 - **Register in one sitting** — npm package + scope, GitHub org (expect a variant), `.sh`, `hey*.com`
   — and re-run §3, including the company and launch sniffs, the same morning.
