@@ -502,7 +502,8 @@ label**, because it is what the product *does*, not what it *is*.
 | "agentic development environment" (ADE) | **taken** — JetBrains `air.dev`, Spotify's Xirp, OpenChamber, Emdash ★206p |
 | "orchestrated terminal agentic IDE" | unrepeatable; four modifiers, no claim |
 | **"terminal IDE for coding agents"** | clear, searchable, and not anyone's slogan yet |
-| **"agent orchestration IDE"** | the most accurate three words; "orchestration" is still open in IDE framing |
+| **"agent orchestration IDE"** | the most accurate three words; "orchestration IDE" is claimed only by a ★3p Show HN, while "agent orchestration" is live generic category language (Google's Scion ★230p, Hephaestus ★81p) — exactly what you want to be *found* by rather than to own |
+| "agent orchestration terminal IDE" | accurate but four stacked modifiers; fine as a GitHub/meta description, unsayable as a line. Put *terminal* in the sentence, not the stack |
 | **"agent control room"** | the human-facing line — a category you own rather than rent |
 
 Evidence that the orchestration words are worth taking: **`tutti.com` is parked for sale and
@@ -559,6 +560,7 @@ three characters; the brand carries the website, the npm scope and the trademark
 | Brand candidate | npm | `.dev` | `.sh` | **`.ai`** | `hey*.com` | GitHub handle | Note |
 |---|---|---|---|---|---|---|---|
 | **Jigsmith** | **✓** | **✓** | **✓** | **✓** | **✓** | **✓ free** | `.com` is a ceilidh band — and a jig *is* a dance. Otherwise a clean sweep. |
+| Jigs (plural) | ✗ | ✗ | **✓** | ✗ | **✓** | ✗ (user) | **`jigs.ai` and `jigsai.com` both render "JigsAI"** — the brand is already reserved in AI space. See below. |
 | **Jigantic** | **✓** | **✓** | **✓** | **✓** | **✓** | **✓** (0 repos) | `.com` registered but dead. Availability is excellent; the meaning fights us (see below). |
 | **Shopbuilt** | **✓** | **✓** | **✓** | ✗ | **✓** | ✓ (0 repos) | From "Go Is a Shop-Built Jig" (★145p + ★103p). Says *we build our own tools*. |
 | Toolroom | ✓ | ✗ | ✓ | ✗ | ✓ | org, 8 repos | `toolroomai.com` is live; Toolroom Records. |
@@ -576,6 +578,34 @@ and proves it"*, one `ps` for the whole process table, no daemon, no state of it
 pun, which caps how serious the brand can sound, gets misspelled as *gigantic*, and mis-hears on a
 podcast. Keep it if playful is the intent (Bun, Yarn and Ghostty are playful and did fine); choose
 **Jigsmith** or **Shopbuilt** if the brand has to carry credibility with a sceptical engineer.
+
+**On Jigs (the plural).** The semantics are better than the singular — *one jig per agent*, which is
+literally how lanes work — but it costs more than it gains:
+
+1. **Someone already reserved it in AI space.** `jigs.ai` and `jigsai.com` both resolve to a page
+   that says only "JigsAI": a placeholder, no product, nothing on HN — but the brand is sat on, and
+   `.ai` is the one domain a name like this wants. By contrast `jig.ai` is merely *for sale*, and
+   `jigsmith.ai` is free. npm `jigs`, `.com` and `.dev` are taken too, and the GitHub handle is a
+   real user; only `jigs.sh` and `heyjigs.com` are free.
+2. **"Jigs" and "gigs" are a minimal pair**, and *gigs* is everywhere in this industry (gig, gigs of
+   RAM). In a voice-first product whose wake phrase is "Hey ⟨name⟩", handing the recogniser a
+   one-phoneme distinction from a common word is the one collision you cannot ship around.
+3. **Plurals fight the prose and the CLI.** "Jigs is an agent orchestration IDE" reads wrong to half
+   your readers, forever; and `jigs status` parses as *list the jigs*, where `jig status` reads as an
+   instrument being asked a question.
+
+The plural is worth keeping — in the copy, not the name: **Jigsmith**, the binary `jig`, and "a jig
+for every agent" in the first paragraph. `jig ls` can list them.
+
+### The lockup, if this direction wins
+
+> **Jigsmith** — the agent orchestration IDE for your terminal.
+> `jig status` · `jig brief` · "Hey Jig"
+> *For humans: the control room for the coding agents on your machine.*
+
+Brand carries the site, the npm scope (`@jigsmith/*`) and the mark, all of which are free including
+`jigsmith.ai` and the GitHub handle; the binary stays three characters. Clear the two Jig
+brand-safety flags (§7) before any of it goes public.
 
 ### Nicer-sounding alternatives that survived the §3 sniff
 
