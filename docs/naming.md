@@ -539,6 +539,68 @@ usually an AI company. The three ways out remain **a word whose namesakes sit ou
 **coinage** with the mascot carrying the meaning, or a **compound** (Jigsmith-class) — and the choice
 between them is a taste decision that no further search will make.
 
+### The door that is still open: compounds
+
+The objection to Spike was correct — it names *a thing an agent does*, not the product. But chasing a
+self-explaining name kept walking into the same wall, so it is worth saying why the wall is there:
+
+1. **A name's job is to identify; the category label describes.** Docker, Kubernetes, Terraform,
+   Ansible, Vercel, Cursor, Warp, Zed and Bun explain nothing about themselves. The sentence after
+   the name does that work.
+2. **Words that explain themselves are common words, and common words are 100% owned.** Roughly 300
+   names now: every plain four- and five-letter word in the supervision, control-room, workshop,
+   music, dog, mask, process, terminal and git registers is taken on npm, `.dev` **and** the GitHub
+   handle — and the best of them are owned by AI companies.
+3. **Compounds of two familiar words are still free**, because squatters buy single words and there
+   are combinatorially too many compounds to hoard. That is the same door **Jigsmith** came through.
+
+So compounds were built out of this product's own nouns — *term(inal)*, *lane*, *tree* (worktree),
+*crew*, *watch*, *tend* · *yard*, *deck*, *bay*, *pit*, *loft*, *house*, *bench* — and about sixty
+were swept. Several came through clean on all three axes; the process, terminal and git-native single
+words did not (`spawn`, `fork`, `init`, `fifo`, `nohup`, `curses`, `scroll`, `grove`, `arbor`,
+`graft`, `sprig`, `broker`, `arbiter`, `manifold`, `plenum`, **`worktree`** — all taken), and neither
+did `harness`, which would have been perfect: **Harness.io** is a CI/CD unicorn.
+
+**One kill is worth the whole exercise:** `lanedeck.ai` is live and reads **"Lanedeck — all your
+agents, one deck"**. Someone is shipping this product under one of these compounds *right now*. The
+compound door is open, and it is closing.
+
+| Compound | Reads as | npm | `.dev` | `.sh` | `.ai` | GitHub org | `.com` |
+|---|---|---|---|---|---|---|---|
+| **Termyard** | the yard where your terminals are marshalled | **✓** | **✓** | **✓** | **✓** | **✓** | live "Term Yard" (classifieds) |
+| **Tendyard** | the yard where the work is tended | **✓** | **✓** | **✓** | **✓** | **✓** | registered, blank |
+| **Crewyard** | the yard where the crew works | **✓** | **✓** | **✓** | **✓** | **✓** | registered, blank |
+| Treeyard · Termhouse · Lanepit · Lanemate · Watchyard · Keepyard · Workloft · Treebench | — | ✓ | ✓ | — | — | ✓ | — |
+| ~~Lanedeck~~ | — | ✓ | ✓ | ✓ | **✗ live agent product** | ✓ | live |
+
+### Termyard — the recommendation
+
+**`term`** is how every developer clips *terminal* (`$TERM`, terminal emulator, "open a term"), and a
+**yard** is the place where many units are marshalled, parked and worked on at once — railyard,
+shipyard, dockyard. Put together it says *the yard where your terminals are marshalled*, which is
+literally the product, and it carries the positioning's own differentiator — **terminal** — inside the
+name.
+
+It also makes the whole metaphor cohere, which nothing else in this document has managed:
+
+- a yard has **tracks** — the product's lanes;
+- wagons wait in **sidings** — the smart queue;
+- the **yardmaster** assigns every movement — which pass 1 independently found was the best plain
+  English description of this product, and which was rejected then only for being ten letters long;
+- and a yard has a **yard dog**. The Jack Russell belongs in it.
+
+Everything is free: npm and the `@termyard` scope, `.dev`, `.sh`, **`.ai`**, `heytermyard.com`, and the
+GitHub org. Only `termyard.com` is occupied, by an unrelated classifieds site. Nothing on HN.
+
+**Binary:** `yard` is the nicest to type and say (`yard status`, `yard brief`) with one narrow
+conflict — Ruby's YARD ships a `yard` binary, which only Ruby developers who generate docs will have.
+`term` is free but shadows `$TERM` in documentation; `ty` is safe and says nothing.
+
+**Alternative: Tendyard**, binary **`tend`** — softer in the mouth, and `tend status` reads as a
+sentence. It describes the supervision rather than the terminal, so it fits "agent control room"
+better than "terminal IDE". **Crewyard** is the warmest of the three and equally free, but *crew* is
+now **CrewAI**'s morpheme in multi-agent tooling, which is a confusion you would never shake.
+
 ## 8. Positioning: is "Agentic Terminal IDE" the right frame?
 
 Partly, and the two halves fail differently.
