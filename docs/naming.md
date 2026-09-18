@@ -487,6 +487,58 @@ paragraph of copy and a true story on day one — *named after the terrier who s
 and it works with **any** name. Then the name only has to be short, sayable and ownable, which after
 six passes is the only thing still hard to find.
 
+### The five-letter wall, and the mask register
+
+Asked for **five letters, explanatory, nice-sounding**, 35 plain English words in the supervision /
+control-room / crew register were run through a cheap triage — npm, `.dev`, GitHub handle:
+
+> cadre · drove · pacer · braid · chord · weave · usher · posse · leash · chore · shift · scope ·
+> focus · order · locus · pulse · relay · slate · panel · gauge · datum · truss · strut · rivet ·
+> lever · gavel · hoist · winch · crane · feist · scamp · augur · perch · tutor · coach
+
+**All 35 were taken on all three axes.** The deep-vetted ones went the same way: `brief` (brief.ai
+for sale, BriefLabs, briefai.com) · `spool` (spool.ai, usespool.com) · `steer` (steer.ai, SteerLabs,
+steerai.com) · `squad` (**squad.com is "your team of AI agents"**, squad.ai is Chutes) · `board`
+(**board.com is "The Agentic Planning Platform"**) · `probe` (ProbeLabs is "Code Intelligence for
+Engineering Teams") · `staff`, `guide` (both live products, though `staff.dev` and the `staff` and
+`guide` GitHub handles are free).
+
+**The mask register** — prompted by a Jack Russell with tan eyebrow pips and a bandit mask — was
+checked too, and it is the same story, with specific dev collisions worth recording:
+
+| Word | What holds it |
+|---|---|
+| **Bandit** | `bandit` is the Python security linter (PyCQA) |
+| **Domino** | Domino Data Lab (MLOps) — and Domino's |
+| **Blaze** | Google's internal name for Bazel; Firebase's Blaze plan; Blaze.ai |
+| **Zorro** | Zorro Productions enforces the mark; npm, `.dev`, handle all taken |
+| **Glyph · Sigil · Rune** | Glyphs (font editor) · Sigil (epub editor) · Rune Labs |
+| **Shadow · Shade · Badge · Guise · Speck · Specs** | all taken on npm, `.dev` **and** the handle |
+| **Umber · Kajal · Brindle · Masko · Volto** | npm free, but `.dev` and the handle gone |
+| **Bauta** (the Venetian mask) | **npm, `.dev`, `.sh`, `heybauta.com` all free** — but `bauta.ai` is a live Norwegian product, and English speakers cannot guess the pronunciation |
+
+Also killed on sight: **Crewe** — npm, `.dev`, `.sh` and `heycrewe.com` are all free, and it is
+pronounced exactly like *crew* with a railway-works pedigree, but **CrewAI** owns that sound in
+multi-agent tooling and the name would read as a knockoff forever.
+
+**And one correction:** `spike.dev` is **free** — verified 404 three times against two independent
+RDAP servers after a transient said otherwise.
+
+### What is actually still standing at five letters
+
+| Name | Explains itself as | Free | Cost |
+|---|---|---|---|
+| **Spike** | *a spike* — a time-boxed investigation, which is what an agent is sent to do; and the dog, mask and all | **`spike.dev`**, npm dormant since 2018 | `spike.sh` is a live error-monitoring product; Spike TV holds `.com` |
+| **Talko** | *it talks* | npm · PyPI · crates · `.sh` · `heytalko.com`; `.ai` for sale | reads consumer; only echo is Ray Ozzie's dead app |
+| **Obeya** | *the big room where all the work is visible* — literally this product | npm · `.sh` · `heyobeya.com`; nothing in AI | one pronunciation to teach (oh-BAY-uh) |
+| **Bauta** | *the mask* | npm · `.dev` · `.sh` · `hey*.com` | unguessable spelling-to-sound; a Norwegian `bauta.ai` |
+
+Roughly **250 names** have now been through the pipeline. The pattern does not change with more
+guessing: at four or five letters, a real English word with an obvious meaning is owned by someone,
+usually an AI company. The three ways out remain **a word whose namesakes sit outside dev and AI**, a
+**coinage** with the mascot carrying the meaning, or a **compound** (Jigsmith-class) — and the choice
+between them is a taste decision that no further search will make.
+
 ## 8. Positioning: is "Agentic Terminal IDE" the right frame?
 
 Partly, and the two halves fail differently.
