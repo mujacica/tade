@@ -573,6 +573,35 @@ compound door is open, and it is closing.
 | Treeyard · Termhouse · Lanepit · Lanemate · Watchyard · Keepyard · Workloft · Treebench | — | ✓ | ✓ | — | — | ✓ | — |
 | ~~Lanedeck~~ | — | ✓ | ✓ | ✓ | **✗ live agent product** | ✓ | live |
 
+### Japanese words, and artificial ones
+
+Both were asked for, and both were swept properly — about seventy more names.
+
+**Japanese.** The apt words are mostly gone, and one kill is instructive: **Kage** (影, *shadow*) is
+already `Kage — TUI for managing multiple AI agents with tmux and Git worktrees` on HN. Also taken:
+`kumiko` (Kumiko Labs, `kumiko.ai`) · `kumo` · `heya` · `honcho` · `kigumi` · `fusuma` · `engawa` ·
+`kuroko` · `tengu` · `kamen` · `shiki` · `noren` · `yagura` · `saihai` · `dogu` · `bunki`, plus `dojo`,
+`kata`, `bento`, `gemba`, `mise` and `andon` from earlier passes. Three survive:
+
+| Name | Means | Free | Cost |
+|---|---|---|---|
+| **Obeya** 大部屋 | the big room where the whole project is visible on the walls — *literally this product* | npm · `.sh` · `heyobeya.com`; nothing in AI | teach the pronunciation once |
+| **Banken** 番犬 | **watchdog** — the function *and* the mascot in one word | npm · `.dev` · `.sh` · `heybanken.com` | in German, *Banken* means "banks" — a fintech misread in half of Europe |
+| **Deban** 出番 | "your turn to go on" — the queue, exactly | npm · `.dev` · `.sh` · **`.ai`** · `hey*.com` | English speakers read *de-ban* |
+
+**Artificial.** Coined words are the only fully ownable class — but the pronounceable four- and
+five-letter space has been swept by domainers too. Of thirty designed coinages with unambiguous
+English readings (`tovo`, `nuvo`, `kono`, `pono`, `molo`, `vero`, `doro`, `koro`, `toro`, `volo`,
+`goro`, `moro`, `noro`, `dekko`, `keepo`, `watcho`, `lanvo`, `termo`, `termor`, `yardo`, `krewo`,
+`tendo` …) **every single one was taken on `.dev`.** What survives is five to six letters with a
+slightly unusual shape: **Vigro** (from *vigil* / *vigour*; npm, `.dev` **and** the GitHub handle all
+free — but is it VEE-gro, VIG-ro or VYE-gro?), and `terno` · `tarvo` · `lanora` · `denbo` · `kavel` ·
+`yotei` (npm and `.dev` free, handle taken).
+
+Which leaves the conclusion where the compound sweep left it: **a coinage buys ownership and pays in
+meaning; a Japanese word buys meaning and pays in a pronunciation lesson; a compound of two familiar
+words is the only option that gets both** — and is still, just, available.
+
 ### Termyard — the recommendation
 
 **`term`** is how every developer clips *terminal* (`$TERM`, terminal emulator, "open a term"), and a
