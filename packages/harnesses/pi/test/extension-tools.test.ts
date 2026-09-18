@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { WorkerSignal } from '@wilco/harnesses-core'
+import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -9,12 +9,12 @@ import {
 } from '../../../../test/fixtures/fake-model.ts'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter } from '../src/adapter.ts'
-import { readTools } from '../src/wilco.ts'
+import { readTools } from '../src/tade.ts'
 
-// An agent calling one of Wilco's extension tools, proven against a real pi
+// An agent calling one of Tade's extension tools, proven against a real pi
 // with a scripted model: pi registers the tool from the list it was launched
-// with, the call comes back to Wilco over the supervision channel, and what
-// Wilco answers is what the model is told.
+// with, the call comes back to Tade over the supervision channel, and what
+// Tade answers is what the model is told.
 
 async function until(check: () => boolean, timeout = 30_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -34,8 +34,8 @@ describe('extension tools in an agent', () => {
     await model?.close()
   })
 
-  it('runs in Wilco, and the model is told what Wilco answered', async () => {
-    const runDir = tmp('wilco-ext-tools-')
+  it('runs in Tade, and the model is told what Tade answered', async () => {
+    const runDir = tmp('tade-ext-tools-')
     const tools = join(runDir, 'tools.json')
     writeFileSync(
       tools,
@@ -61,7 +61,7 @@ describe('extension tools in an agent', () => {
       // A socket path over ~104 bytes will not bind, and tmp dirs are long.
       socketDir: tmp('wx-'),
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
     const signals: WorkerSignal[] = []
     adapter.onSignal('fix', (signal) => {
@@ -76,9 +76,9 @@ describe('extension tools in an agent', () => {
     await adapter.start({
       run: 'fix',
       task: 'shop/fix',
-      cwd: tmp('wilco-ext-tools-work-'),
+      cwd: tmp('tade-ext-tools-work-'),
       prompt: 'look at SHOP-1A',
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
       extras: { tools, instructions: 'Errors from shop go to Sentry.' },
     })
 
@@ -95,25 +95,25 @@ describe('extension tools in an agent', () => {
   }, 90_000)
 
   it('says when its task is finished, in the words the agent used', async () => {
-    const runDir = tmp('wilco-done-')
+    const runDir = tmp('tade-done-')
     model = await startFakeModel({
-      tool: { name: 'wilco_done', arguments: { summary: 'Refunds charge once, with a test.' } },
+      tool: { name: 'tade_done', arguments: { summary: 'Refunds charge once, with a test.' } },
       finalText: 'Finished.',
     })
     adapter = new PiAdapter({
       runDir,
       socketDir: tmp('wd-'),
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
     const signals: WorkerSignal[] = []
     adapter.onSignal('done', (signal) => signals.push(signal))
     await adapter.start({
       run: 'done',
       task: 'shop/refunds',
-      cwd: tmp('wilco-done-work-'),
+      cwd: tmp('tade-done-work-'),
       prompt: 'fix the double charge',
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
     })
     await until(() => signals.some((signal) => signal.type === 'done'))
     expect(signals.find((signal) => signal.type === 'done')).toMatchObject({
@@ -124,7 +124,7 @@ describe('extension tools in an agent', () => {
   it('lists no tools from a list that is missing or not a list', () => {
     expect(readTools(undefined)).toEqual([])
     expect(readTools('/nonexistent/tools.json')).toEqual([])
-    const path = join(tmp('wilco-ext-tools-'), 'bad.json')
+    const path = join(tmp('tade-ext-tools-'), 'bad.json')
     writeFileSync(path, '{"name":"x"}')
     expect(readTools(path)).toEqual([])
   })

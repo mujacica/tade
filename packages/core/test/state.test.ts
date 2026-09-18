@@ -7,7 +7,7 @@ const MIN = 60_000
 
 function git(over: Partial<GitSnapshot> = {}): GitSnapshot {
   return {
-    branch: 'wilco/x',
+    branch: 'tade/x',
     head: 'a'.repeat(40),
     headSubject: 'wip',
     headTime: NOW - 10 * MIN,

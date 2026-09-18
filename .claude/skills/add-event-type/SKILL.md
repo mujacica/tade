@@ -1,6 +1,6 @@
 ---
 name: add-event-type
-description: Add a new kind of event to the journal (lane_adopted, usage, wilco_opened...). Use when something happens that "what happened here?" should be able to answer later.
+description: Add a new kind of event to the journal (lane_adopted, usage, tade_opened...). Use when something happens that "what happened here?" should be able to answer later.
 ---
 
 # Adding a kind of event

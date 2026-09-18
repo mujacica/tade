@@ -6,14 +6,14 @@ import { sessionIdFor } from '../src/adapter.ts'
 import { sessionFileFor, usageOf, usageOfTask } from '../src/sessions.ts'
 
 // Reading an agent's spend out of the harness's own session file, which is the
-// record that survives Wilco being closed.
+// record that survives Tade being closed.
 //
 // The files here are written by hand rather than by a real agent: what is under
 // test is that we read a private format defensively, and a fabricated file can
 // contain the shapes a real one would take years to produce. Every entry is
 // shaped the way pi writes it — a reply's usage on its message, a summary's on
 // the entry — copied from a real session: a fixture that put usage anywhere
-// kinder once let Wilco count compactions and not one reply.
+// kinder once let Tade count compactions and not one reply.
 
 /** Write a session where the harness would put one for this cwd. */
 function writeSession(root: string, cwd: string, task: string, lines: unknown[]): string {
@@ -68,7 +68,7 @@ describe('reading a task’s session', () => {
   it('sums every priced message', async () => {
     const root = tmp('pi-sessions-')
     writeSession(root, '/src/app-refunds', 'app/refunds', [
-      { type: 'session', version: 3, id: 'wilco-app-refunds', cwd: '/src/app-refunds' },
+      { type: 'session', version: 3, id: 'tade-app-refunds', cwd: '/src/app-refunds' },
       priced(100, 20, 0.03),
       { type: 'message', message: { role: 'user', content: 'go on', timestamp: 1 } },
       priced(50, 10, 0.02),

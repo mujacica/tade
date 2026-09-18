@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { fileURLToPath } from 'node:url'
-import { runScreen, ScreenCancelled, type Ui } from '@wilco/app'
+import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
 import {
   defaultConfigPath,
   isReady,
@@ -12,11 +12,11 @@ import {
   resolveCommand,
   type Step,
   stringEnv,
-  wilcoHome,
-} from '@wilco/core'
-import { piBinary, usableModels } from '@wilco/harnesses-pi'
-import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
-import { drivers } from '@wilco/workbench'
+  tadeHome,
+} from '@tade/core'
+import { piBinary, usableModels } from '@tade/harnesses-pi'
+import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
+import { drivers } from '@tade/workbench'
 import type { Command } from 'commander'
 import { type Document, parseDocument } from 'yaml'
 import { Exit, type Io } from '../io.ts'
@@ -26,7 +26,7 @@ import { WHISPER_MODELS } from './voice.ts'
 //
 // A fresh machine has no config and no model. What decides whether
 // somebody keeps this tool is whether that first minute tells them what to do
-// or shows them an empty screen, so `wilco app` runs this when it has to and
+// or shows them an empty screen, so `tade app` runs this when it has to and
 // nothing else has to be read first.
 
 /** The config as written, for telling a choice apart from a default. */
@@ -49,7 +49,7 @@ function readConfigText(): string {
 async function offerInstall(ui: Ui, what: { name: string; packages: string[] }): Promise<boolean> {
   const manager = installer()
   if (!manager) {
-    ui.say(`  install ${what.packages.join(' and ')} and run \`wilco setup\` again`)
+    ui.say(`  install ${what.packages.join(' and ')} and run \`tade setup\` again`)
     return false
   }
   const command = `${manager.join(' ')} ${what.packages.join(' ')}`
@@ -60,7 +60,7 @@ async function offerInstall(ui: Ui, what: { name: string; packages: string[] }):
   const [bin, ...args] = [...manager, ...what.packages]
   // In the window, like everything else: an installer that takes the terminal
   // is an installer whose output you cannot see and whose prompts you cannot
-  // answer, because Wilco is still holding the keyboard.
+  // answer, because Tade is still holding the keyboard.
   const code = await ui.run(command, bin!, args)
   if (code !== 0) {
     ui.say(`  that did not work — run \`${command}\` yourself and try again`)
@@ -141,7 +141,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
   program
     .command('setup')
     .description(
-      'Set Wilco up: a project, a model, somewhere to run agents, and speech if you want it',
+      'Set Tade up: a project, a model, somewhere to run agents, and speech if you want it',
     )
     .option('--check', 'report what is missing and exit, changing nothing')
     .action(async (opts: { check?: boolean }) => {
@@ -205,13 +205,13 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       const after = readiness(await gather())
       for (const line of render(after)) io.out(line)
       io.out('')
-      io.out(isReady(after) ? 'Ready. Run `wilco`.' : 'Still missing something — see above.')
+      io.out(isReady(after) ? 'Ready. Run `tade`.' : 'Still missing something — see above.')
       if (!isReady(after)) setExit(Exit.error)
     })
 }
 
 async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
-  ui.say('A project is a git repository Wilco can start tasks in.')
+  ui.say('A project is a git repository Tade can start tasks in.')
   const suggested = facts.cwdIsRepo ? facts.cwd : ''
   const answer = await ui.ask('repository path', suggested)
   const root = resolve(answer)
@@ -230,14 +230,14 @@ async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
 
 async function setUpModel(ui: Ui): Promise<void> {
   // Said before anything is asked, because "which harness" is the question
-  // people arrive with and the answer explains everything that follows: Wilco
+  // people arrive with and the answer explains everything that follows: Tade
   // never holds a credential, so every question about models is really a
   // question about the harness.
-  ui.say('Agents are run by a harness. Wilco ships with pi and uses it for everything:')
+  ui.say('Agents are run by a harness. Tade ships with pi and uses it for everything:')
   ui.say('  · one login covers subscriptions (Claude, ChatGPT, Copilot, xAI, …)')
   ui.say('  · or an API key for any of 30-odd providers, read from your environment')
   ui.say('  · or a local model — Ollama, llama.cpp, LM Studio, anything OpenAI-shaped')
-  ui.say('Credentials stay with pi. Wilco never sees, stores or sends them.')
+  ui.say('Credentials stay with pi. Tade never sees, stores or sends them.')
   ui.say('')
 
   if (!piLoggedIn() && API_KEYS.every((name) => !process.env[name])) {
@@ -252,13 +252,13 @@ async function setUpModel(ui: Ui): Promise<void> {
       // one is worse than being told a key we control.
       ui.say('Opening the harness. Type /login, pick your provider, then ctrl+] to come back.')
       await ui.run('pi — /login, then ctrl+] to come back', process.execPath, [piBinary()])
-      if (!piLoggedIn()) throw new Error('still not logged in — run `wilco setup` again')
+      if (!piLoggedIn()) throw new Error('still not logged in — run `tade setup` again')
       ui.say('  logged in')
     } else {
       ui.say('  pi reads these from your shell, so export one and it is picked up:')
       for (const key of API_KEYS) ui.say(`    ${key}`)
       ui.say('  e.g. `export ANTHROPIC_API_KEY=sk-…` in your ~/.zshrc, then a new terminal')
-      throw new Error('set the key in your shell, then run `wilco setup` again')
+      throw new Error('set the key in your shell, then run `tade setup` again')
     }
   }
 
@@ -296,9 +296,9 @@ async function pickModel(ui: Ui): Promise<string> {
 }
 
 /**
- * Where agents live, which decides whether they survive you closing Wilco.
+ * Where agents live, which decides whether they survive you closing Tade.
  *
- * There is nothing to start — Wilco is the window — so this is a choice rather
+ * There is nothing to start — Tade is the window — so this is a choice rather
  * than an installation, and it is the one choice worth interrupting somebody
  * for: a default nobody was shown deciding whether a night's work stops when
  * you shut your laptop is not a default, it is a surprise.
@@ -306,21 +306,21 @@ async function pickModel(ui: Ui): Promise<string> {
 async function setUpWorkspace(ui: Ui): Promise<void> {
   const keepRunning =
     (await ui.choose('Where should agents run?', [
-      'tmux — they keep working after you close Wilco, and you can attach from anywhere',
-      'pty — nothing to install, and they stop when Wilco does',
+      'tmux — they keep working after you close Tade, and you can attach from anywhere',
+      'pty — nothing to install, and they stop when Tade does',
     ])) === 0
   if (!keepRunning) {
     patchConfig((config) => {
       config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
     })
-    ui.say('  agents will run inside Wilco and stop with it')
+    ui.say('  agents will run inside Tade and stop with it')
     return
   }
 
   if (!which('tmux') && !(await offerInstall(ui, { name: 'tmux', packages: ['tmux'] }))) {
     // Asked for durable agents and has no tmux: say plainly what they got
     // rather than writing a driver that will not start.
-    ui.say('  leaving it on pty for now — agents will stop when Wilco does')
+    ui.say('  leaving it on pty for now — agents will stop when Tade does')
     patchConfig((config) => {
       config.workspace = { ...(config.workspace ?? {}), driver: 'pty' }
     })
@@ -329,18 +329,18 @@ async function setUpWorkspace(ui: Ui): Promise<void> {
   patchConfig((config) => {
     config.workspace = { ...(config.workspace ?? {}), driver: 'tmux', fallback: 'pty' }
   })
-  ui.say('  agents will live in tmux and keep working when you close Wilco')
+  ui.say('  agents will live in tmux and keep working when you close Tade')
 }
 
 /**
  * Whether this machine can provide the configured driver. Asked of the driver
- * itself, so there is one answer to it and `wilco setup --check` cannot drift
+ * itself, so there is one answer to it and `tade setup --check` cannot drift
  * from what opening the workbench will actually do.
  */
 async function driverAvailable(driver: string): Promise<boolean> {
   const make = drivers[driver]
   if (!make) return false
-  return (await make(wilcoHome()).available()).ok
+  return (await make(tadeHome()).available()).ok
 }
 
 /**
@@ -377,7 +377,7 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
     'a dictation app I already use (Wispr Flow, macOS dictation)',
     'nothing for now',
   ] as const
-  const picked = await ui.choose('How should Wilco hear you?', engines)
+  const picked = await ui.choose('How should Tade hear you?', engines)
 
   if (picked === 3) {
     // These type into whatever is focused, so the dictation line receives them
@@ -386,7 +386,7 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
     return
   }
   if (picked === 4) {
-    ui.say('  skipped — `wilco setup` again when you want it')
+    ui.say('  skipped — `tade setup` again when you want it')
     return
   }
   if (picked === 1 || picked === 2) {
@@ -397,7 +397,7 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
       const voice = (surfaces.voice ?? {}) as Record<string, unknown>
       config.surfaces = { ...surfaces, voice: { ...voice, stt: { driver } } }
     })
-    ui.say(`  Wilco will use ${driver}`)
+    ui.say(`  Tade will use ${driver}`)
     if (!process.env[key]) ui.say(`  set ${key} in your shell before it can hear you`)
     return
   }
@@ -448,9 +448,9 @@ async function setUpWhisper(ui: Ui): Promise<void> {
   ui.say(code === 0 ? `  ${model.name} is ready` : '  that download did not finish — try again')
 }
 
-/** Where `wilco voice setup` puts a model, which the config has to point at. */
+/** Where `tade voice setup` puts a model, which the config has to point at. */
 function modelPathFor(name: string): string {
-  return join(wilcoHome(), 'models', `ggml-${name}.bin`)
+  return join(tadeHome(), 'models', `ggml-${name}.bin`)
 }
 
 /** Read, change and write `config.yaml`, keeping whatever else is in it. */
@@ -471,7 +471,7 @@ function patchConfig(change: (config: Record<string, unknown>) => void): void {
   change(after)
   writeDifferences(doc, [], before, after)
   mkdirSync(dirname(path), { recursive: true })
-  mkdirSync(wilcoHome(), { recursive: true })
+  mkdirSync(tadeHome(), { recursive: true })
   writeFileSync(path, doc.toString())
 }
 

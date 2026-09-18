@@ -4,12 +4,12 @@ import {
   describeWhen,
   runsOf,
   scheduleEnded,
+  tadeHome,
   taskOrigin,
   watchedFrom,
-  wilcoHome,
-} from '@wilco/core'
-import { readJournal } from '@wilco/workbench/events'
-import { readSchedules } from '@wilco/workbench/schedules'
+} from '@tade/core'
+import { readJournal } from '@tade/workbench/events'
+import { readSchedules } from '@tade/workbench/schedules'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
 
@@ -25,7 +25,7 @@ export function registerSchedules(program: Command, io: Io): void {
     .description('What runs on a clock: when each runs next, what it does, and who made it')
     .option('--json', 'machine-readable output')
     .action(async (opts: { json?: boolean }) => {
-      const home = wilcoHome()
+      const home = tadeHome()
       const kept = readSchedules(home)
       const fired = await readJournal(home, { types: ['schedule_fired'] })
       const watching = await readJournal(home, { types: ['watch_checked', 'watch_found'] })

@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/harnesses-core",
+  "name": "@tade/harnesses-core",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
+    "@tade/core": "workspace:*",
     "zod": "^4.6.2"
   }
 }

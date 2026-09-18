@@ -1,5 +1,5 @@
-import { ExtensionHost } from '@wilco/extensions-core'
-import { extensionConformance } from '@wilco/extensions-core/conformance'
+import { ExtensionHost } from '@tade/extensions-core'
+import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { resourcesExtension } from '../src/extension.ts'
 import {
@@ -13,16 +13,16 @@ import {
   totals,
 } from '../src/usage.ts'
 
-// What Wilco costs the machine. Attribution is tested on a process table
+// What Tade costs the machine. Attribution is tested on a process table
 // written here; cost is tested on a real one, because the whole point is that
 // watching must be cheap on the machine it runs on.
 
 const MB = 1024 ** 2
 const table = [
   '    1     0  20000   0.0 /sbin/launchd',
-  '  100     1 120000   2.5 node /wilco/packages/cli/src/bin.ts',
+  '  100     1 120000   2.5 node /tade/packages/cli/src/bin.ts',
   '  101   100 300000  12.0 node /pi/dist/bundle/cli.js --mode rpc --session-dir /h/orchestrator/sessions',
-  '  102   100 250000  40.5 node /pi/dist/bundle/cli.js --session-id wilco-shop-refunds -e wilco.ts',
+  '  102   100 250000  40.5 node /pi/dist/bundle/cli.js --session-id tade-shop-refunds -e tade.ts',
   '  103   102  30000   5.0 /bin/zsh -c pnpm test',
   '  104   103  90000  30.0 node vitest run',
   '  105   100   8000   0.5 /bin/zsh -l',
@@ -37,7 +37,7 @@ const lanes = [
   { id: 'web/old/agent', task: 'web/old', kind: 'agent', pid: 999, alive: false },
 ]
 
-const wilco = {
+const tade = {
   pid: 100,
   lanes: () => lanes,
   startAgent: async () => ({ task: '', worktree: '' }),
@@ -52,7 +52,7 @@ describe('whose each process is', () => {
       ppid: 1,
       rss: 120000 * 1024,
       cpu: 2.5,
-      command: 'node /wilco/packages/cli/src/bin.ts',
+      command: 'node /tade/packages/cli/src/bin.ts',
     })
     expect(parsePs('garbage\n\n  PID  PPID')).toEqual([])
   })
@@ -76,7 +76,7 @@ describe('whose each process is', () => {
     const agent = groups[0]
     expect(agent?.cpu).toBeCloseTo(75.5)
     expect(agent?.rss).toBe(370000 * 1024)
-    // Nothing outside Wilco is counted.
+    // Nothing outside Tade is counted.
     expect(groups.flatMap((group) => group.processes).some((one) => one.pid === 200)).toBe(false)
   })
 
@@ -84,7 +84,7 @@ describe('whose each process is', () => {
     const sample = sampleOf(attribute(parsePs(table), { window: 100, lanes }), 0, 12)
     expect(totals(sample, 'project').map((row) => [row.label, row.processes])).toEqual([
       ['shop', 4],
-      ['Wilco itself', 4],
+      ['Tade itself', 4],
     ])
     expect(totals(sample, 'kind')[0]).toMatchObject({ label: 'agents', processes: 3 })
     expect(totals(sample, 'process')[0]?.label).toBe('102 node cli.js (refunds)')
@@ -138,14 +138,14 @@ describe('the extension', () => {
     const answer = await extensions.call(
       'resources_usage',
       { by: 'all' },
-      { caller: { kind: 'orchestrator' }, wilco },
+      { caller: { kind: 'orchestrator' }, tade },
     )
     expect(answer.text).toContain(
-      '**Wilco is using 91% CPU and 783 MB of memory**, across 8 processes.',
+      '**Tade is using 91% CPU and 783 MB of memory**, across 8 processes.',
     )
     expect(answer.text).toContain('| shop | 76% | 369 MB | 4 |')
     expect(answer.text).toContain('| refunds | 76% | 361 MB | 3 |')
-    const [status] = await extensions.statuses(wilco)
+    const [status] = await extensions.statuses(tade)
     expect(status).toMatchObject({
       extension: 'resources',
       item: { text: '91% · 783 MB', tone: 'quiet' },
@@ -153,11 +153,9 @@ describe('the extension', () => {
     })
     expect(calls()).toBe(1)
     clock = 6_000
-    await extensions.statuses(wilco)
+    await extensions.statuses(tade)
     expect(calls()).toBe(2)
-    expect((await extensions.view('resources', wilco)).markdown).toContain(
-      '### The last 15 minutes',
-    )
+    expect((await extensions.view('resources', tade)).markdown).toContain('### The last 15 minutes')
   })
 
   it('runs when asked out loud, and says the answer in a sentence', async () => {
@@ -168,22 +166,22 @@ describe('the extension', () => {
       exec: async () => ({ code: 0, stdout: table, stderr: '' }),
     })
     for (const said of [
-      'How much memory is Wilco using?',
-      'how much CPU is wilco using',
-      'how heavy is wilco',
+      'How much memory is Tade using?',
+      'how much CPU is tade using',
+      'how heavy is tade',
       "what's the resource usage",
       'what is eating my memory',
     ]) {
       expect(extensions.heard(said)?.action.id, said).toBe('usage')
     }
     expect(extensions.heard('use more memory in the cache')).toBeNull()
-    const heard = extensions.heard('how much is wilco using')
+    const heard = extensions.heard('how much is tade using')
     const answer = await extensions.call(heard?.action.tool ?? '', heard?.action.input ?? {}, {
       caller: { kind: 'you' },
-      wilco,
+      tade,
     })
     expect(answer.said).toBe(
-      'Wilco is using 91% CPU and 783 MB of memory; refunds the most, at 76% and 361 MB.',
+      'Tade is using 91% CPU and 783 MB of memory; refunds the most, at 76% and 361 MB.',
     )
   })
 
@@ -194,7 +192,7 @@ describe('the extension', () => {
       home: '/nonexistent',
       exec: async () => ({ code: 0, stdout: table, stderr: '' }),
     })
-    const [status] = await extensions.statuses(wilco)
+    const [status] = await extensions.statuses(tade)
     expect(status?.item.tone).toBe('warning')
   })
 })
@@ -238,7 +236,7 @@ describe('what watching costs', () => {
     const answer = await extensions.call(
       'resources_usage',
       { by: 'kind' },
-      { caller: { kind: 'you' }, wilco: { ...wilco, pid: process.pid, lanes: () => [] } },
+      { caller: { kind: 'you' }, tade: { ...tade, pid: process.pid, lanes: () => [] } },
     )
     expect(performance.now() - started).toBeLessThan(2_000)
     expect(answer.text).toContain('the window')

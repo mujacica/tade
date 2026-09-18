@@ -8,9 +8,9 @@ import type {
   WorkerSignal,
   WorkerSignalListener,
   WorkerSpec,
-} from '@wilco/harnesses-core'
-import { PermissionNotPendingError } from '@wilco/harnesses-core'
-import type { Reporter, Span, Work } from '@wilco/telemetry'
+} from '@tade/harnesses-core'
+import { PermissionNotPendingError } from '@tade/harnesses-core'
+import type { Reporter, Span, Work } from '@tade/telemetry'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
@@ -126,7 +126,7 @@ const logged = (
 ) => log.read({ types: [type] as never })
 
 async function setup(mode: 'bypass' | 'policy', report?: Reporter) {
-  const log = await EventLog.open({ path: join(tmp('wilco-workers-'), 'events.jsonl') })
+  const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
   const adapter = new FakeAdapter()
   const supervisor = new WorkerSupervisor({
     adapter,
@@ -614,8 +614,8 @@ describe('what an agent does, as the work of a model', () => {
       'gen_ai.usage.total_tokens': 1_060,
       'gen_ai.usage.input_tokens.cached': 40,
       'gen_ai.cost.total_tokens': 0.31,
-      'wilco.project': 'app',
-      'wilco.harness': 'fake',
+      'tade.project': 'app',
+      'tade.harness': 'fake',
     })
     const tool = spans.find((span) => span.op === 'gen_ai.execute_tool')
     expect(tool).toMatchObject({ name: 'execute_tool bash', startedAt: 1_100, endedAt: 1_400 })

@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/drivers-core",
+  "name": "@tade/drivers-core",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -9,7 +9,7 @@
     "./conformance": "./src/conformance.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
+    "@tade/core": "workspace:*",
     "vitest": "^5.0.0"
   },
   "devDependencies": {

@@ -1,20 +1,20 @@
-// Saying something to Wilco without leaving the agent you are typing at.
+// Saying something to Tade without leaving the agent you are typing at.
 //
 // Keystrokes go straight through to the focused agent, which is what makes its
 // own keybindings work. That leaves a tension: to notice a line addressed to
-// Wilco, it cannot already have been forwarded.
+// Tade, it cannot already have been forwarded.
 //
 // So keystrokes are held back only at the start of a line, and only while they
-// still spell a prefix of "wilco ". At most six characters are ever held, and
+// still spell a prefix of "tade ". At most six characters are ever held, and
 // the moment they diverge they are flushed in order. What is held is shown, so
 // those six characters are never simply missing from the screen.
 
-export const PREFIX = 'wilco '
+export const PREFIX = 'tade '
 
 export interface RouterState {
-  /** Held back while it might still become "wilco ". */
+  /** Held back while it might still become "tade ". */
   held: string
-  /** The prefix completed: everything now goes to Wilco until Enter. */
+  /** The prefix completed: everything now goes to Tade until Enter. */
   capturing: boolean
   /** At the start of a line, which is the only place the prefix counts. */
   atLineStart: boolean
@@ -28,8 +28,8 @@ export interface Routed {
   state: RouterState
   /** Bytes the agent should receive. */
   toLane: string
-  /** A finished line for Wilco, once Enter closed it. */
-  toWilco: string | null
+  /** A finished line for Tade, once Enter closed it. */
+  toTade: string | null
 }
 
 const ENTER = /^[\r\n]$/
@@ -42,12 +42,12 @@ const BACKSPACE = /^(\x7f|\b)$/
 export function route(state: RouterState, data: string): Routed {
   let { held, capturing, atLineStart } = state
   let toLane = ''
-  let toWilco: string | null = null
+  let toTade: string | null = null
 
   for (const char of data) {
     if (capturing) {
       if (ENTER.test(char)) {
-        toWilco = held.slice(PREFIX.length).trim()
+        toTade = held.slice(PREFIX.length).trim()
         held = ''
         capturing = false
         atLineStart = true
@@ -55,7 +55,7 @@ export function route(state: RouterState, data: string): Routed {
       }
       if (BACKSPACE.test(char)) {
         held = held.slice(0, -1)
-        // Rubbed out back past "wilco ", so it is a candidate again.
+        // Rubbed out back past "tade ", so it is a candidate again.
         capturing = held.toLowerCase().startsWith(PREFIX)
         continue
       }
@@ -81,7 +81,7 @@ export function route(state: RouterState, data: string): Routed {
         held = candidate
         continue
       }
-      // Not for Wilco after all: the agent gets it all, in the order it was typed.
+      // Not for Tade after all: the agent gets it all, in the order it was typed.
       toLane += candidate
       held = ''
       atLineStart = ENTER.test(char)
@@ -92,7 +92,7 @@ export function route(state: RouterState, data: string): Routed {
     atLineStart = ENTER.test(char)
   }
 
-  return { state: { held, capturing, atLineStart }, toLane, toWilco }
+  return { state: { held, capturing, atLineStart }, toLane, toTade }
 }
 
 /** What is being held, as the window should show it. */

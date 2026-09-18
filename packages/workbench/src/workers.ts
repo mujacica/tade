@@ -6,7 +6,7 @@ import {
   type TaskId,
   type ThinkingLevel,
   type Tier,
-} from '@wilco/core'
+} from '@tade/core'
 import {
   type PermissionDecision,
   PermissionNotPendingError,
@@ -18,8 +18,8 @@ import {
   type WorkerModel,
   WorkerNotFoundError,
   type WorkerSignal,
-} from '@wilco/harnesses-core'
-import { type AgentTurns, agentTurns, noReporter, type Reporter } from '@wilco/telemetry'
+} from '@tade/harnesses-core'
+import { type AgentTurns, agentTurns, noReporter, type Reporter } from '@tade/telemetry'
 import type { EventLog } from './events.ts'
 
 // Runs agents and decides what they may do. Every tool call arrives here held;
@@ -53,7 +53,7 @@ export interface StartRunRequest {
   images?: readonly WorkerImage[]
 }
 
-/** An agent running one of Wilco's extension tools. */
+/** An agent running one of Tade's extension tools. */
 export interface ExtensionCall {
   run: RunId
   task: TaskId
@@ -91,7 +91,7 @@ export interface WorkerSupervisorOptions {
    * it threw — goes back to the agent as the tool's result.
    */
   onExtensionCall?: (call: ExtensionCall) => Promise<string>
-  /** Where Wilco's own trouble goes, and what times its agents' turns. */
+  /** Where Tade's own trouble goes, and what times its agents' turns. */
   report?: Reporter
 }
 
@@ -362,9 +362,7 @@ export class WorkerSupervisor {
     if (!id) return this.adapter
     const adapter = this.adapters[id]
     if (!adapter)
-      throw new Error(
-        `no harness called ${id}: Wilco runs ${Object.keys(this.adapters).join(', ')}`,
-      )
+      throw new Error(`no harness called ${id}: Tade runs ${Object.keys(this.adapters).join(', ')}`)
     return adapter
   }
 
@@ -517,7 +515,7 @@ export class WorkerSupervisor {
   ): Promise<void> {
     let result: { ok: boolean; text: string }
     if (!this.onExtensionCall || !state) {
-      result = { ok: false, text: 'Wilco has no extension tools to run here' }
+      result = { ok: false, text: 'Tade has no extension tools to run here' }
     } else {
       try {
         const text = await this.onExtensionCall({

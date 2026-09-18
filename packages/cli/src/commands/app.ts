@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { App } from '@wilco/app'
+import { App } from '@tade/app'
 import {
   activityFrom,
   defaultConfigPath,
@@ -11,12 +11,12 @@ import {
   isReady,
   loadConfig,
   readiness,
-  wilcoHome,
-} from '@wilco/core'
-import type { ExtensionWorkbench } from '@wilco/extensions-core'
-import { piBinary } from '@wilco/harnesses-pi/adapter'
-import { installedPieces } from '@wilco/harnesses-pi/installed'
-import { credentials, findModel, loggedInProviders, usableModels } from '@wilco/harnesses-pi/models'
+  tadeHome,
+} from '@tade/core'
+import type { ExtensionWorkbench } from '@tade/extensions-core'
+import { piBinary } from '@tade/harnesses-pi/adapter'
+import { installedPieces } from '@tade/harnesses-pi/installed'
+import { credentials, findModel, loggedInProviders, usableModels } from '@tade/harnesses-pi/models'
 import {
   decideProposal,
   extensionWorkbench,
@@ -27,12 +27,12 @@ import {
   ToolHost,
   type ToolHostOptions,
   workbenchExtensions,
-} from '@wilco/orchestrator'
-import { collectStatus } from '@wilco/status'
-import { watchProcess } from '@wilco/telemetry'
-import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
-import { HomeBusyError, Workbench } from '@wilco/workbench'
-import { livenessFrom } from '@wilco/workbench/lane-liveness'
+} from '@tade/orchestrator'
+import { collectStatus } from '@tade/status'
+import { watchProcess } from '@tade/telemetry'
+import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
+import { HomeBusyError, Workbench } from '@tade/workbench'
+import { livenessFrom } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { reporterFor, reportJournal } from '../telemetry.ts'
@@ -45,7 +45,7 @@ async function runSetup(): Promise<number> {
   return new Promise((done) => child.once('exit', (code) => done(code ?? 1)))
 }
 
-// The window. Everything it does is in `@wilco/app`; this opens the workbench,
+// The window. Everything it does is in `@tade/app`; this opens the workbench,
 // starts the orchestrator and the way back for its tools, then gets out of the
 // way. Closing it lets go of the lanes rather than ending them.
 
@@ -58,12 +58,12 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       const opened = Date.now()
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
       if (!process.stdout.isTTY) {
-        io.err('`wilco app` needs a terminal')
+        io.err('`tade app` needs a terminal')
         setExit(Exit.error)
         return
       }
@@ -79,15 +79,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
 
       // Speech is wired in only when it can actually work. Recording into an
       // engine that has no model would lose what you said, so push-to-talk
-      // falls back to a typed line and `wilco voice` says what is missing.
+      // falls back to a typed line and `tade voice` says what is missing.
       const voice = cfg.config.surfaces.voice
       const recorder = makeRecorder(voice.mic)
       const transcriber = makeTranscriber(voice.stt)
       const canHear = (await recorder.available()).ok && (await transcriber.available()).ok
 
-      const home = wilcoHome()
+      const home = tadeHome()
       const safe = program.opts().safe === true
-      // Where Wilco's own trouble goes, if anywhere: nothing is sent until a
+      // Where Tade's own trouble goes, if anywhere: nothing is sent until a
       // DSN is set, and what a crash takes down is sent on the way out.
       const report = await reporterFor(cfg.config)
       let restoreTerminal: () => Promise<void> = async () => {}
@@ -101,15 +101,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         : () => {}
       // Loaded before anything that hands them out: the workbench gives agents
       // their tools, the host gives the orchestrator its, the window runs them.
-      // How long Wilco takes to open, in the parts it is made of.
+      // How long Tade takes to open, in the parts it is made of.
       const timingOpen = report.doing({
         name: 'open the window',
-        op: 'wilco.open',
+        op: 'tade.open',
         startedAt: opened,
       })
       const loadingExtensions = timingOpen.inside({
         name: 'load the extensions',
-        op: 'wilco.extensions',
+        op: 'tade.extensions',
       })
       const extensions = await loadExtensions({ config: cfg.config, home, safe })
       loadingExtensions.end()
@@ -119,7 +119,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       let client: Workbench
       const openingWorkbench = timingOpen.inside({
         name: 'open the workbench',
-        op: 'wilco.workbench',
+        op: 'tade.workbench',
       })
       try {
         client = await Workbench.open({
@@ -143,11 +143,11 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       }
       openingWorkbench.end()
 
-      // Everything the journal says, for whoever is watching Wilco itself.
+      // Everything the journal says, for whoever is watching Tade itself.
       const stopReporting = reportJournal(report, client)
 
       // The way back for the orchestrator's own tools: it runs as pi in its
-      // own process, so `wilco_run_start` has to reach us somehow. One socket,
+      // own process, so `tade_run_start` has to reach us somehow. One socket,
       // named after this process, gone when the window is.
       // A terminal the orchestrator opens or runs something in comes to the
       // front of the window, which starts after the socket does.
@@ -156,9 +156,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       let handOff: NonNullable<ToolHostOptions['handOff']> = async () => ({ note: '', images: [] })
       // The queue is the window's to run, and the window comes up after this.
       let queue: ReturnType<App['queueTools']> | null = null
-      const opening = () => new Error('Wilco is still opening: ask again in a moment')
+      const opening = () => new Error('Tade is still opening: ask again in a moment')
       const tools = await ToolHost.listen({
-        wilco: client,
+        tade: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         onTerminal: (terminal) => showTerminal(terminal),
         handOff: (cwd) => handOff(cwd),
@@ -201,7 +201,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             await extensions.call(call.tool, call.input, {
               caller: { kind: 'orchestrator' },
               id: call.callId,
-              wilco: windowForExtensions,
+              tade: windowForExtensions,
             })
           ).text,
       })
@@ -254,7 +254,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty
-        // terminal while something else starts is the worst first second Wilco
+        // terminal while something else starts is the worst first second Tade
         // could have, and it says so in the strip when it arrives. If it never
         // does — no model configured yet — everything except free text still
         // works, which is the honest outcome.

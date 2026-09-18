@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { WilcoEvent } from '../src/events.ts'
+import type { TadeEvent } from '../src/events.ts'
 import {
   describeWhen,
   dueNow,
@@ -156,7 +156,7 @@ describe('whether a schedule is due', () => {
     expect(dueNow(hourly, at('2026-09-15T09:00:00Z'), 1, at('2026-09-15T09:30:00Z'))).toBeNull()
   })
 
-  it('catches up once for what it missed while Wilco was closed, or skips it', () => {
+  it('catches up once for what it missed while Tade was closed, or skips it', () => {
     const now = at('2026-09-15T13:20:00Z')
     expect(dueNow(schedule({ every: '1h' }), at('2026-09-15T09:00:00Z'), 1, now)).toEqual({
       run: true,
@@ -222,10 +222,10 @@ describe('when a schedule runs, in words', () => {
 describe('what a watch has done', () => {
   let seq = 0
   const event = (
-    type: WilcoEvent['type'],
+    type: TadeEvent['type'],
     detail: Record<string, unknown>,
     task: string | null = null,
-  ): WilcoEvent => ({
+  ): TadeEvent => ({
     seq: seq++,
     ts: new Date(at('2026-09-15T09:00:00Z') + seq * 60_000).toISOString(),
     type,

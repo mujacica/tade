@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌ ▐  +  ▌                 ! 1 waiting  ⠋ 2 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌           ! 1 waiting  ⠋ 2 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  3          ▐  +  ▌ │ checkout › New Sentry err…  ◎ every hour            ▐ Run now ▌ ▐ ‖ Pause ▌ ▐ ≡ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
@@ -6,7 +6,7 @@
      tests failed twice       │  Every hour, it looks with sentry.new-errors, and starts work on what it finds.         
                               │                                                                                         
    ⠋ bump-mailer              │  NEXT       Mon 14 Sep 10:00 · Mon 14 Sep 11:00 · Mon 14 Sep 12:00                      
-     working                  │  IF MISSED  runs once when Wilco next opens                                             
+     working                  │  IF MISSED  runs once when Tade next opens                                              
                               │  AT MOST    2 agents from one look; the rest wait for the next                          
    ⠋ fix-checkout-3e          │  FROM       sentry · turned on by you                                                   
      working                  │                                                                                         
@@ -37,8 +37,8 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

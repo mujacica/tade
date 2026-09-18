@@ -1,6 +1,6 @@
 ---
 name: add-transcriber
-description: Add a speech-to-text engine or a microphone backend (whisper.cpp, an API, a streaming service), or change the Transcriber/Recorder ports. Use when Wilco should listen in a new way.
+description: Add a speech-to-text engine or a microphone backend (whisper.cpp, an API, a streaming service), or change the Transcriber/Recorder ports. Use when Tade should listen in a new way.
 ---
 
 # Adding a transcriber or a recorder
@@ -21,24 +21,24 @@ different sentences, and the same recorder feeds every engine.
 2. Add one entry to `transcribers` (or `recorders`) in `packages/voice/stt/src/index.ts`. That map is the
    only place a config name becomes an implementation.
 3. Add the name to the `stt.driver` / `mic.driver` enum in `packages/core/src/config.ts`.
-4. Call the conformance suite (`testTranscriber` from `@wilco/voice-core/conformance`) in
+4. Call the conformance suite (`testTranscriber` from `@tade/voice-core/conformance`) in
    `packages/voice/stt/test/conformance.test.ts`:
    ```ts
    testTranscriber('my-engine', () => new MyTranscriber())
    ```
-5. Make sure `wilco voice` says what the engine needs when it is not ready.
+5. Make sure `tade voice` says what the engine needs when it is not ready.
 6. `pnpm check`.
 
 ## Rules
 
 - **`available()` is asked before anything is recorded**, and must never throw. A missing model or
   an unset API key is a sentence the user can act on — returning `{ ok: false, reason }` is how
-  `wilco voice` explains itself and how the window knows to fall back to a typed line. Discovering
+  `tade voice` explains itself and how the window knows to fall back to a typed line. Discovering
   it *after* someone has spoken means losing what they said.
 - **Never make a network call in `available()`.** It runs on every push-to-talk, and the test suite
   makes no network calls at all. Check for a key, a binary, a model file — not for a live service.
 - **Declare `capabilities.local` honestly.** It is what tells the user whether their voice leaves
-  the machine, and `wilco voice` prints it.
+  the machine, and `tade voice` prints it.
 - **Silence is not an error.** An empty recording returns `{ text: '' }`; the caller decides that
   nothing was said. Strip whatever noise annotations the engine emits for silence (`[BLANK_AUDIO]`),
   or they become utterances.

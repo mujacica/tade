@@ -1,6 +1,6 @@
 ---
 name: add-transcript-parser
-description: Teach Wilco to adopt sessions from a new agent provider, or fix adoption after a provider changed its transcript format. Use when `wilco status` misses or misreads sessions started outside Wilco, or warns about "unrecognised format".
+description: Teach Tade to adopt sessions from a new agent provider, or fix adoption after a provider changed its transcript format. Use when `tade status` misses or misreads sessions started outside Tade, or warns about "unrecognised format".
 ---
 
 # Adding or fixing a transcript parser
@@ -32,4 +32,4 @@ object in the `parsers` array: `{ provider, version, dir, depth, parse(chunk) }`
    a folder named for the old provider version and delete them once that version is unsupported.
 5. For a **new provider**, also add its CLI to `PROVIDERS` in `packages/status/src/processes.ts`
    so a running process can prove liveness.
-6. `pnpm check`, then run `pnpm wilco status --json` on a machine with a live session and check it.
+6. `pnpm check`, then run `pnpm tade status --json` on a machine with a live session and check it.

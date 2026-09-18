@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ExtensionHost } from '@wilco/extensions-core'
-import { extensionConformance } from '@wilco/extensions-core/conformance'
+import { ExtensionHost } from '@tade/extensions-core'
+import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../../test/fixtures/mkrepo.ts'
 import { describeReport, installCommands, planUpdate } from '../src/check.ts'
@@ -268,7 +268,7 @@ describe('checking and updating a project', () => {
       { project: 'shop', level: 'minor' },
       {
         caller: { kind: 'orchestrator' },
-        wilco: {
+        tade: {
           pid: process.pid,
           lanes: () => [],
           startAgent: async (request) => {

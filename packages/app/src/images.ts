@@ -127,7 +127,7 @@ export function readImage(path: string): { path: string; data: string; mimeType:
 }
 
 /**
- * Files handed to an agent: copied into `.wilco/attachments` where it works,
+ * Files handed to an agent: copied into `.tade/attachments` where it works,
  * so it can open them, a sentence saying where they are, and the pictures
  * among them to send with its prompt. A file gone by now is said to be gone,
  * rather than dropped without a word.
@@ -137,7 +137,7 @@ export async function handOffFiles(
   cwd: string,
 ): Promise<{ note: string; images: { path: string; data: string; mimeType: string }[] }> {
   if (paths.length === 0) return { note: '', images: [] }
-  const dir = join(cwd, '.wilco', 'attachments')
+  const dir = join(cwd, '.tade', 'attachments')
   const copied: string[] = []
   const gone: string[] = []
   const images: { path: string; data: string; mimeType: string }[] = []
@@ -155,9 +155,9 @@ export async function handOffFiles(
   }
   const notes = [
     copied.length === 1
-      ? `An attachment is in .wilco/attachments/${copied[0]}.`
+      ? `An attachment is in .tade/attachments/${copied[0]}.`
       : copied.length > 1
-        ? `Attachments are in .wilco/attachments/: ${copied.join(', ')}.`
+        ? `Attachments are in .tade/attachments/: ${copied.join(', ')}.`
         : '',
     gone.length > 0 ? `Also attached, but gone before it could be copied: ${gone.join(', ')}.` : '',
   ]
@@ -219,7 +219,7 @@ export async function clipboardImage(
   dir: string = tmpdir(),
   exec: Run = run,
 ): Promise<string | null> {
-  const path = join(dir, `wilco-clipboard-${randomUUID()}.png`)
+  const path = join(dir, `tade-clipboard-${randomUUID()}.png`)
   if (platform === 'darwin') {
     // A picture file copied in Finder is on the clipboard as the file, not its pixels.
     const copied = await exec('osascript', ['-e', 'POSIX path of (the clipboard as «class furl»)'])
@@ -266,7 +266,7 @@ export async function clipboardImage(
 
 /**
  * Options for a short-lived helper in its own process group, so the terminal
- * Wilco runs in never names its window after it. `execFile` passes `detached`
+ * Tade runs in never names its window after it. `execFile` passes `detached`
  * on to the spawn beneath it; its types just do not say so.
  */
 function detachedFor(timeout: number): { timeout: number } {

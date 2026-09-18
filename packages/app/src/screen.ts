@@ -9,22 +9,22 @@ import {
   truncateToWidth,
   visibleWidth,
 } from '@earendil-works/pi-tui'
-import type { LaneId } from '@wilco/core'
-import { PtyDriver } from '@wilco/drivers-pty'
+import type { LaneId } from '@tade/core'
+import { PtyDriver } from '@tade/drivers-pty'
 import { type Hit, hitAt } from './hits.ts'
 import { COLOUR as COLOUR_SKIN, PLAIN as PLAIN_SKIN, type Skin } from './skin.ts'
 import { blank, box, type Drawn, Row, stack } from './ui.ts'
 
-// A screen for the things Wilco asks you: setting up, and changing settings.
+// A screen for the things Tade asks you: setting up, and changing settings.
 //
 // Both used to be printed — a scroll of prompts, and for setup, other people's
 // programs handed the terminal with `stdio: 'inherit'` while a readline was
 // still reading it. Two readers of one keyboard is why Enter sometimes did
 // nothing and characters vanished.
 //
-// So the terminal belongs to Wilco throughout. Anything it has to run goes in
+// So the terminal belongs to Tade throughout. Anything it has to run goes in
 // a lane, exactly as an agent does, and its screen is drawn inside this one.
-// That is the claim the rest of Wilco makes — a window over things running
+// That is the claim the rest of Tade makes — a window over things running
 // somewhere else — applied to the last place that was still shelling out.
 
 /**
@@ -145,7 +145,7 @@ export function initialScreen(title: string, context: readonly string[] = []): S
   }
 }
 
-/** Wilco is stopped the way every terminal program is: ctrl+c. */
+/** Tade is stopped the way every terminal program is: ctrl+c. */
 export class ScreenCancelled extends Error {
   readonly code = 'SCREEN_CANCELLED'
   constructor() {
@@ -173,17 +173,16 @@ export function renderScreen(
 
 /** The wordmark, in half blocks: curves in five rows rather than a wall of them. */
 const WORDMARK_LETTERS: Record<string, string[]> = {
-  W: ['██     ██', '██  ▄  ██', '██ ███ ██', '████▀████', ' ██▀ ▀██ '],
-  I: ['██', '██', '██', '██', '██'],
-  L: ['██      ', '██      ', '██      ', '██      ', '████████'],
-  C: [' ▄████▄ ', '██▀  ▀██', '██      ', '██▄  ▄██', ' ▀████▀ '],
-  O: [' ▄████▄ ', '██▀  ▀██', '██    ██', '██▄  ▄██', ' ▀████▀ '],
+  T: ['████████', '   ██   ', '   ██   ', '   ██   ', '   ██   '],
+  A: [' ▄████▄ ', '██▀  ▀██', '████████', '██    ██', '██    ██'],
+  D: ['██████▄ ', '██   ▀██', '██    ██', '██   ▄██', '██████▀ '],
+  E: ['████████', '██      ', '██████  ', '██      ', '████████'],
 }
 export const WORDMARK = [0, 1, 2, 3, 4].map((i) =>
-  [...'WILCO'].map((letter) => WORDMARK_LETTERS[letter]?.[i] ?? '').join('  '),
+  [...'TADE'].map((letter) => WORDMARK_LETTERS[letter]?.[i] ?? '').join('  '),
 )
-/** Five steps of the signal colour, light at the top. */
-const SHADES = [123, 87, 80, 73, 30]
+/** Five steps of the brand colour, light at the top: an amber terminal, warm at the crown. */
+const SHADES = [223, 221, 214, 208, 166]
 /** Below this the wordmark is taking room the questions need. */
 const ROOM_FOR_WORDMARK = { width: 60, height: 24 }
 
@@ -212,7 +211,7 @@ export function drawScreen(
   const rows: { text: string; hits: Hit[] }[] = []
 
   // ── the wordmark, or its name where there is no room for it ──
-  const tagline = new Row(width, skin).space(4).text('will comply.', skin.you).space()
+  const tagline = new Row(width, skin).space(4).text('said, and done.', skin.you).space()
   tagline.text(
     state.title === 'Setting up'
       ? 'A control room for the coding agents on this machine.'
@@ -229,13 +228,7 @@ export function drawScreen(
     rows.push(blank(width))
     rows.push(tagline.build())
   } else {
-    rows.push(
-      new Row(width, skin)
-        .space()
-        .text('WILCO', skin.brand)
-        .text(` · ${state.title}`, skin.hint)
-        .build(),
-    )
+    rows.push(new Row(width, skin).space().mark('TADE').text(` ${state.title}`, skin.hint).build())
   }
   rows.push(blank(width))
 
@@ -350,7 +343,7 @@ function drawQuestion(
         hits: [],
       })
     }
-    const back = ' ctrl+] back to Wilco '
+    const back = ' ctrl+] back to Tade '
     body.push(
       row()
         .space()
@@ -459,7 +452,7 @@ function fitScreen(text: string, width: number): string {
 }
 
 function keys(state: ScreenState): string {
-  if (state.running) return 'ctrl+] back to Wilco'
+  if (state.running) return 'ctrl+] back to Tade'
   if (state.menu) return '↑↓ choose · enter continue'
   if (state.prompt) return 'enter continues, or takes the suggestion'
   return ''
@@ -482,7 +475,7 @@ export interface Ui {
   pause(text: string): Promise<void>
   /**
    * Run something in a terminal inside the window, and wait for it. Every
-   * keystroke goes to it while it runs, because Wilco is the only thing
+   * keystroke goes to it while it runs, because Tade is the only thing
    * reading the keyboard.
    */
   run(title: string, command: string, args: string[]): Promise<number>

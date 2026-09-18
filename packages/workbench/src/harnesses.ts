@@ -1,5 +1,5 @@
-import type { WorkerAdapter } from '@wilco/harnesses-core'
-import { PiAdapter } from '@wilco/harnesses-pi'
+import type { WorkerAdapter } from '@tade/harnesses-core'
+import { PiAdapter } from '@tade/harnesses-pi'
 
 // The harnesses agents can run in, by name: the one registry every call site
 // goes through, so adding a harness is an adapter and a line here — never a

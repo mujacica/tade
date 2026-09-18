@@ -1,5 +1,5 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { KEY_BINDINGS, type Setting, type SettingGroup } from '@wilco/core'
+import { KEY_BINDINGS, type Setting, type SettingGroup } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
 import type { Hit } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
@@ -62,7 +62,7 @@ export interface PanelContext {
   height: number
   skin: Skin
   pointer: Pointer
-  /** Wilco's home, as you would type it: where worktrees are made. */
+  /** Tade's home, as you would type it: where worktrees are made. */
   home: string
   route: { harness: string; model: string | null; provider: string | null } | null
   /** Where the money went, for the window and grouping the Spend panel is on. */
@@ -131,9 +131,9 @@ export interface PanelContext {
   terminalName: string
   /** The extensions this window runs with. */
   extensions: readonly ExtensionView[]
-  /** Extensions the harness loads itself, which Wilco only lists. */
+  /** Extensions the harness loads itself, which Tade only lists. */
   harnessExtensions: readonly { name: string; where: string }[]
-  /** What Wilco wrote for itself, waiting on you. */
+  /** What Tade wrote for itself, waiting on you. */
   proposals: readonly ProposalView[]
   /** The extension view being shown, once it has been asked for. */
   extensionView: { title: string; markdown: string } | null
@@ -325,7 +325,7 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
 /**
  * The extensions: each with whether it works and, when it does not, what to
  * do about it; turning it on or off, setting it up, its actions; then what
- * Wilco wrote for itself and is waiting on you to read. A fixed height,
+ * Tade wrote for itself and is waiting on you to read. A fixed height,
  * scrolled to the control the keyboard is on, so nothing jumps while you move.
  */
 function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
@@ -476,8 +476,8 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     lines.push(
       row()
         .space()
-        .text('WRITTEN BY WILCO', skin.label)
-        .text('  waiting for you: approved ones load when Wilco next starts', skin.hint)
+        .text('WRITTEN BY TADE', skin.label)
+        .text('  waiting for you: approved ones load when Tade next starts', skin.hint)
         .build(),
     )
     for (const proposal of ctx.proposals) {
@@ -1050,7 +1050,7 @@ function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
       .text(', so closing stops them. Their')
       .build(),
     row().space().text('conversations are kept, and they open again where they').build(),
-    row().space().text('stopped the next time Wilco opens.').build(),
+    row().space().text('stopped the next time Tade opens.').build(),
     blank(inner),
     row().space().text('Under tmux they would keep working after you close.', skin.hint).build(),
     row()
@@ -1068,7 +1068,7 @@ function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   ]
-  return box('Close Wilco?', rows, width, skin, { corner: 'esc' })
+  return box('Close Tade?', rows, width, skin, { corner: 'esc' })
 }
 
 function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
@@ -1098,7 +1098,7 @@ function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
       .text(', so reloading stops them. Their')
       .build(),
     row().space().text('conversations are kept, and they open again where they').build(),
-    row().space().text('stopped the next time Wilco opens.').build(),
+    row().space().text('stopped the next time Tade opens.').build(),
     blank(inner),
     row()
       .right((r) =>
@@ -1110,7 +1110,7 @@ function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   ]
-  return box('Reload Wilco?', rows, width, skin, { corner: 'esc' })
+  return box('Reload Tade?', rows, width, skin, { corner: 'esc' })
 }
 
 function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
@@ -1263,7 +1263,7 @@ function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
         )
         .build(),
     )
-    notice.push(row().space(3).text('so Wilco needs one before it can start work there.').build())
+    notice.push(row().space(3).text('so Tade needs one before it can start work there.').build())
     notice.push(
       row()
         .space(3)
@@ -1907,7 +1907,7 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     rows.push(
       row()
         .space()
-        .text('Kept word for word. Saying "remember …" to Wilco does the same.', skin.hint)
+        .text('Kept word for word. Saying "remember …" to Tade does the same.', skin.hint)
         .build(),
     )
   }

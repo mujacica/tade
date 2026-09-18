@@ -6,9 +6,9 @@ import {
   type WorkerCommand,
   WorkerSignal,
   type WorkerSignalListener,
-} from '@wilco/harnesses-core'
+} from '@tade/harnesses-core'
 
-// The Wilco side of the supervision channel: one Unix socket per run, strict
+// The Tade side of the supervision channel: one Unix socket per run, strict
 // LF-delimited JSONL. The agent's extension connects to it, streams signals
 // up, and waits on commands coming down.
 

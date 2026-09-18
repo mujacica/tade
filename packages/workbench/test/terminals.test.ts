@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { until } from '@wilco/drivers-core/conformance'
+import { until } from '@tade/drivers-core/conformance'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import type { LaneRecord } from '../src/registry.ts'
@@ -69,7 +69,7 @@ describe('a terminal on the workbench', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    home = tmp('wilco-terminals-')
+    home = tmp('tade-terminals-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
   })
@@ -82,11 +82,11 @@ describe('a terminal on the workbench', () => {
     const opened = await client.openTerminal({ project: 'app', cols: 100, rows: 20 })
     expect(opened).toMatchObject({ id: 'app/terminals/1', name: 'terminal 1', cwd: repo.root })
 
-    await client.runInTerminal('terminal 1', 'echo wilco-$((40 + 2))')
-    await until(async () => (await client.readTerminal('1')).includes('wilco-42'))
+    await client.runInTerminal('terminal 1', 'echo tade-$((40 + 2))')
+    await until(async () => (await client.readTerminal('1')).includes('tade-42'))
 
-    const found = await client.searchTerminal('1', 'WILCO-42')
-    expect(found.matches.some((match) => match.text.includes('wilco-42'))).toBe(true)
+    const found = await client.searchTerminal('1', 'TADE-42')
+    expect(found.matches.some((match) => match.text.includes('tade-42'))).toBe(true)
 
     await client.renameTerminal('1', 'tests')
     expect(client.terminals('app').map((t) => t.name)).toEqual(['tests'])

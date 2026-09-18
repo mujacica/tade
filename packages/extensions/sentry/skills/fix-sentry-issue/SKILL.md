@@ -1,11 +1,11 @@
 ---
 name: fix-sentry-issue
-description: How to fix an error Sentry reported — read the context Wilco left, reproduce it from the stack trace and breadcrumbs, fix the cause, prove it with a test, and commit so Sentry resolves it on release.
+description: How to fix an error Sentry reported — read the context Tade left, reproduce it from the stack trace and breadcrumbs, fix the cause, prove it with a test, and commit so Sentry resolves it on release.
 ---
 
 # Fixing a Sentry issue
 
-When Wilco starts you on a Sentry issue, `.wilco/context.md` holds what Sentry knows: the issue's
+When Tade starts you on a Sentry issue, `.tade/context.md` holds what Sentry knows: the issue's
 short id and link, how often it happens and to how many people, the exception, the frame in the
 project's own code that matters most (with the lines around it), the stack trace, the breadcrumbs
 that led up to it, the request, the release and environment, and the trace id.

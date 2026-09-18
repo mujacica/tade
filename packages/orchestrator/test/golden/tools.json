@@ -1,7 +1,7 @@
 [
   {
-    "name": "wilco_agent_harness",
-    "description": "Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Wilco says which harnesses exist and which it can run yet.",
+    "name": "tade_agent_harness",
+    "description": "Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Tade says which harnesses exist and which it can run yet.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -22,8 +22,8 @@
     }
   },
   {
-    "name": "wilco_agent_model",
-    "description": "Switch the model an agent is running on: \"switch refunds to opus 5\", \"use kimi in agent-1\". New agents start on it from then on, until another is chosen; agents already working keep their own. Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to wilco_run_start instead.",
+    "name": "tade_agent_model",
+    "description": "Switch the model an agent is running on: \"switch refunds to opus 5\", \"use kimi in agent-1\". New agents start on it from then on, until another is chosen; agents already working keep their own. Say the model the way the human did; Tade finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to tade_run_start instead.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -44,8 +44,8 @@
     }
   },
   {
-    "name": "wilco_agent_rename",
-    "description": "Give an agent a name: what its work is called, shown in the window and in its own session. Only when the human asks to rename it. A name they give is never replaced by one Wilco would have chosen.",
+    "name": "tade_agent_rename",
+    "description": "Give an agent a name: what its work is called, shown in the window and in its own session. Only when the human asks to rename it. A name they give is never replaced by one Tade would have chosen.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -66,7 +66,7 @@
     }
   },
   {
-    "name": "wilco_agent_thinking",
+    "name": "tade_agent_thinking",
     "description": "Set how hard an agent thinks before it answers — off, minimal, low, medium, high, xhigh or max — from its next turn: \"think harder on refunds\", \"less thinking for agent-1\". New agents think that hard too, until another level is chosen. A model that cannot think that hard takes the most it can. The agent must be running.",
     "parameters": {
       "type": "object",
@@ -88,7 +88,7 @@
     }
   },
   {
-    "name": "wilco_approvals",
+    "name": "tade_approvals",
     "description": "Commands agents are waiting for permission to run.",
     "parameters": {
       "type": "object",
@@ -103,7 +103,7 @@
     }
   },
   {
-    "name": "wilco_approve",
+    "name": "tade_approve",
     "description": "Let a waiting command run. Only after the human has agreed to that exact command.",
     "parameters": {
       "type": "object",
@@ -125,7 +125,7 @@
     }
   },
   {
-    "name": "wilco_deny",
+    "name": "tade_deny",
     "description": "Refuse a waiting command, telling the agent why.",
     "parameters": {
       "type": "object",
@@ -151,7 +151,7 @@
     }
   },
   {
-    "name": "wilco_done",
+    "name": "tade_done",
     "description": "Mark a task finished because the human said it is, whatever its rule: work waiting on it starts. Not for your own guess that it looks done — ask them.",
     "parameters": {
       "type": "object",
@@ -172,7 +172,7 @@
     }
   },
   {
-    "name": "wilco_logs",
+    "name": "tade_logs",
     "description": "What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.",
     "parameters": {
       "type": "object",
@@ -191,8 +191,8 @@
     }
   },
   {
-    "name": "wilco_orchestrator_model",
-    "description": "Switch the model you — the orchestrator — think with: \"use opus 5 yourself\", \"change your model to sonnet\". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Wilco starts. For an agent's model use wilco_agent_model; for \"both\", call each.",
+    "name": "tade_orchestrator_model",
+    "description": "Switch the model you — the orchestrator — think with: \"use opus 5 yourself\", \"change your model to sonnet\". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent's model use tade_agent_model; for \"both\", call each.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -208,7 +208,7 @@
     }
   },
   {
-    "name": "wilco_park",
+    "name": "tade_park",
     "description": "Set a task aside. Nothing is lost: the worktree stays and it can be picked back up.",
     "parameters": {
       "type": "object",
@@ -225,8 +225,8 @@
     }
   },
   {
-    "name": "wilco_plan",
-    "description": "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Wilco's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
+    "name": "tade_plan",
+    "description": "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -327,8 +327,8 @@
     }
   },
   {
-    "name": "wilco_propose_extension",
-    "description": "Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `wilco extensions activate`. Never assume a proposed tool is available.",
+    "name": "tade_propose_extension",
+    "description": "Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `tade extensions activate`. Never assume a proposed tool is available.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -354,7 +354,7 @@
     }
   },
   {
-    "name": "wilco_propose_skill",
+    "name": "tade_propose_skill",
     "description": "Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.",
     "parameters": {
       "type": "object",
@@ -380,7 +380,7 @@
     }
   },
   {
-    "name": "wilco_queue",
+    "name": "tade_queue",
     "description": "What is waiting to start, and why: after what, until when, held by what, or paused. Answer questions about queued work with this, not from memory.",
     "parameters": {
       "type": "object",
@@ -390,7 +390,7 @@
     }
   },
   {
-    "name": "wilco_queue_change",
+    "name": "tade_queue_change",
     "description": "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it; name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
     "parameters": {
       "type": "object",
@@ -413,7 +413,7 @@
         },
         "schedule": {
           "type": "string",
-          "description": "the schedule, by the id wilco_queue lists it with"
+          "description": "the schedule, by the id tade_queue lists it with"
         },
         "name": {
           "type": "string",
@@ -431,7 +431,7 @@
     }
   },
   {
-    "name": "wilco_remember",
+    "name": "tade_remember",
     "description": "Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything.",
     "parameters": {
       "type": "object",
@@ -452,7 +452,7 @@
     }
   },
   {
-    "name": "wilco_resume",
+    "name": "tade_resume",
     "description": "Pick a parked task back up, so it counts as work again.",
     "parameters": {
       "type": "object",
@@ -469,7 +469,7 @@
     }
   },
   {
-    "name": "wilco_run_cleanup",
+    "name": "tade_run_cleanup",
     "description": "Stop agents that match a state filter: idle (not actively working), done (ready to merge, in review state), failed, or all (any non-working agent). Use when the human asks to clean up finished or failed agents.",
     "parameters": {
       "type": "object",
@@ -486,7 +486,7 @@
     }
   },
   {
-    "name": "wilco_run_list",
+    "name": "tade_run_list",
     "description": "The agents working right now, and the task each is on. One agent per task at most.",
     "parameters": {
       "type": "object",
@@ -496,8 +496,8 @@
     }
   },
   {
-    "name": "wilco_run_start",
-    "description": "Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work (\"use opus\"), pass it here so the agent starts on it: Wilco finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.",
+    "name": "tade_run_start",
+    "description": "Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work (\"use opus\"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -521,7 +521,7 @@
     }
   },
   {
-    "name": "wilco_run_stop",
+    "name": "tade_run_stop",
     "description": "Stop the agent working on a task. The task and its worktree stay; only the agent ends.",
     "parameters": {
       "type": "object",
@@ -538,8 +538,8 @@
     }
   },
   {
-    "name": "wilco_schedule",
-    "description": "Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given. It runs while Wilco is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.",
+    "name": "tade_schedule",
+    "description": "Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given. It runs while Tade is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -648,7 +648,7 @@
             "once",
             "skip"
           ],
-          "description": "what happens to runs that came due while Wilco was closed: once (the default) or skip"
+          "description": "what happens to runs that came due while Tade was closed: once (the default) or skip"
         }
       },
       "required": [
@@ -660,7 +660,7 @@
     }
   },
   {
-    "name": "wilco_status",
+    "name": "tade_status",
     "description": "Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.",
     "parameters": {
       "type": "object",
@@ -670,7 +670,7 @@
     }
   },
   {
-    "name": "wilco_steer",
+    "name": "tade_steer",
     "description": "Tell the agent working on a task something, without stopping it.",
     "parameters": {
       "type": "object",
@@ -692,7 +692,7 @@
     }
   },
   {
-    "name": "wilco_task_create",
+    "name": "tade_task_create",
     "description": "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased. Give it the context and links you gathered, so the agent that works on it starts knowing what you know.",
     "parameters": {
       "type": "object",
@@ -711,7 +711,7 @@
         },
         "context": {
           "type": "string",
-          "description": "what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .wilco/context.md in its worktree."
+          "description": "what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .tade/context.md in its worktree."
         },
         "links": {
           "type": "array",
@@ -756,7 +756,7 @@
     }
   },
   {
-    "name": "wilco_terminal_close",
+    "name": "tade_terminal_close",
     "description": "Close a terminal, ending whatever is running in it. Only when the human asked for that.",
     "parameters": {
       "type": "object",
@@ -775,7 +775,7 @@
     }
   },
   {
-    "name": "wilco_terminal_list",
+    "name": "tade_terminal_list",
     "description": "The terminals open along the bottom of the window, with their names, projects and folders.",
     "parameters": {
       "type": "object",
@@ -790,7 +790,7 @@
     }
   },
   {
-    "name": "wilco_terminal_open",
+    "name": "tade_terminal_open",
     "description": "Open a terminal: a shell in the project's folder, or in the folder given (an agent's worktree, say). It appears along the bottom of the window.",
     "parameters": {
       "type": "object",
@@ -815,7 +815,7 @@
     }
   },
   {
-    "name": "wilco_terminal_read",
+    "name": "tade_terminal_read",
     "description": "What a terminal shows, with some of its scrollback: how to see what a command printed.",
     "parameters": {
       "type": "object",
@@ -838,7 +838,7 @@
     }
   },
   {
-    "name": "wilco_terminal_rename",
+    "name": "tade_terminal_rename",
     "description": "Rename a terminal, so it can be found by what it is for: \"tests\", \"server\".",
     "parameters": {
       "type": "object",
@@ -863,7 +863,7 @@
     }
   },
   {
-    "name": "wilco_terminal_run",
+    "name": "tade_terminal_run",
     "description": "Run a command in a terminal, exactly as if the human typed it and pressed enter. They see it happen. Read the terminal afterwards to see what it printed.",
     "parameters": {
       "type": "object",
@@ -892,7 +892,7 @@
     }
   },
   {
-    "name": "wilco_terminal_search",
+    "name": "tade_terminal_search",
     "description": "Find lines in a terminal's scrollback containing some text, any case.",
     "parameters": {
       "type": "object",

@@ -3,9 +3,9 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
 // Where Sentry credentials already are on a machine, so using Sentry from
-// Wilco needs nothing new when you already use it from a terminal.
+// Tade needs nothing new when you already use it from a terminal.
 //
-// In order: what Wilco's config says; the environment sentry-cli reads
+// In order: what Tade's config says; the environment sentry-cli reads
 // (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`); a `.sentryclirc` in a
 // project or your home; and the login the newer `sentry` CLI keeps. Nothing is
 // ever written back to any of them, and a token is never shown.

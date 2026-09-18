@@ -1,15 +1,15 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { allNotes, type Note, NoteSchema, note, recall } from '@wilco/core'
+import { allNotes, type Note, NoteSchema, note, recall } from '@tade/core'
 import { z } from 'zod'
 
-// Things you told Wilco, kept next to the journal and in the same shape:
+// Things you told Tade, kept next to the journal and in the same shape:
 // append-only, one JSON object per line, the file itself the truth.
 //
 // A note is the one kind of fact no probe could ever recover, so losing them
 // to a half-written line would be losing them for good. A line that cannot be
 // read is skipped rather than thrown over, exactly like a provider transcript:
-// one bad record must never stop Wilco from starting.
+// one bad record must never stop Tade from starting.
 
 const FILE = 'memory.jsonl'
 

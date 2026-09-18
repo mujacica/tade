@@ -3,13 +3,16 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   type DoneRule,
+  LEGACY_PROJECT_DIR,
+  LEGACY_SHARED_TASKS_DIR,
+  PROJECT_DIR,
   type StartCondition,
   sharedTaskDir,
   TASK_CONTEXT_FILE,
   TaskFile,
   TaskId,
-} from '@wilco/core'
-import { git, parseStatusV2, resolveBaseRef } from '@wilco/status'
+} from '@tade/core'
+import { git, parseStatusV2, resolveBaseRef } from '@tade/status'
 import { parse as parseYaml, stringify } from 'yaml'
 
 // Task lifecycle: where the work happens, and the sentence you said when you
@@ -20,15 +23,27 @@ import { parse as parseYaml, stringify } from 'yaml'
 
 /**
  * Where a task's own file is. A task sharing the checkout keeps it in a folder
- * of its own under `.wilco/tasks`, since the directory is everyone's; one in a
- * worktree keeps it at the worktree's `.wilco/task.yaml`.
+ * of its own under `.tade/tasks`, since the directory is everyone's; one in a
+ * worktree keeps it at the worktree's `.tade/task.yaml`.
  */
 export function taskFilePath(worktree: string, id?: string): string {
   if (id) {
     const shared = join(worktree, sharedTaskDir(id), 'task.yaml')
     if (existsSync(shared)) return shared
+    const before = join(
+      worktree,
+      LEGACY_SHARED_TASKS_DIR,
+      id.split('/').slice(1).join('-'),
+      'task.yaml',
+    )
+    if (existsSync(before)) return before
   }
-  return join(worktree, '.wilco', 'task.yaml')
+  const own = join(worktree, PROJECT_DIR, 'task.yaml')
+  if (existsSync(own)) return own
+  // A task made before the rename keeps its file where it put it: a task's id
+  // is in that file, so not finding it is the task disappearing.
+  const legacy = join(worktree, LEGACY_PROJECT_DIR, 'task.yaml')
+  return existsSync(legacy) ? legacy : own
 }
 
 /** Where a task's context is, relative to where its agent works, whether or not it has one. */
@@ -39,14 +54,14 @@ export function taskContextPath(worktree: string, id?: string): string {
   return TASK_CONTEXT_FILE
 }
 
-export const TASK_BRANCH_PREFIX = 'wilco/'
+export const TASK_BRANCH_PREFIX = 'tade/'
 
 export interface CreateTaskOptions {
   /** Project name, used for the task id. */
   project: string
   /** Repository root the worktree is created from. */
   root: string
-  /** Task name: the branch becomes `wilco/<slug>`. */
+  /** Task name: the branch becomes `tade/<slug>`. */
   slug: string
   /** What you said, stored verbatim. Nothing else can reconstruct it. */
   intent: string
@@ -57,7 +72,7 @@ export interface CreateTaskOptions {
   /**
    * Start without a branch: the worktree is on the base commit, detached, and
    * `nameTask` gives it a branch when there is work to name. An agent opened
-   * to look around leaves no `wilco/*` branch behind.
+   * to look around leaves no `tade/*` branch behind.
    */
   detached?: boolean
   /** What the agent should know before it starts, written beside the task file. */
@@ -79,7 +94,7 @@ export interface CreateTaskOptions {
   now?: Date
 }
 
-/** A created task's git facts. The task *model* lives in @wilco/core. */
+/** A created task's git facts. The task *model* lives in @tade/core. */
 export interface TaskWorktree {
   id: string
   project: string
@@ -154,7 +169,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     workspace: 'worktree',
   }
   await writeTaskFile(
-    join(worktree, '.wilco', 'task.yaml'),
+    join(worktree, '.tade', 'task.yaml'),
     task,
     opts.intent,
     opts.now ?? new Date(),
@@ -168,7 +183,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
 
 /**
  * A task in the project's own checkout: nothing in git changes, only a folder
- * of Wilco's own under `.wilco/tasks` saying what was asked. The branch is
+ * of Tade's own under `.tade/tasks` saying what was asked. The branch is
  * whatever the checkout is on, and stays so.
  */
 async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<TaskWorktree> {
@@ -274,7 +289,7 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
       '--untracked-files=all',
     ])
     if (status.ok) {
-      const dirty = parseStatusV2(status.stdout).paths.filter((p) => !/^\.wilco(\/|$)/.test(p))
+      const dirty = parseStatusV2(status.stdout).paths.filter((p) => !/^\.tade(\/|$)/.test(p))
       if (dirty.length > 0) {
         return { removed: false, reason: `${dirty.length} uncommitted file(s) in ${opts.worktree}` }
       }
@@ -289,9 +304,9 @@ export async function removeTask(opts: RemoveTaskOptions): Promise<RemoveResult>
     }
   }
 
-  // `--force` unconditionally: the refusals above are Wilco's, and they have
-  // already passed. Git would otherwise refuse over `.wilco/task.yaml`, which
-  // is Wilco's own bookkeeping and never work worth keeping.
+  // `--force` unconditionally: the refusals above are Tade's, and they have
+  // already passed. Git would otherwise refuse over `.tade/task.yaml`, which
+  // is Tade's own bookkeeping and never work worth keeping.
   const removed = await git(opts.root, ['worktree', 'remove', '--force', opts.worktree], 30_000)
   if (!removed.ok) throw new Error(`git worktree remove failed: ${firstLine(removed.stderr)}`)
 
@@ -423,7 +438,7 @@ export async function beginFrom(
     throw new Error(`${id} could not begin from ${first}: ${firstLine(reset.stderr)}`)
   }
   for (const ref of rest) {
-    const merged = await git(worktree, [...AS_WILCO, 'merge', '--no-edit', ref], 30_000)
+    const merged = await git(worktree, [...AS_TADE, 'merge', '--no-edit', ref], 30_000)
     if (merged.ok || (await settleOwnConflicts(worktree))) continue
     await git(worktree, ['merge', '--abort'])
     // Back where it was planned, so trying again later begins from the same place.
@@ -446,14 +461,14 @@ export async function beginFrom(
   }
 }
 
-/** Wilco's own commits, never the person's: they only put starting points together. */
-const AS_WILCO = ['-c', 'user.name=Wilco', '-c', 'user.email=wilco@localhost']
+/** Tade's own commits, never the person's: they only put starting points together. */
+const AS_TADE = ['-c', 'user.name=Tade', '-c', 'user.email=tade@localhost']
 
 /** A worktree's own task file and context, as they are now. */
 async function ownFiles(worktree: string): Promise<Map<string, string>> {
   const files = new Map<string, string>()
   for (const name of ['task.yaml', 'context.md']) {
-    const path = join(worktree, '.wilco', name)
+    const path = join(worktree, '.tade', name)
     try {
       files.set(path, await readFile(path, 'utf8'))
     } catch {
@@ -464,7 +479,7 @@ async function ownFiles(worktree: string): Promise<Map<string, string>> {
 }
 
 /**
- * Finish a merge whose only conflicts are in `.wilco/`: Wilco's bookkeeping,
+ * Finish a merge whose only conflicts are in `.tade/`: Tade's bookkeeping,
  * which agents sometimes commit, and which is never the work. Anything else
  * conflicting is left for the caller to abort.
  */
@@ -472,10 +487,10 @@ async function settleOwnConflicts(worktree: string): Promise<boolean> {
   const listed = await git(worktree, ['diff', '--name-only', '--diff-filter=U', '-z'])
   const conflicted = listed.stdout.split('\0').filter(Boolean)
   if (!listed.ok || conflicted.length === 0) return false
-  if (!conflicted.every((path) => path.startsWith('.wilco/'))) return false
+  if (!conflicted.every((path) => path.startsWith('.tade/'))) return false
   const ours = await git(worktree, ['checkout', '--ours', '--', ...conflicted])
   const added = await git(worktree, ['add', '--', ...conflicted])
-  const done = await git(worktree, [...AS_WILCO, 'commit', '--no-edit', '--no-verify'])
+  const done = await git(worktree, [...AS_TADE, 'commit', '--no-edit', '--no-verify'])
   return ours.ok && added.ok && done.ok
 }
 

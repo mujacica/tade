@@ -1,14 +1,14 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { sessionIdFor } from './adapter.ts'
+import { legacySessionIdFor, sessionIdFor } from './adapter.ts'
 import { modelOfMessage, spentBy } from './usage.ts'
 
 // Reading what an agent did out of pi's own session, rather than out of what
 // it told us at the time.
 //
 // It is the same information either way — the supervision extension reports
-// each turn as it happens — but the extension can only report while Wilco is
+// each turn as it happens — but the extension can only report while Tade is
 // listening, and under a driver whose lanes outlive the window that is not
 // always. The session file is written by pi regardless, so it is the ledger
 // that survives us being closed, and this is how the gap gets filled in.
@@ -62,13 +62,15 @@ export async function sessionFileFor(
   opts: { root?: string } = {},
 ): Promise<string | null> {
   const root = opts.root ?? sessionsRoot()
-  const suffix = `_${sessionIdFor(task)}.jsonl`
+  // Both names: a task started before the rename talks in a session named the
+  // old way, and its spend is as real as anyone else's.
+  const suffixes = [`_${sessionIdFor(task)}.jsonl`, `_${legacySessionIdFor(task)}.jsonl`]
   const dirs = await readdir(root).catch(() => [] as string[])
   const found: string[] = []
   for (const dir of dirs) {
     const entries = await readdir(join(root, dir)).catch(() => [] as string[])
     for (const entry of entries) {
-      if (entry.endsWith(suffix)) found.push(join(root, dir, entry))
+      if (suffixes.some((suffix) => entry.endsWith(suffix))) found.push(join(root, dir, entry))
     }
   }
   // The name starts with a timestamp, so the newest sorts last. More than one

@@ -1,4 +1,4 @@
-import { git } from '@wilco/status'
+import { git } from '@tade/status'
 
 // Finding things in the places agents work: the files of each worktree, and
 // the lines inside them.

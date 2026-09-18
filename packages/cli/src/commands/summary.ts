@@ -1,10 +1,10 @@
-import { describeWork, summariseWork, wilcoHome } from '@wilco/core'
-import { readJournal } from '@wilco/workbench/events'
+import { describeWork, summariseWork, tadeHome } from '@tade/core'
+import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
 
 // What an agent has been doing, read off the journal rather than asked of the
-// agent: an agent's own account of itself is exactly what Wilco does not trust.
+// agent: an agent's own account of itself is exactly what Tade does not trust.
 //
 // Reading the file rather than taking the workbench, so this still answers with
 // a window open — which is when you are most likely to be asking.
@@ -18,7 +18,7 @@ export function registerSummary(program: Command, io: Io, _setExit: (code: numbe
     .description('What an agent has been doing')
     .option('--json', 'machine-readable output')
     .action(async (task: string, opts: { json?: boolean }) => {
-      const events = await readJournal(wilcoHome(), { task, limit: DEPTH })
+      const events = await readJournal(tadeHome(), { task, limit: DEPTH })
       const now = Date.now()
       const summary = summariseWork(events, task, now)
       if (opts.json) {

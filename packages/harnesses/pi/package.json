@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/harnesses-pi",
+  "name": "@tade/harnesses-pi",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
-    "@wilco/core": "workspace:*",
-    "@wilco/harnesses-core": "workspace:*"
+    "@tade/core": "workspace:*",
+    "@tade/harnesses-core": "workspace:*"
   },
   "devDependencies": {
     "node-pty": "^1.1.0"

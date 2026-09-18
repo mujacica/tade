@@ -32,7 +32,7 @@ export function silentClip(ms = 400, sampleRate = 16_000): AudioClip {
   data.writeUInt32LE(samples * 2, 40)
   const path = join(
     tmpdir(),
-    `wilco-silent-${process.pid}-${Math.random().toString(36).slice(2)}.wav`,
+    `tade-silent-${process.pid}-${Math.random().toString(36).slice(2)}.wav`,
   )
   writeFileSync(path, data)
   return { path, sampleRate, durationMs: ms }

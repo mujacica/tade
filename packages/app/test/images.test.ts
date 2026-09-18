@@ -53,7 +53,7 @@ describe('a dropped picture', () => {
   })
 
   it('is sent as its bytes, and refused when it is not a picture', () => {
-    const dir = tmp('wilco-images-')
+    const dir = tmp('tade-images-')
     const png = join(dir, 'a.png')
     writeFileSync(png, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
     expect(readImage(png)).toEqual({ path: png, data: 'iVBORw==', mimeType: 'image/png' })
@@ -64,27 +64,27 @@ describe('a dropped picture', () => {
 
 describe('files handed to an agent', () => {
   it('are copied where it works and named in what it is told, pictures sent along', async () => {
-    const from = tmp('wilco-attached-')
+    const from = tmp('tade-attached-')
     const shot = join(from, 'shot.png')
     const notes = join(from, 'notes.txt')
     writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
     writeFileSync(notes, 'the numbers')
-    const cwd = tmp('wilco-checkout-')
+    const cwd = tmp('tade-checkout-')
 
     const handed = await handOffFiles([shot, notes, join(from, 'deleted.png')], cwd)
-    expect(existsSync(join(cwd, '.wilco', 'attachments', 'shot.png'))).toBe(true)
-    expect(existsSync(join(cwd, '.wilco', 'attachments', 'notes.txt'))).toBe(true)
+    expect(existsSync(join(cwd, '.tade', 'attachments', 'shot.png'))).toBe(true)
+    expect(existsSync(join(cwd, '.tade', 'attachments', 'notes.txt'))).toBe(true)
     expect(handed.note).toBe(
-      'Attachments are in .wilco/attachments/: shot.png, notes.txt. Also attached, but gone before it could be copied: deleted.png.',
+      'Attachments are in .tade/attachments/: shot.png, notes.txt. Also attached, but gone before it could be copied: deleted.png.',
     )
     expect(handed.images.map((image) => image.mimeType)).toEqual(['image/png'])
   })
 
   it('are nothing at all when nothing was attached', async () => {
-    const cwd = tmp('wilco-checkout-')
+    const cwd = tmp('tade-checkout-')
     expect(await handOffFiles([], cwd)).toEqual({ note: '', images: [] })
     // Not even the folder: an agent's checkout is not ours to litter.
-    expect(existsSync(join(cwd, '.wilco'))).toBe(false)
+    expect(existsSync(join(cwd, '.tade'))).toBe(false)
   })
 })
 
@@ -111,20 +111,20 @@ describe('a dropped file', () => {
 
 describe('the clipboard', () => {
   it('gives a file when something wrote one, and nothing when it could not', async () => {
-    const dir = tmp('wilco-clip-')
+    const dir = tmp('tade-clip-')
     const wrote = await clipboardImage('darwin', dir, async (_command, args) => {
       const target = /POSIX file "(.+?)"/.exec(args.join(' '))?.[1]
       if (!target) return { ok: false, stdout: '' }
       writeFileSync(target, 'png')
       return { ok: true, stdout: '' }
     })
-    expect(wrote).toMatch(/wilco-clipboard-.*\.png$/)
+    expect(wrote).toMatch(/tade-clipboard-.*\.png$/)
     expect(await clipboardImage('darwin', dir, async () => ({ ok: false, stdout: '' }))).toBeNull()
     expect(await clipboardImage('win32', dir, async () => ({ ok: true, stdout: '' }))).toBeNull()
   })
 
   it('gives a picture file copied in Finder as that file', async () => {
-    const dir = tmp('wilco-clip-')
+    const dir = tmp('tade-clip-')
     const shot = join(dir, 'shot.png')
     writeFileSync(shot, 'png')
     const found = await clipboardImage('darwin', dir, async (_command, args) =>

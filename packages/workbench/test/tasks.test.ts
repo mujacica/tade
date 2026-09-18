@@ -10,7 +10,7 @@ const INTENT =
 
 function setup() {
   const repo = mkrepo()
-  return { repo, worktreeRoot: tmp('wilco-worktrees-') }
+  return { repo, worktreeRoot: tmp('tade-worktrees-') }
 }
 
 describe('createTask', () => {
@@ -27,13 +27,13 @@ describe('createTask', () => {
 
     expect(task).toMatchObject({
       id: 'checkout/refunds',
-      branch: 'wilco/refunds',
+      branch: 'tade/refunds',
       baseRef: 'main',
     })
     expect(existsSync(task.worktree)).toBe(true)
-    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('wilco/refunds')
+    expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('tade/refunds')
 
-    const file = parse(readFileSync(join(task.worktree, '.wilco', 'task.yaml'), 'utf8'))
+    const file = parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8'))
     expect(file).toMatchObject({
       id: 'checkout/refunds',
       project: 'checkout',
@@ -68,7 +68,7 @@ describe('createTask', () => {
   })
 
   it('reports a repository with no base branch instead of guessing', async () => {
-    const base = tmp('wilco-empty-')
+    const base = tmp('tade-empty-')
     runGit(base, 'init', '-q', '-b', 'trunk', '.')
     await expect(
       createTask({
@@ -76,7 +76,7 @@ describe('createTask', () => {
         root: base,
         slug: 't',
         intent: 'x',
-        worktreeRoot: tmp('wilco-wt-'),
+        worktreeRoot: tmp('tade-wt-'),
       }),
     ).rejects.toThrow(/no base branch/)
   })
@@ -162,11 +162,11 @@ describe('removeTask', () => {
     expect(existsSync(task.worktree)).toBe(false)
   })
 
-  it('the .wilco directory itself never counts as uncommitted work', async () => {
+  it('the .tade directory itself never counts as uncommitted work', async () => {
     const { repo, worktreeRoot } = setup()
     const task = await create(repo, worktreeRoot)
     // task.yaml is written but never committed; that must not block teardown.
-    expect(existsSync(join(task.worktree, '.wilco', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(task.worktree, '.tade', 'task.yaml'))).toBe(true)
     expect(
       (await removeTask({ root: repo.root, worktree: task.worktree, branch: task.branch })).removed,
     ).toBe(true)
@@ -191,7 +191,7 @@ describe('an agent that starts without a branch', () => {
     const { repo, task } = await detached()
     expect(task).toMatchObject({ id: 'checkout/agent-1', branch: '' })
     expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe('HEAD')
-    expect(runGit(repo.root, 'branch', '--list', 'wilco/*').trim()).toBe('')
+    expect(runGit(repo.root, 'branch', '--list', 'tade/*').trim()).toBe('')
   })
 
   it('is named for its work when it has some, keeping what it changed', async () => {
@@ -203,11 +203,11 @@ describe('an agent that starts without a branch', () => {
       worktree: task.worktree,
       title: 'Fix the double charge on refund retries!',
     })
-    expect(branch).toBe('wilco/fix-the-double-charge-on-refund-retries')
+    expect(branch).toBe('tade/fix-the-double-charge-on-refund-retries')
     expect(runGit(task.worktree, 'rev-parse', '--abbrev-ref', 'HEAD').trim()).toBe(branch)
     expect(existsSync(join(task.worktree, 'refund.ts'))).toBe(true)
     // Its id does not change with its branch: lanes and the session are keyed by it.
-    const file = parse(readFileSync(join(task.worktree, '.wilco', 'task.yaml'), 'utf8'))
+    const file = parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8'))
     expect(file).toMatchObject({
       id: 'checkout/agent-1',
       title: 'Fix the double charge on refund retries!',
@@ -220,15 +220,15 @@ describe('an agent that starts without a branch', () => {
 
   it('never takes a branch somebody already has', async () => {
     const { repo, task } = await detached()
-    runGit(repo.root, 'branch', 'wilco/tidy-up')
+    runGit(repo.root, 'branch', 'tade/tidy-up')
     expect(await nameTask({ root: repo.root, worktree: task.worktree, title: 'tidy up' })).toBe(
-      'wilco/tidy-up-2',
+      'tade/tidy-up-2',
     )
   })
 
   it('takes a better name when one comes, and keeps a name you gave it', async () => {
     const { task } = await detached()
-    const read = () => parse(readFileSync(join(task.worktree, '.wilco', 'task.yaml'), 'utf8')).title
+    const read = () => parse(readFileSync(join(task.worktree, '.tade', 'task.yaml'), 'utf8')).title
     await setTitle(task.worktree, 'look at the logs', false)
     await setTitle(task.worktree, 'Investigate failing log rotation', false)
     expect(read()).toBe('Investigate failing log rotation')

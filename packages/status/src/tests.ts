@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { TestSignal } from '@wilco/core'
+import type { TestSignal } from '@tade/core'
 
 // Whether a task's tests passed, and whether that is still true.
 //
@@ -24,7 +24,7 @@ export interface TestRecord {
 }
 
 export function testsPath(worktree: string): string {
-  return join(worktree, '.wilco', 'tests.json')
+  return join(worktree, '.tade', 'tests.json')
 }
 
 /** What the recorded run says about the commit checked out now. */

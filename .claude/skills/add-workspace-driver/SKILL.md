@@ -1,6 +1,6 @@
 ---
 name: add-workspace-driver
-description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, container) or change the driver port. Use when lanes should live somewhere other than Wilco's own PTYs.
+description: Add a new WorkspaceDriver (tmux, ghostty, kitty, wezterm, zellij, container) or change the driver port. Use when lanes should live somewhere other than Tade's own PTYs.
 ---
 
 # Adding a WorkspaceDriver
@@ -11,14 +11,14 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
 
 ## The job is: import the suite, run it, fix what's red
 
-1. Create `packages/drivers/<name>` depending on `@wilco/core` and `@wilco/drivers-core` (plus
+1. Create `packages/drivers/<name>` depending on `@tade/core` and `@tade/drivers-core` (plus
    whatever the backend needs), with `vitest` as a dev dependency.
 2. `packages/drivers/<name>/test/conformance.test.ts`:
    ```ts
-   import { testWorkspaceDriver } from '@wilco/drivers-core/conformance'
+   import { testWorkspaceDriver } from '@tade/drivers-core/conformance'
    import { TmuxDriver } from '../src/index.ts'
    // The argument is a workspace name: two calls with the same one must look
-   // at the same lanes, because that is what Wilco being reopened is.
+   // at the same lanes, because that is what Tade being reopened is.
    testWorkspaceDriver('tmux', (workspace) => new TmuxDriver({ session: workspace }))
    ```
 3. Implement until the suite passes. It covers the round-trip, output ordering, concurrent writes,
@@ -42,7 +42,7 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   as the pty driver does from its headless xterm.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is.
-- **`detach()` lets go, `shutdown()` ends it.** Closing Wilco calls `detach`, and under a driver
+- **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver
   claiming `detach: true` that must leave every lane running. If lanes cannot outlive us and cannot
   be found again, `detach` ends them — leaving processes nobody can see, drive or stop is worse
   than either.
@@ -72,7 +72,7 @@ backend that is a separate program rather than a library:
   fast-exiting command is gone before the option applies.
 - **Address lanes by the backend's own id** (`@3`, from `new-window -P -F '#{window_id}'`), never by
   a name you chose: names get sanitised, truncated and renamed.
-- **Keep the lane id where the backend keeps state** (tmux user options, `@wilco-lane`), so `adopt`
+- **Keep the lane id where the backend keeps state** (tmux user options, `@tade-lane`), so `adopt`
   recovers lanes exactly rather than reverse-engineering window names.
 - **Replay only what has already been delivered live.** If replay reads to the end of the buffer,
   the poller delivers the tail again and the subscriber sees it twice.

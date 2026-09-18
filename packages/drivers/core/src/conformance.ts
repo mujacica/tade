@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import type { LaneId } from '@wilco/core'
+import type { LaneId } from '@tade/core'
 import { spawn as openPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LaneClosedError, LaneNotFoundError, type LaneSpec, type WorkspaceDriver } from './port.ts'
@@ -61,7 +61,7 @@ export async function until<T>(
  * Make a driver attached to a named workspace.
  *
  * The name is the whole point: two calls with the same name must produce two
- * instances looking at the same lanes, because that is what closing Wilco and
+ * instances looking at the same lanes, because that is what closing Tade and
  * opening it again is. A factory that invents a fresh workspace every call
  * makes adoption untestable, and adoption is how anything survives a restart.
  */
@@ -77,7 +77,7 @@ export function testWorkspaceDriver(
     let workspace: string
     let n = 0
     const prefix = opts.laneIdPrefix ?? 'conf/t'
-    /** A second window onto the same lanes: Wilco started again. */
+    /** A second window onto the same lanes: Tade started again. */
     const reopen = () => make(workspace)
 
     const spec = (over: Partial<LaneSpec> = {}): LaneSpec => ({
@@ -291,8 +291,8 @@ export function testWorkspaceDriver(
     // you find out at the moment you needed it — so it gets run.
     //
     // Gated on `remoteAttach`, which is exactly the claim that the command
-    // works from another terminal with no Wilco in the picture. A driver
-    // without it hands back something like `wilco attach <lane>`, which needs
+    // works from another terminal with no Tade in the picture. A driver
+    // without it hands back something like `tade attach <lane>`, which needs
     // the window that owns the lane and cannot be tested from out here.
     it('attachCommand actually attaches, not just reads like it would', async () => {
       if (!driver.capabilities.remoteAttach) return
@@ -442,7 +442,7 @@ export function testWorkspaceDriver(
       expect(few).toContain('got:n11')
     })
 
-    // Closing Wilco and opening it again is the ordinary case, not the
+    // Closing Tade and opening it again is the ordinary case, not the
     // exceptional one, so a driver whose lanes outlive us has to be able to
     // walk back into them: finding a lane is worth nothing if the handle it
     // returns cannot then be written to.
@@ -452,7 +452,7 @@ export function testWorkspaceDriver(
       await driver.open(s)
       await waitFor(s.id, 'ready')
 
-      // Deliberately not `shutdown()`: this is Wilco going away, not the
+      // Deliberately not `shutdown()`: this is Tade going away, not the
       // lanes being closed.
       const reopened = await reopen()
       try {
@@ -470,7 +470,7 @@ export function testWorkspaceDriver(
       }
     })
 
-    // `detach: true` is a promise to the user that closing Wilco does not stop
+    // `detach: true` is a promise to the user that closing Tade does not stop
     // their agents. This is where that promise is kept or broken.
     it('detach lets go of lanes without ending them', async () => {
       const s = spec()

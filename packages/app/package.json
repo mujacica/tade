@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/app",
+  "name": "@tade/app",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -11,18 +11,18 @@
   "dependencies": {
     "@earendil-works/pi-tui": "0.85.1",
     "highlight.js": "10.7.3",
-    "@wilco/core": "workspace:*",
-    "@wilco/workbench": "workspace:*",
-    "@wilco/status": "workspace:*",
-    "@wilco/voice-core": "workspace:*",
-    "@wilco/voice-tts": "workspace:*",
-    "@wilco/drivers-pty": "workspace:*",
+    "@tade/core": "workspace:*",
+    "@tade/workbench": "workspace:*",
+    "@tade/status": "workspace:*",
+    "@tade/voice-core": "workspace:*",
+    "@tade/voice-tts": "workspace:*",
+    "@tade/drivers-pty": "workspace:*",
     "yaml": "^2.9.0",
-    "@wilco/extensions-core": "workspace:*",
-    "@wilco/telemetry": "workspace:*"
+    "@tade/extensions-core": "workspace:*",
+    "@tade/telemetry": "workspace:*"
   },
   "devDependencies": {
-    "@wilco/voice-stt": "workspace:*",
-    "@wilco/drivers-core": "workspace:*"
+    "@tade/voice-stt": "workspace:*",
+    "@tade/drivers-core": "workspace:*"
   }
 }

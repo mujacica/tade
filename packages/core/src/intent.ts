@@ -37,7 +37,7 @@ export type Intent =
       /** What to look for, for search. */
       text?: string
     }
-  /** Open the settings, so changing one never means closing Wilco. */
+  /** Open the settings, so changing one never means closing Tade. */
   | { kind: 'settings' }
   /** Everything that matters, in one paragraph: the brief, now rather than in the morning. */
   | { kind: 'brief' }
@@ -106,7 +106,7 @@ const HOMOPHONES: Array<[RegExp, string]> = [
   [/\bdee nye\b/g, 'deny'],
   [/\bcheck out\b/g, 'checkout'],
   [/\bpicked up\b/g, 'pick up'],
-  [/\bwill co\b/g, 'wilco'],
+  [/\bwill co\b/g, 'tade'],
 ]
 
 /** Words that mean "the one we were just talking about". */

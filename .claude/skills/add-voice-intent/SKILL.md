@@ -1,6 +1,6 @@
 ---
 name: add-voice-intent
-description: Add or change something you can say to Wilco — a verb in the spoken grammar (park, steer, show, remember...) and what it does. Use when Wilco should understand a new kind of sentence.
+description: Add or change something you can say to Tade — a verb in the spoken grammar (park, steer, show, remember...) and what it does. Use when Tade should understand a new kind of sentence.
 ---
 
 # Adding something you can say
@@ -24,7 +24,7 @@ Four files, in this order. The first two are pure and hold the judgement; the la
 3. Handle it in `VoiceSurface.perform` (needs a task) or `act` (does not). Return the sentence that
    will be spoken back.
 4. If it needs something only the window can do — moving a pane, raising a terminal window — add an
-   **optional** hook to `VoiceOptions` and supply it from `app.ts`. Optional because `wilco chat`
+   **optional** hook to `VoiceOptions` and supply it from `app.ts`. Optional because `tade chat`
    and the tests have no window: without the hook the verb must still answer honestly rather than
    claiming something happened.
 5. Add utterances to the corpus in `packages/core/test/intent.test.ts`, including the ways people

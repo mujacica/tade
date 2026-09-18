@@ -5,9 +5,9 @@ import {
   type Spend,
   spendFrom,
   startOfToday,
-  wilcoHome,
-} from '@wilco/core'
-import { readJournal } from '@wilco/workbench/events'
+  tadeHome,
+} from '@tade/core'
+import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
 import type { Io } from '../io.ts'
 
@@ -30,7 +30,7 @@ export function registerSpend(program: Command, io: Io): void {
       const since = startOfToday(Date.now()) - (days - 1) * 86_400_000
       const cfg = await loadConfig(opts.config)
 
-      const events = await readJournal(wilcoHome(), { types: ['usage'] })
+      const events = await readJournal(tadeHome(), { types: ['usage'] })
       const report = spendFrom(events, { since })
 
       if (opts.json) {

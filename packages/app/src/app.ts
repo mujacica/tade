@@ -55,10 +55,10 @@ import {
   taskOrigin,
   type When,
   watchedFrom,
-} from '@wilco/core'
-import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@wilco/extensions-core'
-import { git } from '@wilco/status'
-import type { Reporter } from '@wilco/telemetry'
+} from '@tade/core'
+import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@tade/extensions-core'
+import { git } from '@tade/status'
+import type { Reporter } from '@tade/telemetry'
 import {
   type AudioClip,
   type Recorder,
@@ -67,9 +67,9 @@ import {
   type Transcriber,
   VoiceSurface,
   type VoiceTerminals,
-} from '@wilco/voice-core'
-import { Speaker } from '@wilco/voice-tts'
-import { matchingLines, type Workbench } from '@wilco/workbench'
+} from '@tade/voice-core'
+import { Speaker } from '@tade/voice-tts'
+import { matchingLines, type Workbench } from '@tade/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
@@ -246,8 +246,8 @@ import {
   said,
   suggest,
   type ThinkerEvent,
+  tadeDid,
   thinking,
-  wilcoDid,
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
@@ -507,7 +507,7 @@ export interface AppOptions {
     state: typeof clipboardState
     image: typeof clipboardImage
   }
-  /** Wilco's state directory, where generated earcons are kept. */
+  /** Tade's state directory, where generated earcons are kept. */
   home: string
   cwd?: string
   terminal?: Terminal
@@ -536,13 +536,13 @@ export interface AppOptions {
   /** What the window lets an extension do: start an agent on something. */
   extensionWorkbench?: ExtensionWorkbench
   /**
-   * Where Wilco's own trouble goes. The window reports what it cannot show
+   * Where Tade's own trouble goes. The window reports what it cannot show
    * you: a look at the tasks that took far longer than the time between two.
    */
   report?: Reporter
   /**
    * Start the orchestrator again, on what the config now says, carrying on its
-   * conversation. Without it, a new model applies when Wilco next starts.
+   * conversation. Without it, a new model applies when Tade next starts.
    */
   restartThinker?: () => Promise<void>
   /**
@@ -550,12 +550,12 @@ export interface AppOptions {
    * The callback should stop the app, release the home lock, and re-exec.
    */
   reloadWindow?: () => Promise<void>
-  /** What Wilco wrote for itself and is waiting on you: to list, and to decide. */
+  /** What Tade wrote for itself and is waiting on you: to list, and to decide. */
   proposals?: {
     list(): ProposalView[]
     decide(name: string, verdict: 'approve' | 'reject'): Promise<string>
   }
-  /** Extensions the harness loads by itself, which Wilco lists but does not run. */
+  /** Extensions the harness loads by itself, which Tade lists but does not run. */
   harnessExtensions?: () => Promise<{ name: string; where: string }[]>
   now?: () => number
   frameMs?: number
@@ -572,7 +572,7 @@ export class App {
    * Settable, because the orchestrator is a model in another process and can
    * take a few seconds to come up. The window opens without waiting for it:
    * an empty terminal while something else starts is the worst first second
-   * Wilco could have, and everything except free text works meanwhile.
+   * Tade could have, and everything except free text works meanwhile.
    */
   private thinker: Thinker | null = null
   /** The pictures that went with what was said last, until the orchestrator is asked. */
@@ -629,7 +629,7 @@ export class App {
   /** The second half of a split pane, and of a split bottom panel, as last captured. */
   private splitScreen = ''
   private splitTerminalScreen = ''
-  /** What you said to Wilco, oldest first. */
+  /** What you said to Tade, oldest first. */
   private history: string[] = []
   /** pi's own editor, for the orchestrator's line. */
   private readonly editor: Editor
@@ -750,7 +750,7 @@ export class App {
    * Hand the window the orchestrator, once it has started.
    *
    * Said out loud in the strip rather than silently: until this happens, a
-   * sentence Wilco's own grammar does not recognise has nowhere to go, and
+   * sentence Tade's own grammar does not recognise has nowhere to go, and
    * knowing when that changed is the difference between waiting and retyping.
    */
   attachThinker(thinker: Thinker): void {
@@ -1387,7 +1387,7 @@ export class App {
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice = await VoiceSurface.start({
-      wilco: this.opts.client,
+      tade: this.opts.client,
       // Yours, where it is a matter of taste. Everything else about what is
       // worth interrupting you for is the engine's, and not a setting.
       settings: {
@@ -1442,7 +1442,7 @@ export class App {
   private onInput(data: string): TuiInputListenerResult {
     if (this.stopped) return undefined
     // A panel has the keyboard while it is open: nothing typed into a form
-    // should reach an agent. ctrl+c still closes Wilco, as it does everywhere.
+    // should reach an agent. ctrl+c still closes Tade, as it does everywhere.
     if (this.state.panel) {
       const key = parseKey(data)
       if (key === 'ctrl+c') {
@@ -1577,7 +1577,7 @@ export class App {
         break
     }
 
-    // A terminal with the keyboard gets every keystroke Wilco did not keep.
+    // A terminal with the keyboard gets every keystroke Tade did not keep.
     const terminal = activeTerminal(this.state)
     if (terminal && this.state.keyboard === 'terminal' && this.state.dictation === null) {
       this.state = { ...this.state, terminalScroll: 0 }
@@ -1612,7 +1612,7 @@ export class App {
    *
    * Every target is something you could also have typed or said, which is the
    * point: the mouse is a shortcut into the same actions, never a second way of
-   * driving Wilco that behaves differently. Nothing here types a command for
+   * driving Tade that behaves differently. Nothing here types a command for
    * you to finish — what needs more than a click opens a panel.
    */
   private clicked(
@@ -2143,7 +2143,7 @@ export class App {
     this.borrowed = true
     this.tui.stop()
     try {
-      await runScreen({ title: 'Wilco', terminal: this.terminal }, flow)
+      await runScreen({ title: 'Tade', terminal: this.terminal }, flow)
     } catch (err) {
       if (!(err instanceof ScreenCancelled)) {
         this.state = notice(this.state, why(err))
@@ -2831,7 +2831,7 @@ export class App {
     this.draw()
   }
 
-  /** Mute everything Wilco says and plays, or bring it back; kept for next time. */
+  /** Mute everything Tade says and plays, or bring it back; kept for next time. */
   private async toggleMute(): Promise<void> {
     const muted = !this.opts.config.surfaces.voice.muted
     try {
@@ -2986,7 +2986,7 @@ export class App {
             'rename-branch',
             branch ? 'Rename branch' : 'Name the branch',
             'BRANCH NAME',
-            branch ? branch.replace(/^wilco\//, '') : '',
+            branch ? branch.replace(/^tade\//, '') : '',
           ),
         }
         break
@@ -3182,7 +3182,7 @@ export class App {
         })
         this.state = notice({ ...this.state, panel: null }, `on ${made}`)
       } else {
-        const name = text.startsWith('wilco/') ? text : `wilco/${text}`
+        const name = text.startsWith('tade/') ? text : `tade/${text}`
         const out = await git(here, ['branch', '-m', current, name])
         if (!out.ok) return fail(out.stderr.split('\n')[0] ?? 'git would not rename it')
         this.state = notice({ ...this.state, panel: null }, `renamed to ${name}`)
@@ -3576,7 +3576,7 @@ export class App {
     this.editor.setText('')
     this.state = setListening(setDictation({ ...this.state, historySearch: null }, null), false)
     this.draw()
-    // A command is carried out here; anything else is a sentence for Wilco.
+    // A command is carried out here; anything else is a sentence for Tade.
     if (said.startsWith('/')) {
       this.rememberSaid(said)
       void this.act(said)
@@ -3757,7 +3757,7 @@ export class App {
 
   /** Open the agent in front of you: the conversation picks up where it stopped. */
   /**
-   * Agents that were working when Wilco last closed — not stopped, not
+   * Agents that were working when Tade last closed — not stopped, not
    * removed, and not ended on their own — opened again where they left off, as
    * though the window had never gone. Once each per window, and without taking
    * you away from where you are.
@@ -3877,7 +3877,7 @@ export class App {
         },
       )
     } catch (err) {
-      // ctrl+c closes the form, not Wilco.
+      // ctrl+c closes the form, not Tade.
       if (!(err instanceof ScreenCancelled)) {
         this.state = notice(this.state, err instanceof Error ? err.message : String(err))
       }
@@ -3903,7 +3903,7 @@ export class App {
       const told = this.news.map((one) => one.text).join('; ')
       this.state = withTranscript(
         this.state,
-        wilcoDid(this.state.transcript, `told the orchestrator: ${told}`, this.now()),
+        tadeDid(this.state.transcript, `told the orchestrator: ${told}`, this.now()),
       )
     }
     const message = withNews(text, this.news, clockOf)
@@ -3919,7 +3919,7 @@ export class App {
     }
   }
 
-  /** Everything addressed to Wilco arrives here, however it was said. */
+  /** Everything addressed to Tade arrives here, however it was said. */
   private say(said: string): void {
     if (said === '' || !this.voice) return
     this.rememberSaid(said)
@@ -3965,7 +3965,7 @@ export class App {
       this.routerFor = this.state.focused
     }
 
-    // A line beginning "wilco " is addressed to Wilco, not to the agent.
+    // A line beginning "tade " is addressed to Tade, not to the agent.
     const routed = route(this.router, data)
     this.router = routed.state
     this.state = setHeld(this.state, pending(this.router))
@@ -3974,7 +3974,7 @@ export class App {
     if (routed.toLane !== '' && lane) {
       void this.opts.client.write(lane as LaneId, routed.toLane).catch(() => {})
     }
-    if (routed.toWilco !== null) this.say(routed.toWilco)
+    if (routed.toTade !== null) this.say(routed.toTade)
     this.draw()
   }
 
@@ -4024,18 +4024,18 @@ export class App {
     } finally {
       this.looking = false
       // Only the ones worth asking about: a look is meant to be cheap, and one
-      // slower than the time between two is Wilco getting in its own way.
+      // slower than the time between two is Tade getting in its own way.
       const took = Date.now() - started
       if (took > SLOW_LOOK_MS) {
         this.opts.report
           ?.doing({
             name: 'a look at the tasks',
-            op: 'wilco.look',
+            op: 'tade.look',
             startedAt: started,
             attributes: {
-              'wilco.tasks': this.state.panes.length,
-              'wilco.agents': this.opts.client.runs().length,
-              'wilco.projects': Object.keys(this.opts.config.projects).length,
+              'tade.tasks': this.state.panes.length,
+              'tade.agents': this.opts.client.runs().length,
+              'tade.projects': Object.keys(this.opts.config.projects).length,
             },
           })
           .end()
@@ -4466,7 +4466,7 @@ export class App {
 
   /** The terminal window's own title says which task you are in. */
   private title(where: string | null): void {
-    const title = where ? `wilco · ${where}` : 'wilco'
+    const title = where ? `tade · ${where}` : 'tade'
     if (title === this.titled) return
     this.titled = title
     this.terminal.setTitle(title)
@@ -4760,13 +4760,13 @@ export class App {
    */
   private askExtensions(): void {
     const host = this.opts.extensions
-    const wilco = this.opts.extensionWorkbench
-    if (!host || !wilco || this.asking || this.now() - this.statusedAt < STATUS_MS) return
+    const tade = this.opts.extensionWorkbench
+    if (!host || !tade || this.asking || this.now() - this.statusedAt < STATUS_MS) return
     this.asking = true
     this.statusedAt = this.now()
     const panel = this.state.panel
     void host
-      .statuses(wilco)
+      .statuses(tade)
       .then(async (found) => {
         this.statuses = found.map((one) => ({
           extension: one.extension,
@@ -4786,10 +4786,10 @@ export class App {
   /** Ask an extension for its view again, and show it if its panel is still open. */
   private async refreshExtensionView(name: string): Promise<void> {
     const host = this.opts.extensions
-    const wilco = this.opts.extensionWorkbench
-    if (!host || !wilco) return
+    const tade = this.opts.extensionWorkbench
+    if (!host || !tade) return
     try {
-      const view = await host.view(name, wilco)
+      const view = await host.view(name, tade)
       this.extensionShown = { name, ...view, at: this.now() }
     } catch (err) {
       this.extensionShown = { name, title: name, markdown: why(err), at: this.now() }
@@ -4933,7 +4933,7 @@ export class App {
         {
           caller: { kind: 'you' },
           id: `you-${++this.ranCount}`,
-          wilco: this.opts.extensionWorkbench ?? null,
+          tade: this.opts.extensionWorkbench ?? null,
         },
       )
       // Shown by the run itself: a failure's reason is already on its line.
@@ -4957,7 +4957,7 @@ export class App {
         {
           caller: { kind: 'you' },
           id: `you-${++this.ranCount}`,
-          wilco: this.opts.extensionWorkbench ?? null,
+          tade: this.opts.extensionWorkbench ?? null,
         },
       )
       return answer.said ?? spokenLine(answer.text)
@@ -5025,7 +5025,7 @@ export class App {
    * at, so nothing is reflected on twice.
    *
    * Quiet by design: it proposes, and what it proposes waits for you in
-   * `wilco skills` and the next brief. Nothing is said out loud.
+   * `tade skills` and the next brief. Nothing is said out loud.
    */
   private async reflect(tasks: readonly TaskSnapshot[]): Promise<void> {
     const thinker = this.thinker
@@ -5038,7 +5038,7 @@ export class App {
     for (const task of finished) {
       this.reflecting.add(task)
       // Recorded before asking, not after: an ask that fails or is interrupted
-      // must not make Wilco ask again about the same task every two seconds.
+      // must not make Tade ask again about the same task every two seconds.
       await this.opts.client.log
         .append({ type: 'reflected', task, detail: { by: 'orchestrator' } })
         .catch(() => {})
@@ -5070,7 +5070,7 @@ export class App {
       await this.opts.client.holdQueued(item.task, state.because, { on: state.on }).catch(() => {})
       this.state = withTranscript(
         this.state,
-        wilcoDid(this.state.transcript, `${item.task} is held: ${state.because}`, this.now()),
+        tadeDid(this.state.transcript, `${item.task} is held: ${state.because}`, this.now()),
       )
       void this.tell(heldMessage(item.task, state.because)).catch(() => {})
     }
@@ -5102,7 +5102,7 @@ export class App {
         this.news = addNews(this.news, `started ${task}: ${because}`, this.now())
         this.state = withTranscript(
           this.state,
-          wilcoDid(this.state.transcript, `started ${task}: ${because}`, this.now()),
+          tadeDid(this.state.transcript, `started ${task}: ${because}`, this.now()),
         )
       } catch (err) {
         // Held with why, and said: work that silently never starts looks like waiting.
@@ -5110,7 +5110,7 @@ export class App {
         await this.opts.client.holdQueued(task, why(err), { start: 'failed' }).catch(() => {})
         this.state = withTranscript(
           this.state,
-          wilcoDid(this.state.transcript, `${task} could not start: ${why(err)}`, this.now()),
+          tadeDid(this.state.transcript, `${task} could not start: ${why(err)}`, this.now()),
         )
         void this.tell(heldMessage(task, `it could not start: ${why(err)}`)).catch(() => {})
       }
@@ -5140,7 +5140,7 @@ export class App {
       describe: async () => {
         await this.live?.refresh()
         const live = this.live
-        if (!live) return 'Wilco is still opening.'
+        if (!live) return 'Tade is still opening.'
         const now = this.now()
         const schedules = this.scheduleViews()
         return [
@@ -5438,11 +5438,11 @@ export class App {
     const { task } = await this.opts.client.fireSchedule(one.id, due, this.now())
     const missed =
       due.missed > 0
-        ? `, ${due.missed} run${due.missed === 1 ? '' : 's'} missed while Wilco was closed`
+        ? `, ${due.missed} run${due.missed === 1 ? '' : 's'} missed while Tade was closed`
         : ''
     let said: string
     if (!due.run) {
-      said = `${one.name} skipped what came due while Wilco was closed${missed}`
+      said = `${one.name} skipped what came due while Tade was closed${missed}`
     } else if (one.does.kind === 'watch') {
       // Looking is not news; what it finds is, and the look says it. One asked
       // for is waited on, so whoever asked hears what it found, nothing included.
@@ -5459,7 +5459,7 @@ export class App {
       ).catch(() => {})
     }
     this.news = addNews(this.news, said, this.now())
-    this.state = withTranscript(this.state, wilcoDid(this.state.transcript, said, this.now()))
+    this.state = withTranscript(this.state, tadeDid(this.state.transcript, said, this.now()))
     this.draw()
     return said
   }
@@ -5492,7 +5492,7 @@ export class App {
         this.state,
         bad
           ? problem(this.state.transcript, said, this.now())
-          : wilcoDid(this.state.transcript, said, this.now()),
+          : tadeDid(this.state.transcript, said, this.now()),
       )
       this.draw()
       return said
@@ -5546,7 +5546,7 @@ export class App {
         }),
       ).catch(() => {})
       const said = `${one.name} found ${fresh.length} new: the orchestrator is told${waits}`
-      this.state = withTranscript(this.state, wilcoDid(this.state.transcript, said, this.now()))
+      this.state = withTranscript(this.state, tadeDid(this.state.transcript, said, this.now()))
       this.draw()
       return said
     }
@@ -5598,7 +5598,7 @@ export class App {
   private async tell(text: string): Promise<void> {
     const thinker = this.thinker
     if (!thinker) return
-    const message = withNews(text, this.news, clockOf, 'Wilco says:')
+    const message = withNews(text, this.news, clockOf, 'Tade says:')
     this.news = []
     if (thinker.tell) await thinker.tell(message)
     else await thinker.ask(message)
@@ -5607,7 +5607,7 @@ export class App {
   /**
    * Hand the terminal to the settings screen, then take it back.
    *
-   * Needing to close Wilco to change a Wilco setting is how people end up with
+   * Needing to close Tade to change a Tade setting is how people end up with
    * a second terminal open forever. The window stops drawing while the other
    * screen has the keyboard — two things drawing at once is the bug this whole
    * design exists to avoid — and starts again where it left off.
@@ -5682,7 +5682,7 @@ export class App {
   }
 
   /**
-   * Open what was chosen: go to a project Wilco knows, or add a folder as one —
+   * Open what was chosen: go to a project Tade knows, or add a folder as one —
    * making it a repository first if it is not, and you said to.
    */
   private async openProject(panel: OpenProjectPanel): Promise<void> {
@@ -5704,9 +5704,7 @@ export class App {
     try {
       if (!chosen.git) {
         if (!panel.init)
-          return fail(
-            'Wilco needs git to start work here. Tick git init, or choose another folder.',
-          )
+          return fail('Tade needs git to start work here. Tick git init, or choose another folder.')
         await initialise(chosen.path)
       }
       addProject(this.configPath, name, tilde(chosen.path))
@@ -5774,7 +5772,7 @@ export class App {
   /**
    * Write one setting, read the config back, and use it. A value the schema
    * refuses is put back as it was, with the reason in the panel — never left
-   * in a file Wilco will not open next time.
+   * in a file Tade will not open next time.
    */
   /**
    * The config as it is now, everywhere that holds one. The workbench keeps its
@@ -5825,7 +5823,7 @@ export class App {
       this.useConfig(loaded.config)
       const said =
         setting?.live === false
-          ? `Saved. ${setting.title} applies when Wilco next starts.`
+          ? `Saved. ${setting.title} applies when Tade next starts.`
           : 'Saved. It applies now.'
       this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
     } catch (err) {
@@ -5912,7 +5910,7 @@ export class App {
           .replace(/[^a-z0-9-]+/g, '-')
         const name = await ui.ask('call it what?', fallback)
         addProject(path, name, root)
-        return `added ${name} → ${root}, from the next time Wilco starts`
+        return `added ${name} → ${root}, from the next time Tade starts`
       }
       default:
         return ''
@@ -5949,7 +5947,7 @@ export class App {
    * Write the whole screen again, over itself.
    *
    * The terminal can wipe it without telling us: ⌘K is "clear" in Terminal.app,
-   * iTerm2 and VS Code, and never reaches Wilco at all. Rendering only sends
+   * iTerm2 and VS Code, and never reaches Tade at all. Rendering only sends
    * what changed, so a wiped screen stayed dark until something moved. Every
    * row is written in place — no clear first, so on a screen that was not
    * wiped nothing visibly happens.
@@ -6179,7 +6177,7 @@ export function spokenLine(markdown: string): string {
 /**
  * The alternate screen claims page up and down, home and end, ctrl+up and
  * down and ctrl+shift+f to scroll and search a viewport of its own — before
- * any listener sees them. Wilco
+ * any listener sees them. Tade
  * draws exactly one screen and never scrolls one, so those keys belong to the
  * panel that is open or the agent you are typing at.
  */

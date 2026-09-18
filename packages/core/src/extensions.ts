@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-// Tools Wilco wrote for itself.
+// Tools Tade wrote for itself.
 //
 // Self-extension is the point, but a half-broken tool loaded into a running
 // orchestrator is an evening lost, so the rails are: written extensions land

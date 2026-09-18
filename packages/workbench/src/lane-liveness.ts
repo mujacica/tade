@@ -1,12 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import type { AgentSignal, Lane, LivenessProbe, TaskId, TurnState } from '@wilco/core'
-import type { WorkerHandle } from '@wilco/harnesses-core'
+import type { AgentSignal, Lane, LivenessProbe, TaskId, TurnState } from '@tade/core'
+import type { WorkerHandle } from '@tade/harnesses-core'
 import { LaneRecord } from './registry.ts'
 import type { PendingApproval } from './workers.ts'
 
-// Turns what Wilco is holding — lanes it opened, agents it supervises — into
-// the liveness signals `wilco status` derives task state from.
+// Turns what Tade is holding — lanes it opened, agents it supervises — into
+// the liveness signals `tade status` derives task state from.
 
 export function laneSignal(lane: LaneRecord, turn: TurnState = 'unknown'): AgentSignal {
   return {
@@ -78,7 +78,7 @@ export function livenessFrom(work: RunningWork): LivenessProbe {
 }
 
 /**
- * Liveness for someone who is not holding the workbench — `wilco status` in
+ * Liveness for someone who is not holding the workbench — `tade status` in
  * another terminal while the window is open.
  *
  * It reads the registry file and checks the pids, which is a different
@@ -112,7 +112,7 @@ function asLane(lane: LaneRecord): Lane {
     pid: lane.pid,
     lastOutputAt: lane.lastOutputAt,
     // The escape hatch that works whatever the driver is.
-    attach: `wilco attach ${lane.id}`,
+    attach: `tade attach ${lane.id}`,
   }
 }
 

@@ -63,10 +63,10 @@ describe('what a worker may write', () => {
     expect(paths).toContain('/Users/someone/Library/Caches')
   })
 
-  it("is never the home directory itself, nor Wilco's own state", () => {
+  it("is never the home directory itself, nor Tade's own state", () => {
     const paths = writablePaths(spec())
     expect(paths).not.toContain('/Users/someone')
-    expect(paths).not.toContain('/Users/someone/.wilco')
+    expect(paths).not.toContain('/Users/someone/.tade')
     expect(paths).not.toContain('/Users/someone/.ssh')
   })
 
@@ -106,11 +106,11 @@ describe('the macOS profile', () => {
 // generate; this asserts what the operating system then does with it.
 describe.runIf(process.platform === 'darwin')('actually contains a process', () => {
   it('allows the worktree and refuses everything else', async () => {
-    const worktree = mkdtempSync(join(tmpdir(), 'wilco-sbx-wt-'))
-    const outside = mkdtempSync(join(tmpdir(), 'wilco-sbx-out-'))
+    const worktree = mkdtempSync(join(tmpdir(), 'tade-sbx-wt-'))
+    const outside = mkdtempSync(join(tmpdir(), 'tade-sbx-out-'))
     // Not under /tmp, which is deliberately writable: this stands in for your
     // other repositories and your dotfiles.
-    const forbidden = join(outside, '..', `wilco-forbidden-${process.pid}`)
+    const forbidden = join(outside, '..', `tade-forbidden-${process.pid}`)
     try {
       const sh = (script: string) =>
         sandboxed({ command: '/bin/sh', args: ['-c', script] }, { kind: 'seatbelt', worktree })
@@ -119,9 +119,9 @@ describe.runIf(process.platform === 'darwin')('actually contains a process', () 
       await run(inside.command, inside.args)
       expect(existsSync(join(worktree, 'written'))).toBe(true)
 
-      const out = sh(`echo bad > ${join(process.env.HOME ?? '/Users', 'wilco-sbx-probe')}`)
+      const out = sh(`echo bad > ${join(process.env.HOME ?? '/Users', 'tade-sbx-probe')}`)
       await expect(run(out.command, out.args)).rejects.toThrow()
-      expect(existsSync(join(process.env.HOME ?? '/Users', 'wilco-sbx-probe'))).toBe(false)
+      expect(existsSync(join(process.env.HOME ?? '/Users', 'tade-sbx-probe'))).toBe(false)
       expect(existsSync(forbidden)).toBe(false)
     } finally {
       rmSync(worktree, { recursive: true, force: true })
@@ -130,7 +130,7 @@ describe.runIf(process.platform === 'darwin')('actually contains a process', () 
   })
 
   it('still lets a normal program run', async () => {
-    const worktree = mkdtempSync(join(tmpdir(), 'wilco-sbx-wt-'))
+    const worktree = mkdtempSync(join(tmpdir(), 'tade-sbx-wt-'))
     try {
       // Reads, /dev/null and exec all have to keep working or nothing does.
       const wrapped = sandboxed(

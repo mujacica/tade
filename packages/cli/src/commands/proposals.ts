@@ -12,18 +12,18 @@ import {
   loadConfig,
   skillDirs,
   skillStanding,
-  wilcoHome,
-} from '@wilco/core'
-import { activeSkills, loadExtensions } from '@wilco/orchestrator'
-import { recordAuthored } from '@wilco/workbench'
-import { readJournal } from '@wilco/workbench/events'
+  tadeHome,
+} from '@tade/core'
+import { activeSkills, loadExtensions } from '@tade/orchestrator'
+import { recordAuthored } from '@tade/workbench'
+import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
-// Reviewing what Wilco wrote for itself: tools, and lessons.
+// Reviewing what Tade wrote for itself: tools, and lessons.
 //
-// Both work the same way and for the same reason. Wilco proposes; a human
-// reads it and decides; nothing takes effect until Wilco is started again. A
+// Both work the same way and for the same reason. Tade proposes; a human
+// reads it and decides; nothing takes effect until Tade is started again. A
 // hot-reloaded half-broken tool inside a running orchestrator is an evening
 // lost, and a lesson nobody read is a rule you did not agree to.
 
@@ -44,8 +44,8 @@ const EXTENSIONS: Kind = {
   ext: '.ts',
   dirs: extensionDirs,
   list: loadable,
-  root: (configured) => expandHome(configured ?? join(wilcoHome(), 'extensions')),
-  activated: 'will load next time Wilco starts',
+  root: (configured) => expandHome(configured ?? join(tadeHome(), 'extensions')),
+  activated: 'will load next time Tade starts',
 }
 
 const SKILLS: Kind = {
@@ -54,14 +54,14 @@ const SKILLS: Kind = {
   ext: '.md',
   dirs: skillDirs,
   list: loadableSkills,
-  root: () => join(wilcoHome(), 'skills'),
-  activated: 'will be in the prompt next time Wilco starts',
+  root: () => join(tadeHome(), 'skills'),
+  activated: 'will be in the prompt next time Tade starts',
 }
 
 function names(dir: string, kind: Kind): string[] {
   try {
     const files = kind.list(readdirSync(dir)).map((file) => file.replace(kind.ext, ''))
-    // An extension of Wilco's own is a folder with an `extension.ts` in it.
+    // An extension of Tade's own is a folder with an `extension.ts` in it.
     const folders =
       kind.noun === 'extensions'
         ? readdirSync(dir, { withFileTypes: true })
@@ -86,8 +86,8 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
     .command(kind.noun)
     .description(
       kind.noun === 'skills'
-        ? 'Lessons Wilco wrote for itself: what is proposed, and what it goes by'
-        : 'Tools Wilco wrote for itself: what is proposed, and what runs',
+        ? 'Lessons Tade wrote for itself: what is proposed, and what it goes by'
+        : 'Tools Tade wrote for itself: what is proposed, and what runs',
     )
 
   group
@@ -101,7 +101,7 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
         if (cfg.ok) {
           const host = await loadExtensions({
             config: cfg.config,
-            home: wilcoHome(),
+            home: tadeHome(),
             safe: program.opts().safe === true,
           })
           for (const one of host.list()) {
@@ -123,13 +123,13 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
       show('active', names(dirs.active, kind))
       // A lesson about something nobody has touched in a month is still
       // approved; it just is not said. Show which, and why, or it looks like
-      // Wilco quietly forgot.
+      // Tade quietly forgot.
       if (kind.noun === 'skills') {
         const cfg = await loadConfig(opts.config)
         const quiet = skillStanding(
           activeSkills(dirs.root),
           activityFrom(
-            historyFrom(await readJournal(wilcoHome(), { limit: 5_000 }), Date.now()),
+            historyFrom(await readJournal(tadeHome(), { limit: 5_000 }), Date.now()),
             cfg.ok ? Object.keys(cfg.config.projects) : [],
           ),
           Date.now(),
@@ -143,7 +143,7 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
       show('rejected', names(dirs.rejected, kind))
       if (proposed.length > 0) {
         io.out('')
-        io.out(`read one in ${dirs.proposed}, then \`wilco ${kind.noun} activate <name>\`.`)
+        io.out(`read one in ${dirs.proposed}, then \`tade ${kind.noun} activate <name>\`.`)
       }
     })
 
@@ -161,7 +161,7 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
       .option('-c, --config <path>', 'config file path', defaultConfigPath())
       .action(async (name: string, opts: { config: string }) => {
         if (!isExtensionName(name)) {
-          io.err(`${name} is not a name Wilco will use`)
+          io.err(`${name} is not a name Tade will use`)
           setExit(Exit.invalidInput)
           return
         }
@@ -181,7 +181,7 @@ function register(program: Command, io: Io, setExit: (code: number) => void, kin
         const target = to === 'active' ? dirs.active : dirs.rejected
         mkdirSync(target, { recursive: true })
         renameSync(source, join(target, source === file ? `${name}${kind.ext}` : name))
-        // A decision about what Wilco may do to itself is worth a commit: the
+        // A decision about what Tade may do to itself is worth a commit: the
         // question later is never "what is active" — the directory says that —
         // but "when did this start, and what was going on when I agreed".
         await recordAuthored(dirs.root, `${verb} ${kind.one} ${name}`)
@@ -200,7 +200,7 @@ export function registerExtensions(
   group
     ?.command('run <tool>')
     .description(
-      "Run one of an extension's tools and print its answer: `wilco extensions run deps_check --project shop`",
+      "Run one of an extension's tools and print its answer: `tade extensions run deps_check --project shop`",
     )
     .option('-p, --project <name>', 'the project it works on')
     .option('--input <json>', 'the rest of its input, as JSON', '{}')
@@ -208,7 +208,7 @@ export function registerExtensions(
     .action(async (tool: string, opts: { project?: string; input: string; config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
@@ -222,7 +222,7 @@ export function registerExtensions(
       }
       const host = await loadExtensions({
         config: cfg.config,
-        home: wilcoHome(),
+        home: tadeHome(),
         safe: program.opts().safe === true,
       })
       try {
@@ -230,7 +230,7 @@ export function registerExtensions(
         const answer = await host.call(
           tool,
           { ...input, ...(opts.project ? { project: opts.project } : {}) },
-          { caller: { kind: 'you' }, wilco: null },
+          { caller: { kind: 'you' }, tade: null },
         )
         io.out(answer.text)
       } catch (err) {

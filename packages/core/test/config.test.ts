@@ -80,13 +80,13 @@ projects:
 
 describe('loadConfig', () => {
   it('treats a missing file as defaults', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wilco-cfg-'))
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
     const r = await loadConfig(join(dir, 'nope.yaml'))
     expect(r.ok && !r.exists).toBe(true)
   })
 
   it('reads a file from disk', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'wilco-cfg-'))
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
     const path = join(dir, 'config.yaml')
     await writeFile(path, 'workers:\n  default: codex\n')
     const r = await loadConfig(path)

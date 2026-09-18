@@ -1,21 +1,21 @@
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { type Config, defaultConfigPath, loadConfig, type Unsubscribe } from '@wilco/core'
-import { openReporter, type Reporter, saw } from '@wilco/telemetry'
-import type { Workbench } from '@wilco/workbench'
+import { type Config, defaultConfigPath, loadConfig, type Unsubscribe } from '@tade/core'
+import { openReporter, type Reporter, saw } from '@tade/telemetry'
+import type { Workbench } from '@tade/workbench'
 import { version } from './version.ts'
 
-// Wilco reporting its own trouble.
+// Tade reporting its own trouble.
 //
 // One place decides whether anything is sent and what it is scrubbed against,
 // so no command has to think about it. Off unless a DSN is set, and then it is
 // the user's own Sentry project — which is what lets the Sentry extension
-// watch Wilco's own issues and hand one to an agent.
+// watch Tade's own issues and hand one to an agent.
 
 /** Where a DSN can be, when it is not in the config file. */
-const DSN_ENV = 'WILCO_TELEMETRY_DSN'
+const DSN_ENV = 'TADE_TELEMETRY_DSN'
 
-/** Where Wilco itself is, so a frame in its own code is one you could fix. */
+/** Where Tade itself is, so a frame in its own code is one you could fix. */
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 
 /** The reporter for this run: `none` unless somewhere to send was set. */
@@ -27,7 +27,7 @@ export function reporterFor(
   return openReporter(
     { ...config.telemetry, dsn },
     {
-      release: `wilco@${version()}`,
+      release: `tade@${version()}`,
       // Paths are scrubbed against the person's own home, so nothing says who they are.
       home: homedir(),
       root: ROOT,
@@ -37,7 +37,7 @@ export function reporterFor(
 }
 
 /**
- * Everything the journal says, reported as whatever it is worth: Wilco's own
+ * Everything the journal says, reported as whatever it is worth: Tade's own
  * warnings as issues, what happened around them as logs, what was spent as
  * numbers. How many agents are running is counted where it changes, so nothing
  * new runs on a timer for it.
@@ -50,7 +50,7 @@ export function reportJournal(reporter: Reporter, client: Workbench): Unsubscrib
     if (event.type === 'run_started' || event.type === 'run_exited') {
       reporter.measure({
         at: Date.now(),
-        name: 'wilco.agents',
+        name: 'tade.agents',
         kind: 'gauge',
         value: client.runs().length,
       })
@@ -72,8 +72,8 @@ export async function reportCrash(
     if (!loaded.ok) return
     const reporter = await reporterFor(loaded.config, opts)
     if (!reporter.on) return
-    const command = argv.slice(2).find((arg) => !arg.startsWith('-')) ?? 'wilco'
-    reporter.trouble({ error, where: `wilco ${command}`, level: 'fatal' })
+    const command = argv.slice(2).find((arg) => !arg.startsWith('-')) ?? 'tade'
+    reporter.trouble({ error, where: `tade ${command}`, level: 'fatal' })
     await reporter.close()
   } catch {
     // Reporting a crash must never be the reason for another one.

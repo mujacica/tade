@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@wilco/core'
-import { collectStatus } from '@wilco/status'
+import { ConfigSchema } from '@tade/core'
+import { collectStatus } from '@tade/status'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -21,9 +21,9 @@ describe('setParked', () => {
       root: repo.root,
       slug: 'migration',
       intent: INTENT,
-      worktreeRoot: tmp('wilco-park-'),
+      worktreeRoot: tmp('tade-park-'),
     })
-    const file = join(task.worktree, '.wilco', 'task.yaml')
+    const file = join(task.worktree, '.tade', 'task.yaml')
 
     expect(await setParked(task.worktree, true)).toEqual({ task: 'app/migration', parked: true })
     const parked = parse(readFileSync(file, 'utf8'))
@@ -37,7 +37,7 @@ describe('setParked', () => {
   })
 
   it('says so plainly when there is no task there', async () => {
-    await expect(setParked(tmp('wilco-empty-'), true)).rejects.toThrow(/no task at/)
+    await expect(setParked(tmp('tade-empty-'), true)).rejects.toThrow(/no task at/)
   })
 })
 
@@ -48,7 +48,7 @@ describe('task/park over the socket', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    home = tmp('wilco-park-rpc-')
+    home = tmp('tade-park-rpc-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
   })
@@ -68,7 +68,7 @@ describe('task/park over the socket', () => {
     const before = await collectStatus({
       config,
       now: Date.now(),
-      home: tmp('wilco-park-home-'),
+      home: tmp('tade-park-home-'),
       pr: false,
       processes: async () => ({ processes: [], warnings: [] }),
     })
@@ -82,7 +82,7 @@ describe('task/park over the socket', () => {
     const after = await collectStatus({
       config,
       now: Date.now(),
-      home: tmp('wilco-park-home-'),
+      home: tmp('tade-park-home-'),
       pr: false,
       processes: async () => ({ processes: [], warnings: [] }),
     })
@@ -104,7 +104,7 @@ describe('task/park over the socket', () => {
     const status = await collectStatus({
       config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
       now: Date.now(),
-      home: tmp('wilco-park-home-'),
+      home: tmp('tade-park-home-'),
       pr: false,
       processes: async () => ({ processes: [], warnings: [] }),
     })

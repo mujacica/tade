@@ -8,11 +8,11 @@ import {
   type Surface,
   summarise,
 } from '../src/attention.ts'
-import type { EventType, Urgency, WilcoEvent } from '../src/events.ts'
+import type { EventType, TadeEvent, Urgency } from '../src/events.ts'
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')
 
-function event(type: EventType, over: Partial<WilcoEvent> = {}): WilcoEvent {
+function event(type: EventType, over: Partial<TadeEvent> = {}): TadeEvent {
   const urgency: Urgency =
     type === 'permission_request' || type === 'failed'
       ? 'blocking'
@@ -38,7 +38,7 @@ function context(over: Partial<AttentionContext> = {}): AttentionContext {
 
 interface Case {
   name: string
-  event: WilcoEvent
+  event: TadeEvent
   context?: Partial<AttentionContext>
   want: Channel
   reason?: RegExp
@@ -235,7 +235,7 @@ describe('quiet hours, as a person writes them', () => {
 })
 
 describe('money', () => {
-  const budgetWarning = (): WilcoEvent => ({
+  const budgetWarning = (): TadeEvent => ({
     seq: 1,
     ts: new Date(NOW).toISOString(),
     type: 'warning',

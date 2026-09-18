@@ -1,15 +1,15 @@
 import { readFileSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { LaneId } from '@wilco/core'
-import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
-import { PtyDriver } from '@wilco/drivers-pty'
-import { TmuxDriver } from '@wilco/drivers-tmux'
+import type { LaneId } from '@tade/core'
+import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
+import { PtyDriver } from '@tade/drivers-pty'
+import { TmuxDriver } from '@tade/drivers-tmux'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
 import { LaneRegistry } from '../src/registry.ts'
 
-// Closing Wilco and opening it again, which is the ordinary thing that happens
+// Closing Tade and opening it again, which is the ordinary thing that happens
 // to it. Whether the agents are still there afterwards is the difference
 // between a control room and a terminal multiplexer with opinions.
 
@@ -19,7 +19,7 @@ describe('the lane registry, across a restart', () => {
   let log: EventLog
   const open: LaneRegistry[] = []
 
-  /** A Wilco session: the registry a window would hold while it is open. */
+  /** A Tade session: the registry a window would hold while it is open. */
   async function session(driver: PtyDriver | TmuxDriver): Promise<LaneRegistry> {
     const registry = await LaneRegistry.open({ driver, log, path })
     open.push(registry)
@@ -39,7 +39,7 @@ describe('the lane registry, across a restart', () => {
     })
 
   beforeEach(async () => {
-    home = tmp('wilco-registry-')
+    home = tmp('tade-registry-')
     path = join(home, 'lanes.json')
     log = await EventLog.open({ path: join(home, 'events.jsonl') })
   })
@@ -52,7 +52,7 @@ describe('the lane registry, across a restart', () => {
 
   describe('with a driver whose lanes outlive it', () => {
     // Its own tmux server and session, so a run never touches yours.
-    const socket = `wilco-test-${process.pid}`
+    const socket = `tade-test-${process.pid}`
     let space: string
     const tmux = () => new TmuxDriver({ socket, session: space })
 
@@ -157,7 +157,7 @@ describe('the lane registry, across a restart', () => {
       await session(new PtyDriver({ scrollback: 200 }))
 
       const exits = (await log.read({ limit: 100 })).filter((e) => e.type === 'lane_exited')
-      expect(String(exits.at(-1)?.detail?.reason)).toContain('do not outlive Wilco')
+      expect(String(exits.at(-1)?.detail?.reason)).toContain('do not outlive Tade')
     })
 
     it('leaves the registry file readable by anything of yours that wants to look', async () => {
@@ -170,8 +170,8 @@ describe('the lane registry, across a restart', () => {
   })
 
   describe('what it writes down', () => {
-    it('keeps the environment Wilco set, never what the lane inherited, and only for you to read', async () => {
-      process.env.WILCO_TEST_SECRET = 'sk-not-for-disk'
+    it('keeps the environment Tade set, never what the lane inherited, and only for you to read', async () => {
+      process.env.TADE_TEST_SECRET = 'sk-not-for-disk'
       try {
         const registry = await session(new PtyDriver({ scrollback: 200 }))
         await registry.spawn({
@@ -181,14 +181,14 @@ describe('the lane registry, across a restart', () => {
           cwd: home,
           command: process.execPath,
           args: [ECHO_CHILD],
-          env: { ...process.env, WILCO_TASK_ID: 'app/refunds' } as Record<string, string>,
+          env: { ...process.env, TADE_TASK_ID: 'app/refunds' } as Record<string, string>,
         })
         const text = readFileSync(path, 'utf8')
         expect(text).not.toContain('sk-not-for-disk')
-        expect(JSON.parse(text).lanes[0].spec.env).toEqual({ WILCO_TASK_ID: 'app/refunds' })
+        expect(JSON.parse(text).lanes[0].spec.env).toEqual({ TADE_TASK_ID: 'app/refunds' })
         expect(statSync(path).mode & 0o777).toBe(0o600)
       } finally {
-        delete process.env.WILCO_TEST_SECRET
+        delete process.env.TADE_TEST_SECRET
       }
     })
   })
@@ -196,7 +196,7 @@ describe('the lane registry, across a restart', () => {
   describe('when the ground moves under a lane', () => {
     it('survives its working directory being deleted', async () => {
       const registry = await session(new PtyDriver({ scrollback: 200 }))
-      const worktree = tmp('wilco-vanishing-')
+      const worktree = tmp('tade-vanishing-')
       await registry.spawn({
         id: 'app/vanishes/agent' as LaneId,
         task: 'app/vanishes',
@@ -212,7 +212,7 @@ describe('the lane registry, across a restart', () => {
       // Somebody ran `git worktree remove` while an agent was working in it.
       rmSync(worktree, { recursive: true, force: true })
 
-      // Wilco is not what breaks: the lane is the driver's, the process has
+      // Tade is not what breaks: the lane is the driver's, the process has
       // its own idea of where it is, and status is derived from git, which
       // will simply stop finding the task.
       expect(registry.get('app/vanishes/agent' as LaneId)?.alive).toBe(true)

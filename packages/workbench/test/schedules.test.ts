@@ -1,6 +1,6 @@
 import { readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type Schedule, watchedFrom } from '@wilco/core'
+import { type Schedule, watchedFrom } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { foldSchedules, readSchedules } from '../src/schedules.ts'
@@ -26,7 +26,7 @@ describe('schedules', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    home = tmp('wilco-schedules-')
+    home = tmp('tade-schedules-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home, version: '9.9.9' })
   })
@@ -101,7 +101,7 @@ describe('schedules', () => {
     const second = await client.fireSchedule('deps-weekly', { run: true, due: now, missed: 0 }, now)
     expect([first.task, second.task]).toEqual(['app/deps-weekly-0921', 'app/deps-weekly-0921-2'])
     const file = readFileSync(
-      join(repo.root, '.wilco', 'tasks', 'deps-weekly-0921', 'task.yaml'),
+      join(repo.root, '.tade', 'tasks', 'deps-weekly-0921', 'task.yaml'),
       'utf8',
     )
     expect(file).toContain('by: schedule:deps-weekly')
@@ -160,7 +160,7 @@ describe('schedules', () => {
       { agent: brief },
     )
     expect(again.task).toBe('app/fix-shop-1a-2')
-    const folder = join(repo.root, '.wilco', 'tasks', 'fix-shop-1a')
+    const folder = join(repo.root, '.tade', 'tasks', 'fix-shop-1a')
     const file = readFileSync(join(folder, 'task.yaml'), 'utf8')
     expect(file).toContain('by: schedule:new-errors')
     expect(file).toContain('prompt: Fix Sentry issue SHOP-1A.')

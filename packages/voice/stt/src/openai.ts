@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { stringEnv } from '@wilco/core'
+import { stringEnv } from '@tade/core'
 import {
   type AudioClip,
   type Availability,
@@ -8,7 +8,7 @@ import {
   type TranscriberCapabilities,
   TranscriberUnavailableError,
   type Transcript,
-} from '@wilco/voice-core'
+} from '@tade/voice-core'
 
 // Any OpenAI-compatible `/audio/transcriptions` endpoint. One implementation
 // covers OpenAI, Groq, and anything self-hosted that copies the shape, because

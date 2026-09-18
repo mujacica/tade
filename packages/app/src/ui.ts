@@ -5,7 +5,7 @@ import {
   visibleWidth,
 } from '@earendil-works/pi-tui'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
-import type { Look, Skin } from './skin.ts'
+import { type Look, markLabel, type Skin } from './skin.ts'
 
 // The controls, and the two things every region is made of: rows that know
 // what is clickable in them, and boxes that float over other rows.
@@ -51,6 +51,11 @@ export class Row {
 
   text(text: string, paint: (text: string) => string = (t) => t, target?: Target): this {
     return this.put(paint(text), visibleWidth(text), target)
+  }
+
+  /** The wordmark as a block: the spelt-out label + 4 columns, like a button but not one. */
+  mark(label: string): this {
+    return this.put(this.skin.mark(label), visibleWidth(markLabel(label)) + 4)
   }
 
   space(n = 1): this {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { cleanName, firstWords, titleFrom } from '../src/wilco.ts'
+import { cleanName, firstWords, titleFrom } from '../src/tade.ts'
 
 // What an agent's work is called when nobody named it: the start of the first
-// thing it was asked. Wilco names the agent's branch from this.
+// thing it was asked. Tade names the agent's branch from this.
 
 describe('a title from a request', () => {
   it('is the first eight words of its first line', () => {

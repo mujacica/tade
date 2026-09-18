@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/status",
+  "name": "@tade/status",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
+    "@tade/core": "workspace:*",
     "execa": "^10.0.1",
     "yaml": "^2.9.0"
   }

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // What only you know.
 //
-// Everything else Wilco says about the world is derived from something it can
+// Everything else Tade says about the world is derived from something it can
 // observe: git, processes, transcripts. Notes are the exception, and they are
 // not a contradiction of that — they are the same kind of fact as
 // `intent_spoken` and `parked`, things a person said that no probe could ever

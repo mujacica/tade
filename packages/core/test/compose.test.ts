@@ -3,7 +3,7 @@ import { composeAgentPrompt, composePrompt } from '../src/compose.ts'
 import { ConfigSchema } from '../src/config.ts'
 import type { Note } from '../src/memory.ts'
 
-// What Wilco believes about itself. Deterministic on purpose: a change here is
+// What Tade believes about itself. Deterministic on purpose: a change here is
 // a change in behaviour, and it should be visible in a diff rather than felt
 // three days later.
 
@@ -22,7 +22,7 @@ describe('composePrompt', () => {
     const prompt = composePrompt({ config: config() })
     // The single most important thing: it delegates rather than edits.
     expect(prompt).toContain('You delegate')
-    expect(prompt).toContain('wilco_status')
+    expect(prompt).toContain('tade_status')
   })
 
   it('lists the projects with their briefs', () => {
@@ -82,7 +82,7 @@ describe('composePrompt', () => {
 describe('what it is told about this machine', () => {
   it('says whether agents survive the window closing', () => {
     const tmux = composePrompt({ config: ConfigSchema.parse({ workspace: { driver: 'tmux' } }) })
-    expect(tmux).toContain('keep working after Wilco is closed')
+    expect(tmux).toContain('keep working after Tade is closed')
     // The other way round is the one worth warning about: somebody is about to
     // close a laptop expecting work to carry on.
     const pty = composePrompt({ config: ConfigSchema.parse({ workspace: { driver: 'pty' } }) })
@@ -115,7 +115,7 @@ describe('what it is told about this machine', () => {
 
   it('tells it what it cannot do, and what does it instead', () => {
     // Otherwise "turn approvals on" gets either a flat refusal or a pretence.
-    expect(composePrompt({ config: ConfigSchema.parse({}) })).toContain('wilco config')
+    expect(composePrompt({ config: ConfigSchema.parse({}) })).toContain('tade config')
   })
 })
 
@@ -148,15 +148,15 @@ describe('composeAgentPrompt', () => {
     const told = composeAgentPrompt({
       ...base,
       worktree: '/h/worktrees/shop-refunds',
-      branch: 'wilco/refunds',
+      branch: 'tade/refunds',
       workspace: 'worktree',
       commit: 'never',
-      context: '.wilco/context.md',
+      context: '.tade/context.md',
     })
     expect(told).toContain('a git worktree of your own, /h/worktrees/shop-refunds')
     expect(told).toContain('never change the project’s own checkout at /src/shop')
     expect(told).toContain('Do not commit.')
-    expect(told).toContain('in .wilco/context.md')
+    expect(told).toContain('in .tade/context.md')
     for (const rule of ['when-done', 'as-you-go'] as const) {
       expect(composeAgentPrompt({ ...base, workspace: 'checkout', commit: rule })).toMatch(
         /commit/i,

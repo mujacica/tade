@@ -64,7 +64,7 @@ describe('readiness', () => {
     const steps = readiness(facts({ driverChosen: false }))
     const workspace = steps.find((s) => s.id === 'workspace')
     expect(workspace).toMatchObject({ done: false, required: false })
-    expect(workspace?.detail).toContain('agents stop when Wilco does')
+    expect(workspace?.detail).toContain('agents stop when Tade does')
     // Not required: a working driver is enough to run, so this never blocks.
     expect(isReady(steps)).toBe(true)
   })

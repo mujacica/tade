@@ -4,7 +4,7 @@ import { z } from 'zod'
 // of a Task: the CLI, the RPC layer and the orchestrator's tool definitions
 // all derive from them.
 //
-//   Workspace  one machine, one WILCO_HOME
+//   Workspace  one machine, one TADE_HOME
 //   └ Project  a repo root + brief + preferences
 //     └ Task   an intent + branch + worktree   ← what you talk about
 //       └ Lane one PTY: agent | server | tests | shell
@@ -55,7 +55,7 @@ export const DONE_RULE_MEANS: Readonly<Record<DoneRule, string>> = {
 /**
  * When a task that was asked for now should start: after other tasks finish,
  * not before a time, or both. A task with one is queued work — made, named and
- * waiting — until Wilco starts its agent.
+ * waiting — until Tade starts its agent.
  */
 export const StartCondition = z.object({
   /** The tasks it waits on, each with why: it starts once every one has finished. */
@@ -74,7 +74,7 @@ export const StartCondition = z.object({
 export type StartCondition = z.infer<typeof StartCondition>
 
 /**
- * `.wilco/task.yaml` inside a task's worktree, written once when the task is
+ * `.tade/task.yaml` inside a task's worktree, written once when the task is
  * created. `intent_spoken` is stored verbatim.
  */
 export const TaskFile = z.object({
@@ -145,19 +145,36 @@ export const HARNESS_CHOICES: readonly {
   /** Offered to choose: false for one that is coming but cannot run yet. */
   ready: boolean
 }[] = [
-  { id: 'pi', title: 'pi', about: 'the pi coding agent, supervised by Wilco', ready: true },
+  { id: 'pi', title: 'pi', about: 'the pi coding agent, supervised by Tade', ready: true },
   { id: 'claude-code', title: 'Claude Code', about: 'not supported yet', ready: false },
   { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
 ]
 
+/**
+ * The folder a project keeps its task files in.
+ *
+ * `LEGACY_PROJECT_DIR` is what it was called before the rename. A checkout that
+ * already has one holds live tasks — their ids, their intent, their context —
+ * so both names are read, and `projectDir` says which one a given checkout is
+ * using: whichever is there, new name first, and the new name for a checkout
+ * that has neither.
+ */
+export const PROJECT_DIR = '.tade'
+export const LEGACY_PROJECT_DIR = '.wilco'
+
+/** Both folder names, newest first: for ignore lists and "is this ours" checks. */
+export const PROJECT_DIRS = [PROJECT_DIR, LEGACY_PROJECT_DIR] as const
+
 /** Beside the task file: what whoever started a task wanted the agent to know. */
-export const TASK_CONTEXT_FILE = '.wilco/context.md'
+export const TASK_CONTEXT_FILE = `${PROJECT_DIR}/context.md`
 
 /**
  * Where the tasks working in a project's own checkout keep their files: one
  * folder each, since they share the directory their work is in.
  */
-export const SHARED_TASKS_DIR = '.wilco/tasks'
+export const SHARED_TASKS_DIR = `${PROJECT_DIR}/tasks`
+/** The same folder under the name it had before the rename. */
+export const LEGACY_SHARED_TASKS_DIR = `${LEGACY_PROJECT_DIR}/tasks`
 
 /** The folder, relative to the checkout, holding one shared task's file and context. */
 export function sharedTaskDir(id: string): string {
@@ -171,7 +188,7 @@ export const GitSnapshot = z.object({
   head: z.string().nullable(),
   headSubject: z.string().nullable(),
   headTime: z.number().nullable(),
-  /** Paths with staged, unstaged or untracked changes (excluding `.wilco/`). */
+  /** Paths with staged, unstaged or untracked changes (excluding `.tade/`). */
   dirty: z.array(z.string()),
   ahead: z.number().int().nullable(),
   behind: z.number().int().nullable(),
@@ -187,13 +204,13 @@ export const TurnState = z.enum(['running', 'idle', 'unknown'])
 export type TurnState = z.infer<typeof TurnState>
 
 /**
- * One agent attached to a task, however it was found: a Wilco lane, or a
+ * One agent attached to a task, however it was found: a Tade lane, or a
  * session adopted from a provider's transcript files.
  */
 export const AgentSignal = z.object({
   /**
-   * `lane` is a PTY Wilco opened, `run` a supervised agent it is driving, and
-   * `adopted` a session someone started outside Wilco entirely.
+   * `lane` is a PTY Tade opened, `run` a supervised agent it is driving, and
+   * `adopted` a session someone started outside Tade entirely.
    */
   source: z.enum(['lane', 'run', 'adopted']),
   provider: z.string(),
@@ -264,7 +281,7 @@ export const Project = z.object({
   root: z.string(),
   brief: z.string().nullable(),
   tasks: z.array(Task),
-  /** Agent sessions in this repo that don't belong to any Wilco task. */
+  /** Agent sessions in this repo that don't belong to any Tade task. */
   untracked: z.array(AgentSignal.extend({ cwd: z.string() })),
 })
 export type Project = z.infer<typeof Project>

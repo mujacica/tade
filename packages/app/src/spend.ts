@@ -4,8 +4,8 @@ import {
   checkBudget,
   spendFrom,
   startOfToday,
-  type WilcoEvent,
-} from '@wilco/core'
+  type TadeEvent,
+} from '@tade/core'
 
 // What the window says about money, as data.
 //
@@ -63,7 +63,7 @@ export interface SpendView {
 
 const DAY = 86_400_000
 
-/** When a window starts: midnight, when Wilco opened, or six midnights ago. */
+/** When a window starts: midnight, when Tade opened, or six midnights ago. */
 export function sinceOf(window: SpendWindow, now: number, openedAt: number): number {
   if (window === 'window') return openedAt
   if (window === 'week') return startOfToday(now) - 6 * DAY
@@ -71,7 +71,7 @@ export function sinceOf(window: SpendWindow, now: number, openedAt: number): num
 }
 
 export function spendView(
-  events: readonly WilcoEvent[],
+  events: readonly TadeEvent[],
   opts: {
     window: SpendWindow
     by: SpendBy
@@ -171,7 +171,7 @@ function shareOf(spent: { tokens: number; usd: number }, budget: Budget): number
 }
 
 /** The model each task last reported, and the orchestrator's under `null`. */
-function lastModels(usage: readonly WilcoEvent[]): Map<string | null, string> {
+function lastModels(usage: readonly TadeEvent[]): Map<string | null, string> {
   const models = new Map<string | null, string>()
   for (const event of usage) {
     const model = event.detail.model

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-// Making Wilco audible.
+// Making Tade audible.
 //
 // Earcons carry state, speech carries content. Three distinct tones are the
 // highest-leverage detail in the whole voice design: you learn them in a day
@@ -150,7 +150,7 @@ export class Speaker {
     await this.safely(this.player(this.toneFile(tone)))
   }
 
-  /** Audio failing is never a reason for the rest of Wilco to stop. */
+  /** Audio failing is never a reason for the rest of Tade to stop. */
   private async safely(command: Command): Promise<void> {
     try {
       await this.run(command)
@@ -185,7 +185,7 @@ const execRunner: Runner = ({ command, args, timeout }) =>
 
 /**
  * Options for a short-lived helper in its own process group, so the terminal
- * Wilco runs in never names its window after it. `execFile` passes `detached`
+ * Tade runs in never names its window after it. `execFile` passes `detached`
  * on to the spawn beneath it; its types just do not say so.
  */
 function detachedFor(timeout: number): { timeout: number } {

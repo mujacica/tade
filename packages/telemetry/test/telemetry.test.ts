@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import type { WilcoEvent } from '@wilco/core'
+import type { TadeEvent } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { reporterConformance } from '../src/conformance.ts'
 import { noReporter } from '../src/none.ts'
@@ -8,7 +8,7 @@ import type { Reporter } from '../src/port.ts'
 import { sentryReporter } from '../src/sentry.ts'
 import { about, fromEvent, readDsn, scrub, shapeOf } from '../src/shape.ts'
 
-// What Wilco sends about itself. Nothing reaches a network: the SDK is given
+// What Tade sends about itself. Nothing reaches a network: the SDK is given
 // somewhere else to put its envelopes, and what would have gone on the wire is
 // read back here.
 //
@@ -22,7 +22,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 reporterConformance('sentry', sentryReporter, { dsn: DSN })
 reporterConformance('none', async () => noReporter(), { dsn: DSN })
 
-const event = (over: Partial<WilcoEvent> = {}): WilcoEvent => ({
+const event = (over: Partial<TadeEvent> = {}): TadeEvent => ({
   seq: 1,
   ts: '2026-09-16T09:00:00.000Z',
   type: 'task_created',
@@ -57,7 +57,7 @@ describe('what is never sent', () => {
     expect(scrub('used ghp_0123456789abcdefghij', HOME)).toBe('used …')
   })
 
-  it('sends only the few details that are Wilco’s own words, never anybody’s text', () => {
+  it('sends only the few details that are Tade’s own words, never anybody’s text', () => {
     expect(
       about(
         {
@@ -68,7 +68,7 @@ describe('what is never sent', () => {
           reason: 'tests failed twice',
           code: 1,
           stopped: true,
-          message: `could not read ${HOME}/.wilco/config.yaml`,
+          message: `could not read ${HOME}/.tade/config.yaml`,
         },
         HOME,
       ),
@@ -76,7 +76,7 @@ describe('what is never sent', () => {
       reason: 'tests failed twice',
       code: 1,
       stopped: true,
-      message: 'could not read ~/.wilco/config.yaml',
+      message: 'could not read ~/.tade/config.yaml',
     })
   })
 
@@ -103,7 +103,7 @@ describe('what is never sent', () => {
 })
 
 describe('what a journal event is worth', () => {
-  it('makes Wilco’s own warnings issues, grouped by what they say rather than what they name', () => {
+  it('makes Tade’s own warnings issues, grouped by what they say rather than what they name', () => {
     const { trouble } = fromEvent(
       event({
         type: 'warning',
@@ -115,10 +115,10 @@ describe('what a journal event is worth', () => {
       HOME,
     )
     expect(trouble).toMatchObject({
-      where: 'wilco',
+      where: 'tade',
       level: 'warning',
       fingerprint: [
-        'wilco',
+        'tade',
         'warning',
         'workspace.driver is tmux, and tmux is not installed. using pty instead.',
       ],
@@ -136,8 +136,8 @@ describe('what a journal event is worth', () => {
     )
     expect(spend.trouble).toBeUndefined()
     expect(spend.measures?.map((one) => [one.name, one.value, one.unit])).toEqual([
-      ['wilco.tokens', 1200, 'token'],
-      ['wilco.cost', 0.42, 'usd'],
+      ['tade.tokens', 1200, 'token'],
+      ['tade.cost', 0.42, 'usd'],
     ])
     const failed = fromEvent(
       event({ type: 'failed', detail: { reason: 'the model refused' } }),
@@ -145,7 +145,7 @@ describe('what a journal event is worth', () => {
     )
     expect(failed.trouble).toBeUndefined()
     expect(failed.note?.level).toBe('error')
-    expect(failed.measures?.[0]).toMatchObject({ name: 'wilco.failed', kind: 'counter', value: 1 })
+    expect(failed.measures?.[0]).toMatchObject({ name: 'tade.failed', kind: 'counter', value: 1 })
   })
 })
 
@@ -178,7 +178,7 @@ describe('sending', () => {
         environment: 'test',
         ...over,
       },
-      { release: 'wilco@9.9.9', home: HOME, root: ROOT, ...(sink ? { sink } : {}) },
+      { release: 'tade@9.9.9', home: HOME, root: ROOT, ...(sink ? { sink } : {}) },
     )
     return reporter
   }
@@ -187,7 +187,7 @@ describe('sending', () => {
     const sent: unknown[] = []
     const report = await open({}, (envelope) => sent.push(envelope))
     report.trouble({
-      error: new Error(`it fell over reading ${HOME}/.wilco/config.yaml`),
+      error: new Error(`it fell over reading ${HOME}/.tade/config.yaml`),
       where: 'the window',
       task: 'app/refunds',
       project: 'app',
@@ -199,25 +199,25 @@ describe('sending', () => {
       tags: Record<string, string>
       release: string
       environment: string
-      contexts: { wilco?: Record<string, unknown> }
+      contexts: { tade?: Record<string, unknown> }
       exception: { values: { value: string; stacktrace: { frames: Record<string, unknown>[] } }[] }
     }
     expect(issue.tags).toMatchObject({ where: 'the window', task: 'app/refunds', project: 'app' })
-    expect(issue.release).toBe('wilco@9.9.9')
+    expect(issue.release).toBe('tade@9.9.9')
     expect(issue.environment).toBe('test')
-    expect(issue.contexts.wilco).toMatchObject({ driver: 'pty' })
-    expect(issue.exception.values[0]?.value).toBe('it fell over reading ~/.wilco/config.yaml')
-    // The frames are Wilco's own, with the lines around them to read.
+    expect(issue.contexts.tade).toMatchObject({ driver: 'pty' })
+    expect(issue.exception.values[0]?.value).toBe('it fell over reading ~/.tade/config.yaml')
+    // The frames are Tade's own, with the lines around them to read.
     const own = issue.exception.values[0]?.stacktrace.frames.filter((frame) => frame.in_app) ?? []
     expect(own.length).toBeGreaterThan(0)
     expect(own.at(-1)?.context_line).toBeTruthy()
     expect(JSON.stringify(sent)).not.toContain(HOME)
   })
 
-  it('keeps the lines of Wilco’s own files, and of nobody else’s', async () => {
+  it('keeps the lines of Tade’s own files, and of nobody else’s', async () => {
     const sent: unknown[] = []
     const report = await open({}, (envelope) => sent.push(envelope))
-    // Thrown from inside a dependency: its source is not Wilco's to send.
+    // Thrown from inside a dependency: its source is not Tade's to send.
     await new Promise<void>((done) => {
       setTimeout(() => {
         report.trouble({ error: new Error('from somewhere else'), where: 'a timer' })
@@ -235,7 +235,7 @@ describe('sending', () => {
 
   it('times what an agent does as the work of a model, whatever else it is told to time', async () => {
     const sent: unknown[] = []
-    // Wilco's own work is not timed at all here; an agent's turn still is.
+    // Tade's own work is not timed at all here; an agent's turn still is.
     const report = await open({ traces: 0, agents: true }, (envelope) => sent.push(envelope))
     const turn = report.doing({
       name: 'invoke_agent app/refunds',
@@ -246,7 +246,7 @@ describe('sending', () => {
     turn.inside({ name: 'execute_tool bash', op: 'gen_ai.execute_tool' }).end()
     turn.about({ 'gen_ai.usage.total_tokens': 1200 })
     turn.end()
-    report.doing({ name: 'a status poll', op: 'wilco.poll' }).end()
+    report.doing({ name: 'a status poll', op: 'tade.poll' }).end()
     await report.flush(1_000)
 
     const all = items(sent)
@@ -277,7 +277,7 @@ describe('sending', () => {
       said: 'run_started app/refunds',
       about: { task: 'app/refunds' },
     })
-    report.measure({ at: Date.now(), name: 'wilco.agents', kind: 'gauge', value: 2 })
+    report.measure({ at: Date.now(), name: 'tade.agents', kind: 'gauge', value: 2 })
     await report.flush(1_000)
     const all = items(sent)
     const logs = all.find((item) => item.type === 'log')?.payload as {
@@ -303,7 +303,7 @@ describe('sending', () => {
       message?: string
       level?: string
     }
-    expect(issue.message).toBe('wilco: tmux is not installed')
+    expect(issue.message).toBe('tade: tmux is not installed')
     expect(issue.level).toBe('warning')
     expect(JSON.stringify(sent)).not.toContain('fix the charge')
   })
@@ -317,7 +317,7 @@ describe('sending', () => {
       traces: 1,
       agents: true,
     }
-    const here = { release: 'wilco@9.9.9', home: HOME }
+    const here = { release: 'tade@9.9.9', home: HOME }
     expect((await openReporter({ ...off, dsn: '' }, here)).on).toBe(false)
     expect((await openReporter({ ...off, dsn: 'nonsense' }, here)).on).toBe(false)
     expect((await openReporter({ ...off, driver: 'none', dsn: DSN }, here)).on).toBe(false)

@@ -1,5 +1,5 @@
 import type { Finished } from './done.ts'
-import type { WilcoEvent } from './events.ts'
+import type { TadeEvent } from './events.ts'
 import type { DoneRule, StartCondition, TaskState } from './model.ts'
 
 // Work asked for now and started later.
@@ -7,7 +7,7 @@ import type { DoneRule, StartCondition, TaskState } from './model.ts'
 // Queued work is a task that has not started, with a start condition in its
 // task file: the tasks it waits on, and the time it waits for. Whether it can
 // start is a query — of what status says the tasks are, what the journal says
-// has finished or gone wrong, and the clock — so Wilco acts on it by rule,
+// has finished or gone wrong, and the clock — so Tade acts on it by rule,
 // without a model deciding again, and gives the same answer every time.
 //
 // Pure: facts in, answers out.
@@ -23,7 +23,7 @@ export interface QueueFacts {
   tasks: ReadonlyMap<string, { state: TaskState; reason: string }>
   finished: ReadonlyMap<string, Finished>
   /** The journal: what was removed, stopped, failed, paused or started anyway. */
-  events: readonly WilcoEvent[]
+  events: readonly TadeEvent[]
   now: number
 }
 
@@ -51,7 +51,7 @@ interface Choices {
   answeredAt: number
 }
 
-function choicesFor(task: string, events: readonly WilcoEvent[]): Choices {
+function choicesFor(task: string, events: readonly TadeEvent[]): Choices {
   const choices: Choices = { paused: false, anyway: false, answeredAt: 0 }
   for (const event of events) {
     if (event.type !== 'queue_changed' || event.task !== task) continue
@@ -80,7 +80,7 @@ function choicesFor(task: string, events: readonly WilcoEvent[]): Choices {
  * Whether a project's whole queue is paused: the last word on it, for that
  * project or for every project.
  */
-export function queuePaused(events: readonly WilcoEvent[], project: string): boolean {
+export function queuePaused(events: readonly TadeEvent[], project: string): boolean {
   let paused = false
   for (const event of events) {
     if (event.type !== 'queue_changed' || event.detail.all !== true) continue
@@ -130,7 +130,7 @@ function troubleWith(dep: string, facts: QueueFacts, since: number): string | nu
 }
 
 /** Why a task's own start failed, since anyone last answered it. */
-function ownTrouble(task: string, events: readonly WilcoEvent[], since: number): string | null {
+function ownTrouble(task: string, events: readonly TadeEvent[], since: number): string | null {
   let because: string | null = null
   for (const event of events) {
     if (event.task !== task || event.seq <= since) continue
@@ -146,7 +146,7 @@ function ownTrouble(task: string, events: readonly WilcoEvent[], since: number):
  * Whether a hold was already said since anyone last answered it: said once, a
  * hold waits for an answer, and asking again every refresh is nagging.
  */
-export function holdSaid(task: string, because: string, events: readonly WilcoEvent[]): boolean {
+export function holdSaid(task: string, because: string, events: readonly TadeEvent[]): boolean {
   let said = false
   for (const event of events) {
     if (event.task !== task) continue
@@ -285,7 +285,7 @@ export interface PlanBusy {
 /** What a plan is checked against: how the project works, and what is already there. */
 export interface PlanContext {
   workspace: 'checkout' | 'worktree'
-  /** Every task the project has, so a wait on one of them is a wait Wilco can keep. */
+  /** Every task the project has, so a wait on one of them is a wait Tade can keep. */
   tasks: ReadonlySet<string>
   /** Work already going or waiting to go: a plan can collide with that too. */
   busy?: readonly PlanBusy[]

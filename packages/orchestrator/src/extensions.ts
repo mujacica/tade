@@ -17,25 +17,25 @@ import {
   type Skill,
   skillAbout,
   skillDirs,
-} from '@wilco/core'
-import { depsExtension } from '@wilco/extension-deps'
-import { resourcesExtension } from '@wilco/extension-resources'
-import { sentryExtension } from '@wilco/extension-sentry'
+} from '@tade/core'
+import { depsExtension } from '@tade/extension-deps'
+import { resourcesExtension } from '@tade/extension-resources'
+import { sentryExtension } from '@tade/extension-sentry'
 import {
   type Audience,
   ExtensionHost,
   type ExtensionWorkbench,
-  type WilcoExtension,
-} from '@wilco/extensions-core'
-import type { WorkerExtras } from '@wilco/harnesses-core'
+  type TadeExtension,
+} from '@tade/extensions-core'
+import type { WorkerExtras } from '@tade/harnesses-core'
 import {
   branchSlug,
   recordAuthored,
   type Workbench,
   type WorkbenchExtensions,
-} from '@wilco/workbench'
+} from '@tade/workbench'
 
-// Finding the tools Wilco wrote for itself. The rules about which files count
+// Finding the tools Tade wrote for itself. The rules about which files count
 // are in core and tested there; this is the part that touches the disk.
 
 /**
@@ -74,16 +74,16 @@ function skillsIn(dir: string): Skill[] {
   }
 }
 
-// ── Wilco's extensions ───────────────────────────────────────────────────────
+// ── Tade's extensions ───────────────────────────────────────────────────────
 //
-// The ones that ship with Wilco, and what loading them gives each part: the
+// The ones that ship with Tade, and what loading them gives each part: the
 // orchestrator its tools and a paragraph about them, every agent the tools it
 // may call, what it is told, and the harness-native pieces extensions ship.
 
-/** Something Wilco wrote for itself and is waiting on a human for. */
+/** Something Tade wrote for itself and is waiting on a human for. */
 export interface Proposal {
   name: string
-  /** A pi extension file for the orchestrator, or a folder that is a whole Wilco extension. */
+  /** A pi extension file for the orchestrator, or a folder that is a whole Tade extension. */
   kind: 'tool' | 'extension'
   /** Why it was written, from the comment it starts with. */
   why: string
@@ -135,7 +135,7 @@ export function proposedExtensions(root: string): Proposal[] {
 }
 
 /**
- * Approve a proposal, which moves it to `active/` to load when Wilco next
+ * Approve a proposal, which moves it to `active/` to load when Tade next
  * starts, or turn it down, which keeps it in `rejected/` so it is not proposed
  * again. Either way it is committed, so the decision can be found later.
  */
@@ -155,12 +155,12 @@ export async function decideProposal(
     `${verdict === 'approve' ? 'activate' : 'reject'} ${proposal.kind} ${name}`,
   )
   return verdict === 'approve'
-    ? `${name} is approved: it loads when Wilco next starts`
+    ? `${name} is approved: it loads when Tade next starts`
     : `${name} is turned down, and kept so it is not proposed again`
 }
 
-/** The extensions that ship with Wilco, by name. */
-export const BUILTIN_EXTENSIONS: readonly WilcoExtension[] = [
+/** The extensions that ship with Tade, by name. */
+export const BUILTIN_EXTENSIONS: readonly TadeExtension[] = [
   depsExtension,
   sentryExtension,
   resourcesExtension(),
@@ -224,13 +224,13 @@ export function orchestratorExtensions(
  * with its context written and its links kept.
  */
 export function extensionWorkbench(
-  wilco: Workbench,
+  tade: Workbench,
   onStarted?: (task: string) => void,
 ): ExtensionWorkbench {
   return {
     pid: process.pid,
     lanes: () =>
-      wilco.lanes().map((lane) => ({
+      tade.lanes().map((lane) => ({
         id: lane.id,
         task: lane.task,
         kind: lane.kind,
@@ -242,7 +242,7 @@ export function extensionWorkbench(
       let slug = base
       for (let n = 2; ; n++) {
         try {
-          const task = await wilco.createTask({
+          const task = await tade.createTask({
             project: request.project,
             slug,
             intent: request.prompt,
@@ -251,7 +251,7 @@ export function extensionWorkbench(
             by: request.by ?? 'extension:unknown',
           })
           await request.prepare?.(task.worktree)
-          await wilco.startAgent({ task: task.id, cwd: task.worktree, prompt: request.prompt })
+          await tade.startAgent({ task: task.id, cwd: task.worktree, prompt: request.prompt })
           onStarted?.(task.id)
           return { task: task.id, worktree: task.worktree }
         } catch (err) {
@@ -290,7 +290,7 @@ export function workbenchExtensions(
         await host.call(call.tool, call.input, {
           caller: { kind: 'agent', task: call.task, project: call.project, cwd: call.cwd },
           id: call.callId,
-          wilco: window(),
+          tade: window(),
         })
       ).text,
   }

@@ -133,19 +133,19 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   return null
 }
 
-/** Keys that belong to something you would lose by giving them to Wilco. */
+/** Keys that belong to something you would lose by giving them to Tade. */
 const TAKEN: Record<string, string> = {
-  'ctrl+c': 'ctrl+c closes Wilco, and stops a running command everywhere else',
+  'ctrl+c': 'ctrl+c closes Tade, and stops a running command everywhere else',
   'ctrl+d': 'pi and shells exit on ctrl+d',
   'ctrl+o': 'pi shows more with ctrl+o',
   escape: 'pi interrupts the agent on escape',
   enter: 'enter sends what you typed',
-  tab: 'Wilco moves between agents with tab',
-  'shift+tab': 'Wilco moves between agents with shift+tab',
+  tab: 'Tade moves between agents with tab',
+  'shift+tab': 'Tade moves between agents with shift+tab',
   'ctrl+r': 'pi and most shells search history with ctrl+r',
   'ctrl+a': 'shells jump to the start of the line with ctrl+a',
   'ctrl+e': 'shells jump to the end of the line with ctrl+e',
-  'ctrl+k': 'Wilco opens Search with ctrl+k',
+  'ctrl+k': 'Tade opens Search with ctrl+k',
   'ctrl+u': 'shells delete to the start of the line with ctrl+u',
   'ctrl+w': 'shells delete the word before the cursor with ctrl+w',
   'ctrl+l': 'shells clear the screen with ctrl+l',
@@ -179,7 +179,7 @@ export function checkTalkKey(name: string, printable = false): TalkKeyCheck {
     if (key === 'ctrl+c' || key === 'enter') return { ok: false, reason: `${capital(taken)}.` }
     return {
       ok: true,
-      warning: `${capital(taken)}. While Wilco holds it, your agents never see it.`,
+      warning: `${capital(taken)}. While Tade holds it, your agents never see it.`,
     }
   }
   return { ok: true, warning: null }

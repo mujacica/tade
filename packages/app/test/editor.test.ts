@@ -15,7 +15,7 @@ describe('choosing an editor', () => {
     expect(chooseEditor('zed', { TERM_PROGRAM: 'vscode', EDITOR: 'vim' }).editor).toBe('zed')
   })
 
-  it('prefers the editor whose terminal Wilco is running in', () => {
+  it('prefers the editor whose terminal Tade is running in', () => {
     expect(chooseEditor(undefined, { TERM_PROGRAM: 'vscode', EDITOR: 'vim' }).editor).toBe('code')
   })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { WilcoEvent } from '../src/events.ts'
+import type { TadeEvent } from '../src/events.ts'
 import { describeWork, summariseWork } from '../src/summary.ts'
 
 // "What has it been up to?" is a different question from "what moved last",
@@ -7,7 +7,7 @@ import { describeWork, summariseWork } from '../src/summary.ts'
 
 const NOW = Date.parse('2026-09-12T14:00:00Z')
 
-const event = (over: Partial<WilcoEvent> = {}): WilcoEvent => ({
+const event = (over: Partial<TadeEvent> = {}): TadeEvent => ({
   seq: 1,
   ts: '2026-09-12T13:00:00.000Z',
   type: 'tool_call',
@@ -19,7 +19,7 @@ const event = (over: Partial<WilcoEvent> = {}): WilcoEvent => ({
   ...over,
 })
 
-const tool = (name: string, over: Partial<WilcoEvent> = {}): WilcoEvent =>
+const tool = (name: string, over: Partial<TadeEvent> = {}): TadeEvent =>
   event({ type: 'tool_call', detail: { tool: name }, ...over })
 
 describe('summariseWork', () => {

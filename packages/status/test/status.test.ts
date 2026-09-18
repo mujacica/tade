@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type Config, ConfigSchema } from '@wilco/core'
+import { type Config, ConfigSchema } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { collectStatus, type StatusOptions } from '../src/status.ts'
@@ -18,7 +18,7 @@ function config(projects: Record<string, string>, adopt = true): Config {
 function opts(over: Partial<StatusOptions> & { config: Config }): StatusOptions {
   return {
     now: NOW,
-    home: tmp('wilco-home-'),
+    home: tmp('tade-home-'),
     pr: false,
     processes: async () => ({ processes: [], warnings: [] }),
     ...over,
@@ -37,9 +37,9 @@ describe('collectStatus', () => {
     const wip = r.addTask('wip', { project: 'app' })
     r.write({ 'x.ts': '1' }, wip)
     r.addTask('parked', { project: 'app', parked: true })
-    // A wilco/* branch without a task.yaml is not a task.
-    r.git('worktree', 'add', '-q', '-b', 'wilco/stray', join(r.root, '..', 'stray'), 'main')
-    rmSync(join(r.root, '..', 'stray', '.wilco'), { recursive: true, force: true })
+    // A tade/* branch without a task.yaml is not a task.
+    r.git('worktree', 'add', '-q', '-b', 'tade/stray', join(r.root, '..', 'stray'), 'main')
+    rmSync(join(r.root, '..', 'stray', '.tade'), { recursive: true, force: true })
 
     const ws = await collectStatus(opts({ config: config({ app: r.root }) }))
     expect(ws.warnings).toEqual([])
@@ -55,7 +55,7 @@ describe('collectStatus', () => {
   it('attaches an adopted session to the task whose worktree it runs in', async () => {
     const r = mkrepo()
     const wt = r.addTask('adopted', { project: 'app' })
-    const home = tmp('wilco-home-')
+    const home = tmp('tade-home-')
     const dir = join(home, '.claude/projects/x')
     mkdirSync(dir, { recursive: true })
     const line = (o: object) => `${JSON.stringify(o)}\n`
@@ -96,7 +96,7 @@ describe('collectStatus', () => {
   it('a running provider process proves liveness even when the transcript is quiet', async () => {
     const r = mkrepo()
     const wt = r.addTask('quiet', { project: 'app' })
-    const home = tmp('wilco-home-')
+    const home = tmp('tade-home-')
     const dir = join(home, '.codex/sessions/2026/09/11')
     mkdirSync(dir, { recursive: true })
     const fx = fileURLToPath(
@@ -135,12 +135,12 @@ describe('collectStatus', () => {
     const r = mkrepo()
     const wt = join(r.root, '..', 'agent-1')
     r.git('worktree', 'add', '-q', '--detach', wt, 'main')
-    mkdirSync(join(wt, '.wilco'), { recursive: true })
+    mkdirSync(join(wt, '.tade'), { recursive: true })
     writeFileSync(
-      join(wt, '.wilco', 'task.yaml'),
+      join(wt, '.tade', 'task.yaml'),
       'id: app/agent-1\nproject: app\nintent_spoken: ""\ncreated: 2026-09-11T11:00:00Z\ntitle: refund retries\nlinks:\n  - title: SHOP-1A\n    url: https://acme.sentry.io/issues/4411/\n',
     )
-    // A detached worktree Wilco did not make is nobody's task.
+    // A detached worktree Tade did not make is nobody's task.
     r.git('worktree', 'add', '-q', '--detach', join(r.root, '..', 'somebody'), 'main')
 
     let ws = await collectStatus(opts({ config: config({ app: r.root }) }))
@@ -152,9 +152,9 @@ describe('collectStatus', () => {
       { title: 'SHOP-1A', url: 'https://acme.sentry.io/issues/4411/' },
     ])
 
-    r.git('-C', wt, 'switch', '-q', '-c', 'wilco/refund-retries')
+    r.git('-C', wt, 'switch', '-q', '-c', 'tade/refund-retries')
     ws = await collectStatus(opts({ config: config({ app: r.root }) }))
-    expect(task(ws, 'app/agent-1')?.branch).toBe('wilco/refund-retries')
+    expect(task(ws, 'app/agent-1')?.branch).toBe('tade/refund-retries')
   })
 
   it('finds agents working side by side in the checkout, each by its own folder', async () => {
@@ -163,9 +163,9 @@ describe('collectStatus', () => {
       ['refunds', 'refund retries'],
       ['search', 'faster search'],
     ] as const) {
-      mkdirSync(join(r.root, '.wilco', 'tasks', slug), { recursive: true })
+      mkdirSync(join(r.root, '.tade', 'tasks', slug), { recursive: true })
       writeFileSync(
-        join(r.root, '.wilco', 'tasks', slug, 'task.yaml'),
+        join(r.root, '.tade', 'tasks', slug, 'task.yaml'),
         `id: app/${slug}\nproject: app\nintent_spoken: "${title}"\ncreated: 2026-09-11T11:00:00Z\nworkspace: checkout\n`,
       )
     }
@@ -191,7 +191,7 @@ describe('collectStatus', () => {
     })
 
     it('project root that does not exist', async () => {
-      const ws = await collectStatus(opts({ config: config({ ghost: '/nonexistent/wilco' }) }))
+      const ws = await collectStatus(opts({ config: config({ ghost: '/nonexistent/tade' }) }))
       expect(ws.projects[0]?.name).toBe('ghost')
       expect(ws.warnings).toHaveLength(1)
     })
@@ -216,7 +216,7 @@ describe('collectStatus', () => {
     })
 
     it('unreadable transcripts directory', async () => {
-      const home = tmp('wilco-home-')
+      const home = tmp('tade-home-')
       writeFileSync(join(home, '.claude'), 'not a directory')
       const ws = await collectStatus(opts({ config: config({}), home }))
       expect(ws.projects).toEqual([])

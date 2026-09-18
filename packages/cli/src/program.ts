@@ -1,8 +1,8 @@
 import { homedir } from 'node:os'
-import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
-import { collectStatus } from '@wilco/status'
+import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import { collectStatus } from '@tade/status'
 // Subpath imports: the CLI must not load the driver stack just to read status.
-import { laneLivenessFromFile } from '@wilco/workbench/lane-liveness'
+import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
 import { Command, CommanderError } from 'commander'
 import { registerApp } from './commands/app.ts'
 import { registerBrief } from './commands/brief.ts'
@@ -26,7 +26,7 @@ import { version } from './version.ts'
 export { Exit, type Io } from './io.ts'
 
 export function buildProgram(io: Io, setExit: (code: number) => void): Command {
-  const program = new Command('wilco')
+  const program = new Command('tade')
     .description(
       'A voice-first control room for running coding agents on your own machine.\n' +
         'Run it with no arguments to open the window.',
@@ -50,19 +50,19 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
     .action(async (opts: { json?: boolean; pr: boolean; config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
       // Read the lanes rather than take the workbench: status is a question,
       // and asking it must never wait on, or interfere with, an open window.
-      const liveness = await laneLivenessFromFile(wilcoHome())
+      const liveness = await laneLivenessFromFile(tadeHome())
       const ws = await collectStatus({
         config: cfg.config,
         now: Date.now(),
         home: homedir(),
         cwd: process.cwd(),
-        pr: opts.pr && process.env.WILCO_NO_GH !== '1',
+        pr: opts.pr && process.env.TADE_NO_GH !== '1',
         liveness,
       })
       if (opts.json) io.out(JSON.stringify(ws, null, 2))
@@ -100,8 +100,8 @@ export async function run(argv: string[], io: Io = defaultIo): Promise<number> {
       return err.exitCode === 0 ? Exit.ok : Exit.invalidInput
     }
     io.err(err instanceof Error ? (err.stack ?? err.message) : String(err))
-    // A command that ended this way is Wilco's own trouble: said here, and
-    // sent to whoever is watching Wilco itself, when anybody is.
+    // A command that ended this way is Tade's own trouble: said here, and
+    // sent to whoever is watching Tade itself, when anybody is.
     await reportCrash(err, argv)
     return Exit.error
   }

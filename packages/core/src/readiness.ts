@@ -1,4 +1,4 @@
-// Whether Wilco can actually do anything yet, and what would fix it.
+// Whether Tade can actually do anything yet, and what would fix it.
 //
 // A fresh machine has no config and no model, and the difference
 // between a tool people keep and one they delete is whether that first minute
@@ -11,11 +11,11 @@
 export type StepId = 'project' | 'model' | 'workspace' | 'voice' | 'talk'
 
 export interface ReadinessFacts {
-  /** `~/.wilco/config.yaml` exists and parses. */
+  /** `~/.tade/config.yaml` exists and parses. */
   configExists: boolean
   /** Projects named in the config. */
   projects: string[]
-  /** The directory Wilco was started in, and whether it is a git repo. */
+  /** The directory Tade was started in, and whether it is a git repo. */
   cwd: string
   cwdIsRepo: boolean
   /** The harness has a provider logged in. */
@@ -53,7 +53,7 @@ export interface Step {
    * What is missing, in words that say what to do about it. Empty when done.
    */
   detail: string
-  /** Without this, Wilco cannot run an agent at all. */
+  /** Without this, Tade cannot run an agent at all. */
   required: boolean
 }
 
@@ -105,7 +105,7 @@ function model(facts: ReadinessFacts): Step {
       id: 'model',
       title: 'A model to think with',
       done: false,
-      // Wilco holds no credentials of its own; this is the harness's business.
+      // Tade holds no credentials of its own; this is the harness's business.
       detail: 'no provider is logged in and no API key is set',
       required: true,
     }
@@ -120,7 +120,7 @@ function model(facts: ReadinessFacts): Step {
 }
 
 /**
- * Somewhere for the agents to live. There is nothing to start — Wilco is the
+ * Somewhere for the agents to live. There is nothing to start — Tade is the
  * window and it is already running — but a driver the machine cannot provide
  * is a spawn that fails later, with no clue why, so it is checked here.
  */
@@ -141,7 +141,7 @@ function workspace(facts: ReadinessFacts): Step {
     // somebody has actually chosen, the wizard still asks: whether agents
     // outlive the window is not a thing to decide by default and never mention.
     done: facts.driverChosen,
-    detail: facts.driverChosen ? '' : `${facts.driver}, so agents stop when Wilco does`,
+    detail: facts.driverChosen ? '' : `${facts.driver}, so agents stop when Tade does`,
     required: false,
   }
 }

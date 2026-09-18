@@ -1,17 +1,17 @@
-# Wilco — agent guide
+# Tade — agent guide
 
-Wilco is a voice-first control room for coding agents: it runs them as pi in lanes (terminals),
+Tade is a voice-first control room for coding agents: it runs them as pi in lanes (terminals),
 derives task status from observable state, and is driven by an orchestrator you talk to. It owns no
 state of its own — tmux owns the processes, pi owns the conversations, git owns the work — which is
-why closing it is harmless. **You may be a Wilco worker editing Wilco itself.**
+why closing it is harmless. **You may be a Tade worker editing Tade itself.**
 
 ## Commands
 
 - `pnpm check`: the full gate (biome ci, tsc, vitest). Run it before calling work done.
 - `pnpm test`: vitest (must stay under 30s with zero network calls).
 - `pnpm exec biome check --write .` formats and fixes.
-- `pnpm wilco <args>` runs the CLI from source.
-- `WILCO_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` is the only test that uses a
+- `pnpm tade <args>` runs the CLI from source.
+- `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` is the only test that uses a
   real model. It costs money and needs credentials, so it is skipped by default and run before a
   release — but it is the only evidence that a model can choose the right tool from the descriptions
   we wrote, because every other test tells the fake model what to call.
@@ -48,30 +48,30 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - `status` never throws. Failures degrade to a partial answer plus `warnings[]`.
 - Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. Never mock git.
 - **A fixture must not be kinder than reality.** If the fixture differs from what a user's machine
-  looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.wilco/`
+  looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.tade/`
   untracked, because a real repository does, and excluding it once concealed a broken teardown.
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.
 - Parsers of external formats (provider transcripts) return `null` on unknown shapes, never throw.
 - `intent_spoken` is stored verbatim. Never paraphrase or normalise it.
-- **Notes are the one thing Wilco is told rather than derives**, and so the one exception to "status
+- **Notes are the one thing Tade is told rather than derives**, and so the one exception to "status
   is a query": nothing can recover them, so they are kept verbatim in `<home>/memory.jsonl`,
   append-only, and a line that won't parse is skipped rather than thrown over. Never lowercase or
   reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
   test with a capital letter in it to notice that it didn't.
-- **A task is finished when the journal says so** (`task_done`). Its agent says it (`wilco_done`), a
+- **A task is finished when the journal says so** (`task_done`). Its agent says it (`tade_done`), a
   person or the orchestrator marks it, or the window sees the task's own rule met and writes that
   down once. The rule is `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` —
   chosen by whoever made the task. Never infer it from a turn ending (an agent that asked a question
   looks the same) or from a checkout agent having stopped (status calls that `review`). A branch
   that was squash-merged counts as merged: its commits are nowhere in the base, so when there is no
-  ancestry to follow Wilco asks whether merging it would still change anything.
+  ancestry to follow Tade asks whether merging it would still change anything.
 - **Queued work is a task that has not started**, with `start` in its task file: what it waits on
   and why, not before when, and what its agent is told. The window starts it by rule
   (`readyToStart`) on every look at the tasks — never a model deciding again — as far as
   `max_parallel` leaves room, and writes why (`queue_started`). What it waits on failing, stopping
   or going holds it (`queue_held`), said once to the orchestrator, which asks the person; their
   choice (`queue_changed`) is written down and read back. In a worktree it begins on top of what it
-  waited on (`startFrom`), or from the base when that was merged, and keeps its own `.wilco` files.
+  waited on (`startFrom`), or from the base when that was merged, and keeps its own `.tade` files.
   A plan is checked against what the project is already on — agents working, work an earlier plan
   left queued — and says what it will run into rather than refusing: what an agent will touch is a
   reading of the code, and the orchestrator may know better.
@@ -83,13 +83,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   starts is queued work named for it and the day, in the project's own workspace.
 - **A watch is a schedule that looks before it acts.** An extension offers it (`watches`): a cheap
   `check`, no model, and what an agent on each finding is told. Nothing is watched until someone
-  turns one on, and then it is a schedule like any other. Wilco keeps where each look left off and
+  turns one on, and then it is a schedule like any other. Tade keeps where each look left off and
   every key found (`watch_checked`, `watch_found`), so a watch keeps nothing itself and one finding
   never starts work twice — a start that failed included. One look acts on at most `most` new
   findings, as queued work named for them or told to the orchestrator; the rest wait for the next
   look, which starts where this one did. A look that cannot look is said when it starts going
   wrong, not at every look.
-- **Wilco tells the orchestrator; it never talks over it.** What happened waits and goes with the
+- **Tade tells the orchestrator; it never talks over it.** What happened waits and goes with the
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and
   lost, so the pi adapter always says.
@@ -97,21 +97,21 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
   The orchestrator is never sandboxed; it has to drive your terminal.
-- **What Wilco writes for itself is under git** (`recordAuthored`), committed as `Wilco` and never
+- **What Tade writes for itself is under git** (`recordAuthored`), committed as `Tade` and never
   as the user. That is the fourth safety rail, with `--safe`, inert proposals and no hot reload: the
   other three let you stop an unwelcome change, and this is what lets you see and undo one. Losing
   the history is never a reason to refuse the change itself.
-- **No hot reload of extensions.** Wilco writes proposals into `extensions/proposed/` and they do
-  nothing until a human moves them; an activated one loads the next time Wilco starts. `--safe`
+- **No hot reload of extensions.** Tade writes proposals into `extensions/proposed/` and they do
+  nothing until a human moves them; an activated one loads the next time Tade starts. `--safe`
   loads none of them and must keep working with a broken one sitting in `active/` — safe mode that
-  only works when nothing is wrong is not a recovery path. Wilco's own tools always load first, so a
+  only works when nothing is wrong is not a recovery path. Tade's own tools always load first, so a
   self-written one can never shadow `status` or `approve`.
-- **A setting Wilco accepts and ignores is worse than one it doesn't have**, because it reads like a
+- **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
-- **Under the `pty` driver lanes are Wilco's own children**, so they die with it; under `tmux` they
+- **Under the `pty` driver lanes are Tade's own children**, so they die with it; under `tmux` they
   do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
   never report a lane as alive without evidence, and keep its spec so it can be relaunched.
-- **`detach()` closes the window; `shutdown()` stops the work.** Closing Wilco must never be what
+- **`detach()` closes the window; `shutdown()` stops the work.** Closing Tade must never be what
   stops your agents, so the ordinary exit path detaches. Where lanes cannot outlive us and cannot be
   found again (`detach: false`, `adopt: false`), releasing them *is* ending them — leaving processes
   nobody can see, drive or stop is the one outcome worse than both.
@@ -120,45 +120,45 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the driver on open (`list` for what it already holds, `adopt` for what it can find) and take its
   answer over the process table.
 - **One window per home, and questions never need it.** Opening the workbench takes a lock on
-  `WILCO_HOME`, because two writers would interleave in one journal. So anything that only reads —
+  `TADE_HOME`, because two writers would interleave in one journal. So anything that only reads —
   `status`, `logs`, `notes`, `summary`, `spend` — must read the files directly (`readJournal`,
   `Memory.open`) and never open the workbench. A question you cannot ask while a window is open is a
   question people stop asking.
 - **Extensions run in the window, and work happens in agents.** An extension's tools run in the
   process that holds its settings and credentials; the orchestrator reaches them through the
   `ToolHost` and agents through their supervision channel, so each harness sees them as its own
-  tools. A tool that changes a project starts an agent in a worktree (`ctx.wilco.startAgent`), with
-  what it found in `.wilco/context.md` — never the project's own checkout. Tool names start with the
+  tools. A tool that changes a project starts an agent in a worktree (`ctx.tade.startAgent`), with
+  what it found in `.tade/context.md` — never the project's own checkout. Tool names start with the
   extension's name, `ready()` never touches the network, and an extension that is broken is listed
   as broken rather than stopping anything else.
-- **Wilco stays light, and proves it.** What the window polls is cheap and shared — one `ps` for
+- **Tade stays light, and proves it.** What the window polls is cheap and shared — one `ps` for
   the whole process table, cached between askers — and anything on a timer or drawn every frame has
-  a performance test. The resources extension is how you see what Wilco and its agents cost.
-- **Nothing inherited is written to disk.** A lane's spec keeps only the environment Wilco set
+  a performance test. The resources extension is how you see what Tade and its agents cost.
+- **Nothing inherited is written to disk.** A lane's spec keeps only the environment Tade set
   (`withoutInherited`); the rest is everyone's shell environment, tokens included, and a relaunch
-  inherits it again. Wilco's own files that could hold such things are written `0600`.
+  inherits it again. Tade's own files that could hold such things are written `0600`.
 - **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
   that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
-- **Wilco reports its own trouble, never your work.** `telemetry.dsn` — empty by default — sends
-  Wilco's crashes and the warnings it writes down to a Sentry project of yours, with what happened
-  around them as logs and every agent turn as a trace, so the Sentry extension can watch Wilco
+- **Tade reports its own trouble, never your work.** `telemetry.dsn` — empty by default — sends
+  Tade's crashes and the warnings it writes down to a Sentry project of yours, with what happened
+  around them as logs and every agent turn as a trace, so the Sentry extension can watch Tade
   itself and hand an agent its own bug. What may be sent is an allow-list (`KEPT` in
-  `telemetry/shape.ts`): names, counts and Wilco's own words. What you said, what an agent wrote,
+  `telemetry/shape.ts`): names, counts and Tade's own words. What you said, what an agent wrote,
   task titles, prompts and notes are never in it, paths are scrubbed to `~`, anything
-  credential-shaped is taken out, and the lines around a stack frame are kept only for Wilco's own
+  credential-shaped is taken out, and the lines around a stack frame are kept only for Tade's own
   files. A reporter never throws and never blocks: a window that crashed while reporting a crash is
   worse than one that reported nothing.
 - **An agent's turn is the work of a model, and is timed as one.** The supervisor sees a turn start,
   the tools it calls and what it cost, so that is where it is timed (`agentTurns`): a
   `gen_ai.invoke_agent` span per turn with `gen_ai.execute_tool` spans inside it, the model and the
   tokens on it. Never from the journal, which knows when a turn ended but not when the agent was
-  waiting to be asked. Sampling is the reporter's one decision: turns are always kept, Wilco's own
+  waiting to be asked. Sampling is the reporter's one decision: turns are always kept, Tade's own
   work is kept at `telemetry.traces`.
 - **Sentry's SDK, and nothing automatic.** The extension reads Sentry with plain requests; reporting
   uses `@sentry/node`, because what is wanted is a tracer and the parts nobody should write twice.
   It is imported only when there is a DSN, with `defaultIntegrations: false` and
-  `registerEsmLoaderHooks: false`: Wilco names its own work where it happens, and a window must
+  `registerEsmLoaderHooks: false`: Tade names its own work where it happens, and a window must
   never have its terminal written over by somebody else's deprecation warning.
 - **A tool fails by throwing.** pi reads a tool's `content` and marks a call failed only when it
   throws; anything else reaches the model as an empty answer that looks like success.
@@ -170,7 +170,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   line starts the conversation the first time and continues it every time after — and why **a task
   name is never used twice**: a new agent given an old one's name would carry on its conversation.
 - **Agents work where `agents.workspace` says.** `checkout` (the default): every agent in the
-  project's own checkout, on its branch, at once, each task a folder under `.wilco/tasks/<name>`;
+  project's own checkout, on its branch, at once, each task a folder under `.tade/tasks/<name>`;
   its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it
   removes only that folder. `worktree`: a worktree and branch each. Nothing that runs git on a
   task's directory may assume the directory is the task's alone — ask `task.workspace`.
@@ -186,20 +186,20 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   adapter at a call site.
 - **Opening the window starts nothing new, and brings back what was working.** An agent exists
   because someone asked for one; a project whose agents were removed stays empty until asked again.
-  An agent that was running when Wilco closed — not stopped, not removed, not ended on its own — is
+  An agent that was running when Tade closed — not stopped, not removed, not ended on its own — is
   marked `lost` in `lanes.json` when the next window cannot find it, and that window opens it again
   where it left off. Stopping, removing or exiting clears the mark. Queued work and schedules are
-  asked for too: what came due while Wilco was closed starts when it opens, and says why.
-- **Every agent is told it runs in Wilco** (`composeAgentPrompt`): its task, where it works and
+  asked for too: what came due while Tade was closed starts when it opens, and says why.
+- **Every agent is told it runs in Tade** (`composeAgentPrompt`): its task, where it works and
   who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
   notes about the work, and its context file. Appended to the harness's own instructions, never
   replacing them.
 - **A name a person gives an agent is kept** (`title_named` in its task file) and given to its
   session; any other name is only a guess, replaced when a better one comes.
-- **Probes run detached.** Anything Wilco runs on a timer — git, ps, lsof, an extension's commands —
+- **Probes run detached.** Anything Tade runs on a timer — git, ps, lsof, an extension's commands —
   runs in its own process group, or Terminal.app retitles the window after it every poll.
 - **A task's id is in its task file, not its branch.** In a worktree, an agent opened from the window
-  starts on no branch (a detached worktree) and is given `wilco/<its title>` at its first change;
+  starts on no branch (a detached worktree) and is given `tade/<its title>` at its first change;
   its lanes and session keep the id it was made with. Status finds a branchless worktree only by that
   file, and never renames a branch it did not make.
 - **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
@@ -211,16 +211,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 ## Keeping the repo maintainable
 
 - **This file is the one guide.** `CLAUDE.md` is a link to it, so every agent reads the same words.
-- **`README.md` is the basics**: what Wilco is, how to install and start it, how to set up an
+- **`README.md` is the basics**: what Tade is, how to install and start it, how to set up an
   extension. Keep it that way. Everything else is documented where it is used — a command's
   `--help`, a setting's `means`, the keys sheet, a tool's description — so it cannot drift from the
   behaviour it describes.
 - **`.claude/skills/` holds step-by-step recipes** for recurring changes (a CLI command, a config
   key, an extension, the window, ...). Use the matching skill, and add or update one when you create
   a new extension point or a change teaches you something a recipe should have said. Do not confuse
-  them with `<WILCO_HOME>/skills`, which is what Wilco itself has learned.
+  them with `<TADE_HOME>/skills`, which is what Tade itself has learned.
 - **Third-party notices are generated.** After changing dependencies run `pnpm notices`, which
-  rewrites `THIRD_PARTY_NOTICES.md`; programs, services and data Wilco uses without installing are
+  rewrites `THIRD_PARTY_NOTICES.md`; programs, services and data Tade uses without installing are
   listed in `scripts/notices.ts`.
 
 ## Where things go
@@ -232,19 +232,19 @@ implementations of it.
 |---|---|
 | `packages/core` | the domain: object model, state machine, config, policy, memory, prompts |
 | `packages/status` | observing reality: git · processes · adoption · tests · liveness |
-| `packages/workbench` | what Wilco holds while open: lane registry, journal, notes, agents |
+| `packages/workbench` | what Tade holds while open: lane registry, journal, notes, agents |
 | `packages/drivers/core` | the `WorkspaceDriver` port + the suite every driver passes |
 | `packages/drivers/{pty,tmux}` | where lanes physically live |
 | `packages/harnesses/core` | the `WorkerAdapter` port: what an agent tells us, how we answer |
 | `packages/harnesses/pi` | runs and supervises pi |
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
-| `packages/extensions/core` | the `WilcoExtension` port, the host that runs extensions, their suite |
-| `packages/telemetry` | the `Reporter` port and its suite: where Wilco's own trouble goes |
-| `packages/extensions/{deps,sentry,resources}` | the extensions that ship with Wilco |
+| `packages/extensions/core` | the `TadeExtension` port, the host that runs extensions, their suite |
+| `packages/telemetry` | the `Reporter` port and its suite: where Tade's own trouble goes |
+| `packages/extensions/{deps,sentry,resources}` | the extensions that ship with Tade |
 | `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
 | `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
-| `packages/cli` | the `wilco` binary |
+| `packages/cli` | the `tade` binary |
 | `test/fixtures` | `mkrepo.ts`, provider transcript samples |
 
 Exit codes: `0` ok, `1` runtime error, `2` invalid input/config.

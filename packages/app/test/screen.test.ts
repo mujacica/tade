@@ -1,6 +1,6 @@
 import type { Terminal } from '@earendil-works/pi-tui'
-import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
-import { PtyDriver } from '@wilco/drivers-pty'
+import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
+import { PtyDriver } from '@tade/drivers-pty'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   drawScreen,
@@ -15,7 +15,7 @@ import {
 
 // The first minute, drawn rather than printed.
 //
-// What matters here is that Wilco keeps the keyboard: the old wizard handed
+// What matters here is that Tade keeps the keyboard: the old wizard handed
 // the terminal to pi while a readline was still reading it, and the two ate
 // each other's keystrokes.
 
@@ -94,7 +94,7 @@ describe('the setup screen', () => {
       width: 40,
       height: 14,
     }).join('\n')
-    expect(small).toContain('WILCO · Setting up')
+    expect(small).toContain('▐ T A D E ▌ Setting up')
     expect(small).not.toContain('██')
     expect(small).toContain('✓ A project to work on')
   })
@@ -335,7 +335,7 @@ describe('answering it', () => {
   it('waits to be told an explanation has been read', async () => {
     const terminal = new FakeTerminal()
     let went = false
-    await runScreen({ title: 'Wilco', terminal }, async (ui: Ui) => {
+    await runScreen({ title: 'Tade', terminal }, async (ui: Ui) => {
       const paused = ui.pause('  that branch already exists')
       await until(() => terminal.written.includes('that branch already exists'))
       // A screen that closes on its way out takes the reason with it, and the

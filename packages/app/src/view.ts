@@ -1,5 +1,5 @@
 import { stripTerminalSequences, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
-import { DONE_RULE_MEANS, describeLook, type QueueState, taskOrigin } from '@wilco/core'
+import { DONE_RULE_MEANS, describeLook, type QueueState, taskOrigin } from '@tade/core'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { keyCaps } from './keys.ts'
@@ -45,7 +45,7 @@ import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '
 // the top, because you are in one at a time. The agents in that project are
 // down the side, with where they work and what they have changed, the middle is the agent you
 // are watching, and the orchestrator runs along the bottom, always there and
-// not closeable — it is how you know what Wilco heard. Money is bottom right,
+// not closeable — it is how you know what Tade heard. Money is bottom right,
 // what needs you and the key to talk with are top right, and a panel, when one
 // is open, floats over all of it.
 //
@@ -105,7 +105,7 @@ export interface Frame {
   changes?: readonly Change[]
   /** The branch those changes are counted against. */
   base?: string | null
-  /** What you have told Wilco about this project, newest first. */
+  /** What you have told Tade about this project, newest first. */
   /** Notes about this project and everything, oldest first: named by when they were said. */
   notes?: readonly { text: string; at: string }[]
   /** Today's spend, in total and by task. */
@@ -169,7 +169,7 @@ export interface Frame {
   >
   /** The key you hold to talk, and whether there is anything to hear you. */
   voice?: { keys: readonly string[]; available: boolean }
-  /** Wilco's home, as you would type it, for showing where worktrees go. */
+  /** Tade's home, as you would type it, for showing where worktrees go. */
   home?: string
   /** Who pays for the orchestrator's model: its provider, and how you are signed in to it. */
   orchestratorAccount?: { provider: string | null; credential: string | null }
@@ -310,7 +310,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     height: rows.length,
     skin,
     pointer,
-    home: frame.home ?? '~/.wilco',
+    home: frame.home ?? '~/.tade',
     route: frame.route ?? null,
     spend: frame.spendView ?? null,
     panes: state.panes,
@@ -324,7 +324,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     choices: extra.choices ?? [],
     settings: extra.settings ?? [],
     accounts: extra.accounts ?? [],
-    configPath: extra.configPath ?? '~/.wilco/config.yaml',
+    configPath: extra.configPath ?? '~/.tade/config.yaml',
     releases: extra.releases ?? false,
     budgetWarnings: extra.budgetWarnings ?? 0,
     levels: extra.levels ?? state.levels,
@@ -344,7 +344,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     terminalName: extra.terminalName ?? 'terminal',
     extensions: extra.extensions ?? [],
     harnessExtensions: extra.harnessExtensions ?? [],
-    extensionsRoot: extra.extensionsRoot ?? '~/.wilco/extensions',
+    extensionsRoot: extra.extensionsRoot ?? '~/.tade/extensions',
     models: extra.models ?? [],
     modelTarget: extra.modelTarget ?? 'the orchestrator',
     currentModel: extra.currentModel ?? null,
@@ -482,7 +482,7 @@ function renderTop(
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
-  const row = new Row(width, skin, pointer).space().text('WILCO', skin.brand).space(2)
+  const row = new Row(width, skin, pointer).space().mark('TADE').space(2)
   for (const project of projects(state)) {
     row.tab(project, { kind: 'project', project }, project === state.project)
   }
@@ -658,7 +658,7 @@ function renderSidebar(
         notes.length === 0
           ? [
               blank(width),
-              row().space(3).text('tell Wilco "remember …"', skin.hint).build(),
+              row().space(3).text('tell Tade "remember …"', skin.hint).build(),
               blank(width),
             ]
           : tabList(
@@ -1186,7 +1186,7 @@ function scheduleRow(
 
 /**
  * A schedule in front of you: when it runs and what it does each time, its
- * next runs, what happens to runs Wilco was closed for, who made it, and what
+ * next runs, what happens to runs Tade was closed for, who made it, and what
  * it did each time it came due.
  */
 function renderSchedule(
@@ -1263,7 +1263,7 @@ function renderSchedule(
         ? one.next.map(clock).join(' · ')
         : 'nothing left to run',
   )
-  fact('IF MISSED', one.missed === 'once' ? 'runs once when Wilco next opens' : 'skipped')
+  fact('IF MISSED', one.missed === 'once' ? 'runs once when Tade next opens' : 'skipped')
   const from = askedBy(one.by)
   const who = (name: string) =>
     name === 'you' ? 'you' : name === 'orchestrator' ? 'the orchestrator' : name
@@ -1323,7 +1323,7 @@ function renderSchedule(
       line((r) => {
         r.text(clock(each.due).padEnd(18), skin.hint)
         if (!each.ran) {
-          r.text(`skipped ${each.missed} missed while Wilco was closed`, skin.faded)
+          r.text(`skipped ${each.missed} missed while Tade was closed`, skin.faded)
           return
         }
         const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null
@@ -2383,7 +2383,7 @@ function renderStrip(
       ' '.repeat(width),
       meter ? `   ${skin.busy(meter.heard)}${skin.chrome(meter.rest)}` : ' '.repeat(width),
       ' '.repeat(width),
-      `${skin.transmit(' ◉ ')} ${skin.hint('speak — Wilco hears you until you let go')}`,
+      `${skin.transmit(' ◉ ')} ${skin.hint('speak — Tade hears you until you let go')}`,
     ]
     for (let gap = room - lines.length; gap > 0; gap--) rows.push(' '.repeat(width))
     for (const line of lines.slice(-room)) {
@@ -2534,7 +2534,7 @@ function inputBox(
     } else if (state.held) {
       line.text(`◌ ${state.held}▏`, skin.hint)
     } else {
-      line.text('Ask Wilco anything', skin.hint)
+      line.text('Ask Tade anything', skin.hint)
       line.right((r) => r.text('type, or hold ', skin.hint).keys(talkKeys).space())
     }
     const built = line.build()
@@ -2710,7 +2710,7 @@ function renderFoot(
     { model: false, account: false, tokens: false },
   ]
   const status = (show: (typeof tries)[number]) => (r: Row) => {
-    // What extensions keep here — what Wilco is using — clicked for their view.
+    // What extensions keep here — what Tade is using — clicked for their view.
     if (show.model) {
       for (const one of frame.statuses ?? []) {
         const view: Target = { kind: 'action', name: `extension-view:${one.extension}` }

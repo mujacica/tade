@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { WilcoEvent } from '../src/events.ts'
+import type { TadeEvent } from '../src/events.ts'
 import { checkBudget, noSpend, spendFrom, startOfToday } from '../src/spend.ts'
 
 // Money is the one thing here that is not derived from git, so the rule is
@@ -8,7 +8,7 @@ import { checkBudget, noSpend, spendFrom, startOfToday } from '../src/spend.ts'
 
 const NOW = Date.parse('2026-09-13T12:00:00Z')
 
-const usage = (over: Partial<WilcoEvent> & { detail?: Record<string, unknown> } = {}): WilcoEvent =>
+const usage = (over: Partial<TadeEvent> & { detail?: Record<string, unknown> } = {}): TadeEvent =>
   ({
     seq: 1,
     ts: '2026-09-13T11:00:00.000Z',
@@ -26,7 +26,7 @@ const usage = (over: Partial<WilcoEvent> & { detail?: Record<string, unknown> } 
       usd: 0.25,
       ...over.detail,
     },
-  }) as WilcoEvent
+  }) as TadeEvent
 
 describe('spendFrom', () => {
   it('has spent nothing when nothing has run', () => {
@@ -57,7 +57,7 @@ describe('spendFrom', () => {
   })
 
   it('ignores events that are not about spending', () => {
-    const other = { ...usage(), type: 'tool_call' } as WilcoEvent
+    const other = { ...usage(), type: 'tool_call' } as TadeEvent
     expect(spendFrom([other], { since: 0 }).total.tokens).toBe(0)
   })
 

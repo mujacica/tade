@@ -9,7 +9,7 @@ export interface ResolvedRoute extends WorkerRoute {
 }
 
 export interface RouteQuery {
-  /** Explicit override, e.g. `wilco spawn --worker local`. */
+  /** Explicit override, e.g. `tade spawn --worker local`. */
   route?: string | undefined
   /** Project the task belongs to. */
   project?: string | undefined

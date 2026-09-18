@@ -1,4 +1,4 @@
-import type { Recorder, Transcriber } from '@wilco/voice-core'
+import type { Recorder, Transcriber } from '@tade/voice-core'
 import { OpenAiTranscriber } from './openai.ts'
 import { FfmpegRecorder } from './recorder.ts'
 import { ScriptedRecorder, ScriptedTranscriber } from './scripted.ts'

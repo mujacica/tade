@@ -1,11 +1,11 @@
 ---
 name: add-status-probe
-description: Add a new signal to `wilco status` (e.g. test results, context usage, CI state) or change an existing probe (git, processes, adoption, liveness). Use when status needs information it doesn't collect yet.
+description: Add a new signal to `tade status` (e.g. test results, context usage, CI state) or change an existing probe (git, processes, adoption, liveness). Use when status needs information it doesn't collect yet.
 ---
 
 # Adding or changing a status probe
 
-`wilco status` = probes (I/O, in `packages/status`) → `ProbeBundle` → `deriveState` (pure, in
+`tade status` = probes (I/O, in `packages/status`) → `ProbeBundle` → `deriveState` (pure, in
 `packages/core/src/state.ts`). `collectStatus` in `packages/status/src/status.ts` wires them.
 
 ## Invariants

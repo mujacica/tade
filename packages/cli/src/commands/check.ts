@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
-import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
-import { collectStatus, writeTests } from '@wilco/status'
-import { laneLivenessFromFile } from '@wilco/workbench/lane-liveness'
+import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import { collectStatus, writeTests } from '@tade/status'
+import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -23,7 +23,7 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
     .action(async (taskId: string, opts: { config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
@@ -34,7 +34,7 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
         home: homedir(),
         cwd: process.cwd(),
         pr: false,
-        liveness: await laneLivenessFromFile(wilcoHome()),
+        liveness: await laneLivenessFromFile(tadeHome()),
       })
       const found = workspace.projects
         .flatMap((project) => project.tasks.map((task) => ({ project, task })))

@@ -11,7 +11,7 @@ import type {
   Transcriber,
   TranscriberCapabilities,
   Transcript,
-} from '@wilco/voice-core'
+} from '@tade/voice-core'
 
 // A microphone and an engine that exist only in a test.
 //
@@ -96,7 +96,7 @@ export class ScriptedRecorder implements Recorder {
     // A real file in a real temp directory, because the caller owns the clip
     // and deletes it: handing back a path nobody may unlink (`/dev/null`) is a
     // fixture being kinder than reality.
-    const dir = mkdtempSync(join(tmpdir(), 'wilco-scripted-'))
+    const dir = mkdtempSync(join(tmpdir(), 'tade-scripted-'))
     const path = join(dir, 'speech.wav')
     return {
       stop: async (): Promise<AudioClip> => {

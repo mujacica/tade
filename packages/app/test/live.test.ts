@@ -1,9 +1,9 @@
 import { renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Task, Workspace } from '@wilco/core'
-import { git } from '@wilco/status'
-import type { LaneRecord } from '@wilco/workbench/registry'
-import type { PendingApproval } from '@wilco/workbench/workers'
+import type { Task, Workspace } from '@tade/core'
+import { git } from '@tade/status'
+import type { LaneRecord } from '@tade/workbench/registry'
+import type { PendingApproval } from '@tade/workbench/workers'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
 import { changesFrom, knownTasks, snapshotsFrom } from '../src/live.ts'
@@ -16,7 +16,7 @@ const task = (id: string, state: Task['state']): Task => ({
   id,
   project: id.split('/')[0] ?? id,
   intent_spoken: 'something',
-  branch: `wilco/${id.split('/').at(-1)}`,
+  branch: `tade/${id.split('/').at(-1)}`,
   worktree: `/wt/${id.split('/').at(-1)}`,
   created: '2026-09-11T09:00:00.000Z',
   state,
@@ -167,7 +167,7 @@ describe('changesFrom', () => {
     repo.write({
       'keep.ts': 'a\nB\nc\nd\n',
       'new file.ts': 'hello\n',
-      '.wilco/task.yaml': 'id: x\n',
+      '.tade/task.yaml': 'id: x\n',
     })
     rmSync(join(repo.root, 'gone.ts'))
     renameSync(join(repo.root, 'old name.ts'), join(repo.root, 'new name.ts'))
@@ -187,7 +187,7 @@ describe('changesFrom', () => {
     // Paths with spaces survive, because the output is NUL-separated.
     expect(at('new file.ts')?.mark).toBe('?')
     expect(at('new name.ts')?.mark).toBe('R')
-    // Wilco's own record of the task is not a change anybody made.
-    expect(changes.some((change) => change.path.startsWith('.wilco'))).toBe(false)
+    // Tade's own record of the task is not a change anybody made.
+    expect(changes.some((change) => change.path.startsWith('.tade'))).toBe(false)
   })
 })

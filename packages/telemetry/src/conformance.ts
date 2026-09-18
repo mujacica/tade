@@ -19,7 +19,7 @@ export function reporterConformance(
   const open = (over: Partial<ReporterOptions> = {}) =>
     make({
       dsn: options.dsn,
-      release: 'wilco@9.9.9',
+      release: 'tade@9.9.9',
       environment: 'test',
       errors: true,
       logs: true,
@@ -56,23 +56,23 @@ export function reporterConformance(
         reporter.note({ at: Date.now(), level: 'info', said: 'something' }),
       ).not.toThrow()
       expect(() =>
-        reporter.measure({ at: Date.now(), name: 'wilco.x', kind: 'gauge', value: 1 }),
+        reporter.measure({ at: Date.now(), name: 'tade.x', kind: 'gauge', value: 1 }),
       ).not.toThrow()
       await reporter.close()
     })
 
     it('answers with a span that can be ended, whatever it does with it', async () => {
       const reporter = await open()
-      const span = reporter.doing({ name: 'something', op: 'wilco.test' })
+      const span = reporter.doing({ name: 'something', op: 'tade.test' })
       expect(() => {
         span.about({ task: 'app/refunds' })
-        const inside = span.inside({ name: 'inside it', op: 'wilco.test.inner' })
+        const inside = span.inside({ name: 'inside it', op: 'tade.test.inner' })
         inside.end()
         span.wrong(new Error('it went wrong'))
         span.end()
       }).not.toThrow()
       // Ending a span nobody timed is still nothing to worry about.
-      const untimed = (await open({ traces: 0 })).doing({ name: 'x', op: 'wilco.test' })
+      const untimed = (await open({ traces: 0 })).doing({ name: 'x', op: 'tade.test' })
       expect(() => untimed.end()).not.toThrow()
       await reporter.close()
     })
@@ -102,14 +102,14 @@ export function reporterConformance(
       })
       reporter.trouble({ error: new Error('boom'), where: 'the suite' })
       reporter.note({ at: Date.now(), level: 'info', said: 'something' })
-      reporter.measure({ at: Date.now(), name: 'wilco.x', kind: 'gauge', value: 1 })
-      reporter.doing({ name: 'something', op: 'wilco.test' }).end()
+      reporter.measure({ at: Date.now(), name: 'tade.x', kind: 'gauge', value: 1 })
+      reporter.doing({ name: 'something', op: 'tade.test' }).end()
       await reporter.flush(500)
-      // A session says a Wilco ran; nothing it was told not to send is in it.
+      // A session says a Tade ran; nothing it was told not to send is in it.
       const text = JSON.stringify(sent)
       expect(text).not.toContain('boom')
-      expect(text).not.toContain('wilco.x')
-      expect(text).not.toContain('wilco.test')
+      expect(text).not.toContain('tade.x')
+      expect(text).not.toContain('tade.test')
       await reporter.close()
     })
 

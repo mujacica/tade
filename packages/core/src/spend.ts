@@ -1,4 +1,4 @@
-import type { WilcoEvent } from './events.ts'
+import type { TadeEvent } from './events.ts'
 
 // What the agents have cost, and whether that is more than you meant.
 //
@@ -59,7 +59,7 @@ export interface SpendReport {
 
 /** No window at all means everything ever recorded. */
 export function spendFrom(
-  events: readonly WilcoEvent[],
+  events: readonly TadeEvent[],
   window: SpendWindow = { since: 0 },
 ): SpendReport {
   const report: SpendReport = { total: noSpend(), byProject: {}, byTask: {}, byModel: {} }
@@ -87,7 +87,7 @@ function into(buckets: Record<string, Spend>, key: string): Spend {
   return found
 }
 
-function add(spend: Spend, event: WilcoEvent): void {
+function add(spend: Spend, event: TadeEvent): void {
   const number = (key: string) => {
     const value = event.detail[key]
     return typeof value === 'number' && Number.isFinite(value) ? value : 0

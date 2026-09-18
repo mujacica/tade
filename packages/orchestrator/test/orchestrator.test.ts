@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@wilco/core'
-import { ExtensionHost } from '@wilco/extensions-core'
-import { Workbench } from '@wilco/workbench'
+import { ConfigSchema } from '@tade/core'
+import { ExtensionHost } from '@tade/extensions-core'
+import { Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   type FakeModel,
@@ -15,7 +15,7 @@ import { Orchestrator, type OrchestratorEvent } from '../src/orchestrator.ts'
 import { ToolHost } from '../src/tool-host.ts'
 
 // The thing you talk to, driven by a scripted model: it answers, it reaches
-// for Wilco's own tools, and it says when it has finished.
+// for Tade's own tools, and it says when it has finished.
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 30_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -27,7 +27,7 @@ async function until(check: () => boolean | Promise<boolean>, timeout = 30_000):
 }
 
 describe('Orchestrator', () => {
-  let wilco: Workbench
+  let tade: Workbench
   let tools: ToolHost
   let model: FakeModel | null = null
   let orchestrator: Orchestrator | null = null
@@ -36,17 +36,17 @@ describe('Orchestrator', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    home = tmp('wilco-chat-')
+    home = tmp('tade-chat-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    wilco = await Workbench.open({ home })
-    tools = await ToolHost.listen({ wilco, path: join(home, 'tools.sock') })
+    tade = await Workbench.open({ home })
+    tools = await ToolHost.listen({ tade, path: join(home, 'tools.sock') })
   })
 
   afterEach(async () => {
     await orchestrator?.stop()
     await model?.close()
     await tools.close().catch(() => {})
-    await wilco.close().catch(() => {})
+    await tade.close().catch(() => {})
     orchestrator = null
     model = null
   })
@@ -56,15 +56,15 @@ describe('Orchestrator', () => {
     over: { safe?: boolean } = {},
   ) {
     model = await startFakeModel(options)
-    const runDir = tmp('wilco-chat-run-')
+    const runDir = tmp('tade-chat-run-')
     orchestrator = await Orchestrator.start({
       home,
       socket: tools.path,
       runDir,
       cwd: repo.root,
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
       ...over,
     })
     return orchestrator
@@ -89,14 +89,14 @@ describe('Orchestrator', () => {
   it('lets a surface watch it work: the tool, how it went, the words as they come', async () => {
     const events: OrchestratorEvent[] = []
     const chat = await start({
-      tool: { name: 'wilco_run_stop', arguments: { task: 'app/nothing-here' } },
+      tool: { name: 'tade_run_stop', arguments: { task: 'app/nothing-here' } },
       finalText: 'There was nothing to stop.',
     })
     chat.onEvent((event) => events.push(event))
     await chat.ask('stop the nothing-here agent')
     await until(() => events.some((event) => event.type === 'idle'))
     const tool = events.find((event) => event.type === 'tool')
-    expect(tool).toMatchObject({ tool: 'wilco_run_stop', input: { task: 'app/nothing-here' } })
+    expect(tool).toMatchObject({ tool: 'tade_run_stop', input: { task: 'app/nothing-here' } })
     // It failed, and the reason came with it rather than the tool's name.
     const done = events.find((event) => event.type === 'tool_done')
     expect(done).toMatchObject({ ok: false })
@@ -136,7 +136,7 @@ describe('Orchestrator', () => {
     })
     await tools.close()
     tools = await ToolHost.listen({
-      wilco,
+      tade,
       path: join(home, 'tools.sock'),
       extensions: async (call) =>
         (
@@ -150,16 +150,16 @@ describe('Orchestrator', () => {
       tool: { name: 'weather_now', arguments: { project: 'app' } },
       finalText: 'Hold the deploy.',
     })
-    const runDir = tmp('wilco-chat-run-')
+    const runDir = tmp('tade-chat-run-')
     orchestrator = await Orchestrator.start({
       home,
       socket: tools.path,
       runDir,
       cwd: repo.root,
       config: ConfigSchema.parse({ projects: { app: { root: repo.root } } }),
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
       extensions: orchestratorExtensions(extensions, home, 'pi'),
     })
     expect(await orchestrator.askFor('can we deploy app?')).toBe('Hold the deploy.')
@@ -175,7 +175,7 @@ describe('Orchestrator', () => {
       Orchestrator.start({
         home,
         socket: tools.path,
-        runDir: tmp('wilco-chat-run-'),
+        runDir: tmp('tade-chat-run-'),
         cwd: repo.root,
         model: { provider: 'no-such-provider', id: 'nothing' },
       }),
@@ -224,16 +224,16 @@ describe('Orchestrator', () => {
     const asked: string[] = []
     await tools.close()
     tools = await ToolHost.listen({
-      wilco,
+      tade,
       path: join(home, 'tools.sock'),
       orchestratorModel: async (said) => {
         asked.push(said)
-        return { provider: 'wilco-test', id: 'fake' }
+        return { provider: 'tade-test', id: 'fake' }
       },
     })
     const events: OrchestratorEvent[] = []
     const chat = await start({
-      tool: { name: 'wilco_orchestrator_model', arguments: { model: 'opus 5' } },
+      tool: { name: 'tade_orchestrator_model', arguments: { model: 'opus 5' } },
       finalText: 'Switched.',
     })
     chat.onEvent((event) => events.push(event))
@@ -241,14 +241,14 @@ describe('Orchestrator', () => {
     expect(asked).toEqual(['opus 5'])
     const done = events.find((event) => event.type === 'tool_done')
     expect(done).toMatchObject({ ok: true })
-    expect(done?.type === 'tool_done' ? done.text : '').toContain('wilco-test/fake')
+    expect(done?.type === 'tool_done' ? done.text : '').toContain('tade-test/fake')
   }, 90_000)
 
-  it("reaches for Wilco's own tools and reports which one", async () => {
+  it("reaches for Tade's own tools and reports which one", async () => {
     const tools: string[] = []
     const chat = await start({
       tool: {
-        name: 'wilco_task_create',
+        name: 'tade_task_create',
         arguments: { project: 'app', name: 'refunds', intent: 'the refund flow double-charges' },
       },
       finalText: 'Started it.',
@@ -256,12 +256,12 @@ describe('Orchestrator', () => {
     chat.onTool((tool) => tools.push(tool))
 
     await chat.ask('start a task in app about the refund flow double-charging')
-    await until(() => tools.includes('wilco_task_create'))
+    await until(() => tools.includes('tade_task_create'))
 
     // That signal fires BEFORE the tool runs, so wait for the effect itself.
     // On failure, report what the model was told: a tool that errored hands
     // the reason back rather than throwing, so it would otherwise be silent.
-    await until(async () => (await wilco.events({ types: ['task_created'] })).length > 0).catch(
+    await until(async () => (await tade.events({ types: ['task_created'] })).length > 0).catch(
       () => {
         throw new Error(
           `task never created. The model was told: ${JSON.stringify(model?.requests[1] ?? {}).slice(
@@ -273,7 +273,7 @@ describe('Orchestrator', () => {
     )
 
     // The task exists and the intent is kept word for word.
-    const [created] = await wilco.events({ types: ['task_created'] })
+    const [created] = await tade.events({ types: ['task_created'] })
     expect(created?.task).toBe('app/refunds')
     expect(created?.detail.intent_spoken).toBe('the refund flow double-charges')
   }, 90_000)

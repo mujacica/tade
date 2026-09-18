@@ -1,10 +1,10 @@
-import type { LaneId, SandboxSpec, TaskId, ThinkingLevel, Unsubscribe } from '@wilco/core'
+import type { LaneId, SandboxSpec, TaskId, ThinkingLevel, Unsubscribe } from '@tade/core'
 import { z } from 'zod'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
 //
 // Deliberately says nothing about how the agent is driven. A worker may render
-// its own UI in a lane, or run headless; either way Wilco consumes the same
+// its own UI in a lane, or run headless; either way Tade consumes the same
 // signals. Vocabulary rule applies: no harness's private words appear here.
 
 export const RunId = z.string().min(1)
@@ -43,14 +43,14 @@ export interface WorkerSpec {
 }
 
 /**
- * What Wilco's extensions give an agent beyond the harness it runs in: words
- * about what it can use, tools Wilco runs on its behalf, and the pieces an
+ * What Tade's extensions give an agent beyond the harness it runs in: words
+ * about what it can use, tools Tade runs on its behalf, and the pieces an
  * extension ships in this harness's own terms.
  */
 export interface WorkerExtras {
   /** Appended to the agent's own instructions. */
   instructions?: string
-  /** A file listing tools Wilco runs for it, which the agent's side registers at launch. */
+  /** A file listing tools Tade runs for it, which the agent's side registers at launch. */
   tools?: string
   /** Native extension modules for this harness. */
   extensions?: readonly string[]
@@ -60,7 +60,7 @@ export interface WorkerExtras {
 
 /**
  * Everything a worker tells us. This is the wire format between an in-session
- * agent and Wilco, so it is a schema rather than a bare type.
+ * agent and Tade, so it is a schema rather than a bare type.
  */
 export const WorkerSignal = z.discriminatedUnion('type', [
   z.object({
@@ -82,7 +82,7 @@ export const WorkerSignal = z.discriminatedUnion('type', [
   }),
   /**
    * What the work is called: the name you gave the session (`named`), or the
-   * start of the first thing you asked. Wilco names the agent's branch from it.
+   * start of the first thing you asked. Tade names the agent's branch from it.
    */
   z.object({
     type: z.literal('titled'),
@@ -105,7 +105,7 @@ export const WorkerSignal = z.discriminatedUnion('type', [
     tool: z.string(),
     input: z.unknown(),
   }),
-  /** The agent is running one of Wilco's extension tools, and waits for the answer. */
+  /** The agent is running one of Tade's extension tools, and waits for the answer. */
   z.object({
     type: z.literal('extension_call'),
     run: RunId,
@@ -206,7 +206,7 @@ export interface PermissionDecision {
 }
 
 /**
- * What Wilco sends back down the supervision channel. The agent is held on
+ * What Tade sends back down the supervision channel. The agent is held on
  * `permission_request` until a matching `decision` arrives, so this is the
  * only thing standing between an agent and a destructive command.
  */
@@ -241,20 +241,20 @@ export type WorkerCommand = z.infer<typeof WorkerCommand>
 
 /** Environment a supervised agent is started with. */
 export const WORKER_ENV = {
-  socket: 'WILCO_RUN_SOCKET',
-  run: 'WILCO_RUN_ID',
-  task: 'WILCO_TASK_ID',
+  socket: 'TADE_RUN_SOCKET',
+  run: 'TADE_RUN_ID',
+  task: 'TADE_TASK_ID',
   /**
    * Whether tool calls are gated. The agent has to be told, because what it
-   * should do when Wilco is unreachable depends on the answer: under `bypass`
+   * should do when Tade is unreachable depends on the answer: under `bypass`
    * nothing was ever going to be held, so it carries on; under `policy` a
    * gate that cannot be asked has to refuse.
    */
-  approvals: 'WILCO_APPROVALS',
-  /** Where the list of Wilco's extension tools for this agent is. */
-  tools: 'WILCO_EXTENSION_TOOLS',
+  approvals: 'TADE_APPROVALS',
+  /** Where the list of Tade's extension tools for this agent is. */
+  tools: 'TADE_EXTENSION_TOOLS',
   /** The name a person gave the work, which the agent's session takes when it has none. */
-  title: 'WILCO_TITLE',
+  title: 'TADE_TITLE',
 } as const
 
 /** A picture sent with an instruction: a screenshot, usually. */
@@ -309,7 +309,7 @@ export interface WorkerAdapter {
   readonly capabilities: WorkerCapabilities
 
   /**
-   * How to run this agent in a lane. Wilco places the process — that is the
+   * How to run this agent in a lane. Tade places the process — that is the
    * driver's job — so the adapter only says what to run.
    */
   launchSpec(spec: WorkerSpec): LaunchSpec
@@ -321,7 +321,7 @@ export interface WorkerAdapter {
   supervise(spec: WorkerSpec): Promise<WorkerHandle>
   /**
    * Run the agent headless, under our own protocol, as a child of this
-   * process. For an agent whose interface Wilco draws itself — the
+   * process. For an agent whose interface Tade draws itself — the
    * orchestrator — never for work you are meant to watch.
    */
   start(spec: WorkerSpec): Promise<WorkerHandle>

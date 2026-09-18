@@ -54,7 +54,7 @@ describe('toneWav', () => {
 describe('Speaker', () => {
   it('uses the built-in voice and player on macOS', async () => {
     const { calls, run } = recorder()
-    const speaker = await Speaker.create({ soundDir: tmp('wilco-sound-'), platform: 'darwin', run })
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'darwin', run })
     expect(speaker.capabilities).toEqual({ speech: true, sound: true })
 
     await speaker.speak('Checkout is blocked')
@@ -68,7 +68,7 @@ describe('Speaker', () => {
 
   it('uses speech-dispatcher and paplay on Linux', async () => {
     const { calls, run } = recorder()
-    const speaker = await Speaker.create({ soundDir: tmp('wilco-sound-'), platform: 'linux', run })
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'linux', run })
     await speaker.speak('hello')
     await speaker.earcon('review')
     expect(calls.map((c) => c.command)).toEqual(['spd-say', 'paplay'])
@@ -76,7 +76,7 @@ describe('Speaker', () => {
 
   it('stays quiet, rather than failing, where there is no audio', async () => {
     const { calls, run } = recorder()
-    const speaker = await Speaker.create({ soundDir: tmp('wilco-sound-'), platform: 'win32', run })
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'win32', run })
     expect(speaker.capabilities).toEqual({ speech: false, sound: false })
     await speaker.speak('hello')
     await speaker.earcon('failed')
@@ -85,13 +85,13 @@ describe('Speaker', () => {
 
   it('gives speech commands no timeout so long text is not cut off', async () => {
     const { calls, run } = recorder()
-    const speaker = await Speaker.create({ soundDir: tmp('wilco-sound-'), platform: 'darwin', run })
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'darwin', run })
     await speaker.speak('A very long sentence that could take more than twenty seconds.')
     expect(calls[0]?.timeout).toBe(0)
   })
 
   it('writes the earcons once, ready to play', async () => {
-    const soundDir = tmp('wilco-sound-')
+    const soundDir = tmp('tade-sound-')
     const speaker = await Speaker.create({ soundDir, platform: 'darwin', run: recorder().run })
     for (const tone of ['blocked', 'review', 'failed'] as const) {
       expect(existsSync(speaker.toneFile(tone))).toBe(true)
@@ -99,9 +99,9 @@ describe('Speaker', () => {
     }
   })
 
-  it('a missing audio tool never takes the rest of Wilco down', async () => {
+  it('a missing audio tool never takes the rest of Tade down', async () => {
     const speaker = await Speaker.create({
-      soundDir: tmp('wilco-sound-'),
+      soundDir: tmp('tade-sound-'),
       platform: 'darwin',
       run: async () => {
         throw new Error('afplay: command not found')
@@ -113,7 +113,7 @@ describe('Speaker', () => {
 
   it('says nothing when there is nothing to say', async () => {
     const { calls, run } = recorder()
-    const speaker = await Speaker.create({ soundDir: tmp('wilco-sound-'), platform: 'darwin', run })
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'darwin', run })
     await speaker.speak('   ')
     expect(calls).toEqual([])
   })

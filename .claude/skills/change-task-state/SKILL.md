@@ -1,6 +1,6 @@
 ---
 name: change-task-state
-description: Change how Wilco derives a task's state (queued/working/blocked/review/merged/failed/parked) — adding a rule, a new probe signal, or a threshold. Use when status reports the wrong state for some situation.
+description: Change how Tade derives a task's state (queued/working/blocked/review/merged/failed/parked) — adding a rule, a new probe signal, or a threshold. Use when status reports the wrong state for some situation.
 ---
 
 # Changing task-state derivation

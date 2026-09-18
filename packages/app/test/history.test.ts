@@ -4,12 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { sessionPrompts } from '../src/app.ts'
 
-// Lines typed before Wilco journaled them are still in the orchestrator's pi
+// Lines typed before Tade journaled them are still in the orchestrator's pi
 // sessions, which is where up and ctrl+r find them the first time.
 
 describe('what was asked before the journal kept it', () => {
   it('is every user message in the sessions, oldest first, and nothing else', () => {
-    const dir = join(tmp('wilco-sessions-'), 'sessions')
+    const dir = join(tmp('tade-sessions-'), 'sessions')
     mkdirSync(dir, { recursive: true })
     const line = (role: string, content: unknown) =>
       JSON.stringify({ type: 'message', message: { role, content } })

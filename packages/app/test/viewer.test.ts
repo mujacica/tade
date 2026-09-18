@@ -9,7 +9,7 @@ import { formattable, formattedLines, readForView, sourceLines } from '../src/vi
 
 describe('reading a file to look at', () => {
   it('reads text, and knows its language', () => {
-    const dir = tmp('wilco-view-')
+    const dir = tmp('tade-view-')
     writeFileSync(join(dir, 'app.ts'), 'const a = 1\nconst b = 2\n')
     const file = readForView(join(dir, 'app.ts'))
     expect(file).toMatchObject({
@@ -23,7 +23,7 @@ describe('reading a file to look at', () => {
   })
 
   it('says a binary file is one, rather than showing it', () => {
-    const dir = tmp('wilco-view-')
+    const dir = tmp('tade-view-')
     writeFileSync(join(dir, 'logo.png'), Buffer.from([137, 80, 78, 71, 0, 0, 1]))
     const file = readForView(join(dir, 'logo.png'))
     expect(file.binary).toBe(true)
@@ -31,7 +31,7 @@ describe('reading a file to look at', () => {
   })
 
   it('reads only the start of a big file, and says so', () => {
-    const dir = tmp('wilco-view-')
+    const dir = tmp('tade-view-')
     writeFileSync(join(dir, 'big.log'), 'x'.repeat(5_000))
     const file = readForView(join(dir, 'big.log'), 1_000)
     expect(file.truncated).toBe(true)
@@ -43,7 +43,7 @@ describe('reading a file to look at', () => {
   })
 
   it('lays Markdown out, and offers it only for Markdown', () => {
-    const dir = tmp('wilco-view-')
+    const dir = tmp('tade-view-')
     writeFileSync(join(dir, 'README.md'), '# Title\n\nSome **bold** words.\n')
     const file = readForView(join(dir, 'README.md'))
     expect(formattable(file)).toBe(true)

@@ -5,7 +5,7 @@ description: Change how work waits, starts, repeats and finishes — the SMART Q
 
 # Changing the queue
 
-Work that is not running yet is still Wilco's to keep track of: queued work waiting on other work
+Work that is not running yet is still Tade's to keep track of: queued work waiting on other work
 or a time, schedules that make work on a clock, and watches that look for work to make. None of it
 is a daemon and none of it is a model deciding again: the window applies pure rules to the task
 files, `schedules.jsonl` and the journal on every look at the tasks, and writes down what it did.
@@ -23,7 +23,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told |
 | `packages/app/src/view.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
-| `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `wilco_done`, `wilco_plan`, `wilco_queue`, `wilco_queue_change`, `wilco_schedule` |
+| `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_queue`, `tade_queue_change`, `tade_schedule` |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
 
 ## Rules
@@ -62,11 +62,11 @@ refuses `committed` and `merged` in a shared checkout), and add it to the `done`
 button (`queueMenuItems`, the `queue-*` actions in `App.run`).
 
 **A kind of schedule.** Add it to `ScheduleDoes`, do it in `fireSchedule` (workbench) and `fire`
-(window), word it in `scheduleView`, take it in `wilco_schedule` and `queue/schedule`, draw it on
-the card (`renderSchedule`) and in `wilco schedules`. Test it in `workbench/test/schedules.test.ts`
+(window), word it in `scheduleView`, take it in `tade_schedule` and `queue/schedule`, draw it on
+the card (`renderSchedule`) and in `tade schedules`. Test it in `workbench/test/schedules.test.ts`
 and through the window in `app.test.ts`.
 
-**A watch.** It belongs to an extension: follow `add-extension`. Wilco's side — turning it on,
+**A watch.** It belongs to an extension: follow `add-extension`. Tade's side — turning it on,
 looking, the journal, the queue, telling people — needs nothing new.
 
 Then: a screen scenario for anything drawn (`test/screens/scenarios.ts`, `pnpm screens`, accept on

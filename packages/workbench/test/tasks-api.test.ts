@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { until } from '@wilco/drivers-core/conformance'
-import { sessionIdFor } from '@wilco/harnesses-pi'
+import { until } from '@tade/drivers-core/conformance'
+import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -20,7 +20,7 @@ describe('task and run RPC', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    home = tmp('wilco-rpc-')
+    home = tmp('tade-rpc-')
     // Two agents allowed, so the per-task rule is reachable: with the default
     // of one, `max_parallel` would answer first and the narrower guard would
     // never be exercised.
@@ -44,8 +44,8 @@ describe('task and run RPC', () => {
       workspace: 'worktree',
     })
 
-    expect(task).toMatchObject({ id: 'app/refunds', branch: 'wilco/refunds' })
-    expect(existsSync(join(task.worktree, '.wilco', 'task.yaml'))).toBe(true)
+    expect(task).toMatchObject({ id: 'app/refunds', branch: 'tade/refunds' })
+    expect(existsSync(join(task.worktree, '.tade', 'task.yaml'))).toBe(true)
 
     const [event] = await client.events({ types: ['task_created'] })
     expect(event?.task).toBe('app/refunds')
@@ -57,7 +57,7 @@ describe('task and run RPC', () => {
     const two = await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })
     expect(one).toMatchObject({ workspace: 'checkout', worktree: repo.root, branch: 'main' })
     expect(two.worktree).toBe(repo.root)
-    expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(repo.root, '.tade', 'tasks', 'refunds', 'task.yaml'))).toBe(true)
     await expect(
       client.createTask({ project: 'app', slug: 'refunds', intent: 'again' }),
     ).rejects.toThrow(/used before/)
@@ -69,8 +69,8 @@ describe('task and run RPC', () => {
       force: true,
     })
     expect(removed).toEqual({ removed: true, branchDeleted: false })
-    expect(existsSync(join(repo.root, '.wilco', 'tasks', 'refunds'))).toBe(false)
-    expect(existsSync(join(repo.root, '.wilco', 'tasks', 'search', 'task.yaml'))).toBe(true)
+    expect(existsSync(join(repo.root, '.tade', 'tasks', 'refunds'))).toBe(false)
+    expect(existsSync(join(repo.root, '.tade', 'tasks', 'search', 'task.yaml'))).toBe(true)
     expect(existsSync(repo.root)).toBe(true)
   })
 
@@ -106,7 +106,7 @@ describe('task and run RPC', () => {
       by: 'extension:sentry',
     })
     expect(
-      readFileSync(join(task.worktree, '.wilco', 'tasks', 'fix', 'task.yaml'), 'utf8'),
+      readFileSync(join(task.worktree, '.tade', 'tasks', 'fix', 'task.yaml'), 'utf8'),
     ).toContain('by: extension:sentry')
     const [created] = await client.events({ types: ['task_created'] })
     expect(created?.detail.by).toBe('extension:sentry')
@@ -124,7 +124,7 @@ describe('task and run RPC', () => {
       await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'pi' }),
     ).toEqual({ harness: 'pi', restarted: false })
     expect(
-      readFileSync(join(repo.root, '.wilco', 'tasks', 'refunds', 'task.yaml'), 'utf8'),
+      readFileSync(join(repo.root, '.tade', 'tasks', 'refunds', 'task.yaml'), 'utf8'),
     ).toContain('harness: pi')
   })
 
@@ -202,7 +202,7 @@ describe('task and run RPC', () => {
   }, 60_000)
 
   it('starts new agents on the model last chosen for one, and a returning one on its own', async () => {
-    const sessionsRoot = tmp('wilco-sessions-')
+    const sessionsRoot = tmp('tade-sessions-')
     await client.close()
     client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
     client.keepAgentModel('app/refunds', { provider: 'openrouter', id: 'anthropic/claude-opus-5' })
@@ -236,7 +236,7 @@ describe('task and run RPC', () => {
       `projects:\n  app:\n    root: ${repo.root}\n    max_parallel: 2\nworkers:\n  routes:\n    default:\n      thinking: high\n`,
     )
     await client.close()
-    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: tmp('wilco-sessions-') })
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot: tmp('tade-sessions-') })
     const task = await client.createTask({ project: 'app', slug: 'deep', intent: INTENT })
     const lane = await client.startAgent({ task: task.id, cwd: task.worktree, prompt: '' })
     expect(lane.spec.args.join(' ')).toContain('--thinking high')

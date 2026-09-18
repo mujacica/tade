@@ -16,11 +16,11 @@ import {
 
 describe('skillDirs', () => {
   it('keeps proposed, active and rejected apart', () => {
-    const dirs = skillDirs('/home/me/.wilco/skills')
-    expect(dirs.proposed).toBe('/home/me/.wilco/skills/proposed')
-    expect(dirs.active).toBe('/home/me/.wilco/skills/active')
+    const dirs = skillDirs('/home/me/.tade/skills')
+    expect(dirs.proposed).toBe('/home/me/.tade/skills/proposed')
+    expect(dirs.active).toBe('/home/me/.tade/skills/active')
     // Kept, so the same lesson is not proposed again next week.
-    expect(dirs.rejected).toBe('/home/me/.wilco/skills/rejected')
+    expect(dirs.rejected).toBe('/home/me/.tade/skills/rejected')
   })
 })
 

@@ -10,9 +10,9 @@ import {
   suggest,
   TRANSCRIPT_MAX,
   type Transcript,
+  tadeDid,
   thinking,
   toolDetail,
-  wilcoDid,
   youSaid,
 } from '../src/transcript.ts'
 import { transcriptLines } from '../src/transcript-view.ts'
@@ -54,7 +54,7 @@ describe('the conversation', () => {
     let current = youSaid(emptyTranscript(), 'run the tests in the tests terminal', 0)
     current = fromThinker(
       current,
-      { type: 'tool', id: 't1', tool: 'wilco_terminal_run', input: { command: 'pnpm test' } },
+      { type: 'tool', id: 't1', tool: 'tade_terminal_run', input: { command: 'pnpm test' } },
       1,
     )
     expect(text(current).at(-1)).toMatch(/^ {2}\S terminal run · "pnpm test"$/)
@@ -76,7 +76,7 @@ describe('the conversation', () => {
 
   it('says the orchestrator stopped, and why, instead of going quiet', () => {
     let current = thinking(youSaid(emptyTranscript(), 'status', 0), 0)
-    current = fromThinker(current, { type: 'tool', id: 't1', tool: 'wilco_status', input: {} }, 1)
+    current = fromThinker(current, { type: 'tool', id: 't1', tool: 'tade_status', input: {} }, 1)
     current = fromThinker(current, { type: 'failed', reason: 'Model "x" not found' }, 2)
     current = fromThinker(current, { type: 'exited', code: 1 }, 2)
     expect(current.thinking).toBeNull()
@@ -102,7 +102,7 @@ describe('the conversation', () => {
     expect(fromThinker(current, { type: 'idle' }, 3).thinking).toBeNull()
   })
 
-  it("routes Wilco's own commands visibly, and does not repeat the orchestrator's answer", () => {
+  it("routes Tade's own commands visibly, and does not repeat the orchestrator's answer", () => {
     const grammar = fromTurn(youSaid(emptyTranscript(), 'park the stripe one', 0), {
       utterance: 'park the stripe one',
       intent: 'park',
@@ -154,20 +154,15 @@ describe('the conversation', () => {
     expect(text(current).filter((line) => line.includes('Morning.'))).toHaveLength(1)
   })
 
-  it('shows what Wilco itself did, once, and how to read it all before anything is said', () => {
+  it('shows what Tade itself did, once, and how to read it all before anything is said', () => {
     expect(text(emptyTranscript())[0]).toContain('❯ what you say')
-    let current = wilcoDid(emptyTranscript(), 'opened wilco/agent-1 where it left off', 0)
-    current = wilcoDid(current, 'opened wilco/agent-1 where it left off', 1)
-    expect(text(current)).toEqual(['● opened wilco/agent-1 where it left off'])
+    let current = tadeDid(emptyTranscript(), 'opened tade/agent-1 where it left off', 0)
+    current = tadeDid(current, 'opened tade/agent-1 where it left off', 1)
+    expect(text(current)).toEqual(['● opened tade/agent-1 where it left off'])
   })
 
   it('offers a suggestion as something to click', () => {
-    const offered = suggest(
-      emptyTranscript(),
-      'Sentry has 3 new issues in wilco',
-      'look at them',
-      0,
-    )
+    const offered = suggest(emptyTranscript(), 'Sentry has 3 new issues in tade', 'look at them', 0)
     const [line] = transcriptLines(offered, 60, PLAIN, pointer, 0)
     expect(line?.text).toContain('[ ask ]')
     expect(line?.hits.some((hit) => hit.target.kind === 'action')).toBe(true)
@@ -195,8 +190,8 @@ describe('the conversation', () => {
 
 describe('what a tool was used on', () => {
   it('is the few arguments that name it', () => {
-    expect(toolDetail({ project: 'wilco', command: 'pnpm test', lines: 50 })).toBe(
-      'wilco · "pnpm test" · lines 50',
+    expect(toolDetail({ project: 'tade', command: 'pnpm test', lines: 50 })).toBe(
+      'tade · "pnpm test" · lines 50',
     )
     expect(toolDetail({ text: 'x'.repeat(80) })).toMatch(/…$/)
     expect(toolDetail(null)).toBe('')

@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ExtensionHost } from '@wilco/extensions-core'
-import { extensionConformance } from '@wilco/extensions-core/conformance'
+import { ExtensionHost } from '@tade/extensions-core'
+import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { nextCursor } from '../src/api.ts'
@@ -10,7 +10,7 @@ import { issueIdOf, sentryExtension } from '../src/extension.ts'
 import { rootCauseText, seriesSummary, traceTree } from '../src/format.ts'
 
 // Sentry, answered here the way sentry.io answers. Nothing reaches the
-// network; what is under test is what Wilco asks for and what it makes of the
+// network; what is under test is what Tade asks for and what it makes of the
 // answer.
 
 const NOW = Date.parse('2026-09-14T09:00:00Z')
@@ -163,8 +163,8 @@ async function host(fetcher: typeof fetch, extra: Record<string, unknown> = {}) 
 extensionConformance(() => sentryExtension, { env, settings })
 
 describe('finding credentials', () => {
-  it('reads sentry-cli’s own file, nearest first, and never needs Wilco’s config', () => {
-    const home = tmp('wilco-sentry-home-')
+  it('reads sentry-cli’s own file, nearest first, and never needs Tade’s config', () => {
+    const home = tmp('tade-sentry-home-')
     const project = join(home, 'src', 'shop')
     mkdirSync(project, { recursive: true })
     writeFileSync(join(home, '.sentryclirc'), '[auth]\ntoken = from-home\n[defaults]\norg = acme\n')
@@ -290,14 +290,14 @@ describe('acting on Sentry', () => {
   it('hands a fix to an agent with everything Sentry knows in its context', async () => {
     const { fetcher } = sentry()
     const started: Parameters<
-      NonNullable<Parameters<ExtensionHost['call']>[2]['wilco']>['startAgent']
+      NonNullable<Parameters<ExtensionHost['call']>[2]['tade']>['startAgent']
     >[0][] = []
     const answer = await (await host(fetcher)).call(
       'sentry_fix',
       { issue: 'SHOP-1A', note: 'probably the order lookup' },
       {
         caller: { kind: 'orchestrator' },
-        wilco: {
+        tade: {
           pid: process.pid,
           lanes: () => [],
           startAgent: async (request) => {

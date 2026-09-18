@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { existsSync, readdirSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { whenProblem } from '@wilco/core'
+import { whenProblem } from '@tade/core'
 import type {
   Audience,
   BriefItem,
@@ -18,21 +18,21 @@ import type {
   Linker,
   ProjectRef,
   StatusItem,
+  TadeExtension,
   ToolAnswer,
   WatchAgent,
   WatchContext,
-  WilcoExtension,
 } from './port.ts'
 import { inputProblem } from './schema.ts'
 
 // Holding the extensions a window runs with, and running them.
 //
-// Built-in ones ship with Wilco. Yours are folders in the extensions
+// Built-in ones ship with Tade. Yours are folders in the extensions
 // directory's `active/`, each with an `extension.ts`, and they follow the rails
 // every self-written thing does: a proposal does nothing until a human moves
-// it there, it loads when Wilco starts and never mid-session, and `--safe`
+// it there, it loads when Tade starts and never mid-session, and `--safe`
 // starts with none of them. A broken one is listed as broken with the reason;
-// it never stops the others, or Wilco, from starting.
+// it never stops the others, or Tade, from starting.
 
 export type ExtensionState = 'ready' | 'needs setup' | 'off' | 'broken'
 
@@ -74,7 +74,7 @@ export interface ExtensionRun {
 }
 
 export interface HostOptions {
-  builtin?: readonly WilcoExtension[]
+  builtin?: readonly TadeExtension[]
   /** The extensions directory: yours are the folders in its `active/`. */
   root?: string | null
   /** Start with none of yours. */
@@ -110,7 +110,7 @@ export interface WatchOffer {
 }
 
 interface Entry {
-  extension: WilcoExtension
+  extension: TadeExtension
   loaded: LoadedExtension
   ctx: ExtensionContext
 }
@@ -174,7 +174,7 @@ export class ExtensionHost {
 
   static async load(opts: HostOptions): Promise<ExtensionHost> {
     const found: {
-      extension: WilcoExtension | null
+      extension: TadeExtension | null
       source: 'built-in' | 'yours'
       path: string | null
       error: string | null
@@ -206,7 +206,7 @@ export class ExtensionHost {
           typeof module.default === 'function'
             ? (module.default as () => unknown)()
             : module.default
-        const extension = (await made) as WilcoExtension
+        const extension = (await made) as TadeExtension
         found.push({
           extension: { ...extension, root: extension.root ?? folder },
           source: 'yours',
@@ -289,7 +289,7 @@ export class ExtensionHost {
   /**
    * Take new settings — turned on or off, set up — and say again which
    * extensions work. What is broken stays broken, and what `--safe` left out
-   * stays out: those need Wilco started again, which is the point of them.
+   * stays out: those need Tade started again, which is the point of them.
    */
   async reconfigure(
     extensions: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
@@ -347,7 +347,7 @@ export class ExtensionHost {
    * answer. One that is slow or fails is left out this time, never waited on.
    */
   async statuses(
-    wilco: ExtensionWorkbench,
+    tade: ExtensionWorkbench,
     timeoutMs = 2_000,
   ): Promise<{ extension: string; title: string; item: StatusItem; viewable: boolean }[]> {
     const out: { extension: string; title: string; item: StatusItem; viewable: boolean }[] = []
@@ -356,7 +356,7 @@ export class ExtensionHost {
       let timer: NodeJS.Timeout | undefined
       const item = await Promise.race([
         entry.extension
-          .status({ ...entry.ctx, wilco: asExtension(wilco, entry.extension.name) })
+          .status({ ...entry.ctx, tade: asExtension(tade, entry.extension.name) })
           .catch(() => null),
         new Promise<null>((resolve) => {
           timer = setTimeout(() => resolve(null), timeoutMs)
@@ -377,17 +377,14 @@ export class ExtensionHost {
   }
 
   /** An extension's view, as markdown. Throws with the reason it could not be made. */
-  async view(
-    name: string,
-    wilco: ExtensionWorkbench,
-  ): Promise<{ title: string; markdown: string }> {
+  async view(name: string, tade: ExtensionWorkbench): Promise<{ title: string; markdown: string }> {
     const entry = this.ready().find((one) => one.extension.name === name)
     if (!entry?.extension.view) throw new Error(`${name} has nothing to show`)
     return {
       title: entry.extension.title,
       markdown: await entry.extension.view({
         ...entry.ctx,
-        wilco: asExtension(wilco, entry.extension.name),
+        tade: asExtension(tade, entry.extension.name),
       }),
     }
   }
@@ -550,7 +547,7 @@ export class ExtensionHost {
     input: Record<string, unknown>,
     options: {
       caller: Caller
-      wilco?: ExtensionWorkbench | null
+      tade?: ExtensionWorkbench | null
       id?: string
       signal?: AbortSignal
     },
@@ -608,7 +605,7 @@ export class ExtensionHost {
           caller: options.caller,
           progress: (text) => emit('progress', text),
           signal: controller.signal,
-          wilco: options.wilco ? asExtension(options.wilco, entry.extension.name) : null,
+          tade: options.tade ? asExtension(options.tade, entry.extension.name) : null,
         }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => {
@@ -765,11 +762,11 @@ export class ExtensionHost {
  * The window as one extension sees it: whatever it starts is marked as its
  * own, so an agent's tab and the journal say where the work came from.
  */
-function asExtension(wilco: ExtensionWorkbench, name: string): ExtensionWorkbench {
+function asExtension(tade: ExtensionWorkbench, name: string): ExtensionWorkbench {
   return {
-    pid: wilco.pid,
-    lanes: () => wilco.lanes(),
-    startAgent: (request) => wilco.startAgent({ ...request, by: `extension:${name}` }),
+    pid: tade.pid,
+    lanes: () => tade.lanes(),
+    startAgent: (request) => tade.startAgent({ ...request, by: `extension:${name}` }),
   }
 }
 
@@ -792,7 +789,7 @@ function yourFolders(root: string | null | undefined): string[] {
 }
 
 /** What is wrong with how an extension is put together, or null. */
-export function shapeProblem(extension: WilcoExtension): string | null {
+export function shapeProblem(extension: TadeExtension): string | null {
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(extension.name ?? '')) {
     return `"${String(extension.name)}" is not a usable name: lowercase letters, digits and dashes`
   }
@@ -837,7 +834,7 @@ export function shapeProblem(extension: WilcoExtension): string | null {
 }
 
 function unknownSettings(
-  extension: WilcoExtension,
+  extension: TadeExtension,
   settings: Readonly<Record<string, unknown>>,
 ): string[] {
   const known = new Set(['enabled', ...(extension.settings ?? []).map((setting) => setting.key)])
@@ -892,7 +889,7 @@ function run(
   args: readonly string[],
   options: { cwd?: string; timeoutMs?: number } = {},
 ): Promise<ExecResult> {
-  // Its own process group, so the terminal Wilco runs in is never retitled
+  // Its own process group, so the terminal Tade runs in is never retitled
   // after it. `execFile` hands `detached` to the spawn beneath; its types omit it.
   const spawnOptions = {
     cwd: options.cwd,

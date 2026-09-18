@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
+ TADE  ▐ checkout ▌  search    infra   ▐  +  ▌                      ● 1 waiting  ○ 1 working   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌   pi · claude-opus-5 · ctx ███░░░░░ 41% 
 ▌● stripe-v15         $1.26 ≡ │─────────────────────────────────────────────────────────────────────────────────────────
@@ -20,7 +20,7 @@
  ▸ NOTES  4                   │  │ bash  npm i stripe@15                                        │                       
  ▾ GIT                        │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
    repo     ~/src/checkout    │  ╰──────────────────────────────────────────────────────────────╯                       
-   branch   wilco/stripe-v15  │                                                                                         
+   branch   tade/stripe-v15  │                                                                                         
 ━ orchestrator ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                                                                                                                         
                                                                                                                         

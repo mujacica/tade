@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@wilco/core'
+import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
   type Availability,
@@ -13,7 +13,7 @@ import {
   UnsupportedCapabilityError,
   type WorkspaceCapabilities,
   type WorkspaceDriver,
-} from '@wilco/drivers-core'
+} from '@tade/drivers-core'
 import { type IPty, spawn } from 'node-pty'
 
 // @xterm/headless is CommonJS with no ESM named exports.
@@ -23,7 +23,7 @@ const { Terminal } = createRequire(import.meta.url)(
 
 type XTerm = InstanceType<typeof Terminal>
 
-// The default driver: Wilco owns the PTYs and your terminal is just a
+// The default driver: Tade owns the PTYs and your terminal is just a
 // viewer. Imposes nothing on the user's terminal setup.
 //
 // A headless xterm keeps a real screen buffer per lane, so `capture()` returns
@@ -60,7 +60,7 @@ const DEFAULTS = {
 export class PtyDriver implements WorkspaceDriver {
   readonly id = 'pty'
   readonly capabilities: WorkspaceCapabilities = {
-    // Lanes are Wilco's own children: close Wilco and they go with it. That
+    // Lanes are Tade's own children: close Tade and they go with it. That
     // is the whole trade this driver makes — nothing to install, nothing left
     // running. Use tmux when the agents should outlive the window.
     detach: false,
@@ -80,7 +80,7 @@ export class PtyDriver implements WorkspaceDriver {
     this.opts = {
       scrollback: opts.scrollback ?? DEFAULTS.scrollback,
       replayBytes: opts.replayBytes ?? DEFAULTS.replayBytes,
-      attachCommand: opts.attachCommand ?? ((lane) => `wilco attach ${lane}`),
+      attachCommand: opts.attachCommand ?? ((lane) => `tade attach ${lane}`),
       env: opts.env ?? process.env,
     }
   }

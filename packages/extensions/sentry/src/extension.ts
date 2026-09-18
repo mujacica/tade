@@ -8,9 +8,9 @@ import {
   object,
   oneOf,
   string,
+  type TadeExtension,
   type ToolContext,
-  type WilcoExtension,
-} from '@wilco/extensions-core'
+} from '@tade/extensions-core'
 import { type Json, SentryApi } from './api.ts'
 import { findAccess, findCredentials, type SentryAccess } from './auth.ts'
 import {
@@ -23,7 +23,7 @@ import {
   traceTree,
 } from './format.ts'
 
-// Sentry: the errors, traces, logs and metrics of the projects Wilco works on.
+// Sentry: the errors, traces, logs and metrics of the projects Tade works on.
 //
 // The orchestrator uses it to answer "what broke overnight" and "what should
 // we fix", and hands a fix to an agent with everything Sentry knows written
@@ -48,7 +48,7 @@ function api(ctx: ExtensionContext): SentryApi {
   return new SentryApi(found, ctx.fetch)
 }
 
-/** Which Sentry projects each Wilco project reports to, as the config says. */
+/** Which Sentry projects each Tade project reports to, as the config says. */
 function mapping(ctx: ExtensionContext): Record<string, string[]> {
   const configured = ctx.settings.projects
   if (!configured || typeof configured !== 'object') return {}
@@ -61,14 +61,14 @@ function mapping(ctx: ExtensionContext): Record<string, string[]> {
 }
 
 /**
- * The Sentry projects a call is about. A Wilco project is looked up in the
+ * The Sentry projects a call is about. A Tade project is looked up in the
  * mapping, and is its own slug when it has none; anything else is taken as a
  * Sentry slug; an agent's is its own project's; with one project, that one.
  */
 function slugsFor(
   ctx: ToolContext | ExtensionContext,
   said: unknown,
-): { wilco: string | null; slugs: string[] } {
+): { tade: string | null; slugs: string[] } {
   const map = mapping(ctx)
   const wanted =
     typeof said === 'string' && said !== ''
@@ -77,17 +77,17 @@ function slugsFor(
         ? ctx.caller.project
         : null
   if (wanted) {
-    if (map[wanted]) return { wilco: wanted, slugs: map[wanted] }
+    if (map[wanted]) return { tade: wanted, slugs: map[wanted] }
     if (ctx.projects.some((project) => project.name === wanted))
-      return { wilco: wanted, slugs: [wanted] }
+      return { tade: wanted, slugs: [wanted] }
     const owner = Object.entries(map).find(([, slugs]) => slugs.includes(wanted))?.[0] ?? null
-    return { wilco: owner, slugs: [wanted] }
+    return { tade: owner, slugs: [wanted] }
   }
   const [only] = ctx.projects
   if (ctx.projects.length === 1 && only)
-    return { wilco: only.name, slugs: map[only.name] ?? [only.name] }
+    return { tade: only.name, slugs: map[only.name] ?? [only.name] }
   const all = [...new Set(Object.values(map).flat())]
-  if (all.length > 0) return { wilco: null, slugs: all }
+  if (all.length > 0) return { tade: null, slugs: all }
   throw new Error(`which project? ${ctx.projects.map((project) => project.name).join(', ')}`)
 }
 
@@ -135,7 +135,7 @@ const DATASETS: Record<string, { dataset: string; fields: string[]; sort?: strin
 }
 
 const project = string(
-  'the Wilco project, or a Sentry project slug; left out, the project you are in',
+  'the Tade project, or a Sentry project slug; left out, the project you are in',
 )
 const issue = string('the issue: its short id (SHOP-1A), its number, or a link to it')
 const period = string('how far back: 1h, 24h, 14d, 90d')
@@ -148,7 +148,7 @@ function link(title: string, url: string): Link {
 function fixPrompt(shortId: string, title: string): string {
   return [
     `Fix Sentry issue ${shortId}: ${title}.`,
-    'Everything Sentry knows about it is in .wilco/context.md: the stack trace, the frame in your code that matters, what happened before, the request and the trace.',
+    'Everything Sentry knows about it is in .tade/context.md: the stack trace, the frame in your code that matters, what happened before, the request and the trace.',
     'Find the cause rather than guarding the symptom, add a test that fails without the fix, and commit with',
     `"Fixes ${shortId}" in the message so Sentry resolves it when it is released.`,
     'sentry_issue, sentry_trace and sentry_events read more from Sentry if you need it.',
@@ -158,7 +158,7 @@ function fixPrompt(shortId: string, title: string): string {
 /**
  * How far before one look the next starts. Sentry takes a moment to take an
  * event in, so an issue can be first seen just before a look and arrive after
- * it; Wilco knows which issues it has found, so looking twice costs nothing.
+ * it; Tade knows which issues it has found, so looking twice costs nothing.
  */
 const OVERLAP_MS = 10 * 60_000
 
@@ -181,7 +181,7 @@ async function detailsOf(
   return { issue: found, text: issueDetails(found, event as Json, { trace: traceUrl }), links }
 }
 
-export const sentryExtension: WilcoExtension = {
+export const sentryExtension: TadeExtension = {
   name: 'sentry',
   title: 'Sentry',
   description:
@@ -207,7 +207,7 @@ export const sentryExtension: WilcoExtension = {
       key: 'projects',
       kind: 'map',
       means:
-        'which Sentry project slugs each Wilco project reports to; a project not listed is its own slug',
+        'which Sentry project slugs each Tade project reports to; a project not listed is its own slug',
     },
     {
       key: 'brief',
@@ -416,7 +416,7 @@ export const sentryExtension: WilcoExtension = {
       parameters: object(
         {
           issue,
-          project: string('the Wilco project the fix belongs in, when the issue does not say'),
+          project: string('the Tade project the fix belongs in, when the issue does not say'),
           note: string(
             'what else the agent should know: what you or the human think the cause is, what not to touch',
           ),
@@ -425,18 +425,18 @@ export const sentryExtension: WilcoExtension = {
       ),
       for: ['orchestrator'],
       run: async (input, ctx) => {
-        if (!ctx.wilco) throw new Error('starting an agent needs the Wilco window open')
+        if (!ctx.tade) throw new Error('starting an agent needs the Tade window open')
         const sentry = api(ctx)
         const details = await detailsOf(sentry, String(input.issue))
         const shortId = shortIdOf(details.issue)
         const slug = String((details.issue.project as Json | undefined)?.slug ?? '')
-        const wilco = input.project ? String(input.project) : slugsFor(ctx, slug || null).wilco
-        if (!wilco)
+        const tade = input.project ? String(input.project) : slugsFor(ctx, slug || null).tade
+        if (!tade)
           throw new Error(
             `which project does ${shortId} belong in? ${ctx.projects.map((one) => one.name).join(', ')}`,
           )
-        const started = await ctx.wilco.startAgent({
-          project: wilco,
+        const started = await ctx.tade.startAgent({
+          project: tade,
           title: `fix ${shortId}`,
           prompt: fixPrompt(shortId, String(details.issue.title ?? '')),
           context: [input.note ? `> ${String(input.note)}\n` : '', details.text]
@@ -550,14 +550,14 @@ export const sentryExtension: WilcoExtension = {
   orchestrator: (ctx) => {
     const map = mapping(ctx)
     const mapped = Object.entries(map)
-      .map(([wilco, slugs]) => `${wilco} → ${slugs.join(', ')}`)
+      .map(([tade, slugs]) => `${tade} → ${slugs.join(', ')}`)
       .join('; ')
     return [
       `Errors, traces, logs and metrics from Sentry${mapped ? ` (${mapped})` : ''}.`,
       'For "what broke" or "check Sentry", call sentry_issues (sort new, query is:unresolved firstSeen:-24h for what is new) and summarise: how many, the few that matter and why — frequency, users affected, how recent, whether it is in your own code.',
       'For one issue, sentry_issue. To decide what to fix, weigh events, users and recency, and say which you would fix first.',
       'To fix one, sentry_fix: it starts an agent with the stack trace and everything else in its context, so do not retell it.',
-      'To have new errors fixed as they come, turn on the watch sentry.new-errors with wilco_schedule, when asked to.',
+      'To have new errors fixed as they come, turn on the watch sentry.new-errors with tade_schedule, when asked to.',
       'Always give issues by short id with their link, so they can be opened.',
       'Never resolve, ignore or assign an issue unless asked to; that is sentry_update_issue.',
     ].join(' ')
@@ -566,7 +566,7 @@ export const sentryExtension: WilcoExtension = {
     const slugs = mapping(ctx)[project.name] ?? [project.name]
     return [
       `${project.name} reports its errors to Sentry (${slugs.join(', ')}).`,
-      'If .wilco/context.md is about a Sentry issue, it has the stack trace, the relevant frame, breadcrumbs and the trace id — start there.',
+      'If .tade/context.md is about a Sentry issue, it has the stack trace, the relevant frame, breadcrumbs and the trace id — start there.',
       'sentry_issue fetches an issue, sentry_trace the request around it, sentry_events the logs or spans (query trace:<id> for one request), sentry_stats how something moved over time.',
       'When a commit fixes a Sentry issue, put "Fixes <SHORT-ID>" in its message so Sentry resolves it on release.',
     ].join(' ')
@@ -600,12 +600,12 @@ export const sentryExtension: WilcoExtension = {
     return {
       guide: [
         found.token
-          ? `**Token:** found in ${found.token.from}. Wilco reads it there and never keeps a copy.`
-          : `**Token:** Wilco needs one that can read your organization, and never stores it. Either run \`sentry-cli login\` (it keeps the token in \`~/.sentryclirc\`, where Wilco reads it), or create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and add \`export ${variable}=…\` to your shell's profile — then start Wilco from a new terminal.`,
+          ? `**Token:** found in ${found.token.from}. Tade reads it there and never keeps a copy.`
+          : `**Token:** Tade needs one that can read your organization, and never stores it. Either run \`sentry-cli login\` (it keeps the token in \`~/.sentryclirc\`, where Tade reads it), or create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and add \`export ${variable}=…\` to your shell's profile — then start Tade from a new terminal.`,
         found.org
           ? `**Organization:** ${found.org}.`
           : '**Organization:** type its slug below — the part after `sentry.io/organizations/` — or, with a token, choose from the ones it can see.',
-        '**Projects:** a Wilco project reports to the Sentry project with the same name. Where the names differ, say which: `checkout=checkout-api`, and `+` for more than one (`web=web-app+web-edge`).',
+        '**Projects:** a Tade project reports to the Sentry project with the same name. Where the names differ, say which: `checkout=checkout-api`, and `+` for more than one (`web=web-app+web-edge`).',
         '**Your own Sentry:** leave Sentry empty for sentry.io; for a self-hosted or local one, give its address.',
       ],
       fields: [

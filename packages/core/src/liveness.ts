@@ -1,6 +1,6 @@
 import type { AgentSignal, Lane, TaskId } from './model.ts'
 
-// Liveness of lanes Wilco itself started. The lane registry is the only thing
+// Liveness of lanes Tade itself started. The lane registry is the only thing
 // that knows them; with nothing running there are simply no lanes, and
 // status falls back to git plus adopted sessions.
 

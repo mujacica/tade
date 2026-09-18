@@ -1,7 +1,7 @@
-// What Wilco costs the machine it runs on: every process it started, whose it
+// What Tade costs the machine it runs on: every process it started, whose it
 // is, and what each is using.
 //
-// Pure: the process table and what Wilco is running in, a sample out. Reading
+// Pure: the process table and what Tade is running in, a sample out. Reading
 // the table is one `ps` for every process at once, which is what keeps this
 // cheap enough to ask every few seconds; everything after that is arithmetic
 // on what it printed.
@@ -20,7 +20,7 @@ export interface Proc {
 export type Kind = 'window' | 'orchestrator' | 'agent' | 'terminal' | 'shell' | 'helper'
 
 export interface Group {
-  /** The lane id for a lane, or the kind for Wilco's own. */
+  /** The lane id for a lane, or the kind for Tade's own. */
   key: string
   kind: Kind
   project: string | null
@@ -253,7 +253,7 @@ export function totals(
   for (const group of sample.groups) {
     const label =
       by === 'project'
-        ? (group.project ?? 'Wilco itself')
+        ? (group.project ?? 'Tade itself')
         : by === 'kind'
           ? KIND_LABELS[group.kind]
           : group.label

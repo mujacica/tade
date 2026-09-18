@@ -36,8 +36,13 @@ export interface Skin {
   chrome(text: string): string
   /** A panel's own border, a step brighter than the chrome it floats over. */
   edge(text: string): string
-  /** The Wilco mark. */
+  /** The Tade mark. */
   brand(text: string): string
+  /**
+   * The wordmark as a block, for the corner it lives in: exactly label + 4
+   * columns, painted or not, so nothing shifts when colour goes away.
+   */
+  mark(label: string): string
   /** Something you can act on that is not a button: `+`, a link. */
   signal(text: string): string
   /** A tab or row you are not on. */
@@ -116,14 +121,20 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   rest: [238, 255, false],
   hover: [241, 231, false],
   pressed: [250, 233, false],
-  primary: [80, 233, true],
-  attention: [179, 233, true],
+  primary: [214, 233, true],
+  attention: [141, 233, true],
   danger: [167, 233, true],
   off: [236, 240, false],
-  add: [238, 80, true],
+  add: [238, 214, true],
 }
 
 const identity = (text: string) => text
+
+/**
+ * How the wordmark is spelt: letters apart, so the corner reads as a mark and
+ * not as one more tab. Shared, because the layout measures what the skins draw.
+ */
+export const markLabel = (label: string) => [...label].join(' ')
 
 /** The grounds of a lit tab down the side: pointed at, and the one you are on. */
 const TAB_GROUNDS: Record<Band, number> = { selected: 238, hovered: 236 }
@@ -140,6 +151,9 @@ export const PLAIN: Skin = {
   chrome: identity,
   edge: identity,
   brand: identity,
+  // The same glyphs the painted mark uses, unpainted: stripped of colour, the
+  // two renders are identical, which is what the setup screen's test asserts.
+  mark: (label) => `▐ ${markLabel(label)} ▌`,
   signal: identity,
   tab: identity,
   label: identity,
@@ -167,26 +181,30 @@ export const PLAIN: Skin = {
 
 export const COLOUR: Skin = {
   colour: true,
-  chrome: paint(fg(30)),
-  edge: paint(fg(73)),
-  brand: paint(`${fg(80)}${BOLD}`),
-  signal: paint(`${fg(80)}${BOLD}`),
+  chrome: paint(fg(240)),
+  edge: paint(fg(245)),
+  brand: paint(`${fg(214)}${BOLD}`),
+  // Amber on dark, where a lit tab is dark on amber: the mark is the one thing
+  // in the top row that is not something you can press.
+  mark: (label) =>
+    `${fg(214)}▐${RESET}${bg(236)}${fg(214)}${BOLD} ${markLabel(label)} ${RESET}${fg(214)}▌${RESET}`,
+  signal: paint(`${fg(214)}${BOLD}`),
   tab: paint(fg(246)),
   label: paint(`${fg(248)}${BOLD}`),
-  waiting: paint(fg(179)),
-  busy: paint(fg(80)),
+  waiting: paint(fg(141)),
+  busy: paint(fg(214)),
   bad: paint(fg(203)),
   done: paint(fg(114)),
   you: paint(`${fg(255)}${BOLD}`),
   hint: paint(fg(244)),
   faded: paint(fg(239)),
-  link: paint(`${fg(80)}${ESC}4m`),
+  link: paint(`${fg(214)}${ESC}4m`),
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
     return pill(label, ground, ink, bold)
   },
   tabbed: (label, on, hover) => {
-    if (on) return pill(label, 80, 233, true)
+    if (on) return pill(label, 214, 233, true)
     if (hover) return pill(label, 238, 255)
     return paint(fg(246))(`  ${label}  `)
   },

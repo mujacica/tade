@@ -1,8 +1,8 @@
-import type { Queued, QueueFacts, WilcoEvent } from '@wilco/core'
+import type { Queued, QueueFacts, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { describeQueue, heldMessage, planAnswer, whyStarting } from '../src/queue.ts'
 
-const facts = (events: WilcoEvent[] = [], finished: string[] = []): QueueFacts => ({
+const facts = (events: TadeEvent[] = [], finished: string[] = []): QueueFacts => ({
   tasks: new Map([['shop/fix-charge', { state: 'working', reason: '' }]]),
   finished: new Map(finished.map((task) => [task, { at: '', by: 'agent', summary: '' }])),
   events,

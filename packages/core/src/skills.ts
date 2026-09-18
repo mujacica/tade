@@ -5,7 +5,7 @@ import { join } from 'node:path'
 // A skill is something the model noticed and wrote down: "every time a task
 // touched payments you made me run the integration suite first". The judgement
 // about what was learned belongs to the thing doing the work, not to a rule we
-// could write here — so Wilco proposes, and a human decides.
+// could write here — so Tade proposes, and a human decides.
 //
 // Same three-directory shape as extensions, for the same reason: a proposal is
 // inert until somebody reads it, and a turned-down one is kept so the same idea

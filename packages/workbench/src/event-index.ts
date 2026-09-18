@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { type EventFilter, URGENCY_RANK, type WilcoEvent } from '@wilco/core'
+import { type EventFilter, type TadeEvent, URGENCY_RANK } from '@tade/core'
 
 // A SQLite index over the event log. It is derived state: every row can be
 // rebuilt from events.jsonl, so losing or corrupting the database is never
@@ -60,7 +60,7 @@ export class EventIndex {
     }
   }
 
-  insert(e: WilcoEvent): void {
+  insert(e: TadeEvent): void {
     this.insertStmt.run(
       e.seq,
       e.ts,
@@ -74,8 +74,8 @@ export class EventIndex {
     )
   }
 
-  insertMany(events: Iterable<WilcoEvent>): void {
-    const run = this.db.transaction((list: WilcoEvent[]) => {
+  insertMany(events: Iterable<TadeEvent>): void {
+    const run = this.db.transaction((list: TadeEvent[]) => {
       for (const e of list) this.insert(e)
     })
     run([...events])
@@ -95,7 +95,7 @@ export class EventIndex {
     this.db.exec('DELETE FROM events')
   }
 
-  query(filter: EventFilter): WilcoEvent[] {
+  query(filter: EventFilter): TadeEvent[] {
     const where: string[] = []
     const params: unknown[] = []
     if (filter.since !== undefined) {
@@ -123,7 +123,7 @@ export class EventIndex {
       ` ORDER BY seq${filter.limit ? ' DESC LIMIT ?' : ''}`
     if (filter.limit) params.push(filter.limit)
     const rows = this.db.prepare(sql).all(...params) as Array<{ json: string }>
-    const events = rows.map((r) => JSON.parse(r.json) as WilcoEvent)
+    const events = rows.map((r) => JSON.parse(r.json) as TadeEvent)
     return filter.limit ? events.reverse() : events
   }
 

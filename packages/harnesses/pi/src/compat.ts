@@ -1,7 +1,7 @@
 // Requests pi sends that a provider in between refuses.
 //
-// pi loads this file directly into every pi Wilco starts — the orchestrator
-// and each agent — so, like `wilco.ts`, it imports nothing from the workspace.
+// pi loads this file directly into every pi Tade starts — the orchestrator
+// and each agent — so, like `tade.ts`, it imports nothing from the workspace.
 //
 // Anthropic's newest models take their reasoning effort as a message in the
 // conversation rather than once per request, and pi's catalog marks them that

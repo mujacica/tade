@@ -2,7 +2,7 @@ import { existsSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
-import type { WorkerSignal } from '@wilco/harnesses-core'
+import type { WorkerSignal } from '@tade/harnesses-core'
 import { spawn as openPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -147,9 +147,9 @@ function writeProviderExtension(dir: string): string {
   writeFileSync(
     path,
     `export default function (pi: any) {
-  pi.registerProvider('wilco-test', {
-    name: 'Wilco Test',
-    baseUrl: process.env.WILCO_TEST_BASE_URL,
+  pi.registerProvider('tade-test', {
+    name: 'Tade Test',
+    baseUrl: process.env.TADE_TEST_BASE_URL,
     apiKey: 'test-key',
     api: 'openai-completions',
     models: [
@@ -193,9 +193,9 @@ describe('approval gate', () => {
     await model?.close()
   })
 
-  it('holds a tool call until Wilco decides, and a denial never runs it', async () => {
-    const runDir = tmp('wilco-gate-')
-    const cwd = tmp('wilco-gate-work-')
+  it('holds a tool call until Tade decides, and a denial never runs it', async () => {
+    const runDir = tmp('tade-gate-')
+    const cwd = tmp('tade-gate-work-')
     const marker = join(cwd, 'the-command-ran')
     model = await fakeModel(`touch ${marker}`)
 
@@ -205,7 +205,7 @@ describe('approval gate', () => {
       // ever held, which is the default and is tested below.
       approvals: 'policy',
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
 
     const signals: WorkerSignal[] = []
@@ -215,7 +215,7 @@ describe('approval gate', () => {
       task: 'app/gate',
       cwd,
       prompt: 'run the command',
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
     })
 
     // The agent asks before running anything.
@@ -241,9 +241,9 @@ describe('approval gate', () => {
   // Without this, the test above would also pass if the gate simply blocked
   // everything. Proving that "allow" runs the command is what gives "deny" its
   // meaning.
-  it('runs the command when Wilco allows it', async () => {
-    const runDir = tmp('wilco-gate-')
-    const cwd = tmp('wilco-gate-work-')
+  it('runs the command when Tade allows it', async () => {
+    const runDir = tmp('tade-gate-')
+    const cwd = tmp('tade-gate-work-')
     const marker = join(cwd, 'the-command-ran')
     model = await fakeModel(`touch ${marker}`)
 
@@ -253,7 +253,7 @@ describe('approval gate', () => {
       // ever held, which is the default and is tested below.
       approvals: 'policy',
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
 
     const signals: WorkerSignal[] = []
@@ -263,7 +263,7 @@ describe('approval gate', () => {
       task: 'app/gate',
       cwd,
       prompt: 'run the command',
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
     })
 
     await until(() => signals.some((s) => s.type === 'permission_request'))
@@ -279,18 +279,18 @@ describe('approval gate', () => {
   // The default, and the case that matters under a driver whose lanes outlive
   // the window: nobody is listening, and the agent has to work anyway.
   it('never holds anything with approvals off, even with nowhere to ask', async () => {
-    const runDir = tmp('wilco-gate-')
-    const cwd = tmp('wilco-gate-work-')
+    const runDir = tmp('tade-gate-')
+    const cwd = tmp('tade-gate-work-')
     const marker = join(cwd, 'the-command-ran')
     model = await fakeModel(`touch ${marker}`)
 
     adapter = new PiAdapter({
       runDir,
       // Not supervised at all: there is no socket to reach, exactly as when
-      // Wilco has been closed and the agent is still running in tmux.
+      // Tade has been closed and the agent is still running in tmux.
       supervise: false,
       args: ['-e', writeProviderExtension(runDir), '-e', EXTENSION_PATH],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
 
     await adapter.start({
@@ -298,21 +298,21 @@ describe('approval gate', () => {
       task: 'app/gate',
       cwd,
       prompt: 'run the command',
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
     })
 
-    // It ran. Losing Wilco costs the journal an entry, never the work.
+    // It ran. Losing Tade costs the journal an entry, never the work.
     await until(() => existsSync(marker))
     expect(existsSync(marker)).toBe(true)
   }, 90_000)
 
-  // A long task outlives the window under a driver whose lanes do, so Wilco
+  // A long task outlives the window under a driver whose lanes do, so Tade
   // going away and coming back is ordinary. Without reconnection the agent
   // runs on reporting to nobody — and under `policy`, a gate with nothing at
   // the other end refuses everything it is asked.
-  it('finds Wilco again after the window that started it went away', async () => {
-    const runDir = tmp('wilco-gate-')
-    const cwd = tmp('wilco-gate-work-')
+  it('finds Tade again after the window that started it went away', async () => {
+    const runDir = tmp('tade-gate-')
+    const cwd = tmp('tade-gate-work-')
     const marker = join(cwd, 'the-command-ran')
     model = await fakeModel(`touch ${marker}`)
 
@@ -321,7 +321,7 @@ describe('approval gate', () => {
         runDir,
         approvals: 'policy',
         args: ['-e', writeProviderExtension(runDir)],
-        env: { ...process.env, WILCO_TEST_BASE_URL: model?.url ?? '' },
+        env: { ...process.env, TADE_TEST_BASE_URL: model?.url ?? '' },
       })
 
     // The window that starts it, then goes away without stopping the agent.
@@ -388,22 +388,22 @@ describe('how hard it thinks', () => {
   })
 
   it('takes a level told over its channel, and says the one it settled on', async () => {
-    const runDir = tmp('wilco-think-')
+    const runDir = tmp('tade-think-')
     model = await fakeModel('true')
     adapter = new PiAdapter({
       runDir,
       approvals: 'bypass',
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
     const signals: WorkerSignal[] = []
     adapter.onSignal('think', (s) => signals.push(s))
     await adapter.start({
       run: 'think',
       task: 'app/think',
-      cwd: tmp('wilco-think-work-'),
+      cwd: tmp('tade-think-work-'),
       prompt: '',
-      model: { provider: 'wilco-test', id: 'thinker' },
+      model: { provider: 'tade-test', id: 'thinker' },
       thinking: 'low',
     })
     const said = (level: string) =>
@@ -421,7 +421,7 @@ describe('how hard it thinks', () => {
 
 // What a turn cost, proven against a REAL pi pricing a REAL session.
 //
-// A person reads what an agent spent in two places — pi's footer, and Wilco's
+// A person reads what an agent spent in two places — pi's footer, and Tade's
 // Spend panel — and the two must agree. A count checked only against a session
 // file written by hand agrees with whoever wrote the file.
 describe('what a turn costs', () => {
@@ -456,8 +456,8 @@ describe('what a turn costs', () => {
   ])(
     'adds up every answer, %s',
     async (_how, supervise) => {
-      const runDir = tmp('wilco-cost-')
-      const cwd = tmp('wilco-cost-work-')
+      const runDir = tmp('tade-cost-')
+      const cwd = tmp('tade-cost-work-')
       const marker = join(cwd, 'the-command-ran')
       model = await fakeModel(`touch ${marker}`)
 
@@ -466,7 +466,7 @@ describe('what a turn costs', () => {
         supervise,
         approvals: 'bypass',
         args: ['-e', writeProviderExtension(runDir)],
-        env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+        env: { ...process.env, TADE_TEST_BASE_URL: model.url },
       })
       const signals: WorkerSignal[] = []
       adapter.onSignal('cost', (s) => signals.push(s))
@@ -475,7 +475,7 @@ describe('what a turn costs', () => {
         task: 'app/cost',
         cwd,
         prompt: 'run the command',
-        model: { provider: 'wilco-test', id: 'fake' },
+        model: { provider: 'tade-test', id: 'fake' },
       })
 
       // Two answers: the tool call, and the last word after it.
@@ -512,23 +512,23 @@ describe('saying something while it works', () => {
   })
 
   it('waits for the turn to end rather than being refused, and then answers it', async () => {
-    const runDir = tmp('wilco-busy-')
+    const runDir = tmp('tade-busy-')
     // The first answer runs a command that takes a while: the turn is still going.
     model = await fakeModel('sleep 2')
     adapter = new PiAdapter({
       runDir,
       supervise: false,
       args: ['-e', writeProviderExtension(runDir)],
-      env: { ...process.env, WILCO_TEST_BASE_URL: model.url },
+      env: { ...process.env, TADE_TEST_BASE_URL: model.url },
     })
     const signals: WorkerSignal[] = []
     adapter.onSignal('busy', (s) => signals.push(s))
     await adapter.start({
       run: 'busy',
       task: 'app/busy',
-      cwd: tmp('wilco-busy-work-'),
+      cwd: tmp('tade-busy-work-'),
       prompt: 'run the command',
-      model: { provider: 'wilco-test', id: 'fake' },
+      model: { provider: 'tade-test', id: 'fake' },
     })
     await until(() => (model?.requests ?? 0) >= 1)
 

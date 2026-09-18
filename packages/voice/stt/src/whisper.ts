@@ -3,7 +3,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { resolveCommand, stringEnv } from '@wilco/core'
+import { resolveCommand, stringEnv } from '@tade/core'
 import {
   type AudioClip,
   type Availability,
@@ -12,9 +12,9 @@ import {
   type TranscriberCapabilities,
   TranscriberUnavailableError,
   type Transcript,
-} from '@wilco/voice-core'
+} from '@tade/voice-core'
 
-// whisper.cpp, on this machine. The default, because Wilco is a local-first
+// whisper.cpp, on this machine. The default, because Tade is a local-first
 // tool and a voice feature that demands an API key by default would contradict
 // that: what you say to your own computer about your own code should not have
 // to leave it.
@@ -36,7 +36,7 @@ export interface WhisperOptions {
 }
 
 export function defaultModelPath(env: NodeJS.ProcessEnv = process.env): string {
-  const home = env.WILCO_HOME ?? join(homedir(), '.wilco')
+  const home = env.TADE_HOME ?? join(homedir(), '.tade')
   return join(home, 'models', 'ggml-base.en.bin')
 }
 
@@ -78,7 +78,7 @@ export class WhisperCppTranscriber implements Transcriber {
     }
     const model = this.model()
     if (!existsSync(model)) {
-      return { ok: false, reason: `no model at ${model} (run \`wilco voice setup\`)` }
+      return { ok: false, reason: `no model at ${model} (run \`tade voice setup\`)` }
     }
     return { ok: true }
   }

@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/drivers-tmux",
+  "name": "@tade/drivers-tmux",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -8,11 +8,11 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
-    "@wilco/drivers-core": "workspace:*"
+    "@tade/core": "workspace:*",
+    "@tade/drivers-core": "workspace:*"
   },
   "devDependencies": {
-    "@wilco/drivers-core": "workspace:*",
+    "@tade/drivers-core": "workspace:*",
     "vitest": "^5.0.0"
   }
 }

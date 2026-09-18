@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { LaneId, WilcoEvent } from '@wilco/core'
-import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
+import type { LaneId, TadeEvent } from '@tade/core'
+import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { livenessFrom } from '../src/lane-liveness.ts'
@@ -24,7 +24,7 @@ describe('the workbench', () => {
     })
 
   beforeEach(async () => {
-    home = tmp('wilco-workbench-')
+    home = tmp('tade-workbench-')
     client = await Workbench.open({ home, version: '9.9.9' })
   })
 
@@ -96,7 +96,7 @@ describe('the workbench', () => {
   })
 
   it('records lane lifecycle in the event log and streams it to subscribers', async () => {
-    const live: WilcoEvent[] = []
+    const live: TadeEvent[] = []
     await client.subscribe((e) => live.push(e))
     const lane = await spawnLane('app/t5/shell')
     await client.closeLane(lane.id as LaneId)
@@ -129,7 +129,7 @@ describe('the workbench', () => {
       const lane = await spawnLane('app/t8/agent', 'agent')
       const pid = lane.pid!
       await client.close()
-      // Closing Wilco closes them: under pty they are its own children.
+      // Closing Tade closes them: under pty they are its own children.
       // Killing is asynchronous: the signal goes out, then the child exits.
       await until(() => !isRunning(pid))
 

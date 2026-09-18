@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs'
-import type { WorkerSignal } from '@wilco/harnesses-core'
+import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, piBinary, runSocket } from '../src/adapter.ts'
-import { describeToolCall } from '../src/wilco.ts'
+import { describeToolCall } from '../src/tade.ts'
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 20_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -15,7 +15,7 @@ async function until(check: () => boolean | Promise<boolean>, timeout = 20_000):
 }
 
 // These run the real pi binary. No model is configured, so nothing reaches an
-// LLM: what is under test is that pi loads the Wilco extension, the extension
+// LLM: what is under test is that pi loads the Tade extension, the extension
 // reaches the supervision socket, and the adapter speaks pi's RPC protocol.
 
 describe('PiAdapter', () => {
@@ -31,7 +31,7 @@ describe('PiAdapter', () => {
   })
 
   it('contains a worker when the route asks for one', () => {
-    adapter = new PiAdapter({ runDir: tmp('wilco-pi-') })
+    adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
     const launch = adapter.launchSpec({
       run: 'r1',
       task: 'app/t',
@@ -45,13 +45,13 @@ describe('PiAdapter', () => {
   })
 
   it('leaves a worker alone when no sandbox was asked for', () => {
-    adapter = new PiAdapter({ runDir: tmp('wilco-pi-') })
+    adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
     const launch = adapter.launchSpec({ run: 'r1', task: 'app/t', cwd: '/wt/t', prompt: '' })
     expect(launch.command).toBe(process.execPath)
   })
 
-  it('starts pi with the Wilco extension attached and the run supervised', async () => {
-    const runDir = tmp('wilco-pi-')
+  it('starts pi with the Tade extension attached and the run supervised', async () => {
+    const runDir = tmp('tade-pi-')
     adapter = new PiAdapter({ runDir })
     const signals: WorkerSignal[] = []
     // Subscribing before start: the first signals arrive while it is running.
@@ -60,7 +60,7 @@ describe('PiAdapter', () => {
     const handle = await adapter.start({
       run: 'r1',
       task: 'app/t',
-      cwd: tmp('wilco-work-'),
+      cwd: tmp('tade-work-'),
       prompt: '',
     })
 
@@ -74,11 +74,11 @@ describe('PiAdapter', () => {
   }, 60_000)
 
   it('stop() shuts the agent down and cleans up its socket', async () => {
-    const runDir = tmp('wilco-pi-')
+    const runDir = tmp('tade-pi-')
     adapter = new PiAdapter({ runDir })
     const signals: WorkerSignal[] = []
     adapter.onSignal('r2', (s) => signals.push(s))
-    await adapter.start({ run: 'r2', task: 'app/t', cwd: tmp('wilco-work-'), prompt: '' })
+    await adapter.start({ run: 'r2', task: 'app/t', cwd: tmp('tade-work-'), prompt: '' })
     await until(() => signals.some((s) => s.type === 'started'))
 
     await adapter.stop('r2')
@@ -87,7 +87,7 @@ describe('PiAdapter', () => {
   }, 60_000)
 
   it('rejects commands for an unknown run instead of hanging', async () => {
-    adapter = new PiAdapter({ runDir: tmp('wilco-pi-') })
+    adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
     await expect(adapter.prompt('ghost', 'hello')).rejects.toThrow(/no such run/)
   })
 })

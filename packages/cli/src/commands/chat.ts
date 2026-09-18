@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { activityFrom, defaultConfigPath, historyFrom, loadConfig, wilcoHome } from '@wilco/core'
-import type { ExtensionWorkbench } from '@wilco/extensions-core'
+import { activityFrom, defaultConfigPath, historyFrom, loadConfig, tadeHome } from '@tade/core'
+import type { ExtensionWorkbench } from '@tade/extensions-core'
 import {
   extensionWorkbench,
   loadExtensions,
@@ -9,34 +9,34 @@ import {
   orchestratorExtensions,
   ToolHost,
   workbenchExtensions,
-} from '@wilco/orchestrator'
-import { HomeBusyError, Workbench } from '@wilco/workbench'
+} from '@tade/orchestrator'
+import { HomeBusyError, Workbench } from '@tade/workbench'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
-// Talking to Wilco. The orchestrator does the thinking; this is a text field
+// Talking to Tade. The orchestrator does the thinking; this is a text field
 // and a printer, deliberately thin, because voice will sit in the same place
 // later and neither should own the conversation.
 
 export function registerChat(program: Command, io: Io, setExit: (code: number) => void): void {
   program
     .command('chat')
-    .description('Talk to Wilco')
+    .description('Talk to Tade')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action(async (opts: { config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
-      const home = wilcoHome()
+      const home = tadeHome()
       const safe = program.opts().safe === true
       const extensions = await loadExtensions({ config: cfg.config, home, safe })
       let window: ExtensionWorkbench | null = null
-      let wilco: Workbench
+      let tade: Workbench
       try {
-        wilco = await Workbench.open({
+        tade = await Workbench.open({
           home,
           extensions: workbenchExtensions(extensions, home, () => window),
         })
@@ -51,25 +51,25 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         setExit(Exit.error)
         return
       }
-      window = extensionWorkbench(wilco)
+      window = extensionWorkbench(tade)
       const tools = await ToolHost.listen({
-        wilco,
+        tade,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
         extensions: async (call) =>
           (
             await extensions.call(call.tool, call.input, {
               caller: { kind: 'orchestrator' },
               id: call.callId,
-              wilco: window,
+              tade: window,
             })
           ).text,
       })
 
       const chat = await Orchestrator.start({
         // Fetched and handed over, so composing the prompt stays pure.
-        notes: wilco.recallAll(),
+        notes: tade.recallAll(),
         activity: activityFrom(
-          historyFrom(await wilco.events({ limit: 2_000 }), Date.now()),
+          historyFrom(await tade.events({ limit: 2_000 }), Date.now()),
           Object.keys(cfg.config.projects),
         ),
         home,
@@ -77,14 +77,14 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         runDir: join(home, 'orchestrator'),
         cwd: process.cwd(),
         config: cfg.config,
-        // `wilco --safe chat` loads none of the self-written tools.
+        // `tade --safe chat` loads none of the self-written tools.
         safe,
         extensions: orchestratorExtensions(extensions, home, cfg.config.orchestrator.harness),
       })
 
       chat.onMessage((text) => io.out(text))
-      // Its working, on stderr so `wilco chat > transcript` keeps just the words.
-      chat.onTool((tool) => io.err(`· ${tool.replace(/^wilco_/, '')}`))
+      // Its working, on stderr so `tade chat > transcript` keeps just the words.
+      chat.onTool((tool) => io.err(`· ${tool.replace(/^tade_/, '')}`))
 
       let settled = () => {}
       chat.onIdle(() => settled())
@@ -117,7 +117,7 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
         rl.close()
         await chat.stop()
         await tools.close().catch(() => {})
-        await wilco.close().catch(() => {})
+        await tade.close().catch(() => {})
       }
     })
 }

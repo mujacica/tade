@@ -13,12 +13,12 @@ The port is `packages/harnesses/core/src/port.ts`. The reference implementation 
 
 | Method | What it is for |
 |---|---|
-| `launchSpec(spec)` | what to run, so Wilco can put the agent in a lane. Placing the process is the driver's job, not the adapter's. |
+| `launchSpec(spec)` | what to run, so Tade can put the agent in a lane. Placing the process is the driver's job, not the adapter's. |
 | `supervise(spec)` | open the channel that launch reports back over. Called *before* the lane starts, so the first signal has somewhere to land. |
-| `start(spec)` | run the agent headless under our own protocol, as our child. Only for an agent whose interface Wilco draws itself — the orchestrator. |
+| `start(spec)` | run the agent headless under our own protocol, as our child. Only for an agent whose interface Tade draws itself — the orchestrator. |
 
 Workers use the first two: an agent is pi in a terminal, visible, surviving the window under a
-driver that can. If you only implement `start`, you have built something that dies when Wilco
+driver that can. If you only implement `start`, you have built something that dies when Tade
 closes, which is the thing this design exists to avoid.
 
 ## The contract
@@ -32,7 +32,7 @@ closes, which is the thing this design exists to avoid.
   extension that threw) is `problem`. Both end up in front of the person — the orchestrator's
   refusals once ended in silence, because nothing carried the reason.
 - **A request a provider in between refuses is rewritten in the harness**, not worked around in the
-  config: pi's are in `harnesses/pi/src/compat.ts`, loaded into every pi Wilco starts, each with a
+  config: pi's are in `harnesses/pi/src/compat.ts`, loaded into every pi Tade starts, each with a
   test of the payload before and after.
 - Accept `WorkerCommand`s back: `decision`, `steer`, `queue`, `abort`, `shutdown`, `name`, `model`,
   `extension_result`. `name` and `model` change only this agent's session: never the harness's default
@@ -48,21 +48,21 @@ closes, which is the thing this design exists to avoid.
 - **Never infer state from rendered output.** A signal comes from a structured channel (an
   in-agent extension, a hook, a protocol message) or it doesn't exist. If a harness can't tell you
   a turn ended, report `unknown` rather than guessing.
-- **What to do when Wilco is unreachable depends on the mode, and the agent is told which**
-  (`WILCO_APPROVALS`). Under `policy` the gate fails closed: block, because an agent running
+- **What to do when Tade is unreachable depends on the mode, and the agent is told which**
+  (`TADE_APPROVALS`). Under `policy` the gate fails closed: block, because an agent running
   unsupervised is worse than one that stalls. Under `bypass` — the default — nothing was ever going
-  to be held, and under a driver whose lanes outlive the window losing Wilco is ordinary rather than
+  to be held, and under a driver whose lanes outlive the window losing Tade is ordinary rather than
   a fault, so the agent carries on and the journal catches up later. Deciding this at the moment of
   disconnection instead of at launch is how a gate turns itself off without anyone noticing.
-- **Whatever the harness records for itself is the ledger.** Wilco reads pi's own session files to
+- **Whatever the harness records for itself is the ledger.** Tade reads pi's own session files to
   account for turns that happened while nothing was listening, so an adapter should prefer the
   harness's durable record over anything it reports live.
 - **Be inert when unsupervised.** If the supervision environment variables are absent, the agent
-  must behave exactly as if Wilco were not installed.
+  must behave exactly as if Tade were not installed.
 - **`permission_request.summary` must be exact.** It is read back to a human before they approve a
   destructive command, so it carries the real command, not a paraphrase.
 - **Keep in-agent code self-contained.** Code loaded *into* the agent (a pi extension, a hook
-  script) runs under that tool's module resolution, not ours: no workspace imports. The Wilco side
+  script) runs under that tool's module resolution, not ours: no workspace imports. The Tade side
   validates what arrives.
 - **The adapter never owns credentials.** Model, provider and auth belong to the harness, which is
   what keeps subscriptions, API keys and local models all working.

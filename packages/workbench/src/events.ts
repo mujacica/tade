@@ -7,10 +7,10 @@ import {
   type EventFilter,
   type EventInput,
   matchesFilter,
+  type TadeEvent,
   URGENCY_RANK,
   type Urgency,
-  type WilcoEvent,
-} from '@wilco/core'
+} from '@tade/core'
 import { EventIndex } from './event-index.ts'
 
 // events.jsonl is the truth: append-only, one JSON object per line. The SQLite
@@ -27,12 +27,12 @@ export interface EventLogOptions {
   subscriberQueue?: number
 }
 
-export type EventListener = (e: WilcoEvent) => void
+export type EventListener = (e: TadeEvent) => void
 
 interface Subscriber {
   fn: EventListener
   filter: EventFilter
-  queue: WilcoEvent[]
+  queue: TadeEvent[]
   draining: boolean
   dropped: number
 }
@@ -88,10 +88,10 @@ export class EventLog {
     return log
   }
 
-  async append(input: EventInput): Promise<WilcoEvent> {
+  async append(input: EventInput): Promise<TadeEvent> {
     const urgency = input.urgency ?? DEFAULT_URGENCY[input.type]
     // seq is assigned synchronously, so ordering never depends on I/O timing.
-    const event: WilcoEvent = {
+    const event: TadeEvent = {
       seq: ++this.seq,
       ts: new Date().toISOString(),
       type: input.type,
@@ -131,7 +131,7 @@ export class EventLog {
     return n
   }
 
-  async read(filter: EventFilter = {}): Promise<WilcoEvent[]> {
+  async read(filter: EventFilter = {}): Promise<TadeEvent[]> {
     if (this.index) return this.index.query(filter)
     const all = (await readAll(this.path)).filter((e) => matchesFilter(e, filter))
     return filter.limit ? all.slice(-filter.limit) : all
@@ -144,7 +144,7 @@ export class EventLog {
     await this.fh.close()
   }
 
-  private publish(event: WilcoEvent): void {
+  private publish(event: TadeEvent): void {
     for (const sub of this.subs) {
       if (!matchesFilter(event, sub.filter)) continue
       if (sub.queue.length >= this.queueLimit) {
@@ -168,7 +168,7 @@ export type EvictionResult = 'evicted' | 'overflow' | 'rejected'
  * (trace first). A `blocking` event is never dropped: if the whole queue is
  * blocking, it is allowed to grow instead.
  */
-export function evictLeastUrgent(queue: WilcoEvent[], incoming: WilcoEvent): EvictionResult {
+export function evictLeastUrgent(queue: TadeEvent[], incoming: TadeEvent): EvictionResult {
   for (const urgency of ['trace', 'routine', 'notable'] as const) {
     if (URGENCY_RANK[urgency] <= URGENCY_RANK[incoming.urgency]) break
     const i = queue.findLastIndex((e) => e.urgency === urgency)
@@ -209,23 +209,23 @@ async function scanTail(path: string): Promise<{ lastSeq: number; corrupt: numbe
 /**
  * Read the journal without taking the workbench.
  *
- * For anyone who only wants to know what happened — `wilco brief`, `wilco
+ * For anyone who only wants to know what happened — `tade brief`, `tade
  * logs`, a script — and must not have to wait on, or disturb, an open window
  * to find out. Unparseable lines are skipped, never thrown over.
  */
-export async function readJournal(home: string, filter: EventFilter = {}): Promise<WilcoEvent[]> {
+export async function readJournal(home: string, filter: EventFilter = {}): Promise<TadeEvent[]> {
   const all = (await readAll(join(home, 'events.jsonl'))).filter((e) => matchesFilter(e, filter))
   return filter.limit ? all.slice(-filter.limit) : all
 }
 
-async function readAll(path: string): Promise<WilcoEvent[]> {
-  const out: WilcoEvent[] = []
+async function readAll(path: string): Promise<TadeEvent[]> {
+  const out: TadeEvent[] = []
   for await (const e of iterate(path)) if (e) out.push(e)
   return out
 }
 
 /** Yields every parseable event, and `null` for each unparseable line. */
-async function* iterate(path: string): AsyncGenerator<WilcoEvent | null> {
+async function* iterate(path: string): AsyncGenerator<TadeEvent | null> {
   let stream: ReturnType<typeof createReadStream>
   try {
     stream = createReadStream(path, { encoding: 'utf8' })
@@ -236,7 +236,7 @@ async function* iterate(path: string): AsyncGenerator<WilcoEvent | null> {
     for await (const line of createInterface({ input: stream, crlfDelay: Infinity })) {
       if (!line.trim()) continue
       try {
-        yield JSON.parse(line) as WilcoEvent
+        yield JSON.parse(line) as TadeEvent
       } catch {
         // A torn last line after a crash is expected, not fatal.
         yield null

@@ -14,7 +14,7 @@ import { SCENARIOS } from './screens/scenarios.ts'
 // And, for every screen, the rules that no golden file can be trusted to
 // notice: the geometry, and that whatever can be clicked is where it is drawn.
 
-// Drawing is what Wilco does most — every keystroke, every frame an agent
+// Drawing is what Tade does most — every keystroke, every frame an agent
 // prints — so what a frame costs is held to a number, over every screen.
 describe('what drawing costs', () => {
   it('draws any screen in a few milliseconds', () => {

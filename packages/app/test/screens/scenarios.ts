@@ -1,4 +1,4 @@
-import { ConfigSchema, IDLE_REASON, settingsOf, type WilcoEvent } from '@wilco/core'
+import { ConfigSchema, IDLE_REASON, settingsOf, type TadeEvent } from '@tade/core'
 import { parseDiff } from '../../src/diff.ts'
 import {
   type AppState,
@@ -60,7 +60,7 @@ import { formattedLines, sourceLines, type ViewedFile } from '../../src/viewer.t
 // Each scenario is a state and a frame, drawn with fixed data so the result is
 // the same on every machine: no clock, no git, no terminal. They are what the
 // golden files under `__screens__/` are drawn from, and what the gallery shows
-// a person reviewing a change to how Wilco looks.
+// a person reviewing a change to how Tade looks.
 //
 // Add one whenever the window gains a state worth protecting. Name it for what
 // somebody would be doing when they saw it.
@@ -113,7 +113,7 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
   screen: agentScreen,
   skin: COLOUR,
   now: NOW,
-  home: '~/.wilco',
+  home: '~/.tade',
   orchestratorModel: 'openrouter/anthropic/claude-opus-5',
   orchestratorAccount: { provider: 'openrouter', credential: 'signed in' },
   files: [
@@ -132,10 +132,10 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
   ],
   where: {
     repo: '~/src/checkout',
-    branch: 'wilco/stripe-v15',
+    branch: 'tade/stripe-v15',
     base: 'main',
-    worktree: '~/.wilco/worktrees/checkout-stripe-v15',
-    path: '/Users/me/.wilco/worktrees/checkout-stripe-v15',
+    worktree: '~/.tade/worktrees/checkout-stripe-v15',
+    path: '/Users/me/.tade/worktrees/checkout-stripe-v15',
   },
   changes: [
     { path: 'package.json', mark: 'M', added: 2, removed: 1 },
@@ -390,7 +390,7 @@ const sentryWatch: ScheduleView = {
 }
 
 let seq = 0
-const usage = (task: string | null, model: string, tokens: number, usd: number): WilcoEvent => ({
+const usage = (task: string | null, model: string, tokens: number, usd: number): TadeEvent => ({
   seq: ++seq,
   ts: '2026-09-13T13:00:00.000Z',
   type: 'usage',
@@ -427,7 +427,7 @@ function settingsFacts() {
   return {
     settings: settingsOf(config),
     accounts: ['anthropic'],
-    configPath: '~/.wilco/config.yaml',
+    configPath: '~/.tade/config.yaml',
     releases: true,
     budgetWarnings: 1,
   }
@@ -496,7 +496,7 @@ function viewing(file: ViewedFile, width?: number) {
 
 const checkout = { path: '/Users/me/src/checkout', label: 'checkout', task: null }
 const stripeTree = {
-  path: '/Users/me/.wilco/worktrees/checkout-stripe-v15',
+  path: '/Users/me/.tade/worktrees/checkout-stripe-v15',
   label: 'checkout › stripe-v15',
   task: 'checkout/stripe-v15',
 }
@@ -639,7 +639,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'a-schedule',
     about:
-      'A schedule open where an agent’s screen would be: when it runs and what it does, what its agent is told, its next runs, what happens to runs Wilco was closed for, who made it, and each time it ran.',
+      'A schedule open where an agent’s screen would be: when it runs and what it does, what its agent is told, its next runs, what happens to runs Tade was closed for, who made it, and each time it ran.',
     state: {
       ...openSchedule(
         withTasks(withProjects(initialState(), ['checkout']), queueTasks),
@@ -742,10 +742,10 @@ export const SCENARIOS: Scenario[] = [
     },
     frame: frame({
       splitScreen: [
-        '~/src/checkout (wilco/stripe-v15) $ git diff --stat',
+        '~/src/checkout (tade/stripe-v15) $ git diff --stat',
         ' src/webhooks.ts | 16 ++++++++++------',
         ' 1 file changed, 12 insertions(+), 4 deletions(-)',
-        '~/src/checkout (wilco/stripe-v15) $ ',
+        '~/src/checkout (tade/stripe-v15) $ ',
       ].join('\n'),
     }),
   },
@@ -867,7 +867,7 @@ export const SCENARIOS: Scenario[] = [
     frame: frame(),
   },
   {
-    name: 'typing-to-wilco',
+    name: 'typing-to-tade',
     about: 'The orchestrator line, open and being typed into.',
     state: setDictation(
       { ...base(), focused: null, chose: true },
@@ -888,7 +888,7 @@ export const SCENARIOS: Scenario[] = [
         (t: Transcript) => youSaid(t, 'run the webhook tests and tell me what broke', 0),
         (t: Transcript) => thinking(t, 0),
         (t: Transcript) =>
-          fromThinker(t, { type: 'tool', id: '1', tool: 'wilco_status', input: {} }, 1),
+          fromThinker(t, { type: 'tool', id: '1', tool: 'tade_status', input: {} }, 1),
         (t: Transcript) =>
           fromThinker(t, { type: 'tool_done', id: '1', ok: true, text: '2 agents, 1 waiting' }, 2),
         (t: Transcript) =>
@@ -897,7 +897,7 @@ export const SCENARIOS: Scenario[] = [
             {
               type: 'tool',
               id: '2',
-              tool: 'wilco_terminal_run',
+              tool: 'tade_terminal_run',
               input: { terminal: 'tests', command: 'pnpm test src/webhooks' },
             },
             3,
@@ -919,7 +919,7 @@ export const SCENARIOS: Scenario[] = [
             {
               type: 'tool',
               id: '3',
-              tool: 'wilco_terminal_open',
+              tool: 'tade_terminal_open',
               input: { project: 'checkout', name: 'tests' },
             },
             5,
@@ -976,7 +976,7 @@ export const SCENARIOS: Scenario[] = [
         { ...base(), focused: null, chose: true },
         'why does the refund button look like this',
       ),
-      attached: ['/var/folders/T/wilco-clipboard-1.png'],
+      attached: ['/var/folders/T/tade-clipboard-1.png'],
     },
     frame: frame({ screen: '' }),
   },
@@ -1055,7 +1055,7 @@ export const SCENARIOS: Scenario[] = [
             actions: [],
             unknownSettings: [],
             configurable: false,
-            folder: '/Users/me/.wilco/extensions/active/standup',
+            folder: '/Users/me/.tade/extensions/active/standup',
             watches: [],
           },
         ],
@@ -1064,11 +1064,11 @@ export const SCENARIOS: Scenario[] = [
             name: 'release-notes',
             kind: 'extension',
             why: 'Drafts release notes from merged work, because you asked for them every Friday.',
-            path: '/Users/me/.wilco/extensions/proposed/release-notes',
+            path: '/Users/me/.tade/extensions/proposed/release-notes',
           },
         ],
         harnessExtensions: [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }],
-        extensionsRoot: '~/.wilco/extensions',
+        extensionsRoot: '~/.tade/extensions',
       },
     }),
   },
@@ -1178,7 +1178,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'resource-usage',
     about:
-      'What Wilco is using, kept in the status bar and clicked open: by project, kind, agent and process, with the last fifteen minutes.',
+      'What Tade is using, kept in the status bar and clicked open: by project, kind, agent and process, with the last fifteen minutes.',
     state: { ...base(), panel: extensionViewPanel('resources') },
     frame: frame({
       statuses: [{ extension: 'resources', text: '91% · 783 MB', tone: 'quiet', viewable: true }],
@@ -1186,14 +1186,14 @@ export const SCENARIOS: Scenario[] = [
         extensionView: {
           title: 'Resources',
           markdown: [
-            '**Wilco is using 91% CPU and 783 MB of memory**, across 7 processes.',
+            '**Tade is using 91% CPU and 783 MB of memory**, across 7 processes.',
             '',
             '### By project',
             '',
             '```',
             '              CPU               memory',
             'checkout      ████████░░   76%  █████░░░░░  369 MB',
-            'Wilco itself  ██░░░░░░░░   15%  █████░░░░░  414 MB',
+            'Tade itself  ██░░░░░░░░   15%  █████░░░░░  414 MB',
             '```',
             '',
             '### By kind',
@@ -1273,10 +1273,10 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({
       where: {
         repo: '~/src/checkout',
-        branch: 'wilco/fix-shop-1a',
+        branch: 'tade/fix-shop-1a',
         base: 'main',
-        worktree: '~/.wilco/worktrees/checkout-fix-shop-1a',
-        path: '/Users/me/.wilco/worktrees/checkout-fix-shop-1a',
+        worktree: '~/.tade/worktrees/checkout-fix-shop-1a',
+        path: '/Users/me/.tade/worktrees/checkout-fix-shop-1a',
         links: [
           { title: 'SHOP-1A', url: 'https://acme.sentry.io/issues/4411/' },
           { title: 'trace a1b2c3d4', url: 'https://acme.sentry.io/explore/traces/trace/a1b2/' },
@@ -1285,7 +1285,7 @@ export const SCENARIOS: Scenario[] = [
       linkers: [
         { pattern: '\\bSHOP-[0-9A-Z]{1,10}\\b', url: 'https://acme.sentry.io/issues/?query=$&' },
       ],
-      screen: 'Reading .wilco/context.md for SHOP-1A before touching src/refunds.ts',
+      screen: 'Reading .tade/context.md for SHOP-1A before touching src/refunds.ts',
     }),
   },
   {
@@ -1444,7 +1444,7 @@ export const SCENARIOS: Scenario[] = [
     name: 'remove-agent',
     about: 'Removing a task asks first, and says exactly what would be lost.',
     state: { ...base(), panel: confirmRemovePanel('checkout/stripe-v15') },
-    frame: frame({ panel: { ahead: 3, branch: 'wilco/stripe-v15', base: 'main' } }),
+    frame: frame({ panel: { ahead: 3, branch: 'tade/stripe-v15', base: 'main' } }),
   },
   {
     name: 'diff',
@@ -1557,7 +1557,7 @@ export const SCENARIOS: Scenario[] = [
             when: '2h ago',
           },
           {
-            row: { kind: 'recent', name: 'wilco', path: '/Users/me/wilco', git: true },
+            row: { kind: 'recent', name: 'tade', path: '/Users/me/tade', git: true },
             branch: 'main',
             tasks: 0,
             when: '4 days ago',
@@ -1599,7 +1599,7 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'keys',
-    about: 'The keys Wilco keeps, talking first.',
+    about: 'The keys Tade keeps, talking first.',
     state: { ...base(), panel: { kind: 'keys', busy: false } },
     frame: frame({ panel: { talkKey: 'ctrl+space', talkMode: 'hold', releases: true } }),
   },

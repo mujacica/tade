@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/voice-core",
+  "name": "@tade/voice-core",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -9,9 +9,9 @@
     "./conformance": "./src/conformance.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
-    "@wilco/workbench": "workspace:*",
-    "@wilco/status": "workspace:*",
-    "@wilco/voice-tts": "workspace:*"
+    "@tade/core": "workspace:*",
+    "@tade/workbench": "workspace:*",
+    "@tade/status": "workspace:*",
+    "@tade/voice-tts": "workspace:*"
   }
 }

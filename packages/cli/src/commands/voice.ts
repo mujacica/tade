@@ -2,14 +2,14 @@ import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { defaultConfigPath, loadConfig, wilcoHome } from '@wilco/core'
-import { makeRecorder, makeTranscriber } from '@wilco/voice-stt'
+import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
+import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
-// Can Wilco hear you, and if not, what would fix it.
+// Can Tade hear you, and if not, what would fix it.
 //
-// Speech is the one part of this that depends on things Wilco cannot install
+// Speech is the one part of this that depends on things Tade cannot install
 // for you, so the answer has to be a sentence you can act on rather than a
 // stack trace after you have already spoken.
 
@@ -103,7 +103,7 @@ function showProgress(total: number, write: (line: string) => void): Transform {
 }
 
 function modelPath(name: string): string {
-  return join(wilcoHome(), 'models', `ggml-${name}.bin`)
+  return join(tadeHome(), 'models', `ggml-${name}.bin`)
 }
 
 export function registerVoice(program: Command, io: Io, setExit: (code: number) => void): void {
@@ -111,12 +111,12 @@ export function registerVoice(program: Command, io: Io, setExit: (code: number) 
 
   voice
     .command('status', { isDefault: true })
-    .description('Whether Wilco can hear you, and what would fix it')
+    .description('Whether Tade can hear you, and what would fix it')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
     .action(async (opts: { config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
@@ -133,12 +133,12 @@ export function registerVoice(program: Command, io: Io, setExit: (code: number) 
       )
       if (mic.ok && engine.ok) {
         io.out('')
-        io.out('hold ctrl+space in `wilco app` and say something.')
+        io.out('hold ctrl+space in `tade app` and say something.')
         return
       }
       io.out('')
       if (!engine.ok && transcriber.id === 'whisper-cpp') {
-        io.out('to set up local speech:  brew install whisper-cpp && wilco voice setup')
+        io.out('to set up local speech:  brew install whisper-cpp && tade voice setup')
       }
       if (!engine.ok && !transcriber.capabilities.local) {
         io.out('set the API key in your environment, or switch to a local engine:')
@@ -191,7 +191,7 @@ export function registerVoice(program: Command, io: Io, setExit: (code: number) 
         const { renameSync } = await import('node:fs')
         renameSync(partial, target)
         io.out(`${target} (${mb(statSync(target).size)})`)
-        io.out('run `wilco voice` to check it.')
+        io.out('run `tade voice` to check it.')
       } catch (err) {
         io.err(err instanceof Error ? err.message : String(err))
         setExit(Exit.error)

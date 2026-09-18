@@ -1,8 +1,8 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Settings ────────────────────────────────────────────────────────────── ~/.wilco/config.yaml · esc ─╮▌ ▐ × ▌ 
+ ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮▌ ▐ × ▌ 
         │  search settings       │ Voice                                                                       │────────
- ▐ ! str│                        │ How you talk to Wilco, and how it talks back.                               │        
+ ▐ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
  ▐   wan│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
         │  Models            │                                                            │                    │        
    ⠋ ref│  Orchestrator      │            Press the keys you want to hold to talk.        │ts releases.        │        
@@ -10,7 +10,7 @@
         │▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
  ▾ CHANG│  Window            │                                                            │                    │        
   M pack│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
-  A src/│  Budgets           │   While Wilco holds it, your agents never see it.          │                    │        
+  A src/│  Budgets           │   While Tade holds it, your agents never see it.           │                    │        
   M src/│  Reporting         │                                                            │       ↻ on restart │        
         │  Keys              │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
  ▾ FILES│  Accounts          │ Never a key that types a character — you have to be        │                    │        
@@ -29,6 +29,6 @@
         │                        │                                               ▐ Open config.yaml ▌ ▐ Done ▌ │        
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯        
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

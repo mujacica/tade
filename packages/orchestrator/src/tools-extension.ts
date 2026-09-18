@@ -6,19 +6,19 @@ import { join } from 'node:path'
 
 /** Where proposals are written. Set by the orchestrator that launched us. */
 function extensionsRoot(): string {
-  const configured = process.env.WILCO_EXTENSIONS
+  const configured = process.env.TADE_EXTENSIONS
   if (configured) return configured
-  return join(process.env.WILCO_HOME ?? process.cwd(), 'extensions')
+  return join(process.env.TADE_HOME ?? process.cwd(), 'extensions')
 }
 
-/** The extension tools Wilco listed for this orchestrator, or none. */
+/** The extension tools Tade listed for this orchestrator, or none. */
 function extensionTools(): Array<{
   name: string
   label: string
   description: string
   parameters: Record<string, unknown>
 }> {
-  const path = process.env.WILCO_EXTENSION_TOOLS
+  const path = process.env.TADE_EXTENSION_TOOLS
   if (!path) return []
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
@@ -32,22 +32,22 @@ function extensionTools(): Array<{
 
 /** Where lessons are written. Set by the orchestrator that launched us. */
 function skillsRoot(): string {
-  return process.env.WILCO_SKILLS ?? join(process.env.WILCO_HOME ?? process.cwd(), 'skills')
+  return process.env.TADE_SKILLS ?? join(process.env.TADE_HOME ?? process.cwd(), 'skills')
 }
 
-// Wilco's tools, as seen by the orchestrator.
+// Tade's tools, as seen by the orchestrator.
 //
 // pi loads this file directly, so like the supervision extension it is
-// SELF-CONTAINED: no imports from the Wilco workspace, and the host's
+// SELF-CONTAINED: no imports from the Tade workspace, and the host's
 // JSON-RPC framing is implemented here rather than pulled in.
 //
-// Tools that change something call back to Wilco. "Where are we" shells out to
-// `wilco status`, so there is exactly one implementation of how status is
+// Tools that change something call back to Tade. "Where are we" shells out to
+// `tade status`, so there is exactly one implementation of how status is
 // derived, and the orchestrator sees precisely what a human would.
 
 interface ToolContext {
   cwd: string
-  /** pi's model catalog, for switching this session to a model Wilco found. */
+  /** pi's model catalog, for switching this session to a model Tade found. */
   modelRegistry?: { find?(provider: string, id: string): unknown }
 }
 /**
@@ -78,10 +78,10 @@ interface PiApi {
   setModel?(model: unknown): Promise<boolean>
 }
 
-const SOCKET = process.env.WILCO_SOCKET ?? ''
-const CLI = process.env.WILCO_CLI ?? 'wilco'
+const SOCKET = process.env.TADE_SOCKET ?? ''
+const CLI = process.env.TADE_CLI ?? 'tade'
 /** Arguments before the command, so a source checkout can run `node path/to/bin.ts`. */
-const CLI_ARGS = (process.env.WILCO_CLI_ARGS ?? '').split(' ').filter((a) => a.length > 0)
+const CLI_ARGS = (process.env.TADE_CLI_ARGS ?? '').split(' ').filter((a) => a.length > 0)
 
 /** JSON Schema, which is also what pi's schema type is at runtime. */
 const object = (
@@ -108,13 +108,13 @@ const done = {
     'how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand.',
 }
 
-export default function wilcoTools(pi: PiApi): void {
+export default function tadeTools(pi: PiApi): void {
   const tool = (
     name: string,
     description: string,
     parameters: Record<string, unknown>,
     run: (params: Record<string, unknown>, callId: string, ctx: ToolContext) => Promise<unknown>,
-    label = name.replace(/^wilco_/, 'wilco: ').replace(/_/g, ' '),
+    label = name.replace(/^tade_/, 'tade: ').replace(/_/g, ' '),
   ): void => {
     pi.registerTool({
       name,
@@ -132,7 +132,7 @@ export default function wilcoTools(pi: PiApi): void {
   }
 
   tool(
-    'wilco_status',
+    'tade_status',
     'Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.',
     object({}),
     // From the window when there is one: only it knows which agents are between
@@ -144,8 +144,8 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_propose_extension',
-    'Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `wilco extensions activate`. Never assume a proposed tool is available.',
+    'tade_propose_extension',
+    'Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `tade extensions activate`. Never assume a proposed tool is available.',
     object(
       {
         name: string('short name, lowercase with dashes'),
@@ -164,16 +164,16 @@ export default function wilcoTools(pi: PiApi): void {
       const path = join(dir, `${name}.ts`)
       // The reason it was written goes in the file, because the review happens
       // days later and a tool with no stated purpose gets turned down.
-      const header = `// ${String(p.why)}\n// Proposed by Wilco on ${new Date().toISOString()}.\n\n`
+      const header = `// ${String(p.why)}\n// Proposed by Tade on ${new Date().toISOString()}.\n\n`
       await writeFile(path, header + String(p.source))
-      return `Proposed ${name}. It is not running: a human activates it with \`wilco extensions activate ${name}\` after reading ${path}.`
+      return `Proposed ${name}. It is not running: a human activates it with \`tade extensions activate ${name}\` after reading ${path}.`
     },
   )
 
   // What an agent should know before it starts, and where the work came from:
   // written into its worktree, so it finds them however it is started.
   const context = string(
-    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .wilco/context.md in its worktree.',
+    'what the agent should know before it starts, in markdown: what you found, where to look, what done looks like. Written to .tade/context.md in its worktree.',
   )
   const links = {
     type: 'array',
@@ -182,7 +182,7 @@ export default function wilcoTools(pi: PiApi): void {
   }
 
   tool(
-    'wilco_task_create',
+    'tade_task_create',
     "Create a task: a branch, a worktree, and the human's intent recorded verbatim. Pass the intent exactly as they said it, never paraphrased. Give it the context and links you gathered, so the agent that works on it starts knowing what you know.",
     object(
       {
@@ -207,7 +207,7 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_done',
+    'tade_done',
     'Mark a task finished because the human said it is, whatever its rule: work waiting on it starts. Not for your own guess that it looks done — ask them.',
     object(
       {
@@ -230,8 +230,8 @@ export default function wilcoTools(pi: PiApi): void {
   })
 
   tool(
-    'wilco_plan',
-    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Wilco's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
+    'tade_plan',
+    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
     object(
       {
         project: string('project name, as configured'),
@@ -274,14 +274,14 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_queue',
+    'tade_queue',
     'What is waiting to start, and why: after what, until when, held by what, or paused. Answer questions about queued work with this, not from memory.',
     object({}),
     () => rpc('queue/list', {}),
   )
 
   tool(
-    'wilco_queue_change',
+    'tade_queue_change',
     "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it; name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
     object(
       {
@@ -291,7 +291,7 @@ export default function wilcoTools(pi: PiApi): void {
           description: 'what to do',
         },
         task: string('the queued task, like checkout/add-refunds'),
-        schedule: string('the schedule, by the id wilco_queue lists it with'),
+        schedule: string('the schedule, by the id tade_queue lists it with'),
         name: string('the new name, when renaming a schedule'),
         project: string('the project, when pausing or resuming all of its queue'),
       },
@@ -301,8 +301,8 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_schedule',
-    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given. It runs while Wilco is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
+    'tade_schedule',
+    'Put work on a clock: once at a moment, or again and again — every so often, at times of day, on days of the week or month, or by cron. Each time, it starts an agent (agent: what to tell it), asks you something (ask), or looks with a watch an extension offers (watch: listed with the extension, like sentry.new-errors), which starts an agent on each new thing it finds — or tells you, with found: ask. A watch looks as often as it says unless when is given. It runs while Tade is open, and catches up once for what came due while it was closed unless told to skip. Made again under the same name, it is changed. Say back when it next runs, which this answers with.',
     object(
       {
         name: string('what it is called, in a few words'),
@@ -347,7 +347,7 @@ export default function wilcoTools(pi: PiApi): void {
           type: 'string',
           enum: ['once', 'skip'],
           description:
-            'what happens to runs that came due while Wilco was closed: once (the default) or skip',
+            'what happens to runs that came due while Tade was closed: once (the default) or skip',
         },
       },
       ['name', 'project', 'said'],
@@ -355,8 +355,8 @@ export default function wilcoTools(pi: PiApi): void {
     (p) => rpc('queue/schedule', p),
   )
 
-  // Wilco's extensions: listed when Wilco started this orchestrator, run by
-  // Wilco, which is where their settings, secrets and window are.
+  // Tade's extensions: listed when Tade started this orchestrator, run by
+  // Tade, which is where their settings, secrets and window are.
   for (const spec of extensionTools()) {
     tool(
       spec.name,
@@ -368,8 +368,8 @@ export default function wilcoTools(pi: PiApi): void {
   }
 
   tool(
-    'wilco_run_start',
-    'Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Wilco finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.',
+    'tade_run_start',
+    'Start an agent working on an existing task. The prompt is what the agent is told first; files the human attached to what you are answering go with it. When they named a model for the work ("use opus"), pass it here so the agent starts on it: Tade finds it before anything starts, and when it cannot tell which model they meant nothing starts and it says what to ask them.',
     object(
       {
         task: string('task id, like checkout/refunds'),
@@ -394,8 +394,8 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_agent_model',
-    'Switch the model an agent is running on: "switch refunds to opus 5", "use kimi in agent-1". New agents start on it from then on, until another is chosen; agents already working keep their own. Say the model the way the human did; Wilco finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to wilco_run_start instead.',
+    'tade_agent_model',
+    'Switch the model an agent is running on: "switch refunds to opus 5", "use kimi in agent-1". New agents start on it from then on, until another is chosen; agents already working keep their own. Say the model the way the human did; Tade finds it among the models they are signed in to, and says which it means when more than one fits. The agent must be running: to start one on a model, give the model to tade_run_start instead.',
     object(
       {
         task: string('task id, like checkout/refunds'),
@@ -416,7 +416,7 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_agent_thinking',
+    'tade_agent_thinking',
     'Set how hard an agent thinks before it answers — off, minimal, low, medium, high, xhigh or max — from its next turn: "think harder on refunds", "less thinking for agent-1". New agents think that hard too, until another level is chosen. A model that cannot think that hard takes the most it can. The agent must be running.',
     object(
       {
@@ -435,8 +435,8 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_agent_harness',
-    'Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Wilco says which harnesses exist and which it can run yet.',
+    'tade_agent_harness',
+    'Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Tade says which harnesses exist and which it can run yet.',
     object(
       {
         task: string('task id, like checkout/refunds'),
@@ -458,8 +458,8 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_orchestrator_model',
-    'Switch the model you — the orchestrator — think with: "use opus 5 yourself", "change your model to sonnet". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Wilco starts. For an agent\'s model use wilco_agent_model; for "both", call each.',
+    'tade_orchestrator_model',
+    'Switch the model you — the orchestrator — think with: "use opus 5 yourself", "change your model to sonnet". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent\'s model use tade_agent_model; for "both", call each.',
     object({ model: string('the model as the human said it') }, ['model']),
     async (p, _id, ctx) => {
       const chosen = (await rpc('orchestrator/model', { model: String(p.model) })) as {
@@ -478,8 +478,8 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_agent_rename',
-    'Give an agent a name: what its work is called, shown in the window and in its own session. Only when the human asks to rename it. A name they give is never replaced by one Wilco would have chosen.',
+    'tade_agent_rename',
+    'Give an agent a name: what its work is called, shown in the window and in its own session. Only when the human asks to rename it. A name they give is never replaced by one Tade would have chosen.',
     object(
       {
         task: string('task id, like checkout/refunds'),
@@ -497,14 +497,14 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_run_list',
+    'tade_run_list',
     'The agents working right now, and the task each is on. One agent per task at most.',
     object({}),
     () => rpc('worker/list', {}),
   )
 
   tool(
-    'wilco_steer',
+    'tade_steer',
     'Tell the agent working on a task something, without stopping it.',
     object({ task: string('task id, like checkout/refunds'), message: string('what to tell it') }, [
       'task',
@@ -514,14 +514,14 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_run_stop',
+    'tade_run_stop',
     'Stop the agent working on a task. The task and its worktree stay; only the agent ends.',
     object({ task: string('task id, like checkout/refunds') }, ['task']),
     (p) => rpc('worker/stop', { task: String(p.task) }),
   )
 
   tool(
-    'wilco_run_cleanup',
+    'tade_run_cleanup',
     'Stop agents that match a state filter: idle (not actively working), done (ready to merge, in review state), failed, or all (any non-working agent). Use when the human asks to clean up finished or failed agents.',
     object({ filter: string('which agents to stop: idle, done, failed, or all') }, ['filter']),
     async (p) => {
@@ -562,11 +562,11 @@ export default function wilcoTools(pi: PiApi): void {
 
   for (const [name, parked, what] of [
     [
-      'wilco_park',
+      'tade_park',
       true,
       'Set a task aside. Nothing is lost: the worktree stays and it can be picked back up.',
     ],
-    ['wilco_resume', false, 'Pick a parked task back up, so it counts as work again.'],
+    ['tade_resume', false, 'Pick a parked task back up, so it counts as work again.'],
   ] as const) {
     tool(
       name,
@@ -582,7 +582,7 @@ export default function wilcoTools(pi: PiApi): void {
   }
 
   tool(
-    'wilco_remember',
+    'tade_remember',
     'Write down something the human told you, in their words. Scope it to a task or project when it is about one; leave it off when it is about everything.',
     object(
       {
@@ -600,7 +600,7 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_propose_skill',
+    'tade_propose_skill',
     'Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.',
     object(
       {
@@ -626,7 +626,7 @@ export default function wilcoTools(pi: PiApi): void {
       // the file has to stay something a person can read.
       const header = about ? `about: ${about}\n\n` : ''
       await writeFile(path, `${header}${String(p.text).trim()}\n`)
-      return `Proposed ${name}. It is not in use: a human activates it with \`wilco skills activate ${name}\` after reading ${path}.`
+      return `Proposed ${name}. It is not in use: a human activates it with \`tade skills activate ${name}\` after reading ${path}.`
     },
   )
 
@@ -638,14 +638,14 @@ export default function wilcoTools(pi: PiApi): void {
   const inProject = string('project name, as configured, when it is not obvious')
 
   tool(
-    'wilco_terminal_list',
+    'tade_terminal_list',
     'The terminals open along the bottom of the window, with their names, projects and folders.',
     object({ project: inProject }),
     (p) => rpc('terminal/list', p.project ? { project: String(p.project) } : {}),
   )
 
   tool(
-    'wilco_terminal_open',
+    'tade_terminal_open',
     "Open a terminal: a shell in the project's folder, or in the folder given (an agent's worktree, say). It appears along the bottom of the window.",
     object(
       {
@@ -659,7 +659,7 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_terminal_run',
+    'tade_terminal_run',
     'Run a command in a terminal, exactly as if the human typed it and pressed enter. They see it happen. Read the terminal afterwards to see what it printed.',
     object(
       {
@@ -674,7 +674,7 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_terminal_read',
+    'tade_terminal_read',
     'What a terminal shows, with some of its scrollback: how to see what a command printed.',
     object({
       terminal,
@@ -685,28 +685,28 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_terminal_search',
+    'tade_terminal_search',
     "Find lines in a terminal's scrollback containing some text, any case.",
     object({ terminal, text: string('what to look for'), project: inProject }, ['text']),
     (p) => rpc('terminal/search', p),
   )
 
   tool(
-    'wilco_terminal_rename',
+    'tade_terminal_rename',
     'Rename a terminal, so it can be found by what it is for: "tests", "server".',
     object({ terminal, name: string('its new name'), project: inProject }, ['name']),
     (p) => rpc('terminal/rename', p),
   )
 
   tool(
-    'wilco_terminal_close',
+    'tade_terminal_close',
     'Close a terminal, ending whatever is running in it. Only when the human asked for that.',
     object({ terminal, project: inProject }),
     (p) => rpc('terminal/close', p),
   )
 
   tool(
-    'wilco_logs',
+    'tade_logs',
     'What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.',
     object({
       task: string('only this task'),
@@ -720,14 +720,14 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_approvals',
+    'tade_approvals',
     'Commands agents are waiting for permission to run.',
     object({ task: string('only this task') }),
     (p) => rpc('worker/pending', p.task ? { task: String(p.task) } : {}),
   )
 
   tool(
-    'wilco_approve',
+    'tade_approve',
     'Let a waiting command run. Only after the human has agreed to that exact command.',
     object({ run: string('run id'), request: string('request id') }, ['run', 'request']),
     (p) =>
@@ -739,7 +739,7 @@ export default function wilcoTools(pi: PiApi): void {
   )
 
   tool(
-    'wilco_deny',
+    'tade_deny',
     'Refuse a waiting command, telling the agent why.',
     object({ run: string('run id'), request: string('request id'), reason: string('why not') }, [
       'run',
@@ -777,7 +777,7 @@ function runCli(args: string[]): Promise<string> {
 
 /** Minimal JSON-RPC 2.0 client: one connection per call, Content-Length framed. */
 function rpc(method: string, params: Record<string, unknown>): Promise<unknown> {
-  if (!SOCKET) return Promise.reject(new Error('WILCO_SOCKET is not set: no way back to Wilco'))
+  if (!SOCKET) return Promise.reject(new Error('TADE_SOCKET is not set: no way back to Tade'))
   return new Promise((resolve, reject) => {
     const socket = connect(SOCKET)
     let buffer = Buffer.alloc(0)
@@ -804,7 +804,7 @@ function rpc(method: string, params: Record<string, unknown>): Promise<unknown> 
         error?: { message?: string }
       }
       socket.end()
-      if (message.error) reject(new Error(message.error.message ?? 'Wilco rejected the request'))
+      if (message.error) reject(new Error(message.error.message ?? 'Tade rejected the request'))
       else resolve(message.result ?? { ok: true })
     })
   })

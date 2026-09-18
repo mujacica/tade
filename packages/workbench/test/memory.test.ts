@@ -12,7 +12,7 @@ const NOW = Date.parse('2026-09-12T10:00:00Z')
 
 describe('Memory', () => {
   it('forgets a note it is asked to, after a restart too, and keeps both lines', () => {
-    const home = tmp('wilco-mem-')
+    const home = tmp('tade-mem-')
     const memory = Memory.open(home)
     const kept = memory.remember('deploys freeze on Fridays', null, 'test', NOW)
     const taken = memory.remember('the staging key rotates on the 1st', 'checkout', 'test', NOW + 1)
@@ -32,13 +32,13 @@ describe('Memory', () => {
   })
 
   it('has nothing to say before it is told anything', () => {
-    const memory = Memory.open(tmp('wilco-mem-'))
+    const memory = Memory.open(tmp('tade-mem-'))
     expect(memory.all()).toEqual([])
     expect(memory.recall('checkout/refunds')).toEqual([])
   })
 
   it('keeps what it was told, and survives a restart', () => {
-    const home = tmp('wilco-mem-')
+    const home = tmp('tade-mem-')
     const memory = Memory.open(home)
     memory.remember('the staging key rotates on the 1st', 'checkout', 'test', NOW)
 
@@ -51,7 +51,7 @@ describe('Memory', () => {
   })
 
   it('is append-only, one note per line', () => {
-    const home = tmp('wilco-mem-')
+    const home = tmp('tade-mem-')
     const memory = Memory.open(home)
     memory.remember('first', null, 'test', NOW)
     memory.remember('second', null, 'test', NOW + 1000)
@@ -61,7 +61,7 @@ describe('Memory', () => {
   })
 
   it('scopes what it gives back', () => {
-    const home = tmp('wilco-mem-')
+    const home = tmp('tade-mem-')
     const memory = Memory.open(home)
     memory.remember('I work from home on Fridays', null, 'test', NOW)
     memory.remember('the webhook retries twice', 'checkout/refunds', 'test', NOW + 1000)
@@ -77,7 +77,7 @@ describe('Memory', () => {
   })
 
   it('skips a line it cannot read rather than losing the file', () => {
-    const home = tmp('wilco-mem-')
+    const home = tmp('tade-mem-')
     const memory = Memory.open(home)
     memory.remember('worth keeping', null, 'test', NOW)
     // A torn write, or someone editing the file by hand.
@@ -90,7 +90,7 @@ describe('Memory', () => {
   })
 
   it('starts clean when the file is gibberish, instead of refusing to start', () => {
-    const home = tmp('wilco-mem-')
+    const home = tmp('tade-mem-')
     writeFileSync(join(home, 'memory.jsonl'), 'not json at all\n\n')
     expect(Memory.open(home).all()).toEqual([])
   })
@@ -104,7 +104,7 @@ describe('memory over the socket', () => {
   let client: Workbench
 
   beforeEach(async () => {
-    home = tmp('wilco-mem-rpc-')
+    home = tmp('tade-mem-rpc-')
     client = await Workbench.open({ home })
   })
 

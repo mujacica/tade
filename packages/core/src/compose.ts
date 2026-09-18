@@ -10,7 +10,7 @@ import { type Skill, skillText } from './skills.ts'
 // because a prompt assembled from an agent's own recollection is how status
 // drifts.
 //
-// Pure and deterministic, so a change to what Wilco believes about itself is a
+// Pure and deterministic, so a change to what Tade believes about itself is a
 // visible diff in review rather than a shift in behaviour nobody can point at.
 
 export interface ComposeInput {
@@ -26,7 +26,7 @@ export interface ComposeInput {
 }
 
 const ROLE = [
-  'You are Wilco: a control room for running coding agents on this machine.',
+  'You are Tade: a control room for running coding agents on this machine.',
   'You delegate. You do not edit code yourself — you create tasks, start agents in them, steer them, and answer questions about what is happening.',
   "An agent is pi running in a terminal of its own, talking in a session named after its task. Agents work in the project's checkout together, or each in a git worktree of its own, as the settings say. Starting one and coming back to one are the same thing.",
   'When you start an agent on something you have looked into, give it what you found: the context and links you pass are written beside its task, and it reads them before it starts.',
@@ -35,16 +35,16 @@ const ROLE = [
 ].join('\n')
 
 const RULES = [
-  'Answer "where are we" by calling wilco_status, never from memory. Status is a query; what you remember is out of date the moment an agent does anything.',
+  'Answer "where are we" by calling tade_status, never from memory. Status is a query; what you remember is out of date the moment an agent does anything.',
   'Record what somebody asks for in their own words. Never paraphrase an intent into a tidier one — their wording is the only thing nothing else can reconstruct.',
-  'A message may open with what happened since you last heard from Wilco. Their own words are what follows "What they said:"; only those are an intent to record. "Wilco says:" is Wilco telling you something that needs you now.',
+  'A message may open with what happened since you last heard from Tade. Their own words are what follows "What they said:"; only those are an intent to record. "Tade says:" is Tade telling you something that needs you now.',
   'Be terse. Spoken replies are heard through one earbud while somebody is walking.',
   'When a request could mean more than one task, ask which. Never guess between two.',
-  'Ask what you need to know before starting anything, never after: an agent started while a question is still open is already working on a guess. A model named for the work goes to wilco_run_start, which starts nothing it cannot find.',
-  'Asked for several changes at once, plan them with wilco_plan rather than starting each: read what each will change, run together only what does not collide, and give every wait a reason. Wilco starts queued work itself when what it waits on finishes; when something is held, it tells you, and you ask the person what to do.',
-  'Asked for something at a time or again and again, make a schedule with wilco_schedule rather than starting anything now, and say when it next runs. Asked to keep an eye on something and act on what turns up, turn on the watch an extension offers for it the same way (watch).',
+  'Ask what you need to know before starting anything, never after: an agent started while a question is still open is already working on a guess. A model named for the work goes to tade_run_start, which starts nothing it cannot find.',
+  'Asked for several changes at once, plan them with tade_plan rather than starting each: read what each will change, run together only what does not collide, and give every wait a reason. Tade starts queued work itself when what it waits on finishes; when something is held, it tells you, and you ask the person what to do.',
+  'Asked for something at a time or again and again, make a schedule with tade_schedule rather than starting anything now, and say when it next runs. Asked to keep an eye on something and act on what turns up, turn on the watch an extension offers for it the same way (watch).',
   'A tool you proposed is not a tool you have. Proposals do nothing until a human activates them.',
-  'You cannot change settings, install anything, or log a provider in. Say which command does it — `wilco config`, `wilco setup` — rather than pretending or refusing flatly.',
+  'You cannot change settings, install anything, or log a provider in. Say which command does it — `tade config`, `tade setup` — rather than pretending or refusing flatly.',
 ].join('\n')
 
 export function composePrompt(input: ComposeInput): string {
@@ -73,8 +73,8 @@ function describePosture(config: Config): string {
   const lines: string[] = []
   lines.push(
     config.workspace.driver === 'tmux'
-      ? 'Agents run in tmux, so they keep working after Wilco is closed, and reopening finds them again.'
-      : 'Agents run inside Wilco and stop when it closes. Say so if somebody is about to rely on one surviving.',
+      ? 'Agents run in tmux, so they keep working after Tade is closed, and reopening finds them again.'
+      : 'Agents run inside Tade and stop when it closes. Say so if somebody is about to rely on one surviving.',
   )
   lines.push(
     config.agents.workspace === 'checkout'
@@ -136,7 +136,7 @@ export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'nev
   'own-files':
     'When you have finished and it passes its checks, commit only the files you changed yourself: add each by its path — never git add -A, git add . or git commit -a — and leave anyone else’s changes uncommitted.',
   'as-you-go':
-    'Commit each piece of work as soon as it is done and passes its checks, in small commits whose messages say why. Wilco shows the person your changes and commits, and treats a clean tree with commits as ready for review.',
+    'Commit each piece of work as soon as it is done and passes its checks, in small commits whose messages say why. Tade shows the person your changes and commits, and treats a clean tree with commits as ready for review.',
   never: 'Do not commit. Leave your changes uncommitted: the person reviews and commits them.',
 }
 
@@ -156,22 +156,22 @@ export interface AgentPromptInput {
   instructions?: string
   /** What was asked when the task was made, word for word; empty for an agent opened to look around. */
   intent: string
-  /** Its branch, or empty until Wilco names one at its first change. */
+  /** Its branch, or empty until Tade names one at its first change. */
   branch: string
-  /** What you have told Wilco that is about this task, its project, or everything. */
+  /** What you have told Tade that is about this task, its project, or everything. */
   notes?: readonly Note[]
   /** Where someone left it what to know, relative to where it works; null when nobody did. */
   context: string | null
   /** How this project checks its work, when the config says. */
   testCommand?: string
-  /** Its harness gives it a way to say its task is finished (`wilco_done`). */
+  /** Its harness gives it a way to say its task is finished (`tade_done`). */
   canSayDone?: boolean
 }
 
 /**
- * What every agent is told about where it is. Without this an agent in Wilco
+ * What every agent is told about where it is. Without this an agent in Tade
  * believed it was pi in an ordinary terminal: it did not know a person watches
- * it from a window, that its branch is named for it, that a note you gave Wilco
+ * it from a window, that its branch is named for it, that a note you gave Tade
  * was about its work, or that a file of context was waiting for it.
  *
  * Appended to the harness's own system prompt, never replacing it, and pure:
@@ -195,10 +195,10 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
       : [
           `You work in a git worktree of your own, ${input.worktree}. Keep every change in it${
             input.root ? `, and never change the project’s own checkout at ${input.root}` : ''
-          }. Its .wilco folder is Wilco’s: never commit it.`,
+          }. Its .tade folder is Tade’s: never commit it.`,
           input.branch
             ? `Your branch is ${input.branch}. Do not switch branches or create new ones.`
-            : 'You have no branch yet. Wilco creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
+            : 'You have no branch yet. Tade creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
         ]),
     COMMIT_TELLS[input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')],
     input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null,
@@ -207,12 +207,12 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
       : null,
     'When you finish or get stuck, say so plainly in your last message: that is what the person sees when they come back to you.',
     input.canSayDone
-      ? 'When your task is finished — done, and committed if you commit — call wilco_done with one line saying what you did: other work may be waiting on yours. When you need the person instead, ask, and do not call it.'
+      ? 'When your task is finished — done, and committed if you commit — call tade_done with one line saying what you did: other work may be waiting on yours. When you need the person instead, ask, and do not call it.'
       : null,
   ].filter((fact): fact is string => fact !== null)
 
   const sections = [
-    'You are running inside Wilco, a control room for coding agents on this machine. A person watches this terminal from Wilco’s window, talks to you here, and may also reach you through Wilco’s orchestrator: a message that arrives while you work is theirs.',
+    'You are running inside Tade, a control room for coding agents on this machine. A person watches this terminal from Tade’s window, talks to you here, and may also reach you through Tade’s orchestrator: a message that arrives while you work is theirs.',
     facts.map((fact) => `- ${fact}`).join('\n'),
   ]
   const instructions = input.instructions?.trim()
@@ -223,7 +223,7 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
   if (notes.length > 0) {
     sections.push(
       [
-        'Things the person told Wilco that apply to this work, in their words:',
+        'Things the person told Tade that apply to this work, in their words:',
         ...[...notes]
           .sort((a, b) => b.at.localeCompare(a.at))
           .slice(0, 15)

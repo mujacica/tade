@@ -26,28 +26,28 @@ importers:
       '@earendil-works/pi-tui':
         specifier: 0.85.1
         version: 0.85.1
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/drivers-pty':
+      '@tade/drivers-pty':
         specifier: workspace:*
         version: link:../drivers/pty
-      '@wilco/extensions-core':
+      '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
-      '@wilco/status':
+      '@tade/status':
         specifier: workspace:*
         version: link:../status
-      '@wilco/telemetry':
+      '@tade/telemetry':
         specifier: workspace:*
         version: link:../telemetry
-      '@wilco/voice-core':
+      '@tade/voice-core':
         specifier: workspace:*
         version: link:../voice/core
-      '@wilco/voice-tts':
+      '@tade/voice-tts':
         specifier: workspace:*
         version: link:../voice/tts
-      '@wilco/workbench':
+      '@tade/workbench':
         specifier: workspace:*
         version: link:../workbench
       highlight.js:
@@ -57,49 +57,49 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
     devDependencies:
-      '@wilco/drivers-core':
+      '@tade/drivers-core':
         specifier: workspace:*
         version: link:../drivers/core
-      '@wilco/voice-stt':
+      '@tade/voice-stt':
         specifier: workspace:*
         version: link:../voice/stt
 
   packages/cli:
     dependencies:
-      '@wilco/app':
+      '@tade/app':
         specifier: workspace:*
         version: link:../app
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/extensions-core':
+      '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
-      '@wilco/harnesses-core':
+      '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
-      '@wilco/harnesses-pi':
+      '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
-      '@wilco/orchestrator':
+      '@tade/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
-      '@wilco/status':
+      '@tade/status':
         specifier: workspace:*
         version: link:../status
-      '@wilco/telemetry':
+      '@tade/telemetry':
         specifier: workspace:*
         version: link:../telemetry
-      '@wilco/voice-core':
+      '@tade/voice-core':
         specifier: workspace:*
         version: link:../voice/core
-      '@wilco/voice-stt':
+      '@tade/voice-stt':
         specifier: workspace:*
         version: link:../voice/stt
-      '@wilco/voice-tts':
+      '@tade/voice-tts':
         specifier: workspace:*
         version: link:../voice/tts
-      '@wilco/workbench':
+      '@tade/workbench':
         specifier: workspace:*
         version: link:../workbench
       commander:
@@ -109,7 +109,7 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
     devDependencies:
-      '@wilco/drivers-core':
+      '@tade/drivers-core':
         specifier: workspace:*
         version: link:../drivers/core
       node-pty:
@@ -127,7 +127,7 @@ importers:
 
   packages/drivers/core:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
       vitest:
@@ -140,10 +140,10 @@ importers:
 
   packages/drivers/pty:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
-      '@wilco/drivers-core':
+      '@tade/drivers-core':
         specifier: workspace:*
         version: link:../core
       '@xterm/headless':
@@ -159,10 +159,10 @@ importers:
 
   packages/drivers/tmux:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
-      '@wilco/drivers-core':
+      '@tade/drivers-core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -172,7 +172,7 @@ importers:
 
   packages/extensions/core:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
       vitest:
@@ -181,7 +181,7 @@ importers:
 
   packages/extensions/deps:
     dependencies:
-      '@wilco/extensions-core':
+      '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core
       yaml:
@@ -190,13 +190,13 @@ importers:
 
   packages/extensions/resources:
     dependencies:
-      '@wilco/extensions-core':
+      '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core
 
   packages/extensions/sentry:
     dependencies:
-      '@wilco/extensions-core':
+      '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
@@ -205,7 +205,7 @@ importers:
 
   packages/harnesses/core:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
       zod:
@@ -217,10 +217,10 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 0.85.1
         version: 0.85.1(ws@8.21.3)(zod@4.6.2)
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
-      '@wilco/harnesses-core':
+      '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -230,34 +230,34 @@ importers:
 
   packages/orchestrator:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/extension-deps':
+      '@tade/extension-deps':
         specifier: workspace:*
         version: link:../extensions/deps
-      '@wilco/extension-resources':
+      '@tade/extension-resources':
         specifier: workspace:*
         version: link:../extensions/resources
-      '@wilco/extension-sentry':
+      '@tade/extension-sentry':
         specifier: workspace:*
         version: link:../extensions/sentry
-      '@wilco/extensions-core':
+      '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
-      '@wilco/harnesses-core':
+      '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
-      '@wilco/harnesses-pi':
+      '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
-      '@wilco/workbench':
+      '@tade/workbench':
         specifier: workspace:*
         version: link:../workbench
 
   packages/status:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../core
       execa:
@@ -275,7 +275,7 @@ importers:
       '@sentry/node':
         specifier: ^10.74.0
         version: 10.74.0(@opentelemetry/core@2.11.0(@opentelemetry/api@1.9.1))
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../core
       vitest:
@@ -284,25 +284,25 @@ importers:
 
   packages/voice/core:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
-      '@wilco/status':
+      '@tade/status':
         specifier: workspace:*
         version: link:../../status
-      '@wilco/voice-tts':
+      '@tade/voice-tts':
         specifier: workspace:*
         version: link:../tts
-      '@wilco/workbench':
+      '@tade/workbench':
         specifier: workspace:*
         version: link:../../workbench
 
   packages/voice/stt:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../../core
-      '@wilco/voice-core':
+      '@tade/voice-core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -314,28 +314,28 @@ importers:
 
   packages/workbench:
     dependencies:
-      '@wilco/core':
+      '@tade/core':
         specifier: workspace:*
         version: link:../core
-      '@wilco/drivers-core':
+      '@tade/drivers-core':
         specifier: workspace:*
         version: link:../drivers/core
-      '@wilco/drivers-pty':
+      '@tade/drivers-pty':
         specifier: workspace:*
         version: link:../drivers/pty
-      '@wilco/drivers-tmux':
+      '@tade/drivers-tmux':
         specifier: workspace:*
         version: link:../drivers/tmux
-      '@wilco/harnesses-core':
+      '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
-      '@wilco/harnesses-pi':
+      '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
-      '@wilco/status':
+      '@tade/status':
         specifier: workspace:*
         version: link:../status
-      '@wilco/telemetry':
+      '@tade/telemetry':
         specifier: workspace:*
         version: link:../telemetry
       better-sqlite3:

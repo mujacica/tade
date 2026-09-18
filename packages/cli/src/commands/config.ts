@@ -1,9 +1,9 @@
-import { editSettings, runScreen, ScreenCancelled } from '@wilco/app'
-import { defaultConfigPath, describeSetting, loadConfig, settingsOf } from '@wilco/core'
+import { editSettings, runScreen, ScreenCancelled } from '@tade/app'
+import { defaultConfigPath, describeSetting, loadConfig, settingsOf } from '@tade/core'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
-// Reading and changing what Wilco has been told.
+// Reading and changing what Tade has been told.
 //
 // The file is the truth and stays hand-editable — this writes YAML a person
 // would have written — but nobody should have to learn a schema to turn
@@ -13,7 +13,7 @@ import { Exit, type Io } from '../io.ts'
 export function registerConfig(program: Command, io: Io, setExit: (code: number) => void): void {
   program
     .command('config')
-    .description('See what Wilco has been told, and change it')
+    .description('See what Tade has been told, and change it')
     .option('--check', 'validate the config file and exit, changing nothing')
     .option('--json', 'print the effective config, defaults included')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())

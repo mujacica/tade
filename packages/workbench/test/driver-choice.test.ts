@@ -1,5 +1,5 @@
-import { PtyDriver } from '@wilco/drivers-pty'
-import { TmuxDriver } from '@wilco/drivers-tmux'
+import { PtyDriver } from '@tade/drivers-pty'
+import { TmuxDriver } from '@tade/drivers-tmux'
 import { describe, expect, it } from 'vitest'
 import { chooseDriver } from '../src/workbench.ts'
 
@@ -16,7 +16,7 @@ const unavailable = (id: string, reason: string) => () =>
   }) as unknown as PtyDriver
 
 describe('choosing a driver', () => {
-  const home = '/tmp/wilco-choice'
+  const home = '/tmp/tade-choice'
 
   it('uses the one you asked for when it can', async () => {
     const chosen = await chooseDriver({
@@ -50,7 +50,7 @@ describe('choosing a driver', () => {
       home,
       registry: {
         ghostly: unavailable('ghostly', 'no such terminal here'),
-        tmux: () => new TmuxDriver({ socket: `wilco-test-${process.pid}` }),
+        tmux: () => new TmuxDriver({ socket: `tade-test-${process.pid}` }),
       },
     })
     expect(chosen.driver.id).toBe('tmux')

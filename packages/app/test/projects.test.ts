@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { git } from '@wilco/status'
+import { git } from '@tade/status'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { nameFrom, openProjectPanel, panelClick, panelKey } from '../src/panels.ts'
@@ -20,7 +20,7 @@ import {
 
 describe('recent projects', () => {
   it('lists every configured project, the ones used most recently first', () => {
-    const home = tmp('wilco-recent-')
+    const home = tmp('tade-recent-')
     noteRecent(home, 'search', '~/src/search', 1_000)
     noteRecent(home, 'checkout', '~/src/checkout', 2_000)
     const list = recentProjects(readRecents(home), {
@@ -32,7 +32,7 @@ describe('recent projects', () => {
   })
 
   it('forgets a project the config no longer has', () => {
-    const home = tmp('wilco-recent-')
+    const home = tmp('tade-recent-')
     noteRecent(home, 'gone', '~/src/gone', 5_000)
     expect(recentProjects(readRecents(home), {}).length).toBe(0)
   })
@@ -53,7 +53,7 @@ describe('browsing folders', () => {
   })
 
   it('lists the folders under what is typed, and which are repositories', async () => {
-    const root = tmp('wilco-browse-')
+    const root = tmp('tade-browse-')
     const repo = mkrepo()
     mkdirSync(join(root, 'payroll'))
     mkdirSync(join(root, 'payments'))
@@ -73,12 +73,12 @@ describe('browsing folders', () => {
 })
 
 describe('a folder without git', () => {
-  it('becomes a repository with its files in a first commit that is Wilco’s', async () => {
-    const root = tmp('wilco-init-')
+  it('becomes a repository with its files in a first commit that is Tade’s', async () => {
+    const root = tmp('tade-init-')
     writeFileSync(join(root, 'README.md'), '# payroll\n')
     await initialise(root)
     const log = await git(root, ['log', '--format=%an|%s'])
-    expect(log.stdout.trim()).toBe('Wilco|First commit, so agents have something to branch from')
+    expect(log.stdout.trim()).toBe('Tade|First commit, so agents have something to branch from')
     const files = await git(root, ['ls-files'])
     expect(files.stdout).toContain('README.md')
     expect(await branchOf(root)).toBe('main')
@@ -94,7 +94,7 @@ describe('the Open project panel', () => {
     { kind: 'here' as const, name: 'src', path: '/src', git: false },
     { kind: 'folder' as const, name: 'payments', path: '/src/payments', git: true },
     { kind: 'folder' as const, name: 'payroll', path: '/src/payroll', git: false },
-    { kind: 'recent' as const, name: 'wilco', path: '/me/wilco', git: true },
+    { kind: 'recent' as const, name: 'tade', path: '/me/tade', git: true },
   ]
   const at = (dir: string) => openProjectPanel(dir)
 

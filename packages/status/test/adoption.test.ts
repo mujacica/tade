@@ -51,7 +51,7 @@ describe('claude-code parser', () => {
   })
 
   it('survives a file larger than the tail window (partial first line)', async () => {
-    const dir = tmp('wilco-adopt-')
+    const dir = tmp('tade-adopt-')
     const file = join(dir, 'big.jsonl')
     const filler = `{"type":"progress","data":"${'x'.repeat(1000)}"}\n`.repeat(400)
     const last =
@@ -87,7 +87,7 @@ describe('codex parser', () => {
 
 describe('scanTranscripts', () => {
   it('finds recent sessions under a fake $HOME and skips old ones', async () => {
-    const home = tmp('wilco-home-')
+    const home = tmp('tade-home-')
     const now = Date.parse('2026-09-11T12:00:00Z')
     const claudeDir = join(home, '.claude/projects/-work-checkout')
     const codexDir = join(home, '.codex/sessions/2026/09/11')
@@ -115,7 +115,7 @@ describe('scanTranscripts', () => {
   })
 
   it('is quiet when no provider directories exist', async () => {
-    const r = await scanTranscripts({ home: tmp('wilco-home-'), now: Date.now(), windowMs: 1e9 })
+    const r = await scanTranscripts({ home: tmp('tade-home-'), now: Date.now(), windowMs: 1e9 })
     expect(r).toEqual({ sessions: [], warnings: [] })
   })
 })

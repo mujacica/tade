@@ -1,6 +1,6 @@
 ---
 name: change-the-window
-description: Change what `wilco app` shows, or which keys it claims — panes, the projects list, the orchestrator strip, dictation, focus rules. Use for any change to the window's behaviour or layout.
+description: Change what `tade app` shows, or which keys it claims — panes, the projects list, the orchestrator strip, dictation, focus rules. Use for any change to the window's behaviour or layout.
 ---
 
 # Changing the window
@@ -25,14 +25,14 @@ description: Change what `wilco app` shows, or which keys it claims — panes, t
 | `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out | a terminal (not a disk) |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
-| `router.ts` | Whether a keystroke is for the agent or for Wilco | a terminal |
+| `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
 | `transcript.ts` | The conversation with the orchestrator as entries, folded from what it does | a terminal |
 | `transcript-view.ts` | That conversation laid out to a width: wrapped, formatted, spinning | a terminal |
 | `images.ts` | Pictures: recognising a dropped path, reading the clipboard, reading bytes | a terminal |
 | `links.ts` | A row of someone else's text with its links and file references clickable | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
-| `screen.ts` | The screen Wilco asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
+| `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
 **Work happens in the window.** A command that does something — start, stop or open an agent — takes
 the rest of the line as what it is for (`/new fix the double charge`) and acts,
@@ -81,7 +81,7 @@ file and cannot be tested.
   reports where each landed; positions are computed from the labels, so painting cannot move them.
 - **Every clickable thing is something you could have typed.** A click resolves to a `Target` and
   ends up in the same `act()` / `focusTask` path as the keyboard. The mouse is a shortcut into the
-  commands, never a second way of driving Wilco.
+  commands, never a second way of driving Tade.
 - **Colour is decoration.** Every row must read correctly without it: `skinFor` returns the identity
   functions for `NO_COLOR`, a dumb terminal or a pipe, and tests render with the plain skin.
 - **What an agent is doing is one rule: `markOf`.** Seven marks — working (a spinner), idle, needs
@@ -192,7 +192,7 @@ file and cannot be tested.
 - **The orchestrator line is pi's own `Editor`** (cursor, wrapping, undo, paste markers), drawn by
   the app into `Frame.input` and boxed by `inputBox`. Keep `state.dictation` in step with it
   (`syncLine`) — everything else reads the dictation. Opening it never changes the panel's height.
-- **What you type to Wilco is journaled** (`said` events) and comes back with ↑/↓ (the editor's
+- **What you type to Tade is journaled** (`said` events) and comes back with ↑/↓ (the editor's
   history) and ctrl+r, only while the line is open — anywhere else those keys are the agent's.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
   `appKey` names them, `keyAction` gives them meaning, the keys sheet and Keys settings read the
@@ -216,7 +216,7 @@ file and cannot be tested.
 - **What drawing costs is tested** in `screens.test.ts` over every scenario. If a change makes a
   frame slow, cache what it formats (as the transcript and file viewer do) rather than raising it.
 - **A setting is a row in `settingsOf`**, not a control in the view: give it a `kind`, a `means`
-  sentence, and `live: false` if Wilco only reads it at start — the panel draws the control and the
+  sentence, and `live: false` if Tade only reads it at start — the panel draws the control and the
   *on restart* label from that.
 
 ## Checking it against a design
@@ -236,7 +236,7 @@ The window is drawn from state by a pure function, so how it looks is tested lik
 2. **Look at them.** `pnpm screens [out.html]` draws every scenario in colour on one page, and where
    a drawing no longer matches its golden file shows both, golden first. Look before accepting.
 3. **Accept on purpose.** `pnpm vitest run packages/app -u` rewrites the goldens. Commit them with
-   the change that made them, so the diff in review is the change in how Wilco looks.
+   the change that made them, so the diff in review is the change in how Tade looks.
 4. **Real input.** `test/app.test.ts` runs the whole window against a real workbench and presses
    keys and clicks as a terminal sends them (`\x1b[<0;col;rowM`), finding labels on the rebuilt
    screen the way a person would.

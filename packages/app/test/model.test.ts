@@ -1,4 +1,4 @@
-import { IDLE_REASON, type WilcoEvent } from '@wilco/core'
+import { IDLE_REASON, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   type AgentPane,
@@ -68,7 +68,7 @@ const state = (over: Partial<AppState> = {}): AppState => ({
   ...over,
 })
 
-const event = (over: Partial<WilcoEvent> = {}): WilcoEvent => ({
+const event = (over: Partial<TadeEvent> = {}): TadeEvent => ({
   seq: 1,
   ts: '2026-09-11T14:00:00.000Z',
   type: 'permission_request',
@@ -105,7 +105,7 @@ describe('tasks and focus', () => {
     current = focusBy(current, 1)
     expect(current.focused).toBe('search/pagination')
     // The orchestrator is one of the things you tab to: it is where you type
-    // to Wilco, and leaving it out left a window with no tasks unusable. Its
+    // to Tade, and leaving it out left a window with no tasks unusable. Its
     // line opens, and the agent you were watching stays in view behind it.
     current = focusBy(current, 1)
     expect(current.dictation).toBe('')

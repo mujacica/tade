@@ -22,11 +22,15 @@ export interface Listed {
 }
 
 /**
- * Left out of every listing: git's own folder, Wilco's record of an agent, and
+ * Left out of every listing: git's own folder, Tade's record of an agent, and
  * the file Finder leaves everywhere. Nobody opens these from a sidebar, and
  * `.git` alone would be the longest thing in it.
  */
-const HIDDEN = new Set(['.git', '.wilco', '.DS_Store'])
+const HIDDEN = new Set(['.git', '.tade', '.wilco', '.DS_Store'])
+
+/** Our own folder in a checkout, under either name: the new one and the one before the rename. */
+const ours = (path: string) =>
+  path === '.tade' || path.startsWith('.tade/') || path === '.wilco' || path.startsWith('.wilco/')
 
 /** No sidebar is long enough to be worth reading past this. */
 export const TREE_MAX = 2_000
@@ -62,7 +66,7 @@ export function treeOf(
 /**
  * What git says about each file in a worktree, from `git status --porcelain=v2
  * -z`, as the letter VS Code shows beside it: `M`odified, `A`dded, `D`eleted,
- * `R`enamed, `U`ntracked, or `!` for a conflict. Wilco's own record is left out.
+ * `R`enamed, `U`ntracked, or `!` for a conflict. Tade's own record is left out.
  */
 export function marksFrom(status: string): Record<string, string> {
   const marks: Record<string, string> = {}
@@ -94,7 +98,7 @@ export function marksFrom(status: string): Record<string, string> {
         mark = 'U'
         break
     }
-    if (path && path !== '.wilco' && !path.startsWith('.wilco/')) marks[path] = mark
+    if (path && !ours(path)) marks[path] = mark
   }
   return marks
 }

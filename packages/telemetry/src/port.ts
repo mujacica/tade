@@ -1,28 +1,28 @@
-import type { WilcoEvent } from '@wilco/core'
+import type { TadeEvent } from '@tade/core'
 
-// Where Wilco's own trouble goes.
+// Where Tade's own trouble goes.
 //
-// Everything here is about Wilco itself — a crash in the window, a driver it
+// Everything here is about Tade itself — a crash in the window, a driver it
 // could not use, how long its agents' turns took — never about your code or
 // what you said about it. What is sent is the shape of what happened: types,
-// names, counts and Wilco's own words. What you typed, what an agent wrote and
-// what it was working on are not Wilco's to send, and `scrub` is where that is
+// names, counts and Tade's own words. What you typed, what an agent wrote and
+// what it was working on are not Tade's to send, and `scrub` is where that is
 // decided rather than at each call.
 //
 // A reporter never throws and never blocks: it queues, sends in the background,
-// and gives up quietly. Nothing Wilco does may fail because reporting did.
+// and gives up quietly. Nothing Tade does may fail because reporting did.
 
 /** How bad something is. */
 export type Level = 'fatal' | 'error' | 'warning' | 'info' | 'debug'
 
-/** What goes beside anything reported: names, counts, and Wilco's own words. */
+/** What goes beside anything reported: names, counts, and Tade's own words. */
 export type Attributes = Readonly<Record<string, string | number | boolean>>
 
-/** Something that went wrong in Wilco, as an issue someone could fix. */
+/** Something that went wrong in Tade, as an issue someone could fix. */
 export interface Trouble {
   /** What was thrown, or what was said when nothing was. */
   error: unknown
-  /** Where it happened, in a few words: `the window`, `a schedule`, `wilco status`. */
+  /** Where it happened, in a few words: `the window`, `a schedule`, `tade status`. */
   where: string
   level?: 'fatal' | 'error' | 'warning'
   /** What it was about, when it was about one task. */
@@ -33,7 +33,7 @@ export interface Trouble {
    * Keep the parts stable: a number or a path in one makes every one its own.
    */
   fingerprint?: readonly string[]
-  /** More about it: names, counts and Wilco's own words, never anybody's text. */
+  /** More about it: names, counts and Tade's own words, never anybody's text. */
   about?: Attributes
 }
 
@@ -48,7 +48,7 @@ export interface Note {
 /** A number worth watching over time. */
 export interface Measure {
   at: number
-  /** Dotted and lowercase: `wilco.agents`. */
+  /** Dotted and lowercase: `tade.agents`. */
   name: string
   kind: 'counter' | 'gauge' | 'distribution'
   value: number
@@ -57,7 +57,7 @@ export interface Measure {
   about?: Attributes
 }
 
-/** Something Wilco is doing, while it does it. Every one that starts must end. */
+/** Something Tade is doing, while it does it. Every one that starts must end. */
 export interface Span {
   /** More about it, as it becomes known. */
   about(attributes: Attributes): void
@@ -72,7 +72,7 @@ export interface Span {
 export interface Work {
   /** What it is, as a person would say it: `invoke_agent app/refunds`. */
   name: string
-  /** What kind of work: `gen_ai.invoke_agent`, `wilco.poll`. Sentry groups by these. */
+  /** What kind of work: `gen_ai.invoke_agent`, `tade.poll`. Sentry groups by these. */
   op: string
   attributes?: Attributes
   /** When it started, for work that is timed after the fact. Now, unless said. */
@@ -83,21 +83,21 @@ export interface Work {
 export interface ReporterOptions {
   /** Where to send, in whatever form the reporter takes. Empty means nowhere. */
   dsn: string
-  /** Wilco's version, so an issue says which one it happened in. */
+  /** Tade's version, so an issue says which one it happened in. */
   release: string
-  /** Which Wilco this is: `laptop`, `ci`. */
+  /** Which Tade this is: `laptop`, `ci`. */
   environment: string
   /** What to send at all. */
   errors: boolean
   logs: boolean
   metrics: boolean
-  /** How much of what Wilco does is timed, 0 to 1. Agents' turns are always. */
+  /** How much of what Tade does is timed, 0 to 1. Agents' turns are always. */
   traces: number
   /** Time what agents do, as the work of a model: turns, tool calls, tokens. */
   agents: boolean
   /** Replaced with `~` wherever it appears, so no path says who you are. */
   home: string
-  /** Where Wilco itself is, so a stack frame in it is one you could fix. */
+  /** Where Tade itself is, so a stack frame in it is one you could fix. */
   root?: string
   /**
    * Somewhere to put what would have been sent, instead of sending it. For
@@ -108,7 +108,7 @@ export interface ReporterOptions {
 }
 
 /**
- * Where Wilco's own trouble goes. Implementations are registered by name in
+ * Where Tade's own trouble goes. Implementations are registered by name in
  * `REPORTERS`; nothing calls one directly.
  */
 export interface Reporter {
@@ -141,4 +141,4 @@ export interface FromEvent {
   measures?: Measure[]
 }
 
-export type Reported = (event: WilcoEvent) => void
+export type Reported = (event: TadeEvent) => void

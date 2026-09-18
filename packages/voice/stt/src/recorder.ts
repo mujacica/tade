@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { resolveCommand, stringEnv } from '@wilco/core'
+import { resolveCommand, stringEnv } from '@tade/core'
 import {
   type AudioClip,
   type Availability,
@@ -10,7 +10,7 @@ import {
   type RecorderOptions,
   RecorderUnavailableError,
   type Recording,
-} from '@wilco/voice-core'
+} from '@tade/voice-core'
 
 // Capturing a microphone with ffmpeg, which is already on most machines and
 // speaks to every platform's audio stack.
@@ -77,7 +77,7 @@ export class FfmpegRecorder implements Recorder {
     if (!binary || !input) throw new RecorderUnavailableError(this.id, 'ffmpeg went missing')
 
     const sampleRate = opts.sampleRate ?? DEFAULTS.sampleRate
-    const dir = mkdtempSync(join(tmpdir(), 'wilco-speech-'))
+    const dir = mkdtempSync(join(tmpdir(), 'tade-speech-'))
     const path = join(dir, 'speech.wav')
     const child = spawn(
       binary,

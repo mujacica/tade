@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
@@ -13,12 +13,12 @@
  ▸ NOTES  4           ▐  +  ▌ │                                                                                         
  ▾ GIT                        │                                                                                         
    repo     ~/src/checkout    │                                                                                         
-   branch   …co/fix-shop-1a   │                                                                                         
+   branch   …de/fix-shop-1a   │                                                                                         
    from     main              │                                                                                         
-   about    SHOP-1A ↗         │Reading .wilco/context.md for SHOP-1A before touching src/refunds.ts                     
+   about    SHOP-1A ↗         │Reading .tade/context.md for SHOP-1A before touching src/refunds.ts                      
    about    trace a1b2c3d4 ↗  │  ╭─ wants approval ─────────────────────────────────────────────╮                       
    worktree …kout-fix-shop-1a │  │ bash  npm i stripe@15                                        │                       
-   path     /Users/me/.wilco/ │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   path     /Users/me/.tade/  │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
             worktrees/        │  ╰──────────────────────────────────────────────────────────────╯                       
             checkout-fix-shop │                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
@@ -27,8 +27,8 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

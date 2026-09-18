@@ -25,21 +25,21 @@ import {
   type StartCondition,
   spendFrom,
   startOfToday,
+  type TadeEvent,
   type TaskId,
   THINKING_LEVELS,
   type ThinkingLevel,
   type Unsubscribe,
-  type WilcoEvent,
   writeSetting,
-} from '@wilco/core'
-import type { WorkspaceCapabilities, WorkspaceDriver } from '@wilco/drivers-core'
+} from '@tade/core'
+import type { WorkspaceCapabilities, WorkspaceDriver } from '@tade/drivers-core'
 import type {
   PermissionDecision,
   RunId,
   WorkerExtras,
   WorkerHandle,
   WorkerModel,
-} from '@wilco/harnesses-core'
+} from '@tade/harnesses-core'
 import {
   findModel,
   noUsage,
@@ -47,9 +47,9 @@ import {
   sessionIdFor,
   usableModels,
   usageOfTask,
-} from '@wilco/harnesses-pi'
-import { git } from '@wilco/status'
-import type { Reporter } from '@wilco/telemetry'
+} from '@tade/harnesses-pi'
+import { git } from '@tade/status'
+import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
 import { EventLog } from './events.ts'
@@ -88,7 +88,7 @@ import {
   WorkerSupervisor,
 } from './workers.ts'
 
-// The workbench: everything Wilco is holding while it is open — the lanes, the
+// The workbench: everything Tade is holding while it is open — the lanes, the
 // journal, the agents under supervision, the notes.
 //
 // It is an object, not a service. There is no server here because there is
@@ -104,7 +104,7 @@ export interface WorkbenchOptions {
   /**
    * Where the harness keeps its sessions, for reading back what an agent spent
    * while nobody was watching. Defaults to the harness's own location, which
-   * is where agents write because Wilco deliberately does not move them.
+   * is where agents write because Tade deliberately does not move them.
    */
   sessionsRoot?: string
   /**
@@ -114,7 +114,7 @@ export interface WorkbenchOptions {
    */
   extensions?: WorkbenchExtensions
   /**
-   * Where Wilco's own trouble goes. Nothing is sent unless the window opened
+   * Where Tade's own trouble goes. Nothing is sent unless the window opened
    * one that sends; what it is for here is timing agents' turns.
    */
   report?: Reporter
@@ -156,7 +156,7 @@ export interface CreateTaskRequest {
   base?: string
   /** No branch until there is work to name it after. */
   detached?: boolean
-  /** What the agent should know before it starts: written to `.wilco/context.md`. */
+  /** What the agent should know before it starts: written to `.tade/context.md`. */
   context?: string
   /** Where the work came from, kept with the task and shown beside it. */
   links?: readonly { title: string; url: string }[]
@@ -271,7 +271,7 @@ export class Workbench {
     await mkdir(opts.home, { recursive: true })
     const lock = await lockHome(opts.home)
     try {
-      // A broken config must not stop Wilco opening; `wilco config --check` is
+      // A broken config must not stop Tade opening; `tade config --check` is
       // where a typo gets reported, so here it degrades to defaults.
       const loaded = await loadConfig(join(opts.home, 'config.yaml'))
       const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
@@ -318,7 +318,7 @@ export class Workbench {
         },
         // A tool an agent calls runs in this process, where the extensions are.
         onExtensionCall: async (call) => {
-          if (!opts.extensions) throw new Error('Wilco has no extensions loaded')
+          if (!opts.extensions) throw new Error('Tade has no extensions loaded')
           return opts.extensions.call({ ...call, project: call.task.split('/')[0] ?? '' })
         },
       })
@@ -336,7 +336,7 @@ export class Workbench {
         ...(opts.extensions ? { extensions: opts.extensions } : {}),
       })
       await log.append({
-        type: 'wilco_opened',
+        type: 'tade_opened',
         detail: { pid: process.pid, driver: driver.id, lanes: registry.list().length },
       })
       // Pick the agents that kept working back up: the channel first, so their
@@ -346,9 +346,9 @@ export class Workbench {
       // commit now, so it is reviewable rather than merely present.
       await recordAuthored(
         expandHome(config.orchestrator.extensions),
-        'tools proposed since Wilco was last open',
+        'tools proposed since Tade was last open',
       )
-      await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Wilco was last open')
+      await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Tade was last open')
       await workbench.resupervise().catch(() => {})
       await workbench.reconcileSpend().catch(() => {})
       return workbench
@@ -393,7 +393,7 @@ export class Workbench {
    * Account for what the agents spent while nobody was watching.
    *
    * The supervision extension reports each turn as it happens, but only while
-   * Wilco is there to be told — and under a driver whose lanes outlive the
+   * Tade is there to be told — and under a driver whose lanes outlive the
    * window, it often is not. pi writes every priced message to its own session
    * regardless, so on opening we compare what that says against what the
    * journal already knows and record the difference. The session file is the
@@ -432,7 +432,7 @@ export class Workbench {
           // What it last ran on, so the spend lands on a model rather than on "unknown".
           ...(session.model ? { model: session.model } : {}),
           source: 'session',
-          reason: 'spent while Wilco was closed',
+          reason: 'spent while Tade was closed',
         },
       })
     }
@@ -455,7 +455,7 @@ export class Workbench {
   // --- lanes
   //
   // Thin by design: the registry is the thing that knows about lanes, and
-  // these exist so callers say `wilco.capture(lane)` rather than reaching
+  // these exist so callers say `tade.capture(lane)` rather than reaching
   // through two objects to get there.
 
   spawn(req: SpawnRequest): Promise<LaneRecord> {
@@ -787,7 +787,7 @@ export class Workbench {
 
   /**
    * Make a schedule, or change the one with its id. Refused with why when its
-   * rule cannot be kept or its project is not one Wilco knows.
+   * rule cannot be kept or its project is not one Tade knows.
    */
   async setSchedule(schedule: Schedule, by: string): Promise<KeptSchedule> {
     if (!this.config.projects[schedule.project]) {
@@ -1006,7 +1006,7 @@ export class Workbench {
 
   /**
    * Record that a task is finished: a person marking it, the orchestrator on
-   * their word, or Wilco seeing the task's own rule met. Its agent says so
+   * their word, or Tade seeing the task's own rule met. Its agent says so
    * itself, through its harness. Whatever waits on it starts from this.
    */
   async markDone(
@@ -1135,7 +1135,7 @@ export class Workbench {
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
     const harness = req.harness ?? (await this.harnessOf(req.task, req.cwd))
-    const extras = withWilco(
+    const extras = withTade(
       req.extras ??
         this.extensions?.extras({
           project: req.task.split('/')[0] ?? '',
@@ -1217,7 +1217,7 @@ export class Workbench {
         chosen: file?.title_named === true && typeof file.title === 'string' ? file.title : null,
       }
     } catch {
-      // No task file: an agent opened on a worktree Wilco did not make.
+      // No task file: an agent opened on a worktree Tade did not make.
       return { intent: '', chosen: null }
     }
   }
@@ -1229,7 +1229,7 @@ export class Workbench {
     const { intent } = await this.taskFile(cwd, task)
     const head = await git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD'])
     const context = taskContextPath(cwd, task)
-    const shared = taskFilePath(cwd, task) !== join(cwd, '.wilco', 'task.yaml')
+    const shared = taskFilePath(cwd, task) !== join(cwd, '.tade', 'task.yaml')
     const agents = this.config.agents
     return composeAgentPrompt({
       task,
@@ -1254,7 +1254,7 @@ export class Workbench {
     const make = HARNESS_ADAPTERS[id]
     if (!make)
       throw new Error(
-        `no harness called ${id}: Wilco runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+        `no harness called ${id}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
       )
     return make({
       runDir: join(this.home, 'runs'),
@@ -1300,7 +1300,7 @@ export class Workbench {
     }
     if (!choice.ready || !HARNESS_ADAPTERS[req.harness]) {
       throw new Error(
-        `${choice.title} is ${choice.about}: Wilco runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+        `${choice.title} is ${choice.about}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
       )
     }
     await setTaskHarness(req.worktree, req.task, req.harness)
@@ -1482,11 +1482,11 @@ export class Workbench {
 
   // --- the journal
 
-  events(filter: EventFilter = {}): Promise<WilcoEvent[]> {
+  events(filter: EventFilter = {}): Promise<TadeEvent[]> {
     return this.log.read(filter)
   }
 
-  subscribe(handler: (event: WilcoEvent) => void, filter: EventFilter = {}): Unsubscribe {
+  subscribe(handler: (event: TadeEvent) => void, filter: EventFilter = {}): Unsubscribe {
     return this.log.subscribe(handler, filter)
   }
 
@@ -1572,7 +1572,7 @@ export class Workbench {
   }
 
   private async doClose(): Promise<void> {
-    await this.log.append({ type: 'wilco_closing', detail: { pid: process.pid } })
+    await this.log.append({ type: 'tade_closing', detail: { pid: process.pid } })
     // Let go of both, ending neither: saying `shutdown` to an agent because a
     // window closed would stop exactly the work the tmux driver keeps alive.
     await this.workers.detach()
@@ -1597,11 +1597,11 @@ function isThinkingLevel(level: string): level is ThinkingLevel {
 export type { LaneId, LaneRecord, SpawnRequest }
 
 /**
- * What Wilco tells an agent about itself, before what extensions add. Said in
+ * What Tade tells an agent about itself, before what extensions add. Said in
  * its instructions rather than its prompt, so it holds when the conversation
  * is reopened, and a prompt you typed yourself is never rewritten.
  */
-function withWilco(extras: WorkerExtras | undefined, told: string): WorkerExtras {
+function withTade(extras: WorkerExtras | undefined, told: string): WorkerExtras {
   return {
     ...(extras ?? {}),
     instructions: [told, extras?.instructions ?? '']

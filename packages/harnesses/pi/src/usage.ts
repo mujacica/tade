@@ -3,7 +3,7 @@
 // pi keeps what a reply cost on the message it wrote (`entry.message.usage`),
 // and what a summary it had a model write cost — a compaction, a branch
 // summary — on the entry itself (`entry.usage`). Its own totals, the ones in an
-// agent's footer, add up exactly these, so Wilco's do too: a total that counts
+// agent's footer, add up exactly these, so Tade's do too: a total that counts
 // anything else, or less, disagrees with a number the person can see.
 //
 // It imports nothing, because the supervision extension runs inside pi and
@@ -45,7 +45,7 @@ export function spentByMessage(message: unknown): Spent | null {
   return priced(message.usage)
 }
 
-/** Which model a message ran on, the way Wilco names one: provider, then id. */
+/** Which model a message ran on, the way Tade names one: provider, then id. */
 export function modelOfMessage(message: unknown): string | null {
   if (!isRecord(message) || typeof message.model !== 'string' || !message.model) return null
   return typeof message.provider === 'string' && message.provider

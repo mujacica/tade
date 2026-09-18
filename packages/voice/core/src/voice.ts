@@ -13,13 +13,13 @@ import {
   resolveTarget,
   type Surface,
   summarise,
+  type TadeEvent,
   type Target,
   type Unsubscribe,
   type Vocabulary,
-  type WilcoEvent,
   type WorkHistory,
-} from '@wilco/core'
-import type { Speaker, Tone } from '@wilco/voice-tts'
+} from '@tade/core'
+import type { Speaker, Tone } from '@tade/voice-tts'
 
 // Voice as a surface, not as the architecture. It listens to text (from a
 // transcriber, a dictation app, or a keyboard), works out which agent you
@@ -29,7 +29,7 @@ import type { Speaker, Tone } from '@wilco/voice-tts'
 // you meant, it asks instead; a bare yes can never carry out something
 // destructive; and every answer can explain itself.
 
-/** The slice of Wilco this surface uses. `Workbench` satisfies it. */
+/** The slice of Tade this surface uses. `Workbench` satisfies it. */
 export interface VoiceWorkbench {
   pendingApprovals(
     task?: string,
@@ -64,7 +64,7 @@ export interface VoiceWorkbench {
    * that cannot let go of the event stream leaks past its own lifetime, so
    * this is required where `remember` is not.
    */
-  subscribe(handler: (event: WilcoEvent) => void): Awaitable<Unsubscribe>
+  subscribe(handler: (event: TadeEvent) => void): Awaitable<Unsubscribe>
   /**
    * Optional: write something down. Without it the surface says plainly that
    * it cannot remember, rather than pretending to.
@@ -98,7 +98,7 @@ export interface Turn {
 }
 
 export interface VoiceOptions {
-  wilco: VoiceWorkbench
+  tade: VoiceWorkbench
   speaker: Speaker
   /** Live task and project names, for recognising what you said. */
   vocabulary: () => Promise<Vocabulary>
@@ -112,7 +112,7 @@ export interface VoiceOptions {
    */
   show?: (task: string) => Promise<string>
   /**
-   * Open the settings in place. Without it — `wilco chat`, a test — asking for
+   * Open the settings in place. Without it — `tade chat`, a test — asking for
    * them is answered with the command that opens them.
    */
   openSettings?: () => Promise<string>
@@ -129,7 +129,7 @@ export interface VoiceOptions {
    */
   terminals?: VoiceTerminals
   /**
-   * What an extension listens for — "how much is Wilco using" — answered in a
+   * What an extension listens for — "how much is Tade using" — answered in a
    * sentence, or null when none of them does. Asked before the orchestrator.
    */
   extension?: (said: string) => Promise<string | null>
@@ -157,7 +157,7 @@ export class VoiceSurface {
   private readonly settings: AttentionSettings
   private readonly spokenAt: number[] = []
   /** Things that earned speech but were held back, for the next summary. */
-  private readonly held: WilcoEvent[] = []
+  private readonly held: TadeEvent[] = []
   /** A question we asked, waiting for you to pick one. */
   private pending: Pending | null = null
   private lastAddressed: string | null = null
@@ -182,7 +182,7 @@ export class VoiceSurface {
 
   static async start(opts: VoiceOptions): Promise<VoiceSurface> {
     const surface = new VoiceSurface(opts)
-    surface.unsubscribe = await opts.wilco.subscribe((event) => void surface.onEvent(event))
+    surface.unsubscribe = await opts.tade.subscribe((event) => void surface.onEvent(event))
     return surface
   }
 
@@ -328,18 +328,18 @@ export class VoiceSurface {
         const worktree = await this.opts.worktreeOf(task)
         if (!worktree) return `I don't know where ${short(task)} lives.`
         const parked = intent.kind === 'park'
-        await this.opts.wilco.parkTask(worktree, parked, task)
+        await this.opts.tade.parkTask(worktree, parked, task)
         return `${parked ? 'Parked' : 'Picked up'} ${short(task)}.`
       }
       case 'steer': {
-        const runs = await this.opts.wilco.runs()
+        const runs = await this.opts.tade.runs()
         if (!runs.some((r) => r.task === task)) return `Nothing is running on ${short(task)}.`
-        await this.opts.wilco.steerAgent(task, intent.message)
+        await this.opts.tade.steerAgent(task, intent.message)
         return `Told ${short(task)}.`
       }
       case 'model': {
-        if (!this.opts.wilco.setAgentModel) return "I can't change an agent's model from here."
-        const chosen = await this.opts.wilco.setAgentModel(task, intent.model)
+        if (!this.opts.tade.setAgentModel) return "I can't change an agent's model from here."
+        const chosen = await this.opts.tade.setAgentModel(task, intent.model)
         return `Switching ${short(task)} to ${chosen.id}.`
       }
       case 'focus': {
@@ -347,7 +347,7 @@ export class VoiceSurface {
         // own pane, and a driver whose lanes are real windows can raise one.
         // With neither, say where to look rather than pretending it happened.
         const shown = await this.opts.show?.(task)
-        return shown ?? `${short(task)}: run wilco attach ${task}`
+        return shown ?? `${short(task)}: run tade attach ${task}`
       }
       default:
         return `I can't do that to ${short(task)}.`
@@ -368,14 +368,14 @@ export class VoiceSurface {
 
       case 'start': {
         const slug = slugify(intent.intent)
-        const created = await this.opts.wilco.createTask({
+        const created = await this.opts.tade.createTask({
           project: intent.project,
           slug,
           // Word for word: nothing else can reconstruct why you started.
           intent: intent.intent,
           by: 'you',
         })
-        await this.opts.wilco.startAgent({
+        await this.opts.tade.startAgent({
           task: created.id,
           cwd: created.worktree,
           prompt: intent.intent,
@@ -405,21 +405,21 @@ export class VoiceSurface {
       }
 
       case 'brief':
-        return this.opts.brief ? this.opts.brief() : 'Run `wilco brief` for it.'
+        return this.opts.brief ? this.opts.brief() : 'Run `tade brief` for it.'
 
       case 'settings': {
         // The window can open them in place; anywhere else, say the command.
         const opened = await this.opts.openSettings?.()
-        return opened ?? 'Run `wilco config` to change settings.'
+        return opened ?? 'Run `tade config` to change settings.'
       }
 
       case 'remember': {
-        if (!this.opts.wilco.remember) return "I can't remember things yet."
+        if (!this.opts.tade.remember) return "I can't remember things yet."
         // Attached to whatever you were just talking about, and said out loud,
         // because filing it under the wrong task silently would be worse than
         // asking you to correct it.
         const scope = this.lastAddressed
-        await this.opts.wilco.remember(intent.text, scope, 'voice')
+        await this.opts.tade.remember(intent.text, scope, 'voice')
         return scope ? `Noted, about ${short(scope)}.` : 'Noted.'
       }
 
@@ -437,7 +437,7 @@ export class VoiceSurface {
    * exactly one. Anything destructive needs the phrase read back.
    */
   private async decide(allow: boolean, said: string): Promise<string> {
-    const pending = await this.opts.wilco.pendingApprovals()
+    const pending = await this.opts.tade.pendingApprovals()
     if (pending.length === 0) return 'Nothing is waiting.'
     if (pending.length > 1) return `${pending.length} things are waiting. Say which one.`
     const [request] = pending
@@ -445,7 +445,7 @@ export class VoiceSurface {
     if (allow && request.tier === 'hard') {
       return `That one needs confirming: ${request.summary}. Say confirm, then what it does.`
     }
-    await this.opts.wilco.decideApproval(request.run, request.requestId, {
+    await this.opts.tade.decideApproval(request.run, request.requestId, {
       allow,
       // Kept verbatim in the ledger, so a decision can be explained later in
       // the words that made it.
@@ -458,7 +458,7 @@ export class VoiceSurface {
 
   /** The distinct phrase a destructive command requires. */
   private async confirm(phrase: string, said: string): Promise<string> {
-    const pending = await this.opts.wilco.pendingApprovals()
+    const pending = await this.opts.tade.pendingApprovals()
     const words = phrase
       .toLowerCase()
       .split(/\s+/)
@@ -476,12 +476,12 @@ export class VoiceSurface {
     if (matches.length > 1) return `More than one thing matches "${phrase}". Say more of it.`
     const [request] = matches
     if (!request) return `Nothing waiting matches "${phrase}".`
-    await this.opts.wilco.decideApproval(request.run, request.requestId, { allow: true, said })
+    await this.opts.tade.decideApproval(request.run, request.requestId, { allow: true, said })
     this.lastAddressed = request.task
     return `Confirmed: ${request.summary}`
   }
 
-  private async onEvent(event: WilcoEvent): Promise<void> {
+  private async onEvent(event: TadeEvent): Promise<void> {
     const focused = this.opts.focusedTask?.() ?? { task: null, lastInputAt: null }
     const decision = decideAttention(
       event,
@@ -502,7 +502,7 @@ export class VoiceSurface {
     await this.tone(event, decision.channel)
   }
 
-  private async tone(event: WilcoEvent, channel: Channel): Promise<void> {
+  private async tone(event: TadeEvent, channel: Channel): Promise<void> {
     if (channel !== 'earcon') return
     const tone = toneFor(event)
     if (tone) await this.opts.speaker.earcon(tone)
@@ -600,7 +600,7 @@ function preference(intent: Intent): { prefer?: ResolveOptions['prefer'] } {
  * answering is not — a beep every time one finished a turn was a beep every
  * few seconds, and the transcript already shows it.
  */
-function toneFor(event: WilcoEvent): Tone | null {
+function toneFor(event: TadeEvent): Tone | null {
   if (event.type === 'permission_request') return 'blocked'
   if (event.type === 'failed') return 'failed'
   if (event.type === 'state_change') {
@@ -611,7 +611,7 @@ function toneFor(event: WilcoEvent): Tone | null {
   return null
 }
 
-function wouldSpeak(event: WilcoEvent): boolean {
+function wouldSpeak(event: TadeEvent): boolean {
   return event.urgency === 'blocking' || event.type === 'state_change'
 }
 

@@ -37,7 +37,7 @@ const cases: Case[] = [
   },
   {
     name: 'ordinary push',
-    facts: bash('git push origin wilco/refunds'),
+    facts: bash('git push origin tade/refunds'),
     want: 'soft',
     rule: 'push',
   },
@@ -249,7 +249,7 @@ describe('inside', () => {
 
 // Rules somebody wrote for their own machine.
 //
-// The thing under test is the direction they can move in: Wilco's own list is
+// The thing under test is the direction they can move in: Tade's own list is
 // a floor rather than a default, so yours can tighten it and never loosen it.
 
 describe('rules of your own', () => {
@@ -269,7 +269,7 @@ describe('rules of your own', () => {
     expect(decided.rule).toBe('yours:terraform')
   })
 
-  it('cannot loosen what Wilco already thinks is dangerous', () => {
+  it('cannot loosen what Tade already thinks is dangerous', () => {
     // `soft` is written, but a force push is `hard` and stays `hard`. The way
     // to loosen anything is `auto_allow`, which names exact tools on purpose.
     const decided = classifyToolCall(facts('git push --force origin main'), {
@@ -291,7 +291,7 @@ describe('rules of your own', () => {
   })
 
   it('skips a pattern it cannot read rather than failing the turn', () => {
-    // A typo is reported by `wilco config --check`. An agent mid-turn is not
+    // A typo is reported by `tade config --check`. An agent mid-turn is not
     // the moment to discover one.
     const decided = classifyToolCall(facts('ls'), {
       rules: [{ match: '([unclosed', tier: 'hard' as const }],

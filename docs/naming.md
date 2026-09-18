@@ -1,6 +1,13 @@
 # Naming: what to call this thing instead of Wilco
 
-## Decision: **Tade**, at `tade.sh`
+## Decision: **Tade**, at `tade.sh` — **done, and in the code**
+
+The rename landed: `@tade/*` across 20 packages, the `tade` binary, `TADE_*` variables, `~/.tade`,
+`.tade/` in a checkout, `tade/` branches, `tade-` sessions, the `tade` tmux server, `tade_*` tools
+and event kinds — with compatibility readers for everything that already exists on disk (§10). The
+window has an amber palette instead of the old cyan, a `T A D E` wordmark, and the punch line is now
+**“said, and done.”**
+
 
 > **Tade** — the agent orchestration IDE for your terminal.
 > `tade status` · `tade brief` · "Hey Tade" · packages `@tade/*` · mascot: Spike, mask and all.
@@ -1028,7 +1035,7 @@ Grouped by what breaks if you get it wrong. (Examples use `marlo`; substitute wh
 |---|---|
 | Binary `wilco` → `marlo` | `packages/cli/package.json` (`bin`), root `pnpm wilco` script, README install/use |
 | `wilco attach <lane>` default | `packages/drivers/pty/src/index.ts` |
-| ASCII banner and the "will comply" tagline | `README.md`, `packages/app/src/screen.ts` — **the pun dies with the name; a new line is needed** |
+| ASCII banner and the tagline | `README.md`, `packages/app/src/screen.ts` — the old pun died with the old name; the line is now **“said, and done.”** |
 | Docs | `README.md`, `AGENTS.md`, `CLAUDE.md` (a link), 22 markdown files, 16 recipes in `.claude/skills/` |
 | Notices | `THIRD_PARTY_NOTICES.md` + `scripts/notices.ts` (`pnpm notices` regenerates) |
 | Prompts saying the agent "runs in Wilco" | `composeAgentPrompt`, orchestrator prompt — re-run the live test afterwards: it is the only evidence a model still picks the right tool from the new words |

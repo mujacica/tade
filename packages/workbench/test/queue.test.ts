@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { PlannedAgent } from '@wilco/core'
+import type { PlannedAgent } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -25,7 +25,7 @@ describe('queued work', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    home = tmp('wilco-queue-')
+    home = tmp('tade-queue-')
     writeFileSync(
       join(home, 'config.yaml'),
       `agents:\n  workspace: worktree\nprojects:\n  app:\n    root: ${repo.root}\n`,
@@ -48,7 +48,7 @@ describe('queued work', () => {
     })
     expect(plan.made.map((task) => task.id)).toEqual(['app/fix-charge', 'app/add-refunds'])
     const [, refunds] = plan.made
-    const file = readFileSync(join(refunds?.worktree ?? '', '.wilco', 'task.yaml'), 'utf8')
+    const file = readFileSync(join(refunds?.worktree ?? '', '.tade', 'task.yaml'), 'utf8')
     expect(file).toContain('task: app/fix-charge')
     expect(file).toContain('why: same file')
     expect(file).toContain('prompt: please do add-refunds')
@@ -82,11 +82,11 @@ describe('queued work', () => {
     const lane = await client.startQueued({
       task: refunds.id,
       worktree: refunds.worktree,
-      from: ['wilco/fix-charge'],
+      from: ['tade/fix-charge'],
       why: 'app/fix-charge has finished',
     })
     expect(repo.head(refunds.worktree)).toBe(repo.head(fix.worktree))
-    const own = readFileSync(join(refunds.worktree, '.wilco', 'task.yaml'), 'utf8')
+    const own = readFileSync(join(refunds.worktree, '.tade', 'task.yaml'), 'utf8')
     // Still its own task, though what it waited on committed its task file over it...
     expect(own).toContain('id: app/add-refunds')
     // ...and its own work is what comes after this, not after where it was planned.
@@ -121,7 +121,7 @@ describe('queued work', () => {
     await client.startQueued({
       task: both.id,
       worktree: both.worktree,
-      from: ['wilco/one', 'wilco/two'],
+      from: ['tade/one', 'tade/two'],
       why: '',
     })
     expect(existsSync(join(both.worktree, 'one.ts'))).toBe(true)
@@ -150,10 +150,10 @@ describe('queued work', () => {
       client.startQueued({
         task: middle.id,
         worktree: middle.worktree,
-        from: ['wilco/left', 'wilco/right'],
+        from: ['tade/left', 'tade/right'],
         why: '',
       }),
-    ).rejects.toThrow(/cannot begin from both wilco\/left and wilco\/right: they conflict/)
+    ).rejects.toThrow(/cannot begin from both tade\/left and tade\/right: they conflict/)
     // Back where it was planned, so it can be tried again from the same place.
     expect(repo.head(middle.worktree)).toBe(planned)
   }, 60_000)

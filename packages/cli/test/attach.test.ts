@@ -2,9 +2,9 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { LaneId } from '@wilco/core'
-import { ECHO_CHILD, until } from '@wilco/drivers-core/conformance'
-import { Workbench } from '@wilco/workbench'
+import type { LaneId } from '@tade/core'
+import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
+import { Workbench } from '@tade/workbench'
 import { spawn } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -20,7 +20,7 @@ async function awaitBanner(output: string[]): Promise<void> {
   }
 }
 
-// `wilco attach` puts the user's terminal in raw mode. If it ever fails to put
+// `tade attach` puts the user's terminal in raw mode. If it ever fails to put
 // it back, people are left with a broken terminal, so this runs the real
 // command inside a real pty and compares `stty -g` before and after.
 //
@@ -28,15 +28,15 @@ async function awaitBanner(output: string[]): Promise<void> {
 // is for: the lane is opened here, this window closes, and a separate process
 // walks back into it. Under pty there would be nothing for it to find.
 
-describe('wilco attach', () => {
+describe('tade attach', () => {
   let home: string
   const lane = 'app/t/shell' as LaneId
 
   beforeEach(async () => {
-    home = tmp('wilco-attach-')
+    home = tmp('tade-attach-')
     writeFileSync(join(home, 'config.yaml'), 'workspace:\n  driver: tmux\n')
-    const wilco = await Workbench.open({ home })
-    await wilco.spawn({
+    const tade = await Workbench.open({ home })
+    await tade.spawn({
       id: lane,
       task: 'app/t',
       kind: 'shell',
@@ -47,14 +47,14 @@ describe('wilco attach', () => {
       rows: 24,
     })
     // Close, so the lane is running with nobody holding it — which is exactly
-    // the state `wilco attach` exists for, and frees the home for the CLI.
-    await wilco.close()
+    // the state `tade attach` exists for, and frees the home for the CLI.
+    await tade.close()
   })
 
   afterEach(async () => {
     // Whatever is left, stop it: these are real processes in a real session.
-    const wilco = await Workbench.open({ home }).catch(() => null)
-    await wilco?.stopEverything().catch(() => {})
+    const tade = await Workbench.open({ home }).catch(() => null)
+    await tade?.stopEverything().catch(() => {})
   })
 
   it('restores terminal settings when the client is killed', async () => {
@@ -70,7 +70,7 @@ describe('wilco attach', () => {
         cols: 80,
         rows: 24,
         cwd: home,
-        env: { ...process.env, WILCO_HOME: home } as Record<string, string>,
+        env: { ...process.env, TADE_HOME: home } as Record<string, string>,
       },
     )
     term.onData((d) => output.push(d))
@@ -104,7 +104,7 @@ describe('wilco attach', () => {
       cols: 80,
       rows: 24,
       cwd: home,
-      env: { ...process.env, WILCO_HOME: home } as Record<string, string>,
+      env: { ...process.env, TADE_HOME: home } as Record<string, string>,
     })
     term.onData((d) => output.push(d))
     let exited = false
@@ -124,11 +124,11 @@ describe('wilco attach', () => {
 
     // The lane is still running: detaching is not killing, and a window opened
     // afterwards walks straight back into it.
-    const wilco = await Workbench.open({ home })
+    const tade = await Workbench.open({ home })
     try {
-      expect(wilco.lane(lane)?.alive).toBe(true)
+      expect(tade.lane(lane)?.alive).toBe(true)
     } finally {
-      await wilco.close()
+      await tade.close()
     }
   }, 30_000)
 })

@@ -2,15 +2,15 @@ import {
   type DoneRule,
   IDLE_REASON,
   type QueueState,
+  type TadeEvent,
   type TaskState,
   type WatchFinding,
   type WatchLook,
-  type WilcoEvent,
-} from '@wilco/core'
-import type { Turn } from '@wilco/voice-core'
+} from '@tade/core'
+import type { Turn } from '@tade/voice-core'
 import type { Target } from './hits.ts'
 import type { Panel } from './panels.ts'
-import { emptyTranscript, fromTurn, type Transcript, wilcoDid } from './transcript.ts'
+import { emptyTranscript, fromTurn, type Transcript, tadeDid } from './transcript.ts'
 
 // What the app is showing, as data.
 //
@@ -114,7 +114,7 @@ export const QUEUE_FILTERS: readonly QueueFilter[] = ['all', 'next', 'timed']
 export interface AppState {
   panes: AgentPane[]
   /**
-   * Every project Wilco has been told about, whether or not it has tasks yet.
+   * Every project Tade has been told about, whether or not it has tasks yet.
    * A project with nothing in it still has to be somewhere you can go: that is
    * where the first task in it gets made.
    */
@@ -148,7 +148,7 @@ export interface AppState {
   historySearch: { query: string; skip: number; draft: string; missing: boolean } | null
   /**
    * Keystrokes held back at an agent's prompt while they might still spell a
-   * line addressed to Wilco. Shown, so they are never simply missing.
+   * line addressed to Tade. Shown, so they are never simply missing.
    */
   held: string | null
   /** One line of transient news for the footer. */
@@ -580,7 +580,7 @@ export function planOf(state: AppState): {
 /**
  * Move focus, counting the orchestrator as one of the things you can focus.
  *
- * It is where you type to Wilco, so leaving it out of the cycle meant a window
+ * It is where you type to Tade, so leaving it out of the cycle meant a window
  * with no tasks had nothing at all to type into — which is exactly the window
  * everybody sees first.
  */
@@ -648,8 +648,8 @@ export function actions(state: AppState): Action[] {
       about: state.panes.length > 0 ? 'go to an agent: /open name' : 'no agents yet',
       ready: state.panes.length > 0,
     },
-    { name: '/project', about: 'add a git repository Wilco can work in', ready: true },
-    { name: '/settings', about: 'see and change what Wilco has been told', ready: true },
+    { name: '/project', about: 'add a git repository Tade can work in', ready: true },
+    { name: '/settings', about: 'see and change what Tade has been told', ready: true },
     { name: '/help', about: 'what the keys do', ready: true },
     { name: '/quit', about: 'close the window; agents carry on if they can', ready: true },
   ]
@@ -918,7 +918,7 @@ export function setListening(state: AppState, listening: boolean): AppState {
   return { ...state, listening }
 }
 
-/** An exchange Wilco finished, into the conversation. */
+/** An exchange Tade finished, into the conversation. */
 export function addTurn(state: AppState, turn: Turn): AppState {
   return { ...state, transcript: fromTurn(state.transcript, turn) }
 }
@@ -1054,12 +1054,12 @@ export function setHeld(state: AppState, held: string | null): AppState {
 }
 
 /**
- * Something Wilco did or noticed, said in the conversation — where it stays,
+ * Something Tade did or noticed, said in the conversation — where it stays,
  * rather than on a line the next one overwrote before it was read.
  */
 export function notice(state: AppState, notice: string | null): AppState {
   if (notice === null) return { ...state, notice }
-  return { ...state, notice, transcript: wilcoDid(state.transcript, notice, 0) }
+  return { ...state, notice, transcript: tadeDid(state.transcript, notice, 0) }
 }
 
 /**
@@ -1067,7 +1067,7 @@ export function notice(state: AppState, notice: string | null): AppState {
  * unless you are mid-sentence somewhere else: the app never pulls the screen
  * out from under you.
  */
-export function onEvent(state: AppState, event: WilcoEvent, now: number): AppState {
+export function onEvent(state: AppState, event: TadeEvent, now: number): AppState {
   const waiting = event.type === 'permission_request'
   const settled = event.type === 'permission_granted' || event.type === 'permission_denied'
 
@@ -1094,7 +1094,7 @@ export function onEvent(state: AppState, event: WilcoEvent, now: number): AppSta
 }
 
 /** Only something waiting on a human earns the screen, and only if you're idle. */
-export function shouldRaise(state: AppState, event: WilcoEvent, now: number): boolean {
+export function shouldRaise(state: AppState, event: TadeEvent, now: number): boolean {
   if (!event.task || event.urgency !== 'blocking') return false
   if (!state.panes.some((pane) => pane.task === event.task)) return false
   if (state.focused === event.task) return false
@@ -1274,7 +1274,7 @@ export function projectNumber(state: AppState, n: number): AppState {
 
 export function keyAction(key: string, state: AppState): KeyAction {
   // A terminal with the keyboard gets tab for completion, ctrl+c to interrupt,
-  // and every letter: only talking and search stay Wilco's.
+  // and every letter: only talking and search stay Tade's.
   if (state.keyboard === 'terminal' && state.dictation === null && activeTerminal(state)) {
     if (key === 'talk-down') return { kind: 'talk-start' }
     if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
@@ -1302,7 +1302,7 @@ export function keyAction(key: string, state: AppState): KeyAction {
   const numbered = numberAction(key)
   if (numbered) return numbered
   // Answering an approval is a single key only while one is actually waiting,
-  // and never while a line to Wilco is being typed.
+  // and never while a line to Tade is being typed.
   const focused = state.panes.find((pane) => pane.task === state.focused)
   if (state.dictation === null && focused?.waiting && key === 'a') return { kind: 'approve' }
   if (state.dictation === null && focused?.waiting && key === 'd') return { kind: 'deny' }

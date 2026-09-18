@@ -5,14 +5,14 @@ import {
   composeBrief,
   defaultConfigPath,
   loadConfig,
+  tadeHome,
   waitingOn,
-  wilcoHome,
-} from '@wilco/core'
-import { loadExtensions, proposedSkills } from '@wilco/orchestrator'
-import { collectStatus } from '@wilco/status'
-import { Speaker } from '@wilco/voice-tts'
-import { readJournal } from '@wilco/workbench/events'
-import { laneLivenessFromFile } from '@wilco/workbench/lane-liveness'
+} from '@tade/core'
+import { loadExtensions, proposedSkills } from '@tade/orchestrator'
+import { collectStatus } from '@tade/status'
+import { Speaker } from '@tade/voice-tts'
+import { readJournal } from '@tade/workbench/events'
+import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
@@ -30,14 +30,14 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
     .action(async (opts: { speak?: boolean; pr: boolean; config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
 
       // What is waiting on a human comes out of the journal, so the brief is
       // the same whether a window is open or not.
-      const home = wilcoHome()
+      const home = tadeHome()
       const waiting = waitingOn(await readJournal(home))
 
       {
@@ -46,7 +46,7 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
           now: Date.now(),
           home: homedir(),
           cwd: process.cwd(),
-          pr: opts.pr && process.env.WILCO_NO_GH !== '1',
+          pr: opts.pr && process.env.TADE_NO_GH !== '1',
           liveness: await laneLivenessFromFile(home),
         })
         const tasks: BriefTask[] = workspace.projects.flatMap((project) =>
@@ -59,7 +59,7 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
         )
         // At most one lesson waiting to be read, and only if the brief is
         // short enough to hear it out: the parameter existed and nothing ever
-        // filled it, so Wilco proposed things nobody was ever told about.
+        // filled it, so Tade proposed things nobody was ever told about.
         const [waitingSkill] = proposedSkills(join(home, 'skills'))
         // What the extensions found — new errors, vulnerable dependencies —
         // said in the same breath, with what to ask about each after it.
@@ -86,7 +86,7 @@ export function registerBrief(program: Command, io: Io, setExit: (code: number) 
         }
         for (const problem of found.problems) io.err(`(could not ask ${problem})`)
         if (opts.speak) {
-          const speaker = await Speaker.create({ soundDir: join(wilcoHome(), 'sounds') })
+          const speaker = await Speaker.create({ soundDir: join(tadeHome(), 'sounds') })
           await speaker.speak(brief.spoken)
         }
       }

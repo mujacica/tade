@@ -1,14 +1,14 @@
 import { chmod, mkdir, rm } from 'node:fs/promises'
 import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
-import { DONE_RULES, type DoneRule, type LaneId, type Plan, When } from '@wilco/core'
-import type { PermissionDecision, RunId, WorkerImage } from '@wilco/harnesses-core'
-import type { Workbench } from '@wilco/workbench'
+import { DONE_RULES, type DoneRule, type LaneId, type Plan, When } from '@tade/core'
+import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
+import type { Workbench } from '@tade/workbench'
 
 // How the orchestrator's tools reach the workbench.
 //
 // The orchestrator is pi, and its tools run inside pi, which is a separate
-// process — so `wilco_run_start` has to come back out to whoever is holding
+// process — so `tade_run_start` has to come back out to whoever is holding
 // the lanes and the journal. This is that way back: one socket, hosted by the
 // window that owns the workbench, for its own children only.
 //
@@ -19,7 +19,7 @@ import type { Workbench } from '@wilco/workbench'
 // stopped being a channel and become a service.
 
 export interface ToolHostOptions {
-  wilco: Workbench
+  tade: Workbench
   /** Where the socket goes. One per host, so two windows never collide. */
   path: string
   /** A terminal was opened or used, so the window can put it in front of you. */
@@ -37,7 +37,7 @@ export interface ToolHostOptions {
   handOff?: (cwd: string) => Promise<{ note: string; images: readonly WorkerImage[] }>
   /**
    * Where everything stands, as the window sees it. Only the process
-   * supervising the agents knows which of them are between turns; `wilco
+   * supervising the agents knows which of them are between turns; `tade
    * status` from outside it calls every running agent working.
    */
   status?: () => Promise<unknown>
@@ -99,10 +99,10 @@ export class ToolHost {
   }
 
   static async listen(opts: ToolHostOptions): Promise<ToolHost> {
-    const { wilco } = opts
+    const { tade } = opts
     const methods: Record<string, Handler> = {
       'task/create': (p) =>
-        wilco.createTask({
+        tade.createTask({
           project: String(p.project),
           slug: String(p.slug),
           intent: String(p.intent),
@@ -114,7 +114,7 @@ export class ToolHost {
           by: 'orchestrator',
         }),
       'task/done': async (p) => {
-        await wilco.markDone(String(p.task), {
+        await tade.markDone(String(p.task), {
           by: 'orchestrator',
           ...(p.summary ? { summary: String(p.summary) } : {}),
         })
@@ -165,11 +165,11 @@ export class ToolHost {
         })
       },
       'status/read': async () => {
-        if (!opts.status) throw new Error('this Wilco has no window to ask')
+        if (!opts.status) throw new Error('this Tade has no window to ask')
         return opts.status()
       },
       'extension/call': async (p) => {
-        if (!opts.extensions) throw new Error('Wilco has no extensions loaded')
+        if (!opts.extensions) throw new Error('Tade has no extensions loaded')
         return opts.extensions({
           tool: String(p.tool),
           input: (p.input ?? {}) as Record<string, unknown>,
@@ -177,19 +177,19 @@ export class ToolHost {
         })
       },
       'task/park': (p) =>
-        wilco.parkTask(String(p.worktree), p.parked === true, p.task ? String(p.task) : undefined),
+        tade.parkTask(String(p.worktree), p.parked === true, p.task ? String(p.task) : undefined),
       'task/rename': (p) =>
-        wilco.renameAgent({
+        tade.renameAgent({
           task: String(p.task),
           worktree: String(p.worktree),
           title: String(p.title),
         }),
-      'worker/model': (p) => wilco.setAgentModel(String(p.task), String(p.model)),
+      'worker/model': (p) => tade.setAgentModel(String(p.task), String(p.model)),
       'worker/thinking': async (p) => ({
-        level: await wilco.setAgentThinking(String(p.task), String(p.level)),
+        level: await tade.setAgentThinking(String(p.task), String(p.level)),
       }),
       'worker/harness': (p) =>
-        wilco.setAgentHarness({
+        tade.setAgentHarness({
           task: String(p.task),
           worktree: String(p.worktree),
           harness: String(p.harness),
@@ -202,13 +202,13 @@ export class ToolHost {
       'worker/start': async (p) => {
         // The model is settled before anything starts: one that cannot be
         // found is a question for the human, never a run on some other model.
-        const model = p.model ? await wilco.resolveModel(String(p.model)) : undefined
+        const model = p.model ? await tade.resolveModel(String(p.model)) : undefined
         const prompt = String(p.prompt ?? '')
         const cwd = String(p.cwd)
         // Files go with something to say about them. A start that says nothing
         // opens the agent, and must not set it working on a picture alone.
         const handed = prompt.trim() && opts.handOff ? await opts.handOff(cwd) : null
-        return wilco.startAgent({
+        return tade.startAgent({
           task: String(p.task) as never,
           cwd,
           prompt: handed?.note ? `${prompt}\n\n${handed.note}` : prompt,
@@ -216,18 +216,18 @@ export class ToolHost {
           ...(handed?.images.length ? { images: handed.images } : {}),
         })
       },
-      'worker/list': () => wilco.runs(),
-      'worker/pending': (p) => wilco.pendingApprovals(p.task ? String(p.task) : undefined),
+      'worker/list': () => tade.runs(),
+      'worker/pending': (p) => tade.pendingApprovals(p.task ? String(p.task) : undefined),
       'worker/steer': async (p) => {
-        await wilco.steerAgent(String(p.task), String(p.message))
+        await tade.steerAgent(String(p.task), String(p.message))
         return { ok: true }
       },
       'worker/stop': async (p) => {
-        await wilco.stopAgent(String(p.task))
+        await tade.stopAgent(String(p.task))
         return { ok: true }
       },
       'worker/decide': async (p) => {
-        await wilco.decideApproval(
+        await tade.decideApproval(
           String(p.run) as RunId,
           String(p.requestId),
           p.decision as PermissionDecision,
@@ -235,15 +235,15 @@ export class ToolHost {
         return { ok: true }
       },
       'memory/remember': (p) =>
-        wilco.remember(
+        tade.remember(
           String(p.text),
           p.scope === null || p.scope === undefined ? null : String(p.scope),
-          p.by ? String(p.by) : 'wilco',
+          p.by ? String(p.by) : 'tade',
         ),
-      'events/read': (p) => wilco.events(p as never),
-      'terminal/list': (p) => wilco.terminals(p.project ? String(p.project) : undefined),
+      'events/read': (p) => tade.events(p as never),
+      'terminal/list': (p) => tade.terminals(p.project ? String(p.project) : undefined),
       'terminal/open': async (p) => {
-        const opened = await wilco.openTerminal({
+        const opened = await tade.openTerminal({
           project: String(p.project),
           ...(p.name ? { name: String(p.name) } : {}),
           ...(p.cwd ? { cwd: String(p.cwd) } : {}),
@@ -251,10 +251,10 @@ export class ToolHost {
         opts.onTerminal?.(opened.id)
         return opened
       },
-      'terminal/close': (p) => wilco.closeTerminal(said(p), project(p)),
-      'terminal/rename': (p) => wilco.renameTerminal(said(p), String(p.name), project(p)),
+      'terminal/close': (p) => tade.closeTerminal(said(p), project(p)),
+      'terminal/rename': (p) => tade.renameTerminal(said(p), String(p.name), project(p)),
       'terminal/run': async (p) => {
-        const ran = await wilco.runInTerminal(said(p), String(p.command), {
+        const ran = await tade.runInTerminal(said(p), String(p.command), {
           submit: p.submit !== false,
           ...(project(p) ? { project: project(p) } : {}),
         })
@@ -262,10 +262,10 @@ export class ToolHost {
         return ran
       },
       'terminal/read': (p) =>
-        wilco.readTerminal(said(p), Number(p.lines) > 0 ? Number(p.lines) : 200, project(p)),
-      'terminal/search': (p) => wilco.searchTerminal(said(p), String(p.text), project(p)),
+        tade.readTerminal(said(p), Number(p.lines) > 0 ? Number(p.lines) : 200, project(p)),
+      'terminal/search': (p) => tade.searchTerminal(said(p), String(p.text), project(p)),
       'lane/write': async (p) => {
-        await wilco.write(String(p.lane) as LaneId, String(p.data))
+        await tade.write(String(p.lane) as LaneId, String(p.data))
         return { ok: true }
       },
     }
@@ -348,7 +348,7 @@ function reply(socket: Socket, message: unknown): void {
 /** Links as a model sent them: only the ones with somewhere to go. */
 /** The window's queue, or why there is none to use. */
 function queueOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['queue']> {
-  if (!opts.queue) throw new Error('queued work needs the Wilco window open, which starts it')
+  if (!opts.queue) throw new Error('queued work needs the Tade window open, which starts it')
   return opts.queue
 }
 

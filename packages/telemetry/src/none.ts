@@ -11,7 +11,7 @@ export const noSpan: Span = {
 }
 
 /**
- * The reporter for when nothing is sent, which is Wilco unless someone says
+ * The reporter for when nothing is sent, which is Tade unless someone says
  * otherwise. A working reporter rather than a null, so every call site can
  * report without asking first whether there is anywhere to report to.
  */

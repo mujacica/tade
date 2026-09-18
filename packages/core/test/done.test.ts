@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { finishedFrom, ruleMet, workedFrom } from '../src/done.ts'
-import type { EventType, WilcoEvent } from '../src/events.ts'
+import type { EventType, TadeEvent } from '../src/events.ts'
 import { IDLE_REASON } from '../src/state.ts'
 
 let seq = 0
-function event(type: EventType, task: string, detail: Record<string, unknown> = {}): WilcoEvent {
+function event(type: EventType, task: string, detail: Record<string, unknown> = {}): TadeEvent {
   seq++
   return {
     seq,
@@ -59,7 +59,7 @@ describe('when a task is finished', () => {
     expect(ruleMet('committed', { ...review, workspace: 'checkout' })).toBe(false)
     expect(ruleMet('merged', review)).toBe(false)
     expect(ruleMet('merged', { ...review, state: 'merged' })).toBe(true)
-    // Nothing Wilco sees can say these: they are said.
+    // Nothing Tade sees can say these: they are said.
     expect(ruleMet('said', review)).toBe(false)
     expect(ruleMet('manual', { ...review, state: 'merged' })).toBe(false)
   })

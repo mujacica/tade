@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
-import { git } from '@wilco/status'
+import { git } from '@tade/status'
 
 // Finding a project to open: the ones you have looked at lately, and any
 // folder, browsed from your home folder or by typing its path.
@@ -134,8 +134,8 @@ export async function branchOf(root: string): Promise<string | null> {
 
 /**
  * Make a folder a repository with one commit, so a worktree has something to
- * branch from. The commit is Wilco's, not yours: what Wilco writes is marked
- * as Wilco's, and you can see and undo it like anything else in git.
+ * branch from. The commit is Tade's, not yours: what Tade writes is marked
+ * as Tade's, and you can see and undo it like anything else in git.
  */
 export async function initialise(root: string): Promise<void> {
   const steps: string[][] = [
@@ -143,9 +143,9 @@ export async function initialise(root: string): Promise<void> {
     ['add', '-A'],
     [
       '-c',
-      'user.name=Wilco',
+      'user.name=Tade',
       '-c',
-      'user.email=wilco@localhost',
+      'user.email=tade@localhost',
       'commit',
       '--allow-empty',
       '-m',

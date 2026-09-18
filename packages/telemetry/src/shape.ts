@@ -1,12 +1,12 @@
-import type { WilcoEvent } from '@wilco/core'
+import type { TadeEvent } from '@tade/core'
 import type { FromEvent, Level, Measure } from './port.ts'
 
 // What may be sent, worked out in pure functions: where a DSN points, what a
 // journal event is worth sending as, and what is taken out of everything
 // before it goes. The SDK does the protocol; this is the policy, which is the
-// part Wilco has to decide for itself.
+// part Tade has to decide for itself.
 //
-// Everything here is a value in and a value out, so what Wilco would send can
+// Everything here is a value in and a value out, so what Tade would send can
 // be read in a test instead of sniffed on a network.
 
 /** A DSN taken apart: where to send, and what to sign with. */
@@ -78,7 +78,7 @@ export function shapeOf(message: string): string {
 
 /**
  * The only keys of a journal event's detail that are ever sent: names, counts,
- * and Wilco's own words about what happened. Anything else — what you said,
+ * and Tade's own words about what happened. Anything else — what you said,
  * what an agent wrote, what a task is called — stays on your machine, and a
  * new key sends nothing until someone puts it here on purpose.
  */
@@ -139,11 +139,11 @@ export function about(
 const NEVER = new Set(['output', 'input', 'said'])
 
 /**
- * What a journal event is worth sending as. Wilco's own trouble — a crash it
+ * What a journal event is worth sending as. Tade's own trouble — a crash it
  * caught, a warning it wrote down — is an issue to fix. What agents did is
  * lines to read beside it and numbers to watch; what anybody said is neither.
  */
-export function fromEvent(event: WilcoEvent, home: string): FromEvent {
+export function fromEvent(event: TadeEvent, home: string): FromEvent {
   if (NEVER.has(event.type) || event.urgency === 'trace') return {}
   const detail = about(event.detail, home)
   const task = event.task ?? undefined
@@ -153,11 +153,11 @@ export function fromEvent(event: WilcoEvent, home: string): FromEvent {
     return {
       trouble: {
         error: scrub(message, home),
-        where: 'wilco',
+        where: 'tade',
         level: 'warning',
         ...(task ? { task } : {}),
         ...(project ? { project } : {}),
-        fingerprint: ['wilco', 'warning', shapeOf(message)],
+        fingerprint: ['tade', 'warning', shapeOf(message)],
         about: detail,
       },
     }
@@ -172,7 +172,7 @@ export function fromEvent(event: WilcoEvent, home: string): FromEvent {
     if (Number.isFinite(tokens) && tokens > 0) {
       measures.push({
         at: Date.parse(event.ts),
-        name: 'wilco.tokens',
+        name: 'tade.tokens',
         kind: 'distribution',
         value: tokens,
         unit: 'token',
@@ -182,7 +182,7 @@ export function fromEvent(event: WilcoEvent, home: string): FromEvent {
     if (Number.isFinite(cost) && cost > 0) {
       measures.push({
         at: Date.parse(event.ts),
-        name: 'wilco.cost',
+        name: 'tade.cost',
         kind: 'distribution',
         value: cost,
         unit: 'usd',
@@ -194,7 +194,7 @@ export function fromEvent(event: WilcoEvent, home: string): FromEvent {
   if (event.type === 'failed') {
     measures.push({
       at: Date.parse(event.ts),
-      name: 'wilco.failed',
+      name: 'tade.failed',
       kind: 'counter',
       value: 1,
       about: task ? { task } : {},

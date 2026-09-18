@@ -1,5 +1,5 @@
-import type { WilcoEvent } from '@wilco/core'
-import { Speaker } from '@wilco/voice-tts'
+import type { TadeEvent } from '@tade/core'
+import { Speaker } from '@tade/voice-tts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import {
@@ -15,9 +15,9 @@ import {
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')
 
-function fakeWilco() {
+function fakeTade() {
   const calls: string[] = []
-  let handler: ((event: WilcoEvent) => void) | null = null
+  let handler: ((event: TadeEvent) => void) | null = null
   const state = {
     pending: [] as Array<{
       run: string
@@ -29,11 +29,11 @@ function fakeWilco() {
     runs: [] as Array<{ run: string; task: string }>,
   }
   const decisions: Array<{ allow: boolean; reason?: string; said?: string }> = []
-  const wilco: VoiceWorkbench & {
+  const tade: VoiceWorkbench & {
     calls: string[]
     decisions: typeof decisions
     state: typeof state
-    emit(e: WilcoEvent): void
+    emit(e: TadeEvent): void
   } = {
     calls,
     decisions,
@@ -76,11 +76,11 @@ function fakeWilco() {
       return { text, scope, at: new Date(NOW).toISOString() }
     },
   }
-  return wilco
+  return tade
 }
 
 async function surface(
-  wilco: ReturnType<typeof fakeWilco>,
+  tade: ReturnType<typeof fakeTade>,
   over: {
     ask?: (t: string) => Promise<string>
     extension?: (t: string) => Promise<string | null>
@@ -90,7 +90,7 @@ async function surface(
   const said: string[] = []
   const tones: string[] = []
   const speaker = await Speaker.create({
-    soundDir: tmp('wilco-voice-'),
+    soundDir: tmp('tade-voice-'),
     platform: 'darwin',
     run: async ({ command, args }) => {
       if (command === 'say') said.push(args.at(-1) ?? '')
@@ -98,7 +98,7 @@ async function surface(
     },
   })
   const voice = await VoiceSurface.start({
-    wilco,
+    tade,
     speaker,
     now: () => NOW,
     // Fixed, so quiet hours don't depend on where this machine thinks it is.
@@ -114,7 +114,7 @@ async function surface(
   return { voice, said, tones }
 }
 
-const event = (over: Partial<WilcoEvent>): WilcoEvent => ({
+const event = (over: Partial<TadeEvent>): TadeEvent => ({
   seq: 1,
   ts: '2026-09-11T14:00:00.000Z',
   type: 'permission_request',
@@ -127,66 +127,66 @@ const event = (over: Partial<WilcoEvent>): WilcoEvent => ({
 })
 
 describe('VoiceSurface', () => {
-  let wilco: ReturnType<typeof fakeWilco>
+  let tade: ReturnType<typeof fakeTade>
   beforeEach(() => {
-    wilco = fakeWilco()
+    tade = fakeTade()
   })
 
   it('answers where we are', async () => {
-    const { voice, said } = await surface(wilco)
+    const { voice, said } = await surface(tade)
     expect(await voice.handle('where are we')).toBe('Two tasks, nothing blocked.')
     expect(said).toEqual(['Two tasks, nothing blocked.'])
   })
 
   it('lets go of the event stream when it stops', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     await voice.stop()
     // Otherwise the journal keeps pushing events at a surface that has gone.
-    expect(wilco.calls).toContain('unsubscribed')
-    wilco.emit(event({}))
+    expect(tade.calls).toContain('unsubscribed')
+    tade.emit(event({}))
     expect(await voice.handle('where are we')).toBe('Two tasks, nothing blocked.')
   })
 
   it('stops twice without complaining', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     await voice.stop()
     // Whoever is closing the window may well ask twice.
     await expect(voice.stop()).resolves.toBeUndefined()
   })
 
   it('parks a task and picks it back up', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     expect(await voice.handle('park migration')).toBe('Parked migration.')
     expect(await voice.handle('pick migration back up')).toBe('Picked up migration.')
-    expect(wilco.calls).toEqual(['park /wt/migration true', 'park /wt/migration false'])
+    expect(tade.calls).toEqual(['park /wt/migration true', 'park /wt/migration false'])
   })
 
   it('tells a running agent something', async () => {
-    wilco.state.runs = [{ run: 'r7', task: 'checkout/refunds' }]
-    const { voice } = await surface(wilco)
+    tade.state.runs = [{ run: 'r7', task: 'checkout/refunds' }]
+    const { voice } = await surface(tade)
     expect(await voice.handle('tell refunds to also update the docs')).toBe('Told refunds.')
-    expect(wilco.calls).toEqual(['steer checkout/refunds to also update the docs'])
+    expect(tade.calls).toEqual(['steer checkout/refunds to also update the docs'])
   })
 
   it('says so when nothing is running on that task', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     expect(await voice.handle('tell refunds to hurry up')).toMatch(/Nothing is running/)
-    expect(wilco.calls).toEqual([])
+    expect(tade.calls).toEqual([])
   })
 
   it('starts work, keeping your words as the intent', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     const said = await voice.handle('start the refund flow double-charges on retries in checkout')
     expect(said).toMatch(/^Starting /)
-    expect(wilco.calls[0]).toContain('create checkout/')
+    expect(tade.calls[0]).toContain('create checkout/')
     // The task is named from the words, and the words are kept whole.
-    expect(wilco.calls[0]).toContain('the refund flow double-charges on retries')
-    expect(wilco.calls[1]).toMatch(/^start checkout\//)
+    expect(tade.calls[0]).toContain('the refund flow double-charges on retries')
+    expect(tade.calls[1]).toMatch(/^start checkout\//)
   })
 
   describe('approvals', () => {
     it('a yes answers the one thing waiting', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         {
           run: 'r1',
           requestId: 'q1',
@@ -195,13 +195,13 @@ describe('VoiceSurface', () => {
           tier: 'soft',
         },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       expect(await voice.handle('go ahead')).toBe('Approved: bash: npm test')
-      expect(wilco.calls).toEqual(['decide r1 q1 allow'])
+      expect(tade.calls).toEqual(['decide r1 q1 allow'])
     })
 
     it('a no denies it, and says what was denied', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         {
           run: 'r1',
           requestId: 'q1',
@@ -210,23 +210,23 @@ describe('VoiceSurface', () => {
           tier: 'soft',
         },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       expect(await voice.handle('no')).toBe('Denied: bash: npm test')
-      expect(wilco.calls).toEqual(['decide r1 q1 deny'])
+      expect(tade.calls).toEqual(['decide r1 q1 deny'])
     })
 
     it('never guesses when more than one thing is waiting', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         { run: 'r1', requestId: 'q1', task: 'a/b', summary: 'bash: npm test', tier: 'soft' },
         { run: 'r2', requestId: 'q2', task: 'c/d', summary: 'bash: rm -rf build', tier: 'soft' },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       expect(await voice.handle('yes')).toMatch(/2 things are waiting/)
-      expect(wilco.calls).toEqual([])
+      expect(tade.calls).toEqual([])
     })
 
     it('records the words that decided it, verbatim', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         {
           run: 'r1',
           requestId: 'q1',
@@ -235,15 +235,15 @@ describe('VoiceSurface', () => {
           tier: 'soft',
         },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       await voice.handle('no')
       // The ledger keeps what you said, so a decision can be explained later
       // in the words that made it.
-      expect(wilco.decisions.at(-1)).toMatchObject({ allow: false, said: 'no' })
+      expect(tade.decisions.at(-1)).toMatchObject({ allow: false, said: 'no' })
     })
 
     it('records the confirming phrase too', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         {
           run: 'r1',
           requestId: 'q1',
@@ -252,13 +252,13 @@ describe('VoiceSurface', () => {
           tier: 'hard',
         },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       await voice.handle('confirm force push')
-      expect(wilco.decisions.at(-1)).toMatchObject({ allow: true, said: 'confirm force push' })
+      expect(tade.decisions.at(-1)).toMatchObject({ allow: true, said: 'confirm force push' })
     })
 
     it('a bare yes cannot carry out something destructive', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         {
           run: 'r1',
           requestId: 'q1',
@@ -267,15 +267,15 @@ describe('VoiceSurface', () => {
           tier: 'hard',
         },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       const reply = await voice.handle('yes')
       expect(reply).toMatch(/needs confirming/)
       expect(reply).toContain('git push --force origin main')
-      expect(wilco.calls).toEqual([])
+      expect(tade.calls).toEqual([])
     })
 
     it('the read-back phrase carries it out', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         {
           run: 'r1',
           requestId: 'q1',
@@ -284,24 +284,24 @@ describe('VoiceSurface', () => {
           tier: 'hard',
         },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       expect(await voice.handle('confirm force push')).toMatch(/^Confirmed: /)
-      expect(wilco.calls).toEqual(['decide r1 q1 allow'])
+      expect(tade.calls).toEqual(['decide r1 q1 allow'])
     })
 
     it('a phrase that matches nothing does nothing', async () => {
-      wilco.state.pending = [
+      tade.state.pending = [
         { run: 'r1', requestId: 'q1', task: 'a/b', summary: 'bash: npm test', tier: 'hard' },
       ]
-      const { voice } = await surface(wilco)
+      const { voice } = await surface(tade)
       expect(await voice.handle('confirm force push')).toMatch(/Nothing waiting matches/)
-      expect(wilco.calls).toEqual([])
+      expect(tade.calls).toEqual([])
     })
   })
 
   it('passes anything it does not recognise to the orchestrator', async () => {
     const asked: string[] = []
-    const { voice } = await surface(wilco, {
+    const { voice } = await surface(tade, {
       ask: async (text) => {
         asked.push(text)
         return 'It changed the webhook handler.'
@@ -315,16 +315,16 @@ describe('VoiceSurface', () => {
 
   it('lets an extension answer what it listens for before the orchestrator is asked', async () => {
     const asked: string[] = []
-    const { voice } = await surface(wilco, {
+    const { voice } = await surface(tade, {
       extension: async (text) =>
-        text === 'how much is wilco using' ? 'Wilco is using 12% CPU and 400 MB of memory.' : null,
+        text === 'how much is tade using' ? 'Tade is using 12% CPU and 400 MB of memory.' : null,
       ask: async (text) => {
         asked.push(text)
         return 'Asked.'
       },
     })
-    expect(await voice.handle('how much is wilco using')).toBe(
-      'Wilco is using 12% CPU and 400 MB of memory.',
+    expect(await voice.handle('how much is tade using')).toBe(
+      'Tade is using 12% CPU and 400 MB of memory.',
     )
     expect(await voice.handle('what did the migration change')).toBe('Asked.')
     expect(asked).toEqual(['what did the migration change'])
@@ -332,17 +332,17 @@ describe('VoiceSurface', () => {
 
   describe('what it does with events', () => {
     it('speaks something waiting on you', async () => {
-      const { voice, said } = await surface(wilco)
-      wilco.emit(event({ detail: { summary: 'bash: npm i stripe@15' } }))
+      const { voice, said } = await surface(tade)
+      tade.emit(event({ detail: { summary: 'bash: npm i stripe@15' } }))
       await new Promise((r) => setTimeout(r, 5))
       expect(said[0]).toContain('migration is waiting on bash: npm i stripe@15')
       expect(voice.spokenInLastHour).toBe(1)
     })
 
     it('plays a tone instead once the hourly budget is gone', async () => {
-      const { voice, said, tones } = await surface(wilco)
+      const { voice, said, tones } = await surface(tade)
       for (let i = 0; i < 8; i++) {
-        wilco.emit(event({ seq: i, detail: { summary: `thing ${i}` } }))
+        tade.emit(event({ seq: i, detail: { summary: `thing ${i}` } }))
         await new Promise((r) => setTimeout(r, 2))
       }
       expect(said.length).toBe(6) // the budget
@@ -354,20 +354,20 @@ describe('VoiceSurface', () => {
     })
 
     it('stays quiet about routine noise', async () => {
-      const { said, tones } = await surface(wilco)
-      wilco.emit(event({ type: 'output', urgency: 'trace' }))
-      wilco.emit(event({ type: 'tool_call', urgency: 'routine' }))
+      const { said, tones } = await surface(tade)
+      tade.emit(event({ type: 'output', urgency: 'trace' }))
+      tade.emit(event({ type: 'tool_call', urgency: 'routine' }))
       await new Promise((r) => setTimeout(r, 5))
       expect(said).toEqual([])
       expect(tones).toEqual([])
     })
 
     it('drops to a tone while you are typing in that task', async () => {
-      const second = fakeWilco()
+      const second = fakeTade()
       const said: string[] = []
       const tones: string[] = []
       const speaker = await Speaker.create({
-        soundDir: tmp('wilco-voice-'),
+        soundDir: tmp('tade-voice-'),
         platform: 'darwin',
         run: async ({ command, args }) => {
           if (command === 'say') said.push(args.at(-1) ?? '')
@@ -375,7 +375,7 @@ describe('VoiceSurface', () => {
         },
       })
       await VoiceSurface.start({
-        wilco: second,
+        tade: second,
         speaker,
         now: () => NOW,
         localHour: () => 14,
@@ -393,7 +393,7 @@ describe('VoiceSurface', () => {
 
   describe('streaming speech', () => {
     it('speaks sentences as chunks arrive, not all at the end', async () => {
-      const { voice, said } = await surface(wilco)
+      const { voice, said } = await surface(tade)
       voice.speakChunk('First sentence. ')
       voice.speakChunk('Second sentence. ')
       voice.speakChunk('Third')
@@ -415,7 +415,7 @@ describe('VoiceSurface', () => {
         toneFile: () => '',
       } as unknown as Speaker
       const voice = await VoiceSurface.start({
-        wilco,
+        tade,
         speaker: brokenSpeaker,
         now: () => NOW,
         localHour: () => 14,
@@ -444,7 +444,7 @@ describe('VoiceSurface', () => {
 
     it('says an answer once, however many ways it arrives', async () => {
       let voice: VoiceSurface | null = null
-      const made = await surface(wilco, { ask: answering(() => voice as VoiceSurface) })
+      const made = await surface(tade, { ask: answering(() => voice as VoiceSurface) })
       voice = made.voice
       expect(await made.voice.handle('what about the refunds design')).toBe(ANSWER)
       expect(made.said).toEqual(['Refunds has an agent on it now.', 'Which opus: 4.1, 4.6 or 5?'])
@@ -452,7 +452,7 @@ describe('VoiceSurface', () => {
 
     it('says a message that did not stream, once', async () => {
       let voice: VoiceSurface | null = null
-      const made = await surface(wilco, {
+      const made = await surface(tade, {
         ask: async () => {
           voice?.speakMessage(ANSWER)
           return ANSWER
@@ -468,7 +468,7 @@ describe('VoiceSurface', () => {
       let talking = 0
       let most = 0
       const speaker = await Speaker.create({
-        soundDir: tmp('wilco-voice-'),
+        soundDir: tmp('tade-voice-'),
         platform: 'darwin',
         run: async ({ command, args }) => {
           if (command !== 'say') return
@@ -481,7 +481,7 @@ describe('VoiceSurface', () => {
       })
       let voice: VoiceSurface | null = null
       voice = await VoiceSurface.start({
-        wilco,
+        tade,
         speaker,
         now: () => NOW,
         localHour: () => 14,
@@ -492,7 +492,7 @@ describe('VoiceSurface', () => {
       })
       const answered = voice.handle('what about the refunds design')
       // Something that wants you, while the answer is still being said.
-      wilco.emit(event({ type: 'permission_request', urgency: 'blocking' }))
+      tade.emit(event({ type: 'permission_request', urgency: 'blocking' }))
       await answered
       await new Promise((r) => setTimeout(r, 60))
       expect(most).toBe(1)
@@ -507,45 +507,45 @@ describe('VoiceSurface', () => {
 })
 
 describe('remembering', () => {
-  let wilco: ReturnType<typeof fakeWilco>
+  let tade: ReturnType<typeof fakeTade>
 
   beforeEach(() => {
-    wilco = fakeWilco()
+    tade = fakeTade()
   })
 
   it('writes it down against whatever you were just talking about', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     await voice.handle('show me migration')
     // It says where it filed it, so filing it wrong is obvious and correctable.
     expect(await voice.handle('remember the constraint is on user_id')).toBe(
       'Noted, about migration.',
     )
-    expect(wilco.calls).toContain('remember app/migration the constraint is on user_id')
+    expect(tade.calls).toContain('remember app/migration the constraint is on user_id')
   })
 
   it('files it against nothing in particular when nothing is being discussed', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     expect(await voice.handle('remember I work from home on Fridays')).toBe('Noted.')
-    expect(wilco.calls).toContain('remember - I work from home on Fridays')
+    expect(tade.calls).toContain('remember - I work from home on Fridays')
   })
 
   it('keeps the wording exactly, like an intent', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     await voice.handle('remember the staging key rotates on the 1st')
-    expect(wilco.calls).toContain('remember - the staging key rotates on the 1st')
+    expect(tade.calls).toContain('remember - the staging key rotates on the 1st')
   })
 
   it('takes a note the other ways of saying it', async () => {
-    const { voice } = await surface(wilco)
+    const { voice } = await surface(tade)
     await voice.handle('note that the webhook retries twice')
     await voice.handle('keep in mind the index is partial')
-    expect(wilco.calls).toContain('remember - the webhook retries twice')
-    expect(wilco.calls).toContain('remember - the index is partial')
+    expect(tade.calls).toContain('remember - the webhook retries twice')
+    expect(tade.calls).toContain('remember - the index is partial')
   })
 
   it('says plainly when there is nowhere to write it down', async () => {
     // Without somewhere to store it, saying "noted" would be a lie.
-    const { remember: _cannot, ...cannotRemember } = fakeWilco()
+    const { remember: _cannot, ...cannotRemember } = fakeTade()
     const { voice } = await surface(cannotRemember)
     expect(await voice.handle('remember anything at all')).toBe("I can't remember things yet.")
   })
@@ -591,7 +591,7 @@ describe('terminals, by voice', () => {
 
   it('opens, shows, renames, closes and searches the terminal it names', async () => {
     const { control, calls } = terminals()
-    const { voice } = await surface(fakeWilco(), { terminals: control })
+    const { voice } = await surface(fakeTade(), { terminals: control })
     expect(await voice.handle('open a new terminal called tests')).toBe('Opened tests.')
     expect(await voice.handle('show me the tests terminal')).toBe('Showing tests.')
     expect(await voice.handle('rename terminal 2 to server')).toBe('Renamed 2 to server.')
@@ -603,9 +603,9 @@ describe('terminals, by voice', () => {
   })
 
   it('types a command it heard, and runs it only once its words are read back', async () => {
-    const wilco = fakeWilco()
+    const tade = fakeTade()
     const { control, calls } = terminals()
-    const { voice } = await surface(wilco, { terminals: control })
+    const { voice } = await surface(tade, { terminals: control })
     expect(await voice.handle('run npm test in the tests terminal')).toBe('Typed npm test.')
     // A bare yes never runs a command: it could be anything, misheard.
     expect(await voice.handle('yes')).toBe('Nothing is waiting.')
@@ -615,7 +615,7 @@ describe('terminals, by voice', () => {
   })
 
   it('says so where there are no terminals to control', async () => {
-    const { voice } = await surface(fakeWilco())
+    const { voice } = await surface(fakeTade())
     expect(await voice.handle('open a terminal')).toContain('no terminals here')
   })
 })

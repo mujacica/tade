@@ -1,13 +1,7 @@
-import {
-  type EventFilter,
-  type LaneId,
-  type LaneKind,
-  type WilcoEvent,
-  wilcoHome,
-} from '@wilco/core'
-import type { Workbench } from '@wilco/workbench'
-import { readJournal } from '@wilco/workbench/events'
-import type { LaneRecord } from '@wilco/workbench/registry'
+import { type EventFilter, type LaneId, type LaneKind, type TadeEvent, tadeHome } from '@tade/core'
+import type { Workbench } from '@tade/workbench'
+import { readJournal } from '@tade/workbench/events'
+import type { LaneRecord } from '@tade/workbench/registry'
 import type { Command } from 'commander'
 import { attachToLane } from '../attach.ts'
 import { Exit, type Io } from '../io.ts'
@@ -48,7 +42,7 @@ export function registerLanes(program: Command, io: Io, setExit: (code: number) 
             ...(opts.title ? { title: opts.title } : {}),
           })
           if (opts.json) io.out(JSON.stringify(record, null, 2))
-          else io.out(`${record.id}  pid ${record.pid}  attach: wilco attach ${record.id}`)
+          else io.out(`${record.id}  pid ${record.pid}  attach: tade attach ${record.id}`)
         })
       },
     )
@@ -123,10 +117,10 @@ export function registerLanes(program: Command, io: Io, setExit: (code: number) 
           ...(opts.minUrgency ? { minUrgency: opts.minUrgency as EventFilter['minUrgency'] } : {}),
           limit: Number(opts.limit),
         }
-        const show = (e: WilcoEvent) => io.out(opts.json ? JSON.stringify(e) : formatEvent(e))
+        const show = (e: TadeEvent) => io.out(opts.json ? JSON.stringify(e) : formatEvent(e))
         // Read the file rather than take the workbench: what happened is a
         // question, and you must be able to ask it with a window open.
-        const home = wilcoHome()
+        const home = tadeHome()
         let seen = 0
         for (const e of await readJournal(home, filter)) {
           show(e)
@@ -170,7 +164,7 @@ function formatLane(lane: LaneRecord, width: number): string {
   return `${lane.id.padEnd(width)}  ${lane.kind.padEnd(6)}  ${state.padEnd(9)}${age}`
 }
 
-function formatEvent(e: WilcoEvent): string {
+function formatEvent(e: TadeEvent): string {
   const where = e.lane ?? e.task ?? '-'
   const detail = Object.entries(e.detail)
     .map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)

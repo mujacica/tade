@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@wilco/core'
-import { ExtensionHost } from '@wilco/extensions-core'
-import { Workbench } from '@wilco/workbench'
+import { ConfigSchema } from '@tade/core'
+import { ExtensionHost } from '@tade/extensions-core'
+import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
@@ -19,12 +19,12 @@ import {
 // with the extensions' instructions and pieces.
 
 describe('an agent an extension starts', () => {
-  let wilco: Workbench | null = null
+  let tade: Workbench | null = null
 
   afterEach(async () => {
-    await wilco?.stopEverything().catch(() => {})
-    await wilco?.close().catch(() => {})
-    wilco = null
+    await tade?.stopEverything().catch(() => {})
+    await tade?.close().catch(() => {})
+    tade = null
   })
 
   it('works where agents work, with its context and links, and launches with what extensions give agents', async () => {
@@ -58,12 +58,12 @@ describe('an agent an extension starts', () => {
       home,
     })
     let window: ReturnType<typeof extensionWorkbench> | null = null
-    wilco = await Workbench.open({
+    tade = await Workbench.open({
       home,
       extensions: workbenchExtensions(host, home, () => window),
     })
     const started: string[] = []
-    window = extensionWorkbench(wilco, (task) => started.push(task))
+    window = extensionWorkbench(tade, (task) => started.push(task))
 
     const first = await window.startAgent({
       project: 'shop',
@@ -77,25 +77,25 @@ describe('an agent an extension starts', () => {
     expect(started).toEqual(['shop/fix-shop-1a'])
     // Beside the others in the checkout, which is where agents work unless set otherwise.
     expect(first.worktree).toBe(repo.root)
-    const own = join(first.worktree, '.wilco', 'tasks', 'fix-shop-1a')
+    const own = join(first.worktree, '.tade', 'tasks', 'fix-shop-1a')
     expect(readFileSync(join(own, 'context.md'), 'utf8')).toBe(
       '# SHOP-1A: TypeError in refund\n\n## Links\n\n- [SHOP-1A](https://acme.sentry.io/issues/4411/)\n',
     )
     expect(existsSync(join(first.worktree, 'prepared.txt'))).toBe(true)
 
     // The agent runs with the extensions' words, skills and tools.
-    const lane = wilco.lane('shop/fix-shop-1a/agent' as never)
+    const lane = tade.lane('shop/fix-shop-1a/agent' as never)
     const args = lane?.spec.args ?? []
     const told = args[args.indexOf('--append-system-prompt') + 1] ?? ''
-    // It knows where it is: in Wilco, on this task, in the checkout beside others.
-    expect(told).toContain('You are running inside Wilco')
+    // It knows where it is: in Tade, on this task, in the checkout beside others.
+    expect(told).toContain('You are running inside Tade')
     expect(told).toContain('Your task is shop/fix-shop-1a')
     expect(told).toContain(first.worktree)
     expect(told).toContain('at the same time as other agents')
-    expect(told).toContain('.wilco/tasks/fix-shop-1a/context.md')
+    expect(told).toContain('.tade/tasks/fix-shop-1a/context.md')
     expect(told).toContain('shop reports errors to the error tracker.')
     expect(args[args.indexOf('--skill') + 1]).toBe(join(root, 'skills', 'fixing'))
-    const tools = JSON.parse(readFileSync(lane?.spec.env?.WILCO_EXTENSION_TOOLS ?? '', 'utf8')) as {
+    const tools = JSON.parse(readFileSync(lane?.spec.env?.TADE_EXTENSION_TOOLS ?? '', 'utf8')) as {
       name: string
     }[]
     expect(tools.map((tool) => tool.name)).toEqual(['errors_issue'])
@@ -106,11 +106,11 @@ describe('an agent an extension starts', () => {
     )
 
     // Renamed while it runs: kept in its task, and it keeps the name next time it starts.
-    await wilco.renameAgent({ task: first.task, worktree: first.worktree, title: 'Refund retries' })
+    await tade.renameAgent({ task: first.task, worktree: first.worktree, title: 'Refund retries' })
     expect(readFileSync(join(own, 'task.yaml'), 'utf8')).toContain('title_named: true')
 
     // The same work started again is a second agent, not an error.
-    await wilco.stopAgent('shop/fix-shop-1a')
+    await tade.stopAgent('shop/fix-shop-1a')
     const again = await window.startAgent({
       project: 'shop',
       title: 'fix SHOP-1A',
@@ -134,7 +134,7 @@ describe('an agent an extension starts', () => {
     ])
   })
 
-  it('lists what Wilco wrote for itself, and approving or turning one down moves it and is committed', async () => {
+  it('lists what Tade wrote for itself, and approving or turning one down moves it and is committed', async () => {
     const root = tmp('wx-proposals-')
     mkdirSync(join(root, 'proposed', 'release-notes'), { recursive: true })
     writeFileSync(
@@ -160,7 +160,7 @@ describe('an agent an extension starts', () => {
       },
     ])
     expect(await decideProposal(root, 'release-notes', 'approve')).toContain(
-      'loads when Wilco next starts',
+      'loads when Tade next starts',
     )
     expect(existsSync(join(root, 'active', 'release-notes', 'extension.ts'))).toBe(true)
     await decideProposal(root, 'standup', 'reject')

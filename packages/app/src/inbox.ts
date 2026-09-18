@@ -1,7 +1,7 @@
-import type { WilcoEvent } from '@wilco/core'
+import type { TadeEvent } from '@tade/core'
 import type { TaskSnapshot } from './model.ts'
 
-// What Wilco tells the orchestrator without being asked.
+// What Tade tells the orchestrator without being asked.
 //
 // Two kinds, because they cost different things. News — an agent finished,
 // one failed, the queue started one — is worth knowing and not worth a turn of
@@ -48,7 +48,7 @@ export function taskNews(
 }
 
 /** What a journal event is worth telling, when it is: a task finishing, and who said so. */
-export function eventNews(event: WilcoEvent): string | null {
+export function eventNews(event: TadeEvent): string | null {
   if (event.type !== 'task_done' || !event.task) return null
   const summary = typeof event.detail.summary === 'string' ? event.detail.summary.trim() : ''
   const who =
@@ -78,7 +78,7 @@ export function withNews(
 ): string {
   if (news.length === 0) return message
   return [
-    'Since you last heard from Wilco:',
+    'Since you last heard from Tade:',
     ...news.map((one) => `- ${clock(one.at)} ${one.text}`),
     '',
     heading,

@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/orchestrator",
+  "name": "@tade/orchestrator",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -8,13 +8,13 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
-    "@wilco/workbench": "workspace:*",
-    "@wilco/harnesses-core": "workspace:*",
-    "@wilco/harnesses-pi": "workspace:*",
-    "@wilco/extensions-core": "workspace:*",
-    "@wilco/extension-deps": "workspace:*",
-    "@wilco/extension-sentry": "workspace:*",
-    "@wilco/extension-resources": "workspace:*"
+    "@tade/core": "workspace:*",
+    "@tade/workbench": "workspace:*",
+    "@tade/harnesses-core": "workspace:*",
+    "@tade/harnesses-pi": "workspace:*",
+    "@tade/extensions-core": "workspace:*",
+    "@tade/extension-deps": "workspace:*",
+    "@tade/extension-sentry": "workspace:*",
+    "@tade/extension-resources": "workspace:*"
   }
 }

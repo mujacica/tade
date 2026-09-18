@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process'
-import type { EditorName } from '@wilco/core'
+import type { EditorName } from '@tade/core'
 
 // Opening what you click: a file at a line in your editor, or a link in your
 // browser.
 //
 // Which editor is decided in order of how sure we can be. One you named in the
-// config wins. Then the editor whose terminal Wilco is running in, because
+// config wins. Then the editor whose terminal Tade is running in, because
 // that is the window you are already looking at. Then $VISUAL or $EDITOR —
-// and a terminal editor opens in a lane inside Wilco, next to the agent, since
+// and a terminal editor opens in a lane inside Tade, next to the agent, since
 // handing this terminal to vim would take the window away. Last, whatever the
 // system opens that kind of file with.
 //
@@ -36,7 +36,7 @@ export function chooseEditor(
 ): { editor: EditorName; because: string } {
   if (configured) return { editor: configured, because: 'the config says so' }
   const inside = editorWeAreIn(env)
-  if (inside) return { editor: inside, because: 'Wilco is running in its terminal' }
+  if (inside) return { editor: inside, because: 'Tade is running in its terminal' }
   const named = fromEnvironment(env.VISUAL ?? env.EDITOR)
   if (named) return { editor: named, because: env.VISUAL ? '$VISUAL' : '$EDITOR' }
   void platform

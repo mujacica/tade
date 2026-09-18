@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▸ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
  ▸ CHANGES  3         vs main │─────────────────────────────────────────────────────────────────────────────────────────
@@ -13,10 +13,10 @@
  ▸ NOTES  4           ▐  +  ▌ │  ● Upgrading stripe to v15. The webhook signature API changed,                          
  ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
    repo     ~/src/checkout    │                                                                                         
-   branch   …lco/stripe-v15   │  ▸ Read src/webhooks.ts                                                                 
+   branch   tade/stripe-v15   │  ▸ Read src/webhooks.ts                                                                 
    from     main              │  ▸ Edit src/webhooks.ts  +12 −4                                                         
    worktree …ckout-stripe-v15 │  ▸ bash npm i stripe@15                                                                 
-   path     /Users/me/.wilco/ │  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   path     /Users/me/.tade/  │  ╭─ wants approval ─────────────────────────────────────────────╮                       
             worktrees/        │  │ bash  npm i stripe@15                                        │                       
             checkout-stripe-v │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
             15                │  ╰──────────────────────────────────────────────────────────────╯                       
@@ -27,8 +27,8 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/workbench",
+  "name": "@tade/workbench",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -9,19 +9,19 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
-    "@wilco/drivers-core": "workspace:*",
-    "@wilco/drivers-pty": "workspace:*",
-    "@wilco/drivers-tmux": "workspace:*",
-    "@wilco/harnesses-core": "workspace:*",
-    "@wilco/harnesses-pi": "workspace:*",
-    "@wilco/status": "workspace:*",
-    "@wilco/telemetry": "workspace:*",
+    "@tade/core": "workspace:*",
+    "@tade/drivers-core": "workspace:*",
+    "@tade/drivers-pty": "workspace:*",
+    "@tade/drivers-tmux": "workspace:*",
+    "@tade/harnesses-core": "workspace:*",
+    "@tade/harnesses-pi": "workspace:*",
+    "@tade/status": "workspace:*",
+    "@tade/telemetry": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "yaml": "^2.9.0",
     "zod": "^4.6.2"
   },
   "devDependencies": {
-    "@wilco/drivers-core": "workspace:*"
+    "@tade/drivers-core": "workspace:*"
   }
 }

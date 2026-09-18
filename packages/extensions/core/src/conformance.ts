@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ExtensionHost, shapeProblem } from './host.ts'
-import type { WilcoExtension } from './port.ts'
+import type { TadeExtension } from './port.ts'
 
 // The suite every extension passes, built-in or yours. It asserts the
 // contract around an extension rather than what it finds: that it is put
@@ -20,7 +20,7 @@ export interface ConformanceOptions {
 }
 
 export function extensionConformance(
-  make: () => WilcoExtension,
+  make: () => TadeExtension,
   options: ConformanceOptions = {},
 ): void {
   const extension = make()

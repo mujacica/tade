@@ -53,7 +53,7 @@ export interface Setting {
   fallback: string
   type: SettingKind
   /**
-   * Whether changing it takes effect at once. Anything read when Wilco starts
+   * Whether changing it takes effect at once. Anything read when Tade starts
    * says so instead, because a setting that looks applied and is not is worse
    * than one that waits honestly.
    */
@@ -86,7 +86,7 @@ export function settingsOf(config: Config): SettingGroup[] {
     {
       id: 'agents',
       title: 'Agents',
-      about: 'Where agents work, what they commit, and what happens to them when Wilco closes.',
+      about: 'Where agents work, what they commit, and what happens to them when Tade closes.',
       settings: [
         {
           path: 'agents.workspace',
@@ -120,7 +120,7 @@ export function settingsOf(config: Config): SettingGroup[] {
         {
           path: 'workspace.driver',
           title: 'Where agents run',
-          means: 'tmux keeps agents working after you close Wilco; pty stops them with it',
+          means: 'tmux keeps agents working after you close Tade; pty stops them with it',
           value: config.workspace.driver,
           fallback: 'pty',
           type: { kind: 'choice', options: ['pty', 'tmux'] },
@@ -138,7 +138,7 @@ export function settingsOf(config: Config): SettingGroup[] {
         {
           path: 'workspace.adopt',
           title: 'Adopt other agents',
-          means: 'show Claude Code and Codex sessions started outside Wilco',
+          means: 'show Claude Code and Codex sessions started outside Tade',
           value: String(config.workspace.adopt),
           fallback: 'true',
           type: { kind: 'flag' },
@@ -232,7 +232,7 @@ export function settingsOf(config: Config): SettingGroup[] {
     {
       id: 'voice',
       title: 'Voice',
-      about: 'How you talk to Wilco, and how it talks back.',
+      about: 'How you talk to Tade, and how it talks back.',
       settings: [
         {
           path: 'surfaces.voice.talk.key',
@@ -318,7 +318,7 @@ export function settingsOf(config: Config): SettingGroup[] {
         {
           path: 'surfaces.voice.attention.quiet',
           title: 'Quiet hours',
-          means: 'when Wilco will not speak, however urgent',
+          means: 'when Tade will not speak, however urgent',
           value: voice.attention.quiet ?? '',
           fallback: 'none',
           type: { kind: 'hours' },
@@ -354,7 +354,7 @@ export function settingsOf(config: Config): SettingGroup[] {
           title: 'Editor',
           means: 'where a file opens when you click it',
           value: window.editor ?? '',
-          fallback: 'the editor Wilco is running in',
+          fallback: 'the editor Tade is running in',
           type: { kind: 'choice', options: EDITORS },
           live: true,
         },
@@ -363,7 +363,7 @@ export function settingsOf(config: Config): SettingGroup[] {
     {
       id: 'projects',
       title: 'Projects',
-      about: 'The repositories Wilco can start work in.',
+      about: 'The repositories Tade can start work in.',
       settings: projects.flatMap(([name, project]) => [
         {
           path: `projects.${name}.root`,
@@ -403,13 +403,13 @@ export function settingsOf(config: Config): SettingGroup[] {
       id: 'telemetry',
       title: 'Reporting',
       about:
-        'Where Wilco reports its own crashes and warnings, so you can see them and hand them to an agent. Nothing is sent until you say where; what is sent is the shape of what happened, never your code or what you said.',
+        'Where Tade reports its own crashes and warnings, so you can see them and hand them to an agent. Nothing is sent until you say where; what is sent is the shape of what happened, never your code or what you said.',
       settings: [
         {
           path: 'telemetry.dsn',
           title: 'Send to',
           means:
-            'a Sentry DSN, from that project’s Client Keys; empty sends nothing, and $WILCO_TELEMETRY_DSN does the same without a file',
+            'a Sentry DSN, from that project’s Client Keys; empty sends nothing, and $TADE_TELEMETRY_DSN does the same without a file',
           value: config.telemetry.dsn,
           fallback: 'nothing is sent',
           type: { kind: 'text', placeholder: 'https://…@…ingest.sentry.io/…' },
@@ -454,7 +454,7 @@ export function settingsOf(config: Config): SettingGroup[] {
         },
         {
           path: 'telemetry.traces',
-          title: 'How much of Wilco is timed',
+          title: 'How much of Tade is timed',
           means:
             'from 0 to 1: opening the window, a look at the tasks that took too long. Agents’ turns are timed whatever this says',
           value: String(config.telemetry.traces),
@@ -464,7 +464,7 @@ export function settingsOf(config: Config): SettingGroup[] {
         },
         {
           path: 'telemetry.environment',
-          title: 'Which Wilco this is',
+          title: 'Which Tade this is',
           means: 'the environment an issue is filed under: laptop, ci, the name of a machine',
           value: config.telemetry.environment,
           fallback: 'laptop',
@@ -477,7 +477,7 @@ export function settingsOf(config: Config): SettingGroup[] {
       id: 'keys',
       title: 'Keys',
       about:
-        'The keys Wilco keeps for itself; everything else goes to your agent. Keys with shift, and ctrl with a number or m, need a terminal with the Kitty keyboard protocol.',
+        'The keys Tade keeps for itself; everything else goes to your agent. Keys with shift, and ctrl with a number or m, need a terminal with the Kitty keyboard protocol.',
       settings: [
         {
           path: 'surfaces.voice.talk.key',
@@ -546,7 +546,7 @@ export const KEY_BINDINGS: readonly {
   },
   {
     key: 'orchestrator',
-    title: 'Talk to Wilco',
+    title: 'Talk to Tade',
     means: 'type to the orchestrator',
     fallback: 'ctrl+/',
   },

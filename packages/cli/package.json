@@ -1,33 +1,33 @@
 {
-  "name": "@wilco/cli",
+  "name": "@tade/cli",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
   "type": "module",
   "bin": {
-    "wilco": "./src/bin.ts"
+    "tade": "./src/bin.ts"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/app": "workspace:*",
-    "@wilco/core": "workspace:*",
-    "@wilco/extensions-core": "workspace:*",
-    "@wilco/harnesses-core": "workspace:*",
-    "@wilco/harnesses-pi": "workspace:*",
-    "@wilco/orchestrator": "workspace:*",
-    "@wilco/status": "workspace:*",
-    "@wilco/telemetry": "workspace:*",
-    "@wilco/voice-core": "workspace:*",
-    "@wilco/voice-stt": "workspace:*",
-    "@wilco/voice-tts": "workspace:*",
-    "@wilco/workbench": "workspace:*",
+    "@tade/app": "workspace:*",
+    "@tade/core": "workspace:*",
+    "@tade/extensions-core": "workspace:*",
+    "@tade/harnesses-core": "workspace:*",
+    "@tade/harnesses-pi": "workspace:*",
+    "@tade/orchestrator": "workspace:*",
+    "@tade/status": "workspace:*",
+    "@tade/telemetry": "workspace:*",
+    "@tade/voice-core": "workspace:*",
+    "@tade/voice-stt": "workspace:*",
+    "@tade/voice-tts": "workspace:*",
+    "@tade/workbench": "workspace:*",
     "commander": "^15.0.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@wilco/drivers-core": "workspace:*",
+    "@tade/drivers-core": "workspace:*",
     "node-pty": "^1.1.0"
   }
 }

@@ -16,21 +16,21 @@ import {
   spendFrom,
   startOfToday,
   summariseWork,
+  type TadeEvent,
   type TaskState,
   type Upstream,
   type Watched,
-  type WilcoEvent,
   type WorkHistory,
   type WorkSummary,
   type Workspace,
   watchedFrom,
   workedFrom,
-} from '@wilco/core'
-import { collectStatus, git } from '@wilco/status'
-import { terminalsFrom, type Workbench } from '@wilco/workbench'
-import { livenessFrom } from '@wilco/workbench/lane-liveness'
-import type { LaneRecord } from '@wilco/workbench/registry'
-import type { PendingApproval } from '@wilco/workbench/workers'
+} from '@tade/core'
+import { collectStatus, git } from '@tade/status'
+import { terminalsFrom, type Workbench } from '@tade/workbench'
+import { livenessFrom } from '@tade/workbench/lane-liveness'
+import type { LaneRecord } from '@tade/workbench/registry'
+import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
@@ -186,8 +186,9 @@ export function changesFrom(nameStatus: string, numstat: string, status = ''): C
 
   const out: Change[] = []
   for (const [path, mark] of seen) {
-    // Wilco's own record of the task is untracked on purpose, and is not a
+    // Tade's own record of the task is untracked on purpose, and is not a
     // change anybody made to the work.
+    if (path === '.tade' || path.startsWith('.tade/')) continue
     if (path === '.wilco' || path.startsWith('.wilco/')) continue
     const counted = counts.get(path)
     out.push({ path, mark, added: counted?.added ?? null, removed: counted?.removed ?? null })
@@ -207,13 +208,13 @@ export function knownTasks(snapshots: readonly TaskSnapshot[]): KnownTask[] {
 export interface LiveOptions {
   client: Workbench
   config: Config
-  /** $HOME, for finding agent sessions started outside Wilco. */
+  /** $HOME, for finding agent sessions started outside Tade. */
   home: string
   cwd?: string
   pollMs?: number
   now?: () => number
   onTasks?: (tasks: TaskSnapshot[]) => void
-  onEvent?: (event: WilcoEvent) => void
+  onEvent?: (event: TadeEvent) => void
   onWarning?: (message: string) => void
   /** Something drawn from a background look has changed. */
   onChange?: () => void
@@ -229,7 +230,7 @@ export interface LiveOptions {
 
 export class Live {
   private readonly opts: LiveOptions
-  private readonly journal: WilcoEvent[] = []
+  private readonly journal: TadeEvent[] = []
   private snapshots: TaskSnapshot[] = []
   /** Where each task lives on disk, which is what parking one needs. */
   private readonly worktrees = new Map<string, string>()
@@ -256,7 +257,7 @@ export class Live {
     }
   >()
   /** Every `usage` event since midnight, which is what today's spend is. */
-  private usage: WilcoEvent[] = []
+  private usage: TadeEvent[] = []
   /** Which tasks have finished, from the whole journal: the last 500 events forget. */
   private finished = new Map<string, Finished>()
   /** Which tasks' agents have ended a turn since they last started. */
@@ -266,7 +267,7 @@ export class Live {
   /** Tasks whose agent has ever started: queued work that has started is not queued. */
   private started = new Set<string>()
   /** What the queue reads: removals, runs, failures, and every choice made about queued work. */
-  private queueEvents: WilcoEvent[] = []
+  private queueEvents: TadeEvent[] = []
   /** Queued work, and what it waits on, as the last refresh saw. */
   private queue: Queued[] = []
   private states = new Map<string, { state: TaskState; reason: string }>()
@@ -368,7 +369,7 @@ export class Live {
   }
 
   /** What has happened recently, for anything that has to read it directly. */
-  get events(): readonly WilcoEvent[] {
+  get events(): readonly TadeEvent[] {
     return this.journal
   }
 
@@ -545,7 +546,7 @@ export class Live {
     )
   }
 
-  /** What you have told Wilco that applies to a project, newest first. */
+  /** What you have told Tade that applies to a project, newest first. */
   notes(project: string | null): { text: string; at: string }[] {
     const all: readonly Note[] = this.opts.client.recallAll()
     return all
@@ -559,7 +560,7 @@ export class Live {
   }
 
   /** Every `usage` event of the last seven days, for the Spend panel. */
-  get spending(): readonly WilcoEvent[] {
+  get spending(): readonly TadeEvent[] {
     return this.usage
   }
 
@@ -690,7 +691,7 @@ export class Live {
     }
   }
 
-  private record(event: WilcoEvent): void {
+  private record(event: TadeEvent): void {
     this.journal.push(event)
     if (event.type === 'usage') this.usage.push(event)
     if (event.task && event.type === 'task_done') {

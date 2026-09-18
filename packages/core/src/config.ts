@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseDocument, parse as parseYaml, YAMLParseError } from 'yaml'
 import { z } from 'zod'
 
-// Schema for ~/.wilco/config.yaml. Objects are strict so a typo'd key is an
+// Schema for ~/.tade/config.yaml. Objects are strict so a typo'd key is an
 // error rather than a silently ignored setting.
 
 // The drivers that exist. Names with no implementation behind them used to be
@@ -61,7 +61,7 @@ export const ProjectConfigSchema = z.strictObject({
   /** At most this many agents at once; as many as you start unless set. */
   max_parallel: z.int().positive().optional(),
   /**
-   * How to check the work, run by `wilco check`. Without it, `review` means
+   * How to check the work, run by `tade check`. Without it, `review` means
    * "finished and clean" rather than "finished, clean and verified".
    */
   test_command: z.string().min(1).optional(),
@@ -88,7 +88,7 @@ function isPattern(source: string): boolean {
   }
 }
 
-/** The editors Wilco knows how to open a file at a line in. */
+/** The editors Tade knows how to open a file at a line in. */
 export const EDITORS = [
   'code',
   'cursor',
@@ -124,11 +124,11 @@ export const ConfigSchema = z
       .strictObject({
         harness: Harness.default('pi'),
         // The harness renders either its own terminal UI or a machine protocol,
-        // never both; Wilco renders the orchestrator itself so voice and chat can
+        // never both; Tade renders the orchestrator itself so voice and chat can
         // share one session.
         provider: z.string().optional(),
         model: z.string().optional(),
-        extensions: z.string().default('~/.wilco/extensions'),
+        extensions: z.string().default('~/.tade/extensions'),
         /**
          * Look back at a task once it has finished, and write down a lesson if
          * there is one. Costs a turn per finished task; set false if you would
@@ -148,14 +148,14 @@ export const ConfigSchema = z
       .prefault({}),
     approvals: z
       .strictObject({
-        // Default: never interrupt. Wilco still classifies and records every
+        // Default: never interrupt. Tade still classifies and records every
         // tool call, so the journal stays honest even when nothing is gated.
         mode: z.enum(['bypass', 'policy']).default('bypass'),
         /** Tools that never ask, when mode is `policy`. */
         auto_allow: z.array(z.string()).default([]),
         /**
          * Your own rules, for the things only you know are dangerous here.
-         * They can only make Wilco stricter — there is no `auto` to write, and
+         * They can only make Tade stricter — there is no `auto` to write, and
          * where one disagrees with a built-in the stricter wins. Loosening is
          * `auto_allow`, which names exact tools on purpose.
          */
@@ -172,7 +172,7 @@ export const ConfigSchema = z
           .default([]),
       })
       .prefault({}),
-    // Only keys that drive something. A setting Wilco accepts and ignores is
+    // Only keys that drive something. A setting Tade accepts and ignores is
     // worse than one it doesn't have, because it reads like a promise.
     surfaces: z
       .strictObject({
@@ -196,7 +196,7 @@ export const ConfigSchema = z
               })
               .prefault({}),
             /**
-             * What Wilco is willing to interrupt you for. The engine decides
+             * What Tade is willing to interrupt you for. The engine decides
              * per event; these are the two parts that are personal rather
              * than structural.
              */
@@ -246,14 +246,14 @@ export const ConfigSchema = z
             strip_height: z.int().positive().optional(),
             /**
              * Where a file opens when you click it. Unset means: the editor
-             * whose terminal Wilco is running in, then $VISUAL or $EDITOR,
+             * whose terminal Tade is running in, then $VISUAL or $EDITOR,
              * then whatever the system opens that kind of file with.
              */
             editor: z.enum(EDITORS).optional(),
             /**
              * The keys the window keeps for itself, by what they do. Anything
              * not here goes to the agent or terminal you are typing at. A key
-             * with shift, or ctrl with a digit or m, reaches Wilco only where
+             * with shift, or ctrl with a digit or m, reaches Tade only where
              * the terminal speaks the Kitty keyboard protocol.
              */
             keys: z
@@ -300,7 +300,7 @@ export const ConfigSchema = z
       })
       .prefault({}),
     /**
-     * Where Wilco's own trouble goes: its crashes, the warnings it writes down,
+     * Where Tade's own trouble goes: its crashes, the warnings it writes down,
      * what its agents spent. Nothing is sent until a DSN is set, and what is
      * sent is the shape of what happened — never your code, what you said, or
      * what an agent wrote. It is your own Sentry project, so the Sentry
@@ -312,18 +312,18 @@ export const ConfigSchema = z
         driver: z.enum(['sentry', 'none']).default('sentry'),
         /**
          * The Sentry project to send to, as a DSN. Empty — the default — sends
-         * nothing at all. `$WILCO_TELEMETRY_DSN` does the same without putting
+         * nothing at all. `$TADE_TELEMETRY_DSN` does the same without putting
          * it in a file.
          */
         dsn: z.string().default(''),
-        /** Crashes, and the warnings Wilco writes down, as issues to fix. */
+        /** Crashes, and the warnings Tade writes down, as issues to fix. */
         errors: z.boolean().default(true),
         /** What happened around them — tasks, runs, the queue — as logs. */
         logs: z.boolean().default(true),
         /** Tokens, money and how many agents are running, as metrics. */
         metrics: z.boolean().default(true),
         /**
-         * How much of what Wilco itself does is timed, from 0 to 1: opening the
+         * How much of what Tade itself does is timed, from 0 to 1: opening the
          * window, a slow look at the tasks. Agents' turns are timed whatever
          * this says, because there are few of them and each one matters.
          */
@@ -334,7 +334,7 @@ export const ConfigSchema = z
          * monitoring from.
          */
         agents: z.boolean().default(true),
-        /** Which Wilco this is, in Sentry's environment filter. */
+        /** Which Tade this is, in Sentry's environment filter. */
         environment: z.string().default('laptop'),
       })
       .prefault({}),
@@ -353,7 +353,7 @@ export const ConfigSchema = z
       .default({}),
   })
   // A route name that doesn't exist is a typo that would otherwise surface as a
-  // failed spawn much later, so catch it at `wilco config --check` time.
+  // failed spawn much later, so catch it at `tade config --check` time.
   .superRefine((config, ctx) => {
     const routes = Object.keys(config.workers.routes)
     const single = routes.length === 1
@@ -389,16 +389,36 @@ export type ProjectConfig = z.infer<typeof ProjectConfigSchema>
  */
 export function runtimeDir(home: string, env: NodeJS.ProcessEnv = process.env): string {
   const base = env.XDG_RUNTIME_DIR || tmpdir()
-  return join(base, `wilco-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`)
+  return join(base, `tade-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`)
 }
 
-/** Root of Wilco's per-user state. `WILCO_HOME` overrides for tests. */
-export function wilcoHome(env: NodeJS.ProcessEnv = process.env): string {
-  return env.WILCO_HOME ?? join(homedir(), '.wilco')
+/** What this was called before the rename, and still is on disk for anyone who ran it. */
+export const LEGACY_HOME_DIR = '.wilco'
+/** Where per-user state lives now. */
+export const HOME_DIR = '.tade'
+
+/**
+ * Root of Tade's per-user state. `TADE_HOME` overrides for tests.
+ *
+ * A machine that ran the old name has its notes, journal and schedules in
+ * `~/.wilco`, and nothing can recover them from anywhere else — so when the new
+ * home does not exist and the old one does, the old one *is* the home. No
+ * migration, no copy, no moment where both are half true: whichever directory
+ * is there is the one used, and a new machine gets the new name.
+ *
+ * `WILCO_HOME` is still read, because scripts and shells that set it exist.
+ */
+export function tadeHome(env: NodeJS.ProcessEnv = process.env): string {
+  const told = env.TADE_HOME ?? env.WILCO_HOME
+  if (told) return told
+  const now = join(homedir(), HOME_DIR)
+  if (existsSync(now)) return now
+  const before = join(homedir(), LEGACY_HOME_DIR)
+  return existsSync(before) ? before : now
 }
 
 export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string {
-  return join(wilcoHome(env), 'config.yaml')
+  return join(tadeHome(env), 'config.yaml')
 }
 
 export function expandHome(p: string): string {

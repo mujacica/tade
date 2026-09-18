@@ -1,9 +1,9 @@
-// The WilcoExtension port: something Wilco can do that it was not built
+// The TadeExtension port: something Tade can do that it was not built
 // knowing about — check a project's dependencies, read its errors in Sentry.
 //
 // An extension is harness-neutral. It declares tools as plain JSON Schema and
 // runs them in the window's own process, and each harness is handed them in
-// its own terms: pi as registered tools that call back to Wilco, a harness
+// its own terms: pi as registered tools that call back to Tade, a harness
 // that speaks MCP as a server. What only a harness can do — a pi skill, a pi
 // extension with its own UI — an extension ships alongside, by harness id, and
 // it is loaded there as the harness's own. Nothing here names a harness's
@@ -18,7 +18,7 @@ export interface Link {
   url: string
 }
 
-/** A project Wilco has been told about. */
+/** A project Tade has been told about. */
 export interface ProjectRef {
   name: string
   /** Absolute. */
@@ -66,7 +66,7 @@ export interface ExtensionTool {
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolAnswer>
 }
 
-/** A button in the window, a line in ctrl+k, a `wilco extensions run`: one tool with its input. */
+/** A button in the window, a line in ctrl+k, a `tade extensions run`: one tool with its input. */
 export interface ExtensionAction {
   id: string
   /** What it does, as a button says it: "Check dependencies". */
@@ -77,7 +77,7 @@ export interface ExtensionAction {
   project?: boolean
   /**
    * What someone says to run it straight away, matched against the whole
-   * utterance: "how much is Wilco using". Heard this way it needs no model,
+   * utterance: "how much is Tade using". Heard this way it needs no model,
    * so keep them narrow — anything looser belongs to the orchestrator.
    */
   heard?: readonly RegExp[]
@@ -128,7 +128,7 @@ export interface SetupField {
 /**
  * How to set an extension up, in the window: what it needs in words, the
  * settings to fill in, and where to go for what cannot be filled in here — a
- * token is never typed into Wilco, which would put it in a file.
+ * token is never typed into Tade, which would put it in a file.
  */
 export interface ExtensionSetup {
   /** Steps, in markdown, in the order to take them. */
@@ -172,7 +172,7 @@ export interface WatchAgent {
  * is anything to do — and what an agent is told about each thing it finds.
  *
  * Nothing is watched until someone turns it on, which makes it a schedule like
- * any other: paused, renamed or removed the same way. Wilco keeps where each
+ * any other: paused, renamed or removed the same way. Tade keeps where each
  * look left off and every key it has found, so a watch keeps nothing itself and
  * one finding never starts two agents.
  */
@@ -191,7 +191,7 @@ export interface ExtensionWatch {
    * finds nothing costs nothing. Nothing found is an empty list, never a throw;
    * it throws, with why, only when it cannot look at all. What it returns as
    * `since` is handed to its next look, which may find some of the same things
-   * again: Wilco knows which it has seen.
+   * again: Tade knows which it has seen.
    */
   check(ctx: WatchContext): Promise<{ found: readonly Finding[]; since?: string }>
   /**
@@ -205,7 +205,7 @@ export interface ExtensionWatch {
 export interface ExtensionWorkbench {
   /**
    * Put an agent to work on something — in the project's checkout or a
-   * worktree of its own, as the person has Wilco set up: the context written
+   * worktree of its own, as the person has Tade set up: the context written
    * where it will read it, the links kept with the task, and `prepare` given
    * the directory it will work in before it starts, for changes it should
    * begin from.
@@ -217,12 +217,12 @@ export interface ExtensionWorkbench {
     context?: string
     links?: readonly Link[]
     prepare?: (worktree: string) => Promise<void>
-    /** Who asked for it. Filled in by Wilco with the extension's name; an extension's own is replaced. */
+    /** Who asked for it. Filled in by Tade with the extension's name; an extension's own is replaced. */
     by?: string
   }): Promise<{ task: string; worktree: string }>
-  /** Wilco's own process: the window. */
+  /** Tade's own process: the window. */
   readonly pid: number
-  /** What Wilco is running: every lane, with the task it belongs to and its process. */
+  /** What Tade is running: every lane, with the task it belongs to and its process. */
   lanes(): readonly { id: string; task: string; kind: string; pid: number | null; alive: boolean }[]
 }
 
@@ -234,7 +234,7 @@ export interface StatusItem {
 
 /** What an extension asks with the window open: everything, and the window itself. */
 export interface WindowContext extends ExtensionContext {
-  wilco: ExtensionWorkbench
+  tade: ExtensionWorkbench
 }
 
 export interface ExecResult {
@@ -262,7 +262,7 @@ export interface ExtensionContext {
     args: readonly string[],
     options?: { cwd?: string; timeoutMs?: number },
   ): Promise<ExecResult>
-  /** Wilco's home. */
+  /** Tade's home. */
   home: string
   now(): number
 }
@@ -273,10 +273,10 @@ export interface ToolContext extends ExtensionContext {
   progress(text: string): void
   signal: AbortSignal
   /** What only an open window can do. Null when there is none — a question asked from the CLI. */
-  wilco: ExtensionWorkbench | null
+  tade: ExtensionWorkbench | null
 }
 
-export interface WilcoExtension {
+export interface TadeExtension {
   /** Lowercase with dashes. Its settings live under this key; its tools start with it. */
   name: string
   title: string

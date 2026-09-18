@@ -7,27 +7,27 @@ import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 
 const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 
-function wilco(args: string[], env: Record<string, string>) {
+function tade(args: string[], env: Record<string, string>) {
   const r = spawnSync(process.execPath, [bin, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, WILCO_NO_GH: '1', ...env },
+    env: { ...process.env, TADE_NO_GH: '1', ...env },
   })
   return { code: r.status, stdout: r.stdout, stderr: r.stderr }
 }
 
 function setup() {
   const r = mkrepo()
-  r.addTask('fresh', { project: 'app', intent: 'add a --json flag to wilco lanes' })
+  r.addTask('fresh', { project: 'app', intent: 'add a --json flag to tade lanes' })
   const done = r.addTask('done', { project: 'app' })
   r.commit('feat', undefined, done)
-  const wilcoHome = tmp('wilco-home-')
-  writeFileSync(join(wilcoHome, 'config.yaml'), `projects:\n  app:\n    root: ${r.root}\n`)
-  return { WILCO_HOME: wilcoHome, HOME: tmp('wilco-userhome-') }
+  const tadeHome = tmp('tade-home-')
+  writeFileSync(join(tadeHome, 'config.yaml'), `projects:\n  app:\n    root: ${r.root}\n`)
+  return { TADE_HOME: tadeHome, HOME: tmp('tade-userhome-') }
 }
 
-describe('wilco status', () => {
+describe('tade status', () => {
   it('--json reports tasks with derived states and verbatim intent', () => {
-    const r = wilco(['status', '--json'], setup())
+    const r = tade(['status', '--json'], setup())
     expect(r.code).toBe(0)
     const ws = JSON.parse(r.stdout)
     const tasks = ws.projects[0].tasks
@@ -35,11 +35,11 @@ describe('wilco status', () => {
       ['app/done', 'review'],
       ['app/fresh', 'queued'],
     ])
-    expect(tasks[1].intent_spoken).toBe('add a --json flag to wilco lanes')
+    expect(tasks[1].intent_spoken).toBe('add a --json flag to tade lanes')
   })
 
   it('human output is terse', () => {
-    const r = wilco(['status'], setup())
+    const r = tade(['status'], setup())
     expect(r.code).toBe(0)
     const lines = r.stdout.trim().split('\n')
     expect(lines[0]).toBe('app')
@@ -49,7 +49,7 @@ describe('wilco status', () => {
 
   it('an invalid config exits 2', () => {
     const env = setup()
-    writeFileSync(join(env.WILCO_HOME, 'config.yaml'), 'projects: nope\n')
-    expect(wilco(['status'], env).code).toBe(2)
+    writeFileSync(join(env.TADE_HOME, 'config.yaml'), 'projects: nope\n')
+    expect(tade(['status'], env).code).toBe(2)
   })
 })

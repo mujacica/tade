@@ -1,6 +1,6 @@
 import type { SentryAccess } from './auth.ts'
 
-// Sentry's REST API, the parts Wilco reads: issues and their events, traces,
+// Sentry's REST API, the parts Tade reads: issues and their events, traces,
 // the Explore datasets (errors, spans, logs, metrics), time series, Seer's
 // root cause, and changing an issue's status.
 //
@@ -72,7 +72,7 @@ export class SentryApi {
         headers: {
           authorization: `Bearer ${this.access.token}`,
           'content-type': 'application/json',
-          'user-agent': 'wilco',
+          'user-agent': 'tade',
         },
         ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -276,7 +276,7 @@ export class SentryApi {
       `/organizations/${this.access.org}/issues/${encodeURIComponent(id)}/autofix/`,
       {
         method: 'POST',
-        body: { step: 'root_cause', referrer: 'wilco' },
+        body: { step: 'root_cause', referrer: 'tade' },
       },
     )
   }

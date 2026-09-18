@@ -59,7 +59,7 @@ describe('news for the orchestrator', () => {
     expect(withNews('fix the refund test', [], clock)).toBe('fix the refund test')
     expect(withNews('Fix the refund test', [{ at: 5, text: 'app/reload failed' }], clock)).toBe(
       [
-        'Since you last heard from Wilco:',
+        'Since you last heard from Tade:',
         '- t5 app/reload failed',
         '',
         'What they said:',

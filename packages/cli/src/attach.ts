@@ -1,5 +1,5 @@
-import type { LaneId } from '@wilco/core'
-import type { Workbench } from '@wilco/workbench'
+import type { LaneId } from '@tade/core'
+import type { Workbench } from '@tade/workbench'
 import { Exit, type Io } from './io.ts'
 
 // Attaching puts the user's terminal into raw mode. Getting the restore wrong

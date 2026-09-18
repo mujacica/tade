@@ -1,9 +1,10 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { sandboxed, type ThinkingLevel, type Unsubscribe } from '@wilco/core'
+import { sandboxed, type ThinkingLevel, type Unsubscribe } from '@tade/core'
 import {
   type PermissionDecision,
   type RunId,
@@ -17,17 +18,23 @@ import {
   type WorkerSignal,
   type WorkerSignalListener,
   type WorkerSpec,
-} from '@wilco/harnesses-core'
+} from '@tade/harnesses-core'
 import { SignalChannel } from './channel.ts'
 import { type Spent, spentBy, spentByMessage } from './usage.ts'
 
-// Drives pi as a Wilco worker: pi runs the agent, Wilco supervises it through
+// Drives pi as a Tade worker: pi runs the agent, Tade supervises it through
 // the extension channel. Model and provider are pi's business, which is how
 // one adapter covers API keys, subscriptions and local models alike.
 
-export const EXTENSION_PATH = fileURLToPath(new URL('./wilco.ts', import.meta.url))
-/** Rewrites requests a provider in between would refuse; loaded into every pi Wilco starts. */
+export const EXTENSION_PATH = fileURLToPath(new URL('./tade.ts', import.meta.url))
+/** Rewrites requests a provider in between would refuse; loaded into every pi Tade starts. */
 export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url))
+
+const SESSION_PREFIX = 'tade-'
+/** What sessions were called before the rename. Tasks older than it still are. */
+const LEGACY_SESSION_PREFIX = 'wilco-'
+
+const sessionSlug = (task: string) => task.replace(/[^a-zA-Z0-9-]+/g, '-')
 
 /**
  * The session a task's agent talks in, for the life of the task.
@@ -37,7 +44,40 @@ export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url)
  * has to decide whether this is a start or a resume.
  */
 export function sessionIdFor(task: string): string {
-  return `wilco-${task.replace(/[^a-zA-Z0-9-]+/g, '-')}`
+  return `${SESSION_PREFIX}${sessionSlug(task)}`
+}
+
+/** The same session, under the name it was created with before the rename. */
+export function legacySessionIdFor(task: string): string {
+  return `${LEGACY_SESSION_PREFIX}${sessionSlug(task)}`
+}
+
+/**
+ * Which session id this task actually talks in.
+ *
+ * A task started before the rename has its whole conversation in a session
+ * named the old way, and a task name is never used twice — so asking pi for
+ * the new id would open an empty conversation next to a full one nobody can
+ * reach again. If the old session is on disk, that is the session.
+ */
+export function resolveSessionId(task: string, root = piSessionsRoot()): string {
+  const legacy = legacySessionIdFor(task)
+  const suffix = `_${legacy}.jsonl`
+  try {
+    for (const dir of readdirSync(root)) {
+      for (const entry of readdirSync(join(root, dir))) {
+        if (entry.endsWith(suffix)) return legacy
+      }
+    }
+  } catch {
+    // No sessions directory, or nothing readable in it: nothing to carry over.
+  }
+  return sessionIdFor(task)
+}
+
+/** Where pi keeps its sessions. Kept here so the launch path need not import upward. */
+function piSessionsRoot(): string {
+  return join(homedir(), '.pi', 'agent', 'sessions')
 }
 
 /**
@@ -135,13 +175,13 @@ export interface PiAdapterOptions {
   runDir: string
   /**
    * Where supervision sockets go. Defaults to `runDir`, which is fine for
-   * short paths; Wilco passes a short runtime directory because a socket path
+   * short paths; Tade passes a short runtime directory because a socket path
    * over ~104 bytes fails to bind.
    */
   socketDir?: string
   /**
-   * Load the supervision extension, so every tool call is held until Wilco
-   * answers. True for workers. False for the orchestrator, which is Wilco's
+   * Load the supervision extension, so every tool call is held until Tade
+   * answers. True for workers. False for the orchestrator, which is Tade's
    * own interface: gating its calls on an approval would mean asking
    * permission to answer "where are we".
    */
@@ -152,7 +192,7 @@ export interface PiAdapterOptions {
   args?: string[]
   /**
    * Whether this worker's tool calls are gated. Passed to the agent so it
-   * knows what to do when Wilco goes away: carry on, or refuse.
+   * knows what to do when Tade goes away: carry on, or refuse.
    */
   approvals?: 'bypass' | 'policy'
   env?: NodeJS.ProcessEnv
@@ -189,11 +229,11 @@ export class PiAdapter implements WorkerAdapter {
     thinking: true,
     // Workers run as pi in a lane (`launchSpec()` + `supervise()`), which is
     // visible. The headless protocol is for the orchestrator, whose interface
-    // Wilco draws itself.
+    // Tade draws itself.
     visibleUi: true,
     resume: true,
     images: true,
-    // The supervision extension gives every agent `wilco_done`.
+    // The supervision extension gives every agent `tade_done`.
     done: true,
   }
 
@@ -256,7 +296,7 @@ export class PiAdapter implements WorkerAdapter {
           ...this.modelArgs(spec.model),
           ...(spec.thinking ? ['--thinking', spec.thinking] : []),
           '--session-id',
-          sessionIdFor(spec.task),
+          resolveSessionId(spec.task),
           '-e',
           EXTENSION_PATH,
           '-e',
@@ -275,7 +315,7 @@ export class PiAdapter implements WorkerAdapter {
   /**
    * Listen for an agent someone else is going to run.
    *
-   * This is how a visible agent is supervised: Wilco opens the channel, the
+   * This is how a visible agent is supervised: Tade opens the channel, the
    * lane starts pi with `launchSpec()`, and the extension connects back to it.
    * The socket path is derived from the run id rather than passed around, so
    * both halves agree without having to be told.
@@ -296,7 +336,7 @@ export class PiAdapter implements WorkerAdapter {
       handle: {
         run: spec.run,
         task: spec.task,
-        sessionId: sessionIdFor(spec.task),
+        sessionId: resolveSessionId(spec.task),
         startedAt: Date.now(),
         lane: spec.lane ?? null,
       },

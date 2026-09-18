@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/drivers-pty",
+  "name": "@tade/drivers-pty",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -8,13 +8,13 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/core": "workspace:*",
-    "@wilco/drivers-core": "workspace:*",
+    "@tade/core": "workspace:*",
+    "@tade/drivers-core": "workspace:*",
     "@xterm/headless": "^6.0.0",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
-    "@wilco/drivers-core": "workspace:*",
+    "@tade/drivers-core": "workspace:*",
     "vitest": "^5.0.0"
   }
 }

@@ -1,4 +1,4 @@
-import type { WilcoEvent } from './events.ts'
+import type { TadeEvent } from './events.ts'
 import { ago } from './history.ts'
 import type { TaskState } from './model.ts'
 
@@ -38,7 +38,7 @@ export interface WorkSummary {
 }
 
 export function summariseWork(
-  events: readonly WilcoEvent[],
+  events: readonly TadeEvent[],
   task: string,
   now: number,
 ): WorkSummary {

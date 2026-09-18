@@ -1,5 +1,5 @@
 import { rmSync } from 'node:fs'
-import { silentClip } from '@wilco/voice-core/conformance'
+import { silentClip } from '@tade/voice-core/conformance'
 import { describe, expect, it } from 'vitest'
 import {
   FfmpegRecorder,
@@ -100,7 +100,7 @@ describe('the local engine', () => {
     if (!availability.ok) expect(availability.reason).toMatch(/not installed/)
   })
 
-  it('looks for its model where Wilco keeps them', async () => {
+  it('looks for its model where Tade keeps them', async () => {
     const transcriber = new WhisperCppTranscriber({
       binary: process.execPath,
       model: '/nonexistent/model.bin',

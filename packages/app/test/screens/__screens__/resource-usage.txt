@@ -1,13 +1,13 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
- ▾ AG│ Wilco is using 91% CPU and 783 MB of memory, across 7 processes.                                           │ × ▌ 
+ ▾ AG│ Tade is using 91% CPU and 783 MB of memory, across 7 processes.                                            │ × ▌ 
      │                                                                                                            │─────
  ▐ ! │ ### By project                                                                                             │     
  ▐   │                                                                                                            │     
      │ ```                                                                                                        │     
    ⠋ │                 CPU               memory                                                                   │     
      │   checkout      ████████░░   76%  █████░░░░░  369 MB                                                       │     
-     │   Wilco itself  ██░░░░░░░░   15%  █████░░░░░  414 MB                                                       │     
+     │   Tade itself  ██░░░░░░░░   15%  █████░░░░░  414 MB                                                        │     
  ▾ CH│ ```                                                                                                        │     
   M p│                                                                                                            │     
   A s│ ### By kind                                                                                                │     
@@ -29,6 +29,6 @@
      │ ↑↓ scrolls · 1–26 of 53 · kept current while open                                                ▐ Close ▌ │     
  ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯     
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌                         91% · 783 MB │ claude-opus-5 ▾ │ 1.9M tok │ $2.66 today ▾ 

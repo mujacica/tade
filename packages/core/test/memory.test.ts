@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { allNotes, appliesTo, type Note, NoteSchema, note, recall } from '../src/memory.ts'
 
-// Notes are the one thing Wilco knows that it could not have worked out for
+// Notes are the one thing Tade knows that it could not have worked out for
 // itself, so the rules about what applies where are the whole substance.
 
 const NOW = Date.parse('2026-09-12T10:00:00Z')

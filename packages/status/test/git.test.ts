@@ -25,13 +25,13 @@ describe('parsers', () => {
 
   it('parseStatusV2 consumes the original path of a rename', () => {
     const s = parseStatusV2(
-      '# branch.oid abc\0# branch.head wilco/x\0' +
+      '# branch.oid abc\0# branch.head tade/x\0' +
         '2 R. N... 100644 100644 100644 aaa bbb R100 new name.ts\0old name.ts\0' +
         '1 .M N... 100644 100644 100644 aaa bbb src/a.ts\0' +
         '? new\nline.txt\0',
     )
     expect(s.paths).toEqual(['new name.ts', 'src/a.ts', 'new\nline.txt'])
-    expect(s.head).toBe('wilco/x')
+    expect(s.head).toBe('tade/x')
     expect(s.ahead).toBeNull()
   })
 })
@@ -43,7 +43,7 @@ describe('probeGit on real repos', () => {
     const { snapshot, warnings } = await probeGit(wt, { baseRef: 'main', ...noPr })
     expect(warnings).toEqual([])
     expect(snapshot).toMatchObject({
-      branch: 'wilco/clean',
+      branch: 'tade/clean',
       dirty: [],
       ahead: 0,
       behind: 0,
@@ -52,7 +52,7 @@ describe('probeGit on real repos', () => {
     })
   })
 
-  it('dirty worktree: staged, unstaged, untracked, awkward filenames; .wilco excluded', async () => {
+  it('dirty worktree: staged, unstaged, untracked, awkward filenames; .tade excluded', async () => {
     const r = mkrepo()
     const wt = r.addTask('dirty', { project: 'p' })
     r.write({ 'README.md': 'changed\n', 'has space.txt': 'x', 'new\nline.txt': 'y' }, wt)
@@ -86,8 +86,8 @@ describe('probeGit on real repos', () => {
     const r = mkrepo({ remote: true })
     const wt = r.addTask('gone', { project: 'p' })
     r.commit('work', undefined, wt)
-    runGit(wt, 'push', '-q', '-u', 'origin', 'wilco/gone')
-    runGit(wt, 'push', '-q', 'origin', '--delete', 'wilco/gone')
+    runGit(wt, 'push', '-q', '-u', 'origin', 'tade/gone')
+    runGit(wt, 'push', '-q', 'origin', '--delete', 'tade/gone')
     runGit(wt, 'fetch', '-q', '--prune')
     const { snapshot } = await probeGit(wt, { baseRef: 'main', ...noPr })
     expect(snapshot?.upstreamGone).toBe(true)
@@ -101,7 +101,7 @@ describe('probeGit on real repos', () => {
     expect(res.snapshot?.mergedIntoBase).toBe(false)
 
     r.commit('feature', undefined, wt)
-    r.git('merge', '-q', '--ff-only', 'wilco/ff')
+    r.git('merge', '-q', '--ff-only', 'tade/ff')
     res = await probeGit(wt, { baseRef: 'main', taskBase, ...noPr })
     expect(res.snapshot?.mergedIntoBase).toBe(true)
     expect(res.snapshot?.ahead).toBe(0)
@@ -117,7 +117,7 @@ describe('probeGit on real repos', () => {
     expect(res.snapshot?.mergedIntoBase).toBe(false)
 
     // What a "Squash and merge" leaves behind: the same files, none of the commits.
-    r.git('merge', '-q', '--squash', 'wilco/squash')
+    r.git('merge', '-q', '--squash', 'tade/squash')
     r.git('commit', '-q', '-m', 'the feature (#12)')
     res = await probeGit(wt, { baseRef: 'main', taskBase, ...noPr })
     expect(res.snapshot?.mergedIntoBase).toBe(true)

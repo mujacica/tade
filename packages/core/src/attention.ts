@@ -1,4 +1,4 @@
-import type { WilcoEvent } from './events.ts'
+import type { TadeEvent } from './events.ts'
 
 // What is worth interrupting you for.
 //
@@ -82,7 +82,7 @@ export interface AttentionDecision {
 const SPOKEN_STATES = new Set(['blocked', 'review', 'failed'])
 
 export function decideAttention(
-  event: WilcoEvent,
+  event: TadeEvent,
   context: AttentionContext,
   settings: AttentionSettings = DEFAULT_ATTENTION[context.surface],
 ): AttentionDecision {
@@ -119,11 +119,11 @@ export function decideAttention(
  * happened", and by the time you go and look the budget is spent. Everything
  * else about a warning is ordinary.
  */
-function aboutSpending(event: WilcoEvent): boolean {
+function aboutSpending(event: TadeEvent): boolean {
   return event.type === 'warning' && String(event.detail.message ?? '').includes('near its budget')
 }
 
-function baseChannel(event: WilcoEvent): Channel {
+function baseChannel(event: TadeEvent): Channel {
   if (event.urgency === 'blocking') return Channel.speak
   if (aboutSpending(event)) return Channel.speak
   if (event.type === 'state_change' && SPOKEN_STATES.has(String(event.detail.state))) {
@@ -133,7 +133,7 @@ function baseChannel(event: WilcoEvent): Channel {
   return Channel.silent
 }
 
-function baseReason(event: WilcoEvent): string {
+function baseReason(event: TadeEvent): string {
   if (event.urgency === 'blocking') return 'waiting on you'
   if (aboutSpending(event)) return 'close to what it may spend today'
   if (event.type === 'state_change' && SPOKEN_STATES.has(String(event.detail.state))) {
@@ -152,7 +152,7 @@ function isQuiet(context: AttentionContext, settings: AttentionSettings): boolea
 }
 
 function isFocused(
-  event: WilcoEvent,
+  event: TadeEvent,
   context: AttentionContext,
   settings: AttentionSettings,
 ): boolean {
@@ -166,9 +166,9 @@ function isFocused(
  * Everything that was held back, collapsed into one thing to say. Three
  * announcements played back to back is how people turn a feature off.
  */
-export function summarise(events: WilcoEvent[]): string {
+export function summarise(events: TadeEvent[]): string {
   if (events.length === 0) return ''
-  const byTask = new Map<string, WilcoEvent[]>()
+  const byTask = new Map<string, TadeEvent[]>()
   for (const event of events) {
     const key = event.task ?? 'elsewhere'
     byTask.set(key, [...(byTask.get(key) ?? []), event])
@@ -184,7 +184,7 @@ export function summarise(events: WilcoEvent[]): string {
 }
 
 /** One event, said the way you would say it out loud. */
-export function describeEvent(event: WilcoEvent): string {
+export function describeEvent(event: TadeEvent): string {
   switch (event.type) {
     case 'permission_request':
       return `is waiting on ${event.detail.summary ?? 'a decision'}`

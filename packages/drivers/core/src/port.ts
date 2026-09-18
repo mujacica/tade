@@ -1,4 +1,4 @@
-import type { LaneId, Unsubscribe } from '@wilco/core'
+import type { LaneId, Unsubscribe } from '@tade/core'
 
 // The WorkspaceDriver port: what decides where a process physically lives.
 // It is deliberately NOT the thing that decides where you look at it.
@@ -104,7 +104,7 @@ export interface WorkspaceDriver {
   onExit(lane: LaneId, listener: LaneExitListener): Unsubscribe
   /**
    * Let go of every lane without ending it: stop watching, release resources,
-   * leave what is running running. This is Wilco closing, which is the
+   * leave what is running running. This is Tade closing, which is the
    * ordinary way a session ends and must never be what stops your agents.
    *
    * Whether they actually survive is `capabilities.detach`. Where they cannot

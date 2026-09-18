@@ -1,4 +1,4 @@
-import type { WilcoEvent } from '@wilco/core'
+import type { TadeEvent } from '@tade/core'
 import { noReporter } from './none.ts'
 import { REPORTERS, type Reporter, type ReporterOptions } from './port.ts'
 import { sentryReporter } from './sentry.ts'
@@ -17,7 +17,7 @@ export interface TelemetryConfig {
   errors: boolean
   logs: boolean
   metrics: boolean
-  /** How much of what Wilco does is timed, 0 to 1. Agents' turns are always. */
+  /** How much of what Tade does is timed, 0 to 1. Agents' turns are always. */
   traces: number
   /** Time what agents do, as the work of a model: turns, tool calls, tokens. */
   agents: boolean
@@ -29,7 +29,7 @@ export interface TelemetryHere {
   release: string
   /** The person's home, replaced with `~` in everything sent. */
   home: string
-  /** Where Wilco itself is, so a stack frame in it is one you could fix. */
+  /** Where Tade itself is, so a stack frame in it is one you could fix. */
   root?: string
   /** Somewhere to put what would have been sent, for tests. */
   sink?: (envelope: unknown) => void
@@ -37,9 +37,9 @@ export interface TelemetryHere {
 }
 
 /**
- * The reporter this Wilco runs with. Nothing is sent unless somewhere to send
+ * The reporter this Tade runs with. Nothing is sent unless somewhere to send
  * it was set, so the answer is `none` until someone asks for more — and a
- * reporter that cannot be opened is never the reason Wilco does not open.
+ * reporter that cannot be opened is never the reason Tade does not open.
  */
 export async function openReporter(
   config: TelemetryConfig,
@@ -66,7 +66,7 @@ export async function openReporter(
 }
 
 /** A journal event, reported as whatever it is worth: an issue, a line, a number. */
-export function saw(reporter: Reporter, event: WilcoEvent, home: string): void {
+export function saw(reporter: Reporter, event: TadeEvent, home: string): void {
   if (!reporter.on) return
   const what = fromEvent(event, home)
   if (what.trouble) reporter.trouble(what.trouble)
@@ -76,7 +76,7 @@ export function saw(reporter: Reporter, event: WilcoEvent, home: string): void {
 
 /**
  * Report what takes the process down, and keep what Node does about it: an
- * uncaught exception still ends Wilco, after whoever is holding the terminal
+ * uncaught exception still ends Tade, after whoever is holding the terminal
  * has had it back and the crash has had its one chance to be sent.
  */
 export function watchProcess(

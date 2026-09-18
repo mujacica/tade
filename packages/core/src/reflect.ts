@@ -1,9 +1,9 @@
-import type { WilcoEvent } from './events.ts'
+import type { TadeEvent } from './events.ts'
 import type { TaskState } from './model.ts'
 
 // Looking back at a task that finished.
 //
-// Skills are lessons Wilco noticed and a human approved, but nothing was ever
+// Skills are lessons Tade noticed and a human approved, but nothing was ever
 // prompting it to notice. A tool it may call whenever it likes is a tool it
 // calls when it is being helpful rather than when it has learned something —
 // so the moment to ask is the one moment there is something to learn from: a
@@ -29,7 +29,7 @@ export interface ReflectableTask {
  */
 export function needsReflection(
   tasks: readonly ReflectableTask[],
-  events: readonly WilcoEvent[],
+  events: readonly TadeEvent[],
 ): string[] {
   const already = new Set<string>()
   for (const event of events) {
@@ -52,9 +52,9 @@ export function reflectionPrompt(task: string): string {
   const project = task.split('/')[0] ?? task
   return [
     `${task} has finished.`,
-    'Look back at it with wilco_logs.',
+    'Look back at it with tade_logs.',
     'If — and only if — something about working here surprised you, and knowing it earlier would',
-    'have changed what you did, write it down with wilco_propose_skill and scope it to',
+    'have changed what you did, write it down with tade_propose_skill and scope it to',
     `${project}.`,
     'Most finished tasks teach nothing. Saying "nothing to note" is the usual answer and a good one:',
     'a lesson nobody needed costs context in every prompt from then on.',

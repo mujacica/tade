@@ -1,11 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import { ConfigSchema } from '@wilco/core'
-import { ExtensionHost } from '@wilco/extensions-core'
-import { ScriptedRecorder, ScriptedTranscriber } from '@wilco/voice-stt'
-import { Speaker } from '@wilco/voice-tts'
-import { Workbench } from '@wilco/workbench'
+import { ConfigSchema } from '@tade/core'
+import { ExtensionHost } from '@tade/extensions-core'
+import { ScriptedRecorder, ScriptedTranscriber } from '@tade/voice-stt'
+import { Speaker } from '@tade/voice-tts'
+import { Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { App, type AppOptions } from '../src/app.ts'
@@ -125,7 +125,7 @@ describe('the window, wired up', () => {
     repo.addTask('refunds', { project: 'app', intent: 'refunds double-charge on retries' })
     repo.addTask('search', { project: 'app', intent: 'search is slow above ten thousand rows' })
     // A tmp home, so status never reads the real machine's agent transcripts.
-    home = tmp('wilco-app-')
+    home = tmp('tade-app-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
     terminal = new FakeTerminal()
@@ -139,7 +139,7 @@ describe('the window, wired up', () => {
 
   async function start(over: Partial<AppOptions> = {}): Promise<App> {
     const speaker = await Speaker.create({
-      soundDir: tmp('wilco-app-sound-'),
+      soundDir: tmp('tade-app-sound-'),
       platform: 'darwin',
       // Never actually make a noise in a test run.
       run: async () => {},
@@ -168,7 +168,7 @@ describe('the window, wired up', () => {
 
   it('always shows the orchestrator', async () => {
     await start()
-    // It cannot be closed: it is how you see what Wilco heard.
+    // It cannot be closed: it is how you see what Tade heard.
     await until('the orchestrator strip', () => terminal.written.includes('orchestrator'))
   })
 
@@ -181,11 +181,11 @@ describe('the window, wired up', () => {
     await until('the dictation line', () => terminal.written.includes('◉'))
   })
 
-  it('holds a line addressed to Wilco rather than typing it at the agent', async () => {
+  it('holds a line addressed to Tade rather than typing it at the agent', async () => {
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
     terminal.written = ''
-    for (const char of 'wilco par') terminal.press(char)
+    for (const char of 'tade par') terminal.press(char)
     await until('the held line', () => terminal.written.includes('◌'))
   })
 
@@ -266,7 +266,7 @@ describe('the window, wired up', () => {
   it('says what the orchestrator answers once, as it streams in', async () => {
     const said: string[] = []
     const speaker = await Speaker.create({
-      soundDir: tmp('wilco-app-sound-'),
+      soundDir: tmp('tade-app-sound-'),
       platform: 'darwin',
       run: async ({ command, args }) => {
         if (command === 'say') said.push(args.at(-1) ?? '')
@@ -386,7 +386,7 @@ describe('the window, wired up', () => {
   })
 
   it('offers a screenshot on the clipboard, and attaches it from an empty paste or a click', async () => {
-    const shot = join(tmp('wilco-shot-'), 'shot.png')
+    const shot = join(tmp('tade-shot-'), 'shot.png')
     writeFileSync(shot, Buffer.from('89504e470d0a1a0a', 'hex'))
     let copy = '7'
     await start({
@@ -479,7 +479,7 @@ describe('the window, wired up', () => {
       screenOf(terminal.written).some((row) => row.includes('❯ run the tests')),
     )
 
-    emit({ type: 'tool', id: '1', tool: 'wilco_terminal_run', input: { command: 'pnpm test' } })
+    emit({ type: 'tool', id: '1', tool: 'tade_terminal_run', input: { command: 'pnpm test' } })
     emit({ type: 'tool_done', id: '1', ok: false, text: 'no terminal is open in app' })
     await until('the failure, with its reason', () =>
       screenOf(terminal.written).some((row) => row.includes('no terminal is open in app')),
@@ -495,7 +495,7 @@ describe('the window, wired up', () => {
   })
 
   it('asks who a dropped screenshot is for, and sends it with what you say next', async () => {
-    const shot = join(tmp('wilco-shot-'), 'Screen Shot.png')
+    const shot = join(tmp('tade-shot-'), 'Screen Shot.png')
     writeFileSync(shot, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
     const sent: { text: string; images: readonly { mimeType: string }[] }[] = []
     await start({
@@ -524,7 +524,7 @@ describe('the window, wired up', () => {
   })
 
   it('keeps several screenshots, and each can be removed', async () => {
-    const dir = tmp('wilco-multi-shot-')
+    const dir = tmp('tade-multi-shot-')
     const a = join(dir, 'a.png')
     const b = join(dir, 'b.png')
     writeFileSync(a, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
@@ -563,7 +563,7 @@ describe('the window, wired up', () => {
   })
 
   it('attaches a non-image file dropped on the orchestrator', async () => {
-    const dir = tmp('wilco-file-')
+    const dir = tmp('tade-file-')
     const txt = join(dir, 'notes.txt')
     writeFileSync(txt, 'these are notes')
     const sent: { text: string; images: readonly { mimeType: string }[] }[] = []
@@ -627,7 +627,7 @@ describe('the window, wired up', () => {
     // Asking to be shown something has to actually show it, rather than
     // telling you which command would.
     await until('the marker to move', () => /▌ \S search/.test(terminal.written))
-    expect(terminal.written).not.toContain('run wilco attach')
+    expect(terminal.written).not.toContain('run tade attach')
   })
 
   it('types to the orchestrator when no agent has focus', async () => {
@@ -686,12 +686,12 @@ describe('the window, wired up', () => {
     await until('the first frame', () => terminal.written.includes('refunds'))
     terminal.written = ''
     terminal.press('\x1b[114;6u')
-    await until('the reload panel', () => terminal.written.includes('Reload Wilco?'))
+    await until('the reload panel', () => terminal.written.includes('Reload Tade?'))
     expect(reloaded).toBe(false)
     // Dismiss the panel so the test ends cleanly.
     terminal.written = ''
     terminal.press('\x1b')
-    await until('the panel to close', () => !terminal.written.includes('Reload Wilco?'))
+    await until('the panel to close', () => !terminal.written.includes('Reload Tade?'))
   })
 
   /** A left click, as a terminal in SGR mouse mode sends it: press, then release. */
@@ -730,14 +730,15 @@ describe('the window, wired up', () => {
   }, 30_000)
 
   it('opens a project from the + beside the tabs, looking in your home folder', async () => {
-    const folders = tmp('wilco-app-home-')
+    const folders = tmp('tade-app-home-')
     writeFileSync(join(folders, 'notes.txt'), 'not a folder')
     mkdirSync(join(folders, 'payments'))
     const was = process.env.HOME
     process.env.HOME = folders
     try {
       await start()
-      await until('the first frame', () => terminal.written.includes('WILCO'))
+      // The wordmark is spelt with the letters apart, so look for it that way.
+      await until('the first frame', () => terminal.written.includes('T A D E'))
       const tabs = screenOf(terminal.written)[0] ?? ''
       terminal.written = ''
       click(tabs.indexOf('+'), 0)
@@ -819,7 +820,7 @@ describe('the window, wired up', () => {
 
   it("writes a task's own rule down once it is met, and only then", async () => {
     const worktree = join(repo.root, '..', 'worktrees', 'app-refunds')
-    const file = join(worktree, '.wilco', 'task.yaml')
+    const file = join(worktree, '.tade', 'task.yaml')
     writeFileSync(file, `${readFileSync(file, 'utf8')}done: committed\n`)
     await start()
     await until('the first frame', () => terminal.written.includes('refunds'))
@@ -1133,7 +1134,7 @@ describe('the window, wired up', () => {
       15_000,
     )
     const file = readFileSync(
-      join(repo.root, '.wilco', 'tasks', 'bring-in-shed', 'task.yaml'),
+      join(repo.root, '.tade', 'tasks', 'bring-in-shed', 'task.yaml'),
       'utf8',
     )
     expect(file).toContain('by: schedule:rain')
@@ -1512,10 +1513,10 @@ describe('the window, wired up', () => {
     await until('a terminal', () => client.terminals('app').length === 1)
     await until('its tab', () => terminal.written.includes('terminal 1'))
     // The keyboard is in it now: typed keys are the shell's.
-    for (const char of 'echo wilco-$((6 * 7))') terminal.press(char)
+    for (const char of 'echo tade-$((6 * 7))') terminal.press(char)
     terminal.press('\r')
     const deadline = Date.now() + 20_000
-    while (!(await client.readTerminal('1', 50, 'app')).includes('wilco-42')) {
+    while (!(await client.readTerminal('1', 50, 'app')).includes('tade-42')) {
       if (Date.now() > deadline) throw new Error('the command never ran')
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
@@ -1729,14 +1730,14 @@ describe('a project with nothing in it', () => {
   it('starts agents in the checkout together, and in worktree mode names a branch at the first change', async () => {
     const repo = mkrepo()
     repo.commit('first')
-    const home = tmp('wilco-app-')
+    const home = tmp('tade-app-')
     const yaml = (workspace: string) =>
       `projects:\n  empty:\n    root: ${repo.root}\nagents:\n  workspace: ${workspace}\n`
     writeFileSync(join(home, 'config.yaml'), yaml('worktree'))
     const client = await Workbench.open({ home })
     const terminal = new FakeTerminal()
     const speaker = await Speaker.create({
-      soundDir: tmp('wilco-app-sound-'),
+      soundDir: tmp('tade-app-sound-'),
       platform: 'darwin',
       run: async () => {},
     })
@@ -1792,7 +1793,7 @@ describe('a project with nothing in it', () => {
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
       const [event] = await client.events({ types: ['task_named'] })
-      expect(event).toMatchObject({ task: 'empty/agent-1', detail: { branch: 'wilco/agent-1' } })
+      expect(event).toMatchObject({ task: 'empty/agent-1', detail: { branch: 'tade/agent-1' } })
     } finally {
       await app.stop().catch(() => {})
       await client.close().catch(() => {})

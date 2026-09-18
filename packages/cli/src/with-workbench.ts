@@ -1,5 +1,5 @@
-import { wilcoHome } from '@wilco/core'
-import { HomeBusyError, Workbench } from '@wilco/workbench'
+import { tadeHome } from '@tade/core'
+import { HomeBusyError, Workbench } from '@tade/workbench'
 import { Exit, type Io } from './io.ts'
 
 /**
@@ -13,11 +13,11 @@ import { Exit, type Io } from './io.ts'
 export async function withWorkbench(
   io: Io,
   setExit: (code: number) => void,
-  fn: (wilco: Workbench) => Promise<void>,
+  fn: (tade: Workbench) => Promise<void>,
 ): Promise<void> {
-  let wilco: Workbench
+  let tade: Workbench
   try {
-    wilco = await Workbench.open({ home: wilcoHome() })
+    tade = await Workbench.open({ home: tadeHome() })
   } catch (err) {
     io.err(
       err instanceof HomeBusyError
@@ -30,12 +30,12 @@ export async function withWorkbench(
     return
   }
   try {
-    await fn(wilco)
+    await fn(tade)
   } catch (err) {
     io.err(err instanceof Error ? err.message : String(err))
     setExit(Exit.error)
   } finally {
     // Closing lets go of the lanes; it does not stop them.
-    await wilco.close().catch(() => {})
+    await tade.close().catch(() => {})
   }
 }

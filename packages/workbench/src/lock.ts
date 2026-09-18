@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 // One control room per home directory.
 //
-// Wilco keeps no server, so two windows opened on the same home would both be
+// Tade keeps no server, so two windows opened on the same home would both be
 // appending to the same journal and both numbering events from their own
 // count. The lock makes that a clear refusal instead of a corrupt log. It
 // guards writing only: reading the journal, the notes and the git state needs
@@ -13,7 +13,7 @@ export class HomeBusyError extends Error {
   readonly code = 'HOME_BUSY'
   readonly pid: number
   constructor(pid: number, home: string) {
-    super(`Wilco is already open on ${home} (pid ${pid})`)
+    super(`Tade is already open on ${home} (pid ${pid})`)
     this.name = 'HomeBusyError'
     this.pid = pid
   }
@@ -26,12 +26,12 @@ export interface HomeLock {
 /**
  * Claim a home directory for writing.
  *
- * A lock file whose process is gone is not a lock: Wilco being killed must not
+ * A lock file whose process is gone is not a lock: Tade being killed must not
  * leave you locked out of your own workbench, so a stale one is taken over
  * rather than reported.
  */
 export async function lockHome(home: string): Promise<HomeLock> {
-  const path = join(home, 'wilco.lock')
+  const path = join(home, 'tade.lock')
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const fh = await open(path, 'wx')
@@ -57,7 +57,7 @@ export async function lockHome(home: string): Promise<HomeLock> {
  * that is gone counts as nobody: that is a crash, not an owner.
  */
 export function heldBy(home: string): Promise<number | null> {
-  return holderOf(join(home, 'wilco.lock'))
+  return holderOf(join(home, 'tade.lock'))
 }
 
 /** The pid holding the lock, or null if it names nothing that is running. */

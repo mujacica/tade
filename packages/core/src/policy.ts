@@ -35,8 +35,8 @@ export interface PolicyDecision {
 /**
  * A rule somebody wrote for their own machine.
  *
- * It can only ever make Wilco *stricter*: there is no `auto` to write, and
- * where a rule disagrees with a built-in the stricter of the two wins. Wilco's
+ * It can only ever make Tade *stricter*: there is no `auto` to write, and
+ * where a rule disagrees with a built-in the stricter of the two wins. Tade's
  * own list is a floor, not a default — loosening is `auto_allow`, which names
  * exact tools and is a deliberate thing to type.
  */
@@ -58,9 +58,9 @@ export interface PolicyOptions {
 const STRICTNESS: Record<Tier, number> = { auto: 0, soft: 1, hard: 2 }
 
 /**
- * The first of your own rules that matches, if any is stricter than what Wilco
+ * The first of your own rules that matches, if any is stricter than what Tade
  * decided on its own. Unreadable patterns are skipped rather than thrown over:
- * `wilco config --check` is where a bad one is reported, and an agent mid-turn
+ * `tade config --check` is where a bad one is reported, and an agent mid-turn
  * is not the moment to find out about a typo.
  */
 function yours(command: string, decided: PolicyDecision, rules: readonly PolicyRule[]) {
@@ -100,7 +100,7 @@ export interface Approval extends PolicyDecision {
 
 /**
  * What the gate should do with a held tool call. The risk classification runs
- * either way, so `wilco logs` can still show that a force push happened even
+ * either way, so `tade logs` can still show that a force push happened even
  * when nothing asked you about it.
  */
 export function decideApproval(facts: ToolCallFacts, settings: ApprovalSettings): Approval {
@@ -208,7 +208,7 @@ export function classifyToolCall(
   return yours(command, mine, options.rules ?? []) ?? mine
 }
 
-/** What Wilco makes of a command on its own, before your rules are consulted. */
+/** What Tade makes of a command on its own, before your rules are consulted. */
 function classifyCommand(command: string, facts: ToolCallFacts): PolicyDecision {
   for (const rule of HARD_COMMANDS) {
     if (rule.test.test(command)) return { tier: Tier.hard, rule: rule.rule, reason: rule.reason }

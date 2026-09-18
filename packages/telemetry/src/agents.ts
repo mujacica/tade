@@ -2,7 +2,7 @@ import type { Reporter, Span } from './port.ts'
 
 // What an agent does, as the work of a model.
 //
-// Wilco runs agents; the supervisor sees a turn start, the tools it calls, what
+// Tade runs agents; the supervisor sees a turn start, the tools it calls, what
 // it cost and how it ended. Said in Sentry's own words for agents — a
 // `gen_ai.invoke_agent` span per turn, a `gen_ai.execute_tool` span per tool —
 // that becomes the same picture Sentry draws for any agent: how long turns
@@ -74,8 +74,8 @@ export function agentTurns(reporter: Reporter): AgentTurns {
           'gen_ai.agent.name': what.task,
           ...(what.model ? { 'gen_ai.request.model': what.model } : {}),
           ...(what.provider ? { 'gen_ai.provider.name': what.provider } : {}),
-          ...(what.harness ? { 'wilco.harness': what.harness } : {}),
-          'wilco.project': what.task.split('/')[0] ?? what.task,
+          ...(what.harness ? { 'tade.harness': what.harness } : {}),
+          'tade.project': what.task.split('/')[0] ?? what.task,
         },
         ...(what.at ? { startedAt: what.at } : {}),
       })
@@ -99,7 +99,7 @@ export function agentTurns(reporter: Reporter): AgentTurns {
       const tool = turn?.tools.get(what.callId)
       if (!turn || !tool) return
       turn.tools.delete(what.callId)
-      if (!what.ok) tool.about({ 'wilco.ok': false })
+      if (!what.ok) tool.about({ 'tade.ok': false })
       tool.end(what.at)
     },
     usage(run, usage) {

@@ -6,9 +6,9 @@ import {
   oneOf,
   type ProjectRef,
   string,
+  type TadeExtension,
   type ToolContext,
-  type WilcoExtension,
-} from '@wilco/extensions-core'
+} from '@tade/extensions-core'
 import {
   applyUpdate,
   type Change,
@@ -26,7 +26,7 @@ import { PUBLIC_REGISTRIES, type Registries } from './registries.ts'
 //
 // Checking is a question and can be asked by anyone, anywhere. Updating is
 // work, so it happens where work happens: with an agent that installs, runs
-// the tests and fixes what the new versions broke, wherever Wilco has its
+// the tests and fixes what the new versions broke, wherever Tade has its
 // agents work — the checkout, or a worktree of its own.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -110,7 +110,7 @@ function changeList(changes: readonly Change[]): string {
 
 const project = string('project name, as configured; the one you are in when there is only one')
 
-export const depsExtension: WilcoExtension = {
+export const depsExtension: TadeExtension = {
   name: 'deps',
   title: 'Dependencies',
   description:
@@ -185,14 +185,13 @@ export const depsExtension: WilcoExtension = {
             text: `Updated ${changes.length} requirement${changes.length === 1 ? '' : 's'} in your worktree:\n\n${listed}\n\nNow run ${install.join(' and ') || 'the install'}${at.project.test ? `, then \`${at.project.test}\`` : ', then the tests'}.`,
           }
         }
-        if (!ctx.wilco)
-          throw new Error('updating starts an agent, which needs the Wilco window open')
+        if (!ctx.tade) throw new Error('updating starts an agent, which needs the Tade window open')
         const majors = changes.filter((change) => change.behind === 'major')
-        const started = await ctx.wilco.startAgent({
+        const started = await ctx.tade.startAgent({
           project: at.project.name,
           title: `update dependencies ${level}`,
           prompt: [
-            `The dependencies in this worktree were just updated to their newest ${level} releases (${changes.length} change${changes.length === 1 ? '' : 's'}, listed in .wilco/context.md).`,
+            `The dependencies in this worktree were just updated to their newest ${level} releases (${changes.length} change${changes.length === 1 ? '' : 's'}, listed in .tade/context.md).`,
             `Run ${install.map((command) => `\`${command}\``).join(' and ') || 'the install'} so the lockfiles match,`,
             `then ${at.project.test ? `\`${at.project.test}\`` : 'the tests'}.`,
             majors.length > 0
@@ -287,7 +286,7 @@ export const depsExtension: WilcoExtension = {
         return {
           title: `update ${name}`,
           prompt: [
-            `${name} has a known vulnerability, in .wilco/context.md with its advisories.`,
+            `${name} has a known vulnerability, in .tade/context.md with its advisories.`,
             `Read them first, then call deps_update with packages ["${name}"] and level ${level} to move it forward in this worktree.`,
             'If that is not enough to clear the advisory, say so and go as far as it takes, reading the changelog for what breaks.',
             `Then install${ctx.watching.test ? `, run \`${ctx.watching.test}\`` : ' and run the tests'}, fix what the update broke, and commit.`,

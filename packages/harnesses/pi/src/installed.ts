@@ -3,9 +3,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 // What pi loads by itself, whoever runs it: extensions and skills in its own
-// folders, and packages installed with `pi install`. Wilco does not run these
+// folders, and packages installed with `pi install`. Tade does not run these
 // — pi does, in every agent — but they change what an agent can do, so the
-// window lists them beside Wilco's own.
+// window lists them beside Tade's own.
 //
 // The files are pi's and may change shape; anything unfamiliar is left out.
 

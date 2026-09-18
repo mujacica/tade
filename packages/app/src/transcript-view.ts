@@ -65,7 +65,7 @@ export function transcriptLines(
   // Nothing said yet: how to read what will be.
   if (transcript.entries.length === 0) {
     plainText(
-      ` ${skin.you('❯')} ${skin.hint('what you say   ')}${skin.signal('◆')} ${skin.hint('the orchestrator   ')}${skin.busy('●')} ${skin.hint('what Wilco did   ')}${skin.done('✓')}${skin.bad('✗')} ${skin.hint('its tools')}`,
+      ` ${skin.you('❯')} ${skin.hint('what you say   ')}${skin.signal('◆')} ${skin.hint('the orchestrator   ')}${skin.busy('●')} ${skin.hint('what Tade did   ')}${skin.done('✓')}${skin.bad('✗')} ${skin.hint('its tools')}`,
     )
   }
 
@@ -130,11 +130,11 @@ function entryLines(entry: Entry, width: number, skin: Skin, now: number): Drawn
         const tail = (lines.at(-1) ?? '').replace(/ +((?:\x1b\[[0-9;]*m)*)$/, '$1')
         lines[lines.length - 1] = `${tail}${skin.busy('▍')}`
       }
-      // Who is answering, on its first line: the orchestrator, or Wilco itself.
+      // Who is answering, on its first line: the orchestrator, or Tade itself.
       const mark = entry.by === 'orchestrator' ? skin.signal('◆') : skin.busy('●')
       return lines.map((text, i) => ({ text: `${i === 0 ? mark : ' '} ${text}`, linkable: true }))
     }
-    case 'wilco':
+    case 'tade':
       return wrapped(entry.text, width, `${skin.busy('●')} `, skin.hint).map((text) => ({
         text,
         linkable: true,

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { EventLog } from '@wilco/workbench/events'
+import { EventLog } from '@tade/workbench/events'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -10,12 +10,12 @@ const bin = fileURLToPath(new URL('../src/bin.ts', import.meta.url))
 // The CLI is spawned for real: each invocation opens the workbench, does its
 // work and closes it. Nothing else may hold the home while it runs.
 
-describe('wilco summary', () => {
+describe('tade summary', () => {
   let log: EventLog
   let home: string
   let env: Record<string, string>
 
-  const wilco = (...args: string[]): Promise<{ code: number | null; stdout: string }> =>
+  const tade = (...args: string[]): Promise<{ code: number | null; stdout: string }> =>
     new Promise((resolve) => {
       const child = spawn(process.execPath, [bin, ...args], { env: { ...process.env, ...env } })
       let stdout = ''
@@ -27,8 +27,8 @@ describe('wilco summary', () => {
     })
 
   beforeEach(async () => {
-    home = tmp('wilco-cli-summary-')
-    env = { WILCO_HOME: home, WILCO_NO_GH: '1', HOME: home }
+    home = tmp('tade-cli-summary-')
+    env = { TADE_HOME: home, TADE_NO_GH: '1', HOME: home }
     log = await EventLog.open({ path: join(home, 'events.jsonl') })
   })
 
@@ -37,7 +37,7 @@ describe('wilco summary', () => {
   })
 
   it('says plainly when the journal has nothing about it', async () => {
-    const result = await wilco('summary', 'app/refunds')
+    const result = await tade('summary', 'app/refunds')
     expect(result.code).toBe(0)
     expect(result.stdout).toBe('Nothing recorded for refunds.')
   })
@@ -58,7 +58,7 @@ describe('wilco summary', () => {
       detail: { status: 'ok' },
     })
 
-    const result = await wilco('summary', 'app/refunds')
+    const result = await tade('summary', 'app/refunds')
     expect(result.stdout).toContain('3 tool calls and 1 turn, mostly bash and edit')
   })
 
@@ -76,7 +76,7 @@ describe('wilco summary', () => {
       detail: { requestId: 'q1', summary: 'bash: npm i stripe@15' },
     })
 
-    const result = await wilco('summary', 'app/refunds')
+    const result = await tade('summary', 'app/refunds')
     expect(result.stdout).toContain('waiting on bash: npm i stripe@15')
     // Approvals are off by default, so this is when you hear about it.
     expect(result.stdout).toContain('It ran git push --force.')
@@ -89,7 +89,7 @@ describe('wilco summary', () => {
       run: 'r2',
       detail: { tool: 'edit' },
     })
-    expect((await wilco('summary', 'app/refunds')).stdout).toBe('Nothing recorded for refunds.')
+    expect((await tade('summary', 'app/refunds')).stdout).toBe('Nothing recorded for refunds.')
   })
 
   it('has a machine-readable form', async () => {
@@ -99,7 +99,7 @@ describe('wilco summary', () => {
       run: 'r1',
       detail: { tool: 'bash' },
     })
-    const summary = JSON.parse((await wilco('summary', 'app/refunds', '--json')).stdout)
+    const summary = JSON.parse((await tade('summary', 'app/refunds', '--json')).stdout)
     expect(summary).toMatchObject({ task: 'app/refunds', tools: 1, turns: 0, empty: false })
     expect(summary.used).toEqual([{ tool: 'bash', count: 1 }])
   })

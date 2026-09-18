@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EventType, WilcoEvent } from '../src/events.ts'
+import type { EventType, TadeEvent } from '../src/events.ts'
 import { ago, historyFrom } from '../src/history.ts'
 import type { TaskState } from '../src/model.ts'
 import {
@@ -12,7 +12,7 @@ import {
 const NOW = Date.parse('2026-09-11T14:00:00Z')
 const minutesAgo = (m: number) => new Date(NOW - m * 60_000).toISOString()
 
-function event(type: EventType, task: string, over: Partial<WilcoEvent> = {}): WilcoEvent {
+function event(type: EventType, task: string, over: Partial<TadeEvent> = {}): TadeEvent {
   return {
     seq: 1,
     ts: minutesAgo(1),

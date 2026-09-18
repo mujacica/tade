@@ -1,28 +1,28 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Note, SkillActivity, Unsubscribe } from '@wilco/core'
-import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@wilco/core'
-import type { WorkerExtras, WorkerImage, WorkerModel } from '@wilco/harnesses-core'
-import { type AvailableModel, chooseModel, PiAdapter, usableModels } from '@wilco/harnesses-pi'
+import type { Config, Note, SkillActivity, Unsubscribe } from '@tade/core'
+import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
+import type { WorkerExtras, WorkerImage, WorkerModel } from '@tade/harnesses-core'
+import { type AvailableModel, chooseModel, PiAdapter, usableModels } from '@tade/harnesses-pi'
 import { activeExtensions, activeSkills } from './extensions.ts'
 
-/** Where approved lessons live, beside everything else Wilco keeps. */
+/** Where approved lessons live, beside everything else Tade keeps. */
 function skillsRoot(opts: { home: string }): string {
   return join(opts.home, 'skills')
 }
 
 // The thing you talk to. An agent like any other, except that its tools are
-// Wilco's own and nobody supervises it: it is the interface, not the work.
+// Tade's own and nobody supervises it: it is the interface, not the work.
 
 export const TOOLS_EXTENSION = fileURLToPath(new URL('./tools-extension.ts', import.meta.url))
-/** The `wilco` CLI in a source checkout, which the status tool shells out to. */
+/** The `tade` CLI in a source checkout, which the status tool shells out to. */
 const CLI_BIN = fileURLToPath(new URL('../../cli/src/bin.ts', import.meta.url))
 
 export const ORCHESTRATOR_RUN = 'orchestrator'
-export const ORCHESTRATOR_TASK = 'wilco/orchestrator'
+export const ORCHESTRATOR_TASK = 'tade/orchestrator'
 
 export interface OrchestratorOptions {
-  /** Wilco's state directory, passed through to the tools. */
+  /** Tade's state directory, passed through to the tools. */
   home: string
   /** The `ToolHost` socket its tools call back through. */
   socket: string
@@ -32,7 +32,7 @@ export interface OrchestratorOptions {
   cwd?: string
   config?: Config
   /**
-   * What you have told Wilco, for the prompt. Passed in rather than fetched so
+   * What you have told Tade, for the prompt. Passed in rather than fetched so
    * composing the prompt stays a pure function of facts.
    */
   notes?: readonly Note[]
@@ -121,7 +121,7 @@ export class Orchestrator {
     const model =
       opts.model ?? (choice?.ok ? { provider: choice.provider, id: choice.id } : undefined)
 
-    // Wilco's own tools always load. The ones it wrote for itself load after
+    // Tade's own tools always load. The ones it wrote for itself load after
     // them, so a self-written tool can never shadow `status` or `approve`.
     const written = opts.safe
       ? []
@@ -131,14 +131,14 @@ export class Orchestrator {
 
     const adapter = new PiAdapter({
       runDir: opts.runDir,
-      // Wilco's own interface: gating its tool calls on approval would mean
+      // Tade's own interface: gating its tool calls on approval would mean
       // asking permission to answer "where are we".
       supervise: false,
       args: [
         '-e',
         TOOLS_EXTENSION,
         ...written.flatMap((path) => ['-e', path]),
-        // Appended rather than replacing pi's own prompt: this says what Wilco
+        // Appended rather than replacing pi's own prompt: this says what Tade
         // is and what is on this machine, not how to be a coding agent.
         ...(opts.config
           ? [
@@ -162,16 +162,16 @@ export class Orchestrator {
       ],
       env: {
         ...(opts.env ?? process.env),
-        WILCO_SOCKET: opts.socket,
-        WILCO_HOME: opts.home,
+        TADE_SOCKET: opts.socket,
+        TADE_HOME: opts.home,
         // Where proposals are written, so the tools do not have to guess at
         // paths the config may have moved.
-        WILCO_EXTENSIONS: expandHome(
+        TADE_EXTENSIONS: expandHome(
           opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
         ),
-        WILCO_SKILLS: skillsRoot(opts),
-        WILCO_CLI: process.execPath,
-        WILCO_CLI_ARGS: CLI_BIN,
+        TADE_SKILLS: skillsRoot(opts),
+        TADE_CLI: process.execPath,
+        TADE_CLI_ARGS: CLI_BIN,
       },
     })
 
@@ -238,7 +238,7 @@ export class Orchestrator {
 
   /**
    * Say something that is not an interruption: a turn of its own when it is
-   * free, and after the turn it is on when it is not. What Wilco tells it
+   * free, and after the turn it is on when it is not. What Tade tells it
    * unasked arrives this way, so it never cuts across what you asked.
    */
   async tell(text: string): Promise<void> {

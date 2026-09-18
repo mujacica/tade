@@ -1,4 +1,4 @@
-import type { LaneId } from '@wilco/core'
+import type { LaneId } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PtyDriver } from '../src/index.ts'
 

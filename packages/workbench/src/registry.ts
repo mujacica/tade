@@ -1,15 +1,15 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type LaneId, LaneKind } from '@wilco/core'
+import { type LaneId, LaneKind } from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneSpec,
   type WorkspaceDriver,
-} from '@wilco/drivers-core'
-import { PtyDriver } from '@wilco/drivers-pty'
-import { TmuxDriver } from '@wilco/drivers-tmux'
+} from '@tade/drivers-core'
+import { PtyDriver } from '@tade/drivers-pty'
+import { TmuxDriver } from '@tade/drivers-tmux'
 import { z } from 'zod'
 import type { EventLog } from './events.ts'
 
@@ -36,7 +36,7 @@ export const drivers: Record<string, (home: string) => WorkspaceDriver> = {
  * windows, and distinct per home, so nothing else's are in reach.
  */
 export function tmuxSession(home: string): string {
-  return `wilco-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`
+  return `tade-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`
 }
 
 export const LaneRecord = z.object({
@@ -60,7 +60,7 @@ export const LaneRecord = z.object({
   exitCode: z.number().nullable(),
   lastOutputAt: z.number().nullable(),
   /**
-   * It was running when Wilco last closed, and did not come back with it:
+   * It was running when Tade last closed, and did not come back with it:
    * nobody stopped it and it did not end on its own. What the window opens
    * again, where it left off. Cleared by closing it, by it exiting, and by
    * starting it again.
@@ -91,7 +91,7 @@ export interface SpawnRequest {
 export interface LaneRegistryOptions {
   driver: WorkspaceDriver
   log: EventLog
-  /** Where the registry is persisted; `<wilcoHome>/lanes.json`. */
+  /** Where the registry is persisted; `<tadeHome>/lanes.json`. */
   path: string
   /** How often per lane output is summarised into the event log. */
   outputSampleMs?: number
@@ -201,7 +201,7 @@ export class LaneRegistry {
   private lostReason(): string {
     return this.driver.capabilities.detach
       ? 'gone: the driver could not find it again'
-      : 'gone: lanes do not outlive Wilco under this driver'
+      : 'gone: lanes do not outlive Tade under this driver'
   }
 
   async spawn(req: SpawnRequest): Promise<LaneRecord> {
@@ -433,7 +433,7 @@ export class LaneRegistry {
  * Lane ids are `<project>/<task>/<lane>`, which makes them self-describing:
  * an adopted lane can say which task it belongs to without anyone having
  * written that down. The last segment is the kind when it names one, which is
- * what `wilco spawn <project>/<task>` produces.
+ * what `tade spawn <project>/<task>` produces.
  */
 function adoptedRecord(handle: LaneHandle): LaneRecord {
   const parts = (handle.id as string).split('/')
@@ -461,7 +461,7 @@ async function readJson(path: string): Promise<unknown> {
 }
 
 /**
- * A spec as it is written down: only the environment Wilco set, never what the
+ * A spec as it is written down: only the environment Tade set, never what the
  * lane inherited from the window. That is everyone's shell environment, API
  * keys and tokens included, and a relaunch inherits it again anyway — drivers
  * lay a spec's env over their own.

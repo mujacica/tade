@@ -1,4 +1,4 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2  ╭─ Keys ───────────────────────────────────────────────────────────────────────────── esc ─╮igh ▾ ▌ ▐ × ▌ 
               │                                                                                          │──────────────
@@ -6,7 +6,7 @@
  ▐   wants you│ Search                    ▐ ctrl ▌+▐ k ▌  agents, files, lines, commands                 │              
               │ Next agent                ▐ tab ▌  the next agent, then the orchestrator                 │              
    ⠋ refunds  │ Previous agent            ▐ shift ▌+▐ tab ▌  back through the same                       │              
-     working  │ Talk to Wilco             ▐ ctrl ▌+▐ / ▌  type to the orchestrator                       │              
+     working  │ Talk to Tade              ▐ ctrl ▌+▐ / ▌  type to the orchestrator                       │              
               │ Next waiting agent        ▐ ctrl ▌+▐ q ▌  the agent waiting on you                       │              
  ▾ CHANGES  3 │ New agent                 ▐ ctrl ▌+▐ n ▌  start one in the project you are in            │              
   M package.js│ New terminal              ▐ ctrl ▌+▐ t ▌  a terminal in the bottom panel                 │              
@@ -27,8 +27,8 @@
               │ Everything else goes to the agent or terminal you're typing at.                          │              
               │                                                                         ▐ Change keys… ▌ │              
               ╰──────────────────────────────────────────────────────────────────────────────────────────╯              
- ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

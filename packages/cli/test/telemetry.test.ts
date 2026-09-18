@@ -1,13 +1,13 @@
 import { writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig } from '@wilco/core'
-import { Workbench } from '@wilco/workbench'
+import { ConfigSchema, loadConfig } from '@tade/core'
+import { Workbench } from '@tade/workbench'
 import { afterEach, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { reportCrash, reporterFor, reportJournal } from '../src/telemetry.ts'
 
-// Wilco reporting its own trouble. Nothing reaches a network: every send is
+// Tade reporting its own trouble. Nothing reaches a network: every send is
 // answered here, and what would have gone on the wire is read back as text.
 
 const DSN = 'https://abc123@o1.ingest.sentry.io/4507'
@@ -43,19 +43,19 @@ it('sends nothing at all until somewhere to send it is set', async () => {
 })
 
 it('takes the DSN from the environment, for people who keep it out of files', async () => {
-  process.env.WILCO_TELEMETRY_DSN = DSN
+  process.env.TADE_TELEMETRY_DSN = DSN
   try {
     const report = await reporterFor(config({}), { sink: () => {} })
     expect(report.on).toBe(true)
     await report.close()
   } finally {
-    delete process.env.WILCO_TELEMETRY_DSN
+    delete process.env.TADE_TELEMETRY_DSN
   }
 })
 
-it("reports what the journal says about Wilco itself, and nothing about anyone's work", async () => {
+it("reports what the journal says about Tade itself, and nothing about anyone's work", async () => {
   const repo = mkrepo()
-  const home = tmp('wilco-telemetry-')
+  const home = tmp('tade-telemetry-')
   writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
   window = await Workbench.open({ home })
   const { sink, sent, items } = sentry()
@@ -82,12 +82,12 @@ it("reports what the journal says about Wilco itself, and nothing about anyone's
   stop()
 
   const text = JSON.stringify(sent)
-  // Wilco's own warning is an issue somebody could fix.
+  // Tade's own warning is an issue somebody could fix.
   const issue = items().find((item) => item.type === 'event')?.payload as {
     message?: string
     level?: string
   }
-  expect(issue.message).toBe('wilco: tmux is not installed')
+  expect(issue.message).toBe('tade: tmux is not installed')
   expect(issue.level).toBe('warning')
   // What happened around it is there to read, by name.
   expect(text).toContain('task_created app/refunds')
@@ -95,25 +95,25 @@ it("reports what the journal says about Wilco itself, and nothing about anyone's
   expect(text).not.toContain('double charge')
   // Nor does the machine's own home, wherever it appears.
   expect(text).not.toContain(homedir())
-  expect(text).toContain('wilco.tokens')
+  expect(text).toContain('tade.tokens')
   await report.close()
 }, 30_000)
 
 it('reports a command that ended in a crash, on its way out', async () => {
-  const home = tmp('wilco-telemetry-crash-')
+  const home = tmp('tade-telemetry-crash-')
   writeFileSync(`${home}/config.yaml`, `telemetry:\n  dsn: ${DSN}\n`)
-  const wasHome = process.env.WILCO_HOME
+  const wasHome = process.env.TADE_HOME
   const sent: unknown[] = []
-  process.env.WILCO_HOME = home
-  process.env.WILCO_TELEMETRY_SINK = 'test'
+  process.env.TADE_HOME = home
+  process.env.TADE_TELEMETRY_SINK = 'test'
   try {
-    await reportCrash(new Error('it fell over'), ['node', 'wilco', 'status', '--json'], {
+    await reportCrash(new Error('it fell over'), ['node', 'tade', 'status', '--json'], {
       sink: (envelope) => sent.push(envelope),
     })
   } finally {
-    delete process.env.WILCO_TELEMETRY_SINK
-    if (wasHome === undefined) delete process.env.WILCO_HOME
-    else process.env.WILCO_HOME = wasHome
+    delete process.env.TADE_TELEMETRY_SINK
+    if (wasHome === undefined) delete process.env.TADE_HOME
+    else process.env.TADE_HOME = wasHome
   }
   const event = sent
     .flatMap((envelope) => {
@@ -121,6 +121,6 @@ it('reports a command that ended in a crash, on its way out', async () => {
       return list.map(([header, payload]) => ({ type: String(header.type), payload }))
     })
     .find((item) => item.type === 'event')?.payload as { tags?: { where?: string }; level?: string }
-  expect(event.tags?.where).toBe('wilco status')
+  expect(event.tags?.where).toBe('tade status')
   expect(event.level).toBe('fatal')
 }, 30_000)

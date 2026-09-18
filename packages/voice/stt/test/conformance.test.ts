@@ -1,4 +1,4 @@
-import { testTranscriber } from '@wilco/voice-core/conformance'
+import { testTranscriber } from '@tade/voice-core/conformance'
 import { OpenAiTranscriber, ScriptedTranscriber, WhisperCppTranscriber } from '../src/index.ts'
 
 testTranscriber('scripted', () => new ScriptedTranscriber(['park the stripe one']))

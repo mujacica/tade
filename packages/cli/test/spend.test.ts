@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { Workbench } from '@wilco/workbench'
+import { Workbench } from '@tade/workbench'
 import { afterEach, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -14,7 +14,7 @@ afterEach(async () => {
 })
 
 it('says what today cost while a window has the home open', async () => {
-  const home = tmp('wilco-cli-spend-')
+  const home = tmp('tade-cli-spend-')
   // A window is open: it holds the home, and asking a question must not need it.
   window = await Workbench.open({ home })
   await window.log.append({
@@ -24,7 +24,7 @@ it('says what today cost while a window has the home open', async () => {
   })
   const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
     const child = spawn(process.execPath, [bin, 'spend', '--json'], {
-      env: { ...process.env, WILCO_HOME: home, HOME: home },
+      env: { ...process.env, TADE_HOME: home, HOME: home },
     })
     let stdout = ''
     child.stdout.setEncoding('utf8')

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Workbench } from '@wilco/workbench'
+import { Workbench } from '@tade/workbench'
 import { afterEach, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 
@@ -16,7 +16,7 @@ afterEach(async () => {
 })
 
 it('says what runs on a clock while a window has the home open', async () => {
-  const home = tmp('wilco-cli-schedules-')
+  const home = tmp('tade-cli-schedules-')
   writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${home}\n`)
   window = await Workbench.open({ home })
   await window.setSchedule(
@@ -55,7 +55,7 @@ it('says what runs on a clock while a window has the home open', async () => {
   })
   const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
     const child = spawn(process.execPath, [bin, 'schedules'], {
-      env: { ...process.env, WILCO_HOME: home, HOME: home },
+      env: { ...process.env, TADE_HOME: home, HOME: home },
     })
     let stdout = ''
     child.stdout.setEncoding('utf8')

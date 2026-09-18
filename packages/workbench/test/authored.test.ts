@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { recordAuthored } from '../src/authored.ts'
 
-// The history of what Wilco wrote for itself.
+// The history of what Tade wrote for itself.
 //
 // The question this exists to answer is not "what is active" — the directory
 // says that — but "when did this appear, and what was going on when I agreed
@@ -14,9 +14,9 @@ import { recordAuthored } from '../src/authored.ts'
 const log = (root: string) =>
   execFileSync('git', ['log', '--format=%s'], { cwd: root, encoding: 'utf8' }).trim().split('\n')
 
-describe('recording what Wilco wrote for itself', () => {
+describe('recording what Tade wrote for itself', () => {
   it('starts a repository and records the first thing that appears', async () => {
-    const root = tmp('wilco-authored-')
+    const root = tmp('tade-authored-')
     mkdirSync(join(root, 'proposed'), { recursive: true })
     writeFileSync(join(root, 'proposed', 'run-tests-first.md'), 'about: checkout\n')
 
@@ -26,7 +26,7 @@ describe('recording what Wilco wrote for itself', () => {
   })
 
   it('records the decision, not just the arrival', async () => {
-    const root = tmp('wilco-authored-')
+    const root = tmp('tade-authored-')
     mkdirSync(join(root, 'proposed'), { recursive: true })
     writeFileSync(join(root, 'proposed', 'pin-majors.md'), 'Pin major versions.\n')
     await recordAuthored(root, 'lessons proposed')
@@ -39,24 +39,24 @@ describe('recording what Wilco wrote for itself', () => {
   })
 
   it('says nothing when nothing changed', async () => {
-    const root = tmp('wilco-authored-')
+    const root = tmp('tade-authored-')
     writeFileSync(join(root, 'a.md'), 'x\n')
     await recordAuthored(root, 'first')
-    // Opening Wilco must not produce a commit a day saying nothing happened.
+    // Opening Tade must not produce a commit a day saying nothing happened.
     expect(await recordAuthored(root, 'second')).toEqual({ recorded: false })
     expect(log(root)).toEqual(['first'])
   })
 
-  it('commits as Wilco, never as you', async () => {
-    const root = tmp('wilco-authored-')
+  it('commits as Tade, never as you', async () => {
+    const root = tmp('tade-authored-')
     writeFileSync(join(root, 'a.md'), 'x\n')
     await recordAuthored(root, 'first')
     const who = execFileSync('git', ['log', '--format=%an <%ae>'], { cwd: root, encoding: 'utf8' })
-    expect(who.trim()).toBe('Wilco <wilco@localhost>')
+    expect(who.trim()).toBe('Tade <tade@localhost>')
   })
 
   it('never nests a repository inside one that already exists', async () => {
-    const root = tmp('wilco-authored-')
+    const root = tmp('tade-authored-')
     execFileSync('git', ['init', '--quiet'], { cwd: root })
     execFileSync('git', ['config', 'user.email', 'you@example.com'], { cwd: root })
     execFileSync('git', ['config', 'user.name', 'You'], { cwd: root })
@@ -71,7 +71,7 @@ describe('recording what Wilco wrote for itself', () => {
   it('loses the history rather than the lesson when it cannot record', async () => {
     // A machine with no git still has to be able to accept a lesson: refusing
     // one because its history could not be written down would be absurd.
-    const root = join(tmp('wilco-authored-'), 'a-file-not-a-directory')
+    const root = join(tmp('tade-authored-'), 'a-file-not-a-directory')
     writeFileSync(root, 'not a directory\n')
     expect(await recordAuthored(root, 'first')).toEqual({ recorded: false })
   })

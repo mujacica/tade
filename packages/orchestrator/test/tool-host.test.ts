@@ -1,6 +1,6 @@
 import { connect } from 'node:net'
 import { join } from 'node:path'
-import type { Workbench } from '@wilco/workbench'
+import type { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { ToolHost, type ToolHostOptions } from '../src/tool-host.ts'
@@ -42,7 +42,7 @@ describe('starting an agent for the orchestrator', () => {
   const started: Array<Record<string, unknown>> = []
   let handedOff = 0
 
-  const wilco = {
+  const tade = {
     async resolveModel(said: string) {
       if (said === 'opus') return { provider: 'openrouter', id: 'anthropic/claude-opus-5' }
       throw new Error(`"${said}" could be gpt-4o, gpt-5: say which`)
@@ -56,14 +56,14 @@ describe('starting an agent for the orchestrator', () => {
   async function listen(over: Partial<ToolHostOptions> = {}): Promise<string> {
     started.length = 0
     handedOff = 0
-    const path = join(tmp('wilco-tools-'), 'tools.sock')
+    const path = join(tmp('tade-tools-'), 'tools.sock')
     host = await ToolHost.listen({
-      wilco,
+      tade,
       path,
       handOff: async (cwd) => {
         handedOff++
         return {
-          note: `An attachment is in ${cwd}/.wilco/attachments/shot.png.`,
+          note: `An attachment is in ${cwd}/.tade/attachments/shot.png.`,
           images: [{ data: 'iVBORw0K', mimeType: 'image/png' }],
         }
       },
@@ -118,7 +118,7 @@ describe('starting an agent for the orchestrator', () => {
       prompt: 'look at this',
     })
     expect(started[0]).toMatchObject({
-      prompt: 'look at this\n\nAn attachment is in /src/app/.wilco/attachments/shot.png.',
+      prompt: 'look at this\n\nAn attachment is in /src/app/.tade/attachments/shot.png.',
       images: [{ mimeType: 'image/png' }],
     })
   })
@@ -140,18 +140,18 @@ describe('where everything stands', () => {
   })
 
   it('is the window’s answer, and says so when there is no window to ask', async () => {
-    const path = join(tmp('wilco-tools-'), 'tools.sock')
+    const path = join(tmp('tade-tools-'), 'tools.sock')
     const seen = { projects: [{ name: 'app', tasks: [{ id: 'app/refunds', state: 'blocked' }] }] }
     host = await ToolHost.listen({
-      wilco: {} as Workbench,
+      tade: {} as Workbench,
       path,
       status: async () => seen,
     })
     expect((await call(path, 'status/read', {})).result).toEqual(seen)
     await host.close()
 
-    const bare = join(tmp('wilco-tools-'), 'tools.sock')
-    host = await ToolHost.listen({ wilco: {} as Workbench, path: bare })
+    const bare = join(tmp('tade-tools-'), 'tools.sock')
+    host = await ToolHost.listen({ tade: {} as Workbench, path: bare })
     expect((await call(bare, 'status/read', {})).error?.message).toMatch(/no window to ask/)
   })
 })
@@ -165,10 +165,10 @@ describe('putting work on a clock', () => {
   })
 
   it('hands the window a watch as asked, looking as often as the watch says when no rule is given', async () => {
-    const path = join(tmp('wilco-tools-'), 'tools.sock')
+    const path = join(tmp('tade-tools-'), 'tools.sock')
     const asked: Record<string, unknown>[] = []
     host = await ToolHost.listen({
-      wilco: {} as Workbench,
+      tade: {} as Workbench,
       path,
       queue: {
         describe: async () => '',

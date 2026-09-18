@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
-import { defaultConfigPath, type LaneId, loadConfig, type TaskId } from '@wilco/core'
-import type { RunId } from '@wilco/harnesses-core'
-import { collectStatus } from '@wilco/status'
+import { defaultConfigPath, type LaneId, loadConfig, type TaskId } from '@tade/core'
+import type { RunId } from '@tade/harnesses-core'
+import { collectStatus } from '@tade/status'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { withWorkbench } from '../with-workbench.ts'
@@ -48,7 +48,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
     .action(async (id: string, opts: { force?: boolean; config: string }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
-        io.err(`${cfg.path}: invalid config (run \`wilco config --check\`)`)
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
         setExit(Exit.invalidInput)
         return
       }
@@ -110,7 +110,7 @@ export function registerTasks(program: Command, io: Io, setExit: (code: number) 
       ) => {
         const cwd = opts.cwd ?? (await worktreeOf(taskId, opts.config))
         if (!cwd) {
-          io.err(`no such task: ${taskId} (create it with \`wilco task create\`)`)
+          io.err(`no such task: ${taskId} (create it with \`tade task create\`)`)
           setExit(Exit.invalidInput)
           return
         }

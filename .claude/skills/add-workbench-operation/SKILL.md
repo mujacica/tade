@@ -1,12 +1,12 @@
 ---
 name: add-workbench-operation
-description: Add something Wilco can do to lanes, tasks, agents, notes or the journal. Use when the CLI, the window or the orchestrator needs a capability that does not exist yet.
+description: Add something Tade can do to lanes, tasks, agents, notes or the journal. Use when the CLI, the window or the orchestrator needs a capability that does not exist yet.
 ---
 
 # Adding a workbench operation
 
 The workbench is an object, not a service. `Workbench` (`packages/workbench/src/workbench.ts`) is
-what Wilco holds while it is open — the lanes, the journal, the notes, the agents — and callers get
+what Tade holds while it is open — the lanes, the journal, the notes, the agents — and callers get
 it by opening it, using it and closing it. There is no wire format to design and no client to keep
 in step.
 
@@ -24,20 +24,20 @@ in step.
 2. Journal anything that changed the world, after it changed. The journal is how "what happened"
    gets answered later, and an operation missing from it is invisible forever.
 3. Test it in `packages/workbench/test/` against a real workbench on a tmp home
-   (`Workbench.open({ home })`), never a mock. Use `until()` from `@wilco/drivers-core/conformance`
+   (`Workbench.open({ home })`), never a mock. Use `until()` from `@tade/drivers-core/conformance`
    rather than sleeping.
 4. Expose it where people reach it: the CLI (see `add-cli-command`), the window
    (`change-the-window`), or the orchestrator (`add-orchestrator-tool`).
 
 ## Rules
 
-- **Opening the workbench takes the home.** One window per `WILCO_HOME`: a second `open` is refused
+- **Opening the workbench takes the home.** One window per `TADE_HOME`: a second `open` is refused
   with `HomeBusyError`. So an operation that only *reads* — the journal, the notes, git — must not
   need it. Use `readJournal(home)` or `Memory.open(home)` and leave the lock alone; a question you
   cannot ask while a window is open is a question people will stop asking.
 - **Never report a lane as alive without evidence from the driver.** A live pid says something is
   running, not that we can drive it. `reconcile` asks the driver and takes its answer.
-- **`close()` lets go; `stopEverything()` ends the work.** Closing Wilco must never stop agents that
+- **`close()` lets go; `stopEverything()` ends the work.** Closing Tade must never stop agents that
   the driver says can outlive it.
 - Every mutation of lane state is persisted by the registry and appended to the journal, in that
   order.

@@ -1,4 +1,4 @@
-import type { Turn } from '@wilco/voice-core'
+import type { Turn } from '@tade/voice-core'
 
 // The conversation with the orchestrator, as it happens.
 //
@@ -12,18 +12,18 @@ import type { Turn } from '@wilco/voice-core'
 
 export type ToolState = 'running' | 'ok' | 'failed'
 
-/** Who is speaking: the model you talk to, or Wilco answering from its own grammar and its own work. */
-export type Speaker = 'orchestrator' | 'wilco'
+/** Who is speaking: the model you talk to, or Tade answering from its own grammar and its own work. */
+export type Speaker = 'orchestrator' | 'tade'
 
 export type Entry =
   /** What you said or typed, with the pictures you sent along. */
   | { kind: 'you'; text: string; images: string[]; at: number }
-  /** Where Wilco's own grammar sent it, and why: `start · checkout/refunds`. */
+  /** Where Tade's own grammar sent it, and why: `start · checkout/refunds`. */
   | { kind: 'routed'; text: string; at: number }
-  /** Words back: the orchestrator's (markdown), or a reply from Wilco itself. */
+  /** Words back: the orchestrator's (markdown), or a reply from Tade itself. */
   | { kind: 'said'; text: string; streaming: boolean; by: Speaker; at: number }
-  /** Something Wilco itself did or noticed: opened an agent, copied a path, a warning. */
-  | { kind: 'wilco'; text: string; at: number }
+  /** Something Tade itself did or noticed: opened an agent, copied a path, a warning. */
+  | { kind: 'tade'; text: string; at: number }
   /** A tool it reached for, and how that went. */
   | {
       kind: 'tool'
@@ -88,7 +88,7 @@ export function thinking(transcript: Transcript, at: number): Transcript {
 }
 
 /**
- * An exchange Wilco finished. Its own grammar says where it sent what you said
+ * An exchange Tade finished. Its own grammar says where it sent what you said
  * and answers; free text was the orchestrator's, whose words are already here
  * as they arrived — unless it never got that far, and the reply says why.
  */
@@ -120,7 +120,7 @@ export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
       kind: 'said',
       text: turn.reply,
       streaming: false,
-      by: 'wilco',
+      by: 'tade',
       at: turn.at,
     })
   }
@@ -133,7 +133,7 @@ export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
       kind: 'said',
       text: turn.reply,
       streaming: false,
-      by: 'wilco',
+      by: 'tade',
       at: turn.at,
     })
   return next
@@ -221,19 +221,19 @@ export function fromThinker(transcript: Transcript, event: ThinkerEvent, at: num
   }
 }
 
-/** Words from Wilco itself, not the orchestrator: a brief, an extension's answer. */
+/** Words from Tade itself, not the orchestrator: a brief, an extension's answer. */
 export function said(transcript: Transcript, text: string, at: number): Transcript {
-  return push(transcript, { kind: 'said', text, streaming: false, by: 'wilco', at })
+  return push(transcript, { kind: 'said', text, streaming: false, by: 'tade', at })
 }
 
 /**
- * Something Wilco did or noticed, as a line of its own. The same line said
+ * Something Tade did or noticed, as a line of its own. The same line said
  * again soon after — a warning every poll — is not said twice.
  */
-export function wilcoDid(transcript: Transcript, text: string, at: number): Transcript {
+export function tadeDid(transcript: Transcript, text: string, at: number): Transcript {
   const recent = transcript.entries.slice(-12)
-  if (recent.some((entry) => entry.kind === 'wilco' && entry.text === text)) return transcript
-  return push(transcript, { kind: 'wilco', text, at })
+  if (recent.some((entry) => entry.kind === 'tade' && entry.text === text)) return transcript
+  return push(transcript, { kind: 'tade', text, at })
 }
 
 /**
@@ -269,7 +269,7 @@ export function suggest(transcript: Transcript, text: string, ask: string, at: n
 
 /**
  * The few arguments that say which thing a tool was used on, as a short line:
- * `wilco · "pnpm test"`. Long values are cut, and structure is not repeated.
+ * `tade · "pnpm test"`. Long values are cut, and structure is not repeated.
  */
 export function toolDetail(input: unknown): string {
   if (!input || typeof input !== 'object') return ''
@@ -287,9 +287,9 @@ export function toolDetail(input: unknown): string {
   return parts.join(' · ')
 }
 
-/** A tool's name the way it reads: `wilco_terminal_run` is "terminal run". */
+/** A tool's name the way it reads: `tade_terminal_run` is "terminal run". */
 export function toolName(tool: string): string {
-  return tool.replace(/^wilco_/, '').replace(/_/g, ' ')
+  return tool.replace(/^tade_/, '').replace(/_/g, ' ')
 }
 
 function lastYou(entries: readonly Entry[]): number {

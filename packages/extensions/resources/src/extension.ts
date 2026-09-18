@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { type ExtensionContext, object, oneOf, type WilcoExtension } from '@wilco/extensions-core'
+import { type ExtensionContext, object, oneOf, type TadeExtension } from '@tade/extensions-core'
 import {
   attribute,
   type By,
@@ -15,11 +15,11 @@ import {
   totals,
 } from './usage.ts'
 
-// Resources: what Wilco and everything it runs is using — by project, by kind,
+// Resources: what Tade and everything it runs is using — by project, by kind,
 // by agent, by process — kept for the last hour, in the status bar and on
 // request.
 //
-// Wilco should cost the machine as little as it can, and this is how you find
+// Tade should cost the machine as little as it can, and this is how you find
 // out whether it does. So it is itself cheap: one `ps` for the whole process
 // table, never more often than every few seconds whoever asks, and a history
 // with a fixed length. What watching costs is measured and reported with
@@ -64,12 +64,12 @@ function lanesFromDisk(home: string): LaneRef[] {
 
 /**
  * The same breakdown drawn for a person: each row a bar of its share of what
- * Wilco uses, CPU and memory side by side, so the heavy one is seen before it
+ * Tade uses, CPU and memory side by side, so the heavy one is seen before it
  * is read.
  */
 export function chart(now: Sample, history: History, period: number): string {
   const lines = [
-    `**Wilco is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
+    `**Tade is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
   ]
   const section = (title: string, rows: ReturnType<typeof totals>, limit: number) => {
     if (rows.length === 0) return
@@ -116,13 +116,13 @@ function bar(part: number, whole: number, cells = 10): string {
   return '█'.repeat(filled) + '░'.repeat(cells - filled)
 }
 
-export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtension {
+export function resourcesExtension(options: ResourcesOptions = {}): TadeExtension {
   const history = new History(options.history ?? 720)
   let taking: Promise<Sample> | null = null
 
   /** A sample no older than the interval: taken now only when the last one is stale. */
   const sample = async (
-    ctx: ExtensionContext & { wilco?: { pid: number; lanes(): readonly LaneRef[] } | null },
+    ctx: ExtensionContext & { tade?: { pid: number; lanes(): readonly LaneRef[] } | null },
   ): Promise<Sample> => {
     const every =
       typeof ctx.settings.every === 'number' && ctx.settings.every > 0
@@ -140,8 +140,8 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
       if (listed.code !== 0)
         throw new Error(`ps could not be read: ${listed.stderr.trim() || `exit ${listed.code}`}`)
       const groups = attribute(parsePs(listed.stdout), {
-        window: ctx.wilco?.pid ?? null,
-        lanes: ctx.wilco ? ctx.wilco.lanes() : lanesFromDisk(ctx.home),
+        window: ctx.tade?.pid ?? null,
+        lanes: ctx.tade ? ctx.tade.lanes() : lanesFromDisk(ctx.home),
       })
       const taken = sampleOf(groups, ctx.now(), performance.now() - started)
       history.add(taken)
@@ -160,7 +160,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
 
   const report = (now: Sample, by: readonly By[], period: number): string => {
     const lines = [
-      `**Wilco is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
+      `**Tade is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
     ]
     const table = (title: string, rows: ReturnType<typeof totals>, limit = 12) => {
       if (rows.length === 0) return
@@ -204,7 +204,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
   return {
     name: 'resources',
     title: 'Resources',
-    description: 'What Wilco and everything it runs is using, by project, kind, agent and process.',
+    description: 'What Tade and everything it runs is using, by project, kind, agent and process.',
     settings: [
       {
         key: 'every',
@@ -228,7 +228,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
       {
         name: 'resources_usage',
         description:
-          'How much CPU and memory Wilco and everything it runs is using right now — the window, the orchestrator, each agent and terminal, and helpers — by project, by kind, by agent or by process, with the average and peak over a recent period. Use it when asked how heavy Wilco is, what is using the CPU or memory, or whether an agent is running away.',
+          'How much CPU and memory Tade and everything it runs is using right now — the window, the orchestrator, each agent and terminal, and helpers — by project, by kind, by agent or by process, with the average and peak over a recent period. Use it when asked how heavy Tade is, what is using the CPU or memory, or whether an agent is running away.',
         parameters: object({
           by: oneOf(
             ['all', 'project', 'kind', 'agent', 'process'],
@@ -247,7 +247,7 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
             by === 'all' ? ['project', 'kind', 'agent', 'process'] : [by as By]
           const top = now.groups.toSorted((a, b) => b.cpu - a.cpu)[0]
           return {
-            said: `Wilco is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory${
+            said: `Tade is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory${
               top ? `; ${top.label} the most, at ${percent(top.cpu)} and ${megabytes(top.rss)}` : ''
             }.`,
             text: report(
@@ -274,9 +274,9 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
         tool: 'resources_usage',
         input: { by: 'all' },
         heard: [
-          /^(how much|what)('?s| is)? (cpu|memory|ram|resources?)( is)? (is )?(wilco|everything|it) (using|taking)$/i,
-          /^how (much|heavy) is wilco( using)?$/i,
-          /^(show|what'?s|what is) (the )?(wilco )?(resource|cpu|memory) usage$/i,
+          /^(how much|what)('?s| is)? (cpu|memory|ram|resources?)( is)? (is )?(tade|everything|it) (using|taking)$/i,
+          /^how (much|heavy) is tade( using)?$/i,
+          /^(show|what'?s|what is) (the )?(tade )?(resource|cpu|memory) usage$/i,
           /^what is (using|eating) (the|my) (cpu|memory|ram)$/i,
         ],
       },
@@ -292,6 +292,6 @@ export function resourcesExtension(options: ResourcesOptions = {}): WilcoExtensi
     },
     view: async (ctx) => chart(await sample(ctx), history, PERIODS['15m'] ?? 900_000),
     orchestrator: () =>
-      'When asked how much Wilco or its agents are using, what is slowing the machine, or whether something is running away, call resources_usage and name the top one or two consumers with their CPU and memory.',
+      'When asked how much Tade or its agents are using, what is slowing the machine, or whether something is running away, call resources_usage and name the top one or two consumers with their CPU and memory.',
   }
 }

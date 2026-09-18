@@ -39,7 +39,7 @@ async function getJson(
   headers: Record<string, string> = {},
 ): Promise<unknown> {
   const response = await fetcher(url, {
-    headers: { 'user-agent': 'wilco-dependency-check', ...headers },
+    headers: { 'user-agent': 'tade-dependency-check', ...headers },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (response.status === 404) throw new Error('not found in its registry')
@@ -138,7 +138,7 @@ export async function vulnerabilities(
   try {
     const response = await fetcher(`${registries.osv}/v1/querybatch`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'user-agent': 'wilco-dependency-check' },
+      headers: { 'content-type': 'application/json', 'user-agent': 'tade-dependency-check' },
       body: JSON.stringify({
         queries: packages.map((one) => ({
           package: { ecosystem: OSV_ECOSYSTEM[one.ecosystem], name: one.name },

@@ -55,7 +55,7 @@ export function readForView(path: string, limit = VIEW_BYTES): ViewedFile {
       code === 'ENOENT'
         ? 'It is not there any more.'
         : code === 'EACCES' || code === 'EPERM'
-          ? 'Wilco is not allowed to read it.'
+          ? 'Tade is not allowed to read it.'
           : err instanceof Error
             ? err.message
             : String(err)

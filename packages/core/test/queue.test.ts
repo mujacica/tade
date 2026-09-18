@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Finished } from '../src/done.ts'
-import type { EventType, WilcoEvent } from '../src/events.ts'
+import type { EventType, TadeEvent } from '../src/events.ts'
 import type { StartCondition, TaskState } from '../src/model.ts'
 import {
   checkPlan,
@@ -20,7 +20,7 @@ function event(
   type: EventType,
   task: string | null,
   detail: Record<string, unknown> = {},
-): WilcoEvent {
+): TadeEvent {
   seq++
   return {
     seq,
@@ -45,7 +45,7 @@ function queued(task: string, start: Partial<StartCondition> = {}): Queued {
 function facts(over: {
   tasks?: Record<string, TaskState | [TaskState, string]>
   finished?: string[]
-  events?: WilcoEvent[]
+  events?: TadeEvent[]
 }): QueueFacts {
   const finished = new Map<string, Finished>()
   for (const task of over.finished ?? []) finished.set(task, { at: '', by: 'agent', summary: '' })
@@ -185,7 +185,7 @@ describe('where queued work in a worktree begins', () => {
         'shop/fix-charge',
         {
           workspace: 'worktree' as const,
-          branch: 'wilco/fix-charge',
+          branch: 'tade/fix-charge',
           head: 'aaa',
           done: 'said' as const,
         },
@@ -198,7 +198,7 @@ describe('where queued work in a worktree begins', () => {
         'shop/docs',
         {
           workspace: 'worktree' as const,
-          branch: 'wilco/docs',
+          branch: 'tade/docs',
           head: 'ccc',
           done: 'merged' as const,
         },
@@ -206,7 +206,7 @@ describe('where queued work in a worktree begins', () => {
     ])
     expect(
       startFrom([{ task: 'shop/fix-charge' }, { task: 'shop/bump-mailer' }], upstream, 'main'),
-    ).toEqual(['wilco/fix-charge', 'bbb'])
+    ).toEqual(['tade/fix-charge', 'bbb'])
     expect(startFrom([{ task: 'shop/docs' }], upstream, 'main')).toEqual(['main'])
     expect(startFrom([], upstream, null)).toEqual([])
   })

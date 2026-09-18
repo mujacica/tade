@@ -1,4 +1,4 @@
-import { type Setting, type SettingGroup, THINKING_LEVELS } from '@wilco/core'
+import { type Setting, type SettingGroup, THINKING_LEVELS } from '@tade/core'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 
@@ -399,7 +399,7 @@ export interface FilePanel {
   busy: false
 }
 
-/** The keys Wilco keeps, and the way to change the one that is yours. */
+/** The keys Tade keeps, and the way to change the one that is yours. */
 export interface KeysPanel {
   kind: 'keys'
   busy: false
@@ -553,12 +553,12 @@ export function extensionViewPanel(extension: string): ExtensionViewPanel {
   return { kind: 'extension-view', extension, scroll: 0, busy: false }
 }
 
-/** Something Wilco wrote for itself, waiting for you to read it and decide. */
+/** Something Tade wrote for itself, waiting for you to read it and decide. */
 export interface ProposalView {
   name: string
   /** A tool for the orchestrator, or a whole extension. */
   kind: 'tool' | 'extension'
-  /** What it is for, as Wilco said when it wrote it. */
+  /** What it is for, as Tade said when it wrote it. */
   why: string
   path: string
 }
@@ -833,7 +833,7 @@ export interface PanelInputs {
   extensions?: readonly ExtensionView[]
   /** Models there are to choose from. */
   models?: readonly ModelChoice[]
-  /** What Wilco wrote for itself and is waiting on you. */
+  /** What Tade wrote for itself and is waiting on you. */
   proposals?: readonly ProposalView[]
   /** The fields of the extension being set up. */
   setupFields?: readonly SetupFieldView[]

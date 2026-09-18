@@ -3,15 +3,15 @@ import { noSpan } from './none.ts'
 import type { Attributes, Reporter, ReporterOptions, Span, Work } from './port.ts'
 import { readDsn, scrub, shapeOf } from './shape.ts'
 
-// Wilco's own trouble, in Sentry's own SDK.
+// Tade's own trouble, in Sentry's own SDK.
 //
 // The SDK rather than the envelope protocol by hand, because what is wanted
-// here is not a request: it is a tracer — spans for what Wilco does, `gen_ai`
+// here is not a request: it is a tracer — spans for what Tade does, `gen_ai`
 // spans for what its agents do, logs beside them, and all the parts nobody
 // should write twice (sampling, batching, back-off, release health).
 //
-// It is loaded only when there is a DSN, so a Wilco that reports nothing pays
-// nothing for the choice. Nothing is instrumented automatically: Wilco's own
+// It is loaded only when there is a DSN, so a Tade that reports nothing pays
+// nothing for the choice. Nothing is instrumented automatically: Tade's own
 // work is named where it happens, which is the part worth reading, and the
 // hooks Node's ESM loader would need are left alone.
 
@@ -26,7 +26,7 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
     release: options.release,
     environment: options.environment,
     enableLogs: options.logs,
-    // Agents' turns are few and worth every one; Wilco's own work is constant.
+    // Agents' turns are few and worth every one; Tade's own work is constant.
     tracesSampler: ({ attributes, name }) => {
       const op = String(attributes?.['sentry.op'] ?? '')
       if (op.startsWith('gen_ai.')) return options.agents ? 1 : 0
@@ -64,8 +64,8 @@ async function start(options: ReporterOptions): Promise<typeof import('@sentry/n
 
 /**
  * What leaves, once: the machine's name and its paths gone, and source lines
- * kept only for Wilco's own files — the frames of anything else are somebody
- * else's code, which is not Wilco's to send anywhere.
+ * kept only for Tade's own files — the frames of anything else are somebody
+ * else's code, which is not Tade's to send anywhere.
  */
 function clean<T extends Event>(event: T, options: ReporterOptions): T {
   event.server_name = undefined
@@ -80,7 +80,7 @@ function clean<T extends Event>(event: T, options: ReporterOptions): T {
 
 function keepOwn(frame: StackFrame, home: string, root: string): void {
   const file = frame.abs_path ?? frame.filename ?? ''
-  // Wilco installed is itself inside a `node_modules`, so what matters is
+  // Tade installed is itself inside a `node_modules`, so what matters is
   // whether there is another one under it: that is somebody else's code.
   const own =
     root !== '' && file.startsWith(root) && !file.slice(root.length).includes('node_modules')
@@ -131,7 +131,7 @@ export async function sentryReporter(options: ReporterOptions): Promise<Reporter
   }
   const Sentry = await start(options)
   const now = options.now ?? Date.now
-  // One session for this run of Wilco: what makes "how often does it crash" a
+  // One session for this run of Tade: what makes "how often does it crash" a
   // question with an answer.
   Sentry.startSession()
   let closed = false
@@ -147,13 +147,13 @@ export async function sentryReporter(options: ReporterOptions): Promise<Reporter
         if (trouble.project) scope.setTag('project', trouble.project)
         if (trouble.fingerprint) scope.setFingerprint([...trouble.fingerprint])
         scope.setLevel(trouble.level ?? 'error')
-        scope.setContext('wilco', { ...(trouble.about ?? {}) })
+        scope.setContext('tade', { ...(trouble.about ?? {}) })
         const error = trouble.error
         if (error instanceof Error) Sentry.captureException(error)
         else {
           // Nothing with a stack to group by: what it says is what it is.
           const said = typeof error === 'string' ? error : JSON.stringify(error)
-          scope.setFingerprint([...(trouble.fingerprint ?? ['wilco', shapeOf(said ?? '')])])
+          scope.setFingerprint([...(trouble.fingerprint ?? ['tade', shapeOf(said ?? '')])])
           Sentry.captureMessage(`${trouble.where}: ${scrub(said ?? 'something', options.home)}`)
         }
       })

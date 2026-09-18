@@ -1,16 +1,16 @@
 import { z } from 'zod'
-import type { WilcoEvent } from './events.ts'
+import type { TadeEvent } from './events.ts'
 import { DONE_RULES } from './model.ts'
 
 // Work on a clock.
 //
 // A schedule is a rule for when, and what to do each time: start an agent, ask
 // the orchestrator something, or run a watch that decides whether there is work
-// at all. Schedules are told to Wilco, not derived, so they are kept like notes
+// at all. Schedules are told to Tade, not derived, so they are kept like notes
 // (`schedules.jsonl`); when one last ran is what the journal says, so what is
 // due is a query of the rule, the journal and the clock.
 //
-// Wilco has no daemon: a schedule fires while a window is open. What came due
+// Tade has no daemon: a schedule fires while a window is open. What came due
 // while none was is caught up once, or skipped, as the schedule says.
 //
 // Pure: rules and moments in, moments out. Times of day are in the schedule's
@@ -87,7 +87,7 @@ export const Schedule = z.object({
   said: z.string().default(''),
   when: When,
   does: ScheduleDoes,
-  /** What happens to runs that came due while Wilco was closed. */
+  /** What happens to runs that came due while Tade was closed. */
   missed: z.enum(['once', 'skip']).default('once'),
   /** Who made it, as `TaskOrigin` says it. */
   by: z.string().default('you'),
@@ -389,13 +389,13 @@ export const ON_TIME_MS = 5 * 60_000
 export type Due =
   /** Run now, for the moment `due`; `missed` runs before it came and went unseen. */
   | { run: true; due: number; missed: number }
-  /** Runs came due while Wilco was closed, and the schedule says to skip them. */
+  /** Runs came due while Tade was closed, and the schedule says to skip them. */
   | { run: false; due: number; missed: number }
 
 /**
  * Whether a schedule is due now: the latest moment it should have run since it
  * last did, and how many before that went by. On time, it runs. Missed while
- * Wilco was closed, it runs once or is skipped, as it says — never once for
+ * Tade was closed, it runs once or is skipped, as it says — never once for
  * each run it missed.
  */
 export function dueNow(
@@ -524,7 +524,7 @@ export interface Watched {
 }
 
 /** What a watch schedule has done, from the journal. Pure: events in, facts out. */
-export function watchedFrom(events: readonly WilcoEvent[], schedule: string): Watched {
+export function watchedFrom(events: readonly TadeEvent[], schedule: string): Watched {
   let since: string | null = null
   const seen = new Set<string>()
   const looks: WatchLook[] = []

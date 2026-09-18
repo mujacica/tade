@@ -1,4 +1,4 @@
-import type { GitSnapshot } from '@wilco/core'
+import type { GitSnapshot } from '@tade/core'
 import { execa } from 'execa'
 
 // Git is invoked directly. `--porcelain=v2` and `-z` are stable contracts;
@@ -22,7 +22,7 @@ export async function git(dir: string, args: string[], timeoutMs = 5_000): Promi
     reject: false,
     env: GIT_ENV,
     timeout: timeoutMs,
-    // In its own process group, so the terminal Wilco runs in never takes git
+    // In its own process group, so the terminal Tade runs in never takes git
     // for the program in front of it: Terminal.app retitles the window after
     // whatever is, and status runs git every couple of seconds.
     detached: true,
@@ -40,7 +40,7 @@ export async function git(dir: string, args: string[], timeoutMs = 5_000): Promi
 export interface WorktreeEntry {
   path: string
   head: string | null
-  /** Short branch name (`wilco/x`), or null when detached. */
+  /** Short branch name (`tade/x`), or null when detached. */
   branch: string | null
   bare: boolean
   prunable: boolean
@@ -175,8 +175,8 @@ export interface GitProbeResult {
   warnings: string[]
 }
 
-/** Paths Wilco itself writes into a worktree; never counted as dirty. */
-const OWN_PATHS = /^\.wilco(\/|$)/
+/** Paths Tade itself writes into a worktree; never counted as dirty. */
+const OWN_PATHS = /^\.tade(\/|$)/
 
 /**
  * Whether merging a branch into the base would change nothing, which is what a

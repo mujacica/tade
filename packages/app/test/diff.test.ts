@@ -1,4 +1,4 @@
-import { git } from '@wilco/status'
+import { git } from '@tade/status'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
 import { parseDiff } from '../src/diff.ts'

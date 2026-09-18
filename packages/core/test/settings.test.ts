@@ -27,7 +27,7 @@ describe('what there is to change', () => {
 
   it('says what changing it does, not just what it is called', () => {
     // "workspace.driver: pty" answers nothing for somebody deciding.
-    expect(find('workspace.driver').means).toContain('after you close Wilco')
+    expect(find('workspace.driver').means).toContain('after you close Tade')
     expect(find('approvals.mode').means).toContain('never interrupts')
   })
 
@@ -81,7 +81,7 @@ describe('reading what was typed', () => {
     const budget = find('surfaces.voice.attention.budget')
     expect(parseSetting(budget, '12')).toBe(12)
     // Rejected rather than coerced: `NaN` written to the config would be a
-    // setting that fails validation the next time Wilco opens.
+    // setting that fails validation the next time Tade opens.
     expect(parseSetting(budget, 'lots')).toBeUndefined()
     expect(parseSetting(budget, '-3')).toBeUndefined()
   })

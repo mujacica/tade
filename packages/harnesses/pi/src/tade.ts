@@ -2,16 +2,16 @@ import { readFileSync } from 'node:fs'
 import { connect, type Socket } from 'node:net'
 import { addSpent, nothingSpent, type Spent, spentBy } from './usage.ts'
 
-// The Wilco supervision extension for pi.
+// The Tade supervision extension for pi.
 //
 // pi loads this file directly, so it is deliberately SELF-CONTAINED: no
-// imports from the Wilco workspace, because the extension runs inside pi's
+// imports from the Tade workspace, because the extension runs inside pi's
 // module resolution, not ours. The one import is `usage.ts` beside it, which
 // imports nothing: what a session spent has to be counted the same way here
 // and from pi's files afterwards. It speaks the same JSONL shapes as
-// `WorkerSignal` / `WorkerCommand` in @wilco/core; the Wilco side validates.
+// `WorkerSignal` / `WorkerCommand` in @tade/core; the Tade side validates.
 //
-// Without WILCO_RUN_SOCKET in the environment this is inert, so a human
+// Without TADE_RUN_SOCKET in the environment this is inert, so a human
 // running plain `pi` is never affected.
 
 // Minimal structural types for the slice of pi's API we use.
@@ -54,7 +54,7 @@ interface PiContext {
   }
 }
 
-/** A tool as Wilco lists it for an agent: what pi needs to register it. */
+/** A tool as Tade lists it for an agent: what pi needs to register it. */
 interface ToolSpec {
   name: string
   label: string
@@ -89,21 +89,21 @@ interface PiApi {
 
 type Json = Record<string, unknown>
 
-const SOCKET = process.env.WILCO_RUN_SOCKET
+const SOCKET = process.env.TADE_RUN_SOCKET
 /**
  * Whether tool calls are gated at all.
  *
- * This decides what happens when Wilco is not there, which under a driver
+ * This decides what happens when Tade is not there, which under a driver
  * whose lanes outlive the window is the ordinary case rather than a fault.
  * Under `bypass` nothing was ever going to be held, so losing the connection
  * costs telemetry and nothing else and the agent works on. Under `policy` a
  * gate that cannot be asked has to refuse: quietly downgrading to ungated
  * would be the one outcome nobody asked for.
  */
-const GATED = process.env.WILCO_APPROVALS === 'policy'
+const GATED = process.env.TADE_APPROVALS === 'policy'
 
 /**
- * How long to wait before looking for Wilco again. Long enough that a closed
+ * How long to wait before looking for Tade again. Long enough that a closed
  * window costs nothing, short enough that reopening feels immediate.
  */
 const RETRY_MS = 2_000
@@ -117,22 +117,22 @@ let spent: Spent = nothingSpent()
  * turn, and opening a task is now a click.
  */
 let seeded = false
-const RUN = process.env.WILCO_RUN_ID ?? 'unknown'
-/** Where Wilco listed the extension tools this agent may call. */
-const TOOLS = process.env.WILCO_EXTENSION_TOOLS
+const RUN = process.env.TADE_RUN_ID ?? 'unknown'
+/** Where Tade listed the extension tools this agent may call. */
+const TOOLS = process.env.TADE_EXTENSION_TOOLS
 
-/** How long a tool Wilco runs may take: a dependency update, a Seer analysis. */
+/** How long a tool Tade runs may take: a dependency update, a Seer analysis. */
 const EXTENSION_CALL_MS = 10 * 60_000
 
-export default function wilcoExtension(pi: PiApi): void {
+export default function tadeExtension(pi: PiApi): void {
   if (!SOCKET) return
 
   const pending = new Map<string, (result: ToolCallResult) => void>()
-  /** Extension tools waiting on Wilco's answer, by call id. */
+  /** Extension tools waiting on Tade's answer, by call id. */
   const calls = new Map<string, (answer: { ok: boolean; text: string }) => void>()
   let socket: Socket | null = null
   let connected = false
-  /** Set when pi is going away, so we stop trying to find Wilco. */
+  /** Set when pi is going away, so we stop trying to find Tade. */
   let stopped = false
   let buffer = ''
   let latest: PiContext | null = null
@@ -178,7 +178,7 @@ export default function wilcoExtension(pi: PiApi): void {
         resolve(
           command.allow === true
             ? {}
-            : { block: true, reason: String(command.reason || 'denied by Wilco') },
+            : { block: true, reason: String(command.reason || 'denied by Tade') },
         )
         return
       }
@@ -196,7 +196,7 @@ export default function wilcoExtension(pi: PiApi): void {
         return
       }
       case 'name': {
-        // Named in Wilco: pi shows it too, and it is yours, so nothing renames it after.
+        // Named in Tade: pi shows it too, and it is yours, so nothing renames it after.
         const title = String(command.title ?? '').trim()
         if (!title) return
         chosen = title
@@ -230,7 +230,7 @@ export default function wilcoExtension(pi: PiApi): void {
   /**
    * Connect, and keep trying.
    *
-   * An agent outlives the window under a driver whose lanes do, so Wilco going
+   * An agent outlives the window under a driver whose lanes do, so Tade going
    * away and coming back is the ordinary course of a long task, not a fault.
    * Without this the agent would run on for days reporting to nobody: no
    * journal, no spend, and — worse — no gate, because a gate with nothing at
@@ -271,12 +271,12 @@ export default function wilcoExtension(pi: PiApi): void {
   const drop = () => {
     const wasConnected = connected
     connected = false
-    // Wilco gone mid-flight. Only a gate has anything to say about that: with
+    // Tade gone mid-flight. Only a gate has anything to say about that: with
     // approvals off, nothing was waiting on it, and failing a call that was
     // never going to be held would break work for no reason.
-    if (GATED && wasConnected) failPending('Wilco is not reachable, and approvals are on')
-    // A tool that runs inside Wilco has nowhere to run once it is gone.
-    for (const [, resolve] of calls) resolve({ ok: false, text: 'Wilco closed before it answered' })
+    if (GATED && wasConnected) failPending('Tade is not reachable, and approvals are on')
+    // A tool that runs inside Tade has nowhere to run once it is gone.
+    for (const [, resolve] of calls) resolve({ ok: false, text: 'Tade closed before it answered' })
     calls.clear()
     if (stopped) return
     // Unref'd, so waiting to be picked up again never keeps pi alive by itself.
@@ -286,7 +286,7 @@ export default function wilcoExtension(pi: PiApi): void {
 
   dial()
 
-  // Wilco's extension tools: listed at launch, run in Wilco, answered here.
+  // Tade's extension tools: listed at launch, run in Tade, answered here.
   for (const spec of readTools(TOOLS)) {
     pi.registerTool?.({
       name: spec.name,
@@ -295,7 +295,7 @@ export default function wilcoExtension(pi: PiApi): void {
       parameters: spec.parameters,
       async execute(toolCallId, params) {
         if (!connected) {
-          throw new Error(`Wilco is not open, so ${spec.name} cannot run right now`)
+          throw new Error(`Tade is not open, so ${spec.name} cannot run right now`)
         }
         const answer = await new Promise<{ ok: boolean; text: string }>((resolve) => {
           calls.set(toolCallId, resolve)
@@ -317,10 +317,10 @@ export default function wilcoExtension(pi: PiApi): void {
   // waits on it. A tool rather than words in a reply: "done" in a sentence is
   // also how people write "not done yet".
   pi.registerTool?.({
-    name: 'wilco_done',
+    name: 'tade_done',
     label: 'Done',
     description:
-      'Say that your task is finished: the work is done, and committed if you commit. Wilco then starts whatever was waiting on it. Call it once, at the end. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
+      'Say that your task is finished: the work is done, and committed if you commit. Tade then starts whatever was waiting on it. Call it once, at the end. If you need the person — a question, a decision, something you could not do — ask them instead, and do not call this.',
     parameters: {
       type: 'object',
       properties: {
@@ -333,11 +333,11 @@ export default function wilcoExtension(pi: PiApi): void {
       additionalProperties: false,
     },
     async execute(_toolCallId, params) {
-      if (!connected) throw new Error('Wilco is not open, so it cannot be told yet: say so instead')
+      if (!connected) throw new Error('Tade is not open, so it cannot be told yet: say so instead')
       const summary = String((params as { summary?: unknown } | undefined)?.summary ?? '').trim()
       send({ type: 'done', summary })
       return {
-        content: [{ type: 'text', text: 'Wilco has it: this task is finished.' }],
+        content: [{ type: 'text', text: 'Tade has it: this task is finished.' }],
         details: {},
       }
     },
@@ -392,10 +392,10 @@ export default function wilcoExtension(pi: PiApi): void {
   pi.on('thinking_level_select', ((_event: unknown, ctx: PiContext) => sayVitals(ctx)) as never)
 
   /**
-   * What the work is called, so Wilco can name the agent's branch and you can
+   * What the work is called, so Tade can name the agent's branch and you can
    * tell agents apart.
    *
-   * A name you gave — `/name` here, or renaming it in Wilco — always wins and
+   * A name you gave — `/name` here, or renaming it in Tade — always wins and
    * is never replaced. Otherwise nothing is named until the agent does some
    * work: "who are you?" is a question, not a description of a task. When it
    * first changes something, the request that led there names it at once, and
@@ -419,8 +419,8 @@ export default function wilcoExtension(pi: PiApi): void {
     }
   }
   pi.on('session_start', (() => {
-    // Renamed in Wilco while this agent was not running: its session takes the name now.
-    const given = process.env.WILCO_TITLE?.trim()
+    // Renamed in Tade while this agent was not running: its session takes the name now.
+    const given = process.env.TADE_TITLE?.trim()
     if (given && !pi.getSessionName?.()) {
       pi.setSessionName?.(given)
       chosen = given
@@ -461,7 +461,7 @@ export default function wilcoExtension(pi: PiApi): void {
     return undefined
   }) as never)
 
-  /** Switch to a model by provider and id, as Wilco asked. */
+  /** Switch to a model by provider and id, as Tade asked. */
   const switchModel = async (provider: string, id: string) => {
     const registry = latest?.modelRegistry
     const found =
@@ -513,7 +513,7 @@ export default function wilcoExtension(pi: PiApi): void {
    * What this turn cost, in tokens and dollars.
    *
    * The session carries running totals, so each turn reports the difference
-   * since the last one and Wilco can simply add them up. Prices come from
+   * since the last one and Tade can simply add them up. Prices come from
    * the harness's own model catalog: it is the only thing that knows what was
    * actually charged, and a table we kept ourselves would be wrong the first
    * time a provider changed anything.
@@ -550,7 +550,7 @@ export default function wilcoExtension(pi: PiApi): void {
     })
   }) as never)
 
-  // The gate. When approvals are on, every tool call is held here until Wilco
+  // The gate. When approvals are on, every tool call is held here until Tade
   // answers, so policy lives in one place instead of being re-implemented per
   // agent. When they are off — the default — nothing is ever held.
   pi.on('tool_call', (async (event: ToolCallEvent, ctx: PiContext): Promise<ToolCallResult> => {
@@ -561,7 +561,7 @@ export default function wilcoExtension(pi: PiApi): void {
     send({ type: 'tool_call', callId: event.toolCallId, tool: event.toolName, input: event.input })
     if (!GATED) return {}
     if (!connected) {
-      return { block: true, reason: 'Wilco is not reachable, and approvals are on' }
+      return { block: true, reason: 'Tade is not reachable, and approvals are on' }
     }
     const requestId = `${RUN}-${++counter}`
     const decision = new Promise<ToolCallResult>((resolve) => {

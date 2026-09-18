@@ -1,17 +1,17 @@
- WILCO  ▐ checkout ▌  search    infra   ▐  +  ▌              ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+ ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
                               │─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
  ▐   wants you to approve … ▌ │                                                                                         
                               │                                                                                         
-   ⠋ refunds          $0.62  ╭─ Close Wilco? ─────────────────────────────────────── esc ─╮                             
+   ⠋ refunds          $0.62  ╭─ Close Tade? ──────────────────────────────────────── esc ─╮                             
      working                 │                                                            │                             
                              │ 2 agents are running inside this window.                   │                             
  ▾ CHANGES  3         vs main│                                                            │                             
   M package.json        +2 −1│ Agents here run under pty, so closing stops them. Their    │                             
   A src/webhooks.test.ts  +48│ conversations are kept, and they open again where they     │ed,                          
-  M src/webhooks.ts    +12 −4│ stopped the next time Wilco opens.                         │e.                           
+  M src/webhooks.ts    +12 −4│ stopped the next time Tade opens.                          │e.                           
                              │                                                            │                             
  ▾ FILES                     │ Under tmux they would keep working after you close.        │                             
    ▾ src/                    │ Settings › Agents › Where agents run                       │                             
@@ -27,8 +27,8 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
- ❯ what you say   ◆ the orchestrator   ● what Wilco did   ✓✗ its tools                                                  
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Wilco anything                                                                    type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

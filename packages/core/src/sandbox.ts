@@ -9,7 +9,7 @@ import { join } from 'node:path'
 // code on instructions from a model, and they are the ones contained.
 //
 // What it protects: writes. Your other repositories, your dotfiles, your keys
-// and Wilco's own state are read-only to a sandboxed worker.
+// and Tade's own state are read-only to a sandboxed worker.
 //
 // What it does not protect: reads. A worker can still read anything you can,
 // because a toolchain that cannot read `~/.npmrc` or a global git config is a

@@ -4,13 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { extensionConformance } from '../src/conformance.ts'
 import { ExtensionHost, type ExtensionRun, settingFrom } from '../src/host.ts'
-import type { WilcoExtension } from '../src/port.ts'
+import type { TadeExtension } from '../src/port.ts'
 import { object, string } from '../src/schema.ts'
 
 // Holding extensions and running them. What any one extension finds is its
 // own business; this is the part every one of them relies on.
 
-function weather(overrides: Partial<WilcoExtension> = {}): WilcoExtension {
+function weather(overrides: Partial<TadeExtension> = {}): TadeExtension {
   return {
     name: 'weather',
     title: 'Weather',
@@ -77,7 +77,7 @@ const projects = { shop: { root: '/src/shop' } }
 
 async function host(
   settings: Record<string, unknown> = { city: 'Vienna' },
-  extra: Partial<WilcoExtension> = {},
+  extra: Partial<TadeExtension> = {},
 ) {
   return ExtensionHost.load({
     builtin: [weather(extra)],
@@ -99,7 +99,7 @@ describe('loading extensions', () => {
   })
 
   it('loads yours from active/, and lists a broken one with why, without stopping the rest', async () => {
-    const root = tmp('wilco-ext-')
+    const root = tmp('tade-ext-')
     const mine = join(root, 'active', 'greeting')
     mkdirSync(mine, { recursive: true })
     writeFileSync(
@@ -193,7 +193,7 @@ describe('running a tool', () => {
             parameters: object({}),
             for: ['orchestrator'],
             run: async (_input, ctx) => {
-              await ctx.wilco?.startAgent({
+              await ctx.tade?.startAgent({
                 project: 'shop',
                 title: 'umbrella',
                 prompt: 'Fetch one.',
@@ -206,7 +206,7 @@ describe('running a tool', () => {
         actions: [],
       },
     )
-    await loaded.call('weather_umbrella', {}, { caller: { kind: 'orchestrator' }, wilco: window })
+    await loaded.call('weather_umbrella', {}, { caller: { kind: 'orchestrator' }, tade: window })
     expect(asked.map((one) => one.by)).toEqual(['extension:weather'])
   })
 
@@ -374,7 +374,7 @@ describe('what extensions tell everyone else', () => {
   })
 
   it('tells agents, gives each harness its pieces, and knows what text opens where', async () => {
-    const root = tmp('wilco-ext-root-')
+    const root = tmp('tade-ext-root-')
     mkdirSync(join(root, 'skills', 'umbrella'), { recursive: true })
     const loaded = await host({ city: 'Vienna' }, { root })
     expect(loaded.agentPrompt({ name: 'shop', root: '/src/shop' })).toContain('weather_now')

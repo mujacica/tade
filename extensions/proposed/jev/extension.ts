@@ -1,6 +1,6 @@
 // A sketch, not a build. Proposals are inert: nothing here runs until a human
-// copies it to `~/.wilco/extensions/active/jev/extension.ts` (or it is made a
-// built-in under `packages/extensions/jev`) and Wilco is started again.
+// copies it to `~/.tade/extensions/active/jev/extension.ts` (or it is made a
+// built-in under `packages/extensions/jev`) and Tade is started again.
 //
 // What it is for, and what was decided and why, is in `docs/jev-integration.md`.
 // Read that first — and note that the watch below is the FIRST DRAFT's shape:
@@ -33,9 +33,9 @@ import {
   object,
   oneOf,
   string,
+  type TadeExtension,
   type ToolAnswer,
-  type WilcoExtension,
-} from '@wilco/extensions-core'
+} from '@tade/extensions-core'
 
 const ENDPOINT = '/v1/systemone'
 
@@ -327,14 +327,14 @@ export default {
   ready: (ctx: ExtensionContext) =>
     keyOf(ctx)
       ? null
-      : 'Jev needs a TypeSafe API key: export TYPESAFE_API_KEY in your shell profile and start Wilco from a new terminal.',
+      : 'Jev needs a TypeSafe API key: export TYPESAFE_API_KEY in your shell profile and start Tade from a new terminal.',
   tools: [
     {
       name: 'jev_review',
       description:
         'Read a change with Jev and say what it flags: injection, secrets, permissions, swallowed errors, missing tests, and this repository’s own rules. Gives a probability per question, not an explanation — read the diff before acting. Use it on a commit, a range (main..HEAD), or what an agent has just done.',
       parameters: object({
-        project: string('the Wilco project; the one you are in when there is one'),
+        project: string('the Tade project; the one you are in when there is one'),
         ref: string('a commit, or a range like main..HEAD; HEAD unless said'),
         threshold: number('report questions at or above this probability; the setting unless said'),
       }),
@@ -390,7 +390,7 @@ export default {
       agent: (finding: Finding) => ({
         title: `look at ${finding.key.replace(':', ' ')}`,
         prompt: [
-          'Jev flagged something in a commit on this branch. What it said is in .wilco/context.md:',
+          'Jev flagged something in a commit on this branch. What it said is in .tade/context.md:',
           'a question and a probability, and no explanation, because it cannot give one.',
           'Read the commit yourself first. If it is right, fix the cause and add a test that fails',
           'without the fix. If it is wrong, say so plainly in your last message and change nothing:',
@@ -405,7 +405,7 @@ export default {
       'Jev reads changes and logs and answers typed questions with probabilities — no explanations.',
       'jev_review reads a commit or a range and says what it flags.',
       'What the jev.review watch finds is reported to you: decide what is worth fixing, and when it',
-      'should wait for the agent that wrote the code, queue it with wilco_plan after that task.',
+      'should wait for the agent that wrote the code, queue it with tade_plan after that task.',
       'Never treat a Jev answer as a verdict, and never let it close or approve anything.',
     ].join(' '),
-} satisfies WilcoExtension
+} satisfies TadeExtension

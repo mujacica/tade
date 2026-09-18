@@ -1,5 +1,5 @@
 {
-  "name": "@wilco/extension-deps",
+  "name": "@tade/extension-deps",
   "version": "0.0.0",
   "private": true,
   "license": "MIT",
@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@wilco/extensions-core": "workspace:*",
+    "@tade/extensions-core": "workspace:*",
     "yaml": "^2.9.0"
   }
 }

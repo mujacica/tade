@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import type { Turn } from '@wilco/voice-core'
+import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
 import { hitAt } from '../src/hits.ts'
 import {
@@ -262,8 +262,8 @@ describe('the orchestrator strip', () => {
 
   it('shows keystrokes held back at an agent prompt', () => {
     // Held, not dropped: they have to be visible or they look like lost input.
-    const rows = renderApp(setHeld(state(), 'wilco par'), frame())
-    expect(rows.join('\n')).toContain('wilco par')
+    const rows = renderApp(setHeld(state(), 'tade par'), frame())
+    expect(rows.join('\n')).toContain('tade par')
     for (const row of rows) expect(visibleWidth(row)).toBe(80)
   })
 
@@ -293,18 +293,18 @@ describe('the path under GIT', () => {
 
   it('is whole, from your home, and opens its folder when clicked', () => {
     const where = {
-      repo: '~/wilco',
+      repo: '~/tade',
       branch: 'main',
       base: null,
       worktree: null,
-      path: '/Users/me/wilco',
-      shownPath: '~/wilco',
+      path: '/Users/me/tade',
+      shownPath: '~/tade',
     }
     const { rows, hits } = draw(
       { ...state(), folded: ['agents', 'changes', 'files', 'notes'] },
       { ...frame({ width: 140 }), where },
     )
-    expect(rows.join('\n')).toMatch(/path +~\/wilco/)
+    expect(rows.join('\n')).toMatch(/path +~\/tade/)
     expect(
       hits.some((hit) => hit.target.kind === 'action' && hit.target.name === 'open-path'),
     ).toBe(true)

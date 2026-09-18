@@ -3,7 +3,7 @@ import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@wilco/core'
+import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
 import {
   type AdoptHint,
   type Availability,
@@ -16,20 +16,20 @@ import {
   type LaneSpec,
   type WorkspaceCapabilities,
   type WorkspaceDriver,
-} from '@wilco/drivers-core'
+} from '@tade/drivers-core'
 
 // execFile, never exec: tmux is invoked with an argument array and no shell.
 // The one place a shell is involved is inside tmux, which runs a lane's
 // command and the pipe-pane redirect through sh — both are shell-quoted below.
 const run = promisify(execFile)
 
-// Lanes that live in tmux rather than inside Wilco.
+// Lanes that live in tmux rather than inside Tade.
 //
-// The reason to want this is that they outlive it: close Wilco, open it again,
+// The reason to want this is that they outlive it: close Tade, open it again,
 // and the agents are still running. It also means you can attach to one from
-// any terminal, over SSH, with no Wilco running at all.
+// any terminal, over SSH, with no Tade running at all.
 //
-// It runs on its own tmux server (`-L wilco`), so nothing here disturbs the
+// It runs on its own tmux server (`-L tade`), so nothing here disturbs the
 // sessions you are using yourself, and one window per lane with the lane id
 // stored on the window, so lanes can be recovered exactly rather than guessed
 // at from window names.
@@ -66,8 +66,8 @@ interface Lane {
 }
 
 const DEFAULTS = {
-  socket: 'wilco',
-  session: 'wilco',
+  socket: 'tade',
+  session: 'tade',
   scrollback: 10_000,
   replayBytes: 256 * 1024,
   pollMs: 25,
@@ -76,14 +76,30 @@ const DEFAULTS = {
 }
 
 /** Where the lane id is kept, on the window itself. */
-const LANE_OPTION = '@wilco-lane'
-const SPEC_OPTION = '@wilco-spec'
+const LANE_OPTION = '@tade-lane'
+const SPEC_OPTION = '@tade-spec'
+
+/**
+ * The names this used before the rename — a different tmux server, holding
+ * agents that were running when it was still called something else.
+ *
+ * A driver that only knows the new names cannot `list` or `adopt` those lanes,
+ * and a window that cannot find a running agent reports it as gone. So the
+ * old server is looked for as well, and if that is the one with a session on
+ * it, this window drives it: one server per window, whichever one is there.
+ */
+const LEGACY = {
+  socket: 'wilco',
+  session: 'wilco',
+  laneOption: '@wilco-lane',
+  specOption: '@wilco-spec',
+} as const
 
 export class TmuxDriver implements WorkspaceDriver {
   readonly id = 'tmux'
   readonly capabilities: WorkspaceCapabilities = {
     // The point of this driver: lanes are the tmux server's children rather
-    // than Wilco's, so closing Wilco leaves every agent running.
+    // than Tade's, so closing Tade leaves every agent running.
     detach: true,
     remoteAttach: true,
     nativeTabs: true,
@@ -114,7 +130,7 @@ export class TmuxDriver implements WorkspaceDriver {
           `tmux -L ${opts.socket ?? DEFAULTS.socket} attach -t ${opts.session ?? DEFAULTS.session}:${windowName(lane)}`),
       env: opts.env ?? process.env,
     }
-    this.dir = mkdtempSync(join(tmpdir(), 'wilco-tmux-'))
+    this.dir = mkdtempSync(join(tmpdir(), 'tade-tmux-'))
   }
 
   async available(): Promise<Availability> {
@@ -268,7 +284,25 @@ export class TmuxDriver implements WorkspaceDriver {
 
   /** Pick up lanes already running, after a restart or from another window. */
   async adopt(hint: AdoptHint): Promise<LaneHandle[]> {
-    if (!(await this.sessionExists())) return []
+    let laneOption: string = LANE_OPTION
+    let specOption: string = SPEC_OPTION
+    if (!(await this.sessionExists())) {
+      // Nothing under the new name. Anything under the old one is ours too, and
+      // this window moves to that server rather than leaving it undriveable.
+      const onLegacy = await run(
+        'tmux',
+        ['-L', LEGACY.socket, 'has-session', '-t', LEGACY.session],
+        { env: stringEnv(this.opts.env) },
+      ).then(
+        () => true,
+        () => false,
+      )
+      if (!onLegacy) return []
+      this.opts.socket = LEGACY.socket
+      this.opts.session = LEGACY.session
+      laneOption = LEGACY.laneOption
+      specOption = LEGACY.specOption
+    }
     this.start()
     const rows = await this.tmux([
       'list-panes',
@@ -276,7 +310,7 @@ export class TmuxDriver implements WorkspaceDriver {
       '-t',
       this.opts.session,
       '-F',
-      `#{window_id}\t#{${LANE_OPTION}}\t#{${SPEC_OPTION}}\t#{pane_pid}\t#{pane_dead}`,
+      `#{window_id}\t#{${laneOption}}\t#{${specOption}}\t#{pane_pid}\t#{pane_dead}`,
     ]).catch(() => '')
 
     const found: LaneHandle[] = []
@@ -359,7 +393,7 @@ export class TmuxDriver implements WorkspaceDriver {
 
   /**
    * Let go of the session without ending it. This is the whole reason to run
-   * lanes in tmux: Wilco closes, the windows stay, and opening it again
+   * lanes in tmux: Tade closes, the windows stay, and opening it again
    * adopts them back. Output piping is left in place — the pipe files are
    * this instance's, but tmux keeps writing until the window dies, and the
    * next instance sets up its own.
@@ -403,7 +437,7 @@ export class TmuxDriver implements WorkspaceDriver {
         '-s',
         this.opts.session,
         '-n',
-        'wilco',
+        'tade',
         '-x',
         String(cols),
         '-y',

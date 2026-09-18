@@ -120,9 +120,9 @@ export function writeProviderExtension(dir: string): string {
   writeFileSync(
     path,
     `export default function (pi: any) {
-  pi.registerProvider('wilco-test', {
-    name: 'Wilco Test',
-    baseUrl: process.env.WILCO_TEST_BASE_URL,
+  pi.registerProvider('tade-test', {
+    name: 'Tade Test',
+    baseUrl: process.env.TADE_TEST_BASE_URL,
     apiKey: 'test-key',
     api: 'openai-completions',
     models: [

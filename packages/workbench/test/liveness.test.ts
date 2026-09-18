@@ -1,14 +1,14 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { deriveState } from '@wilco/core'
-import type { WorkerHandle } from '@wilco/harnesses-core'
+import { deriveState } from '@tade/core'
+import type { WorkerHandle } from '@tade/harnesses-core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { livenessFrom, runSignal } from '../src/lane-liveness.ts'
 import { Workbench } from '../src/workbench.ts'
 import type { PendingApproval } from '../src/workers.ts'
 
-// Supervised runs have to reach `wilco status`, or a task waiting on an
+// Supervised runs have to reach `tade status`, or a task waiting on an
 // approval would sit there looking idle.
 
 const handle = (over: Partial<WorkerHandle> = {}): WorkerHandle => ({
@@ -62,7 +62,7 @@ describe('runSignal', () => {
       now: 3_000,
       parked: false,
       git: {
-        branch: 'wilco/refunds',
+        branch: 'tade/refunds',
         head: 'a'.repeat(40),
         headSubject: 'wip',
         headTime: 1_000,
@@ -94,7 +94,7 @@ describe('livenessFrom', () => {
 
   beforeEach(async () => {
     repo = mkrepo()
-    const home = tmp('wilco-liveness-')
+    const home = tmp('tade-liveness-')
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
   })

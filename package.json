@@ -1,5 +1,5 @@
 {
-  "name": "wilco",
+  "name": "tade",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "biome check .",
     "check": "biome ci . && tsc -p tsconfig.json && vitest run",
-    "wilco": "node packages/cli/src/bin.ts",
+    "tade": "node packages/cli/src/bin.ts",
     "postinstall": "node scripts/fix-pty-permissions.mjs",
     "screens": "node packages/app/scripts/screens.ts",
     "notices": "node scripts/notices.ts"

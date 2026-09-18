@@ -1,13 +1,13 @@
 ---
 name: add-reporter
-description: Change where Wilco's own trouble goes — its crashes, the warnings it writes down, what it spent — or report something that is going wrong silently today. Use when adding a reporter, changing what may be sent, or wiring a new call site.
+description: Change where Tade's own trouble goes — its crashes, the warnings it writes down, what it spent — or report something that is going wrong silently today. Use when adding a reporter, changing what may be sent, or wiring a new call site.
 ---
 
-# Reporting Wilco's own trouble
+# Reporting Tade's own trouble
 
-Wilco can report *itself*: the window crashing, a driver it could not use, a config that would not
+Tade can report *itself*: the window crashing, a driver it could not use, a config that would not
 load, what its agents spent. It goes to a Sentry project of the person's own, so the Sentry
-extension can watch Wilco and hand an agent its own bug. It is off until someone sets
+extension can watch Tade and hand an agent its own bug. It is off until someone sets
 `telemetry.dsn`.
 
 | Path | What |
@@ -16,7 +16,7 @@ extension can watch Wilco and hand an agent its own bug. It is off until someone
 | `packages/telemetry/src/shape.ts` | the policy, pure: the DSN, what may be sent (`KEPT`), scrubbing, what a journal event is worth |
 | `packages/telemetry/src/sentry.ts` | the one that sends: Sentry's SDK, what it is told not to do, what is scrubbed on the way out |
 | `packages/telemetry/src/agents.ts` | a turn as the work of a model: `gen_ai` spans, their tools, their tokens |
-| `packages/telemetry/src/none.ts` | the one that sends nothing, which is Wilco unless asked |
+| `packages/telemetry/src/none.ts` | the one that sends nothing, which is Tade unless asked |
 | `packages/telemetry/src/conformance.ts` | the suite every reporter passes |
 | `packages/cli/src/telemetry.ts` | the one place that opens one, feeds it the journal, and reports a crash |
 | `packages/core/src/config.ts`, `settings.ts` | `telemetry.*`, and the Reporting group in Settings |
@@ -24,7 +24,7 @@ extension can watch Wilco and hand an agent its own bug. It is off until someone
 ## Rules
 
 - **Never your work.** What may be sent is an allow-list, not a deny-list: `KEPT` in `shape.ts`
-  names the detail keys that are Wilco's own words, counts and names. A new journal event sends no
+  names the detail keys that are Tade's own words, counts and names. A new journal event sends no
   attributes at all until someone adds its keys on purpose. Nothing anybody typed — an intent, a
   prompt, a note, a title, a summary, an agent's words — is ever on it, and there is a test that
   says so by name.
@@ -32,7 +32,7 @@ extension can watch Wilco and hand an agent its own bug. It is off until someone
   and takes out anything credential-shaped. Call it on every string you add, not at the call site.
 - **Nothing may fail because reporting did.** Every reporter swallows its own trouble: a send that
   throws, a Sentry that is down, a DSN that is nonsense. The SDK does the queueing, batching and
-  back-off; a reporter that cannot even be opened answers `none` rather than stopping Wilco.
+  back-off; a reporter that cannot even be opened answers `none` rather than stopping Tade.
 - **Spans are named where the work is.** `doing(work)` answers a span that must be ended;
   `inside(work)` is what happened within it. Nothing is instrumented automatically, so a span that
   is not worth a name is not worth having. Time work that is already over with `startedAt`, which is
@@ -48,7 +48,7 @@ extension can watch Wilco and hand an agent its own bug. It is off until someone
 
 **Reporting something that is silent today.** Find where it is swallowed. If it already reaches the
 journal, it is already reported — check `fromEvent` sends it as the right thing (an issue for
-Wilco's own trouble, a line for what happened, a number for what was spent). If it does not, either
+Tade's own trouble, a line for what happened, a number for what was spent). If it does not, either
 write it to the journal (`add-event-type`) or take a `Reporter` where it happens and call
 `trouble({error, where, fingerprint})`. Give trouble without a stack a `fingerprint` whose parts are
 stable — no numbers, paths or names, which `shapeOf` is for.

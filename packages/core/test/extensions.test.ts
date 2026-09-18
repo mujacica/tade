@@ -3,11 +3,11 @@ import { extensionDirs, isExtensionName, loadable, proposalPath } from '../src/e
 
 describe('extensionDirs', () => {
   it('keeps proposed, active and rejected apart', () => {
-    const dirs = extensionDirs('/home/me/.wilco/extensions')
-    expect(dirs.active).toBe('/home/me/.wilco/extensions/active')
-    expect(dirs.proposed).toBe('/home/me/.wilco/extensions/proposed')
+    const dirs = extensionDirs('/home/me/.tade/extensions')
+    expect(dirs.active).toBe('/home/me/.tade/extensions/active')
+    expect(dirs.proposed).toBe('/home/me/.tade/extensions/proposed')
     // Kept rather than deleted, so the same idea is not proposed twice.
-    expect(dirs.rejected).toBe('/home/me/.wilco/extensions/rejected')
+    expect(dirs.rejected).toBe('/home/me/.tade/extensions/rejected')
   })
 })
 

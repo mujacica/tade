@@ -5,16 +5,16 @@ import {
   type Setting,
   settingsOf,
   writeSetting,
-} from '@wilco/core'
+} from '@tade/core'
 
 export { writeSetting }
 
 import type { Ui } from './screen.ts'
 
-// Changing what Wilco has been told, on whatever screen is in front of you.
+// Changing what Tade has been told, on whatever screen is in front of you.
 //
 // Lives here rather than in the CLI because the window has to be able to open
-// it too: needing to close Wilco to change a Wilco setting is the kind of
+// it too: needing to close Tade to change a Tade setting is the kind of
 // thing that makes people keep a second terminal open forever.
 
 const DONE = 'done'

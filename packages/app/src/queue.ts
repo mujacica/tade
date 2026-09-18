@@ -11,7 +11,7 @@ import {
   type Schedule,
   scheduleEnded,
   type Watched,
-} from '@wilco/core'
+} from '@tade/core'
 import type { ScheduleView } from './model.ts'
 
 // What the queue says, in words: to the journal when it starts something, to
@@ -135,7 +135,7 @@ export function heldMessage(task: string, because: string): string {
   return [
     `${task} is held, and will not start by itself: ${because}.`,
     'Tell the person, and ask what they want: wait for a retry, start it anyway, change the plan, or remove it.',
-    'wilco_queue_change does each of those.',
+    'tade_queue_change does each of those.',
   ].join(' ')
 }
 

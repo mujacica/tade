@@ -1,8 +1,8 @@
 import { open, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { TurnState } from '@wilco/core'
+import type { TurnState } from '@tade/core'
 
-// Adoption: find agent sessions started outside Wilco by reading the
+// Adoption: find agent sessions started outside Tade by reading the
 // providers' own transcript files. These formats were never promised to
 // anyone, so this is the most brittle code in the repo:
 //   - each provider has one parser with a `version`, and a fixture corpus in

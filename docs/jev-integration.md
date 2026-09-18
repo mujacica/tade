@@ -1,4 +1,4 @@
-# Jev in Wilco
+# Jev in Tade
 
 A proposal. Nothing here is built; no existing code changes. Written 2026-09-18, against `jev-1.13`
 (released 2026-09-15, three days old at the time of writing).
@@ -100,7 +100,7 @@ to 1) do not hold. Every one of those has a consequence in sections 3 and 4.
 
 ---
 
-## 2. Providers, auth, cost, limits — and the Wilco entry
+## 2. Providers, auth, cost, limits — and the Tade entry
 
 ### Who serves it
 
@@ -174,7 +174,7 @@ A note their evals make before they make any point about Jev, and which we shoul
 **every** model was more accurate, cheaper and faster decomposed into a workflow than prompted to
 execute the whole policy. That is an argument for decomposition, not for Jev, and it is free.
 
-### What a Wilco entry looks like
+### What a Tade entry looks like
 
 **Jev is not a `workers.routes` entry and must never become one.** A route is how an agent runs —
 `harness`, `provider`, `model`, `thinking`, `sandbox` — and every one of those assumes something that
@@ -212,7 +212,7 @@ Two rules for the entry, both from TypeSafe's own docs:
   that answered; write it into the journal detail of every finding so a threshold change can be
   argued from evidence.
 - **Keep every question and threshold in one file** (`questions.ts` in the extension). This is
-  TypeSafe's own advice for reviewability and it happens to be Wilco's: a setting Wilco accepts and
+  TypeSafe's own advice for reviewability and it happens to be Tade's: a setting Tade accepts and
   ignores is worse than one it does not have, and a rubric scattered across call sites is the same
   failure wearing a different hat.
 
@@ -267,7 +267,7 @@ batch**. Then the sorting and the cutoff happen in code.
 `text` is the important source and the reason there is no Sentry tool: whatever another tool just
 returned can be piped straight in. `journal` reads `events.jsonl` through `readJournal` (no window
 needed); `transcript` reads an agent's pi session; `lane` reads scrollback; `file` reads a file in a
-project Wilco knows.
+project Tade knows.
 
 Throws when: `question` is empty; `source` is not one of the five; `text` is missing for `text`, or a
 named task, lane or file does not exist; a path is outside every known project (never read an
@@ -359,7 +359,7 @@ person is never a bare number, it is a sentence somebody wrote.**
 3. Hooks are **per-clone and not under version control**; in the `checkout` workspace every agent
    shares one `.git`, so one hook fires for everybody's commits with no way to say whose it was, and
    an agent editing the repo can remove it.
-4. Wilco already has a thing for "look on a clock, find work, never act on the same finding twice",
+4. Tade already has a thing for "look on a clock, find work, never act on the same finding twice",
    and it is load-bearing. Writing a second mechanism next to it is how two sources of truth start.
 
 *A watch*, because a watch is precisely this: a cheap look on a clock, findings with stable keys, and
@@ -369,7 +369,7 @@ once when it starts failing — already exists and is tested:
 
 | What we need | What already does it |
 |---|---|
-| Turn it on, per project, with settings | `wilco_schedule` → a `watch` schedule (`ExtensionWatch`, `host.watches()`) |
+| Turn it on, per project, with settings | `tade_schedule` → a `watch` schedule (`ExtensionWatch`, `host.watches()`) |
 | Look every 10 minutes, and cost nothing when nothing moved | `Schedule.when` + `dueNow`; the window's `doLookWith` |
 | Where the last look left off | `ctx.since` ← `watchedOf(id).since`, from `watch_checked` |
 | One finding, one piece of work, ever | `watch_found` keys → `watchedFrom(...).seen` → `newFindings(found, seen, most)` |
@@ -466,7 +466,7 @@ area               (choice) Which part of the system does this change? <the repo
 ```
 
 **This repository's own rules**, which are the interesting half, because `tsc` and Biome cannot
-check them and a reviewer has to read for them. Wilco's `AGENTS.md` is already a list of invariants
+check them and a reviewer has to read for them. Tade's `AGENTS.md` is already a list of invariants
 written as sentences; each becomes a noul nearly verbatim:
 
 ```
@@ -492,7 +492,7 @@ two in the middle, so that nothing reaches a person as a bare probability:
 
 1. The watch finds `fix-payout-retry:authz_removed` at 0.88.
 2. `watchFound(..., { told: 'orchestrator' })` writes it down — so it is never found "for the first
-   time" again — and the window tells the orchestrator, under the rule that Wilco tells the
+   time" again — and the window tells the orchestrator, under the rule that Tade tells the
    orchestrator and never talks over it.
 3. **Stage two.** For a finding over `act`, the orchestrator reads the flagged diff itself (or starts
    a short-lived agent for it) and comes back with one of two things: a paragraph saying what is
@@ -500,7 +500,7 @@ two in the middle, so that nothing reaches a person as a bare probability:
    (section 5). This costs one turn per confirmed finding and it is what buys the explanation Jev
    cannot give.
 4. Only then does work get made, and only for what survived stage two. When the fix should wait for
-   the agent that wrote the code, that is `wilco_plan` with
+   the agent that wrote the code, that is `tade_plan` with
    `after: [{ agent: '<that task>', why: 'it is still changing these files' }]`, and the queue does
    the waiting — by rule, on every look at the tasks, as far as `max_parallel` allows. In a shared
    checkout that wait is not politeness, it is the thing that stops two agents editing the same file.
@@ -526,7 +526,7 @@ Names start with the extension's name, per the host's rule.
 
 ```ts
 jev_review({
-  project?: string,   // the Wilco project; the one you are in when there is one
+  project?: string,   // the Tade project; the one you are in when there is one
   task?: string,      // review this task's whole diff against its base — the watch's own unit
   ref?: string,       // or a commit or range, when you want exactly that; HEAD~1..HEAD unless said
   paths?: string[],   // only these files
@@ -573,7 +573,7 @@ watches: [{
 
 ## 5. The record: what looked, what it found, and what came of it
 
-Three questions. As the design stands so far, Wilco answers one and a half of them:
+Three questions. As the design stands so far, Tade answers one and a half of them:
 
 | Question | Answered by | Today |
 |---|---|---|
@@ -597,7 +597,7 @@ whether that task finished, and whether it committed anything touching the file 
 per review:
 
 ```json
-{"at":"2026-09-18T02:14:09Z","project":"wilco","task":"fix-payout-retry",
+{"at":"2026-09-18T02:14:09Z","project":"tade","task":"fix-payout-retry",
  "base":"8fc21ab","head":"41d0c7e","model":"jev-1.13.0","files":12,"cost_usd":0.0011,
  "answers":{"authz_removed":0.88,"test_missing":0.71,"shell_injection":0.04},
  "raised":["authz_removed"],
@@ -654,7 +654,7 @@ In the morning it is one line in the brief — "Jev read 6 task diffs overnight 
 invitation rather than an interruption.
 
 Optionally, and off unless asked for: the same digest written into the project as
-`.wilco/reviews/<week>.md` and committed as Wilco, the way everything Wilco writes for itself is
+`.tade/reviews/<week>.md` and committed as Tade, the way everything Tade writes for itself is
 under git. That is for a team that wants the review history to travel with the repository and be
 arguable in a pull request. It is a copy of a derived thing, so it is a convenience, never the
 source.
@@ -767,17 +767,17 @@ And the rules it has to obey, none of which are negotiable:
 
 **Recommendation: build Tier 1 with the extension, and hold Tier 2** until the review loop has run
 for a few weeks. Not because it is hard — it is maybe two days — but because it is the one surface
-in Wilco that must never get slower or stranger, it adds a port, and the same question typed to the
+in Tade that must never get slower or stranger, it adds a port, and the same question typed to the
 orchestrator gets answered today with no new code at all. If Tier 2 does get built, it should be
 because people were reaching for `?` and finding it missing, which is a thing we will be able to see.
 
 ---
 
-## 7. Standalone tools, or in Wilco?
+## 7. Standalone tools, or in Tade?
 
 ### Recommendation
 
-**Build it inside Wilco, in three pieces, and publish nothing standalone yet.**
+**Build it inside Tade, in three pieces, and publish nothing standalone yet.**
 
 1. **`packages/judges/core`** — a port and its conformance suite. Not an extension: a subsystem, like
    drivers or voice, because more than one thing will judge and we will want to swap what does.
@@ -835,7 +835,7 @@ everywhere else here.
 
 ### Why not standalone, concretely
 
-- **`wilco extensions run` already is the standalone tool.** `wilco extensions run jev_review
+- **`tade extensions run` already is the standalone tool.** `tade extensions run jev_review
   --project shop --input '{"ref":"main..HEAD"}'` runs in any shell, in any CI, with no window open,
   and prints the answer. Anybody's loop can call that today. A separate CLI would be a second way to
   do the same thing, with its own flags to keep in step.
@@ -857,7 +857,7 @@ everywhere else here.
 
 **Revisit when** all three are true: the judge port has not changed shape in a couple of months; Jev
 is out of early access with a versioned, documented API; and at least two people outside this project
-have asked for it. Then extracting `@wilco/judges` is a small job precisely because the conformance
+have asked for it. Then extracting `@tade/judges` is a small job precisely because the conformance
 suite is already the contract.
 
 ---
@@ -871,9 +871,9 @@ better for having a number you can threshold. It collapses to nothing when the a
 1. **Reading every change, from every agent, always** (section 4). The edge is not quality — a
    frontier model reviews better — it is that for a tenth of a cent a task you read 100% instead of
    sampling, and get a probability to route on: Jev decides what deserves a real reader, and a real
-   reader says why. This is the one that changes what Wilco can promise, and the one still to be
+   reader says why. This is the one that changes what Tade can promise, and the one still to be
    proved.
-2. **Turn-level supervision of agents.** Wilco sees every turn, tool call and cost. A judgement on
+2. **Turn-level supervision of agents.** Tade sees every turn, tool call and cost. A judgement on
    each one has to be sub-second and free or it cannot exist: *is this agent looping? did this turn
    end without saying anything? is this tool call destructive in a way the policy has not named? is
    this agent stuck waiting for an answer nobody will give?* Today `approvals` is a hand-written
@@ -890,14 +890,14 @@ better for having a number you can threshold. It collapses to nothing when the a
    being wrong is cheap, but the volume is low enough that a frontier model is affordable too. The
    reason it is worth having is that it costs **no code at all**: `jev_ask` with the list as the
    state, and the rubric written in the conversation.
-5. **Queue and plan safety.** Before `wilco_plan` starts two agents in one checkout: *will these two
+5. **Queue and plan safety.** Before `tade_plan` starts two agents in one checkout: *will these two
    change the same files?* Would run on every plan, must be fast, and a probability is genuinely the
    right output. Marked down because it needs indirection (a property of a plan of a repository) and
    indirection is on the jaggedness list.
 6. **Voice intent routing.** Between the narrow `heard` regexes and a full orchestrator turn there is
    a gap: "did they mean the thing the extension does, or are they talking to me?" At 100ms with a
    confidence to route on — act, confirm, or hand to the orchestrator — that gap closes. Edge is
-   mostly latency; the risk is that misrouting a person's words is the most annoying failure Wilco
+   mostly latency; the risk is that misrouting a person's words is the most annoying failure Tade
    has, so thresholds would need to be high and the fallback always the orchestrator.
 7. **What goes in the brief, and what interrupts.** Which of the night's events a person actually
    wants said out loud. Low volume, so a general model is affordable; the edge is that a calibrated
@@ -912,7 +912,7 @@ better for having a number you can threshold. It collapses to nothing when the a
     edge — Jev cannot do it at all.** Their own docs: "If you really need to generate text… there are
     other models for that."
 
-Products beyond Wilco, if we ever wanted them, in the same order of edge: a CI review gate built on
+Products beyond Tade, if we ever wanted them, in the same order of edge: a CI review gate built on
 the same question pack (every PR, every push, cents a month); a "question your logs" CLI; a
 supervisor sidecar for other people's agent harnesses. All three are section-7 decisions, and my
 recommendation there is to defer all of them until the rubric has proven itself on our own commits.
@@ -947,12 +947,12 @@ document.
 **3. Create the key.** <https://console.typesafe.ai/settings/keys> (their docs also link
 `/keys`, which redirects). One key per machine, so one can be revoked without stopping the others.
 
-**4. Put it in the environment, never in a file.** Same rule as the Sentry token: Wilco reads it
+**4. Put it in the environment, never in a file.** Same rule as the Sentry token: Tade reads it
 from the environment and never keeps a copy, nothing inherited is written to disk, and a lane's
-saved spec holds only what Wilco set.
+saved spec holds only what Tade set.
 
 ```sh
-# in ~/.zshrc (or wherever your shell reads), then start Wilco from a new terminal
+# in ~/.zshrc (or wherever your shell reads), then start Tade from a new terminal
 export TYPESAFE_API_KEY="…the key the console gave you…"
 ```
 
@@ -960,7 +960,7 @@ The extension reads `$TYPESAFE_API_KEY` unless `extensions.jev.key_env` names an
 until it finds one `ready()` says exactly that sentence in the Extensions panel rather than failing
 anywhere else.
 
-**5. Check it before wiring anything to it.** Two commands, no Wilco involved:
+**5. Check it before wiring anything to it.** Two commands, no Tade involved:
 
 ```sh
 curl -s https://api.typesafe.ai/v1/models -H "Authorization: Bearer $TYPESAFE_API_KEY"
@@ -982,7 +982,7 @@ page that Jev is not trained on customer requests or responses, and offer zero d
 enterprise customers — I have not seen those terms. For a repository where that is not acceptable,
 the loop still works: point the judge at the LLM-backed or scripted implementation (section 7), or
 run the watch only on projects where it is fine. The setting that decides it should be per project,
-and nothing should be sending diffs anywhere the first time Wilco starts — a watch is off until
+and nothing should be sending diffs anywhere the first time Tade starts — a watch is off until
 somebody turns it on, which is exactly the right default here.
 
 **7. Spending.** At $0.042 per million input tokens with output free, the whole 200-commit experiment

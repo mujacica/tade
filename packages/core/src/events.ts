@@ -31,7 +31,7 @@ export const EventType = z.enum([
   'task_removed',
   'state_change',
   /**
-   * A task finished: its agent said so, a person marked it, or Wilco saw its
+   * A task finished: its agent said so, a person marked it, or Tade saw its
    * own rule met. What work waiting on it waits for.
    */
   'task_done',
@@ -42,7 +42,7 @@ export const EventType = z.enum([
   'queue_held',
   /** Someone changed queued work: paused it, resumed it, started it anyway, or chose to wait. */
   'queue_changed',
-  /** A schedule came due: what it did then — or that it skipped runs Wilco was closed for. */
+  /** A schedule came due: what it did then — or that it skipped runs Tade was closed for. */
   'schedule_fired',
   /** A schedule was made, renamed, paused, resumed or removed, and by whom. */
   'schedule_changed',
@@ -64,11 +64,11 @@ export const EventType = z.enum([
   /** A finished task was looked back over, so it is never looked at twice. */
   'reflected',
   // you
-  /** A line you said or typed to Wilco, verbatim: what up and ctrl+r bring back. */
+  /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
   // the workbench itself
-  'wilco_opened',
-  'wilco_closing',
+  'tade_opened',
+  'tade_closing',
   'warning',
 ])
 export type EventType = z.infer<typeof EventType>
@@ -107,15 +107,15 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // Routine rather than trace: spend is read back out of the journal, and
   // trace is the first thing dropped when a subscriber falls behind.
   usage: 'routine',
-  // Nobody needs to be told that Wilco thought about something.
+  // Nobody needs to be told that Tade thought about something.
   reflected: 'trace',
   said: 'routine',
-  wilco_opened: 'notable',
-  wilco_closing: 'notable',
+  tade_opened: 'notable',
+  tade_closing: 'notable',
   warning: 'notable',
 }
 
-export const WilcoEvent = z.object({
+export const TadeEvent = z.object({
   /** Monotonic per log file, assigned on append. */
   seq: z.int().nonnegative(),
   ts: z.string(),
@@ -126,7 +126,7 @@ export const WilcoEvent = z.object({
   run: z.string().nullable().default(null),
   detail: z.record(z.string(), z.unknown()).default({}),
 })
-export type WilcoEvent = z.infer<typeof WilcoEvent>
+export type TadeEvent = z.infer<typeof TadeEvent>
 
 /** What callers pass to `append`: the log fills in seq, ts and the default urgency. */
 export interface EventInput {
@@ -149,7 +149,7 @@ export interface EventFilter {
   limit?: number
 }
 
-export function matchesFilter(e: WilcoEvent, f: EventFilter): boolean {
+export function matchesFilter(e: TadeEvent, f: EventFilter): boolean {
   if (f.since !== undefined && e.seq <= f.since) return false
   if (f.task !== undefined && e.task !== f.task) return false
   if (f.lane !== undefined && e.lane !== f.lane) return false

@@ -4,9 +4,9 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-// The history of what Wilco wrote for itself.
+// The history of what Tade wrote for itself.
 //
-// Tools and lessons an agent proposed are the one part of Wilco that Wilco
+// Tools and lessons an agent proposed are the one part of Tade that Tade
 // changes, so they are the one part where "when did this appear, and what was
 // happening at the time" has to be answerable months later. A directory of
 // files cannot answer it; a git repository can, and costs a commit.
@@ -28,7 +28,7 @@ export interface AuthoredHistory {
 }
 
 /**
- * Record the current state of a directory Wilco writes to.
+ * Record the current state of a directory Tade writes to.
  *
  * Called after anything changes it — a proposal arriving, a human activating
  * or turning one down — and on opening, which catches whatever agents wrote
@@ -48,8 +48,8 @@ export async function recordAuthored(root: string, message: string): Promise<Aut
       await git(['init', '--quiet'])
       // Its own identity, so it never depends on a global git config being set
       // — and so the log says plainly that these commits are not yours.
-      await git(['config', 'user.name', 'Wilco'])
-      await git(['config', 'user.email', 'wilco@localhost'])
+      await git(['config', 'user.name', 'Tade'])
+      await git(['config', 'user.email', 'tade@localhost'])
     }
     await git(['add', '-A'])
     // `diff --cached --quiet` exits 1 when there is something staged, which is

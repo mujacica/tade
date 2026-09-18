@@ -1,12 +1,12 @@
 ---
 name: update-dependencies
-description: How to finish a dependency update Wilco started in your worktree — install, test, read the changelogs of major releases, fix what broke, and commit.
+description: How to finish a dependency update Tade started in your worktree — install, test, read the changelogs of major releases, fix what broke, and commit.
 ---
 
 # Finishing a dependency update
 
-Wilco has already moved the requirements forward in the manifests of this worktree. What they were,
-what they are now, and how far each moved is in `.wilco/context.md`. Your job is to make the project
+Tade has already moved the requirements forward in the manifests of this worktree. What they were,
+what they are now, and how far each moved is in `.tade/context.md`. Your job is to make the project
 work on them.
 
 1. **Install first**, so the lockfile matches the manifests: `pnpm install`, `npm install`,

@@ -11,11 +11,11 @@ import { ansiToHtml } from './ansi-html.ts'
 //
 // Each screen is drawn from the scenarios the golden tests use. Where the
 // drawing no longer matches its golden file, the page shows both, the golden
-// one first, so reviewing a change to how Wilco looks means looking at it.
+// one first, so reviewing a change to how Tade looks means looking at it.
 
 const here = dirname(fileURLToPath(import.meta.url))
 const goldens = join(here, '..', 'test', 'screens', '__screens__')
-const out = resolve(process.argv[2] ?? join(process.cwd(), 'wilco-screens.html'))
+const out = resolve(process.argv[2] ?? join(process.cwd(), 'tade-screens.html'))
 
 function read(path: string): string | null {
   try {
@@ -41,7 +41,7 @@ const sections = SCENARIOS.map((scenario) => {
 mkdirSync(dirname(out), { recursive: true })
 writeFileSync(
   out,
-  `<title>Wilco Screens</title>
+  `<title>Tade Screens</title>
 <style>
   body { background: #121212; color: #ddd; font: 15px/1.5 system-ui, sans-serif; padding: 24px 20px 80px; }
   h1 { font-weight: 600; } h2 { font-size: 18px; margin: 36px 0 4px; } h2 small { color: #888; font-weight: 400; }
@@ -50,7 +50,7 @@ writeFileSync(
   .changed h2 { color: #d7af5f; } .new h2 { color: #5fd7d7; }
   .pair { display: grid; gap: 12px; }
 </style>
-<h1>Wilco screens</h1>
+<h1>Tade screens</h1>
 <p>${SCENARIOS.length} screens. Drawn from <code>packages/app/test/screens/scenarios.ts</code>.</p>
 ${sections.join('\n')}`,
 )

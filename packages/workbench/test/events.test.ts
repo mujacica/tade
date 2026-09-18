@@ -1,17 +1,17 @@
 import { appendFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Urgency, WilcoEvent } from '@wilco/core'
+import type { TadeEvent, Urgency } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventIndex } from '../src/event-index.ts'
 import { EventLog, evictLeastUrgent } from '../src/events.ts'
 
 function paths() {
-  const dir = tmp('wilco-events-')
+  const dir = tmp('tade-events-')
   return { dir, path: join(dir, 'events.jsonl'), indexPath: join(dir, 'events.db') }
 }
 
-const event = (urgency: Urgency, seq = 1): WilcoEvent => ({
+const event = (urgency: Urgency, seq = 1): TadeEvent => ({
   seq,
   ts: '2026-09-11T09:00:00.000Z',
   type: 'output',
@@ -150,7 +150,7 @@ describe('EventLog', () => {
     it('50 subscribers and 10k events: every blocking event is delivered, in order', async () => {
       const p = paths()
       const log = await EventLog.open({ ...p, subscriberQueue: 10 })
-      const seen = Array.from({ length: 50 }, () => [] as WilcoEvent[])
+      const seen = Array.from({ length: 50 }, () => [] as TadeEvent[])
       for (const bucket of seen) log.subscribe((e) => bucket.push(e))
 
       const appends: Array<Promise<unknown>> = []
@@ -179,7 +179,7 @@ describe('EventLog', () => {
       log.subscribe(() => {
         throw new Error('bad subscriber')
       })
-      const received: WilcoEvent[] = []
+      const received: TadeEvent[] = []
       log.subscribe((e) => received.push(e))
       await log.append({ type: 'output' })
       await new Promise((r) => setTimeout(r, 10))
@@ -190,7 +190,7 @@ describe('EventLog', () => {
     it('unsubscribe stops delivery', async () => {
       const p = paths()
       const log = await EventLog.open(p)
-      const got: WilcoEvent[] = []
+      const got: TadeEvent[] = []
       const stop = log.subscribe((e) => got.push(e), { types: ['output'] })
       await log.append({ type: 'output' })
       await log.append({ type: 'tool_call' })
@@ -208,7 +208,7 @@ describe('EventIndex', () => {
   it('is rebuildable from events with identical query results', () => {
     const p = paths()
     const index = EventIndex.open(p.indexPath)!
-    const events: WilcoEvent[] = Array.from({ length: 100 }, (_, i) => ({
+    const events: TadeEvent[] = Array.from({ length: 100 }, (_, i) => ({
       ...event(i % 10 === 0 ? 'blocking' : 'trace', i + 1),
       task: i % 2 === 0 ? 'app/x' : 'app/y',
     }))

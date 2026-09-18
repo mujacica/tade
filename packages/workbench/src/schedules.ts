@@ -1,9 +1,9 @@
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { Schedule, whenProblem } from '@wilco/core'
+import { Schedule, whenProblem } from '@tade/core'
 import { z } from 'zod'
 
-// Schedules, as they were told to Wilco: kept the way notes are, next to the
+// Schedules, as they were told to Tade: kept the way notes are, next to the
 // journal, append-only, one JSON object per line, the file itself the truth.
 //
 // Nothing could recover a schedule — when it runs and what it does exist only

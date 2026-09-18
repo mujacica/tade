@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
-import type { AgentSignal, Workspace } from '@wilco/core'
+import type { AgentSignal, Workspace } from '@tade/core'
 
-// Human-readable `wilco status`. Terse on purpose: one line per task, one
+// Human-readable `tade status`. Terse on purpose: one line per task, one
 // summary line per group of untracked sessions.
 
 export function formatStatus(ws: Workspace): string[] {
@@ -17,7 +17,7 @@ export function formatStatus(ws: Workspace): string[] {
       const flag = t.stalled ? ' ⚠' : ''
       lines.push(`  ${name}  ${t.state.padEnd(7)}  ${t.reason}${flag}`)
     }
-    if (p.untracked.length > 0) lines.push(`  + ${sessions(p.untracked)} outside Wilco`)
+    if (p.untracked.length > 0) lines.push(`  + ${sessions(p.untracked)} outside Tade`)
   }
   if (ws.elsewhere.length > 0) {
     const where = [...new Set(ws.elsewhere.map((s) => tilde(s.cwd)))].slice(0, 3).join(', ')

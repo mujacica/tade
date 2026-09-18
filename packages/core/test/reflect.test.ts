@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { WilcoEvent } from '../src/events.ts'
+import type { TadeEvent } from '../src/events.ts'
 import { needsReflection, reflectionPrompt } from '../src/reflect.ts'
 
 // Looking back at a task that finished.
@@ -7,7 +7,7 @@ import { needsReflection, reflectionPrompt } from '../src/reflect.ts'
 // The hard part is not noticing that something finished; it is not asking
 // about it again tomorrow, and every day after that.
 
-const event = (over: Partial<WilcoEvent>): WilcoEvent => ({
+const event = (over: Partial<TadeEvent>): TadeEvent => ({
   seq: 1,
   ts: '2026-09-13T12:00:00Z',
   type: 'reflected',

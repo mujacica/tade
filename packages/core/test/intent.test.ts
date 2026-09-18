@@ -234,7 +234,7 @@ describe('approval safety', () => {
       'ahead',
       'approve',
       'deny',
-      'wilco',
+      'tade',
       'park',
       'start',
       'checkout',
@@ -321,13 +321,13 @@ describe('asking for the settings', () => {
 })
 
 describe("switching an agent's model", () => {
-  const known = { tasks: ['wilco/agent-1', 'shop/refunds'], projects: ['wilco', 'shop'] }
+  const known = { tasks: ['tade/agent-1', 'shop/refunds'], projects: ['tade', 'shop'] }
   it('understands it however it is put, with the model as said', () => {
     expect(
       parseUtterance('in agent-1 change the currently selected model to opus 5', known),
     ).toEqual({
       kind: 'model',
-      task: 'wilco/agent-1',
+      task: 'tade/agent-1',
       model: 'opus 5',
     })
     expect(parseUtterance('switch the model of refunds to Kimi K2.6', known)).toEqual({
