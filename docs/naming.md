@@ -453,6 +453,40 @@ The costs, in order:
    ethnic-slur sense in some English dictionaries. Neither is a reason to stop — both are a reason to
    put it through a brand review rather than falling in love first.
 
+### The dog register — and why the terrier should be the mascot, not the name
+
+A Jack Russell is uncannily on-brief for this product: a small, tireless worker, sent down the hole
+alone, directed at a distance **by voice**, who comes back and tells you what is down there. That is
+an agent in a worktree. So the register was checked properly — the breed, the dog's name, the
+handling vocabulary — and it is as grabbed as every other:
+
+| Name | What the sniff found |
+|---|---|
+| **Keen** | **Keen Technologies** — Carmack's AGI company (★461p), plus Keen.io and Commander Keen |
+| **Spry** | the **Spry programming language** (★135p + ★134p), SPRYLAB, `spryai.com`, `usespry.com` |
+| **Fido** | the **FIDO Alliance** — three HN stories over 270p; the word belongs to authentication |
+| **Pike** | **Rob Pike** (★1958p, ★1550p, ★1020p) — fatal by association — plus the Pike language |
+| **Jack** | JACK Audio Connection Kit; every domain taken |
+| **Tyke** | `tykeai.com` = TykeAI |
+| **Russ** | drowned in search by Russia |
+| Tug · Kip · Mush · Yip · Lair | `.ai` squatters on all of them |
+| Pip · Dig · Pack · Sled | **already binaries on every dev machine** (Python, BIND, Buildpacks, the sled DB) |
+
+**Spike itself** is usable but not clean: **`spike.dev` is free** and npm `spike` has been dormant
+since 2018 (a webpack static-site tool), but `spike.sh` is a **live error-monitoring product** — a
+dev-tools collision, the most confusing kind — Paramount's Spike TV holds the `.com`, and
+`spikeai.com`, `usespike.com`, `spikelabs.com` and `getspike.com` all resolve. It is also five
+letters, and in operations "a spike" means *something just went wrong*, which is a strange note for a
+tool whose job is steady supervision. The redeeming twist: in this industry a **spike** is already a
+time-boxed investigation — *"run a spike on it"* — which is exactly what an agent is sent to do.
+
+**The better move is to stop asking the name to carry the meaning.** Every dev tool people love has a
+mascot doing that work: Docker's whale, Go's gopher, Rust's Ferris, Linux's Tux, GitHub's Octocat,
+Bun's bun, Ghostty's ghost. A real Jack Russell called Spike gives this product a logo, a voice, a
+paragraph of copy and a true story on day one — *named after the terrier who supervises the office* —
+and it works with **any** name. Then the name only has to be short, sayable and ownable, which after
+six passes is the only thing still hard to find.
+
 ## 8. Positioning: is "Agentic Terminal IDE" the right frame?
 
 Partly, and the two halves fail differently.
@@ -625,6 +659,23 @@ The music register is otherwise gone: **Clef** (Clef Labs + the 2FA startup), **
 acquisition + the CRDT algorithm), **Rostrum** (Rostrum AI + Rostrum Labs + Rostrum Records),
 **Divisi** (`divisi.ai`), **Tutti** (parked as "AI Agent Orchestration"), **Pronto** (Pronto.ai),
 **Baton**, **Maestro**, **Coda**, **Presto**, **Allegro** — all taken in or near this market.
+
+### If it has to be four letters
+
+Across every pass, these are the only ≤ 4-letter names that survived the §3 sniff. At this length
+every real word is gone and coinages carry no meaning — which is the argument for letting the
+**mascot** carry it (§7):
+
+| Name | Meaning | Free | Cost |
+|---|---|---|---|
+| **Dado** | the groove another piece seats into | `.sh` · `heydado.com` · **empty GitHub handle** · nothing on HN, no `X.ai` content, no `X Labs` | npm taken; meaning needs one sentence |
+| **Luff** | the leading edge of a sail; to steer into the wind | `.sh` · `heyluff.com` | npm taken; mis-hears as *love* / *laugh* |
+| **Kerf** | the slot a blade cuts | **npm** | `.sh` and `.com` taken, `kerfai.com` live, and the Kerf array language exists |
+| *(Spike)* | their dog; and a time-boxed investigation | **`.dev`** · npm dormant since 2018 | five letters; `spike.sh` is a live dev product |
+
+**Dado is the cleanest four-letter name in this document** — nothing anywhere, an unclaimed GitHub
+handle, and two soft open syllables that spell themselves. It says nothing on its own, which is
+exactly what a mascot is for.
 
 - **Register in one sitting** — npm package + scope, GitHub org (expect a variant), `.sh`, `hey*.com`
   — and re-run §3, including the company and launch sniffs, the same morning.
