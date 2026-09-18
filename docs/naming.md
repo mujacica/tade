@@ -5,11 +5,14 @@ Research, not a decision. Nothing in the code is renamed by this document.
 Checks run **2026-09-18**. Availability rots fast, so every command used is written down; any line
 here can be re-run before anyone acts on it.
 
-**Revision:** a first pass optimised for a *brandable* name and produced long, careful words
-(Watchwright, Yardmaster, Airboss). That was the wrong target. This product is **spoken to** — you
-hold `ctrl+space` and talk, and you will want to say "Hey ⟨name⟩" next to "Hey Claude" and "Hey
-Gemini" without either of them answering. So callability now leads, and the long names are kept in
-[Appendix A](#appendix-a--the-longer-brandable-names) for the record.
+**Revisions.** Pass 1 optimised for a *brandable* name and produced long, careful words
+(Watchwright, Yardmaster, Airboss) — the wrong target: this product is **spoken to**, and you will
+want to say "Hey ⟨name⟩" next to "Hey Claude" and "Hey Gemini" without either of them answering.
+Pass 2 put callability first and landed on **Sarge**. Pass 3 — this one — keeps that register (short,
+human, a role you can call out) but adds **softness** as a hard criterion, because Sarge is a bark:
+/sɑːrdʒ/ ends in an affricate after an r-colored vowel, which is the harshest shape English has.
+So §6 is a new set of soft-mouthed candidates and a new recommendation; the hard ones stay in §5 and
+the long ones in [Appendix A](#appendix-a--the-longer-brandable-names).
 
 ## 1. What is being named
 
@@ -53,13 +56,20 @@ and `<title>` fetches of all four domains.
      /k/ + a back vowel; Gemini opens on /dʒ/ + front vowels. A name opening on **s-, f-, t-, b-,
      j-** with a different vowel spine is least likely to cross-trigger.
    - **Spellable after hearing it once**, or people can't find the docs.
-2. **Understood in one beat.** No footnote, no etymology lesson. If it takes a sentence to explain,
+2. **Be soft in the mouth.** A name you say fifty times a day should not be a bark. What makes a
+   word hard: an **affricate or hard stop in the coda** (`-rge`, `-ck`, `-tch`, `-x`), an
+   **r-colored vowel** before it (`ar`, `er`, `or`), and clustered consonants. What makes one soft:
+   **nasals and laterals** (`m n l`), an **open vowel ending**, a single light stop *in the middle*
+   rather than at the end — the Siri / Alexa / Cortana / Jules shape. Ranked: `Sarge` /sɑːrdʒ/ and
+   `Foxtrot` are hard; `Talko`, `Marlo`, `Wilkie`, `Mabel` are soft with a plosive; `Willa`, `Navvy`,
+   `Aviso` are softest and have no stop at all.
+3. **Understood in one beat.** No footnote, no etymology lesson. If it takes a sentence to explain,
    it is a worse name than one that takes none.
-3. **Typed constantly.** ≤ 6 characters for the binary is comfortable; the binary may be a clipped
+4. **Typed constantly.** ≤ 6 characters for the binary is comfortable; the binary may be a clipped
    form of the name (Foxtrot → `fox`), which is normal (Kubernetes → `kubectl`).
-4. **Clear in *this* market** — dev tools and AI agents. A hardware company or a comic strip with
+5. **Clear in *this* market** — dev tools and AI agents. A hardware company or a comic strip with
    the same word is noise; a Rust crate with 4k stars or an agent framework is a real problem.
-5. **A domain we'd be happy to print.** Deliberately fourth: see §4.
+6. **A domain we'd be happy to print.** Deliberately last: see §4.
 
 ## 3. How checks were run
 
@@ -126,7 +136,10 @@ factory control plane") · `TraceRt314/airboss` ("control tower TUI for Claude C
 fleets") · `NVIDIA-NeMo/Switchyard` ★3148. Re-verify on the day, and take the name's handles in one
 sitting.
 
-## 5. Short, callable candidates
+## 5. Short and punchy — the hard-mouthed set
+
+These are the pass-2 candidates: crisp, consonant-heavy, memorable. Keep reading to §6 if, like
+Sarge, they land too hard — the consonant that makes them cut is the same one that makes them bark.
 
 Wake-word column: syllables of the full "Hey ⟨name⟩" phrase / onset consonant / false-trigger risk.
 Availability: `✓` free, `✗` taken. "npm" is the bare package name; a scoped `@name/cli` is always
@@ -176,7 +189,13 @@ handle `sarge` is an active user (26 repos), so the org would have to be `sarge-
 
 **Risks, honestly.** It is a nickname, so a weak mark (hard for us to own; equally hard for anyone to
 stop us). "Sarge" is also a character name at Disney (*Cars*) and Hasbro (G.I. Joe) — character marks
-exist, in toys and film, not software. And the military register won't be to everyone's taste.
+exist, in toys and film, not software.
+
+**And the real objection: it is hard in the mouth.** /sɑːrdʒ/ is a fricative, an r-colored vowel and
+an affricate in one syllable — English's harshest available shape, which is why it cuts through and
+also why it barks. Said fifty times a day at a machine that is meant to feel like a colleague, it is
+a drill sergeant every time, and the letters look it: S-A-R-G-E. §6 keeps everything that works about
+it — short, human, a role you call out — and drops the bark.
 
 ### 2. Foxtrot — *the radio alphabet, which is where Wilco came from* · binary `fox` · "Hey Foxtrot"
 
@@ -232,54 +251,157 @@ Same graveyard: **Tower** (`tower-rs` ★4296 + Git Tower), **Yarn** (the packag
 **Sonar**, **Maestro** (mobile.dev), **Bosun** (npm `bosun` is *already* an AI-agent executor),
 **Corvid** (sounds like covid), **Tern** (homophone of "turn" — in a voice product).
 
-## 6. Shortlist and recommendation
+## 6. Short and soft — the same idea without the bark
 
-| | **Sarge** | **Foxtrot** | **Talko** |
-|---|---|---|---|
-| Understood with no explanation | yes | partly ("the letter F") | partly ("it talks") |
-| Wake-word phrase | "Hey Sarge" (3 syl) | "Hey Foxtrot" (4 syl) | "Hey Talko" (4 syl) |
-| Cross-trigger with Claude/Gemini/Codex | very low | lowest | low |
-| False trigger in normal speech | very low | none | none |
-| Binary | `sarge` (5) | `fox` (3) | `talko` (5) |
-| npm bare name | dead since 2017 | dead since 2014 | **free** |
-| PyPI / crates | taken / taken | taken / taken | **free / free** |
-| GitHub handle | active user → needs a variant | active user → needs a variant | near-dormant (1 repo) |
-| Domain | **`sarge.sh`** + `getsarge.com` | `foxtrot.ai` (for sale) / `heyfoxtrot.com` | **`talko.sh` + `heytalko.com`** |
-| Dev/AI collision | **none found** | none (comic, game demo) | none (dead MS app) |
-| Trademark position | weak mark, low conflict | shared word, low conflict | coined — strongest |
+Sarge works because it is **short, human, and a role you call out to**. Nothing about that requires
+harsh consonants. Two ways to keep it and lose the bark:
 
-**Recommendation: Sarge.** Binary `sarge`, wake word "Hey Sarge", home `sarge.sh`, packages
-`@sarge/*` with `@sarge/cli` providing the binary.
+- **A soft role** — same job, gentler word: the mate, the minder, the navvy, the ensign.
+- **A soft first name** — which is what every assistant you speak to is called. Siri, Alexa,
+  Cortana, Claude, Gemini, Jules: none of them describe a function, they are all *someone*. For a
+  thing you talk to all day, personality is the meaning.
 
-Because it is the only candidate that needs **no explanation at all** and still says the right thing:
-a sergeant is the one who takes an officer's intent and makes a squad execute it, reports back what
-the state of things actually is, and is addressed by a nickname rather than a title — which is exactly
-the register of a tool you talk to all day. It is three syllables to summon, five characters to type,
-phonetically clear of every assistant likely to be listening in the same room, and it has no
-competitor in dev tools or AI: the only npm claim is abandoned since 2017 and the loudest GitHub
-repo has 126 stars. `sarge.sh` is free today, which is more than can be said for any other
-one-or-two-syllable word checked.
+Same checks, same day. “Softness” below is my phonetic read: no r-colored vowel, no final affricate,
+nasal or lateral consonants, open ending.
 
-- **Take Foxtrot if the radio lineage matters** — it is the strongest wake word here on phonetics
-  alone, `fox` is the nicest binary in the document, and it keeps continuity with Wilco's own origin
-  (one spelling-alphabet word replacing one procedure word). Buy `foxtrot.ai` before someone else
-  does.
-- **Take Talko if owning the word outright matters most** — npm, `.sh`, `hey*.com` and the GitHub
-  handle are all obtainable today, and a coined name is the only genuinely defensible trademark.
-- **Whichever it is, register in one sitting** (npm scope, `.sh`, the `hey*.com`, and a GitHub org —
-  expect to need a variant like `sarge-sh` for the handle) and re-run §3's checks the same morning.
-  §4(c) is why.
+| # | Name | Say it | Binary | Softness | npm | `.sh` | Other domains | Market collision |
+|---|---|---|---|---|---|---|---|---|
+| 1 | **Marlo** | "Hey Marlo" | `marlo` | soft (one `r`, open ending) | **✓** | **✓** | crates ✓, `.com/.dev/.ai/.io` ✗ | npm dormant; Marlowe (Cardano DSL) ★175 |
+| 2 | **Wilkie** | "Hey Wilkie" | `wilkie` | soft, no `r` | **✓** | **✓** | `heywilkie.com` ✓ | none in dev/AI; Willkie Farr (law firm, two Ls) |
+| 3 | **Talko** | "Hey Talko" | `talko` | soft, no `r` | **✓** | **✓** | PyPI ✓ crates ✓ `heytalko.com` ✓ `.ai` for sale | dead MS/Ray Ozzie app |
+| 4 | Willa | "Hey Willa" | `willa` | softest (no stop) | ✗ (UI lib) | **✓** | PyPI ✓ crates ✓ | `willa.ai` live; Kafka DSL ★138; invoicing app |
+| 5 | Mabel | "Hey Mabel" | `mabel` | soft, no `r` | ✗ | **✓** | — | singer, cartoon; GH handle active (34 repos) |
+| 6 | Navvy | "Hey Navvy" | `navvy` | softest (no stop) | ✗ (dormant) | **✓** | **`.dev` ✓**, `heynavvy.com` ✓ | Ruby job processor ★211 — adjacent |
+| 7 | Ensign | "Hey Ensign" | `ensign` | soft, no `r` | ✗ | **✓** | `heyensign.com` ✓ | Ensign Group (NASDAQ), LDS magazine, Star Trek |
+| 8 | Mizzen | "Hey Mizzen" | `mizzen` | soft, no `r` | ✗ | **✓** | `heymizzen.com` ✓ | **Mizzen AI** ships a `mizzen-cli`; Mizzen+Main |
+| 9 | Aviso | "Hey Aviso" | `aviso` | softest (no stop) | **✓** | **✓** | — | none in dev/AI, but a common Spanish word |
+| 10 | Marlow | "Hey Marlow" | `marlow` | soft (one `r`) | ✗ | **✓** | — | same Marlowe echo; GH org exists |
+| — | ~~Mate~~ | | | softest | ✗ | ✗ | — | MATE desktop; "hey mate" is a greeting → false triggers |
+| — | ~~Minder~~ | | | soft | ✗ | ✗ | `heyminder.com` ✓ | `mindersec/minder` ★421 supply-chain platform |
+| — | ~~Keeper~~ | | | soft | ✗ | ✗ | — | Keeper Security (password manager, big) |
+| — | ~~Yeoman~~ | | | soft | ✗ | ✓ | — | **Yeoman** is a JS scaffolding tool — fatal |
+| — | ~~Collie~~ | | | soft | ✗ | ✗ | — | nothing free; reads as a pet |
+| — | ~~Butler / Porter / Steward~~ | | | soft | ✗ | ✗ | — | crowded everywhere; "AI butler" is a cliché |
 
-## 7. What a rename would touch
+### 1. Marlo — *the one you send to find out what's really going on* · binary `marlo` · "Hey Marlo"
+
+**Why it works.** It sounds like a competent colleague, which is the register that fits a thing you
+talk to — and it has a lineage that happens to describe the product: Conrad's **Marlow** is the
+sailor who goes upriver and comes back to tell you plainly what he found; Chandler's **Marlowe** is
+the one you hire to discover what is actually true. This tool's whole thesis is *status derived from
+reality rather than remembered*. That is Marlo's job description.
+
+**In the mouth.** /ˈmɑːrloʊ/ — nasal onset, lateral middle, open vowel ending, stress on the first
+syllable. It has one `r`, but between `m` and `l` and followed by an open `o` it never hardens; there
+is no affricate anywhere. "Hey Marlo" is four syllables and lands soft. Distinct from Claude, Codex,
+Cursor (/k/-onset) and Gemini (/dʒ/). Five letters, spells itself, no plural or possessive trouble.
+
+**Ownership — the best of the soft set.** npm `marlo` **free**, `@marlo` scope clean, crates.io
+**free**, **`marlo.sh` free**, GitHub handle exists but has **zero public repos**. PyPI taken;
+`.com` (1995), `.dev`, `.ai`, `.io` taken; `heymarlo.com` taken.
+
+**Collisions.** npm `marlo` is free; the dormant `marlow` package is a "hardboiled node framework"
+(same joke). The real echo is **Marlowe**, IOG's smart-contract DSL for Cardano (★175 + ★100) —
+different spelling, different world, no overlap in search for `marlo cli`. `marlow.com` doesn't
+resolve; Marlow Ropes and Marlow, Buckinghamshire are the non-software noise.
+
+**Risks.** It means nothing on first hearing — you buy personality and pay in description. And people
+will type `marlow` sometimes, so own both spellings where cheap.
+
+### 2. Wilkie — *the same name, grown up* · binary `wilkie` · "Hey Wilkie"
+
+**Why it works.** It keeps the first syllable of Wilco, so everything already written, said and
+remembered still points here — and it is a **nickname**, which is exactly what Sarge got right about
+register, minus the parade ground. "Hey Wilkie" is affectionate rather than obedient: the same
+friendly acknowledgment as *wilco*, said by someone you like.
+
+**In the mouth.** /ˈwɪlki/ — no r-colored vowel, no final consonant cluster, a single light /k/ in the
+middle for the detector to catch, open `-ie` ending. Six letters, two syllables, four in the phrase.
+It is the softest name here that still has a stop in it, which is the sweet spot.
+
+**Ownership.** npm `wilkie` **free**, `@wilkie` clean, **`wilkie.sh` free**, **`heywilkie.com` free**.
+`.com` is **Willkie Farr & Gallagher** — a large New York law firm, spelled with two Ls, so not our
+word. The GitHub handle `wilkie` is an active developer (133 repos), so the org needs a variant.
+
+**Collisions.** Nothing in dev tools or AI: the loudest `wilkie` repos are a sky-simulation algorithm
+(★44) and a hobby OS. Wilkie Collins (Victorian novelist) is the search competition, which is thin.
+
+**Risks.** Diminutives can read unserious — "Wilkie" is charming on a laptop and possibly twee in a
+procurement conversation. And it is one letter from the name you are leaving, which is either the
+best thing about it (continuity) or the worst (you wanted a clean break).
+
+### 3. Talko — *it talks* · binary `talko` · "Hey Talko"
+
+Unchanged from §5 and still the most ownable name in this document: npm, `@talko`, PyPI, crates,
+`talko.sh`, `heytalko.com` all free and `talko.ai` for sale. Softer than Sarge (two light stops, open
+ending, no `r`), transparent on hearing, and coined — so the strongest trademark position. It reads
+more like a consumer chat app than a control room, which is the price.
+
+### Also worth a look
+
+**Navvy** — a navvy built the canals and railways: the one who does the digging. Softest possible
+mouth-feel, `navvy.dev` **and** `navvy.sh` **and** `heynavvy.com` all free, and it quietly says
+*navigate* and *labour* at once. Held back by a ★211 Ruby **background-job processor** of the same
+name — uncomfortably adjacent to what we do — and by being a British term few others know.
+
+**Ensign** — two soft syllables meaning both *the officer standing the watch* and *the flag a ship
+flies*, which is a good pair for a tool that watches and shows identity. `ensign.sh` and
+`heyensign.com` free. Held back by the NASDAQ-listed Ensign Group and a Star Trek shadow.
+
+**Willa** — softest of all and keeps Wilco's `Wil-`, PyPI and crates free, `willa.sh` free. Held back
+by `willa.ai` already resolving, a Kafka DSL at ★138, and an invoicing product of the same name.
+
+## 7. Shortlist and recommendation
+
+| | **Marlo** | **Wilkie** | **Talko** | *(Sarge)* |
+|---|---|---|---|---|
+| Register | a colleague | the same name, softened | a product | a drill sergeant |
+| Soft in the mouth | yes (one `r`, open ending) | **yes** (no `r`, light `k`) | yes | **no** — /sɑːrdʒ/ |
+| Wake phrase | "Hey Marlo" (4 syl) | "Hey Wilkie" (4 syl) | "Hey Talko" (4 syl) | "Hey Sarge" (3 syl) |
+| Cross-trigger risk | low | low | low | very low |
+| False trigger in speech | none | none | none | very low |
+| Binary | `marlo` (5) | `wilkie` (6) | `talko` (5) | `sarge` (5) |
+| npm bare name | **free** | **free** | **free** | dead since 2017 |
+| crates / PyPI | free / taken | — / — | **free / free** | taken / taken |
+| `.sh` | **free** | **free** | **free** | **free** |
+| `hey*.com` | taken | **free** | **free** | `getsarge.com` free |
+| GitHub handle | exists, **0 repos** | active user → variant | near-dormant (1 repo) | active user → variant |
+| Dev/AI collision | none (Marlowe DSL is adjacent noise) | **none found** | none (dead MS app) | none found |
+| Explains itself | no | no | partly | **yes** |
+
+**Recommendation: Marlo.** Binary `marlo`, wake word "Hey Marlo", home `marlo.sh`, packages
+`@marlo/*` with `@marlo/cli` providing the binary.
+
+It keeps everything that made Sarge right — two syllables, human, a name you call out rather than a
+feature you describe — and none of what made it hard: no affricate, no clipped ending, nothing that
+sounds like an order being given. "Hey Marlo, brief me" is a sentence you can say a hundred times a
+day without flinching, and `marlo status` is five letters. It is also the most **ownable** name in
+the soft set: npm, `@marlo`, crates.io and `marlo.sh` are all free today, and the GitHub handle sits
+empty. The one thing it does not do is explain itself — but neither does Claude, Siri, Alexa or
+Jules, and for a thing you speak to, being *someone* is the meaning. If anyone asks, the answer is
+short and true: **Marlo is who you send to find out what's really happening.**
+
+- **Take Wilkie if continuity matters** — it is the softest name here that still has a stop in it, it
+  keeps Wilco's first syllable so nothing already said about the product goes stale, and npm, `.sh`
+  and `heywilkie.com` are all free. It is the warmest option and the least serious-sounding.
+- **Take Talko if owning the word outright matters most** — npm, PyPI, crates, `.sh` and `hey*.com`
+  all free, `.ai` for sale, and a coined word is the only genuinely defensible trademark.
+- **Keep Sarge only if the bark is the point** — it is the one name that needs no explanation, and
+  §5 still makes its case. Everything above exists because "Hey Sarge" fifty times a day is a lot of
+  sergeant.
+- **Whichever it is, register in one sitting** (npm scope, `.sh`, the `hey*.com`, a GitHub org —
+  expect to need a variant for the handle) and re-run §3's checks the same morning. §4(c) is why.
+
+## 8. What a rename would touch
 
 Measured, not estimated: **2881 occurrences of "wilco" (case-insensitive) across 380 tracked files.**
-Grouped by what breaks if you get it wrong. (Examples use `sarge`.)
+Grouped by what breaks if you get it wrong. (Examples use `marlo`.)
 
 **Free to change — cosmetic, nothing depends on it**
 
 | Thing | Where |
 |---|---|
-| Binary `wilco` → `sarge` | `packages/cli/package.json` (`bin`), root `pnpm wilco` script, README install/use |
+| Binary `wilco` → `marlo` | `packages/cli/package.json` (`bin`), root `pnpm wilco` script, README install/use |
 | `wilco attach <lane>` default | `packages/drivers/pty/src/index.ts` |
 | ASCII banner and the "will comply" tagline | `README.md`, `packages/app/src/screen.ts` — **the pun dies with the name; a new line is needed** |
 | Docs | `README.md`, `AGENTS.md`, `CLAUDE.md` (a link), 22 markdown files, 16 recipes in `.claude/skills/` |
@@ -290,7 +412,7 @@ Grouped by what breaks if you get it wrong. (Examples use `sarge`.)
 
 | Thing | Count |
 |---|---|
-| `@wilco/*` scope → `@sarge/*` | 20 workspace packages + every import |
+| `@wilco/*` scope → `@marlo/*` | 20 workspace packages + every import |
 | Root package name | 1 |
 | `WILCO_*` env vars | 20 distinct (`WILCO_HOME`, `WILCO_TELEMETRY_DSN`, `WILCO_LIVE`, `WILCO_SOCKET`, `WILCO_TASK_ID`, …). Two are documented for users, so accept both spellings for a release. |
 
@@ -307,7 +429,7 @@ Grouped by what breaks if you get it wrong. (Examples use `sarge`.)
 | Tool names `wilco_*` | 36 distinct (`wilco_status`, `wilco_plan`, `wilco_task_create`, `wilco_run_start`, `wilco_done`, …) | This is the model's vocabulary. `wilco_done` is what every agent is told to call; renaming it mid-flight leaves running agents calling a tool that no longer exists. Rename with the prompts, in one release. |
 | Telemetry | `telemetry/shape.ts` (`KEPT`), Sentry project/environment naming, README's `projects: { wilco: … }` | The allow-list is names-only by design; renaming keys changes what is sendable. |
 
-**Order.** Secure the name (npm scope + package, GitHub org, `sarge.sh`, `getsarge.com`) → rename the
+**Order.** Secure the name (npm package + scope, GitHub org, `marlo.sh`) → rename the
 outward-facing surface, keeping `wilco` as an alias for one release → rename the scope and env vars,
 accepting both → leave the on-disk and protocol names behind compatibility readers, and delete those
 readers only once no machine has an old home on it.
@@ -318,7 +440,7 @@ readers only once no machine has an old home on it.
 
 From the first pass, when `.com` availability and trademark strength were weighted above being
 callable. Useful if the decision goes the other way — or as a company name over a product called
-Sarge.
+Marlo.
 
 **Watchwright** (binary `wright`) was the pick: a *watch* is the shift that is awake and answerable,
 a *wright* is one who makes and keeps a thing working, and it is the only name found with **nothing
