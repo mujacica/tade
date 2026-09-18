@@ -1,5 +1,64 @@
 # Naming: what to call this thing instead of Wilco
 
+## Decision: **Tade**, at `tade.sh`
+
+> **Tade** — the agent orchestration IDE for your terminal.
+> `tade status` · `tade brief` · "Hey Tade" · packages `@tade/*` · mascot: Spike, mask and all.
+
+**What it is.** **T**erminal **A**gentic **D**evelopment **E**nvironment, compressed the way *tmux*
+compresses *terminal multiplexer* — read /teɪd/ ("tayd"), because *consonant–a–consonant–e* is
+reliably that vowel in English. The TLD carries the category (`.sh` = shell), the tagline carries the
+explanation, and the dog carries the personality; the name only has to be short, sayable and clean.
+
+**Why it survived where ~350 others did not**
+
+| Check | Result |
+|---|---|
+| `tade.sh` | **free** (sequential whois, rate-limit safe) |
+| npm `@tade` scope | nothing published |
+| PyPI | free |
+| Hugging Face | no model, no org — only unrelated personal accounts |
+| HN | no product, ever |
+| AI-space sniff | `tade.ai` parked, `tade.com` parked |
+
+**What it costs, on the record**
+
+- **npm holds the bare name** `tade` as a *security holding package*, so the CLI ships as
+  `@tade/cli` with `bin: tade`. crates.io is taken too (irrelevant for a Node tool).
+- **`.com`, `.dev` and `.ai` are gone**, and `tadelabs.com` / `tadeai.com` are already registered
+  (blank pages). If those matter later, they are not available.
+- **One syllable is a weak wake word.** "Hey Tade" can come back as *trade*, *Ted* or *Tate*. Test it
+  aloud in a real session before the voice surface commits to it.
+- **People who hear it will misspell it.** `tayd.sh` and `taid.sh` are free — buy them as redirects.
+  Do **not** take `taide.sh`: see below.
+
+**Registration checklist** — do these in one sitting, and re-run §3 the same morning:
+
+1. `tade.sh` (primary), plus `tayd.sh` and `taid.sh` as redirects
+2. npm org `@tade`, publish a placeholder `@tade/cli`
+3. PyPI `tade` (free, cheap to hold)
+4. `heytade.com` if the wake phrase is ever marketed
+5. A real trademark search — USPTO + EUIPO, classes 9 and 42 — which no check in this document
+   substitutes for
+
+**The close calls it beat, and why they lost**
+
+| Name | Why not |
+|---|---|
+| **Taide** | **TAIDE is Taiwan's government LLM programme** — an official `taide` org on Hugging Face (`TAIDE-LX-7B`, `Gemma-3-TAIDE-12b-Chat`) and `taide.tw` live. Same sound, same market, unwinnable. |
+| Andon | Andon Labs **and** Andon AI, both in AI agents |
+| Jig / Jigs / Jigsmith | "the jig is up" plus a slur sense to clear; `jigs.ai` is a reserved "JigsAI"; Jigsmith rejected on taste |
+| Obeya | **iObeya** (visual-management SaaS) and **Oobeya** (engineering intelligence) already trade on the word — and English readers see *obey* |
+| Sarge | the right register, the harshest phonetics English offers |
+| Marlo | `marloai.com` and `usemarlo.com` are live AI products |
+| Spike | `spike.sh` is a live error-monitoring product, and it names what an agent *does*, not the product |
+| Termyard | the best self-explaining option, and everything is free — kept as the fallback if `Tade` fails the out-loud test |
+
+The research that produced this, and the ~350 names it rejected, follows. Nothing in the code is
+renamed by this document; §10 is the plan for when it is.
+
+---
+
 Research, not a decision. Nothing in the code is renamed by this document.
 
 Checks run **2026-09-18**. Availability rots fast, so every command used is written down; any line
@@ -121,6 +180,17 @@ is how `marloai.com` and `usemarlo.com` turned up (see §9).
   well and consumer brands badly.
 - My own knowledge of companies has a cutoff, so "no product I know of" is weaker than a registry
   result and is labelled where it is all there is.
+- **Two blind spots, found the hard way by the person reading these results — now closed:**
+  - **Hugging Face**: `https://huggingface.co/api/models?search=<n>` and the org namespace. This is
+    where **TAIDE** was — Taiwan's government LLM programme, with `taide/TAIDE-LX-7B` and
+    `taide/Gemma-3-TAIDE-12b-Chat` shipping under an official org. An AI-space collision with no
+    `.com`, no npm package and nothing on HN.
+  - **Country-code TLDs**: `taide.tw`, and by the same token `.io`/`.co`/`.ai` variants of a national
+    project. A name can be a household word in one language's internet and invisible to every check
+    in the table above.
+  Between these and the company sniff, the lesson repeats: **the registries tell you what is
+  *registrable*, not what is *taken*.** Andon Labs, JigsAI and TAIDE were all found by a human
+  recognising a name, not by a script.
 
 ## 4. Three facts that decide this
 
