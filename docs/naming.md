@@ -677,6 +677,32 @@ every real word is gone and coinages carry no meaning — which is the argument 
 handle, and two soft open syllables that spell themselves. It says nothing on its own, which is
 exactly what a mascot is for.
 
+#### The four-letter wall
+
+About forty four-letter candidates have now been run through the full §3 pipeline, and **not one has
+npm, a domain and a GitHub handle free at the same time.** The ones with *obvious* meaning are the
+worst off — every one of them has a live `.ai`, an `X Labs`, or a dev-tool namesake:
+
+| Wanted for its plain meaning | What holds it |
+|---|---|
+| **Aide** | `useaide.com` = "Aide: Agentic AI Platform", and **Aider** owns "AI pair programming in your terminal" (★432p) |
+| **Keep** | Google Keep; `keep.ai` for sale |
+| **Tend** | `tend.com` farm software, `tend.ai`, `tendai.com`, TendLabs |
+| **Mind** | `mind.com`, `usemind.com` |
+| **Herd** | Laravel **Herd**, and **"Herdr: one terminal to rule them all"** (★404p) |
+| **Brio** | BrioDocs ("Private AI"), Brio Labs, and Brioche the package manager (★168p) |
+| **Hail** | `hail.com`, `usehail.com`, plus Broad Institute's Hail |
+| **Romp** | `romp.ai` for sale, `romplabs.com`; and the word's other sense dominates search |
+| **Koda** | **`koda.ai` is a live voice-AI company** — the worst possible overlap |
+| Bodi · Tovi · Jigo | BODi (Beachbody) · Tovi Labs · `jigo.ai` |
+
+**So at four letters there are only three honest paths:** take a word whose namesakes sit *outside*
+dev and AI and ship on `.dev`/`.sh` with a scoped package (**Mush** — `.sh` and `heymush.com` free,
+only parked pages elsewhere, and it is the command that starts a dog team; or **Tyke** — same
+freedoms, a placeholder "TykeAI" the only shadow); coin four letters and let the mascot carry the
+meaning, as Zed, Bun, Deno, Kiro and Vite all do; or accept **five**, where the room measurably
+opens up — `spike.dev`, Obeya, Talko.
+
 - **Register in one sitting** — npm package + scope, GitHub org (expect a variant), `.sh`, `hey*.com`
   — and re-run §3, including the company and launch sniffs, the same morning.
 - **Settle it out loud.** Say "Hey ⟨name⟩, brief me" and "Hey ⟨name⟩, stop the deps agent" fifteen
