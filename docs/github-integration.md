@@ -3,6 +3,12 @@
 A proposal. **Nothing here is built and no existing file changes**; the only file this task adds is
 this one. Written 2026-09-18 against the tree at `main`, for a human to read before anyone starts.
 
+**Part I (§1–§17) is the forge**: reviews, checks somebody else ran, the loop that answers them.
+**[Part II (§18–§28)](#part-ii--local-actions-the-checks-you-run-before-anybody-sees-them) is local
+actions**, added 2026-09-19 against the same branch: running a project's own CI checks here, before
+a push — when that happens, who may overrule it, where the runs are shown, and the checks Tade
+runs on itself both here and in CI. Part II amends three things in Part I; §27.1 lists them.
+
 What it is for: close the loop the human described — *I say what I want · agents do it, branch,
 commit, push and open a pull request by the rules · Tade tracks it, watches CI, fixes what the
 robots and the humans ask for, and hands it back ready to look at* — and do it so the second forge
@@ -922,6 +928,848 @@ Detail worth fixing now, per milestone:
 
 ---
 
+# Part II — Local actions: the checks you run before anybody sees them
+
+*Added 2026-09-19, against the same tree. Part I watches what somebody else's machine says about
+your branch. Part II is the other half: running the same checks **here**, before the push, so the
+red you find is red you found yourself — and so the loop in §7 has less to fix.*
+
+**What I read for this half**: `.github/workflows/ci.yml` (it exists, and is the only workflow);
+`package.json` (`check`, `test`, `typecheck`, `lint`); `packages/status/src/tests.ts`
+(`readTests`/`writeTests`, the one verification record Tade already keeps);
+`packages/cli/src/commands/check.ts` (`tade check <task>`, which already runs a project's command
+and records it against a commit); `packages/core/src/state.ts` (how the `tests` signal decides
+`review` and `blocked`); `packages/core/src/policy.ts` and `packages/workbench/src/workers.ts`
+(`decideApproval`, `onPermissionRequest` — the only place a command can be held);
+`packages/harnesses/pi/src/tade.ts` (the gate, and `if (!GATED) return {}`);
+`packages/workbench/src/lock.ts` (the stale-pid lock pattern); `packages/app/src/view.ts`
+(`renderMain`'s tab row), `model.ts` (`AppState.viewing`, `laneShown`), `hits.ts` (`Target`),
+`live.ts` (the 2s poll and its caches); `packages/core/src/compose.ts` (`composeAgentPrompt`,
+`COMMIT_TELLS`, the `testCommand` sentence); `packages/core/src/config.ts`
+(`ProjectConfigSchema.test_command`); `scripts/notices.ts`; `AGENTS.md`, especially *"Run the suite
+on its own"*.
+
+**Nothing in Part II is built either, and it adds no file** — including `.github/workflows/ci.yml`,
+which already exists and which §20.4 deliberately does not hand-edit: the workflow it wants is
+*generated* from the checks manifest, and writing it by hand before the generator exists would fork
+the source of truth on day one. The YAML in §20.3 and §20.4 is what the generator should produce.
+
+---
+
+## 18. What was asked, and what "an action" is here
+
+In the human's words:
+
+> a) run all the actions locally before pushing the branch/commits · b) configuration option if
+> that should be done or shouldn't on every push/commit + giving orchestrator/agents option to
+> override and overrule that · c) UI to track current action runs from our open PRs and also local
+> ones that agents are running … \[and] create actions for Tade that we can run locally but also in
+> github/CI.
+
+"Action" has two honest readings, and the difference matters enough to decide it in writing:
+
+| Reading | What running it means | Costs | What it proves |
+|---|---|---|---|
+| **(a) the workflow itself** — `.github/workflows/*.yml` run in containers, `uses:` steps and all (`act`) | Docker, one image per job, the actual step graph | minutes; a multi-GB image pull the first time; Docker must be installed and running | nearly what CI proves — same container, same tool versions |
+| **(b) what the workflow runs** — the commands, natively, the way you would type them | `pnpm biome ci .`, `pnpm tsc`, `pnpm vitest run` | seconds; nothing to install that the project does not already need | that *this code* is good on *this machine*. Nothing about the runner's OS, its toolchain or its secrets |
+
+**Decision: both, behind one port, with (b) the default and (a) opt-in per project.** (b) is what
+anyone actually wants before a push — it is the thing that is fast enough to be run every time, and
+speed is the entire reason it gets run at all. (a) is what you reach for when CI is red and your
+machine is green, which is a real and miserable afternoon, and which is worth a runner rather than
+a rewrite.
+
+And for a project Tade is set up for there is a third answer, better than either: **one list of
+checks that CI and your laptop both run**, so "the same thing" is a fact instead of a hope (§20).
+That is also the answer to "create actions for Tade": Tade's checks become a manifest, the workflow
+is generated from it, and the gate (`pnpm check`) is held to it by a test.
+
+**What a local run can never prove**, and must therefore say rather than imply: the OS matrix (this
+repo's CI runs ubuntu *and* macos), the runner's toolchain versions, anything needing a secret, any
+service container, and how the job behaves on a cold cache. Every one of those is a declared
+capability of the runner (§19), and the window says it in words beside the green tick — *"green
+here; ubuntu and macos are CI's to say"* — because a tick that quietly means less than the one next
+to it is the worst thing this feature could ship.
+
+---
+
+## 19. Vocabulary, and the port
+
+Part I already needed the word: `Check` in §5 is *one check a forge ran on a review's head*. A
+local run of `pnpm vitest run` is the same noun in the same tense, so it must be the same type —
+otherwise the tab in §22 draws two shapes that mean one thing, which is how a UI starts lying.
+
+| Word | What it is |
+|---|---|
+| **`Check`** | a named unit of verification a project defines: `format`, `types`, `tests`. A definition, not a run. Stable id; the same id in CI and here, which is the whole trick (§20.4) |
+| **`CheckRun`** | one run of one check against one commit, **somewhere**: here, or on a forge. Has a state, a duration, a tail |
+| **`Runner`** | what runs checks *here*. Registered by name; `local`, `act`, `scripted` |
+| **`plan`** | the checks that apply to a commit, in the order they may run, with what runs alone |
+
+"Workflow", "job", "step", "pipeline" and "action" are all somebody's vocabulary (GitHub's, GitLab's,
+Buildkite's) and so appear only inside an implementation — R2. On screen a person still reads their
+own words, by the same declaration trick as §3: a runner and a forge each carry `words`.
+
+### 19.1 The port
+
+`packages/checks/core/src/port.ts`. Neutral throughout; every optional ability declared; nothing
+answerable by sniffing an id.
+
+```ts
+/** A project, as this port needs it: core's own, not the extension port's. */
+export interface ProjectRef {
+  name: string
+  /** Absolute: the worktree the checks run in, which is a task's in `worktree` mode. */
+  root: string
+}
+
+/** A named unit of verification a project defines. Ids are stable: CI names its steps after them. */
+export interface Check {
+  /** `format`, `types`, `tests`. Lowercase, dashes; unique in a project. */
+  id: string
+  /** What it checks, as a person says it: "Formatting and lint". */
+  title: string
+  /** The command line, run through a shell, in the worktree. Exactly what CI runs. */
+  run: string
+  /**
+   * It needs the machine to itself: nothing else of ours runs beside it.
+   * Tade's own suite is the reason this exists (AGENTS.md: "Run the suite on
+   * its own" — 13 timeouts in 485s became 465 passes in 8s).
+   */
+  alone: boolean
+  /** Stopped and called `timed out` after this long. */
+  minutes: number
+  /** Merging waits on it. A check that is not required is run and reported, never held on. */
+  required: boolean
+  /** Only when one of these paths changed since the base; always, when empty. */
+  when?: readonly string[]
+  /** Checks that must have passed first. A cycle is a config error, caught at `--check` time. */
+  needs?: readonly string[]
+}
+
+export type CheckState =
+  | 'queued'
+  | 'running'
+  | 'passed'
+  | 'failed'
+  | 'skipped'
+  | 'cancelled'
+  | 'timed out'
+
+/** Where a run happened. `here` is this machine; a forge names itself and its run. */
+export type RunPlace =
+  | { kind: 'here'; runner: string; host: string }
+  | { kind: 'forge'; forge: string; job: string; url: string | null }
+
+/** One run of one check against one commit. The same shape wherever it ran. */
+export interface CheckRun {
+  /** Stable for the life of the run, so a row does not jump: `<commit>:<check>:<where>:<n>`. */
+  id: string
+  check: string
+  /** The commit it ran against. A run that does not name this commit says nothing about it. */
+  commit: string
+  state: CheckState
+  where: RunPlace
+  /** Whether merging waits on it, as the project or the forge says. */
+  required: boolean
+  startedAt: string | null
+  finishedAt: string | null
+  /** Exit status, where there was one. */
+  code: number | null
+  /** One line for a person: "8 failed", "2 files need formatting". Never invented. */
+  summary: string | null
+  /** Who asked: an agent's task, the orchestrator, you, a rule, or the forge. */
+  by: string | null
+}
+
+/** A run with what it printed. Fetched only when somebody opens it. */
+export interface CheckLog extends CheckRun {
+  /** The tail, scrubbed of anything credential-shaped, at most `lines`. Never the whole log. */
+  tail: string
+}
+
+/** What a runner can do here, declared. Never inferred from its id. */
+export interface RunnerCapabilities {
+  /** Runs steps in the container the workflow names, rather than on this machine. */
+  containers: boolean
+  /** Service containers — a database a job needs. */
+  services: boolean
+  /** Can run the same job across the OS or version matrix CI uses. */
+  matrix: boolean
+  /** Can supply secrets. Off means: a check that needs one is `skipped`, and says so. */
+  secrets: boolean
+  /** Can run steps that are `uses:` rather than `run:`. */
+  steps: boolean
+  /** A run can be stopped; without it, `cancel()` throws `unsupported`. */
+  cancel: boolean
+  /** How close to CI this is, for the sentence the window puts beside a green tick. */
+  fidelity: 'the commands' | 'the container'
+}
+
+export type RunnerTrouble =
+  | 'unavailable' // the runner needs something that is not here: Docker, `act`
+  | 'unknown'     // no such check in this project
+  | 'busy'        // something is already running here, and this one needs the machine
+  | 'unsupported' // a capability is false and it was called anyway
+  | 'refused'     // the plan cannot run: a cycle, a check with no command
+
+export class RunnerError extends Error {
+  readonly trouble: RunnerTrouble
+  /** What the tool itself said, unchanged, for the human. */
+  readonly said?: string
+}
+
+export interface Runner {
+  readonly id: string
+  readonly capabilities: RunnerCapabilities
+  readonly words: { one: string; many: string }
+  /**
+   * Whether it can run here, and if not, what to do about it — "install Docker
+   * and start it". Null when it can. Never throws, never touches the network.
+   */
+  ready(project: ProjectRef): Promise<string | null>
+  /**
+   * What would run for this commit, in order, and what each waits on. Pure
+   * apart from reading the project's files: no processes, no network. This is
+   * what the window draws before anything has run.
+   */
+  plan(project: ProjectRef, at: { commit: string; changed: readonly string[] }): Promise<Check[]>
+  /**
+   * Run them. Every state change is reported as it happens — a run nobody can
+   * watch while it runs is a progress bar that only appears when it is over.
+   * Honours the signal: cancelling kills the process **group**, because
+   * everything Tade starts is detached (AGENTS.md) and a group signal is the
+   * only thing that reaches a `pnpm` child.
+   */
+  run(
+    project: ProjectRef,
+    checks: readonly Check[],
+    ctx: {
+      commit: string
+      by: string
+      signal: AbortSignal
+      /** Called on every state change, and with output as it arrives. */
+      onRun(run: CheckRun): void
+      onOutput(check: string, chunk: string): void
+    },
+  ): Promise<readonly CheckRun[]>
+}
+
+export const RUNNERS: Record<string, (opts: RunnerOptions) => Runner> = {
+  local: makeLocalRunner,
+  act: makeActRunner,
+  scripted: makeScriptedRunner,
+}
+```
+
+### 19.2 Why a subsystem, and not an extension
+
+The same argument as §4.1, and it is decisive twice over:
+
+- **`deriveState` already depends on this.** `state.ts` reads a `tests` signal and turns it into
+  `blocked: turn ended with failing tests` or `review: 3 commits, tests green`. That cannot be
+  allowed to depend on an extension, which is optional and lives only in the window.
+- **`tade check <task>` already exists** and works with the window closed. Local actions are the
+  generalisation of a command Tade ships, not a thing Tade was not built knowing about.
+
+So: `packages/checks/{core,local,act,scripted}`, a port with a registry and a conformance suite
+(R1, R4), used by `packages/status` (what the last run says about HEAD), by `packages/cli` (`tade
+check`), by the window (running them, drawing them) and by the review extension (which contributes
+only the forge's half of the rows). The extension port itself does not change for Part II — §4.3's
+`lists` is the only surface it needs, and it is already proposed there.
+
+### 19.3 The conformance suite, which comes first (R4)
+
+`packages/checks/core/src/conformance.ts`, passed by `scripted`, by `local` against a real
+`mkrepo` repository, and by `act` only when `TADE_LIVE=1` and Docker is there:
+
+1. `id`, `words` and `capabilities` are present; `fidelity` is one of the two.
+2. `ready()` makes no network call and spawns nothing that is not a version probe (the suite's
+   `fetch` throws).
+3. `plan()` is pure of processes, deterministic for the same commit, and orders `needs` before
+   what needs them; a cycle throws `refused`, naming the cycle.
+4. A check whose `when` does not match the changed paths is **absent from the plan**, not present
+   and green — a check that was never run must never read as passed.
+5. Every `CheckRun.state` is one of the seven, and **`queued` and `running` are never reported as
+   `passed`** (the same bug §5 forbids for the forge: a red thing drawn green).
+6. `run()` reports every state change through `onRun` before it resolves, and the last report for
+   each check is terminal.
+7. Every run names the commit it was given, and the same run id is never issued twice.
+8. A check that exceeds `minutes` ends `timed out`, with the tail it had, and the process group is
+   gone afterwards (asserted by pid, not by hope).
+9. `alone: true` never overlaps another run of the same project — asserted by timestamps, with two
+   checks that would visibly interleave.
+10. Abort during a run ends every started check `cancelled`, writes no `passed`, and leaves nothing
+    running.
+11. A capability that is `false` throws `unsupported` and **changes nothing**.
+12. A runner whose tool is missing answers `ready()` with a sentence and throws `unavailable` from
+    `run()` — never a silent fall back to a different runner, which is the sandbox rule (AGENTS.md)
+    applied to the same failure shape.
+13. Nothing in the suite reaches the network.
+
+---
+
+## 20. The checks a project has — and Tade's own
+
+### 20.1 Where checks come from, in order
+
+| Source | When it wins | What it gives |
+|---|---|---|
+| **`.tade/checks.yaml`** in the project, committed | whenever it exists | exact ids, exact commands, `alone`, `needs`, `when`, and what CI should be generated as |
+| **the workflows**, read best-effort (`.github/workflows/*.yml`) | no manifest | a check per `run:` step of the checking jobs, ids from the step names, everything the runner cannot reproduce marked `skipped` with why |
+| **`projects.<name>.test_command`** (exists today) | neither of the above | one check, `id: tests`, exactly today's behaviour |
+| nothing | nothing configured | no checks; the tab says so and offers to write a manifest from the workflows |
+
+Reading a workflow is **best-effort and says so**: a `uses:` step is not a command, matrix and
+services are named and skipped, `${{ }}` that cannot be resolved locally marks the check
+`skipped: needs CI`. The window never shows a skipped check as a tick. The point of this path is
+that a project Tade has never been configured for still gets something useful on the first open;
+the point of the manifest is that a project that cares gets parity.
+
+### 20.2 The manifest
+
+`.tade/checks.yaml`, committed with the code — it describes the project, not the machine, so it
+belongs beside `package.json` and not in `~/.tade/config.yaml`. (`.tade/` is otherwise Tade's own
+and untracked; this one file is the project's, and the skill in §24 says to add it by path.)
+
+| Key | Kind | Means |
+|---|---|---|
+| `checks[].id` | string | its name here and in CI; the id a forge check must carry for the two to line up on one row |
+| `checks[].title` | string | what it checks, as a person says it |
+| `checks[].run` | string | the command line, run in the worktree through a shell — the same string CI runs |
+| `checks[].alone` | flag | it needs the machine to itself: nothing else of Tade's runs beside it (off) |
+| `checks[].minutes` | number | stopped and called `timed out` after this long (10) |
+| `checks[].required` | flag | merging waits on it; a check that is not required is reported and never held on (on) |
+| `checks[].when` | list | only when one of these globs changed since the base; always, when empty |
+| `checks[].needs` | list | check ids that must pass first |
+| `ci.runs_on` | list | the runners CI uses, for the generated workflow |
+| `ci.node` | string | the Node version CI sets up; omitted where the project is not Node |
+| `ci.setup` | list | steps before the checks — checkout, toolchain, install — as workflow steps, verbatim |
+
+### 20.3 Tade's own
+
+The gate is `pnpm check` — `biome ci . && tsc -p tsconfig.json && vitest run` — and the suite must
+have the machine to itself. That is three checks and one `alone`:
+
+```yaml
+# .tade/checks.yaml
+checks:
+  - id: format
+    title: Formatting and lint
+    run: pnpm exec biome ci .
+    minutes: 3
+  - id: types
+    title: Types
+    run: pnpm exec tsc -p tsconfig.json
+    minutes: 5
+  - id: tests
+    title: Tests
+    run: pnpm exec vitest run
+    # AGENTS.md: the suite spawns real git and PTY processes with short
+    # timeouts. Anything CPU-heavy beside it starves them, and that looks
+    # exactly like a regression and is not one.
+    alone: true
+    minutes: 10
+ci:
+  runs_on: [ubuntu-latest, macos-latest]
+  node: '22'
+  setup:
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with: { node-version: '22', cache: pnpm }
+    - run: pnpm install --frozen-lockfile
+```
+
+**Two invariants keep this from drifting**, and both are tests in the gate:
+
+1. **The manifest and the gate say the same thing.** A test reads `package.json`'s `check` script,
+   splits it on `&&`, and asserts it is the manifest's commands in order. Compared after one
+   normalisation, `pnpm exec` — inside a package script `node_modules/.bin` is on `PATH` and a bare
+   `biome` works; a manifest command is run by the runner through a plain shell and needs saying in
+   full. Change one without the other and the gate fails, saying which.
+2. **The gate never goes through Tade.** `pnpm check` stays a plain shell line: a Tade that is
+   broken must still be able to tell you it is broken, and a gate that imports the thing under test
+   cannot. `tade checks run` runs the same commands; it is a convenience, never the authority.
+
+### 20.4 The workflow, generated
+
+`tade checks workflow` prints what the manifest implies; `--write` writes it; `--check` exits
+non-zero when the file on disk differs, which is itself a check in CI. For this repository that is
+very nearly `.github/workflows/ci.yml` as it stands today — same triggers, same matrix, same setup
+— with four additions and two respellings. The additions are `concurrency`, `fail-fast: false`, and
+a **`name:` per check step**, which is what lets §22 draw *this* local run and *that* CI run on one
+row. The respellings are `pnpm typecheck` → `pnpm exec tsc -p tsconfig.json` and `pnpm test` →
+`pnpm exec vitest run`: the same two commands, said the way the manifest says them, because a step
+that runs a script that runs a command is a step whose name no longer tells you what ran.
+
+```yaml
+# .github/workflows/ci.yml — generated by `tade checks workflow --write`; edit .tade/checks.yaml
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push supersedes the first: the branch's old run is not news.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: format
+        run: pnpm exec biome ci .
+      - name: types
+        run: pnpm exec tsc -p tsconfig.json
+      - name: tests
+        run: pnpm exec vitest run
+```
+
+Three things worth saying about that file rather than leaving them to be discovered:
+
+- **`fail-fast: false`** so macos still reports when ubuntu goes red. Otherwise half the matrix's
+  rows are `cancelled` and the tab shows a column of nothing.
+- **`concurrency` with `cancel-in-progress`** because §7 keys a finding on the head sha: a
+  superseded run that keeps going spends CI minutes producing a finding about a commit nobody has
+  any more.
+- **The steps run in sequence in one job**, which is what gives the suite the machine — the two OS
+  jobs are different runners, so they do not contend. If anyone ever splits the checks into
+  parallel jobs on one runner, `alone` has to be honoured there too, and the generator is where
+  that knowledge goes.
+
+---
+
+## 21. When they run, and who may overrule it
+
+### 21.1 What can actually be held, and what cannot
+
+This is the part where a design either tells the truth or promises something the code cannot do.
+The facts in the tree today:
+
+| Who runs `git push` | What sees it | Can it be held? |
+|---|---|---|
+| an agent, `approvals.mode: 'policy'` | the supervisor: pi sends `permission_request`, `workers.ts` holds the call until Tade answers | **yes** — and `policy.ts` already rates `git push` `soft`, so this path exists today |
+| an agent, `approvals.mode: 'bypass'` (**the default**) | pi sends `tool_call` and **does not wait** (`tade.ts`: `if (!GATED) return {}`) | **no.** Tade learns about the push, it cannot stop it |
+| you, in a shell lane or your own terminal | nothing | only a git hook can |
+| an agent calling `tade_check_run` because it was told to | the runner, before the push | yes, by cooperation |
+
+So the setting is written as *what Tade does on its own*, and the document says plainly which of
+the four rows each mode reaches. A key called `require_checks_before_push` would read as a promise
+that holds in one of four cases, which is worse than not having it.
+
+Three mechanisms, two of them optional:
+
+1. **Told.** `composeAgentPrompt` already says *"This project checks its work with `pnpm check`"*
+   when `test_command` is set. With a manifest it says the rule instead: what the checks are, that
+   they run before a commit or a push, the one command that runs them, and that a red check is a
+   thing to fix rather than a thing to mention. This works in every row of the table, and is the
+   only mechanism that is on by default.
+2. **Held, where Tade can hold.** With `approvals.mode: 'policy'`, the supervisor consults the
+   checks gate **after** `decideApproval` says allow: a push whose commit has no green required run
+   waits while the checks run, then goes through or comes back denied with the failing tail as its
+   `reason` — which pi hands the agent as the tool's answer, so the agent fixes it instead of
+   guessing. `policy.ts` stays pure (it is exhaustively table-tested and must remain a pure
+   function of the call); the gate lives in `workers.ts`, beside the ledger it writes.
+3. **Hooked, where nothing else can see.** `checks.hook` installs `core.hooksPath` in worktrees
+   Tade made, with a `pre-push` that runs `tade check --hook`. Off by default and never in a
+   project's own checkout unless the person turns it on there: writing hooks into the repository
+   somebody works in by hand is Tade reaching outside its own house. `git push --no-verify` is the
+   override, because that is already what it means.
+
+### 21.2 The config keys, each with its reader
+
+Global defaults under `checks:`, overridable per project under `projects.<name>.checks`, the same
+shape both places. Every key below has exactly one reader, named.
+
+| Key | Kind | Means | Read by |
+|---|---|---|---|
+| `checks.before` | choice: `off` · `commit` · `push` · `commit and push` | when Tade runs a project's checks on its own, unasked. `push` unless set — the cheapest rule that catches what other people would see | the supervisor's gate (2 above) and the hook (3); the prompt paragraph (1) says which it is |
+| `checks.on_red` | choice: `hold` · `tell` · `note` | what a failed required check does: hold the commit or push and hand back the tail (`hold`, the default, where holding is possible), tell the orchestrator and let it through (`tell`), or only write it down (`note`) | the same gate; `tell` goes through the window's news, as a watch's finding does |
+| `checks.runner` | choice: `local` · `act` | how checks run here. `act` needs Docker and is minutes, not seconds | `RUNNERS[...]`, at the one place a runner is made |
+| `checks.only` | list | run only these check ids on their own; everything in the plan when empty | `plan()`'s caller, before it hands the plan to the runner |
+| `checks.parallel` | number | how many checks may run at once here (2). A check marked `alone` still runs by itself whatever this says | the runner's scheduler |
+| `checks.hook` | flag | put a `pre-push` hook in worktrees Tade makes, so a push typed by hand is checked too (off) | worktree creation in the workbench, and `tade check --hook` |
+| `checks.keep` | number | how many finished runs a worktree keeps a record of (200) | the run-record writer, which rotates the file |
+| `checks.ci` | flag | ask the forge how the same commit is going in CI and show it beside the local run (on, and inert without the review extension) | the WORK tab's right-hand column (§23) |
+
+What is deliberately **not** a key: how long a run may take (it is per check, in the manifest,
+because the suite and the formatter are not the same animal), and which checks are required (same
+reason). A per-machine override of a per-project fact is how the two drift.
+
+### 21.3 Overruling it
+
+The human asked for the orchestrator and agents to be able to override and overrule the rule. Three
+rules make that safe:
+
+- **An override is an act, not a setting.** It goes through a tool (`tade_check_override`, §24),
+  which means it is a `tool_call` in the journal with who asked, what scope, and the reason —
+  exactly how `queue_changed` keeps "who decided this" answerable. Nothing edits the config behind
+  your back.
+- **It is read back, never remembered.** The gate asks the journal for the newest override covering
+  this task or project that has not expired. Status stays a query; closing the window does not lose
+  an override, and neither does a crash mid-push.
+- **Scope is bounded, and the bounds differ by who asked.**
+
+| Who | May override | Scope it may ask for | May not |
+|---|---|---|---|
+| the orchestrator | any task or a whole project | `next push` · `this task` · a duration up to `4h` | turn a project's rule off for good — that is the config, and the config is yours |
+| an agent | **its own task only** | `next push` · `this task` | another task's; a project-wide one; loosening `checks.on_red` from `hold` to `tell` for anybody else |
+| you | anything | anything, including the config | — |
+
+An agent's override is told to the orchestrator the way a watch's finding is (news, not an
+interruption): *"the refunds agent pushed with tests red — it says the failure is the flaky PTY one
+from yesterday"*. That sentence is the entire point of making an override an act with a reason: an
+override nobody hears about is just a broken gate.
+
+A red check that is overruled is still **recorded red**. Nothing anywhere rewrites a run's state
+because somebody decided to push anyway.
+
+---
+
+## 22. The window: a WORK tab beside the agent
+
+The human's (c), mapped onto the pane that already exists. `renderMain` draws a tab row per agent —
+`agent`, any shells, `+`. A tab goes in it:
+
+```
+ tade › lanes-adoption        agent  work  shell  +      sonnet-4-6 ▾  ctx ▓▓░ 41% ×
+ ──────────────────────────────────────────────────────────────────────────────────
+  branch   tade/lanes-adoption          3 ahead · 0 behind main · clean
+  review   PR #420  lane adoption       draft · checks running            open ↗
+
+  COMMITS  3                                                        vs main
+   a1b2c3d  adopt lanes the driver hands back          12m ago
+   9f0e1d2  keep a lane's spec so it can be relaunched  1h ago
+   77c4ab0  a lane is alive only if the driver says so  2h ago
+
+  CHECKS   at a1b2c3d                              Run all   ▸ the commands only
+   ✓ format   here    2.1s          ✓ ubuntu 41s    ✓ macos 52s
+   ✓ types    here    6.4s          ✓ ubuntu 55s    ⋯ macos running
+   ✗ tests    here  1m 04s          — CI has not run this commit
+       8 failed · packages/app/test/view.test.ts                  Show   Run again
+
+   ⚠ pushed at 9f0e1d2 with tests red — "flaky PTY timeout", said by its agent
+```
+
+What each part is, and where it comes from, is §23. What matters about the drawing:
+
+- **Two columns, one row per check**, because a check id means the same thing on both sides (§20.4).
+  Where CI has not run this commit the cell says so; it is never blank and never a tick.
+- **The fidelity sentence** (`▸ the commands only`) is the runner's `capabilities.fidelity`,
+  expanded on click into what a local run cannot prove (§18).
+- **A run that is going shows while it goes** — state, elapsed, and the last line of output — because
+  a check that only appears when it is finished is a progress bar that arrives after the race.
+- **Nothing here merges, pushes or opens anything.** `Run all`, `Run again`, `Show` (the tail in the
+  file viewer), and a row's `≡`: run only this · show its log · copy the command · open the CI run
+  in a browser.
+- **Unattributed commits are shown as such** in a shared checkout (§6): the tab says *"3 commits on
+  this branch, 1 with this task's trailer"* rather than claiming all three.
+- **It draws with no forge, no network and no manifest**, each absence a sentence: *"no checks
+  configured — write one from .github/workflows?"*, *"no review for this branch"*, *"CI: not asked
+  (no GitHub token)"*.
+
+### 22.1 The window's own changes, precisely
+
+Small, and all in files the `change-the-window` skill covers:
+
+| Where | Change |
+|---|---|
+| `app/src/model.ts` | `AppState.paneTab: Record<string, 'work'>` — which panes show work instead of a lane. Absent means lanes, as today. Clicking a lane tab deletes the entry; `laneShown` and `viewing` are untouched, because overloading `viewing` with a sentinel would collide the day somebody names a shell `work` |
+| `app/src/hits.ts` | one `Target`: `{ kind: 'pane-tab'; task: string; tab: 'work' }`, plus `{ kind: 'check'; task: string; check: string }` for a row and its `≡` |
+| `app/src/view.ts` | `renderMain` draws the tab, and `renderWork(...)` beside `renderQueued` / `renderSchedule` — which are the precedent for "the pane shows something that is not a lane" |
+| `app/src/live.ts` | one more cached query (commits, §23) and the runner's in-flight runs |
+| `app/src/panels.ts` | a `MenuSubject` for a check |
+| keys | **none claimed.** Every key the window takes is a key the focused agent never receives; the tab is reachable by click and by the pane's own tab order |
+| ctrl+k | two actions with `heard` phrases: *"run the checks"*, *"what's red here"* |
+| status bar | the existing extension status line is untouched; Tade's own `checks · tests red here` sits with it, `tone: 'bad'`, clicking it focuses the tab |
+| sidebar | unchanged, except one mark on a task row (`✗ checks`) from the frame it already has. The `REVIEWS` section of §10 is still where *other people's* reviews live |
+
+---
+
+## 23. Where the tab's state comes from — every bit of it a query
+
+Five sources, none of them a memory:
+
+| Row | Source | Cadence |
+|---|---|---|
+| branch, head, ahead/behind, clean | `GitSnapshot` from `collectStatus`, which `Live` already polls | 2s, as today |
+| commits | `git log --format=%H%x00%ct%x00%s%x00<trailers> base..HEAD -z`, cached per task exactly as `Live.changes` caches `changesFrom` | 10s, and at once when a commit is seen |
+| the review | the review extension's cache (§4.3 rows carry `task`), else `GitSnapshot.pr` | 60s (§13's budget, unchanged) |
+| local runs | `<worktree>/.tade/checks.jsonl` for what finished, and the runner itself for what is going | on change; the file is read when its mtime moves |
+| CI runs | `forge.checks(ref)` for the **head sha only**, through the same cache as §13 | when the head moves, or on demand |
+
+### 23.1 The run record, and why it is allowed to exist
+
+A finished run is an observation about a commit that cannot be recovered any other way — re-running
+it is not reading it, it is doing it again, and for the suite that is minutes. `tests.json`
+(`packages/status/src/tests.ts`) already makes exactly this trade, with exactly the right rule:
+**a record that does not name the commit that is checked out is worth no more than never having run
+them.** Local actions generalise the file, not the principle.
+
+```jsonl
+{"id":"a1b2c3d:tests:here:1","check":"tests","commit":"a1b2c3d…","state":"failed",
+ "where":{"kind":"here","runner":"local","host":"mbp"},"required":true,
+ "startedAt":"2026-09-19T05:11:02.114Z","finishedAt":"2026-09-19T05:12:06.802Z",
+ "code":1,"summary":"8 failed","by":"tade/lanes-adoption","tail":"…"}
+```
+
+- `<worktree>/.tade/checks.jsonl`, append-only, `0600`, rotated at `checks.keep` lines. Same folder
+  as `tests.json`, same untracked status, same "Tade's files, never commit them" line in the agent's
+  prompt.
+- **The tail is scrubbed** with the credential-shaped rules from `telemetry/shape.ts` before it is
+  written, and it is a tail — a check's whole output never lands on disk and never goes in a
+  comment. §16 already flags this for CI logs; it is the same danger closer to home.
+- **A line that will not parse is skipped**, never thrown over — the `memory.jsonl` rule.
+- **What is never in it**: which PR the commit ended up in, which agent "owns" the check, whether CI
+  agreed. All three are queries (§6, §5, §13) and a copy of them here would be the copy that is
+  wrong.
+- **An unfinished run writes nothing.** In-flight state lives in the runner, which owns the
+  process; if the window dies, the run's process group dies with it (the runner kills the group on
+  shutdown — a group signal is exactly what a detached child needs) and there is no record claiming
+  it was running. A window that crashed hard leaves no half-run behind, because there was never a
+  file saying one existed.
+
+### 23.2 The signal `deriveState` reads does not change
+
+`state.ts` reads `tests: 'pass' | 'fail' | 'unknown'`, and that stays exactly as it is. What changes
+is how the signal is computed: instead of one record, it is the **rollup of the required checks at
+HEAD** — `fail` if any required check's newest run at this commit failed or timed out, `pass` if
+every required check has a passing run at this commit, `unknown` otherwise (including "some have
+not run"). `reviewReason`'s *"3 commits, tests green"* becomes true of the whole gate rather than of
+one command, which is what it was always trying to say. `readTests` keeps reading `tests.json` for
+one release so nobody's recorded run disappears on upgrade.
+
+### 23.3 One run at a time, per project
+
+In the default `checkout` workspace every agent shares one checkout. Four agents each deciding to
+run the suite before their push is four suites on one machine — precisely the starvation `AGENTS.md`
+warns about, and it would be Tade causing it.
+
+So: `<worktree>/.tade/checks.lock`, holding the pid and what it is running, taken before any check
+that is `alone` and before any run when `checks.parallel` is 1. The `lockHome` pattern exactly — **a
+lock whose process is gone is not a lock**, so a stale one is taken over rather than reported, and
+nobody is locked out by a crash. A second asker waits (in the window, showing `queued`) or is told
+*"the suite is already running here, started 40s ago"* — never told the checks passed because
+somebody else's run did.
+
+This is also why running the checks should go through Tade rather than an agent typing `pnpm check`
+in bash: the lock, the dedup, the record and the row in the tab all come free, and bash gives none
+of them. The agent's prompt says so, and `tade check` takes the same lock, so a person at a terminal
+is part of the same queue.
+
+---
+
+## 24. Tools, the command line, and what agents are told
+
+### 24.1 Tools
+
+Tade's own, so `tade_*` (the `add-orchestrator-tool` skill). Every one throws with a sentence a
+model can act on, because a tool that does not throw reads as success (AGENTS.md).
+
+| Tool | For | Does | Throws on |
+|---|---|---|---|
+| `tade_checks` | orchestrator, agent | what checks a project has, how each stands at the commit that is checked out, and what CI says about the same commit. **Reads only**: files and the cache, no run, works with no network | unknown project. "No checks configured" is an answer, with what to do about it |
+| `tade_check_run` | orchestrator, agent | runs them here — all, or named ids — and answers with what passed, what failed and the failing tail. Takes the lock; waits behind another run rather than starting a second | unknown check id (lists the ids); no runner (`ready()`'s sentence); `busy` past a stated wait |
+| `tade_check_log` | orchestrator, agent | the tail of one run, local or CI, scrubbed | unknown run; a CI log where the forge has no `checkLogs` |
+| `tade_check_override` | orchestrator, agent (own task) | overrules the rule for a scope, with a reason, and says who was told | an agent asking for another task or a project scope; a scope past `4h`; no reason given |
+
+`review_checks` from §11 keeps its job — *what the forge says* — and now answers in `CheckRun`
+shape, so a model that has both tools sees one vocabulary.
+
+The orchestrator's own prompt gains two clauses beside the ones about status and the queue: for
+*"is this green"* and *"what's red"* call `tade_checks`, which asks nothing of the network; to have
+them run, `tade_check_run`, which takes minutes and says so as it goes. And the clause that matters
+most: **a red check is not a reason to start an agent on its own** — tell the person, or hand it to
+the agent whose commit it is.
+
+### 24.2 The command line
+
+| Command | What it does |
+|---|---|
+| `tade check <task>` | **kept, generalised**: runs the project's checks in that task's worktree and records each against HEAD. With no manifest it runs `test_command`, which is exactly today's behaviour. `--only <ids>`, `--no-record` |
+| `tade checks [--project p]` | lists the checks and how each stands at HEAD, without running anything. Reads files only, so it works with a window open (AGENTS.md: a question you cannot ask while the window is open is a question people stop asking) |
+| `tade checks run [ids…]` | the same as `tade check` for a project rather than a task |
+| `tade checks workflow [--write\|--check]` | prints, writes or verifies `.github/workflows/ci.yml` from the manifest (§20.4) |
+| `tade check --hook pre-push` | what the installed hook runs; non-zero is a refused push, and it prints the failing tail |
+
+Exit codes as everywhere: `0` ok, `1` a check failed or a runner broke, `2` bad input or config.
+
+### 24.3 What agents are told
+
+One paragraph, from `composeAgentPrompt`, replacing the `testCommand` sentence when a project has
+checks — Tade's words, appended to the harness's own, never touching `agents.instructions`, which
+are the person's:
+
+> This project's checks are `format`, `types` and `tests`. Run them with `tade_check_run` before you
+> commit and before you push — not `pnpm check` in a shell: Tade runs them one at a time, so four
+> agents do not start four suites in this checkout, and what ran is shown to the person. A red check
+> is something to fix, not something to mention. If you are certain a failure is not yours, call
+> `tade_check_override` with the reason and push; the person is told what you said.
+
+A skill would be the natural home for the longer version — what the ids mean, how to read a failing
+tail, that a check nobody ran is not a check that passed — but **a core subsystem has nowhere to
+ship one**: harness pieces (`HarnessPieces.skills`) hang off the extension port, which is how the
+deps extension ships `update-dependencies`. So: the paragraph above is the whole mechanism for now,
+`.claude/skills/run-the-checks/` is the recipe for anyone working on Tade itself, and if the
+paragraph turns out to be too short, the honest fix is a small "pieces Tade's own subsystems ship"
+hook rather than smuggling it in through an extension that has nothing to do with it.
+
+---
+
+## 25. The journal, performance, and degrading
+
+### 25.1 What is recorded — still no new event types
+
+| Line | For |
+|---|---|
+| `tool_call` | every run asked for through a tool, and every override with its reason and scope — which is how §21.3 is read back |
+| `permission_request` / `permission_denied` | a push held or refused by the checks gate, `rule: 'checks'`, the reason being what failed |
+| `warning` | a runner that cannot run (Docker gone, a manifest that will not parse), **said once** when it starts going wrong, not at every attempt |
+| `task_created` | unchanged — work started from a red CI check is §7's, and comes with the review's url |
+
+**Not recorded**: a run's result (it is a record about a commit, §23.1, and the journal is not
+where per-commit facts live), a check's output (raw output never goes in the log), "checks are
+green" as a state (it is a rollup, computed), or which CI job a local run corresponds to (an id
+match, computed).
+
+### 25.2 Budget
+
+| Thing | Budget |
+|---|---|
+| Drawing the tab | **no I/O.** Frame in, rows out, like the rest of `view.ts`; a performance test asserts N frames cause zero reads |
+| The record file | read when its mtime moves, at most once per poll, parsed incrementally from the end |
+| Commits | one `git log` per task per 10s, detached, 5s timeout, `GIT_OPTIONAL_LOCKS=0` — the existing probe's manners |
+| CI runs | inside §13's two-requests-per-poll; the tab asks for the focused task's head sha only |
+| Local runs | processes, so: `checks.parallel` (2) and one `alone` at a time per project, enforced by the lock; a run started by a rule never starts a second while one is going |
+| `act` | never started by a rule. Only when a person or an agent asks for it by name, because the first one pulls gigabytes |
+
+### 25.3 With no network, no token, no Docker, no anything
+
+This is the half that works when the other half cannot, which is most of why it is worth building.
+
+| Missing | What still works | What is shown |
+|---|---|---|
+| the network | **everything local**: plan, run, record, the signal, the gate, the hook, the tab's left column | the right column says *"CI: not asked"* |
+| a GitHub token / `gh` | the same | *"CI: not signed in — `gh auth login`"*, once, not per poll |
+| a remote | the same, plus commits and the branch | *"no remote: nothing to push to"*; the review row is absent, not empty |
+| the review extension | the same | the CI column is absent entirely; the tab never mentions it |
+| Docker / `act` | the `local` runner | `ready()`'s sentence on the runner chip; **never a silent fall back to `local`** when `act` was asked for — a runner you selected and did not get is the sandbox rule again |
+| a manifest | workflows read best-effort, or `test_command` | which source is in use, in the heading, with an offer to write a manifest |
+| workflows *and* a manifest *and* `test_command` | nothing to run | *"no checks configured"* and a link to the skill |
+| the window (closed) | `tade check`, `tade checks`, the hook, the records, the signal | the CLI's own output; `tade status` reads the records directly, as it reads the journal |
+| two Tades on one machine | the lock keeps them from running at once | the second says who is running and since when |
+
+---
+
+## 26. Testing, with no network and no Docker
+
+| What | How |
+|---|---|
+| The port | `checks/core/conformance.ts` (§19.3), written **before** any runner |
+| `checks/scripted` | a runner that answers from a table: states, durations, a hang, a timeout, a missing tool. What every other test uses |
+| `checks/local` | real commands in a real `mkrepo` repository — `true`, `false`, `sleep 5` for the timeout, a script that prints a fake token so the scrubber is tested on output that actually contains one. Never mocked |
+| The lock | two processes, real, racing for one worktree; then one killed mid-run to prove a stale lock is taken over and no `passed` was written |
+| The records | written, read back, rotated at `keep`; a record at an old commit reads `unknown`; a corrupt line is skipped and the rest survive |
+| The signal | `deriveState` with each rollup, including "one required check never ran" → `unknown`, which must not read as `review … tests green` |
+| The gate | the fake harness: a `git push` under `policy` with a red required check is denied with the tail; under `bypass` it is **not** held, and the test asserts that too, because that is the behaviour people will be surprised by |
+| Overrides | an override in the journal lets the next push through and the one after it does not (`next push`); an agent asking for a project scope is refused; the orchestrator is told |
+| The manifest ↔ gate invariant | the test in §20.3, in Tade's own suite |
+| The generated workflow | `tade checks workflow --check` against the file in the tree, in the gate — so a hand-edited workflow fails CI with "regenerate it" |
+| The window | the WORK tab drawn from a fixture (view is pure): running, failed with a tail, no CI, no forge, no checks; and the perf test that drawing does no I/O |
+| `checks/act` | skipped unless `TADE_LIVE=1` **and** Docker answers. It is the only test here that costs minutes |
+
+And `act` and Docker go in `scripts/notices.ts` beside `gh`, as programs Tade uses without
+installing — `pnpm notices` after.
+
+---
+
+## 27. Milestones, and what Part II changes in Part I
+
+### 27.1 Amendments to Part I
+
+| § | Was | Becomes | Why |
+|---|---|---|---|
+| §5 | `Check` — a check a forge ran | `CheckRun` from `checks/core`, with `where: { kind: 'forge' }` and `required` | one shape, or §22 draws two things that mean one |
+| §5 | `Review.checks: 'none' \| 'running' \| 'passed' \| 'failed'` | unchanged (it is a rollup, and a good one) | — |
+| §10, §11 | marks and `review_checks` | say `CheckRun` too; a task row's `✗ checks` mark covers here *and* there | — |
+| §15 | M1 ships `forges/core` | M1 may ship before or after L1; they share only the `CheckRun` type, which `checks/core` owns | neither blocks the other |
+
+### 27.2 Milestones
+
+| | Ships | Depends on | Rough size |
+|---|---|---|---|
+| **L0** | `.tade/checks.yaml` for Tade, the manifest ↔ gate test, `tade checks workflow --check` in the gate, and the generated `ci.yml` with its steps named | nothing | small |
+| **L1** | `packages/checks/{core,scripted,local}`: port, capabilities, registry, conformance; `tade check` generalised; the record file and the rollup signal | L0 | medium |
+| **L2** | The WORK tab, local half only: branch, commits, checks here, run and re-run, the log | L1 | medium |
+| **L3** | The tab's CI column, from the review extension's cache (§4.3) | L2 + Part I M2 | small |
+| **L4** | The rule: `checks.before`, the supervisor's gate, `tade_check_override`, the prompt paragraph, the skill | L1 | medium |
+| **L5** | `checks/act`, `checks.hook`, reading workflows for projects with no manifest | L4 | medium |
+
+**L0 is worth shipping on its own and this week**: it costs one file and two tests, it makes
+"what does this project check" a fact a program can read, and every later milestone is easier for
+having it. **L2 is the first one a person notices.** **L4 is the first one that can get in an
+agent's way**, which is why it comes after the tab that shows what it did.
+
+---
+
+## 28. Risks, and open questions for Part II
+
+| Risk | What it looks like | What is done about it |
+|---|---|---|
+| **Four agents, four suites** | the shared checkout grinds; tests time out and look like regressions | the lock (§23.3), `alone`, `checks.parallel`, and the prompt telling agents to ask Tade rather than run bash |
+| A green tick that means less than it looks | "it passed locally" where CI runs another OS | `fidelity` on every runner, said beside the tick; CI's column never inferred from the local one |
+| A check that never ran, read as passed | a rollup that treats absent as fine | `unknown` is a first-class value in the rollup and in the conformance suite (item 4) |
+| Secrets in a local tail | a failing test prints a token into `.tade/checks.jsonl`, which is untracked but not ignored | scrub before writing, tail only, `0600`, never echoed into a comment; `git add -A` is already forbidden to agents |
+| The gate blocking the work | every push waits on a 3-minute suite | `when` paths, `required`, `checks.before: commit` for the impatient, and an override that takes one tool call and is told, not hidden |
+| A promise the config cannot keep | `checks.before: push` under `bypass`, where nothing can be held | said in the key's `means`, in the setting's description, and in the prompt; §21.1 is the table that must survive into the docs |
+| Workflow reading that guesses | a `uses:` step silently dropped, a check that looks green | best-effort path marks what it cannot do `skipped: needs CI`, never omits it quietly |
+| Generated file drift | somebody hand-edits `ci.yml` | `--check` in the gate, and a header line in the file saying where to edit |
+| `act` pulling gigabytes on a rule | a night's bandwidth | never started by a rule; only by name |
+| Hooks in somebody's repository | Tade writing `.git/hooks` in a checkout a person shares | `core.hooksPath`, off by default, worktrees Tade made only, `--no-verify` honoured |
+| Two definitions of the gate | `pnpm check` and the manifest drift | the test in §20.3, and the rule that the gate never goes through Tade |
+
+**Open questions, continuing §17's numbering:**
+
+14. **`checks.before` default.** `push` (recommended: the cheapest rule that catches what other
+    people would see) or `off` until you ask for it?
+15. **Should the gate ever hold a *commit*?** Holding a push is defensible; holding a commit
+    interrupts the thing an agent does twenty times an hour, and a bad commit is cheap to fix.
+    Recommendation: `push` only, with `commit` available for people who want it.
+16. **`approvals.mode` and this feature.** The gate only holds under `policy`, which is not the
+    default. Do you want Tade to *suggest* turning approvals on when you turn the checks rule on, or
+    is "told, and recorded afterwards" enough for you?
+17. **The manifest's home.** `.tade/checks.yaml`, committed (recommended: it is the project's fact,
+    and other agents on other machines get it for free) or `checks:` inside `~/.tade/config.yaml`,
+    which keeps `.tade/` entirely Tade's?
+18. **Generating this repository's workflow.** L0 replaces `.github/workflows/ci.yml` with a
+    generated one: three additions (named steps, `fail-fast: false`, `concurrency`) and two
+    respellings of commands that already run (§20.4). Fine to do, or do you want the workflow to
+    stay hand-written and the manifest to be checked against it instead?
+19. **`act`.** Worth the milestone at all, or is "the commands, honestly labelled" enough until
+    somebody loses an afternoon to a CI-only failure?
+20. **The tab's name.** `work` (recommended — Tade already says "work" for this), or `branch`,
+    `ship`, `checks`?
+21. **Other people's projects.** For a repository with workflows Tade did not generate, is a
+    best-effort read worth shipping (L5), or should the tab simply say "no manifest" and offer to
+    write one?
+
+---
+
 ## What I could not verify
 
 - **No network calls were made in this task.** Every GitHub number and endpoint here — 5,000
@@ -951,6 +1799,39 @@ Detail worth fixing now, per milestone:
   real cost is *agent turns*, which the existing budgets (`projects.<name>.budget`) already cap — but
   nobody has run it for a week to see what a noisy bot does to a daily budget.
 
+For Part II, and unverified in the same way:
+
+- **`act` was not run, and Docker was not checked for on this machine.** Everything in §18 and §19
+  about what `act` reproduces — images, `uses:` steps, services, the matrix — is documentation
+  knowledge. Its capability table is a claim about `act`, not a measurement of it, and L5 should
+  begin by measuring rather than by writing the adapter.
+- **Whether the supervisor can actually hold a `git push` in time.** The path exists
+  (`onPermissionRequest` holds the call until Tade answers), but nothing has been held for the
+  *minutes* a suite takes. Whether pi, the socket and the agent's own patience survive a
+  three-minute decision is the first thing L4 must prove — if they do not, the honest answer is
+  that the gate runs the checks *before* the push is attempted, never during it.
+- **Whether pi sends `tool_call` for every bash invocation** an agent makes, including ones inside
+  a compound command (`git add -p && git push`). The gate can only see what the harness reports,
+  and a push hidden inside a shell one-liner is a push Tade never classified. This is already true
+  of the approvals policy today; local actions make it matter more.
+- **The rollup's effect on existing task states.** Generalising the `tests` signal (§23.2) changes
+  what `review` means for projects with several checks: a task that read `review … tests green`
+  because one command passed may read `review … tests unverified` once three checks are known. That
+  is more honest and it is still a behaviour change; the status tests will say how big.
+- **`.tade/checks.yaml` as a committed file** assumes `.tade/` being untracked is a convention and
+  not enforced anywhere. `mkrepo` leaves `.tade/` untracked deliberately and nothing ignores it, so
+  this should work — but no project in this tree has ever committed a file under `.tade/`, and the
+  agent prompt currently says "its .tade folder is Tade's: never commit it", which would have to
+  learn the exception.
+- **The two-column tab at width.** The mock in §22 is 78 columns; what it sheds first in a narrow
+  terminal (the CI column, then durations, then the commit list) is a design intention and not a
+  measured layout. `view.ts` is also, as §17 notes, exactly the file other agents keep moving.
+- **Nothing here has been run against a repository whose CI is slow, flaky or matrixed beyond two
+  OSes.** A 40-minute CI with 30 jobs is a different drawing problem, and the row-per-check shape
+  is a guess at that scale.
+
 ---
 
-*Nothing was implemented in the writing of this document. The only file it adds is this one.*
+*Nothing was implemented in the writing of this document. The only file it adds is this one — Part
+II included: the workflow in §20.4 is what the generator should produce, not a file this task
+wrote.*
