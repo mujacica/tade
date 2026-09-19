@@ -4,18 +4,41 @@ import { fileURLToPath } from 'node:url'
 import { draw } from '../src/view.ts'
 import { SCENARIOS } from '../test/screens/scenarios.ts'
 import { ansiToHtml } from './ansi-html.ts'
+import { writePictures } from './pictures.ts'
 
-// A page of every protected screen, in colour, for a person to look at.
+// A page of every protected screen, in colour, for a person to look at, and
+// the pictures the README is made of.
 //
-//   pnpm screens [out.html]
+//   pnpm screens [out.html]          the page
+//   pnpm screens --assets [dir]      the README's pictures, as SVG
 //
 // Each screen is drawn from the scenarios the golden tests use. Where the
 // drawing no longer matches its golden file, the page shows both, the golden
 // one first, so reviewing a change to how Tade looks means looking at it.
+//
+// The pictures come from the same scenarios, which is what keeps the README
+// showing the window Tade actually has: they are regenerated, never taken by
+// hand. `docs/images` is where they live, because that is where the README
+// and the site built from it look for them.
 
 const here = dirname(fileURLToPath(import.meta.url))
 const goldens = join(here, '..', 'test', 'screens', '__screens__')
-const out = resolve(process.argv[2] ?? join(process.cwd(), 'tade-screens.html'))
+const repo = join(here, '..', '..', '..')
+const args = process.argv.slice(2)
+
+const assets = args.indexOf('--assets')
+if (assets >= 0) {
+  const dir = resolve(args[assets + 1] ?? join(repo, 'docs', 'images'))
+  let total = 0
+  for (const written of writePictures(dir)) {
+    total += written.bytes
+    process.stdout.write(`${written.file.padEnd(20)} ${(written.bytes / 1024).toFixed(1)} KB\n`)
+  }
+  process.stdout.write(`${dir} · ${(total / 1024).toFixed(0)} KB in all\n`)
+  process.exit(0)
+}
+
+const out = resolve(args[0] ?? join(process.cwd(), 'tade-screens.html'))
 
 function read(path: string): string | null {
   try {

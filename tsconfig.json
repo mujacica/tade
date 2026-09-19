@@ -5,6 +5,8 @@
     "packages/*/test",
     "packages/*/*/src",
     "packages/*/*/test",
+    "packages/*/scripts",
+    "scripts",
     "test",
     "vitest.config.ts"
   ]

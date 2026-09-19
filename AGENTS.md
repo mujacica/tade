@@ -253,10 +253,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 ## Keeping the repo maintainable
 
 - **This file is the one guide.** `CLAUDE.md` is a link to it, so every agent reads the same words.
-- **`README.md` is the basics**: what Tade is, how to install and start it, how to set up an
-  extension. Keep it that way. Everything else is documented where it is used — a command's
-  `--help`, a setting's `means`, the keys sheet, a tool's description — so it cannot drift from the
-  behaviour it describes.
+- **`README.md` is the showcase**, and the source a web page will be built from: a hero, a section per
+  feature, each a picture and a line or three, then install and setup — which must stay findable,
+  because they are the one thing a README may not lose. Explanations belong where they are used —
+  a command's `--help`, a setting's `means`, the keys sheet, a tool's description — so they cannot
+  drift from the behaviour they describe; the README shows rather than tells. **Its pictures are
+  generated, never taken by hand**: `pnpm screens --assets` redraws `docs/images/` from the golden
+  screen scenarios (`packages/app/scripts/pictures.ts`), so a change to how the window looks is a
+  change to the README. Add a picture by adding a scenario, and never advertise what is not built —
+  what is written down but not built goes under Planned, linked to its file in `docs/`.
 - **`.claude/skills/` holds step-by-step recipes** for recurring changes (a CLI command, a config
   key, an extension, the window, ...). Use the matching skill, and add or update one when you create
   a new extension point or a change teaches you something a recipe should have said. Do not confuse
