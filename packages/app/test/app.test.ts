@@ -1722,9 +1722,11 @@ describe('the window, wired up', () => {
         (row) => row.includes('thinking ▾') || row.includes('think ▾'),
       ),
     )
+    // Its own button, on its pane's header near the top — not the
+    // orchestrator's, which is the same control at the foot of the window.
     const button = (() => {
       const lines = screenOf(terminal.written)
-      for (let row = lines.length - 1; row >= 0; row--) {
+      for (let row = 0; row < lines.length; row++) {
         const col = (lines[row] ?? '').search(/think(ing)? ▾/)
         if (col >= 0) return { col, row }
       }
@@ -2029,6 +2031,51 @@ describe('the window, wired up', () => {
     terminal.written = ''
     click(status.col + 1, status.row)
     await until('the spend panel', () => terminal.written.includes('BUDGETS'))
+  })
+
+  it('changes how hard the orchestrator thinks from the strip, and keeps it', async () => {
+    terminal.columns = 160
+    const told: string[] = []
+    await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        orchestrator: { provider: 'anthropic', model: 'claude-opus-5' },
+      }),
+      thinker: {
+        ask: async () => 'ok',
+        setThinking: async (level: string) => {
+          told.push(level)
+        },
+      },
+    })
+    await until('the orchestrator model in the strip', () =>
+      screenOf(terminal.written).some((row) => row.includes('claude-opus-5 ▾')),
+    )
+    // The control beside it, at the foot of the window: the level it thinks at.
+    const button = (() => {
+      const lines = screenOf(terminal.written)
+      for (let row = lines.length - 1; row >= 0; row--) {
+        const col = (lines[row] ?? '').search(/think(ing)? ▾/)
+        if (col >= 0) return { col, row }
+      }
+      throw new Error('no thinking button in the strip')
+    })()
+    terminal.written = ''
+    click(button.col + 1, button.row)
+    await until('the levels', () => {
+      const shown = screenOf(terminal.written).join('\n')
+      return shown.includes('Thinking') && shown.includes('xhigh')
+    })
+    const medium = find('medium')
+    click(medium.col + 2, medium.row)
+    // It takes effect where it is: the conversation carries on, at the new level.
+    await until('the orchestrator to be told', () => told.length === 1)
+    expect(told[0]).toBe('medium')
+    // And it is written down, so the next one starts there.
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('thinking: medium')
+    await until('it to say so', () =>
+      screenOf(terminal.written).some((row) => row.includes('thinks at medium')),
+    )
   })
 
   it('shows agent spend in the status bar', async () => {

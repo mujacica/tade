@@ -155,6 +155,8 @@ export const ConfigSchema = z
         // share one session.
         provider: z.string().optional(),
         model: z.string().optional(),
+        /** How hard it thinks before it answers; the harness's own default when unset. */
+        thinking: z.enum(THINKING_LEVELS).optional(),
         extensions: z.string().default('~/.tade/extensions'),
         /**
          * Look back at a task once it has finished, and write down a lesson if

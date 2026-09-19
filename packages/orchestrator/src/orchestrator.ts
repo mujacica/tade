@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Note, SkillActivity, TadeEvent, Unsubscribe } from '@tade/core'
+import type { Config, Note, SkillActivity, TadeEvent, ThinkingLevel, Unsubscribe } from '@tade/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
 import type { WorkerExtras, WorkerImage, WorkerModel } from '@tade/harnesses-core'
 import {
@@ -267,6 +267,9 @@ export class Orchestrator {
       cwd: opts.cwd ?? process.cwd(),
       prompt: '',
       ...(model ? { model } : {}),
+      // How hard it thinks, from its first turn: chosen like an agent's, and
+      // the harness's own default when nobody has.
+      ...(route?.thinking ? { thinking: route.thinking } : {}),
       ...(opts.extensions ? { extras: opts.extensions.extras } : {}),
     })
     // A harness that refused to start — a model it could not resolve, most
@@ -299,6 +302,16 @@ export class Orchestrator {
   /** The model it is actually thinking with, as the harness reports it. */
   model(): Promise<WorkerModel | null> {
     return this.adapter.model(ORCHESTRATOR_RUN)
+  }
+
+  /**
+   * How hard it thinks, from its next reply on. Asked of the process it is
+   * already in — unlike a model, which it is restarted on — so the
+   * conversation carries on mid-sentence.
+   */
+  async setThinking(level: ThinkingLevel): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    await this.adapter.setThinking(ORCHESTRATOR_RUN, level)
   }
 
   /**

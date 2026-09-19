@@ -43,12 +43,13 @@ export function resolveRoute(config: Config, query: RouteQuery = {}): ResolvedRo
 
 /** The route the orchestrator itself runs on. */
 export function orchestratorRoute(config: Config): ResolvedRoute {
-  const { harness, provider, model } = config.orchestrator
+  const { harness, provider, model, thinking } = config.orchestrator
   return {
     name: 'orchestrator',
     harness,
     sandbox: 'none',
     ...(provider ? { provider } : {}),
     ...(model ? { model } : {}),
+    ...(thinking ? { thinking } : {}),
   }
 }

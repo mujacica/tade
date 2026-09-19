@@ -262,6 +262,22 @@ describe('Orchestrator', () => {
     expect(said[0]).toBe('Still here.')
   }, 90_000)
 
+  it('starts at the level it was told to think at, and moves without restarting', async () => {
+    const chat = await start(
+      { finalText: 'Thought about it.' },
+      {
+        config: ConfigSchema.parse({
+          projects: { app: { root: repo.root } },
+          orchestrator: { thinking: 'low' },
+        }),
+      },
+    )
+    // How hard it thinks is a level like an agent's, asked of the process it
+    // is already in: the conversation carries on, so nothing is said twice.
+    await chat.setThinking('high')
+    expect(await chat.askFor('where are we', 30_000)).toBe('Thought about it.')
+  }, 90_000)
+
   it('switches its own model when asked, and hands it to the window to keep', async () => {
     const asked: string[] = []
     await tools.close()

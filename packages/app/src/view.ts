@@ -306,6 +306,8 @@ export interface Frame {
   }[]
   /** The orchestrator's model, shown on its tab: undefined where the window has no orchestrator. */
   orchestratorModel?: string | null
+  /** How hard the orchestrator thinks, as the config has it; null where nothing was chosen. */
+  orchestratorThinking?: string | null
   /** Text extensions know how to open, made clickable wherever it is shown. */
   linkers?: readonly Linker[]
   now?: number
@@ -3470,25 +3472,34 @@ function renderFoot(
   }
   const spend = frame.spend
   const target: Target = { kind: 'action', name: 'spend' }
-  // The orchestrator's model, and the account paying for it: an agent's own
-  // model is on its pane, so this is only ever the one you talk to.
+  // The orchestrator's model, how hard it thinks, and the account paying for
+  // it: an agent's own are on its pane, so these are only ever the one you
+  // talk to.
   const switcher: Target = { kind: 'action', name: 'model:orchestrator' }
   const thinker = frame.orchestratorModel
+  const level: Target = { kind: 'action', name: 'thinking:orchestrator' }
+  const thinking = frame.orchestratorThinking
   const account = frame.orchestratorAccount
   const spent = spend && (spend.tokens > 0 || spend.hasCost)
   // How long the agents have been at it today, beside what they charged for
   // it: the two halves of the same question.
   const ran = spend?.runtime && spend.runtime.ms > 0 ? spend.runtime : null
+  // Everything here is clickable, and says so under the pointer the way a
+  // link does: lit and underlined, rather than a block of background that
+  // would read as a button in a strip that has none.
+  const lit = (of: Target, tone: (text: string) => string) =>
+    sameTarget(state.hover, of) ? skin.link : tone
   // Said in full where there is room, and shed from the left where there is
   // not: what it costs is the part worth keeping on a small terminal, and how
   // long it took is the next to last to go.
-  const full = { model: true, account: true, tokens: true, runtime: true }
+  const full = { model: true, account: true, thinking: true, tokens: true, runtime: true }
   const tries = [
     full,
-    { model: true, account: false, tokens: true, runtime: true },
-    { model: true, account: false, tokens: false, runtime: true },
-    { model: false, account: false, tokens: false, runtime: true },
-    { model: false, account: false, tokens: false, runtime: false },
+    { model: true, account: false, thinking: true, tokens: true, runtime: true },
+    { model: true, account: false, thinking: true, tokens: false, runtime: true },
+    { model: true, account: false, thinking: false, tokens: false, runtime: true },
+    { model: false, account: false, thinking: false, tokens: false, runtime: true },
+    { model: false, account: false, thinking: false, tokens: false, runtime: false },
   ]
   const status = (show: (typeof tries)[number]) => (r: Row) => {
     // What extensions keep here — what Tade is using — clicked for their view.
@@ -3497,35 +3508,40 @@ function renderFoot(
         const view: Target = { kind: 'action', name: `extension-view:${one.extension}` }
         const tone =
           one.tone === 'bad' ? skin.bad : one.tone === 'warning' ? skin.waiting : skin.hint
-        r.text(
-          one.text,
-          sameTarget(state.hover, view) ? skin.link : tone,
-          one.viewable ? view : undefined,
-        )
+        r.text(one.text, lit(view, tone), one.viewable ? view : undefined)
         r.text(' │ ', skin.chrome)
       }
     }
     if (show.model && thinker !== undefined) {
-      const look = sameTarget(state.hover, switcher) ? skin.link : skin.hint
+      const look = lit(switcher, skin.hint)
       r.text(`${thinker ? shortModel(thinker) : 'no model'} ▾`, look, switcher)
       if (show.account && account?.provider) r.text(` · ${account.provider}`, look, switcher)
       if (show.account && account?.credential) r.text(` · ${account.credential}`, look, switcher)
       r.text(' │ ', skin.chrome)
+      // How hard it thinks, changed like an agent's: a dropdown of the same
+      // levels, beside the model it applies to.
+      if (show.thinking) {
+        r.text(`${thinking ?? 'thinking'} ▾`, lit(level, skin.hint), level)
+        r.text(' │ ', skin.chrome)
+      }
     }
+    // What today cost, in one clickable group: the whole of it lights, because
+    // the whole of it opens the same overview.
+    const money = lit(target, skin.hint)
     if (spent && show.tokens) {
-      r.text(tokens(spend.tokens), skin.hint, target).text(' │ ', skin.chrome, target)
+      r.text(tokens(spend.tokens), money, target).text(' │ ', skin.chrome, target)
     }
     // An agent still working is time still counting, so it is said in the
     // colour of something happening rather than the colour of a record.
     if (ran && show.runtime) {
-      r.text(duration(ran.ms), ran.running ? skin.busy : skin.hint, target).text(
+      r.text(duration(ran.ms), lit(target, ran.running ? skin.busy : skin.hint), target).text(
         ' │ ',
         skin.chrome,
         target,
       )
     }
-    if (spent && spend.hasCost) r.text(dollars(spend.usd), skin.you, target).space()
-    r.text(spent ? 'today ▾' : 'nothing spent today ▾', skin.hint, target).space()
+    if (spent && spend.hasCost) r.text(dollars(spend.usd), lit(target, skin.you), target).space()
+    r.text(spent ? 'today ▾' : 'nothing spent today ▾', money, target).space()
   }
   const fits = tries.find((show) => {
     const probe = new Row(width, skin)

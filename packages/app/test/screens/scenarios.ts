@@ -145,6 +145,7 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
   now: NOW,
   home: '~/.tade',
   orchestratorModel: 'openrouter/anthropic/claude-opus-5',
+  orchestratorThinking: 'high',
   orchestratorAccount: { provider: 'openrouter', credential: 'signed in' },
   files: [
     { path: 'src', name: 'src', depth: 0, folder: true, open: true },
@@ -1590,6 +1591,20 @@ export const SCENARIOS: Scenario[] = [
           col: 84,
         },
       ),
+    },
+    frame: frame({ panel: { items: thinkingMenuItems('high') } }),
+  },
+  {
+    name: 'choosing-how-hard-tade-thinks',
+    about:
+      "The thinking button in the strip, beside the orchestrator's model: the same levels an " +
+      'agent has, and the one it is at marked. It moves from its next reply.',
+    state: {
+      ...base(),
+      panel: menuPanel({ kind: 'thinking', task: 'orchestrator', current: 'high' }, 'Thinking', {
+        row: 32,
+        col: 88,
+      }),
     },
     frame: frame({ panel: { items: thinkingMenuItems('high') } }),
   },

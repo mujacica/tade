@@ -11,6 +11,7 @@ import {
   isReady,
   loadConfig,
   readiness,
+  type ThinkingLevel,
   tadeHome,
 } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
@@ -314,6 +315,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                       images.map(({ data, mimeType }) => ({ data, mimeType })),
                     ),
                   tell: (text) => started.tell(text),
+                  // Its thinking level, moved without restarting it: the
+                  // conversation carries on at the new level.
+                  setThinking: (level) => started.setThinking(level as ThinkingLevel),
                   onEvent: (listener) => started.onEvent(listener),
                 })
                 // Nothing chosen, so the harness picked: keep what it picked, so the

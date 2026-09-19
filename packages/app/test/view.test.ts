@@ -500,6 +500,78 @@ describe('agent spend', () => {
   })
 })
 
+describe('the status strip', () => {
+  const spending = {
+    tokens: 1_500,
+    usd: 0.351,
+    hasCost: true,
+    byTask: {},
+    runtime: { ms: 80 * 60_000, runs: 2, running: true },
+  }
+  const strip = (over: Partial<AppState> = {}) =>
+    draw(
+      { ...state(), ...over },
+      {
+        ...frame({ width: 120 }),
+        skin: COLOUR,
+        spend: spending,
+        orchestratorModel: 'openrouter/anthropic/claude-opus-5',
+        orchestratorThinking: 'high',
+      },
+    )
+  const foot = (drawn: { rows: string[] }) => drawn.rows[drawn.rows.length - 1] ?? ''
+  /** What a link looks like: amber, and underlined right up to the words. */
+  const linked = (row: string, text: string) =>
+    new RegExp(`\u001b\\[4m${text.replace(/[$.]/g, '\\$&')}`).test(row)
+
+  it('lights what today cost under the pointer, because clicking it opens the overview', () => {
+    const at = strip()
+    const cost = at.hits.find((hit) => hit.target.kind === 'action' && hit.target.name === 'spend')
+    expect(cost).toBeDefined()
+    // Quiet until pointed at — and then lit and underlined, the way the model
+    // beside it says it can be clicked.
+    expect(linked(foot(at), '$0.35')).toBe(false)
+    const pointed = strip({ hover: { kind: 'action', name: 'spend' } })
+    expect(linked(foot(pointed), '$0.35')).toBe(true)
+    // The whole group is one control, so the time and the tokens light with it.
+    expect(linked(foot(pointed), '1h 20m')).toBe(true)
+    expect(linked(foot(pointed), 'today')).toBe(true)
+  })
+
+  it('offers the orchestrator a thinking level, lit under the pointer like its model', () => {
+    const at = strip()
+    expect(plain(foot(at))).toContain('high ▾')
+    const level = at.hits.find(
+      (hit) => hit.target.kind === 'action' && hit.target.name === 'thinking:orchestrator',
+    )
+    expect(level).toBeDefined()
+    expect(linked(foot(at), 'high')).toBe(false)
+    const pointed = strip({ hover: { kind: 'action', name: 'thinking:orchestrator' } })
+    expect(linked(foot(pointed), 'high')).toBe(true)
+    // Pointing at one control does not light the other.
+    expect(linked(foot(pointed), 'claude-opus-5')).toBe(false)
+  })
+
+  it('says a level can be chosen even where none has been', () => {
+    const drawn = draw(state(), {
+      ...frame({ width: 120 }),
+      orchestratorModel: 'openrouter/anthropic/claude-opus-5',
+      orchestratorThinking: null,
+    })
+    expect(plain(foot(drawn))).toContain('thinking ▾')
+  })
+
+  it('says nothing about thinking where there is no orchestrator', () => {
+    const drawn = draw(state(), frame({ width: 120 }))
+    expect(plain(foot(drawn))).not.toContain('thinking ▾')
+    expect(
+      drawn.hits.some(
+        (hit) => hit.target.kind === 'action' && hit.target.name === 'thinking:orchestrator',
+      ),
+    ).toBe(false)
+  })
+})
+
 describe('the bar down the right of what scrolls', () => {
   const tall = () => ({ ...frame({ width: 100, height: 18 }), skin: COLOUR })
 

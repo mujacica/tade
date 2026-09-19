@@ -56,6 +56,7 @@ import {
   speakable,
   startFrom,
   THINKING_LEVELS,
+  type ThinkingLevel,
   taskOrigin,
   type When,
   watchedFrom,
@@ -564,6 +565,11 @@ export interface Thinker {
   ask(text: string, images?: readonly WorkerImageFile[]): Promise<string>
   /** Tell it something without cutting across what it is doing: after its turn, if it is on one. */
   tell?(text: string): Promise<void>
+  /**
+   * How hard it thinks, from its next reply on. Its conversation carries on:
+   * the level is asked of the process it is already in, never a restart.
+   */
+  setThinking?(level: string): Promise<void>
   onEvent?(listener: (event: ThinkerEvent) => void): () => void
 }
 
@@ -1277,6 +1283,7 @@ export class App {
       home: tilde(this.opts.home),
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
+      orchestratorThinking: this.opts.config.orchestrator.thinking ?? null,
       orchestratorAccount: this.thinkerAccount(),
       splitScreen: this.splitScreen,
       splitTerminal: this.state.terminalSplit
@@ -2021,12 +2028,18 @@ export class App {
     if (action.startsWith('thinking:')) {
       const task = action.slice('thinking:'.length)
       const project = task.split('/')[0]
-      const current =
-        this.live?.vitals(task)?.thinking ??
-        resolveRoute(this.opts.config, project ? { project } : {}).thinking ??
-        null
+      // The orchestrator is not an agent: what it thinks at is its own
+      // setting, and its control sits in the strip rather than on a pane.
+      const orchestrator = task === ORCHESTRATOR_TAB
+      const current = orchestrator
+        ? (this.opts.config.orchestrator.thinking ?? null)
+        : (this.live?.vitals(task)?.thinking ??
+          resolveRoute(this.opts.config, project ? { project } : {}).thinking ??
+          null)
       const menu = menuPanel({ kind: 'thinking', task, current }, 'Thinking', {
-        row: 3,
+        // Below the control it belongs to: the pane's header, or the strip at
+        // the foot of the window, where it is clamped back into view.
+        row: orchestrator ? Math.max(0, this.terminal.rows - 2) : 3,
         col: Math.max(0, this.terminal.columns - 30),
       })
       // The keyboard starts on the level it is at.
@@ -2896,6 +2909,7 @@ export class App {
 
   /** How hard an agent thinks from its next turn, and new agents from their first. */
   private async chooseThinking(task: string, level: string): Promise<void> {
+    if (task === ORCHESTRATOR_TAB) return this.chooseThinkerThinking(level)
     try {
       const chosen = await this.opts.client.setAgentThinking(task, level)
       const loaded = await loadConfig(this.configPath)
@@ -2908,6 +2922,54 @@ export class App {
       this.state = notice(this.state, why(err))
     }
     this.draw()
+  }
+
+  /**
+   * How hard the orchestrator thinks, from its next reply on. Written to the
+   * config, like the model it is on, so it stays — but unlike the model it
+   * needs no restart: the level is asked of the process it is already in, and
+   * the conversation carries on.
+   */
+  private async chooseThinkerThinking(level: string): Promise<void> {
+    const chosen = THINKING_LEVELS.find((one) => one === level.trim().toLowerCase())
+    if (!chosen) {
+      this.state = notice(this.state, `${level} is not a thinking level`)
+      this.draw()
+      return
+    }
+    try {
+      writeSetting(this.configPath, 'orchestrator.thinking', chosen)
+      const loaded = await loadConfig(this.configPath)
+      if (loaded.ok) this.useConfig(loaded.config)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+      this.draw()
+      return
+    }
+    const trouble = await this.tellThinkerThinking(chosen)
+    this.state = notice(
+      this.state,
+      trouble
+        ? `the orchestrator will think at ${chosen} when it next starts: ${trouble}`
+        : `the orchestrator thinks at ${chosen} from its next reply, and starts there`,
+    )
+    this.draw()
+  }
+
+  /**
+   * Ask the orchestrator to think at a level now. Answers why it could not be
+   * told — it is still starting, or stopped — rather than throwing: the level
+   * is in the config either way, so the next start has it.
+   */
+  private async tellThinkerThinking(level: ThinkingLevel): Promise<string | null> {
+    const move = this.thinker?.setThinking
+    if (!this.thinker || !move) return 'it is not running yet'
+    try {
+      await move.call(this.thinker, level)
+      return null
+    } catch (err) {
+      return why(err)
+    }
   }
 
   /** What a note's menu does: change it, copy its words, or forget it. */
@@ -6337,10 +6399,19 @@ export class App {
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
       this.useConfig(loaded.config)
+      // How hard the orchestrator thinks is live only if the one running is
+      // told: a setting that looks applied and is not is worse than one that
+      // waits honestly, so where it could not be told, it says so.
+      const trouble =
+        path === 'orchestrator.thinking' && loaded.config.orchestrator.thinking
+          ? await this.tellThinkerThinking(loaded.config.orchestrator.thinking)
+          : null
       const said =
         setting?.live === false
           ? `Saved. ${setting.title} applies when Tade next starts.`
-          : 'Saved. It applies now.'
+          : trouble
+            ? `Saved. It applies when the orchestrator next starts: ${trouble}`
+            : 'Saved. It applies now.'
       this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
     } catch (err) {
       this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }

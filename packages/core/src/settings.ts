@@ -203,6 +203,15 @@ export function settingsOf(config: Config): SettingGroup[] {
           live: false,
         },
         {
+          path: 'orchestrator.thinking',
+          title: 'Thinking',
+          means: 'how hard it thinks before it answers; it moves from its next reply',
+          value: config.orchestrator.thinking ?? '',
+          fallback: 'the harness decides',
+          type: { kind: 'choice', options: [...THINKING_LEVELS] },
+          live: true,
+        },
+        {
           path: 'orchestrator.reflect',
           title: 'Look back at finished tasks',
           means: 'write down a lesson when a task lands, if there is one to write',

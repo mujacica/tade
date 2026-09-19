@@ -74,6 +74,13 @@ describe('orchestratorRoute', () => {
     const c = config({ orchestrator: { provider: 'anthropic', model: 'claude-opus-5' } })
     expect(orchestratorRoute(c)).toMatchObject({ provider: 'anthropic', model: 'claude-opus-5' })
   })
+
+  it('carries how hard it was told to think, like an agent route does', () => {
+    const c = config({ orchestrator: { thinking: 'xhigh' } })
+    expect(orchestratorRoute(c)).toMatchObject({ thinking: 'xhigh' })
+    // Unset is the harness's own default, not a level of our choosing.
+    expect(orchestratorRoute(config({})).thinking).toBeUndefined()
+  })
 })
 
 describe('route validation', () => {

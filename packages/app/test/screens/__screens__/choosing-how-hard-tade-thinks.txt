@@ -16,19 +16,19 @@
  ▾ FILES                     █│  ▸ Read src/webhooks.ts                                                                 
    ▾ src/                    ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
        webhooks.test.ts      ▕│  ▸ bash npm i stripe@15                                                                 
-       webhooks.ts       ≡   ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+       webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
      package.json            ▕│  │   Allow once     Deny                                        │                       
      README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
-                                                                                                                       ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
+                                                                                        ╭─ Thinking ─────────────────╮ ▕
+                                                                                        │▌   off                     │ ▕
+                                                                                        │    minimal                 │ ▕
+                                                                                        │    low                     │ ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                   │    medium                  │ ▕
+────────────────────────────────────────────────────────────────────────────────────────│  ● high                now │─ 
+ Ask Tade anything                                                                     t│    xhigh                   │  
+────────────────────────────────────────────────────────────────────────────────────────│    max                     │──
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1╰────────────────────────────╯▾ 
