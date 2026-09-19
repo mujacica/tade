@@ -71,6 +71,19 @@ export class Row {
   }
 
   /**
+   * A button of the same block, two columns narrower: for a small control that
+   * belongs to the set a button is in — a heading's `◉` beside its `+` — and
+   * must not read as wide as the button it sits beside.
+   */
+  chip(label: string, target: Target, look: Look = 'rest'): this {
+    return this.put(
+      this.skin.chip(label, this.lookOf(target, look)),
+      visibleWidth(label) + 2,
+      target,
+    )
+  }
+
+  /**
    * A glyph as a button, lit under the pointer and held down: `×`, `≡`. A
    * destructive one is only red while the pointer is on it — at rest it is
    * as quiet as the rest.

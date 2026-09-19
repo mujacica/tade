@@ -18,6 +18,7 @@ import {
   type BranchRow,
   branchChoices,
   type Choice,
+  type CloseDonePanel,
   type ConfirmPanel,
   type ConfirmRemovePanel,
   choicesFor,
@@ -204,6 +205,8 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
       return { panel: menu(panel, ctx), popups: [] }
     case 'confirm-remove':
       return { panel: confirmRemove(panel, ctx), popups: [] }
+    case 'close-done':
+      return { panel: closeDone(panel, ctx), popups: [] }
     case 'diff':
       return { panel: diff(panel, ctx), popups: [] }
     case 'settings':
@@ -2363,6 +2366,65 @@ function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {
       .build(),
   )
   return box(`Remove ${name}?`, rows, width, skin, { corner: 'esc' })
+}
+
+/**
+ * Closing every agent that has finished, asked first: what it would close, by
+ * name, so a list that is longer than you thought is still your decision.
+ */
+function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
+  const { skin } = ctx
+  const width = Math.min(66, ctx.width - 4)
+  const inner = width - 2
+  const pointer = ctx.pointer.hover
+    ? ctx.pointer
+    : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
+  const row = () => new Row(inner, skin, pointer)
+  const count = panel.tasks.length
+  const rows: { text: string; hits: Hit[] }[] = [blank(inner)]
+  for (const task of panel.tasks.slice(0, 6)) {
+    rows.push(
+      row()
+        .space(3)
+        .text('✓', skin.done)
+        .space()
+        .text(task.split('/').at(-1) ?? task)
+        .build(),
+    )
+  }
+  if (count > 6)
+    rows.push(
+      row()
+        .space(5)
+        .text(`and ${count - 6} more`, skin.hint)
+        .build(),
+    )
+  rows.push(blank(inner))
+  rows.push(row().space().text('Each is stopped and taken off the list, its worktree and').build())
+  rows.push(
+    row().space().text("branch with it. Their conversations stay in pi's sessions.").build(),
+  )
+  rows.push(
+    panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
+  )
+  rows.push(
+    row()
+      .right((r) =>
+        r
+          .button('Keep them', { kind: 'control', id: 'keep' })
+          .space()
+          .button(
+            panel.busy ? 'Closing…' : `Close ${count}`,
+            { kind: 'control', id: 'remove' },
+            panel.busy ? 'off' : 'danger',
+          )
+          .space(),
+      )
+      .build(),
+  )
+  return box(`Close ${count} finished agent${count === 1 ? '' : 's'}?`, rows, width, skin, {
+    corner: 'esc',
+  })
 }
 
 function diff(panel: DiffPanel, ctx: PanelContext): Drawn {

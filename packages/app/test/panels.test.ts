@@ -5,6 +5,7 @@ import {
   branchMenuItems,
   branchPanel,
   changeMenuItems,
+  closeDonePanel,
   type ExtensionView,
   extensionControls,
   extensionSetupPanel,
@@ -678,6 +679,30 @@ describe('setting an extension up', () => {
       submit: true,
       choice: 'save',
     })
+  })
+})
+
+describe('closing every agent that has finished', () => {
+  const panel = closeDonePanel(['app/shipped', 'app/reviewed'])
+
+  it('starts on the answer that loses nothing, and asks before it closes any', () => {
+    expect(panel.tasks).toEqual(['app/shipped', 'app/reviewed'])
+    expect(panel.field).toBe('keep')
+    // Enter where it starts keeps them; escape is the same answer.
+    expect(panelKey(panel, 'enter', '')).toMatchObject({ submit: false, panel: null })
+    expect(panelKey(panel, 'escape', '').panel).toBeNull()
+  })
+
+  it('closes them once you have said so, by key or by click', () => {
+    const chosen = panelKey(panel, 'tab', '').panel as typeof panel
+    expect(chosen.field).toBe('remove')
+    expect(panelKey(chosen, 'enter', '')).toMatchObject({ submit: true })
+    expect(panelClick(panel, 'keep', {})).toMatchObject({ submit: false, panel: null })
+    const pressed = panelClick(panel, 'remove', {})
+    expect(pressed.submit).toBe(true)
+    // Busy while it runs, so the question cannot be answered twice.
+    expect(pressed.panel).toMatchObject({ kind: 'close-done', busy: true })
+    expect(panelKey(pressed.panel as typeof panel, 'enter', '')).toMatchObject({ submit: false })
   })
 })
 

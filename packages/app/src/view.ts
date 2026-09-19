@@ -23,6 +23,7 @@ import {
   type AppState,
   chainOf,
   conversing,
+  doneTasks,
   glyph,
   isAction,
   laneShown,
@@ -59,7 +60,7 @@ import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
-import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from './ui.ts'
+import { blank, box, type Drawn, fit, NO_POINTER, overlay, type Pointer, Row, stack } from './ui.ts'
 
 // Drawing, as one pure function of state.
 //
@@ -614,13 +615,29 @@ function clock(seconds: number): string {
 
 // ── Side: where, agents, changes, files, notes ───────────────────────────────
 
+/**
+ * A control in a section's heading. The one that makes another of something
+ * is a button; anything beside it is `small` — the same block two columns
+ * narrower, so a heading reads as one set of controls with one of them
+ * plainly the main one.
+ */
+interface SectionAction {
+  label: string
+  target: Target
+  look?: Look
+  small?: boolean
+  /** Red only while the pointer is on it, as a glyph button is. */
+  danger?: boolean
+}
+
 interface Section {
   id: string
   label: string
   count: number | null
   /** Rows when unfolded. At least one, so an open section never looks broken. */
   rows: (row: () => Row) => { text: string; hits: Hit[] }[]
-  action?: { label: string; target: Target; look?: Look }
+  /** Its heading's controls, the main one last: the `+` sits against the edge. */
+  actions?: SectionAction[]
   /** Said quietly at the right of the heading: what the section is measured against. */
   note?: string
   /** Its items are tabs, and its rows carry their own room above and below them. */
@@ -644,13 +661,39 @@ function renderSidebar(
   const files = frame.files ?? []
   const spend = frame.spend?.byTask ?? {}
   const where = frame.where ?? null
+  // Agents that have finished: what the eye hides and the cleanup button
+  // closes. Neither control is drawn while there is nothing finished to act
+  // on — except the eye while it is hiding, which has to stay reachable.
+  const done = doneTasks(state).length
 
   const sections: Section[] = [
     {
       id: 'agents',
       label: 'AGENTS',
       count: tasks.length,
-      action: { label: ' + ', target: { kind: 'action', name: 'new-agent' } },
+      actions: [
+        ...(done > 0 || state.hidingDone
+          ? [
+              {
+                // An eye open on the finished ones, and shut over them.
+                label: state.hidingDone ? '○' : '◉',
+                target: { kind: 'action' as const, name: 'toggle-done' },
+                small: true,
+              },
+            ]
+          : []),
+        ...(done > 0
+          ? [
+              {
+                label: '⌫',
+                target: { kind: 'action' as const, name: 'close-done' },
+                small: true,
+                danger: true,
+              },
+            ]
+          : []),
+        { label: ' + ', target: { kind: 'action' as const, name: 'new-agent' } },
+      ],
       banded: true,
       rows: (row) =>
         tasks.length === 0
@@ -699,7 +742,7 @@ function renderSidebar(
       id: 'notes',
       label: 'NOTES',
       count: notes.length,
-      action: { label: ' + ', target: { kind: 'action', name: 'add-note' } },
+      actions: [{ label: ' + ', target: { kind: 'action', name: 'add-note' } }],
       banded: true,
       rows: (row) =>
         notes.length === 0
@@ -740,10 +783,13 @@ function renderSidebar(
         kind: 'section',
         section: section.id,
       })
-    if (section.count !== null && section.count > 0) head.space().badge(section.count)
-    if (section.action) {
-      const action = section.action
-      head.right((r) => r.button(action.label, action.target, action.look ?? 'add').space())
+    const shown = headingFit(head.used, width, section, skin)
+    if (shown.count) head.space().badge(section.count ?? 0)
+    if (shown.actions.length > 0) {
+      head.right((r) => {
+        headingControls(r, shown.actions, pointer)
+        r.space()
+      })
     } else if (section.note) {
       const note = section.note
       head.right((r) => r.text(note, skin.hint).space())
@@ -770,6 +816,61 @@ function renderSidebar(
     rowHit(i, full, { kind: 'scroll', area: 'sidebar' }),
   )
   return { rows: stacked.rows, hits: [...under, ...stacked.hits] }
+}
+
+/**
+ * What a heading has room for, beside its own label.
+ *
+ * Short of columns it gives up its count first — the list under it is the
+ * count — then its small controls, the one nearest the button first, because
+ * a heading that keeps the button it is there for is worth more than one that
+ * keeps everything and draws none of it.
+ */
+function headingFit(
+  label: number,
+  width: number,
+  section: Section,
+  skin: Skin,
+): { count: boolean; actions: SectionAction[] } {
+  const all = section.actions ?? []
+  const small = all.filter((action) => action.small)
+  const main = all.filter((action) => !action.small)
+  const counted = section.count !== null && section.count > 0
+  const badge = counted ? 1 + String(section.count).length + 2 : 0
+  for (let kept = small.length; kept >= 0; kept--) {
+    const actions = [...small.slice(0, kept), ...main]
+    const room = label + (actions.length > 0 ? 1 + headingWidth(actions, width, skin) : 0)
+    if (counted && room + badge <= width) return { count: true, actions }
+    if (room <= width) return { count: false, actions }
+  }
+  return { count: counted && label + badge <= width, actions: [] }
+}
+
+/**
+ * A heading's controls, drawn side by side: the small ones as one set of
+ * chips, then a column, then the button they sit beside — which is how you
+ * see at a glance which of them makes another of something.
+ */
+function headingControls(r: Row, actions: readonly SectionAction[], pointer: Pointer): void {
+  actions.forEach((action, i) => {
+    if (i > 0 && !action.small) r.space()
+    // Destructive, and so red only under the pointer: at rest it is as quiet
+    // as everything else in the heading.
+    const look: Look = action.danger
+      ? sameTarget(pointer.hover, action.target)
+        ? 'danger'
+        : 'rest'
+      : (action.look ?? (action.small ? 'rest' : 'add'))
+    if (action.small) r.chip(action.label, action.target, look)
+    else r.button(action.label, action.target, look)
+  })
+}
+
+/** The columns a heading's controls take, the space after them included. */
+function headingWidth(actions: readonly SectionAction[], width: number, skin: Skin): number {
+  const probe = new Row(width, skin)
+  headingControls(probe, actions, NO_POINTER)
+  return probe.used + 1
 }
 
 /**

@@ -8,6 +8,9 @@
 // `  label  ` on its own ground painted and `[ label ]` plain, both label + 4
 // columns, so the layout and the map of what is clickable are identical with or
 // without it — the plain skin is not a degraded layout, only an unpainted one.
+// A chip is the same block with a column of ground instead of two, `[label]`
+// plain: label + 2 either way, so a row of small controls beside a button reads
+// as the same set without taking a button's width.
 //
 // A control is a plain block: no half-block end caps. They were decoration, and
 // decoration on every button in the window reads as noise rather than as shape.
@@ -81,6 +84,11 @@ export interface Skin {
 
   /** A block with the label centred: `  label  `, exactly label + 4 columns. */
   button(label: string, look: Look): string
+  /**
+   * The same block a column narrower each side: ` label `, exactly label + 2.
+   * For the small controls that sit beside a button without being one its size.
+   */
+  chip(label: string, look: Look): string
   /** A tab: filled when on, `  label  ` when not. Label + 4 either way. */
   tabbed(label: string, on: boolean, hover: boolean): string
   /** One key as a key cap: a block, label + 2. Pass the spaces you want inside. */
@@ -201,8 +209,8 @@ const under =
     `${bg(n)}${row.replaceAll(RESET, `${RESET}${bg(n)}`)}${RESET}`
 
 /** A block in the control's own colour, label centred on its ground. */
-function block(label: string, ground: number, ink: number, bold = false): string {
-  return `${bg(ground)}${fg(ink)}${bold ? BOLD : ''}  ${label}  ${RESET}`
+function block(label: string, ground: number, ink: number, bold = false, pad = '  '): string {
+  return `${bg(ground)}${fg(ink)}${bold ? BOLD : ''}${pad}${label}${pad}${RESET}`
 }
 
 const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
@@ -260,6 +268,7 @@ export const PLAIN: Skin = {
   // there are and which one you are on, and the line it is on is marked.
   found: (text) => text,
   button: (label) => `[ ${label} ]`,
+  chip: (label) => `[${label}]`,
   tabbed: (label, on) => (on ? `[ ${label} ]` : `  ${label}  `),
   keycap: (label) => `[${label}]`,
   badge: (text) => `(${text.trim()})`.padEnd(text.length),
@@ -302,6 +311,10 @@ export const COLOUR: Skin = {
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
     return block(label, ground, ink, bold)
+  },
+  chip: (label, look) => {
+    const [ground, ink, bold] = LOOKS[look]
+    return block(label, ground, ink, bold, ' ')
   },
   tabbed: (label, on, hover) => {
     if (on) return block(label, TONE.amber, TONE.ink, true)

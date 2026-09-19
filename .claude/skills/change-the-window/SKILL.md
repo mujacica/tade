@@ -128,7 +128,16 @@ file and cannot be tested.
   turn — `×` in red — never pushed off the edge by a long name.
 - **`×` on an agent closes it**: stopped and taken off the list (`closeAgent`). It asks first only
   when that would lose something — a worktree of its own with work not merged. Stopping without
-  removing is in its menu.
+  removing is in its menu. Closing every agent that has finished at once is the cleanup beside
+  AGENTS (`close-done`), which always asks and names what it would close — a button that empties
+  the list without a word is one nobody presses twice.
+- **A section's heading holds a set of controls, and the main one is a button.** `Section.actions`
+  in `view.ts`, the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
+  block two columns narrower, so they read as the same set without reading as wide as the `+`.
+  Short of columns a heading gives up its count first (the list under it is the count), then the
+  small controls, the one nearest the button first (`headingFit`); a destructive one is red only
+  under the pointer, as `Row.icon` is. A control with nothing to act on is not drawn: the eye and
+  the cleanup appear when an agent has finished, and the eye stays while it is hiding one.
 - **Agents are dragged into order** (`dragAgent`, `dropAgent`, `inOrder`), by project, and the order
   is remembered in `window.json`. The window takes hold with `heldAgent`, reading every agent's row
   once when pressed: the list redraws in its new order as it is dragged, and measuring against that

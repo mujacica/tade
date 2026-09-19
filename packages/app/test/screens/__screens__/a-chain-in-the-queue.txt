@@ -5,7 +5,7 @@
    ⠋ schema                        ▕│                                                                                                                 
      working                       ▕│  ◌ Waits on api, then starts by itself.                                                                         
                                    ▕│                                                                                                                 
- ▾ SMART QUEUE  4           plan   ▕│  THE CHAIN IT IS IN                                                                                             
+ ▾ SMART QUEUE  4                  ▕│  THE CHAIN IT IS IN                                                                                             
    all  next  timed                ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
                                    ▕│  ╭──────────────────╮     ╭──────────────────╮     ┏━━━━━━━━━━━━━━━━━━┓     ╭──────────────────╮                
    ◌ tidy-mailer            next   ▕│  │ ⠋ schema         │────▶│ ◌ api            │────▶┃ ◌ client         ┃────▶│ ◌ docs           │                

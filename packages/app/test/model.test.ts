@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type AgentPane,
   type AppState,
+  doneTasks,
   dragAgent,
   dropAgent,
   FOCUS_GUARD_MS,
@@ -44,6 +45,7 @@ import {
   type TaskSnapshot,
   tasksOf,
   terminalsOf,
+  toggleDone,
   turnSplit,
   typingLane,
   unsplitPane,
@@ -317,6 +319,39 @@ describe('the smart queue', () => {
       'refunds',
       'typos',
     ])
+  })
+})
+
+describe('the agents that have finished', () => {
+  const finished: TaskSnapshot[] = [
+    { task: 'app/working', state: 'working' },
+    { task: 'app/reviewed', state: 'review' },
+    { task: 'app/said-so', state: 'blocked', finished: { by: 'agent', summary: 'done' } },
+  ]
+
+  it('are the ones the cleanup button would close, whether or not they are shown', () => {
+    const state = withTasks(initialState(), finished)
+    expect(doneTasks(state).map((pane) => pane.name)).toEqual(['reviewed', 'said-so'])
+    // Hiding them is a view, never a decision about them.
+    expect(doneTasks(toggleDone(state)).map((pane) => pane.name)).toEqual(['reviewed', 'said-so'])
+  })
+
+  it('leave the list when the eye hides them, and come back when it opens', () => {
+    const state = withTasks(initialState(), finished)
+    expect(tasksOf(state).map((pane) => pane.name)).toEqual(['working', 'reviewed', 'said-so'])
+    const hidden = toggleDone(state)
+    expect(hidden.hidingDone).toBe(true)
+    expect(tasksOf(hidden).map((pane) => pane.name)).toEqual(['working'])
+    expect(tasksOf(toggleDone(hidden)).map((pane) => pane.name)).toEqual([
+      'working',
+      'reviewed',
+      'said-so',
+    ])
+  })
+
+  it('keeps the one you are watching in the list, hidden or not', () => {
+    const hidden = toggleDone(focusTask(withTasks(initialState(), finished), 'app/reviewed'))
+    expect(tasksOf(hidden).map((pane) => pane.name)).toEqual(['working', 'reviewed'])
   })
 })
 

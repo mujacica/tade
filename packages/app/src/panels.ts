@@ -112,6 +112,20 @@ export interface ConfirmRemovePanel {
   error: string | null
 }
 
+/**
+ * Asked before closing every agent that has finished at once. Always asked,
+ * however little each one would lose: a button that empties the list without
+ * a word is one nobody presses twice.
+ */
+export interface CloseDonePanel {
+  kind: 'close-done'
+  /** The tasks it would close, as the list names them. */
+  tasks: string[]
+  field: 'keep' | 'remove'
+  busy: boolean
+  error: string | null
+}
+
 /** A changed file, read-only, a hunk at a time. */
 export interface DiffPanel {
   kind: 'diff'
@@ -840,6 +854,7 @@ export type Panel =
   | SpendPanel
   | MenuPanel
   | ConfirmRemovePanel
+  | CloseDonePanel
   | DiffPanel
   | SettingsPanel
   | OpenProjectPanel
@@ -1137,6 +1152,11 @@ export function scheduleMenuItems(schedule: {
   ]
 }
 
+/** What the cleanup button asks first, with the agents it would close in it. */
+export function closeDonePanel(tasks: readonly string[]): CloseDonePanel {
+  return { kind: 'close-done', tasks: [...tasks], field: 'keep', busy: false, error: null }
+}
+
 export function confirmRemovePanel(task: string): ConfirmRemovePanel {
   // Keep is where the keyboard starts: enter on a question like this should
   // be the answer that loses nothing.
@@ -1231,6 +1251,7 @@ export function panelKey(
   if (panel.kind === 'branch') return branchKey(panel, key, data, inputs.branches ?? [])
   if (panel.kind === 'confirm') return confirmKey(panel, key)
   if (panel.kind === 'confirm-remove') return confirmKey(panel, key)
+  if (panel.kind === 'close-done') return confirmKey(panel, key)
   return diffKey(panel, key)
 }
 
@@ -1311,7 +1332,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
     }
     return stay(panel)
   }
-  if (panel.kind === 'confirm-remove' || panel.kind === 'confirm') {
+  if (panel.kind === 'confirm-remove' || panel.kind === 'confirm' || panel.kind === 'close-done') {
     if (control === 'keep') return close
     if (control === 'remove') return { panel: { ...panel, busy: true, error: null }, submit: true }
     return stay(panel)
@@ -1450,7 +1471,7 @@ function branchKey(
 }
 
 function confirmKey(
-  panel: ConfirmRemovePanel | ConfirmPanel,
+  panel: ConfirmRemovePanel | ConfirmPanel | CloseDonePanel,
   key: string | undefined,
 ): PanelOutcome {
   if (panel.busy) return stay(panel)

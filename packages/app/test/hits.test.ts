@@ -28,6 +28,24 @@ describe('a row of controls', () => {
     expect(text.slice(second?.from, (second?.to ?? 0) + 1)).toBe('[ Settings ]')
   })
 
+  it('is narrower as a chip than as a button, painted or not', () => {
+    // A chip is the same block two columns in: small enough to sit beside a
+    // button without reading as one, and the same width with any skin.
+    const build = (skin: typeof PLAIN) =>
+      new Row(30, skin)
+        .chip('◉', { kind: 'action', name: 'toggle-done' })
+        .button(' + ', { kind: 'action', name: 'new-agent' }, 'add')
+        .build()
+    const coloured = build(COLOUR)
+    const bare = build(PLAIN)
+    expect(coloured.hits).toEqual(bare.hits)
+    const [chip, button] = bare.hits
+    expect(bare.text.slice(chip?.from, (chip?.to ?? 0) + 1)).toBe('[◉]')
+    expect((chip?.to ?? 0) - (chip?.from ?? 0)).toBeLessThan(
+      (button?.to ?? 0) - (button?.from ?? 0),
+    )
+  })
+
   it('lays out identically in colour and without it', () => {
     const build = (skin: typeof PLAIN) =>
       new Row(80, skin)

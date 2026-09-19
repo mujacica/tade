@@ -834,6 +834,35 @@ describe('the window, wired up', () => {
     expect(created?.task).toBe('app/agent-1')
   }, 30_000)
 
+  it('closes the agents that have finished, from the cleanup beside the +', async () => {
+    await start()
+    await until('the first frame', () =>
+      screenOf(terminal.written).some((row) => row.includes('AGENTS')),
+    )
+    // One of the two is finished, so there is something to clean up.
+    await client.markDone('app/refunds', { by: 'you' })
+    const heading = () => {
+      const lines = screenOf(terminal.written)
+      const row = lines.findIndex((line) => line.includes('AGENTS'))
+      return { row, text: lines[row] ?? '' }
+    }
+    await until('the cleanup button', () => heading().text.includes('⌫'), 20_000)
+    const bar = heading()
+    click(bar.text.indexOf('⌫'), bar.row)
+    // It asks first, and says how many it would close.
+    await until('the question', () => terminal.written.includes('Close 1 finished agent?'))
+    const answer = find('Close 1 ')
+    terminal.written = ''
+    click(answer.col, answer.row)
+    await until(
+      'the agent to be closed',
+      () => repo.git('branch', '--list', 'tade/refunds').trim() === '',
+      20_000,
+    )
+    // The other one is untouched: only what had finished went.
+    expect(repo.git('branch', '--list', 'tade/search')).toContain('tade/search')
+  }, 30_000)
+
   it('opens a project from the + beside the tabs, looking in your home folder', async () => {
     const folders = tmp('tade-app-home-')
     writeFileSync(join(folders, 'notes.txt'), 'not a folder')

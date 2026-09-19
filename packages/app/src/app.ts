@@ -107,6 +107,7 @@ import {
   activeTerminal,
   addTurn,
   conversing,
+  doneTasks,
   dragAgent,
   dropAgent,
   focusBy,
@@ -152,6 +153,7 @@ import {
   startHistorySearch,
   swapSplit,
   terminalSplitShown,
+  toggleDone,
   toggleFolder,
   toggleSection,
   turnSplit,
@@ -170,8 +172,10 @@ import {
   branchMenuItems,
   branchPanel,
   type Choice,
+  type CloseDonePanel,
   type ConfirmRemovePanel,
   changeMenuItems,
+  closeDonePanel,
   confirmRemovePanel,
   diffPanel,
   type ExtensionSetupPanel,
@@ -2025,6 +2029,21 @@ export class App {
       case 'new-agent':
         await this.newAgent('')
         return
+      case 'toggle-done':
+        this.state = toggleDone(this.state)
+        this.draw()
+        return
+      case 'close-done': {
+        // Nothing finished is nothing to clean up: said, rather than an empty
+        // question nobody can answer.
+        const done = doneTasks(this.state)
+        this.state =
+          done.length === 0
+            ? notice(this.state, 'no agent here has finished yet')
+            : { ...this.state, panel: closeDonePanel(done.map((pane) => pane.task)) }
+        this.draw()
+        return
+      }
       case 'search':
         this.openSearch()
         return
@@ -2418,6 +2437,9 @@ export class App {
         break
       case 'confirm-remove':
         await this.removeTask(panel)
+        break
+      case 'close-done':
+        await this.closeDone(panel)
         break
       case 'open-project':
         await this.openProject(panel)
@@ -3535,35 +3557,58 @@ export class App {
   }
 
   private async removeTask(panel: ConfirmRemovePanel): Promise<void> {
-    const facts = this.live?.factsOf(panel.task)
-    const worktree = this.live?.worktreeOf(panel.task)
-    const root = facts ? this.opts.config.projects[facts.project]?.root : undefined
-    if (!facts || !worktree || !root) {
-      this.state = {
-        ...this.state,
-        panel: { ...panel, busy: false, error: 'I cannot find where this agent works.' },
-      }
+    const error = await this.removeOne(panel.task)
+    if (error) {
+      this.state = { ...this.state, panel: { ...panel, busy: false, error } }
       return
     }
+    await this.live?.refresh()
+    this.state = notice({ ...this.state, panel: null }, `removed ${panel.task}`)
+  }
+
+  /**
+   * Stop one agent and take its task off the list, its worktree and branch
+   * with it. Says what stopped it from happening, or nothing when it did.
+   */
+  private async removeOne(task: string): Promise<string | null> {
+    const facts = this.live?.factsOf(task)
+    const worktree = this.live?.worktreeOf(task)
+    const root = facts ? this.opts.config.projects[facts.project]?.root : undefined
+    if (!facts || !worktree || !root) return 'I cannot find where this agent works.'
     try {
       // Its agent first: a worktree cannot go out from under a process using it.
-      await this.opts.client.stopAgent(panel.task).catch(() => {})
+      await this.opts.client.stopAgent(task).catch(() => {})
       const result = await this.opts.client.removeTask({
         root: expandHome(root),
         worktree,
         branch: facts.branch,
-        task: panel.task,
+        task,
         force: true,
       })
-      if (!result.removed) {
-        this.state = { ...this.state, panel: { ...panel, busy: false, error: result.reason } }
-        return
-      }
-      await this.live?.refresh()
-      this.state = notice({ ...this.state, panel: null }, `removed ${panel.task}`)
+      return result.removed ? null : result.reason
     } catch (err) {
-      this.state = { ...this.state, panel: { ...panel, busy: false, error: why(err) } }
+      return why(err)
     }
+  }
+
+  /**
+   * Close every agent that has finished, one after another: git cannot be
+   * asked to remove two worktrees of the same repository at once. What could
+   * not be closed stays on the list and is said — the rest still went.
+   */
+  private async closeDone(panel: CloseDonePanel): Promise<void> {
+    const failed: string[] = []
+    for (const task of panel.tasks) {
+      const error = await this.removeOne(task)
+      if (error) failed.push(`${task.split('/').at(-1) ?? task}: ${error}`)
+    }
+    await this.live?.refresh()
+    const closed = panel.tasks.length - failed.length
+    const said =
+      failed.length === 0
+        ? `closed ${closed} finished agent${closed === 1 ? '' : 's'}`
+        : `closed ${closed} of ${panel.tasks.length} — ${failed.join('; ')}`
+    this.state = notice({ ...this.state, panel: null }, said)
   }
 
   /** The diff panel, on a changed file, with every other changed file a step away. */

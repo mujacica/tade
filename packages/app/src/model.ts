@@ -164,6 +164,12 @@ export interface AppState {
   pressed: Target | null
   /** Sidebar sections folded shut. */
   folded: string[]
+  /**
+   * Agents that have finished are kept out of the list, until the eye beside
+   * AGENTS puts them back. They are still there, and still the cleanup
+   * button's to close — hiding one is a view, never a decision about it.
+   */
+  hidingDone: boolean
   /** Which queued work the SMART QUEUE shows. */
   queueFilter: QueueFilter
   /** The plan is drawn where an agent's screen would be, while no agent is in front. */
@@ -272,6 +278,7 @@ export function initialState(): AppState {
     hover: null,
     pressed: null,
     folded: [...FOLDED_AT_START],
+    hidingDone: false,
     queueFilter: 'all',
     showingPlan: false,
     schedule: null,
@@ -384,7 +391,12 @@ export function tasksOf(
 ): Array<AgentPane & { focused: boolean; dragging: boolean }> {
   // Queued work is not an agent yet: it waits in the SMART QUEUE until it starts.
   const here = state.panes.filter(
-    (pane) => pane.project === (state.project ?? pane.project) && !pane.queued,
+    (pane) =>
+      pane.project === (state.project ?? pane.project) &&
+      !pane.queued &&
+      // Finished and hidden — except the one you are watching, because a list
+      // that leaves out what is on the screen is a list that disagrees with it.
+      !(state.hidingDone && markOf(pane) === 'done' && pane.task !== state.focused),
   )
   const order = state.reordering
     ? { ...state.order, [state.reordering.project]: dragged(state, state.reordering) }
@@ -1127,6 +1139,23 @@ export function scrollBarTo(state: AppState, y: number): AppState {
         ? { ...state, panel: { ...state.panel, scroll: offset } }
         : state
   }
+}
+
+/**
+ * The agents in the project in front of you that have finished: what the
+ * cleanup button closes, and what the eye hides. Read from every pane rather
+ * than from the list, so hiding them never changes what cleanup would close.
+ */
+export function doneTasks(state: AppState): AgentPane[] {
+  return state.panes.filter(
+    (pane) =>
+      pane.project === (state.project ?? pane.project) && !pane.queued && markOf(pane) === 'done',
+  )
+}
+
+/** Show or hide the agents that have finished. */
+export function toggleDone(state: AppState): AppState {
+  return { ...state, hidingDone: !state.hidingDone }
 }
 
 /** Fold or unfold a sidebar section. */

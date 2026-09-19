@@ -11,6 +11,7 @@ import {
   showPlan,
   splitPane,
   type TaskSnapshot,
+  toggleDone,
   toggleSection,
   withProjects,
   withTasks,
@@ -20,6 +21,7 @@ import {
   branchMenuItems,
   branchPanel,
   changeMenuItems,
+  closeDonePanel,
   confirmRemovePanel,
   diffPanel,
   extensionSetupPanel,
@@ -111,6 +113,26 @@ const agentScreen = [
 const base = (): AppState =>
   focusTask(
     withTasks(withProjects(initialState(), ['checkout', 'search', 'infra']), tasks),
+    'checkout/stripe-v15',
+  )
+
+/** The same window with two agents in it that have finished: what cleanup is for. */
+const finished = (): AppState =>
+  focusTask(
+    withTasks(withProjects(initialState(), ['checkout', 'search', 'infra']), [
+      ...tasks,
+      {
+        task: 'checkout/refund-emails',
+        state: 'review',
+        title: 'Send an email when a refund lands',
+      },
+      {
+        task: 'checkout/webhook-retries',
+        state: 'blocked',
+        reason: IDLE_REASON,
+        finished: { by: 'agent', summary: 'Retries are idempotent now, with a test' },
+      },
+    ]),
     'checkout/stripe-v15',
   )
 
@@ -1572,6 +1594,26 @@ export const SCENARIOS: Scenario[] = [
     about: 'Removing a task asks first, and says exactly what would be lost.',
     state: { ...base(), panel: confirmRemovePanel('checkout/stripe-v15') },
     frame: frame({ panel: { ahead: 3, branch: 'tade/stripe-v15', base: 'main' } }),
+  },
+  {
+    name: 'the-finished-agents-hidden',
+    about:
+      'The AGENTS heading with two controls beside its +, each narrower than it: an eye, shut here so the agents that have finished are out of the list, and a cleanup that closes them. The pointer is on the eye.',
+    state: {
+      ...toggleDone(finished()),
+      hover: { kind: 'action', name: 'toggle-done' },
+    },
+    frame: frame(),
+  },
+  {
+    name: 'cleaning-up-finished-agents',
+    about:
+      'The cleanup beside the + asks before it closes anything, and names every agent it would close.',
+    state: {
+      ...finished(),
+      panel: closeDonePanel(['checkout/refund-emails', 'checkout/webhook-retries']),
+    },
+    frame: frame(),
   },
   {
     name: 'diff',

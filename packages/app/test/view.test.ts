@@ -1,7 +1,7 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
-import { hitAt } from '../src/hits.ts'
+import { type Hit, hitAt } from '../src/hits.ts'
 import {
   type AppState,
   addTurn,
@@ -13,6 +13,7 @@ import {
   setListening,
   setQuestion,
   type TaskSnapshot,
+  toggleDone,
   withProjects,
   withTasks,
   withTerminals,
@@ -114,6 +115,57 @@ describe('the tabs', () => {
     const text = renderApp(focusTask(state(), 'search/pagination'), frame()).join('\n')
     expect(text).toMatch(/▌.*pagination/)
     expect(text).not.toContain('stripe-v15')
+  })
+})
+
+describe('the AGENTS heading', () => {
+  const finished: TaskSnapshot[] = [...tasks, { task: 'checkout/shipped', state: 'review' }]
+  const here = (over: Partial<AppState> = {}): AppState => ({
+    ...withTasks(withProjects(initialState(), ['checkout', 'search']), finished),
+    ...over,
+  })
+  /** A heading control, by what pressing it would do. */
+  const control = (hits: readonly Hit[], name: string): Hit | undefined =>
+    hits.find((hit) => hit.target.kind === 'action' && hit.target.name === name)
+  const columns = (hit: Hit | undefined) => (hit ? hit.to - hit.from + 1 : 0)
+
+  it('has nothing to clean up or hide while no agent has finished', () => {
+    const { hits } = draw(state(), frame({ height: 40 }))
+    expect(control(hits, 'new-agent')).toBeDefined()
+    expect(control(hits, 'close-done')).toBeUndefined()
+    expect(control(hits, 'toggle-done')).toBeUndefined()
+  })
+
+  it('offers the eye and the cleanup as smaller controls beside the + , on its row', () => {
+    const { rows, hits } = draw(here(), frame({ height: 40 }))
+    const plus = control(hits, 'new-agent')
+    const eye = control(hits, 'toggle-done')
+    const cleanup = control(hits, 'close-done')
+    expect(plus).toBeDefined()
+    // Part of the same set: the same row, side by side, with the + last.
+    expect(eye?.row).toBe(plus?.row)
+    expect(cleanup?.row).toBe(plus?.row)
+    expect(plain(rows[plus?.row ?? 0] ?? '')).toContain('AGENTS')
+    expect(eye?.to).toBeLessThan(cleanup?.from ?? 0)
+    expect(cleanup?.to).toBeLessThan(plus?.from ?? 0)
+    // Smaller: narrower than the button they sit beside, not as wide as it.
+    expect(columns(eye)).toBeLessThan(columns(plus))
+    expect(columns(cleanup)).toBeLessThan(columns(plus))
+  })
+
+  it('takes the finished agents out of the list when the eye is shut, and keeps the eye', () => {
+    const { rows, hits } = draw(toggleDone(here()), frame({ height: 40 }))
+    expect(rows.join('\n')).not.toContain('shipped')
+    expect(rows.join('\n')).toContain('refunds')
+    expect(control(hits, 'toggle-done')).toBeDefined()
+  })
+
+  it('gives up the small controls before the button, where the sidebar is narrow', () => {
+    const narrow = draw(here({ sizes: { sidebarWidth: 23 } }), frame({ height: 40 }))
+    expect(control(narrow.hits, 'new-agent')).toBeDefined()
+    expect(control(narrow.hits, 'close-done')).toBeUndefined()
+    const wide = draw(here({ sizes: { sidebarWidth: 30 } }), frame({ height: 40 }))
+    expect(control(wide.hits, 'close-done')).toBeDefined()
   })
 })
 
