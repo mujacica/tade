@@ -46,6 +46,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Status is a query, not a memory.** `deriveState` (`core/src/state.ts`) is a pure function of
   probe results: no I/O, no clock reads (take `now`), no async.
 - `status` never throws. Failures degrade to a partial answer plus `warnings[]`.
+- **How long an agent ran is derived too, never timed.** `runtimeFrom` (`core/src/runtime.ts`)
+  reads the journal's `run_started` and `run_exited` and nothing anywhere holds a stopwatch; a run
+  still open counts up to `now`, because an agent working right now is running right now. A run
+  nobody wrote an exit for ends where the window closed, or where the next one opened and
+  relaunched it — counting the hours Tade was shut would add a night's sleep to every agent's
+  morning. The orchestrator is not in it: it has no run of its own, it lives as long as the window.
 - Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. Never mock git.
 - **A fixture must not be kinder than reality.** If the fixture differs from what a user's machine
   looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.tade/`

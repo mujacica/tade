@@ -165,6 +165,9 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
       'checkout/refunds': { tokens: 460_000, usd: 0.62 },
       'search/pagination': { tokens: 148_000, usd: 0.2 },
     },
+    // Two agents still at it, so the morning's agent time is longer than the
+    // morning: what `ran` below adds up to.
+    runtime: { ms: 7_500_000, runs: 3, running: true },
   },
   route: {
     harness: 'pi',
@@ -466,6 +469,25 @@ const spent = [
   usage('checkout/stripe-v15', 'anthropic/claude-opus-5', 880_000, 1.26),
   usage('checkout/refunds', 'anthropic/claude-opus-5', 460_000, 0.62),
   usage('search/pagination', 'anthropic/claude-sonnet-5', 148_000, 0.2),
+]
+
+const runEvent = (type: 'run_started' | 'run_exited', task: string, ts: string): TadeEvent => ({
+  seq: ++seq,
+  ts,
+  type,
+  urgency: 'notable',
+  task,
+  lane: `${task}/agent`,
+  run: `${task}/agent`,
+  detail: type === 'run_started' ? { model: 'anthropic/claude-opus-5' } : {},
+})
+
+/** The same morning's runs: two agents still going, one that finished. */
+const ran = [
+  runEvent('run_started', 'checkout/stripe-v15', '2026-09-13T13:05:00.000Z'),
+  runEvent('run_started', 'search/pagination', '2026-09-13T13:02:00.000Z'),
+  runEvent('run_started', 'checkout/refunds', '2026-09-13T13:20:00.000Z'),
+  runEvent('run_exited', 'search/pagination', '2026-09-13T13:32:00.000Z'),
 ]
 
 /** What the Settings panel is shown: a machine set up the way the design was drawn. */
@@ -1405,6 +1427,7 @@ export const SCENARIOS: Scenario[] = [
         openedAt: NOW - 3_600_000,
         projects: ['checkout', 'search', 'infra'],
         budgets: { checkout: { usd_per_day: 5 } },
+        runs: ran,
       }),
     }),
   },

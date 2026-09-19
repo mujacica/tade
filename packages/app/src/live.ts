@@ -11,7 +11,9 @@ import {
   type Queued,
   type QueueFacts,
   queueStateOf,
+  type RuntimeReport,
   ruleMet,
+  runtimeFrom,
   type SpendReport,
   spendFrom,
   startOfToday,
@@ -59,6 +61,19 @@ const QUEUE_READS = [
   // What a watch has found, which is never forgotten: one finding, one piece of work.
   'watch_checked',
   'watch_found',
+] as const
+
+/**
+ * What runtime is derived from: when an agent started and stopped, and when
+ * the window that was watching it did — a run nobody wrote an exit for ended
+ * when Tade closed, not at breakfast the next morning.
+ */
+const RUNTIME_READS = [
+  'run_started',
+  'run_exited',
+  'task_removed',
+  'tade_opened',
+  'tade_closing',
 ] as const
 
 /** A schedule's runs as the journal has them, newest last. */
@@ -258,6 +273,12 @@ export class Live {
   >()
   /** Every `usage` event since midnight, which is what today's spend is. */
   private usage: TadeEvent[] = []
+  /**
+   * What says how long anything has run, from the whole journal rather than a
+   * window of it: a run that began last week and is still going is time spent
+   * today, and a time filter would drop the start it is measured from.
+   */
+  private runEvents: TadeEvent[] = []
   /** Which tasks have finished, from the whole journal: the last 500 events forget. */
   private finished = new Map<string, Finished>()
   /** Which tasks' agents have ended a turn since they last started. */
@@ -298,6 +319,7 @@ export class Live {
       .catch(() => [])
     live.finished = finishedFrom(told)
     live.worked = workedFrom(told)
+    live.runEvents = await opts.client.events({ types: [...RUNTIME_READS] }).catch(() => [])
     live.queueEvents = await opts.client.events({ types: [...QUEUE_READS] }).catch(() => [])
     for (const event of live.queueEvents) {
       if (event.type === 'run_started' && event.task) live.started.add(event.task)
@@ -564,6 +586,11 @@ export class Live {
     return this.usage
   }
 
+  /** Every event the Spend panel measures runtime from, oldest first. */
+  get runs(): readonly TadeEvent[] {
+    return this.runEvents
+  }
+
   /** What an agent last said it runs on. */
   vitals(
     task: string | null,
@@ -577,6 +604,11 @@ export class Live {
   /** What has been spent since midnight, in total and by task. */
   spendToday(): SpendReport {
     return spendFrom(this.usage, { since: startOfToday(this.now()) })
+  }
+
+  /** How long the agents have run since midnight, in total and by task. */
+  runtimeToday(): RuntimeReport {
+    return runtimeFrom(this.runEvents, { since: startOfToday(this.now()), now: this.now() })
   }
 
   /** A rendered snapshot of a lane's screen, or nothing if it has none. */
@@ -708,6 +740,7 @@ export class Live {
   private record(event: TadeEvent): void {
     this.journal.push(event)
     if (event.type === 'usage') this.usage.push(event)
+    if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runEvents.push(event)
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)
     }

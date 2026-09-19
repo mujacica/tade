@@ -6,7 +6,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from '@earendil-works/pi-tui'
-import { KEY_BINDINGS, type Setting, type SettingGroup } from '@tade/core'
+import { duration, KEY_BINDINGS, type Setting, type SettingGroup } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
 import type { Hit, Target } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
@@ -2440,7 +2440,12 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
 
   const head = row().space()
   head.text(view?.hasCost ? money(view.usd) : '—', skin.you).space(2)
-  head.text(tokenCount(view?.tokens ?? 0), skin.hint)
+  head.text(tokenCount(view?.tokens ?? 0), skin.hint).space(2)
+  // Every agent's time added together, which is why two working at once put
+  // two hours on the clock in one. Bare, beside the money and the tokens: the
+  // column below says what it is.
+  const ran = view?.runtime
+  head.text(duration(ran?.ms ?? 0), ran?.running ? skin.busy : skin.hint)
   head.right((r) => {
     for (const window of SPEND_WINDOWS) {
       r.tab(
@@ -2462,13 +2467,13 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   rows.push(blank(inner))
 
   const name = 18
-  const model = 16
-  const bar = 12
+  const model = 15
+  const bar = 10
   rows.push(
     row()
       .space()
       .text(
-        `${pad('WHO', name + 2)}${pad(panel.by === 'model' ? '' : 'MODEL', model)} ${'TOKENS'.padStart(6)}  ${pad('SHARE', bar)}${'COST'.padStart(8)}`,
+        `${pad('WHO', name + 2)}${pad(panel.by === 'model' ? '' : 'MODEL', model)} ${'TOKENS'.padStart(6)}  ${pad('SHARE', bar)}${'RUNTIME'.padStart(7)}${'COST'.padStart(8)}`,
         skin.label,
       )
       .build(),
@@ -2480,7 +2485,7 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     (a, b) => Number(b.kind === 'orchestrator') - Number(a.kind === 'orchestrator'),
   )
   if (entries.length === 0) {
-    rows.push(row().space(3).text('Nothing spent in this window.', skin.hint).build())
+    rows.push(row().space(3).text('Nothing spent or run in this window.', skin.hint).build())
   }
   for (const entry of entries.slice(0, 8)) {
     const pane = ctx.panes.find((p) => p.task === entry.label)
@@ -2501,6 +2506,10 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         .text(tokenCount(entry.tokens, false).padStart(6))
         .space(2)
         .meter(entry.tokens / total, bar)
+        .text(
+          (entry.runtime && entry.runtime.ms > 0 ? duration(entry.runtime.ms) : '—').padStart(7),
+          entry.runtime?.running ? skin.busy : undefined,
+        )
         .text((view?.hasCost ? money(entry.usd) : '—').padStart(8))
         .build(),
     )
@@ -2537,7 +2546,12 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     rows.push(line.build())
   }
   rows.push(blank(inner))
-  rows.push(row().space().text('Prices as pi reports them.', skin.hint).build())
+  rows.push(
+    row()
+      .space()
+      .text('Prices as pi reports them · runtime from an agent starting to exiting.', skin.hint)
+      .build(),
+  )
 
   return box('Spend', rows, width, skin, { corner: 'esc' })
 }

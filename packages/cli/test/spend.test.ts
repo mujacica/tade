@@ -22,6 +22,13 @@ it('says what today cost while a window has the home open', async () => {
     task: 'app/refunds',
     detail: { model: 'claude-opus-5', tokens: 1_200, usd: 0.42 },
   })
+  // A run that has not ended is still running, and still counting.
+  await window.log.append({
+    type: 'run_started',
+    task: 'app/refunds',
+    run: 'app/refunds/agent',
+    detail: { model: 'claude-opus-5' },
+  })
   const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
     const child = spawn(process.execPath, [bin, 'spend', '--json'], {
       env: { ...process.env, TADE_HOME: home, HOME: home },
@@ -34,6 +41,11 @@ it('says what today cost while a window has the home open', async () => {
     child.on('exit', (code) => resolve({ code, stdout }))
   })
   expect(result.code).toBe(0)
-  const report = JSON.parse(result.stdout) as { total: { usd: number; tokens: number } }
+  const report = JSON.parse(result.stdout) as {
+    total: { usd: number; tokens: number }
+    runtime: { total: { runs: number; running: boolean }; byTask: Record<string, { ms: number }> }
+  }
   expect(report.total).toMatchObject({ usd: 0.42, tokens: 1_200 })
+  expect(report.runtime.total).toMatchObject({ runs: 1, running: true })
+  expect(report.runtime.byTask['app/refunds']?.ms).toBeGreaterThanOrEqual(0)
 }, 30_000)

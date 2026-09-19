@@ -5,7 +5,14 @@ import {
   truncateToWidth,
   visibleWidth,
 } from '@earendil-works/pi-tui'
-import { DONE_RULE_MEANS, describeLook, type QueueState, taskOrigin } from '@tade/core'
+import {
+  DONE_RULE_MEANS,
+  describeLook,
+  duration,
+  type QueueState,
+  type Runtime,
+  taskOrigin,
+} from '@tade/core'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { keyCaps } from './keys.ts'
@@ -254,6 +261,8 @@ export interface Spend {
   usd: number
   hasCost: boolean
   byTask: Readonly<Record<string, { tokens: number; usd: number }>>
+  /** How long the agents have run today, all of them added together. */
+  runtime?: Runtime
 }
 
 /**
@@ -3105,14 +3114,19 @@ function renderFoot(
   const thinker = frame.orchestratorModel
   const account = frame.orchestratorAccount
   const spent = spend && (spend.tokens > 0 || spend.hasCost)
+  // How long the agents have been at it today, beside what they charged for
+  // it: the two halves of the same question.
+  const ran = spend?.runtime && spend.runtime.ms > 0 ? spend.runtime : null
   // Said in full where there is room, and shed from the left where there is
-  // not: what it costs is the part worth keeping on a small terminal.
-  const full = { model: true, account: true, tokens: true }
+  // not: what it costs is the part worth keeping on a small terminal, and how
+  // long it took is the next to last to go.
+  const full = { model: true, account: true, tokens: true, runtime: true }
   const tries = [
     full,
-    { model: true, account: false, tokens: true },
-    { model: true, account: false, tokens: false },
-    { model: false, account: false, tokens: false },
+    { model: true, account: false, tokens: true, runtime: true },
+    { model: true, account: false, tokens: false, runtime: true },
+    { model: false, account: false, tokens: false, runtime: true },
+    { model: false, account: false, tokens: false, runtime: false },
   ]
   const status = (show: (typeof tries)[number]) => (r: Row) => {
     // What extensions keep here — what Tade is using — clicked for their view.
@@ -3138,6 +3152,15 @@ function renderFoot(
     }
     if (spent && show.tokens) {
       r.text(tokens(spend.tokens), skin.hint, target).text(' │ ', skin.chrome, target)
+    }
+    // An agent still working is time still counting, so it is said in the
+    // colour of something happening rather than the colour of a record.
+    if (ran && show.runtime) {
+      r.text(duration(ran.ms), ran.running ? skin.busy : skin.hint, target).text(
+        ' │ ',
+        skin.chrome,
+        target,
+      )
     }
     if (spent && spend.hasCost) r.text(dollars(spend.usd), skin.you, target).space()
     r.text(spent ? 'today ▾' : 'nothing spent today ▾', skin.hint, target).space()

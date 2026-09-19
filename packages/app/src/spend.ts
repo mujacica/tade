@@ -2,17 +2,24 @@ import {
   type Budget,
   type BudgetVerdict,
   checkBudget,
+  type Runtime,
+  runtimeFrom,
   spendFrom,
   startOfToday,
   type TadeEvent,
 } from '@tade/core'
 
-// What the window says about money, as data.
+// What the window says about money and time, as data.
 //
 // The journal's `usage` events are the only record of spend, and `spendFrom`
-// already adds them up by task, project and model. This decides the rest: what
+// already adds them up by task, project and model. Its `run_started` and
+// `run_exited` events are the only record of how long anything ran, and
+// `runtimeFrom` adds those up the same three ways. This decides the rest: what
 // "this window" and "7 days" mean, which row is the orchestrator's, which model
 // each agent ran on, and how every project stands against its daily budget.
+//
+// An agent that ran and reported no money still gets a row: the question the
+// panel answers is where the effort went, and unpriced effort is still effort.
 
 export type SpendWindow = 'today' | 'window' | 'week'
 export type SpendBy = 'agent' | 'project' | 'model'
@@ -37,6 +44,8 @@ export interface SpendRow {
   model: string | null
   tokens: number
   usd: number
+  /** How long it ran in this window. Null for the orchestrator, which has no run of its own. */
+  runtime: Runtime | null
 }
 
 export interface BudgetRow {
@@ -57,6 +66,8 @@ export interface SpendView {
   usd: number
   /** Whether any price was reported. Subscription providers report none. */
   hasCost: boolean
+  /** Every agent's time in this window added up: two running at once count as two. */
+  runtime: Runtime
   rows: SpendRow[]
   budgets: BudgetRow[]
 }
@@ -79,29 +90,36 @@ export function spendView(
     openedAt: number
     projects: readonly string[]
     budgets: Readonly<Record<string, Budget | undefined>>
+    /** Where runtime is read from, when the run events are not in `events` themselves. */
+    runs?: readonly TadeEvent[]
   },
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
   const usage = events.filter((event) => event.type === 'usage' && Date.parse(event.ts) >= since)
   const report = spendFrom(usage, { since })
   const models = lastModels(usage)
+  // Runs are read unwindowed and clipped to the window, because a run that
+  // began before it and is still going is time spent inside it.
+  const ran = runtimeFrom(opts.runs ?? events, { since, now: opts.now })
 
   let rows: SpendRow[]
   if (opts.by === 'project') {
-    rows = Object.entries(report.byProject).map(([project, spend]) => ({
+    rows = keysOf(report.byProject, ran.byProject).map((project) => ({
       label: project === 'elsewhere' ? 'orchestrator' : project,
       kind: project === 'elsewhere' ? 'orchestrator' : 'project',
       model: null,
-      tokens: spend.tokens,
-      usd: spend.usd,
+      tokens: report.byProject[project]?.tokens ?? 0,
+      usd: report.byProject[project]?.usd ?? 0,
+      runtime: ran.byProject[project] ?? null,
     }))
   } else if (opts.by === 'model') {
-    rows = Object.entries(report.byModel).map(([model, spend]) => ({
+    rows = keysOf(report.byModel, ran.byModel).map((model) => ({
       label: model,
       kind: 'model',
       model,
-      tokens: spend.tokens,
-      usd: spend.usd,
+      tokens: report.byModel[model]?.tokens ?? 0,
+      usd: report.byModel[model]?.usd ?? 0,
+      runtime: ran.byModel[model] ?? null,
     }))
   } else {
     const orchestrator = spendFrom(
@@ -117,20 +135,30 @@ export function spendView(
               model: models.get(null) ?? null,
               tokens: orchestrator.tokens,
               usd: orchestrator.usd,
+              // The orchestrator runs for exactly as long as the window is
+              // open, which is not agent time and is not measured here.
+              runtime: null,
             },
           ]
         : []),
-      ...Object.entries(report.byTask).map(([task, spend]) => ({
+      ...keysOf(report.byTask, ran.byTask).map((task) => ({
         label: task,
         kind: 'task' as const,
         model: models.get(task) ?? null,
-        tokens: spend.tokens,
-        usd: spend.usd,
+        tokens: report.byTask[task]?.tokens ?? 0,
+        usd: report.byTask[task]?.usd ?? 0,
+        runtime: ran.byTask[task] ?? null,
       })),
     ]
   }
   // Biggest first: the question a spend list answers is where it went.
-  rows.sort((a, b) => b.usd - a.usd || b.tokens - a.tokens || a.label.localeCompare(b.label))
+  rows.sort(
+    (a, b) =>
+      b.usd - a.usd ||
+      b.tokens - a.tokens ||
+      (b.runtime?.ms ?? 0) - (a.runtime?.ms ?? 0) ||
+      a.label.localeCompare(b.label),
+  )
 
   const today = spendFrom(
     events.filter((event) => event.type === 'usage'),
@@ -155,9 +183,15 @@ export function spendView(
     tokens: report.total.tokens,
     usd: report.total.usd,
     hasCost: report.total.hasCost,
+    runtime: ran.total,
     rows,
     budgets,
   }
+}
+
+/** Every bucket either side knows about, in the order money found them. */
+function keysOf(spend: Record<string, unknown>, ran: Record<string, unknown>): string[] {
+  return [...new Set([...Object.keys(spend), ...Object.keys(ran)])]
 }
 
 /** The tightest limit decides, as it does when an agent is refused. */

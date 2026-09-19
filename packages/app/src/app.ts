@@ -1175,6 +1175,7 @@ export class App {
       ? resolveRoute(this.opts.config, { project: focused.project })
       : orchestratorRoute(this.opts.config)
     const spend = live.spendToday()
+    const ran = live.runtimeToday()
     const panel = this.state.panel
     const spendView =
       panel?.kind === 'spend'
@@ -1184,6 +1185,7 @@ export class App {
             now: this.now(),
             openedAt: this.openedAt,
             projects: projects(this.state),
+            runs: live.runs,
             budgets: Object.fromEntries(
               Object.entries(this.opts.config.projects).map(([name, project]) => [
                 name,
@@ -1227,6 +1229,7 @@ export class App {
         usd: spend.total.usd,
         hasCost: spend.total.hasCost,
         byTask: spend.byTask,
+        runtime: ran.total,
       },
       route: {
         harness: route.harness,

@@ -382,6 +382,55 @@ describe('agent spend', () => {
     expect(footer).toContain('$0.35')
   })
 
+  it('says how long the agents have run, just before what they cost', () => {
+    const rows = renderApp(state(), {
+      ...frame(),
+      spend: {
+        tokens: 1_500,
+        usd: 0.351,
+        hasCost: true,
+        byTask: {},
+        runtime: { ms: 80 * 60_000, runs: 2, running: true },
+      },
+    })
+    const footer = plain(rows[rows.length - 1] ?? '')
+    expect(footer).toContain('1h 20m')
+    // Before the cost, which is the last thing the strip gives up.
+    expect(footer.indexOf('1h 20m')).toBeLessThan(footer.indexOf('$0.35'))
+  })
+
+  it('says nothing about runtime when nothing has run', () => {
+    const rows = renderApp(state(), {
+      ...frame(),
+      spend: {
+        tokens: 1_500,
+        usd: 0.351,
+        hasCost: true,
+        byTask: {},
+        runtime: { ms: 0, runs: 0, running: false },
+      },
+    })
+    expect(plain(rows[rows.length - 1] ?? '')).not.toContain('0s')
+  })
+
+  it('keeps the cost and the runtime when the window is too narrow for the rest', () => {
+    const rows = renderApp(state(), {
+      ...frame({ width: 64 }),
+      spend: {
+        tokens: 1_500,
+        usd: 0.351,
+        hasCost: true,
+        byTask: {},
+        runtime: { ms: 80 * 60_000, runs: 2, running: true },
+      },
+    })
+    const footer = plain(rows[rows.length - 1] ?? '')
+    // The tokens go first, the time and the money stay.
+    expect(footer).not.toContain('tok')
+    expect(footer).toContain('1h 20m')
+    expect(footer).toContain('$0.35')
+  })
+
   it('shows in the task list when an agent has spent money', () => {
     const focused = focusTask(state(), 'search/pagination')
     const rows = renderApp(focused, {

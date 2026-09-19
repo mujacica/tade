@@ -31,4 +31,4 @@
                                                                                                                         
  ◉  speak — Tade hears you until you let go                                                                             
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute         claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

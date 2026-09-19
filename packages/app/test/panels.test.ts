@@ -1,3 +1,4 @@
+import type { TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   branchChoices,
@@ -84,6 +85,98 @@ describe('the Spend panel', () => {
       kind: 'task',
       tokens: 1500,
       usd: 0.351,
+    })
+  })
+
+  describe('what it says about runtime', () => {
+    const now = Date.parse('2026-09-13T14:00:00.000Z')
+    const at = (minutes: number) => new Date(now - minutes * 60_000).toISOString()
+    const run = (type: 'run_started' | 'run_exited', task: string, minutes: number): TadeEvent =>
+      ({
+        seq: 1,
+        ts: at(minutes),
+        type,
+        urgency: 'notable',
+        task,
+        lane: `${task}/agent`,
+        run: `${task}/agent`,
+        detail: type === 'run_started' ? { model: 'anthropic/claude-sonnet-5' } : {},
+      }) as TadeEvent
+    const view = (by: 'agent' | 'project' | 'model', runs: TadeEvent[]) =>
+      spendView([spent], {
+        // Measured from when the window opened, which no timezone moves.
+        window: 'window',
+        by,
+        now,
+        openedAt: now - 3_600_000,
+        projects: ['search'],
+        budgets: {},
+        runs,
+      })
+    const spent = {
+      seq: 1,
+      ts: at(30),
+      type: 'usage',
+      urgency: 'routine',
+      task: 'search/pagination',
+      lane: null,
+      run: 'search/pagination/agent',
+      detail: { model: 'anthropic/claude-sonnet-5', tokens: 1500, usd: 0.351 },
+    } as TadeEvent
+
+    it('puts the time of each agent on its row, and the lot in the total', () => {
+      const seen = view('agent', [
+        run('run_started', 'search/pagination', 45),
+        run('run_exited', 'search/pagination', 15),
+        run('run_started', 'checkout/refunds', 20),
+      ])
+      expect(seen.runtime.ms).toBe(50 * 60_000)
+      expect(seen.rows.find((r) => r.label === 'search/pagination')?.runtime).toMatchObject({
+        ms: 30 * 60_000,
+        running: false,
+      })
+      // An agent that ran and reported no money still gets a row.
+      expect(seen.rows.find((r) => r.label === 'checkout/refunds')?.runtime).toMatchObject({
+        ms: 20 * 60_000,
+        running: true,
+      })
+    })
+
+    it('gives the orchestrator no runtime: it has no run of its own', () => {
+      const seen = view('agent', [run('run_started', 'search/pagination', 10)])
+      const usage = {
+        ...spent,
+        task: null,
+        detail: { ...spent.detail, by: 'orchestrator' },
+      } as TadeEvent
+      const withOrchestrator = spendView([spent, usage], {
+        window: 'window',
+        by: 'agent',
+        now,
+        openedAt: now - 3_600_000,
+        projects: ['search'],
+        budgets: {},
+        runs: [run('run_started', 'search/pagination', 10)],
+      })
+      expect(seen.rows[0]?.runtime).not.toBeNull()
+      expect(withOrchestrator.rows.find((r) => r.kind === 'orchestrator')?.runtime).toBeNull()
+    })
+
+    it('adds it up by project and by model too', () => {
+      const runs = [
+        run('run_started', 'search/pagination', 45),
+        run('run_exited', 'search/pagination', 15),
+      ]
+      expect(view('project', runs).rows.find((r) => r.label === 'search')?.runtime?.ms).toBe(
+        30 * 60_000,
+      )
+      expect(
+        view('model', runs).rows.find((r) => r.label === 'anthropic/claude-sonnet-5')?.runtime?.ms,
+      ).toBe(30 * 60_000)
+    })
+
+    it('has run for no time when no runs were read', () => {
+      expect(view('agent', []).runtime).toMatchObject({ ms: 0, runs: 0, running: false })
     })
   })
 })
