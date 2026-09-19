@@ -290,7 +290,8 @@ export function settingsOf(config: Config): SettingGroup[] {
         {
           path: 'surfaces.voice.muted',
           title: 'Muted',
-          means: 'no speech and no sounds at all; the conversation still shows everything',
+          means:
+            'no speech and no sounds at all, cutting off whatever is being said; the conversation still shows everything',
           value: String(voice.muted),
           fallback: 'false',
           type: { kind: 'flag' },
@@ -299,7 +300,7 @@ export function settingsOf(config: Config): SettingGroup[] {
         {
           path: 'surfaces.voice.speak',
           title: 'Spoken replies',
-          means: 'say answers and news out loud; off keeps the sounds and the text',
+          means: 'say the short of an answer out loud; off keeps the sounds and the text',
           value: String(voice.speak),
           fallback: 'true',
           type: { kind: 'flag' },
@@ -574,7 +575,12 @@ export const KEY_BINDINGS: readonly {
     means: 'add or go to a repository',
     fallback: 'ctrl+o',
   },
-  { key: 'mute', title: 'Mute', means: 'no speech and no sounds, and back', fallback: 'ctrl+m' },
+  {
+    key: 'mute',
+    title: 'Mute',
+    means: 'quiet now, mid-sentence if need be, and back',
+    fallback: 'ctrl+m',
+  },
   {
     key: 'extensions',
     title: 'Extensions',

@@ -11,7 +11,7 @@
  ▾ CHANGES  3 │ New agent                 ▐ ctrl ▌+▐ n ▌  start one in the project you are in            │              
   M package.js│ New terminal              ▐ ctrl ▌+▐ t ▌  a terminal in the bottom panel                 │              
   A …/webhooks│ Open project              ▐ ctrl ▌+▐ o ▌  add or go to a repository                      │              
-  M src/webhoo│ Mute                      ▐ ctrl ▌+▐ m ▌  no speech and no sounds, and back              │              
+  M src/webhoo│ Mute                      ▐ ctrl ▌+▐ m ▌  quiet now, mid-sentence if need be, and back   │              
               │ Extensions                ▐ ctrl ▌+▐ shift ▌+▐ e ▌  turn them on and off, set them up    │              
  ▾ FILES      │ Settings                  ▐ ctrl ▌+▐ , ▌  this panel                                     │              
    ▾ src/     │ Bottom panel fills window ▐ ctrl ▌+▐ shift ▌+▐ f ▌  the conversation or terminal takes th│              

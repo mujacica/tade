@@ -111,6 +111,45 @@ describe('Speaker', () => {
     await expect(speaker.earcon('blocked')).resolves.toBeUndefined()
   })
 
+  it('cuts off the sentence it is saying, rather than finishing it', async () => {
+    let cut = false
+    const speaker = await Speaker.create({
+      soundDir: tmp('tade-sound-'),
+      platform: 'darwin',
+      run: (_command, signal) =>
+        new Promise((resolve, reject) => {
+          // A sentence takes seconds to say: the test never waits for one.
+          const done = setTimeout(resolve, 5_000)
+          signal?.addEventListener('abort', () => {
+            cut = true
+            clearTimeout(done)
+            reject(new Error('aborted'))
+          })
+        }),
+    })
+    const saying = speaker.speak('A long answer that nobody wants to hear the end of.')
+    await speaker.stop()
+    // Cut off, and never thrown out of: the mute button is not a failure.
+    await expect(saying).resolves.toBeUndefined()
+    expect(cut).toBe(true)
+  })
+
+  it('tells speech-dispatcher to cancel, which killing spd-say does not', async () => {
+    const { calls, run } = recorder()
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'linux', run })
+    await speaker.speak('hello')
+    await speaker.stop()
+    expect(calls.map((c) => c.command)).toEqual(['spd-say', 'spd-say'])
+    expect(calls[1]?.args).toEqual(['--cancel'])
+  })
+
+  it('stopping where there is no audio does nothing and throws nothing', async () => {
+    const { calls, run } = recorder()
+    const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'darwin', run })
+    await expect(speaker.stop()).resolves.toBeUndefined()
+    expect(calls).toEqual([])
+  })
+
   it('says nothing when there is nothing to say', async () => {
     const { calls, run } = recorder()
     const speaker = await Speaker.create({ soundDir: tmp('tade-sound-'), platform: 'darwin', run })

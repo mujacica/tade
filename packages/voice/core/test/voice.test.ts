@@ -1,4 +1,4 @@
-import type { TadeEvent } from '@tade/core'
+import { REST_ON_SCREEN, type TadeEvent } from '@tade/core'
 import { Speaker } from '@tade/voice-tts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
@@ -391,6 +391,62 @@ describe('VoiceSurface', () => {
     })
   })
 
+  describe('going quiet', () => {
+    it('cuts off what it is saying and drops what was queued', async () => {
+      const started: string[] = []
+      const finished: string[] = []
+      let cut = 0
+      const speaker = await Speaker.create({
+        soundDir: tmp('tade-voice-'),
+        platform: 'darwin',
+        run: (command, signal) =>
+          new Promise<void>((resolve) => {
+            if (command.command !== 'say') return resolve()
+            const text = command.args.at(-1) ?? ''
+            started.push(text)
+            // A sentence takes seconds to say out loud.
+            const done = setTimeout(() => {
+              finished.push(text)
+              resolve()
+            }, 2_000)
+            signal?.addEventListener('abort', () => {
+              cut += 1
+              clearTimeout(done)
+              resolve()
+            })
+          }),
+      })
+      const voice = await VoiceSurface.start({
+        tade,
+        speaker,
+        now: () => NOW,
+        localHour: () => 14,
+        vocabulary: async () => ({ tasks: [], projects: [] }),
+        status: async () => '',
+        worktreeOf: async () => null,
+      })
+      voice.speakChunk('The first sentence. Then the second. ')
+      await new Promise((r) => setTimeout(r, 5))
+      expect(started).toEqual(['The first sentence.'])
+
+      await voice.silence()
+      expect(cut).toBe(1)
+      // Nothing finished, and what was behind it never starts.
+      await new Promise((r) => setTimeout(r, 20))
+      expect(finished).toEqual([])
+      expect(started).toEqual(['The first sentence.'])
+    })
+
+    it('says what comes after it was silenced', async () => {
+      const { voice, said } = await surface(tade)
+      voice.speakChunk('Dropped. ')
+      await voice.silence()
+      voice.speakChunk('Said. ')
+      await new Promise((r) => setTimeout(r, 5))
+      expect(said).toEqual(['Said.'])
+    })
+  })
+
   describe('streaming speech', () => {
     it('speaks sentences as chunks arrive, not all at the end', async () => {
       const { voice, said } = await surface(tade)
@@ -461,6 +517,85 @@ describe('VoiceSurface', () => {
       voice = made.voice
       await made.voice.handle('what about the refunds design')
       expect(made.said).toEqual([ANSWER])
+    })
+
+    it('says the finding, never the fences around it', async () => {
+      let voice: VoiceSurface | null = null
+      const answer = [
+        'The retry loop charges twice.',
+        '',
+        '```ts',
+        'for (const attempt of attempts) await charge(attempt)',
+        '```',
+        '',
+        'It is in packages/app/src/webhook.ts.',
+      ].join('\n')
+      const made = await surface(tade, {
+        ask: async () => {
+          voice?.speakChunk(answer)
+          voice?.speakMessage(answer)
+          return answer
+        },
+      })
+      voice = made.voice
+      await made.voice.handle('what did you find in refunds')
+      await new Promise((r) => setTimeout(r, 5))
+      // The whole answer is on the screen; what is said is its words.
+      expect(made.said).toEqual(['The retry loop charges twice.', 'It is in webhook.ts.'])
+      expect(made.said.join(' ')).not.toContain('`')
+    })
+
+    it('says the first of a long answer and leaves the rest on the screen', async () => {
+      let voice: VoiceSurface | null = null
+      const sentences = [
+        'The retry loop charges twice.',
+        'It is in the webhook handler.',
+        'Two agents are on it.',
+        'The first has a branch already.',
+        'I can start a third.',
+      ]
+      const made = await surface(tade, {
+        ask: async () => {
+          for (const sentence of sentences) voice?.speakChunk(`${sentence} `)
+          voice?.speakMessage(sentences.join(' '))
+          return sentences.join(' ')
+        },
+      })
+      voice = made.voice
+      await made.voice.handle('what did you find in refunds')
+      await new Promise((r) => setTimeout(r, 5))
+      expect(made.said).toEqual([...sentences.slice(0, 3), REST_ON_SCREEN])
+    })
+
+    it('a new answer gets the whole of the limit again', async () => {
+      let voice: VoiceSurface | null = null
+      const made = await surface(tade, {
+        ask: async () => {
+          voice?.speakChunk('One. Two. Three. Four. ')
+          voice?.speakMessage('One. Two. Three. Four.')
+          return 'One. Two. Three. Four.'
+        },
+      })
+      voice = made.voice
+      await made.voice.handle('what about the refunds design')
+      await made.voice.handle('what about the refunds design')
+      await new Promise((r) => setTimeout(r, 5))
+      expect(made.said.filter((s) => s === 'One.').length).toBe(2)
+    })
+
+    it('a whole answer that never streamed is summarised too', async () => {
+      let voice: VoiceSurface | null = null
+      const answer = 'One. Two. Three. Four. Five.'
+      const made = await surface(tade, {
+        ask: async () => {
+          voice?.speakMessage(answer)
+          return answer
+        },
+      })
+      voice = made.voice
+      await made.voice.handle('what about the refunds design')
+      await new Promise((r) => setTimeout(r, 5))
+      expect(made.said).toEqual([`One. Two. Three. ${REST_ON_SCREEN}`])
     })
 
     it('never talks over itself', async () => {

@@ -93,6 +93,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and
   lost, so the pi adapter always says.
+- **A voice says words, and only the front of them.** Everything spoken goes through `speakable`
+  (`core/src/speech.ts`) first: a code fence waits for its other half and is then dropped, a path is
+  said as its file, and no ear ever hears a backtick. An answer from the model is summarised
+  (`spokenSummary`) — a few sentences of the finding, then "the rest is on screen", because it is,
+  and reading a whole answer out is how people learn to stop listening. And **mute is now**: the
+  sentence being said is cut off where it is (`Speaker.stop`) and what was queued behind it is
+  dropped (`VoiceSurface.silence`), because the moment you press it is the moment you needed it.
 - **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.

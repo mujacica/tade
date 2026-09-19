@@ -50,6 +50,7 @@ import {
   type Schedule,
   type ScheduleDoes,
   settingsOf,
+  speakable,
   startFrom,
   THINKING_LEVELS,
   taskOrigin,
@@ -6045,9 +6046,18 @@ export class App {
    * would say "applies now" and apply to nothing.
    */
   private useConfig(config: Config): void {
+    const was = this.opts.config.surfaces.voice.muted
     this.opts.config = config
     this.opts.client.config = config
     this.live?.useConfig(config)
+    // Muted is quiet now, not at the end of the sentence: the moment you press
+    // it is the moment you needed it. What was queued behind goes with it, and
+    // the rest of the answer still arriving is not spoken either. Here rather
+    // than in the button, so muting from the settings does the same thing.
+    if (config.surfaces.voice.muted && !was) {
+      this.speakingTurn = false
+      void this.voice?.silence()
+    }
   }
 
   private async saveSetting(panel: SettingsPanel, path: string, value: string): Promise<void> {
@@ -6428,14 +6438,14 @@ function imagesTitle(paths: readonly string[]): string {
   return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} ${noun}`} to`
 }
 
-/** The first line of Markdown, as it would be said: no emphasis, no code marks, no link targets. */
+/**
+ * The head of some Markdown, as it would be said: no emphasis, no code marks,
+ * no link targets, and never a fence read out as backticks. One line of it,
+ * because what an extension answers is a report and this is its headline.
+ */
 export function spokenLine(markdown: string): string {
-  const first = markdown.split('\n').find((line) => line.trim() !== '') ?? ''
+  const [first = ''] = speakable(markdown).split(/(?<=[.!?])\s+/)
   return first
-    .replace(/^#+\s*/, '')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[*_`]/g, '')
-    .trim()
 }
 
 /**

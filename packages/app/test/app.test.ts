@@ -351,6 +351,61 @@ describe('the window, wired up', () => {
     expect(said).toEqual(['Refunds has an agent on it.', 'Which opus: 4.6 or 5?'])
   })
 
+  it('goes quiet the moment you mute it, mid-sentence', async () => {
+    const started: string[] = []
+    const finished: string[] = []
+    let cut = 0
+    const speaker = await Speaker.create({
+      soundDir: tmp('tade-app-sound-'),
+      platform: 'darwin',
+      run: (command, signal) =>
+        new Promise<void>((resolve) => {
+          if (command.command !== 'say') return resolve()
+          const text = command.args.at(-1) ?? ''
+          started.push(text)
+          // Saying a sentence out loud takes seconds; mute must not wait.
+          const done = setTimeout(() => {
+            finished.push(text)
+            resolve()
+          }, 2_000)
+          signal?.addEventListener('abort', () => {
+            cut += 1
+            clearTimeout(done)
+            resolve()
+          })
+        }),
+    })
+    const listeners: Array<(event: ThinkerEvent) => void> = []
+    const answer = 'The first sentence. The second sentence. The third sentence.'
+    await start({
+      speaker,
+      thinker: {
+        onEvent: (listener) => {
+          listeners.push(listener)
+          return () => {}
+        },
+        ask: async () => {
+          for (const listener of listeners) listener({ type: 'delta', text: `${answer} ` })
+          for (const listener of listeners) listener({ type: 'message', text: answer })
+          return answer
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'why is refunds slow') terminal.press(char)
+    terminal.press('\r')
+    await until('it to start talking', () => started.length === 1)
+
+    // ctrl+m, as a terminal sends it.
+    terminal.press('\x1b[109;5u')
+    await until('the sentence to be cut off', () => cut === 1)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    // Nothing finished, and the two sentences queued behind it never start.
+    expect(finished).toEqual([])
+    expect(started).toEqual(['The first sentence.'])
+  })
+
   it('tells the orchestrator what finished while nobody asked, with the next thing you say', async () => {
     const asked: string[] = []
     await start({

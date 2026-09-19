@@ -74,7 +74,11 @@ export interface Command {
   timeout?: number
 }
 
-export type Runner = (command: Command) => Promise<void>
+/**
+ * Runs one of them. The signal is how a sentence is cut off: aborting it must
+ * end the process, not wait for it, or muting finishes the sentence first.
+ */
+export type Runner = (command: Command, signal?: AbortSignal) => Promise<void>
 
 export interface SpeakerOptions {
   /** Where generated earcons are cached. */
@@ -84,6 +88,12 @@ export interface SpeakerOptions {
   voice?: ((text: string) => Command) | null
   /** Overrides the platform default; `null` disables sound. */
   player?: ((file: string) => Command) | null
+  /**
+   * What stops speech this machine has already handed to a speech service.
+   * Killing the process is enough where it does the speaking itself; it is
+   * not where it only asks a daemon to speak.
+   */
+  silence?: (() => Command) | null
   run?: Runner
   /** Rate for the built-in macOS voice. */
   rate?: number
@@ -99,17 +109,22 @@ export class Speaker {
   private readonly soundDir: string
   private readonly voice: ((text: string) => Command) | null
   private readonly player: ((file: string) => Command) | null
+  private readonly silence: (() => Command) | null
   private readonly run: Runner
+  /** What is making a noise right now, so it can be cut off mid-word. */
+  private readonly sounding = new Set<AbortController>()
 
   private constructor(opts: {
     soundDir: string
     voice: ((text: string) => Command) | null
     player: ((file: string) => Command) | null
+    silence: (() => Command) | null
     run: Runner
   }) {
     this.soundDir = opts.soundDir
     this.voice = opts.voice
     this.player = opts.player
+    this.silence = opts.silence
     this.run = opts.run
     this.capabilities = { speech: opts.voice !== null, sound: opts.player !== null }
   }
@@ -120,6 +135,7 @@ export class Speaker {
       soundDir: opts.soundDir,
       voice: opts.voice === undefined ? defaultVoice(platform, opts.rate ?? 190) : opts.voice,
       player: opts.player === undefined ? defaultPlayer(platform) : opts.player,
+      silence: opts.silence === undefined ? defaultSilence(platform) : opts.silence,
       run: opts.run ?? execRunner,
     })
     await speaker.prepare()
@@ -150,12 +166,31 @@ export class Speaker {
     await this.safely(this.player(this.toneFile(tone)))
   }
 
+  /**
+   * Silence, now: the sentence being said is cut off where it is, not
+   * finished. Muting that waits for the end of a paragraph is a mute button
+   * that does not work, and the one moment you press it is the moment you
+   * need it to.
+   */
+  async stop(): Promise<void> {
+    const sounding = [...this.sounding]
+    this.sounding.clear()
+    for (const cut of sounding) cut.abort()
+    // Where the words have already been handed to a speech service, killing
+    // what asked for them stops nothing: the service is told as well.
+    if (this.silence) await this.safely(this.silence())
+  }
+
   /** Audio failing is never a reason for the rest of Tade to stop. */
   private async safely(command: Command): Promise<void> {
+    const cut = new AbortController()
+    this.sounding.add(cut)
     try {
-      await this.run(command)
+      await this.run(command, cut.signal)
     } catch {
-      // no audio on this machine, or the tool is missing
+      // no audio on this machine, the tool is missing, or it was cut off
+    } finally {
+      this.sounding.delete(cut)
     }
   }
 }
@@ -176,9 +211,20 @@ function defaultPlayer(platform: NodeJS.Platform): ((file: string) => Command) |
   return null
 }
 
-const execRunner: Runner = ({ command, args, timeout }) =>
+/**
+ * `say` speaks itself, so killing it is silence. `spd-say` only hands the
+ * words to speech-dispatcher, which keeps reading them out after the process
+ * that asked is gone — so it is told to cancel as well.
+ */
+function defaultSilence(platform: NodeJS.Platform): (() => Command) | null {
+  if (platform === 'linux')
+    return () => ({ command: 'spd-say', args: ['--cancel'], timeout: 2_000 })
+  return null
+}
+
+const execRunner: Runner = ({ command, args, timeout }, signal) =>
   new Promise((resolve, reject) => {
-    execFile(command, args, detachedFor(timeout ?? 20_000), (err) =>
+    execFile(command, args, detachedFor(timeout ?? 20_000, signal), (err) =>
       err ? reject(err) : resolve(),
     )
   })
@@ -188,7 +234,7 @@ const execRunner: Runner = ({ command, args, timeout }) =>
  * Tade runs in never names its window after it. `execFile` passes `detached`
  * on to the spawn beneath it; its types just do not say so.
  */
-function detachedFor(timeout: number): { timeout: number } {
-  const options = { timeout, detached: true }
+function detachedFor(timeout: number, signal?: AbortSignal): { timeout: number } {
+  const options = { timeout, detached: true, ...(signal ? { signal } : {}) }
   return options
 }

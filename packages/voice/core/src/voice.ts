@@ -8,10 +8,15 @@ import {
   type Intent,
   type KnownTask,
   parseUtterance,
+  REST_ON_SCREEN,
   type ResolveOptions,
   resolveAnswer,
   resolveTarget,
+  SPOKEN_LIMITS,
   type Surface,
+  speakable,
+  speakableSoFar,
+  spokenSummary,
   summarise,
   type TadeEvent,
   type Target,
@@ -168,12 +173,22 @@ export class VoiceSurface {
    * noise, whichever of them was worth hearing.
    */
   private speaking: Promise<void> = Promise.resolve()
+  /**
+   * Which run of speech what is queued belongs to. Silencing moves it on, and
+   * everything queued under the old one is dropped where it waits: dropping
+   * the chain alone would only stop what had not been chained yet.
+   */
+  private generation = 0
   /** The words of a streaming reply short of a sentence's end, not said yet. */
   private unsaid = ''
   /** Whether the message arriving now is being said as it streams. */
   private streaming = false
   /** Whether the reply to what was said last has been spoken as it arrived. */
   private spokeReply = false
+  /** How much of the answer arriving now has been said out loud, for the limit. */
+  private saidOfAnswer = { sentences: 0, chars: 0, rest: false }
+  /** Whether the reply to what was said last came from the model, not the grammar. */
+  private fromModel = false
 
   private constructor(opts: VoiceOptions) {
     this.opts = opts
@@ -214,10 +229,27 @@ export class VoiceSurface {
     unsubscribe?.()
   }
 
+  /**
+   * Quiet, now. What is being said is cut off where it is and what was queued
+   * behind it is dropped — not said later, when whatever made you reach for
+   * the mute button has passed.
+   */
+  async silence(): Promise<void> {
+    this.generation += 1
+    this.speaking = Promise.resolve()
+    this.unsaid = ''
+    this.streaming = false
+    this.spokeReply = false
+    this.startAnswer()
+    await this.opts.speaker.stop()
+  }
+
   /** Handle one thing you said. Returns what was said back. */
   async handle(utterance: string): Promise<string> {
     const at = this.now()
     this.spokeReply = false
+    this.fromModel = false
+    this.startAnswer()
 
     // Answering the question we just asked.
     if (this.pending) {
@@ -285,6 +317,9 @@ export class VoiceSurface {
       this.spokenAt.push(this.now())
       this.flushSpeech()
       await this.speaking
+    } else if (this.fromModel) {
+      // A whole answer, all at once: the finding, not the essay around it.
+      await this.say(spokenSummary(reply))
     } else {
       await this.say(reply)
     }
@@ -426,7 +461,10 @@ export class VoiceSurface {
       default: {
         const heard = await this.opts.extension?.(utterance)
         if (typeof heard === 'string') return heard
-        if (this.opts.ask) return this.opts.ask(utterance)
+        if (this.opts.ask) {
+          this.fromModel = true
+          return this.opts.ask(utterance)
+        }
         return "I didn't catch that."
       }
     }
@@ -512,25 +550,28 @@ export class VoiceSurface {
   }
 
   private async say(text: string): Promise<void> {
-    if (text.trim() === '') return
+    // Tade's own sentences are short already; what they are not is free of
+    // the marks a screen wants and an ear does not.
+    const words = speakable(text)
+    if (words === '') return
     this.spokenAt.push(this.now())
-    await this.enqueue(text)
+    await this.enqueue(words)
   }
 
   /**
    * A piece of a reply as it streams in. Each sentence is said as soon as it
-   * ends, so a long answer starts being heard before it has finished arriving.
+   * ends, so a long answer starts being heard before it has finished arriving
+   * — its words only: a code block waits for its closing fence and is then
+   * dropped, because "backtick backtick backtick t s" is not an answer.
    */
   speakChunk(text: string): void {
+    if (!this.streaming) this.startAnswer()
     this.streaming = true
     this.spokeReply = true
     this.unsaid += text
-    const boundary = /[.!?]\s+|\n+/
-    for (let end = boundary.exec(this.unsaid); end; end = boundary.exec(this.unsaid)) {
-      const sentence = this.unsaid.slice(0, end.index + end[0].length).trim()
-      this.unsaid = this.unsaid.slice(end.index + end[0].length)
-      if (sentence) void this.enqueue(sentence)
-    }
+    const { say, keep } = speakableSoFar(this.unsaid)
+    this.unsaid = keep
+    for (const sentence of say) this.sayOfAnswer(sentence)
   }
 
   /**
@@ -539,6 +580,7 @@ export class VoiceSurface {
    */
   speakMessage(text: string): void {
     if (!this.streaming) {
+      this.startAnswer()
       this.spokeReply = true
       this.unsaid += text
     }
@@ -547,15 +589,59 @@ export class VoiceSurface {
 
   /** Say what is left of a streaming reply, however short of a sentence it is. */
   flushSpeech(): void {
-    const rest = this.unsaid.trim()
+    const rest = this.unsaid
     this.unsaid = ''
     this.streaming = false
-    if (rest) void this.enqueue(rest)
+    if (rest.trim() === '') return
+    const left = this.leftToSay()
+    if (!left) return
+    const words = spokenSummary(rest, left)
+    if (words !== '') this.count(words)
+  }
+
+  /** An answer is a new budget: what the last one used is not held against it. */
+  private startAnswer(): void {
+    this.saidOfAnswer = { sentences: 0, chars: 0, rest: false }
+  }
+
+  /**
+   * One sentence of an answer, while there is room for it. Past that, the
+   * rest is said to be on the screen — once — and left there. A spoken answer
+   * is a summary of what was found; the whole of it is to be read.
+   */
+  private sayOfAnswer(sentence: string): void {
+    const left = this.leftToSay()
+    if (!left) return
+    this.count(sentence.length > left.chars ? spokenSummary(sentence, left) : sentence)
+  }
+
+  /** What is left of this answer's budget, or null once it is spent. */
+  private leftToSay(): { sentences: number; chars: number } | null {
+    const said = this.saidOfAnswer
+    const sentences = SPOKEN_LIMITS.sentences - said.sentences
+    const chars = SPOKEN_LIMITS.chars - said.chars
+    if (sentences > 0 && chars > 0) return { sentences, chars }
+    if (!said.rest) {
+      said.rest = true
+      void this.enqueue(REST_ON_SCREEN)
+    }
+    return null
+  }
+
+  private count(words: string): void {
+    if (words === '') return
+    this.saidOfAnswer.sentences += 1
+    this.saidOfAnswer.chars += words.length
+    if (words.endsWith(REST_ON_SCREEN)) this.saidOfAnswer.rest = true
+    void this.enqueue(words)
   }
 
   /** Said once everything already waiting has been, never over it. */
   private enqueue(text: string): Promise<void> {
+    const generation = this.generation
     const spoken = this.speaking.then(async () => {
+      // Silenced while it waited its turn: dropped, not said afterwards.
+      if (generation !== this.generation) return
       try {
         await this.opts.speaker.speak(text)
       } catch (err) {
