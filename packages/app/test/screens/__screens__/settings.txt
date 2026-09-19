@@ -4,19 +4,19 @@
         │  search settings       │ Voice                                                                       │────────
  ▐ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
  ▐   wan│  Agents                │                                                                             │        
-        │  Models                │▌Push to talk        ctrl  +  space       Change…                            │        
-   ⠋ ref│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
+        │  Models                │▌Push to talk      ctrl  +  space       Change…                              │        
+   ⠋ ref│  Orchestrator          │                 ✓ Hold works here: this terminal reports releases.          │        
      wor│  Approvals      bypass │                                                                             │        
-        │  Checks                │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
+        │  Checks                │ Mode            ◉ Hold to talk   ○ Press to start, press to stop            │        
  ▾ CHANG│▌ Voice                 │                                                                             │        
-  M pack│  Window                │ Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
+  M pack│  Window                │ Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
   A …/we│  Projects           3  │                                                                             │        
-  M src/│  Budgets           ● 1 │ Microphone         MacBook Pro Microphone                      ↻ on restart │        
-        │  Reporting             │                   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                    │        
- ▾ FILES│  Keys                  │ Muted             ●━━ off                                                   │        
-   ▾ src│  Accounts          ● 1 │ Spoken replies    ━━● on                                                    │        
-       w│                        │ Interruptions      ‹  6  ›   an hour, at most                  ↻ on restart │        
-       w│                        │ Quiet hours        22:00    to  07:00                          ↻ on restart │        
+  M src/│  Budgets           ● 1 │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
+        │  Reporting             │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
+ ▾ FILES│  Keys                  │ Muted           ●    off                                                    │        
+   ▾ src│  Accounts          ● 1 │ Spoken replies     ● on                                                     │        
+       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+       w│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        

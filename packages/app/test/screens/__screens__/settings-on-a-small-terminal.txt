@@ -1,0 +1,24 @@
+   T A D E      checkout    search    infra      +        ctrl  +  space   talk 
+━━━╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮━━━
+ ▾ │  search settin…  │ Reporting                                           │   
+   │                  │ Where Tade reports its own crashes and warnings, so │───
+ ▐ │  Agents          │ you can see them and hand them to an agent. Nothin… │t s
+ ▐ │  Models          │                                                     │   
+   │  Orchestrator    │ Send to                   nothing is sent         ↻ │   
+   │  Approvals       │▌Crashes and warnings        ● on                  ↻ │   
+   │  Checks          │   send them as issues, which is what an agent can   │   
+   │  Voice           │   be put on                                         │╮  
+ ▾ │  Window          │ What happened around t…     ● on                  ↻ ││  
+  M│  Projects     3  │ Numbers                     ● on                  ↻ ││  
+  A│  Budgets     ● 1 │ What agents do              ● on                  ↻ │╯  
+  M│▌ Reporting       │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
+━  │  Keys            │ Which Tade this is        laptop                  ↻ │  ━
+   │  Accounts    ● 1 │                                                     │   
+   │                  │                                                     │  ▕
+   │                  │                                                     │  ▕
+   │                  │ ● Saved as you change it.                           │  ▕
+ ❯ │                  │                         Open config.yaml     Done   │  ▕
+───╰────────────────────────────────────────────────────────────────────────╯── 
+ Ask Tade anything                             type, or hold   ctrl  +  space   
+────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     claude-opus-5 ▾ │ 2h 5m │ $2.66 today ▾ 

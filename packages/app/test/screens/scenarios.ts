@@ -1789,6 +1789,40 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({ panel: settingsFacts() }),
   },
   {
+    name: 'settings-with-long-names',
+    about:
+      'The group with the longest names in it: one column of switches, every name whole or cut ' +
+      'with an ellipsis, and what the group is about kept inside the panel.',
+    state: { ...base(), panel: { ...settingsPanel('telemetry'), row: 2 } },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'pointing-at-a-switch',
+    about: 'A switch under the pointer: the row lights, and the switch with it.',
+    state: {
+      ...base(),
+      hover: { kind: 'control', id: 'toggle:telemetry.metrics' },
+      panel: { ...settingsPanel('telemetry'), row: 0 },
+    },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-on-a-small-terminal',
+    about:
+      'Settings at 80×24: a narrower list of categories, names cut with an ellipsis, and the ' +
+      'restart note as its own mark — nothing runs into anything.',
+    state: { ...base(), panel: { ...settingsPanel('telemetry'), row: 1 } },
+    frame: frame({ width: 80, height: 24, panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-with-no-room-beside',
+    about:
+      'Narrower still: where a control cannot fit beside its name it goes under it, indented, ' +
+      'which is the one shape that cannot overlap.',
+    state: { ...base(), panel: { ...settingsPanel('telemetry'), row: 1 } },
+    frame: frame({ width: 56, height: 22, panel: settingsFacts() }),
+  },
+  {
     name: 'choosing-the-talk-key',
     about: 'Pressing a key to talk with, and being told what it would take away.',
     state: {

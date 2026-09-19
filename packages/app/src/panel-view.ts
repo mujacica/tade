@@ -8,7 +8,7 @@ import {
 } from '@earendil-works/pi-tui'
 import { duration, KEY_BINDINGS, type Setting, type SettingGroup } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
-import type { Hit, Target } from './hits.ts'
+import { type Hit, sameTarget, type Target } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { linkedRow } from './links.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
@@ -1591,42 +1591,122 @@ function tildeOf(path: string, home: string): string {
 
 // ── Settings ────────────────────────────────────────────────────────────────
 
-const CHOICE_LABELS: Record<string, string> = {
-  hold: 'Hold to talk',
-  toggle: 'Press to start, press to stop',
+/**
+ * What an option is called where its own word is not a sentence — by the
+ * setting it belongs to, because the same word means two things: `hold` is
+ * how you talk, and it is also what a red check does to a push.
+ */
+const CHOICE_LABELS: Record<string, Record<string, string>> = {
+  'surfaces.voice.talk.mode': {
+    hold: 'Hold to talk',
+    toggle: 'Press to start, press to stop',
+  },
 }
 
-const SIDE = 24
-const LABEL = 18
+/**
+ * How wide the list of categories is. Pared back rather than dropped: a panel
+ * you cannot change category in is a panel with one category.
+ */
+export function sideWidth(inner: number): number {
+  if (inner >= 76) return 24
+  if (inner >= 58) return 18
+  return 16
+}
+
+/** Columns kept blank between a setting's name and its control, at every width. */
+const GAP = 2
+
+/**
+ * How a group's rows are laid out: what the name gets, what is left for the
+ * control, and whether the two fit on one line at all.
+ *
+ * One layout for the whole group rather than one per row, because a column of
+ * controls that each start somewhere else is the thing this panel was rebuilt
+ * to stop. The name column is the longest name there is, and never more than
+ * half of what there is, so a long name gives up columns rather than the
+ * control it belongs to — and what is still too long is cut with an ellipsis,
+ * which is what says a word was cut.
+ */
+export interface FormLayout {
+  /** Columns the name gets, before the gap. */
+  label: number
+  /** Columns the control has, after the gap. */
+  control: number
+  /** What is said beside anything that waits for a restart; null where there is no room. */
+  restart: string | null
+  /** Columns that note takes, which a setting that does not wait may use. */
+  note: number
+  /** The control sits under its name, indented, rather than beside it. */
+  stacked: boolean
+}
+
+export function formLayout(form: number, rows: readonly Setting[]): FormLayout {
+  const waits = rows.some((setting) => !setting.live)
+  // Said in words where they fit, and as the mark alone where they do not:
+  // that a setting waits for a restart is not something to leave out.
+  const restart = !waits ? null : form >= 56 ? '↻ on restart' : form >= 22 ? '↻' : null
+  const note = restart ? visibleWidth(restart) + 3 : 0
+  const longest = Math.max(0, ...rows.map((setting) => visibleWidth(setting.title)))
+  const most = Math.max(8, Math.floor((form - 1 - GAP - note) / 2))
+  const label = Math.max(8, Math.min(longest, most))
+  const control = form - 1 - label - GAP - note
+  if (control >= 16) return { label, control, restart, note, stacked: false }
+  // Too narrow for two columns: the name takes the line and the control the
+  // next one, which is the one shape that cannot overlap at any width.
+  return {
+    label: Math.max(4, form - 3 - (restart ? visibleWidth(restart) + 1 : 0)),
+    control: Math.max(4, form - 4),
+    restart,
+    note: 0,
+    stacked: true,
+  }
+}
+
+/** What a control may use: its column, and the note's columns where it has no note. */
+function roomFor(layout: FormLayout, setting: Setting): number {
+  return layout.control + (setting.live ? layout.note : 0)
+}
+
+/** Whether the pointer is on this setting: its row, or any control of it. */
+function onSetting(hover: Target | null, path: string): boolean {
+  if (hover?.kind !== 'control') return false
+  const arg = hover.id.split(':').slice(1).join(':')
+  return arg === path || arg.startsWith(`${path}=`)
+}
+
+/** The first line of a list to show, so the one you are on is always in it. */
+function scrolledTo(lines: number, room: number, from: number, to: number): number {
+  if (lines <= room || room <= 0) return 0
+  const most = lines - room
+  const offset = to >= room ? Math.min(to - room + 1, most) : 0
+  return Math.max(0, Math.min(from < offset ? from : offset, most))
+}
 
 function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   const { skin } = ctx
-  const width = Math.min(104, ctx.width - 6)
+  const width = Math.min(104, Math.max(32, ctx.width - 6))
   const height = Math.max(14, Math.min(28, ctx.height - 4))
   const inner = width - 2
-  const form = inner - SIDE - 1
+  const side = sideWidth(inner)
+  const form = inner - side - 1
   const pointer = ctx.pointer
+  const plain = (text: string) => text
 
   // ── the side: search, then categories ──
-  const side: { text: string; hits: Hit[] }[] = []
-  side.push(
-    new Row(SIDE, skin, pointer)
+  const aside: { text: string; hits: Hit[] }[] = []
+  const searching = panel.search === '' && panel.focus !== 'search'
+  aside.push(
+    new Row(side, skin, pointer)
       .space()
-      .field(panel.search, SIDE - 2, {
+      .field(searching ? 'search settings' : panel.search, side - 2, {
         caret: panel.focus === 'search',
-        hint: panel.search === '' && panel.focus !== 'search',
+        // The field says what it is for until you use it.
+        hint: searching,
         target: { kind: 'control', id: 'search' },
       })
       .build(),
   )
-  if (panel.search === '' && panel.focus !== 'search') {
-    // The field says what it is for until you use it.
-    side[0] = new Row(SIDE, skin, pointer)
-      .space()
-      .field('search settings', SIDE - 2, { hint: true, target: { kind: 'control', id: 'search' } })
-      .build()
-  }
-  side.push({ text: ' '.repeat(SIDE), hits: [] })
+  aside.push(blank(side))
   const categories = [
     ...ctx.settings.map((group) => ({ id: group.id, title: group.title })),
     { id: ACCOUNTS, title: 'Accounts' },
@@ -1634,24 +1714,24 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   for (const category of categories) {
     const on = panel.search === '' && panel.category === category.id
     const target = { kind: 'control' as const, id: `category:${category.id}` }
-    const row = new Row(SIDE, skin, pointer)
+    const pointed = sameTarget(pointer.hover, target)
+    const row = new Row(side, skin, pointer)
       .text(on ? '▌' : ' ', skin.signal, target)
       .space()
-      .text(category.title, on ? skin.you : (t: string) => t, target)
+      .text(cap(category.title, side - 3), on ? skin.you : pointed ? skin.link : plain, target)
     row.right((r) => {
       const badge = badgeFor(category.id, ctx)
       if (badge) badge(r)
       r.space()
     })
     const built = row.build()
-    side.push({
-      text: on ? skin.selected(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: SIDE - 1, target }],
+    aside.push({
+      text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
+      hits: [{ row: 0, from: 0, to: side - 1, target }],
     })
   }
 
-  // ── the form ──
-  const main: { text: string; hits: Hit[] }[] = []
+  // ── the head of the form: what this group is, and what it is about ──
   const group = ctx.settings.find((g) => g.id === panel.category)
   const title = panel.search
     ? `Matching “${panel.search}”`
@@ -1663,157 +1743,305 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
     : panel.category === ACCOUNTS
       ? 'The providers pi can think with. Signing in happens in pi, inside this window.'
       : (group?.about ?? '')
-  main.push(new Row(form, skin).space().text(title, skin.brand).build())
-  main.push(new Row(form, skin).space().text(about, skin.hint).build())
-  main.push({ text: ' '.repeat(form), hits: [] })
+  const head: { text: string; hits: Hit[] }[] = [
+    new Row(form, skin)
+      .space()
+      .text(cap(title, form - 2), skin.brand)
+      .build(),
+  ]
+  // What the group is about, kept inside the panel: broken over lines rather
+  // than cut off mid-word at whatever width the window happens to be.
+  for (const line of wrapTo(about, form - 2, height >= 22 ? 3 : 2))
+    head.push(new Row(form, skin).space().text(line, skin.hint).build())
+  head.push(blank(form))
 
-  const popups: PanelDrawing['popups'] = []
+  // ── the form ──
+  const rows =
+    panel.category === ACCOUNTS && !panel.search ? [] : visibleSettings(panel, ctx.settings)
+  const layout = formLayout(form, rows)
+  const body: { text: string; hits: Hit[] }[] = []
+  /** Where the focused setting's lines begin and end, so it is kept in view. */
+  let focusFrom = 0
+  let focusTo = 0
+  /** Where a dropdown would open: the line under its control, and its column. */
+  let anchor: { line: number; col: number } | null = null
+
   if (panel.category === ACCOUNTS && !panel.search) {
+    const named = Math.min(20, Math.max(4, form - 14))
     for (const provider of ctx.accounts) {
-      main.push(
+      body.push(
         new Row(form, skin)
           .space()
-          .text(pad(provider, LABEL))
-          .text('● signed in', skin.done)
+          .text(padTo(provider, named))
+          .text(cap('● signed in', form - named - 2), skin.done)
           .build(),
       )
     }
     if (ctx.accounts.length === 0)
-      main.push(
-        new Row(form, skin).space().text('Not signed in to anything yet.', skin.hint).build(),
+      body.push(
+        new Row(form, skin)
+          .space()
+          .text(cap('Not signed in to anything yet.', form - 2), skin.hint)
+          .build(),
       )
-    main.push({ text: ' '.repeat(form), hits: [] })
-    main.push(
+    body.push(blank(form))
+    body.push(
       new Row(form, skin, withFocus(pointer, panel.focus === 'form' ? 'sign-in' : null))
         .space()
-        .button('Sign in to a provider…', { kind: 'control', id: 'sign-in' }, 'primary')
+        .button(
+          cap('Sign in to a provider…', form - 6),
+          { kind: 'control', id: 'sign-in' },
+          'primary',
+        )
         .build(),
     )
-  } else {
-    const rows = visibleSettings(panel, ctx.settings)
-    if (rows.length === 0)
-      main.push(new Row(form, skin).space().text('Nothing here matches.', skin.hint).build())
-    rows.forEach((setting, at) => {
-      const focused = panel.focus === 'form' && at === panel.row
-      const line = new Row(form, skin, focused ? withFocus(pointer, controlOf(setting)) : pointer)
-      line.text(focused ? '▌' : ' ', skin.signal, { kind: 'control', id: `row:${setting.path}` })
-      line.text(pad(setting.title, LABEL), focused ? skin.you : (t: string) => t, {
-        kind: 'control',
-        id: `row:${setting.path}`,
-      })
-      const controlCol = line.used
-      control(line, setting, panel, ctx)
-      if (!setting.live) line.right((r) => r.text('↻ on restart', skin.hint).space())
-      main.push(line.build())
-      if (setting.path === 'surfaces.voice.mic.device') {
-        // Trying it is the only way to know the terminal may use it.
-        const meter = new Row(form, skin, pointer).space(1 + LABEL)
-        const cells = 14
-        const heard = ctx.levels.slice(-cells)
-        const bars = '▁▂▃▄▅▆▇█'
-        meter.text(
-          heard.map((level) => bars[Math.max(0, Math.min(7, Math.round(level * 7)))]).join(''),
-          skin.busy,
-        )
-        meter.text('▁'.repeat(cells - heard.length), skin.chrome).space(2)
-        meter.button(
-          panel.testing ? 'Listening…' : 'Test',
-          { kind: 'control', id: 'mic-test' },
-          panel.testing ? 'off' : 'rest',
-        )
-        main.push(meter.build())
-      }
-      if (panel.dropdown?.path === setting.path) {
-        popups.push({
-          drawn: settingsDropdown(panel, setting, ctx),
-          row: 1 + main.length,
-          col: 1 + SIDE + 1 + controlCol,
-        })
-      }
-      // The sentence under a setting, for the one you are on, and what the
-      // terminal allows for the talk key, which is not something to guess.
-      const roomy =
-        setting.type.kind === 'key' ||
-        setting.type.kind === 'model' ||
-        setting.type.kind === 'choice'
-      const listOpen = panel.dropdown?.path === setting.path
-      if (!listOpen && (focused || (setting.type.kind === 'key' && panel.search === ''))) {
-        const note =
-          setting.type.kind === 'key'
-            ? ctx.releases
-              ? {
-                  mark: '✓',
-                  text: 'Hold works here: this terminal reports releases.',
-                  tone: skin.done,
-                }
-              : {
-                  mark: '▲',
-                  text: "This terminal can't report releases, so talking toggles.",
-                  tone: skin.waiting,
-                }
-            : { mark: '', text: setting.means, tone: skin.hint }
-        const r = new Row(form, skin).space(1 + LABEL)
-        if (note.mark) r.text(note.mark, note.tone).space()
-        r.text(note.text, skin.hint)
-        main.push(r.build())
-      }
-      // Settings that say more than one line's worth stand apart; plain ones stack.
-      if (roomy && at < rows.length - 1) main.push({ text: ' '.repeat(form), hits: [] })
-    })
+  } else if (rows.length === 0) {
+    body.push(
+      new Row(form, skin)
+        .space()
+        .text(cap('Nothing here matches.', form - 2), skin.hint)
+        .build(),
+    )
   }
+
+  rows.forEach((setting, at) => {
+    const focused = panel.focus === 'form' && at === panel.row
+    // The focused row's control is drawn as though pointed at, so the keyboard
+    // and the pointer say the same thing — the row's own light comes from the
+    // real pointer, never from this.
+    const keys = focused ? withFocus(pointer, controlOf(setting)) : pointer
+    const rowTarget = { kind: 'control' as const, id: `row:${setting.path}` }
+    const pointed = onSetting(pointer.hover, setting.path)
+    const band = focused ? skin.selected : pointed ? skin.hovered : null
+    const lines: { text: string; hits: Hit[] }[] = []
+    const restart = !setting.live && layout.restart ? layout.restart : null
+
+    // Clicking anywhere along a setting's line puts the keyboard on it, laid
+    // under its controls so a click still presses what it is on.
+    const wholeRow = (built: { text: string; hits: Hit[] }) => ({
+      text: built.text,
+      hits: [{ row: 0, from: 0, to: form - 1, target: rowTarget }, ...built.hits],
+    })
+    // A short list of options is radios, and where they would not fit beside
+    // the name they go under it, one to a line, rather than off the edge.
+    const room = layout.stacked ? layout.control : roomFor(layout, setting)
+    const beside = !layout.stacked && fitsInline(setting, room)
+
+    const line = new Row(form, skin, keys)
+    line.text(focused ? '▌' : ' ', skin.signal, rowTarget)
+    line.text(padTo(setting.title, layout.label), focused || pointed ? skin.you : plain, rowTarget)
+    let controlCol = line.used + GAP
+    if (beside) {
+      line.space(GAP)
+      controlCol = line.used
+      control(line, setting, panel, ctx, room)
+    }
+    if (restart) line.right((r) => r.text(restart, skin.hint).space())
+    lines.push(wholeRow(line.build()))
+    if (!beside) {
+      if (spellsOut(setting)) {
+        for (const option of optionsOf(setting)) {
+          lines.push(
+            new Row(form, skin, keys)
+              .space(3)
+              .radio(option.on, cap(option.label, form - 6), {
+                kind: 'control',
+                id: `set:${setting.path}=${option.value}`,
+              })
+              .build(),
+          )
+        }
+      } else {
+        const under = new Row(form, skin, keys).space(3)
+        controlCol = under.used
+        control(under, setting, panel, ctx, Math.max(4, form - 4))
+        lines.push(under.build())
+      }
+    }
+    if (setting.path === 'surfaces.voice.mic.device') {
+      // Trying it is the only way to know the terminal may use it.
+      const indent = layout.stacked ? 3 : 1 + layout.label + GAP
+      const meter = new Row(form, skin, pointer).space(indent)
+      const cells = Math.max(4, Math.min(14, form - indent - 12))
+      const heard = ctx.levels.slice(-cells)
+      const bars = '▁▂▃▄▅▆▇█'
+      meter.text(
+        heard.map((level) => bars[Math.max(0, Math.min(7, Math.round(level * 7)))]).join(''),
+        skin.busy,
+      )
+      meter.text('▁'.repeat(Math.max(0, cells - heard.length)), skin.chrome).space(2)
+      meter.button(
+        panel.testing ? 'Listening…' : 'Test',
+        { kind: 'control', id: 'mic-test' },
+        panel.testing ? 'off' : 'rest',
+      )
+      lines.push(meter.build())
+    }
+    const listOpen = panel.dropdown?.path === setting.path
+    if (listOpen) anchor = { line: body.length + lines.length - 1, col: controlCol }
+    // The sentence under a setting, for the one you are on, and what the
+    // terminal allows for the talk key, which is not something to guess.
+    const talkKey = setting.path === 'surfaces.voice.talk.key'
+    if (!listOpen && (focused || (talkKey && panel.search === ''))) {
+      const note = talkKey
+        ? ctx.releases
+          ? { mark: '✓', text: 'Hold works here: this terminal reports releases.', tone: skin.done }
+          : {
+              mark: '▲',
+              text: "This terminal can't report releases, so talking toggles.",
+              tone: skin.waiting,
+            }
+        : { mark: '', text: setting.means, tone: skin.hint }
+      // Said under the control where that leaves it room to be read, and
+      // under the name where it does not.
+      const aligned = 1 + layout.label + GAP
+      const indent = !layout.stacked && form - aligned >= 32 ? aligned : 3
+      const room = form - indent - 1 - (note.mark ? 2 : 0)
+      wrapTo(note.text, room, 2).forEach((piece, i) => {
+        const r = new Row(form, skin).space(indent)
+        if (note.mark) r.text(i === 0 ? note.mark : ' ', note.tone).space()
+        lines.push(r.text(piece, skin.hint).build())
+      })
+    }
+    if (focused) {
+      focusFrom = body.length
+      focusTo = body.length + lines.length - 1
+    }
+    for (const built of lines)
+      body.push(band ? { text: band(built.text), hits: built.hits } : built)
+    // Settings that say more than one line's worth stand apart; plain ones stack.
+    const roomy =
+      setting.type.kind === 'key' || setting.type.kind === 'model' || setting.type.kind === 'choice'
+    if ((roomy || layout.stacked) && at < rows.length - 1) body.push(blank(form))
+  })
 
   // ── the foot of the form ──
   const foot = new Row(form, skin, pointer).space()
-  if (panel.error) foot.text(`▲ ${panel.error}`, skin.waiting)
-  else if (panel.saved) foot.text('● ', skin.done).text(panel.saved, skin.hint)
-  else foot.text('● ', skin.done).text('Saved as you change it.', skin.hint)
-  const buttons = new Row(form, skin, pointer).right((r) =>
-    r
-      .button('Open config.yaml', { kind: 'control', id: 'open-file' })
-      .space()
-      .button('Done', { kind: 'control', id: 'done' }, 'primary')
-      .space(),
-  )
+  if (panel.error) foot.text(cap(`▲ ${panel.error}`, form - 2), skin.waiting)
+  else if (panel.saved) foot.text('● ', skin.done).text(cap(panel.saved, form - 4), skin.hint)
+  else foot.text('● ', skin.done).text(cap('Saved as you change it.', form - 4), skin.hint)
+  const buttons = new Row(form, skin, pointer).right((r) => {
+    if (form >= 32) r.button('Open config.yaml', { kind: 'control', id: 'open-file' }).space()
+    r.button('Done', { kind: 'control', id: 'done' }, 'primary').space()
+  })
 
-  const body = height - 2
+  // Rows beyond the panel used to be drawn and lost. The form follows the row
+  // you are on instead, which is what the wheel over it moves.
+  const room = Math.max(1, height - 2 - head.length - 2)
+  const offset = scrolledTo(body.length, room, focusFrom, focusTo)
+  const shown = body.slice(offset, offset + room)
+  const main = [...head, ...shown]
+
+  const popups: PanelDrawing['popups'] = []
+  if (anchor !== null) {
+    const { line, col } = anchor as { line: number; col: number }
+    const at = line - offset
+    if (at >= 0 && at < room) {
+      const listWidth = Math.min(46, Math.max(24, inner - 2))
+      const list = settingsDropdown(panel, rows[panel.row] as Setting, ctx, listWidth)
+      const under = 1 + head.length + at + 1
+      popups.push({
+        drawn: list,
+        // Under its control where the list fits below it, and over it where
+        // it does not: a list that opens off the bottom of the panel is a
+        // list with its far end on the window behind.
+        row:
+          under + list.rows.length <= height - 1
+            ? under
+            : Math.max(1, under - 1 - list.rows.length),
+        col: Math.max(1, Math.min(1 + side + 1 + col, width - listWidth - 1)),
+      })
+    }
+  }
+
+  const rowsOfBody = height - 2
   const lines: { text: string; hits: Hit[] }[] = []
-  for (let i = 0; i < body; i++) {
-    const left = side[i] ?? { text: ' '.repeat(SIDE), hits: [] }
-    let right = main[i] ?? { text: ' '.repeat(form), hits: [] }
-    if (i === body - 2) right = foot.build()
-    if (i === body - 1) right = buttons.build()
+  for (let i = 0; i < rowsOfBody; i++) {
+    const left = aside[i] ?? blank(side)
+    let right = main[i] ?? blank(form)
+    if (i === rowsOfBody - 2) right = foot.build()
+    if (i === rowsOfBody - 1) right = buttons.build()
     lines.push({
-      text: `${fitTo(left.text, SIDE)}${skin.chrome('│')}${fitTo(right.text, form)}`,
+      text: `${fitTo(left.text, side)}${skin.chrome('│')}${fitTo(right.text, form)}`,
       hits: [
         ...left.hits,
-        ...right.hits.map((hit) => ({ ...hit, from: hit.from + SIDE + 1, to: hit.to + SIDE + 1 })),
+        ...right.hits.map((hit) => ({ ...hit, from: hit.from + side + 1, to: hit.to + side + 1 })),
       ],
     })
   }
 
   if (panel.capture) {
+    const asked = capture(panel, ctx)
+    const askedWidth = Math.max(0, ...asked.rows.map((row) => visibleWidth(row)))
     popups.push({
-      drawn: capture(panel, ctx),
+      drawn: asked,
       row: 3,
-      col: Math.max(2, Math.floor((width - 62) / 2)),
+      col: Math.max(0, Math.floor((width - askedWidth) / 2)),
     })
   }
+  // The file it writes, in the border, while the border has room for it: a
+  // corner longer than the box it is drawn in is a box that is not its width.
+  const said = `${ctx.configPath} · esc`
+  const corner = visibleWidth(said) + visibleWidth(' Settings ') + 6 <= width ? said : 'esc'
   return {
-    panel: box('Settings', lines, width, skin, { corner: `${ctx.configPath} · esc` }),
+    panel: box('Settings', lines, width, skin, { corner }),
     popups,
   }
 }
 
-/** The control on the right of a setting, drawn for its kind. */
-function control(row: Row, setting: Setting, panel: SettingsPanel, ctx: PanelContext): void {
+/** A choice shown as radios rather than a list. */
+function spellsOut(setting: Setting): boolean {
+  return setting.type.kind === 'choice' && !usesDropdown(setting)
+}
+
+function optionsOf(setting: Setting): { value: string; label: string; on: boolean }[] {
+  if (setting.type.kind !== 'choice') return []
+  const value = setting.value || setting.fallback
+  return setting.type.options.map((option) => ({
+    value: option,
+    label: CHOICE_LABELS[setting.path]?.[option] ?? option,
+    on: value === option,
+  }))
+}
+
+/** Whether a setting's radios fit on one line, spaced as they are drawn. */
+function fitsInline(setting: Setting, room: number): boolean {
+  const options = optionsOf(setting)
+  if (options.length === 0) return true
+  const width = options.reduce((sum, option) => sum + 2 + visibleWidth(option.label), 0)
+  return width + 3 * (options.length - 1) <= room
+}
+
+/**
+ * The control beside a setting, drawn for its kind and for the columns it has.
+ *
+ * Everything here is sized from `room` rather than from a number that was true
+ * on the terminal it was written on: a control that runs past the panel edge
+ * is the same bug as a name that runs into its control.
+ */
+function control(
+  row: Row,
+  setting: Setting,
+  panel: SettingsPanel,
+  ctx: PanelContext,
+  room: number,
+): void {
   const { skin } = ctx
   const type = setting.type
   const value = setting.value
+  const lit = (target: Target, tone: (text: string) => string) =>
+    sameTarget(row.pointer.hover, target) ? skin.link : tone
   switch (type.kind) {
-    case 'key':
-      row.keys(keyCaps(value || setting.fallback)).space(3)
-      row.button('Change…', { kind: 'control', id: `capture:${setting.path}` })
+    case 'key': {
+      const target = { kind: 'control' as const, id: `capture:${setting.path}` }
+      const caps = keyCaps(value || setting.fallback)
+      const width = caps.reduce((sum, cap) => sum + cap.length + 4, 0) + caps.length - 1
+      // The keys themselves are the control; the button is what says so, and
+      // is only there where it fits beside them.
+      row.keys(caps, target)
+      if (room - width >= 14) row.space(3).button('Change…', target)
       return
+    }
     case 'flag':
       row.toggle((value || setting.fallback) === 'true', {
         kind: 'control',
@@ -1822,56 +2050,52 @@ function control(row: Row, setting: Setting, panel: SettingsPanel, ctx: PanelCon
       return
     case 'number': {
       if (panel.editing?.path === setting.path) {
-        row.field(panel.editing.text, 10, {
+        row.field(panel.editing.text, Math.max(6, Math.min(10, room)), {
           caret: true,
           target: { kind: 'control', id: `edit:${setting.path}` },
         })
         return
       }
+      const shown = { kind: 'control' as const, id: `edit:${setting.path}` }
       row
-        .text(skin.colour ? ' ‹ ' : '[-]', skin.signal, {
-          kind: 'control',
-          id: `step:${setting.path}=-1`,
-        })
-        .text(` ${value || setting.fallback} `, value ? skin.you : skin.hint, {
-          kind: 'control',
-          id: `edit:${setting.path}`,
-        })
-        .text(skin.colour ? ' › ' : '[+]', skin.signal, {
-          kind: 'control',
-          id: `step:${setting.path}=1`,
-        })
-      if (type.unit) row.space(2).text(type.unit, skin.hint)
+        .icon('‹', { kind: 'control', id: `step:${setting.path}=-1` }, 'signal')
+        .text(` ${value || setting.fallback} `, lit(shown, value ? skin.you : skin.hint), shown)
+        .icon('›', { kind: 'control', id: `step:${setting.path}=1` }, 'signal')
+      if (type.unit && room - row.used >= visibleWidth(type.unit) + 2)
+        row.space(2).text(type.unit, skin.hint)
       return
     }
     case 'hours': {
       const target = { kind: 'control' as const, id: `edit:${setting.path}` }
       if (panel.editing?.path === setting.path) {
-        row.field(panel.editing.text, 16, { caret: true, target })
-        row.space(2).text('like 22:00-07:00', skin.hint)
+        row.field(panel.editing.text, Math.max(8, Math.min(16, room)), { caret: true, target })
+        if (room - 16 >= 18) row.space(2).text('like 22:00-07:00', skin.hint)
         return
       }
       const [from, to] = value.split('-')
       if (!value || !from || !to) {
-        row.field('none', 9, { hint: true, target })
+        row.field('none', Math.max(6, Math.min(9, room)), { hint: true, target })
         return
       }
-      row.field(from, 9, { target }).space().text('to', skin.hint).space().field(to, 9, { target })
+      const each = Math.max(5, Math.min(9, Math.floor((room - 4) / 2)))
+      row
+        .field(from, each, { target })
+        .space()
+        .text('to', skin.hint)
+        .space()
+        .field(to, each, { target })
       return
     }
-    case 'text':
+    case 'text': {
+      const target = { kind: 'control' as const, id: `edit:${setting.path}` }
+      const width = Math.max(8, Math.min(40, room))
       if (panel.editing?.path === setting.path) {
-        row.field(panel.editing.text, 40, {
-          caret: true,
-          target: { kind: 'control', id: `edit:${setting.path}` },
-        })
+        row.field(panel.editing.text, width, { caret: true, target })
       } else {
-        row.field(value || setting.fallback, 40, {
-          hint: !value,
-          target: { kind: 'control', id: `edit:${setting.path}` },
-        })
+        row.field(value || setting.fallback, width, { hint: !value, target })
       }
       return
+    }
     case 'model':
     case 'choice':
       if (usesDropdown(setting)) {
@@ -1879,22 +2103,20 @@ function control(row: Row, setting: Setting, panel: SettingsPanel, ctx: PanelCon
           type.kind === 'choice'
             ? (type.about?.[value || setting.fallback]?.label ?? (value || setting.fallback))
             : value || setting.fallback
-        row.field(shown, 40, {
+        row.field(shown, Math.max(8, Math.min(40, room)), {
           arrow: true,
           hint: !value,
           target: { kind: 'control', id: `drop:${setting.path}` },
         })
         return
       }
-      if (type.kind === 'choice') {
-        type.options.forEach((option, i) => {
-          if (i > 0) row.space(3)
-          row.radio((value || setting.fallback) === option, CHOICE_LABELS[option] ?? option, {
-            kind: 'control',
-            id: `set:${setting.path}=${option}`,
-          })
+      optionsOf(setting).forEach((option, i) => {
+        if (i > 0) row.space(3)
+        row.radio(option.on, option.label, {
+          kind: 'control',
+          id: `set:${setting.path}=${option.value}`,
         })
-      }
+      })
       return
   }
 }
@@ -1938,10 +2160,15 @@ function badgeFor(id: string, ctx: PanelContext): ((row: Row) => void) | null {
 }
 
 /** A setting's list, opened under it: grouped, narrowed by typing, the current one ticked. */
-function settingsDropdown(panel: SettingsPanel, setting: Setting, ctx: PanelContext): Drawn {
+function settingsDropdown(
+  panel: SettingsPanel,
+  setting: Setting,
+  ctx: PanelContext,
+  width = 46,
+): Drawn {
   const { skin } = ctx
-  const width = 46
   const inner = width - 2
+  const pointer = ctx.pointer
   const query = panel.dropdown?.query ?? ''
   const found = matchingChoices(choicesFor(setting, ctx.choices), query)
   const rows: { text: string; hits: Hit[] }[] = [
@@ -1959,16 +2186,19 @@ function settingsDropdown(panel: SettingsPanel, setting: Setting, ctx: PanelCont
       group = choice.group
       // What a group needs is said once, at its heading: every option under it shares it.
       const note = choice.note
-      const heading = new Row(inner, skin).space().text(group.toUpperCase(), skin.label)
+      const heading = new Row(inner, skin)
+        .space()
+        .text(cap(group.toUpperCase(), inner - 2), skin.label)
       if (note) heading.right((r) => r.text(note, skin.hint).space())
       rows.push(heading.build())
     }
     const on = index === (panel.dropdown?.index ?? 0)
     const target = { kind: 'control' as const, id: `choose:${choice.value}` }
-    const r = new Row(inner, skin)
+    const pointed = sameTarget(pointer.hover, target)
+    const r = new Row(inner, skin, pointer)
       .text(on ? '▌' : ' ', skin.signal)
       .space()
-      .text(choice.label, on ? skin.you : (t: string) => t)
+      .text(cap(choice.label, inner - 4), on ? skin.you : pointed ? skin.link : (t: string) => t)
     r.right((right) => {
       right
         .text(choice.value === (setting.value || setting.fallback) ? '✓' : ' ', skin.done)
@@ -1976,7 +2206,7 @@ function settingsDropdown(panel: SettingsPanel, setting: Setting, ctx: PanelCont
     })
     const built = r.build()
     rows.push({
-      text: on ? skin.selected(built.text) : built.text,
+      text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
       hits: [{ row: 0, from: 0, to: inner - 1, target }],
     })
   })
@@ -1988,7 +2218,8 @@ function settingsDropdown(panel: SettingsPanel, setting: Setting, ctx: PanelCont
 /** Press the keys you want to hold to talk. */
 function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = 62
+  // As wide as it was drawn, and never wider than the terminal it opens over.
+  const width = Math.min(62, Math.max(30, ctx.width - 8))
   const inner = width - 2
   const pressed = panel.capture?.key ?? null
   const setting = ctx.settings
@@ -2004,9 +2235,12 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
       .right((r) =>
         r
           .text(
-            talking
-              ? 'Press the keys you want to hold to talk.'
-              : `Press the keys for ${setting?.title ?? 'this'}.`,
+            cap(
+              talking
+                ? 'Press the keys you want to hold to talk.'
+                : `Press the keys for ${setting?.title ?? 'this'}.`,
+              inner - 9,
+            ),
             skin.you,
           )
           .space(8),
@@ -2025,13 +2259,26 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   rows.push(caps.build())
   rows.push({ text: ' '.repeat(inner), hits: [] })
   if (check && !check.ok) {
-    rows.push(row().space().text(`▲ ${check.reason}`, skin.bad).build())
+    for (const line of wrapTo(`▲ ${check.reason}`, inner - 2, 2))
+      rows.push(row().space().text(line, skin.bad).build())
   } else if (check?.ok && check.warning) {
     const [first, ...rest] = check.warning.split('. ')
-    rows.push(row().space().text(`▲ ${first}.`, skin.waiting).build())
-    if (rest.length > 0) rows.push(row().space(3).text(rest.join('. '), skin.hint).build())
+    rows.push(
+      row()
+        .space()
+        .text(cap(`▲ ${first}.`, inner - 2), skin.waiting)
+        .build(),
+    )
+    if (rest.length > 0)
+      for (const line of wrapTo(rest.join('. '), inner - 4, 2))
+        rows.push(row().space(3).text(line, skin.hint).build())
   } else if (check?.ok) {
-    rows.push(row().space().text('✓ Nothing in pi or your shell uses this.', skin.done).build())
+    rows.push(
+      row()
+        .space()
+        .text(cap('✓ Nothing in pi or your shell uses this.', inner - 2), skin.done)
+        .build(),
+    )
   } else {
     rows.push({ text: ' '.repeat(inner), hits: [] })
   }
@@ -2049,19 +2296,24 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   const hits: Hit[] = []
   for (const key of TALK_SUGGESTIONS) {
     const w = keyCaps(key).reduce((sum, k) => sum + k.length + 4, 0) + keyCaps(key).length - 1
-    hits.push({
-      row: 0,
-      from: col,
-      to: col + w - 1,
-      target: { kind: 'control', id: `capture-suggest:${key}` },
-    })
+    // Only the ones that were drawn: a hit past the edge of the box is a
+    // click on a key cap nobody can see.
+    if (col + w <= inner)
+      hits.push({
+        row: 0,
+        from: col,
+        to: col + w - 1,
+        target: { kind: 'control', id: `capture-suggest:${key}` },
+      })
     col += w + 1
   }
   rows.push({ text: built.text, hits })
-  rows.push(
-    row().space().text('Never a key that types a character — you have to be', skin.hint).build(),
-  )
-  rows.push(row().space().text('able to type a space into your agent.', skin.hint).build())
+  for (const line of wrapTo(
+    'Never a key that types a character — you have to be able to type a space into your agent.',
+    inner - 2,
+    2,
+  ))
+    rows.push(row().space().text(line, skin.hint).build())
   rows.push({ text: ' '.repeat(inner), hits: [] })
   const usable = check?.ok === true
   rows.push(
@@ -2631,6 +2883,37 @@ function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
 function pad(text: string, width: number): string {
   const cut = [...text].slice(0, width).join('')
   return cut + ' '.repeat(Math.max(0, width - cut.length))
+}
+
+/**
+ * As many columns as it is given, with an ellipsis where a word was cut.
+ *
+ * The difference from `pad` is the whole point: text that stops dead reads as
+ * text that ran into what is beside it, which is what it used to do.
+ */
+export function cap(text: string, width: number): string {
+  if (width <= 0) return ''
+  if (visibleWidth(text) <= width) return text
+  return `${truncateToWidth(text, Math.max(1, width - 1), '')}…`
+}
+
+/** `cap`, padded out: exactly `width` columns, so what follows starts where it should. */
+function padTo(text: string, width: number): string {
+  const short = cap(text, width)
+  return short + ' '.repeat(Math.max(0, width - visibleWidth(short)))
+}
+
+/**
+ * A sentence over at most so many lines, the last one ellipsised: a paragraph
+ * that does not fit is shortened where it is read, never past the panel edge.
+ */
+function wrapTo(text: string, width: number, lines: number): string[] {
+  if (width <= 0 || lines <= 0 || text.trim() === '') return []
+  const all = wrapTextWithAnsi(text, width)
+  if (all.length <= lines) return all
+  const kept = all.slice(0, lines)
+  kept[lines - 1] = cap(`${kept[lines - 1] ?? ''} ${all.slice(lines).join(' ')}`, width)
+  return kept
 }
 
 function money(usd: number): string {

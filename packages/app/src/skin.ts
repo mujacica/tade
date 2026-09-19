@@ -23,8 +23,14 @@
 /** How a list item is lit: the one you are on, or the one under the pointer. */
 export type Band = 'selected' | 'hovered'
 
-/** A small glyph button's state: at rest, under the pointer, under it and destructive, held down. */
-export type IconState = 'rest' | 'hover' | 'danger' | 'pressed'
+/**
+ * A small glyph button's state: at rest, at rest and worth acting on, under
+ * the pointer, under it and destructive, held down.
+ */
+export type IconState = 'rest' | 'signal' | 'hover' | 'danger' | 'pressed'
+
+/** A switch's state under the pointer: the same three every block control has. */
+export type SwitchState = 'rest' | 'hover' | 'pressed'
 
 /** A button's look. Hover and pressed are the pointer's; the rest are meaning. */
 export type Look =
@@ -82,21 +88,34 @@ export interface Skin {
    */
   found(text: string, on: boolean): string
 
-  /** A block with the label centred: `  label  `, exactly label + 4 columns. */
-  button(label: string, look: Look): string
+  /**
+   * A block with the label centred: `  label  `, exactly label + 4 columns.
+   *
+   * `lit` is the pointer on it. A look that carries meaning keeps its colour
+   * and takes a lighter shade of it, because a button that says what it does
+   * must not stop saying it to say it is being pointed at.
+   */
+  button(label: string, look: Look, lit?: boolean): string
   /**
    * The same block a column narrower each side: ` label `, exactly label + 2.
    * For the small controls that sit beside a button without being one its size.
    */
-  chip(label: string, look: Look): string
+  chip(label: string, look: Look, lit?: boolean): string
   /** A tab: filled when on, `  label  ` when not. Label + 4 either way. */
   tabbed(label: string, on: boolean, hover: boolean): string
   /** One key as a key cap: a block, label + 2. Pass the spaces you want inside. */
-  keycap(label: string): string
+  keycap(label: string, hover?: boolean): string
   /** A count: ` 3 `. */
   badge(text: string): string
   /** A field's body, already padded to its width by the caller. */
-  field(text: string, hint: boolean): string
+  field(text: string, hint: boolean, hover?: boolean): string
+  /**
+   * A switch: a four-cell track with the knob at the end that says which way
+   * it is thrown, then the word for it. Exactly 8 columns, painted or not, so
+   * a column of them lines up whatever the skin — and the word is there
+   * because a colour is not an answer to "is this on?".
+   */
+  toggle(on: boolean, state: SwitchState): string
   /** The microphone is open. */
   transmit(text: string): string
 
@@ -145,12 +164,16 @@ const TONE = {
   amberDark: 94,
   /** Waiting on you, and the press the window would like next. */
   violet: 183,
+  /** The same, under the pointer. */
+  violetLight: 189,
   /** Done. */
   green: 114,
   /** Where you are. The one complement in the palette, at the amber's own value. */
   cyan: 80,
   /** Gone wrong, or about to: the exception to the rule above. */
   red: 203,
+  /** The same, under the pointer. */
+  redLight: 210,
   /** Ink for anything laid on a light ground. */
   ink: 233,
   /** Ink for anything laid on a mid ground. */
@@ -224,6 +247,17 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   add: [GREY.control, TONE.amber, true],
 }
 
+/**
+ * The same looks under the pointer, for the ones whose colour is their
+ * meaning: a shade lighter, the way every other control lights. A look not in
+ * here lights by becoming `hover`, and `off` never lights at all.
+ */
+const LIT: Partial<Record<Look, [ground: number, ink: number, bold: boolean]>> = {
+  primary: [TONE.amberLight, TONE.ink, true],
+  attention: [TONE.violetLight, TONE.ink, true],
+  danger: [TONE.redLight, TONE.ink, true],
+}
+
 const identity = (text: string) => text
 
 /**
@@ -237,6 +271,7 @@ const TAB_GROUNDS: Record<Band, number> = { selected: GREY.control, hovered: GRE
 
 const ICONS: Record<IconState, [ground: number | null, ink: number, bold: boolean]> = {
   rest: [null, GREY.tab, false],
+  signal: [null, TONE.amber, true],
   hover: [GREY.hovered, TONE.inkLight, false],
   danger: [TONE.red, TONE.ink, true],
   pressed: [GREY.pressed, TONE.ink, false],
@@ -273,6 +308,9 @@ export const PLAIN: Skin = {
   keycap: (label) => `[${label}]`,
   badge: (text) => `(${text.trim()})`.padEnd(text.length),
   field: (text) => text,
+  // The same 8 columns the painted switch takes: the knob at the right is on,
+  // at the left is off, and the word says which without reading the picture.
+  toggle: (on) => (on ? '[─●] on ' : '[●─] off'),
   transmit: identity,
   // Without colour the one you are on is marked the way focus is marked everywhere else.
   item: (row, band) => (band === 'selected' ? `▌${row} ` : ` ${row} `),
@@ -308,12 +346,12 @@ export const COLOUR: Skin = {
   cursor: paint(`${bg(GREY.bright)}${fg(TONE.ink)}`),
   found: (text, on) =>
     paint(on ? `${bg(TONE.amber)}${fg(TONE.ink)}` : `${bg(GREY.control)}${fg(GREY.bright)}`)(text),
-  button: (label, look) => {
-    const [ground, ink, bold] = LOOKS[look]
+  button: (label, look, lit) => {
+    const [ground, ink, bold] = (lit === true ? LIT[look] : undefined) ?? LOOKS[look]
     return block(label, ground, ink, bold)
   },
-  chip: (label, look) => {
-    const [ground, ink, bold] = LOOKS[look]
+  chip: (label, look, lit) => {
+    const [ground, ink, bold] = (lit === true ? LIT[look] : undefined) ?? LOOKS[look]
     return block(label, ground, ink, bold, ' ')
   },
   tabbed: (label, on, hover) => {
@@ -321,9 +359,42 @@ export const COLOUR: Skin = {
     if (hover) return block(label, GREY.control, GREY.bright)
     return paint(fg(GREY.tab))(`  ${label}  `)
   },
-  keycap: (label) => `${bg(GREY.pressed)}${fg(TONE.ink)}${BOLD} ${label} ${RESET}`,
+  keycap: (label, hover) =>
+    `${bg(hover === true ? GREY.bright : GREY.pressed)}${fg(TONE.ink)}${BOLD} ${label} ${RESET}`,
   badge: paint(`${bg(GREY.control)}${fg(GREY.pressed)}`),
-  field: (text, hint) => paint(`${bg(GREY.raised)}${fg(hint ? GREY.quiet : GREY.bright)}`)(text),
+  field: (text, hint, hover) =>
+    paint(
+      `${bg(hover === true ? GREY.hovered : GREY.raised)}${fg(hint ? GREY.quiet : GREY.bright)}`,
+    )(text),
+  // A track of four cells with the knob at the end it is thrown to: amber and
+  // to the right for on, dark and to the left for off, a shade lighter under
+  // the pointer the way every other control lights. The knob is a glyph and
+  // not a painted cell, so the switch still reads where colour does not.
+  toggle: (on, state) => {
+    const track = on
+      ? state === 'hover'
+        ? TONE.amberLight
+        : state === 'pressed'
+          ? TONE.amberDark
+          : TONE.amber
+      : state === 'hover'
+        ? GREY.hovered
+        : state === 'pressed'
+          ? GREY.pressed
+          : GREY.control
+    const knob = on
+      ? state === 'pressed'
+        ? GREY.quiet
+        : TONE.ink
+      : state === 'pressed'
+        ? TONE.ink
+        : GREY.bright
+    const shown = `${bg(track)}${fg(knob)}${BOLD}${on ? '   ●' : '●   '}${RESET}`
+    const word = on
+      ? `${fg(GREY.bright)}${BOLD}on ${RESET}`
+      : `${fg(state === 'rest' ? GREY.quiet : GREY.bright)}off${RESET}`
+    return `${shown} ${word}`
+  },
   transmit: paint(`${bg(TONE.red)}${fg(TONE.inkLight)}${BOLD}`),
   item: (row, band) => {
     if (!band) return ` ${row} `

@@ -5,7 +5,7 @@ import {
   visibleWidth,
 } from '@earendil-works/pi-tui'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
-import { type Look, markLabel, type Skin } from './skin.ts'
+import { type IconState, type Look, markLabel, type Skin, type SwitchState } from './skin.ts'
 
 // The controls, and the two things every region is made of: rows that know
 // what is clickable in them, and boxes that float over other rows.
@@ -64,7 +64,7 @@ export class Row {
 
   button(label: string, target: Target, look: Look = 'rest'): this {
     return this.put(
-      this.skin.button(label, this.lookOf(target, look)),
+      this.skin.button(label, this.lookOf(target, look), this.litBy(target, look)),
       visibleWidth(label) + 4,
       target,
     )
@@ -77,7 +77,7 @@ export class Row {
    */
   chip(label: string, target: Target, look: Look = 'rest'): this {
     return this.put(
-      this.skin.chip(label, this.lookOf(target, look)),
+      this.skin.chip(label, this.lookOf(target, look), this.litBy(target, look)),
       visibleWidth(label) + 2,
       target,
     )
@@ -88,14 +88,15 @@ export class Row {
    * destructive one is only red while the pointer is on it — at rest it is
    * as quiet as the rest.
    */
-  icon(label: string, target: Target, tone: 'plain' | 'danger' = 'plain'): this {
-    const state = sameTarget(this.pointer.pressed, target)
+  icon(label: string, target: Target, tone: 'plain' | 'danger' | 'signal' = 'plain'): this {
+    const rest: IconState = tone === 'signal' ? 'signal' : 'rest'
+    const state: IconState = sameTarget(this.pointer.pressed, target)
       ? 'pressed'
       : sameTarget(this.pointer.hover, target)
         ? tone === 'danger'
           ? 'danger'
           : 'hover'
-        : 'rest'
+        : rest
     return this.put(this.skin.icon(label, state), visibleWidth(label) + 2, target)
   }
 
@@ -104,11 +105,16 @@ export class Row {
     return this.put(this.skin.tabbed(label, on, hover), visibleWidth(label) + 4, target)
   }
 
-  /** Key caps joined by `+`: the shape of something you press. */
-  keys(names: readonly string[]): this {
+  /**
+   * Key caps joined by `+`: the shape of something you press. Given a target
+   * the whole group is one control — what a key is set to is the thing you
+   * click to set it again, and it lights as one.
+   */
+  keys(names: readonly string[], target?: Target): this {
+    const lit = target !== undefined && sameTarget(this.pointer.hover, target)
     names.forEach((name, i) => {
-      if (i > 0) this.text('+', this.skin.hint)
-      this.put(this.skin.keycap(` ${name} `), visibleWidth(name) + 4)
+      if (i > 0) this.text('+', this.skin.hint, target)
+      this.put(this.skin.keycap(` ${name} `, lit), visibleWidth(name) + 4, target)
     })
     return this
   }
@@ -134,35 +140,50 @@ export class Row {
     } = {},
   ): this {
     const inner = Math.max(1, width - 2)
+    const lit = opts.target !== undefined && sameTarget(this.pointer.hover, opts.target)
     const tail = opts.arrow ? ' ▾' : ''
     let body = value + (opts.caret ? '▏' : '')
     const room = inner - tail.length
-    if (visibleWidth(body) > room) body = `…${[...body].slice(-(room - 1)).join('')}`
+    if (visibleWidth(body) > room)
+      body =
+        // Typed text keeps its end; what a field says for itself — a
+        // placeholder, a default — keeps its beginning, which is the part
+        // that says what it is.
+        opts.hint === true
+          ? `${truncateToWidth(body, Math.max(1, room - 1), '')}…`
+          : `…${[...body].slice(-(room - 1)).join('')}`
     // What tab would complete to, said quietly after the caret, where it fits.
     const ghost = [...(opts.ghost ?? '')].slice(0, Math.max(0, room - visibleWidth(body))).join('')
     const pad = ' '.repeat(Math.max(0, room - visibleWidth(body) - visibleWidth(ghost))) + tail
     if (!this.skin.colour) return this.put(`[${body}${ghost}${pad}]`, inner + 2, opts.target)
     const drawn = ghost
-      ? `${this.skin.field(` ${body}`, opts.hint === true)}${this.skin.field(ghost, true)}${this.skin.field(`${pad} `, false)}`
-      : this.skin.field(` ${body}${pad} `, opts.hint === true)
+      ? `${this.skin.field(` ${body}`, opts.hint === true, lit)}${this.skin.field(ghost, true, lit)}${this.skin.field(`${pad} `, false, lit)}`
+      : this.skin.field(` ${body}${pad} `, opts.hint === true, lit)
     return this.put(drawn, inner + 2, opts.target)
   }
 
+  /** A switch, thrown or not: exactly 8 columns, so a column of them lines up. */
   toggle(on: boolean, target: Target): this {
-    const drawn = on
-      ? `${this.skin.busy('━━●')} ${this.skin.you('on')} `
-      : `${this.skin.hint('●━━')} ${this.skin.hint('off')}`
-    return this.put(drawn, 7, target)
+    const state: SwitchState = sameTarget(this.pointer.pressed, target)
+      ? 'pressed'
+      : sameTarget(this.pointer.hover, target)
+        ? 'hover'
+        : 'rest'
+    return this.put(this.skin.toggle(on, state), 8, target)
   }
 
   check(on: boolean, label: string, target: Target): this {
-    const mark = on ? this.skin.busy('■') : this.skin.hint('□')
-    return this.put(`${mark} ${label}`, 2 + visibleWidth(label), target)
+    const lit = sameTarget(this.pointer.hover, target)
+    const mark = on ? this.skin.busy('■') : lit ? this.skin.signal('□') : this.skin.hint('□')
+    const said = lit ? this.skin.link(label) : label
+    return this.put(`${mark} ${said}`, 2 + visibleWidth(label), target)
   }
 
   radio(on: boolean, label: string, target: Target): this {
-    const mark = on ? this.skin.busy('◉') : this.skin.hint('○')
-    return this.put(`${mark} ${label}`, 2 + visibleWidth(label), target)
+    const lit = sameTarget(this.pointer.hover, target)
+    const mark = on ? this.skin.busy('◉') : lit ? this.skin.signal('○') : this.skin.hint('○')
+    const said = lit ? this.skin.link(label) : label
+    return this.put(`${mark} ${said}`, 2 + visibleWidth(label), target)
   }
 
   /** A share of something, in whole cells. */
@@ -218,6 +239,17 @@ export class Row {
     if ((look === 'rest' || look === 'add') && sameTarget(this.pointer.hover, target))
       return 'hover'
     return look
+  }
+
+  /**
+   * Whether a button whose colour is its meaning is under the pointer: it
+   * keeps that colour and the skin lights it, rather than turning grey and
+   * losing what it was saying.
+   */
+  private litBy(target: Target, look: Look): boolean {
+    if (look === 'off' || look === 'rest' || look === 'add') return false
+    if (sameTarget(this.pointer.pressed, target)) return false
+    return sameTarget(this.pointer.hover, target)
   }
 }
 

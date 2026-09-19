@@ -1,0 +1,22 @@
+   T A D E      checkout    search    infra      +      
+━━━╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮━━━
+ ▾ │  search sett…  │ Reporting                     │l  
+   │                │ Where Tade reports its own    │───
+ ▐ │  Agents        │ crashes and warnings, so you… │   
+ ▐ │  Models        │                               │   
+   │  Orchestrator  │ Send to                     ↻ │+12
+   │  Approvals     │    nothing is sent            │   
+   │  Checks        │                               │   
+   │  Voice         │▌Crashes and warnings        ↻ │   
+ ▾ │  Window        │      ● on                     │   
+  M│  Projects   3  │   send them as issues, which  │   
+  A│  Budgets   ● 1 │   is what an agent can be pu… │   
+━  │▌ Reporting     │                               │  ━
+   │  Keys          │ What happened around them   ↻ │   
+   │  Accounts  ● 1 │      ● on                     │  ▕
+   │                │ ● Saved as you change it.     │  ▕
+ ❯ │                │                        Done   │d ▕
+───╰────────────────────────────────────────────────╯── 
+ Ask Tade anything     type, or hold   ctrl  +  space   
+────────────────────────────────────────────────────────
+   Extensions     Settings     Mute       $2.66 today ▾ 

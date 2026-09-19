@@ -1,23 +1,23 @@
    T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings       │ Voice                                                                       │────────
- ▐ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
- ▐   wan│  Agents                │                                                                             │        
-        │  Models                │ Push to talk      ctrl  +  space       Change…                              │        
-   ⠋ ref│  Orchestrator          │                 ✓ Hold works here: this terminal reports releases.          │        
-     wor│  Approvals      bypass │                                                                             │        
-        │  Checks                │ Mode            ◉ Hold to talk   ○ Press to start, press to stop            │        
- ▾ CHANG│▌ Voice                 │                                                                             │        
-  M pack│  Window                │▌Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
-  A …/we│  Projects           3  │                 ╭─  ───────────────────────────────────── ▴ ─╮              │        
-  M src/│  Budgets           ● 1 │ Microphone      │  ▏                                         │ ↻ on restart │        
-        │  Reporting             │                 │ ON THIS MACHINE            private, no key │              │        
- ▾ FILES│  Keys                  │ Muted           │▌ whisper · base.en · on this machine     ✓ │              │        
-   ▾ src│  Accounts          ● 1 │ Spoken replies  │ IN THE CLOUD                   needs a key │              │        
-       w│                        │ Interruptions   │  OpenAI · whisper-1                        │ ↻ on restart │        
-       w│                        │ Quiet hours     │  Groq · whisper-large-v3                   │ ↻ on restart │        
-   ▸ tes│                        │                 ╰────────────────────────────────────────────╯              │        
+        │  search settings       │ Reporting                                                                   │────────
+ ▐ ! str│                        │ Where Tade reports its own crashes and warnings, so you can see them and    │        
+ ▐   wan│  Agents                │ hand them to an agent. Nothing is sent until you say where; what is sent is │        
+        │  Models                │ the shape of what happened, never your code or what you said.               │        
+   ⠋ ref│  Orchestrator          │                                                                             │        
+     wor│  Approvals      bypass │▌Send to                     nothing is sent                    ↻ on restart │        
+        │  Checks                │                            a Sentry DSN, from that project’s Client Keys;   │        
+ ▾ CHANG│  Voice                 │                            empty sends nothing, and $TADE_TELEMETRY_DSN do… │        
+  M pack│  Window                │ Crashes and warnings          ● on                             ↻ on restart │        
+  A …/we│  Projects           3  │ What happened around them     ● on                             ↻ on restart │        
+  M src/│  Budgets           ● 1 │ Numbers                       ● on                             ↻ on restart │        
+        │▌ Reporting             │ What agents do                ● on                             ↻ on restart │        
+ ▾ FILES│  Keys                  │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+   ▾ src│  Accounts          ● 1 │ Which Tade this is          laptop                             ↻ on restart │        
+       w│                        │                                                                             │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │                                                                             │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        
         │                        │                                                                             │        
