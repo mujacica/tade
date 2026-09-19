@@ -1121,6 +1121,9 @@ export function queueMenuItems(queued: { state: { kind: string } }): MenuItem[] 
   return [
     { id: 'open', label: 'Open', note: 'enter' },
     { id: 'queue-start', label: 'Start now' },
+    // A preference among what is ready, not a start: it waits for what it
+    // waits on exactly as it did, and goes first when it can go at all.
+    { id: 'queue-first', label: 'Do this one first' },
     paused ? { id: 'queue-resume', label: 'Resume' } : { id: 'queue-pause', label: 'Pause' },
     {
       id: 'queue-wait',

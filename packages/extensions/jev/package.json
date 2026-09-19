@@ -1,0 +1,17 @@
+{
+  "name": "@tade/extension-jev",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tade/core": "workspace:*",
+    "@tade/extensions-core": "workspace:*",
+    "@tade/judges-core": "workspace:*",
+    "@tade/workbench": "workspace:*",
+    "yaml": "^2.9.0"
+  }
+}

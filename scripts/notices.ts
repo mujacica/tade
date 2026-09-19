@@ -94,6 +94,7 @@ const lines: string[] = [
   '| [OSV.dev](https://osv.dev) | known vulnerabilities, in the dependencies extension | data under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/); vulnerability data © the OSV contributors and the databases it aggregates |',
   '| [npm registry](https://www.npmjs.com), [PyPI](https://pypi.org), [crates.io](https://crates.io), [Go module proxy](https://proxy.golang.org) | newest releases, in the dependencies extension | each registry’s terms of use |',
   '| [Sentry](https://sentry.io) API | issues, events, traces, logs, metrics and Seer, in the Sentry extension | [Sentry’s terms](https://sentry.io/terms/) |',
+  '| [TypeSafe](https://typesafe.ai) API (Jev) | judging diffs, logs, requests, plans and queues, in the Jev extension, with your own key | [TypeSafe’s terms](https://typesafe.ai) |',
   '| Model providers (Anthropic, OpenAI, OpenRouter, …) | through pi, with your own credentials | each provider’s terms |',
   '',
   'The Sentry extension’s use of the API follows what Sentry’s own',

@@ -19,6 +19,7 @@ const facts = (over: Partial<ReadinessFacts> = {}): ReadinessFacts => ({
   micOk: true,
   speechOk: true,
   speechReason: null,
+  judgeChosen: true,
   ...over,
 })
 
@@ -93,10 +94,35 @@ describe('readiness', () => {
     const steps = readiness(
       facts({ projects: [], loggedIn: false, apiKeys: [], driverOk: false, speechOk: false }),
     )
-    // The talk key last, so the window opens on the key you just picked.
-    expect(steps.map((s) => s.id)).toEqual(['project', 'model', 'workspace', 'voice', 'talk'])
+    // The talk key late, so the window opens on the key you just picked; the
+    // judge last of all, because it is the only step that costs money and the
+    // only one that sends anything anywhere.
+    expect(steps.map((s) => s.id)).toEqual([
+      'project',
+      'model',
+      'workspace',
+      'voice',
+      'talk',
+      'judge',
+    ])
     // A project first: choosing a model for nothing is a strange way to start.
     expect(nextStep(steps)?.id).toBe('project')
+  })
+
+  it('never lets a judge block anything, and takes “not now” for an answer', () => {
+    const unasked = readiness(facts({ judgeKey: false, judgeChosen: false }))
+    const step = unasked.find((one) => one.id === 'judge')
+    expect(step).toMatchObject({ done: false, required: false })
+    expect(step?.detail).toContain('nothing runs without it')
+    // `tade setup --check` still exits 0 with it undone.
+    expect(isReady(unasked)).toBe(true)
+
+    // A key found in the environment is an answer, and so is “not now”.
+    for (const answered of [{ judgeKey: true }, { judgeChosen: true }]) {
+      const steps = readiness(facts({ judgeKey: false, judgeChosen: false, ...answered }))
+      expect(steps.find((one) => one.id === 'judge')).toMatchObject({ done: true, detail: '' })
+      expect(nextStep(steps)).toBeNull()
+    }
   })
 
   it('every unfinished step says what to do about it', () => {
@@ -111,6 +137,7 @@ describe('readiness', () => {
         speechOk: false,
         speechReason: 'whisper.cpp is not installed',
         talkChosen: false,
+        judgeChosen: false,
       }),
     )
     for (const step of steps) {

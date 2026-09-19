@@ -13,7 +13,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | Path | What |
 |---|---|
 | `packages/core/src/done.ts` | when a task is finished: `finishedFrom`, `ruleMet`, `workedFrom` |
-| `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `startFrom`, `checkPlan`, `QUEUE_CHANGES` |
+| `packages/core/src/queue.ts` | `Queued`, `queueStateOf`, `readyToStart`, `inWrittenOrder`, `startFrom`, `checkPlan`, `QUEUE_CHANGES` |
 | `packages/core/src/schedule.ts` | `When`, `ScheduleDoes`, `runsOf`, `dueNow`, `watchedFrom`, `newFindings`, the words for each |
 | `packages/core/src/events.ts` | `task_done`, `queue_*`, `schedule_*`, `watch_*` |
 | `packages/workbench/src/workbench.ts` | writing it down: `markDone`, `planTasks`, `startQueued`, `holdQueued`, `setSchedule`, `fireSchedule`, `watchChecked`, `watchFound` |
@@ -52,6 +52,12 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   cannot look is said when it starts going wrong, not at every look.
 - **People decide what was held.** The orchestrator is told and asks the person; their choice is a
   `queue_changed`, read back by the rule.
+- **An order is a written fact, and only a preference.** `inWrittenOrder` reads the last `order`
+  somebody wrote and the window sorts what it hands `readyToStart` with it — so it changes which of
+  the ready ones goes first and nothing else. It can never jump a wait, unhold a hold, resume a
+  pause or exceed `max_parallel`, and nothing recomputes it: the last line written wins, so nothing
+  can be starved by something newer looking better. A model may suggest one; a person or the
+  orchestrator writes it down, with a reason of their own.
 - **Only while a window is open.** What came due while none was is caught up once or skipped, as
   the schedule says (`dueNow`), never once per run missed.
 - **Every word for the orchestrator is in one place**: `app/src/queue.ts` and core's `describe*`.

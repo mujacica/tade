@@ -54,6 +54,8 @@ export interface ToolHostOptions {
       project?: string
       change: string
       name?: string
+      /** For `order`: the queued tasks, first to last. */
+      order?: readonly string[]
     }): Promise<string>
     plan(plan: Plan): Promise<string>
     schedule(req: {
@@ -128,6 +130,7 @@ export class ToolHost {
           ...(p.schedule ? { schedule: String(p.schedule) } : {}),
           ...(p.project ? { project: String(p.project) } : {}),
           ...(p.name ? { name: String(p.name) } : {}),
+          ...(Array.isArray(p.order) ? { order: p.order.map(String) } : {}),
           change: String(p.change ?? ''),
         }),
       'queue/schedule': async (p) => {

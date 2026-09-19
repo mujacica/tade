@@ -180,7 +180,7 @@ looking at can still reach you — and be answered from where you are.
 
 ## Extensions
 
-Dependencies, Sentry and Resources ship with Tade; yours go beside them in
+Dependencies, Jev, Sentry and Resources ship with Tade; yours go beside them in
 `~/.tade/extensions/active/<name>/extension.ts`. An extension brings tools the orchestrator and your
 agents can both call, settings, and watches. Tade writes extensions and lessons for itself too — and
 they do nothing until you read and approve them (`tade extensions`, `tade skills`).
@@ -248,10 +248,11 @@ Written down in full, not built yet — read them before asking for them:
 - **GitHub, and the forge after it** — agents that branch, push, open pull requests, answer reviews
   and watch CI, plus **local actions**: your project's own checks run here before the push.
   [`docs/github-integration.md`](docs/github-integration.md)
-- **Jev in the editor, on several levels** — a fast non-talking judge beside the model: enriching
-  search and review, reading a request before it becomes a plan, noticing an agent going in circles
-  — with every decision that stays a person's drawn as a line it may not cross, and the no-key path
-  tested. [`docs/jev-integration.md`](docs/jev-integration.md)
+- **The rest of the judge** — asking a question in `ctrl+k` instead of matching one, watching agent
+  turns for an agent going in circles, and catching a destructive command the approval rules do not
+  name. The judge, its tools, the review watch and the onboarding step are built (see **Jev** under
+  Extensions); these three are written down and deliberately not.
+  [`docs/jev-integration.md`](docs/jev-integration.md)
 - **More harnesses** — Claude Code and Codex are named in the harness registry and not supported
   yet.
 
@@ -349,6 +350,23 @@ projects:
     sentry:
       org: acme
       projects: { checkout: checkout-api }   # when a Sentry slug differs from the project name
+  ```
+
+- **Jev** asks a small, fast judge bounded questions about the things nobody has time to read — a
+  diff, a thousand log lines, a request before it becomes a plan, a queue that needs an order — and
+  answers with a probability and no paragraph. Its **Review what agents change** watch reads a
+  branch when it stops moving and reports what it flags, for a person or an agent to read. It
+  never approves, merges or closes anything. It needs a key and does nothing without one:
+
+  ```sh
+  export TYPESAFE_API_KEY="…"        # from console.typesafe.ai/settings/keys
+  ```
+
+  ```yaml
+  extensions:
+    jev:
+      model: jev-1.13.0     # pin a version, never an alias: thresholds are tuned against one
+      projects: [checkout]  # nothing is sent from a project not named here
   ```
 
 - **Resources** keeps what Tade and everything it runs is using in the status bar.

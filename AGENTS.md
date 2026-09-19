@@ -81,6 +81,20 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   A plan is checked against what the project is already on — agents working, work an earlier plan
   left queued — and says what it will run into rather than refusing: what an agent will touch is a
   reading of the code, and the orchestrator may know better.
+- **An order among queued work is a written fact, and only a preference.** `inWrittenOrder` reads
+  the last `order` somebody wrote (`queue_changed`) and the window sorts what it hands
+  `readyToStart` with it, so it changes which of the *ready* ones goes first and nothing else: it
+  can never jump a wait, unhold a hold, resume a pause or exceed `max_parallel`, and nothing
+  starves, because the last line written wins rather than a score recomputing. With nothing
+  written it is arrival order, exactly as it was.
+- **A judge answers, it never decides.** A judge (`packages/judges/core`) is a model that takes
+  bounded questions — yes-no, one of these options, one of these levels — and answers each with a
+  probability and no prose, cheaply enough to ask of every diff and every log line. It may only
+  ever *add* caution: a finding, a wait, a raised tier, a person asked. It may never approve,
+  close, merge, unhold, shorten a review or skip a check, it is never inside a pure rule, and it is
+  never the reason given to anybody — whatever reaches a person is a sentence somebody wrote. Its
+  questions and thresholds live in one file (`extensions/jev/src/questions.ts`), every finding
+  keeps the version that answered, and with no key nothing runs and nothing else changes.
 - **Looking at queued work is never starting it.** Clicking it opens what it is — the chain it is
   in drawn as boxes, every wait's reason, what its agent will be told, where it came from — and
   starting it is its own act (`Start now`, its menu, `tade_queue_change`), which goes through the
@@ -286,9 +300,11 @@ implementations of it.
 | `packages/harnesses/pi` | runs and supervises pi |
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
+| `packages/judges/core` | the `Judge` port + the suite: bounded questions, answered with a number |
+| `packages/judges/{jev,scripted}` | who answers them · a table, for tests and demos |
 | `packages/extensions/core` | the `TadeExtension` port, the host that runs extensions, their suite |
 | `packages/telemetry` | the `Reporter` port and its suite: where Tade's own trouble goes |
-| `packages/extensions/{deps,sentry,resources}` | the extensions that ship with Tade |
+| `packages/extensions/{deps,jev,sentry,resources}` | the extensions that ship with Tade |
 | `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
 | `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
 | `packages/cli` | the `tade` binary |

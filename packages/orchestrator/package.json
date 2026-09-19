@@ -9,12 +9,13 @@
   },
   "dependencies": {
     "@tade/core": "workspace:*",
-    "@tade/workbench": "workspace:*",
+    "@tade/extension-deps": "workspace:*",
+    "@tade/extension-jev": "workspace:*",
+    "@tade/extension-resources": "workspace:*",
+    "@tade/extension-sentry": "workspace:*",
+    "@tade/extensions-core": "workspace:*",
     "@tade/harnesses-core": "workspace:*",
     "@tade/harnesses-pi": "workspace:*",
-    "@tade/extensions-core": "workspace:*",
-    "@tade/extension-deps": "workspace:*",
-    "@tade/extension-sentry": "workspace:*",
-    "@tade/extension-resources": "workspace:*"
+    "@tade/workbench": "workspace:*"
   }
 }

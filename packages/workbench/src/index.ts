@@ -1,6 +1,7 @@
 export * from './authored.ts'
 export * from './event-index.ts'
 export * from './events.ts'
+export * from './judges.ts'
 export * from './lane-liveness.ts'
 export * from './lock.ts'
 export * from './memory.ts'

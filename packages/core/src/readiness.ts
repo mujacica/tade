@@ -8,7 +8,9 @@
 // filesystem and the network; deciding what they mean does not, so the deciding
 // is here and exhaustively testable.
 
-export type StepId = 'project' | 'model' | 'workspace' | 'voice' | 'talk'
+// A judge is a Tade concept with a port and a registry behind it, and Jev is
+// one implementation of it — so the step is `judge`, never a vendor's name.
+export type StepId = 'project' | 'model' | 'workspace' | 'voice' | 'talk' | 'judge'
 
 export interface ReadinessFacts {
   /** `~/.tade/config.yaml` exists and parses. */
@@ -43,6 +45,18 @@ export interface ReadinessFacts {
   micOk: boolean
   speechOk: boolean
   speechReason: string | null
+  /**
+   * A judge's key is in the environment. Never required, and never asked for
+   * before Tade works: it is the only step that costs money and the only one
+   * that sends anything anywhere.
+   */
+  judgeKey?: boolean
+  /**
+   * Somebody has answered the question, either way. "Not now" is a finished
+   * step, not a nag, and this reads whatever records that an extension is on
+   * or off rather than keeping a second answer of its own.
+   */
+  judgeChosen?: boolean
 }
 
 export interface Step {
@@ -59,7 +73,7 @@ export interface Step {
 
 /** What a fresh machine still needs, in the order it should be done. */
 export function readiness(facts: ReadinessFacts): Step[] {
-  return [project(facts), model(facts), workspace(facts), voice(facts), talk(facts)]
+  return [project(facts), model(facts), workspace(facts), voice(facts), talk(facts), judge(facts)]
 }
 
 /** Ready enough to be useful. Voice is a convenience and never blocks. */
@@ -154,6 +168,23 @@ function voice(facts: ReadinessFacts): Step {
     done,
     detail: done ? '' : (facts.speechReason ?? 'no microphone'),
     // Typing works perfectly well; this is never a reason to stop.
+    required: false,
+  }
+}
+
+/**
+ * A second opinion, if you want one. Last of all: Tade works with no judge —
+ * not in a reduced mode, exactly as it does today, on the path every test
+ * exercises — so nobody should meet this before Tade works, and saying no
+ * costs them nothing and is never asked again.
+ */
+function judge(facts: ReadinessFacts): Step {
+  const done = facts.judgeKey === true || facts.judgeChosen === true
+  return {
+    id: 'judge',
+    title: 'A second opinion, if you want one',
+    done,
+    detail: done ? '' : 'a small model that reads diffs and logs; nothing runs without it',
     required: false,
   }
 }

@@ -5,12 +5,15 @@ import type { StartCondition, TaskState } from '../src/model.ts'
 import {
   checkPlan,
   describeQueueState,
+  inWrittenOrder,
+  orderFirst,
   type PlannedAgent,
   type Queued,
   type QueueFacts,
   queueStateOf,
   readyToStart,
   startFrom,
+  writtenOrder,
 } from '../src/queue.ts'
 
 const NOW = Date.parse('2026-09-15T13:00:00Z')
@@ -168,6 +171,46 @@ describe('where queued work stands', () => {
       'search/d',
     ])
     expect(readyToStart(items, facts({}), new Map([['shop', 0]]))).toEqual(['search/d'])
+  })
+
+  it('starts what is ready in the order last written for it, and nothing else changes', () => {
+    const items = [queued('shop/a'), queued('shop/b'), queued('shop/c')]
+    const ordered = facts({
+      events: [
+        event('queue_changed', null, { change: 'order', by: 'you', order: ['shop/c'] }),
+        event('queue_changed', null, { change: 'order', by: 'you', order: ['shop/b', 'shop/c'] }),
+      ],
+    })
+    // The last line written wins, and what nobody named keeps its place behind.
+    expect(writtenOrder(ordered.events)).toEqual(['shop/b', 'shop/c'])
+    expect(inWrittenOrder(items, ordered.events).map((one) => one.task)).toEqual([
+      'shop/b',
+      'shop/c',
+      'shop/a',
+    ])
+    expect(
+      readyToStart(inWrittenOrder(items, ordered.events), ordered, new Map([['shop', 2]])),
+    ).toEqual(['shop/b', 'shop/c'])
+    // An order is a preference among what is ready: it never jumps a wait.
+    const waiting = facts({
+      tasks: { 'shop/fix-charge': 'working' },
+      events: [...ordered.events],
+    })
+    const withWait = [refunds, ...items]
+    expect(
+      readyToStart(inWrittenOrder(withWait, waiting.events), waiting, new Map()),
+    ).not.toContain('shop/add-refunds')
+    // With nothing written it is arrival order, exactly as it was.
+    expect(inWrittenOrder(items, []).map((one) => one.task)).toEqual(['shop/a', 'shop/b', 'shop/c'])
+  })
+
+  it('puts one piece of work first and leaves the rest as they were', () => {
+    const items = [queued('shop/a'), queued('shop/b'), queued('shop/c')]
+    expect(orderFirst(items, [], 'shop/c')).toEqual(['shop/c', 'shop/a', 'shop/b'])
+    const already = [
+      event('queue_changed', null, { change: 'order', by: 'you', order: ['shop/b'] }),
+    ]
+    expect(orderFirst(items, already, 'shop/a')).toEqual(['shop/a', 'shop/b', 'shop/c'])
   })
 
   it('says where it stands in a few words', () => {

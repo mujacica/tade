@@ -119,19 +119,28 @@ describe('an agent an extension starts', () => {
     expect(again.task).toBe('shop/fix-shop-1a-2')
   }, 60_000)
 
-  it('ships dependencies, Sentry and resources, and loads yours beside them', async () => {
-    expect(BUILTIN_EXTENSIONS.map((one) => one.name)).toEqual(['deps', 'sentry', 'resources'])
+  it('ships dependencies, Jev, Sentry and resources, and loads yours beside them', async () => {
+    expect(BUILTIN_EXTENSIONS.map((one) => one.name)).toEqual([
+      'deps',
+      'jev',
+      'sentry',
+      'resources',
+    ])
     const home = tmp('wx-load-')
     const host = await loadExtensions({
       config: ConfigSchema.parse({ orchestrator: { extensions: join(home, 'extensions') } }),
       home,
       env: {},
     })
+    // With no key, a judge is absent rather than pretending: it says what it
+    // needs and offers nothing, and everything else is exactly as it was.
     expect(host.list().map((one) => [one.name, one.state])).toEqual([
       ['deps', 'ready'],
+      ['jev', 'needs setup'],
       ['sentry', 'needs setup'],
       ['resources', 'ready'],
     ])
+    expect(host.specs('orchestrator').some((spec) => spec.name.startsWith('jev_'))).toBe(false)
   })
 
   it('lists what Tade wrote for itself, and approving or turning one down moves it and is committed', async () => {

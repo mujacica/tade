@@ -188,6 +188,24 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
 
+  packages/extensions/jev:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/extensions-core':
+        specifier: workspace:*
+        version: link:../core
+      '@tade/judges-core':
+        specifier: workspace:*
+        version: link:../../judges/core
+      '@tade/workbench':
+        specifier: workspace:*
+        version: link:../../workbench
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+
   packages/extensions/resources:
     dependencies:
       '@tade/extensions-core':
@@ -228,6 +246,24 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
 
+  packages/judges/core:
+    dependencies:
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/judges/jev:
+    dependencies:
+      '@tade/judges-core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/judges/scripted:
+    dependencies:
+      '@tade/judges-core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/orchestrator:
     dependencies:
       '@tade/core':
@@ -236,6 +272,9 @@ importers:
       '@tade/extension-deps':
         specifier: workspace:*
         version: link:../extensions/deps
+      '@tade/extension-jev':
+        specifier: workspace:*
+        version: link:../extensions/jev
       '@tade/extension-resources':
         specifier: workspace:*
         version: link:../extensions/resources
@@ -332,6 +371,15 @@ importers:
       '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
+      '@tade/judge-jev':
+        specifier: workspace:*
+        version: link:../judges/jev
+      '@tade/judge-scripted':
+        specifier: workspace:*
+        version: link:../judges/scripted
+      '@tade/judges-core':
+        specifier: workspace:*
+        version: link:../judges/core
       '@tade/status':
         specifier: workspace:*
         version: link:../status

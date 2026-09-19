@@ -31,12 +31,14 @@ import {
   expandHome,
   HARNESS_CHOICES,
   holdSaid,
+  inWrittenOrder,
   joined,
   type LaneId,
   loadConfig,
   needsReflection,
   newFindings,
   orchestratorRoute,
+  orderFirst,
   type Plan,
   type PlanBusy,
   parseQuietHours,
@@ -1963,7 +1965,7 @@ export class App {
     // There is no pause-everything button: pausing is done to one piece of
     // work, beside its name. The whole queue can still be held from the
     // orchestrator (`tade_queue_change` with a project and no task).
-    const queued = /^queue-(start|pause|resume|wait|remove):(.+)$/.exec(action)
+    const queued = /^queue-(start|first|pause|resume|wait|remove):(.+)$/.exec(action)
     if (queued?.[1] && queued[2]) {
       await this.changeQueue(queued[2], queued[1])
       return
@@ -3441,7 +3443,14 @@ export class App {
    */
   private async changeQueue(task: string, change: string): Promise<void> {
     try {
-      const answer = await this.queueTools().change({ task, change, by: 'you' })
+      // "Do this one first" is an order written like any other: this task in
+      // front of whatever order the queue is already in.
+      const live = this.live
+      const order =
+        change === 'first' && live ? orderFirst(live.queued, live.queueFacts().events, task) : []
+      const answer = await this.queueTools().change(
+        change === 'first' ? { change: 'order', order, by: 'you' } : { task, change, by: 'you' },
+      )
       this.state = notice(this.state, answer)
     } catch (err) {
       this.state = notice(this.state, why(err))
@@ -5367,7 +5376,10 @@ export class App {
       room.set(project, settings.max_parallel - running)
     }
     const started: string[] = []
-    for (const task of readyToStart(items, facts, room)) {
+    // In the order last written for it, which is a fact in the journal like
+    // every other choice about the queue. The rule is unchanged: what starts
+    // is what `readyToStart` says is ready, as far as there is room.
+    for (const task of readyToStart(inWrittenOrder(items, facts.events), facts, room)) {
       const item = items.find((one) => one.task === task)
       const worktree = live.worktreeOf(task)
       if (!item || !worktree) continue
@@ -5412,6 +5424,7 @@ export class App {
       project?: string
       change: string
       name?: string
+      order?: readonly string[]
       by?: 'you' | 'orchestrator'
     }): Promise<string>
     plan(plan: Plan): Promise<string>
@@ -5558,17 +5571,32 @@ export class App {
             `${req.change} is not something to do to queued work: ${[...QUEUE_CHANGES, 'remove'].join(', ')}`,
           )
         }
+        // An order is written down like every other choice about the queue,
+        // and changes only which of what is already ready goes first.
+        const order =
+          change === 'order'
+            ? (req.order ?? []).filter((task) =>
+                (this.live?.queued ?? []).some((one) => one.task === task),
+              )
+            : []
+        if (change === 'order' && order.length === 0) {
+          throw new Error(
+            `nothing in that order is queued work${req.order?.length ? ` (${joined([...req.order])})` : ''}: say which queued tasks come first`,
+          )
+        }
         await this.opts.client.changeQueued({
           ...(req.task ? { task: req.task } : {}),
           ...(req.project ? { project: req.project } : {}),
+          ...(change === 'order' ? { order } : {}),
           change,
           by: req.by ?? 'orchestrator',
         })
         await this.live?.refresh()
         const started = await this.advanceQueue()
-        return started.length > 0
-          ? `Done. Started ${joined(started)}.`
-          : `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
+        if (started.length > 0) return `Done. Started ${joined(started)}.`
+        if (change === 'order')
+          return `Done: ${joined(order)}, in that order, as each becomes ready.`
+        return `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
       },
       plan: async (plan) => {
         // Checked against what the project is already on, which no plan can see:

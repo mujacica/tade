@@ -1,0 +1,14 @@
+{
+  "name": "@tade/judges-core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./conformance": "./src/conformance.ts"
+  },
+  "dependencies": {
+    "vitest": "^5.0.0"
+  }
+}

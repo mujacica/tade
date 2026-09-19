@@ -982,26 +982,38 @@ export class Workbench {
   }
 
   /**
-   * A person's choice about queued work — pause, resume, start it anyway, or
-   * wait past what held it — or about a project's whole queue, when no task is
-   * named. Written down: what the queue does next is read from it.
+   * A person's choice about queued work — pause, resume, start it anyway,
+   * wait past what held it, or put what is ready in an order — or about a
+   * project's whole queue, when no task is named. Written down: what the queue
+   * does next is read from it.
    */
   async changeQueued(req: {
     task?: string
     project?: string
     change: QueueChange
+    /** For `order`: the tasks, first to last. What is not named keeps its place behind. */
+    order?: readonly string[]
     by: 'you' | 'orchestrator'
   }): Promise<void> {
     if (!req.task && (req.change === 'start' || req.change === 'wait')) {
       throw new Error(`${req.change} is for one piece of work: say which`)
     }
+    const order = (req.order ?? []).map((task) => task.trim()).filter((task) => task !== '')
+    if (req.change === 'order' && order.length === 0) {
+      throw new Error('an order is a list of queued work, first to last: say which comes first')
+    }
+    // `all` marks a choice made about a whole project's queue, which is what
+    // pausing and resuming everything is read from. An order is never that.
+    const whole = !req.task && (req.change === 'pause' || req.change === 'resume')
     await this.log.append({
       type: 'queue_changed',
       task: req.task ?? null,
       detail: {
         change: req.change,
         by: req.by,
-        ...(req.task ? {} : { all: true, ...(req.project ? { project: req.project } : {}) }),
+        ...(req.change === 'order' ? { order } : {}),
+        ...(whole ? { all: true } : {}),
+        ...(!req.task && req.project ? { project: req.project } : {}),
       },
     })
   }

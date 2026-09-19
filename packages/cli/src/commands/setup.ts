@@ -16,7 +16,7 @@ import {
 } from '@tade/core'
 import { piBinary, usableModels } from '@tade/harnesses-pi'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
-import { drivers } from '@tade/workbench'
+import { drivers, makeJudge } from '@tade/workbench'
 import type { Command } from 'commander'
 import { type Document, parseDocument } from 'yaml'
 import { Exit, type Io } from '../io.ts'
@@ -91,6 +91,12 @@ const API_KEYS = [
   'GEMINI_API_KEY',
 ]
 
+/** Where a judge's key lives unless the config says another variable. */
+function judgeKeyVariable(settings: Record<string, unknown> | undefined): string {
+  const said = settings?.key_env
+  return typeof said === 'string' && said !== '' ? said : 'TYPESAFE_API_KEY'
+}
+
 export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
   const loaded = await loadConfig(defaultConfigPath())
   const config = loaded.ok ? loaded.config : null
@@ -117,6 +123,10 @@ export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
     micOk: mic.ok,
     speechOk: speech.ok,
     speechReason: speech.ok ? null : speech.reason,
+    judgeKey: (process.env[judgeKeyVariable(config?.extensions?.jev)] ?? '').length > 0,
+    // Whatever records that the extension is on or off is the answer: two
+    // places saying whether a judge is on is the bug this avoids.
+    judgeChosen: config?.extensions?.jev?.enabled !== undefined,
   }
 }
 
@@ -179,6 +189,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
             if (step.id === 'workspace') await setUpWorkspace(ui)
             if (step.id === 'voice') await setUpVoice(ui, facts)
             if (step.id === 'talk') await setUpTalkKey(ui)
+            if (step.id === 'judge') await setUpJudge(ui)
           } catch (err) {
             // One step that cannot be finished is not a reason to abandon the
             // others: somebody who has to go and export an API key should
@@ -364,6 +375,71 @@ async function setUpTalkKey(ui: Ui): Promise<void> {
     }
   })
   ui.say(`  hold ${key} to talk — Settings › Voice changes it, and any key you can press is fine`)
+}
+
+/**
+ * A second opinion, if you want one: asked once, last, and skippable with one
+ * key. Tade works with no judge — exactly as it does today, on the path every
+ * test exercises — so the benefit, the cost and what leaves the machine are on
+ * one screen and "not now" is a finished answer rather than a nag.
+ */
+async function setUpJudge(ui: Ui): Promise<void> {
+  ui.say('Tade can ask a small, fast model — Jev, from TypeSafe — bounded questions about the')
+  ui.say('things nobody has time to read. It answers with a number and no paragraph, in about a')
+  ui.say('third of a second, for roughly a hundredth of a cent a question. With a key, Tade can:')
+  ui.say('  · read every change an agent makes, and tell you which ones want your eyes')
+  ui.say('  · search logs and journals by meaning — “where did it give up?”')
+  ui.say('  · warn you before two agents that would collide start in one checkout')
+  ui.say('  · put a long queue in an order, and say why each thing is where it is')
+  ui.say('It never approves, merges or closes anything, and it never writes code: what it flags,')
+  ui.say('a person or an agent reads. Without it, none of that runs and nothing else changes.')
+  ui.say('Diffs and logs you point it at are sent to TypeSafe, who say they do not train on them.')
+  ui.say('Nothing is sent until you ask for something, or turn a watch on.')
+  ui.say('')
+
+  const set = await ui.choose('A second opinion, if you want one?', [
+    'set it up',
+    'not now — Settings › Extensions › Jev whenever you want it',
+  ])
+  if (set !== 0) {
+    patchConfig((config) => {
+      const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
+      config.extensions = { ...extensions, jev: { ...(extensions.jev ?? {}), enabled: false } }
+    })
+    ui.say('  skipped — Settings › Extensions › Jev whenever you want it')
+    return
+  }
+
+  const variable = 'TYPESAFE_API_KEY'
+  const key = process.env[variable] ?? ''
+  if (!key) {
+    // Never typed into Tade: a key typed into a wizard is a key in a file, and
+    // the step simply stays undone, which blocks nothing.
+    ui.say('  Create one at https://console.typesafe.ai/settings/keys — or ask for access at')
+    ui.say('  https://typesafe.ai if you are not in yet. Then add this to your shell profile:')
+    ui.say(`    export ${variable}="…the key the console gave you…"`)
+    ui.say('  Tade reads it there and never keeps a copy.')
+    throw new Error(`set ${variable} in your shell, then run \`tade setup\` again`)
+  }
+
+  // One request, and only here: somebody is sitting in front of the screen
+  // having just asked for this. `ready()` runs on every load and may never do
+  // it, which is the whole reason a judge has two questions and not one.
+  const problem = await makeJudge('jev', { key }).verify()
+  patchConfig((config) => {
+    const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
+    config.extensions = { ...extensions, jev: { ...(extensions.jev ?? {}), enabled: true } }
+  })
+  ui.say(
+    problem
+      ? `  the key in $${variable} did not work: ${problem}`
+      : `  the key in $${variable} works — Jev is on`,
+  )
+  ui.say('  it asks the version Tade pins; Settings › Extensions › Jev changes it')
+  // Turning it on is not turning anything loose: the tools become available
+  // and the review watch stays off until somebody turns it on, per project.
+  ui.say('  its tools are available to you and your agents; the review watch stays off')
+  ui.say('  until you turn it on (say "watch what the agents change" in the window)')
 }
 
 async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {

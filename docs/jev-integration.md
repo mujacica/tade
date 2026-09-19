@@ -1,9 +1,14 @@
 # Jev in Tade
 
-A proposal. Nothing here is built. Written 2026-09-18, against `jev-1.13` (released 2026-09-15,
-three days old at the time of writing). **Sections 1–9 change no existing code** — they are one
-extension and a judge port beside it. **Sections 10–16 do**, in a handful of named places, and each
-says exactly which file and exactly what stays as it is.
+Written 2026-09-18 as a proposal, against `jev-1.13` (released 2026-09-15, three days old at the
+time of writing). **Most of it is now built** — [what is built, and what is
+not](#what-is-built-and-what-is-not) is the section after this one, and it is the first thing to
+read. Everything below it is the argument that led there, kept as it was written, because the
+reasons are the part that will still matter when a threshold has to be changed.
+
+**Sections 1–9 changed no existing code** — they are one extension and a judge port beside it.
+**Sections 10–16 do**, in a handful of named places, and each says exactly which file and exactly
+what stays as it is.
 
 Revised 2026-09-18 after arguing it through: ask and grep moved to the front and became the
 foundation, the Sentry-specific tools were dropped (triage is `jev_ask` pointed at what Sentry
@@ -36,6 +41,67 @@ the end — read it before quoting any number in here.**
 [conf]: https://docs.typesafe.ai/confidence
 [jag]: https://docs.typesafe.ai/model-jaggedness/jev-1.13
 [evals]: https://evals.typesafe.ai/
+
+---
+
+## What is built, and what is not
+
+Built 2026-09-20, in the order the appendix argues for, minus the steps that need a key and real
+requests to settle.
+
+**The judge, as a subsystem** (§7): `packages/judges/core` is the port — `yes-no`, `pick`, `rate`,
+`Judge.ask`, `JudgeCapabilities`, `JudgeError` — with the conformance suite beside it, written
+first. `packages/judges/jev` is the only place that speaks TypeSafe's words (`noul`, `criteria`,
+`/v1/systemone`); `packages/judges/scripted` answers from a table, offline, and passes the same
+suite. They are registered by name in `JUDGES` (`packages/workbench/src/judges.ts`), beside the
+drivers and the harnesses, and no call site constructs one. The port gained one thing the proposal
+did not name: `verify()`, which may ask — so that `ready()` never has to, and the wizard can check
+a key with somebody watching.
+
+**The extension** (§3–§6): `packages/extensions/jev`, with `jev_ask`, `jev_grep`, `jev_review`,
+`jev_findings`, `jev_read_request` (§11a), `jev_plan_check` (§12), `jev_queue_order` (§13) — and
+`jev_verdict`, which the proposal implied and never named: §5 wants to know whether a finding was
+right, and nothing else can say. The review watch is §4's: the unit is a task's whole diff, the
+moment is a branch that has stopped moving, `found: 'ask'` is the default, and the record
+(`<home>/jev/reviews.jsonl`) keeps every answer and the version that gave it. The questions and the
+thresholds are in one file, `src/questions.ts`. Tier 1 of the window (§6) is there: two actions with
+their `heard` phrases, a status item, its view, a brief line, a setup guide, and the pi skill that
+says what the model cannot do.
+
+**A written queue order** (§13's mechanism, which is worth having with no judge at all):
+`QUEUE_CHANGES` gained `order`, `inWrittenOrder` and `orderFirst` sit beside the other pure
+functions in `packages/core/src/queue.ts`, `tade_queue_change` and `Workbench.changeQueued` take a
+list, the window sorts what it hands `readyToStart`, and the queue menu has **Do this one first**.
+`readyToStart` keeps its rule and its signature; nothing about *when* work starts changed.
+
+**The onboarding step** (§16): `StepId` gained `judge` — not `jev` — `ReadinessFacts` gained
+`judgeKey` and `judgeChosen`, it is last, `required: false`, and `tade setup --check` still exits 0
+with it undone. "Not now" writes `extensions.jev.enabled: false` and is a finished answer.
+
+**Deliberately not built, and why:**
+
+- **`?` in ctrl+k** (§6, Tier 2). Held, exactly as §6 recommends: it adds an extension point to the
+  one surface that must never get slower, and the same question typed to the orchestrator is
+  answered today. Build it when people reach for it and find it missing.
+- **The reading under the words** (§11b), **turn watching** (§14.1), **approvals** (§14.2), **note
+  selection** (§14.3), **the brief and voice** (§14.4, §14.5). Every one of them runs unasked, on a
+  path somebody is waiting on, and §11 says plainly that the rubric should be measured with the
+  block *off* first. So the `advise` and `deadline` settings are not written either: a setting Tade
+  accepts and ignores is worse than one it does not have.
+- **The LLM-backed judge** (§16's `llm`). The port and the registry are ready for it; nothing has
+  calibrated it, and the wizard says what exists rather than offering what does not.
+- **`jev_grep`'s `lane` and `transcript` sources** (§3). Reading a lane's scrollback would mean
+  adding to the `ExtensionWorkbench` port; `tade_terminal_read` already hands those lines to the
+  orchestrator, and `source: 'text'` takes them. Three sources: `text`, `journal`, `file`.
+- **The backtest** (appendix, step 4). It needs a key and real requests, which is the point of it.
+  Every threshold in here is still a guess, and `jev_findings` is what will replace it with
+  evidence.
+
+**One correction to §16's table.** It says `jev_findings` "still works" with no key. It does not:
+the extension port offers *no* tool from an extension that is not ready, and `ready()` says the key
+is missing. That is the right behaviour — one extension, one answer to whether it is set up — so
+what the row means is that `jev_findings` asks the judge nothing and needs no network once the
+extension is on.
 
 ---
 

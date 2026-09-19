@@ -198,6 +198,30 @@ describe('queued work', () => {
     expect(repo.head(middle.worktree)).toBe(planned)
   }, 60_000)
 
+  it('writes an order down like any other choice, and refuses one that names nothing', async () => {
+    await client.planTasks({
+      project: 'app',
+      said: 'two things',
+      agents: [agent('docs'), agent('payouts')],
+    })
+    await client.changeQueued({
+      change: 'order',
+      order: ['app/payouts', 'app/docs'],
+      by: 'orchestrator',
+    })
+    const [written] = await client.events({ types: ['queue_changed'] })
+    expect(written?.detail).toMatchObject({
+      change: 'order',
+      by: 'orchestrator',
+      order: ['app/payouts', 'app/docs'],
+    })
+    // An order is about particular work, never a choice about a whole queue.
+    expect(written?.detail.all).toBeUndefined()
+    await expect(client.changeQueued({ change: 'order', order: [], by: 'you' })).rejects.toThrow(
+      /say which comes first/,
+    )
+  })
+
   it('leaves queued work that somehow has work of its own where it is', async () => {
     const {
       made: [early],

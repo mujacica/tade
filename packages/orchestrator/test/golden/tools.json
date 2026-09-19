@@ -391,7 +391,7 @@
   },
   {
     "name": "tade_queue_change",
-    "description": "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, or remove it; name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
+    "description": "Change queued work or a schedule, as the human asked. For queued work: start it now whatever it waits on, pause or resume it, wait again past what held it, remove it, or put it in an order (change: order, with order: the tasks first to last) — an order is only a preference among work that is already ready, and never jumps a wait, unholds a hold or starts anything. Name no task to pause or resume a whole project's queue. For a schedule: start runs it now, and it can be paused, resumed, renamed or removed.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -402,6 +402,7 @@
             "pause",
             "resume",
             "wait",
+            "order",
             "rename",
             "remove"
           ],
@@ -422,6 +423,13 @@
         "project": {
           "type": "string",
           "description": "the project, when pausing or resuming all of its queue"
+        },
+        "order": {
+          "type": "array",
+          "description": "for order: the queued tasks, first to last; what is left out keeps its place behind",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [

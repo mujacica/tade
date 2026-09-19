@@ -19,6 +19,7 @@ import {
   skillDirs,
 } from '@tade/core'
 import { depsExtension } from '@tade/extension-deps'
+import { jevExtension } from '@tade/extension-jev'
 import { resourcesExtension } from '@tade/extension-resources'
 import { sentryExtension } from '@tade/extension-sentry'
 import {
@@ -162,6 +163,7 @@ export async function decideProposal(
 /** The extensions that ship with Tade, by name. */
 export const BUILTIN_EXTENSIONS: readonly TadeExtension[] = [
   depsExtension,
+  jevExtension,
   sentryExtension,
   resourcesExtension(),
 ]
