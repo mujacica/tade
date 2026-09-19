@@ -140,6 +140,30 @@ worktree and path it is all happening in.
 
 ---
 
+## The checks, before anybody else sees them
+
+A project says what it checks in one file — `.tade/checks.yaml` — and the same file is what CI is
+generated from, so "the same thing" is a fact rather than a hope. Tade runs them here, one set at a
+time per checkout, and records each against the commit it ran on; a push with nothing green behind
+it is held with what is missing, and an agent that is certain a failure is not its own overrules
+that out loud, with a reason the person is told.
+
+![The work tab: branch, commits and whose they are, the pull request it is out for, and the project's own checks run here](docs/images/work.svg)
+
+---
+
+## Reviews, and the loop around them
+
+What you have offered other people, and what they and their robots say about it: your open pull
+requests, what waits on you, what CI makes of each, and the conversations nobody has answered.
+Agents open reviews with a `Tade-Task:` trailer, so which work a commit belongs to stays readable
+out of git forever. Watches can fix what is red and answer the bots — and nothing merges anything
+unless you asked for exactly that.
+
+![The REVIEWS section: every open review with what it is waiting on](docs/images/reviews.svg)
+
+---
+
 ## Spend, time and tokens
 
 What every agent and the orchestrator cost today, this window or this week — tokens, runtime and
@@ -245,9 +269,10 @@ applied fails the run rather than quietly running without one.
 
 Written down in full, not built yet — read them before asking for them:
 
-- **GitHub, and the forge after it** — agents that branch, push, open pull requests, answer reviews
-  and watch CI, plus **local actions**: your project's own checks run here before the push.
-  [`docs/github-integration.md`](docs/github-integration.md)
+- **The rest of the forge** — GitLab and the other forges against the same port, merge queues,
+  stacked reviews, and running a workflow in its own container (`act`) rather than the commands it
+  runs. GitHub, the review loop and local actions are built (see **The checks** and **Reviews**
+  above). [`docs/github-integration.md`](docs/github-integration.md)
 - **The rest of the judge** — asking a question in `ctrl+k` instead of matching one, watching agent
   turns for an agent going in circles, and catching a destructive command the approval rules do not
   name. The judge, its tools, the review watch and the onboarding step are built (see **Jev** under

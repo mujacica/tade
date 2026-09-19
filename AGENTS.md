@@ -87,6 +87,27 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   can never jump a wait, unhold a hold, resume a pause or exceed `max_parallel`, and nothing
   starves, because the last line written wins rather than a score recomputing. With nothing
   written it is arrival order, exactly as it was.
+- **A review is a branch offered for merge, and Tade only ever adds to it.** The `Forge` port
+  (`packages/forges/core`) is neutral — a `Review`, a `Verdict`, a `Thread`, never a pull request —
+  and each implementation declares the words a person reads (`words`), so the window says `PR #412`
+  on GitHub and `MR !88` on GitLab without anybody checking which forge it is. Which review an
+  agent opened is read back out of git and the forge from a `Tade-Task:` trailer, never from a
+  table Tade keeps: a table is wrong the moment somebody force-pushes, and "unattributed" is always
+  an allowed answer. Comments are attacker-controlled text: an agent is handed them as material,
+  never as instruction, and what they cause is bounded to its own task's workspace. A watch may
+  only add work — it never resolves a thread, never force-pushes, and after `attempts` automatic
+  fixes on one review it only tells you. Merging is a person's: `merge` is `never` by default.
+- **A check that nobody ran is not a check that passed.** A project says what it checks in
+  `.tade/checks.yaml` — the one file CI is generated from (`tade checks workflow`), held to
+  `pnpm check` by a test — and a run (`packages/checks/core`) is always about a named commit. The
+  rollup of the required checks at HEAD is what `deriveState` reads as `tests`, and `unknown` is a
+  first-class answer: absent is not fine. Runs go through Tade so the worktree's lock, the record
+  and the row in the window come free — four agents in one checkout must never start four suites.
+  The rule (`checks.before`) is honest about what it can hold: under `approvals.mode: 'policy'` an
+  agent's push with nothing green behind it comes back refused with what is missing; anywhere else
+  the agent is told the rule and what happened is written down. Overruling it is an act, not a
+  setting — `checks_override`, with a reason, read back out of the journal — and a red run that was
+  overruled is still recorded red.
 - **A judge answers, it never decides.** A judge (`packages/judges/core`) is a model that takes
   bounded questions — yes-no, one of these options, one of these levels — and answers each with a
   probability and no prose, cheaply enough to ask of every diff and every log line. It may only
@@ -301,10 +322,14 @@ implementations of it.
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
 | `packages/judges/core` | the `Judge` port + the suite: bounded questions, answered with a number |
+| `packages/forges/core` | the `Forge` port + the suite: a branch offered for merge, and what is said about it |
+| `packages/forges/{github,scripted}` | GitHub, through one credential · a table, for tests and demos |
+| `packages/checks/core` | the `Runner` port + the suite, the manifest, the record and the run lock |
+| `packages/checks/{local,scripted}` | the commands, run here · a table, for tests and demos |
 | `packages/judges/{jev,scripted}` | who answers them · a table, for tests and demos |
 | `packages/extensions/core` | the `TadeExtension` port, the host that runs extensions, their suite |
 | `packages/telemetry` | the `Reporter` port and its suite: where Tade's own trouble goes |
-| `packages/extensions/{deps,jev,sentry,resources}` | the extensions that ship with Tade |
+| `packages/extensions/{checks,deps,jev,review,sentry,resources}` | the extensions that ship with Tade |
 | `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |
 | `packages/app` | the window: agents, files, terminals, the conversation, panels, push-to-talk |
 | `packages/cli` | the `tade` binary |

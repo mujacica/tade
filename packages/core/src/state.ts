@@ -67,7 +67,7 @@ export function deriveState(b: ProbeBundle): Derived {
   const { git, now } = b
 
   // Terminal states first: nothing below can override a merge.
-  if (git?.pr?.state === 'MERGED') return d('merged', 'PR merged')
+  if (git?.pr?.state === 'merged') return d('merged', 'review merged')
   if (git?.mergedIntoBase) return d('merged', `branch merged into ${git.baseRef ?? 'base'}`)
 
   if (b.parked) return d('parked', 'parked by you')

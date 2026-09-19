@@ -1,0 +1,32 @@
+{
+  "number": 418,
+  "title": "stripe v15",
+  "url": "https://github.com/acme/api/pull/418",
+  "state": "OPEN",
+  "isDraft": true,
+  "updatedAt": "2026-09-19T06:00:00Z",
+  "body": "Bumps stripe.\n",
+  "author": { "login": "somebody-else" },
+  "headRefName": "shop/stripe-v15",
+  "headRefOid": "ffee0011223344556677889900aabbccddeeff00",
+  "baseRefName": "main",
+  "mergeable": "CONFLICTING",
+  "reviewDecision": "CHANGES_REQUESTED",
+  "repository": { "nameWithOwner": "acme/api" },
+  "reviewRequests": {
+    "nodes": [{ "requestedReviewer": { "__typename": "User", "login": "mujacica" } }]
+  },
+  "commits": {
+    "nodes": [
+      {
+        "commit": {
+          "oid": "ffee0011223344556677889900aabbccddeeff00",
+          "statusCheckRollup": { "state": "FAILURE" }
+        }
+      }
+    ]
+  },
+  "files": { "nodes": [] },
+  "reviews": { "nodes": [] },
+  "reviewThreads": { "nodes": [] }
+}

@@ -21,6 +21,7 @@ import {
 } from '@earendil-works/pi-tui'
 import {
   type Config,
+  checksFor,
   composeBrief,
   DEFAULT_ATTENTION,
   type DoneRule,
@@ -58,7 +59,12 @@ import {
   type When,
   watchedFrom,
 } from '@tade/core'
-import { type ExtensionHost, type ExtensionWorkbench, settingFrom } from '@tade/extensions-core'
+import {
+  type ExtensionHost,
+  type ExtensionWorkbench,
+  type ListSection,
+  settingFrom,
+} from '@tade/extensions-core'
 import { git } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import {
@@ -162,6 +168,7 @@ import {
   typingLane,
   unsplitPane,
   viewLane,
+  viewWork,
   whichProject,
   withProjects,
   withTasks,
@@ -266,7 +273,7 @@ import {
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
-import { draw, type Frame, type LaneView } from './view.ts'
+import { draw, type Frame, type LaneView, type WorkView } from './view.ts'
 import {
   editedText,
   formattable,
@@ -691,6 +698,8 @@ export class App {
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
+  /** The sections extensions keep in the sidebar, as they last answered. */
+  private listSections: ListSection[] = []
   /**
    * A picture on the clipboard, noticed while the orchestrator's line is open:
    * the copy offered, the copy already taken or turned down, and when it was
@@ -736,6 +745,8 @@ export class App {
   } | null = null
   /** Every file in every place search looks, and when they were listed. */
   private searchFiles: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
+  /** Tasks whose checks the window is running now, so a second press waits. */
+  private readonly runningChecks = new Set<string>()
   /** Lines found inside files, for the text they were found for. */
   private grepped: { text: string; matches: Match[] } = { text: '', matches: [] }
   private grepping: string | null = null
@@ -1227,6 +1238,12 @@ export class App {
           }
         : null,
       changes: live.changes(this.state.focused),
+      work: this.state.focused
+        ? (() => {
+            const seen = live.work(this.state.focused, this.reviewOf(this.state.focused))
+            return seen ? { ...seen, running: this.runningChecks.has(seen.task) } : null
+          })()
+        : null,
       notes: live.notes(this.state.project),
       base: live.baseOf(this.state.focused),
       spend: {
@@ -1272,6 +1289,21 @@ export class App {
       ).length,
       ...this.inputFor(width),
       statuses: this.statuses,
+      lists: this.listSections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        problem: section.problem,
+        rows: section.rows.map((row) => ({
+          section: section.id,
+          id: row.id,
+          title: row.title,
+          ...(row.note ? { note: row.note } : {}),
+          ...(row.marks ? { marks: row.marks } : {}),
+          ...(row.links ? { links: row.links } : {}),
+          ...(row.opens ? { opens: row.opens } : {}),
+          ...(row.task ? { task: row.task } : {}),
+        })),
+      })),
       schedules: this.scheduleViews(),
       clock: (at: number) => whenShort(at, this.now()),
       date: (at: number) => {
@@ -1776,6 +1808,12 @@ export class App {
             : { ...viewLane(this.state, target.task, target.lane), splitFocus: false }
         break
       }
+      case 'pane-tab':
+        this.state = viewWork(this.state, target.task)
+        break
+      case 'check':
+        void this.showCheck(target.task, target.check)
+        return
       case 'task-menu':
         this.openMenu({ kind: 'task', task: target.task }, at)
         return
@@ -1944,6 +1982,15 @@ export class App {
     }
     if (action.startsWith('close-task:')) {
       await this.closeAgent(action.slice('close-task:'.length))
+      return
+    }
+    if (action.startsWith('checks-run:')) {
+      await this.runChecks(action.slice('checks-run:'.length))
+      return
+    }
+    if (action.startsWith('list-row:')) {
+      const [section, id] = action.slice('list-row:'.length).split('\u0000')
+      await this.openListRow(section ?? '', id ?? '')
       return
     }
     const scheduling = /^schedule-(open|run|pause|resume|remove|rename):(.+)$/.exec(action)
@@ -5066,12 +5113,42 @@ export class App {
           viewable: one.viewable,
         }))
         if (panel?.kind === 'extension-view') await this.refreshExtensionView(panel.extension)
+        // The sections extensions keep in the sidebar, on the same beat: the
+        // host answers each from its own cache and asks nobody oftener than
+        // that section says, so this costs a function call most times.
+        this.listSections = await host.lists(tade).catch(() => this.listSections)
         this.draw()
       })
       .catch(() => {})
       .finally(() => {
         this.asking = false
       })
+  }
+
+  /**
+   * The review a task is out for, as the extension that keeps that list last
+   * saw it. Read from its cache: the window never asks a forge anything.
+   */
+  private reviewOf(task: string): WorkView['review'] {
+    // `checks.ci` is what asks for the other half of the row: with it off,
+    // the work tab is the local run and says nothing about anybody's CI.
+    if (!checksFor(this.opts.config, task.split('/')[0] ?? null).ci) return null
+    for (const section of this.listSections) {
+      const row = section.rows.find((one) => one.task === task)
+      if (!row) continue
+      const link = row.links?.[0]
+      return {
+        number: row.title.split(' ')[0] ?? '',
+        title:
+          row.title
+            .split(/\s{2,}/)
+            .slice(1)
+            .join(' ') || row.title,
+        url: link?.url ?? '',
+        marks: row.marks ?? [],
+      }
+    }
+    return null
   }
 
   /** Ask an extension for its view again, and show it if its panel is still open. */
@@ -5229,6 +5306,104 @@ export class App {
       )
       // Shown by the run itself: a failure's reason is already on its line.
       .catch(() => {})
+  }
+
+  /**
+   * Run a task's checks, in its own worktree, through the same path
+   * everything else uses: one run at a time per checkout, written down
+   * against the commit, and shown here as it goes.
+   */
+  private async runChecks(task: string): Promise<void> {
+    if (this.runningChecks.has(task)) {
+      this.state = notice(this.state, `${task} is already running its checks`)
+      this.draw()
+      return
+    }
+    const host = this.opts.extensions
+    const project = task.split('/')[0] ?? task
+    if (!host) {
+      this.state = notice(this.state, 'no extensions are loaded, so nothing can run them here')
+      this.draw()
+      return
+    }
+    this.runningChecks.add(task)
+    this.draw()
+    try {
+      const worktree = this.live?.worktreeOf(task) ?? null
+      await host.call(
+        'checks_run',
+        { project },
+        {
+          caller: worktree ? { kind: 'agent', task, project, cwd: worktree } : { kind: 'you' },
+          id: `you-${++this.ranCount}`,
+          tade: this.opts.extensionWorkbench ?? null,
+        },
+      )
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    } finally {
+      this.runningChecks.delete(task)
+      this.draw()
+    }
+  }
+
+  /**
+   * Open a row an extension keeps in the sidebar: it runs the tool the row
+   * names, in the conversation, and the answer lands where everything else
+   * an extension says does.
+   */
+  private async openListRow(section: string, id: string): Promise<void> {
+    const host = this.opts.extensions
+    const row = this.listSections
+      .find((one) => one.id === section)
+      ?.rows.find((one) => one.id === id)
+    if (!host || !row) return
+    if (!row.opens) {
+      const link = row.links?.[0]
+      if (link) await this.openLink(link.url)
+      return
+    }
+    this.state = {
+      ...this.state,
+      bottom: ORCHESTRATOR_TAB,
+      bottomMode: this.state.bottomMode === 'min' ? 'open' : this.state.bottomMode,
+    }
+    this.draw()
+    await host
+      .call(row.opens.tool, row.opens.input ?? {}, {
+        caller: { kind: 'you' },
+        id: `you-${++this.ranCount}`,
+        tade: this.opts.extensionWorkbench ?? null,
+      })
+      .catch(() => {})
+  }
+
+  /** What one check printed the last time it ran here, in the conversation. */
+  private async showCheck(task: string, check: string): Promise<void> {
+    const host = this.opts.extensions
+    const worktree = this.live?.worktreeOf(task) ?? null
+    const project = task.split('/')[0] ?? task
+    if (!host) return
+    this.state = {
+      ...this.state,
+      bottom: ORCHESTRATOR_TAB,
+      bottomMode: this.state.bottomMode === 'min' ? 'open' : this.state.bottomMode,
+    }
+    this.draw()
+    await host
+      .call(
+        'checks_log',
+        { check, project },
+        {
+          caller: worktree ? { kind: 'agent', task, project, cwd: worktree } : { kind: 'you' },
+          id: `you-${++this.ranCount}`,
+          tade: this.opts.extensionWorkbench ?? null,
+        },
+      )
+      .catch((err: unknown) => {
+        this.state = notice(this.state, why(err))
+        this.draw()
+      })
   }
 
   /**

@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { readChecks, readRuns, rollup } from '@tade/checks-core'
 import type { TestSignal } from '@tade/core'
 
 // Whether a task's tests passed, and whether that is still true.
@@ -34,6 +35,32 @@ export async function readTests(worktree: string, head: string | null): Promise<
   // Stale results are worse than none: they would let `review` mean green
   // when the last three commits were never run.
   return record.commit === head ? record.status : 'unknown'
+}
+
+/**
+ * Whether this commit is verified: the rollup of the project's required
+ * checks at HEAD, and the one recorded test run for a project that has no
+ * checks written down.
+ *
+ * `unknown` when some required check has not run here. Absent is not fine:
+ * "three commits, tests green" must mean the whole gate passed, not that one
+ * of three commands did.
+ */
+export async function verifiedAt(
+  worktree: string,
+  head: string | null,
+  project?: { name: string; root: string; test?: string | undefined },
+): Promise<TestSignal> {
+  const manifest = await readChecks({
+    name: project?.name ?? 'project',
+    root: worktree,
+    ...(project?.test ? { test: project.test } : {}),
+  })
+  if (manifest.checks.length === 0) return readTests(worktree, head)
+  const state = rollup(manifest.checks, await readRuns(worktree), head).state
+  // A project that has checks but has never run one through Tade still has
+  // whatever `tade check` recorded before this existed.
+  return state === 'unknown' ? readTests(worktree, head) : state
 }
 
 /** The whole record, for saying what failed. Null when there is none to read. */

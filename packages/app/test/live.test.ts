@@ -6,7 +6,7 @@ import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
-import { changesFrom, knownTasks, snapshotsFrom } from '../src/live.ts'
+import { changesFrom, commitsFrom, knownTasks, snapshotsFrom } from '../src/live.ts'
 
 // What the window shows is a fold of three sources that each know part of the
 // truth: status knows the states, the registry knows the screens, the approval
@@ -189,5 +189,40 @@ describe('changesFrom', () => {
     expect(at('new name.ts')?.mark).toBe('R')
     // Tade's own record of the task is not a change anybody made.
     expect(changes.some((change) => change.path.startsWith('.tade'))).toBe(false)
+  })
+})
+
+describe('commitsFrom', () => {
+  const entry = (sha: string, at: number, subject: string, trailers = '') =>
+    `${sha}\u0000${at}\u0000${subject}\u0000${trailers}\u0000`
+
+  it('reads each commit and the task its trailer names', () => {
+    const out = commitsFrom(
+      [
+        entry('a1b2c3d', 1_789_000_000, 'move to stripe v15', 'checkout/stripe-v15'),
+        entry('9f0e1d2', 1_788_000_000, 'a commit nobody signed'),
+      ].join('\n'),
+    )
+    expect(out).toEqual([
+      {
+        sha: 'a1b2c3d',
+        at: 1_789_000_000_000,
+        subject: 'move to stripe v15',
+        task: 'checkout/stripe-v15',
+      },
+      // Unattributed is an answer, not a guess: nothing says whose this is.
+      { sha: '9f0e1d2', at: 1_788_000_000_000, subject: 'a commit nobody signed', task: null },
+    ])
+  })
+
+  it('keeps a subject with anything in it, and survives an empty log', () => {
+    const out = commitsFrom(entry('a1b2c3d', 1, 'fix: a "quoted", multi-part | subject'))
+    expect(out[0]?.subject).toBe('fix: a "quoted", multi-part | subject')
+    expect(commitsFrom('')).toEqual([])
+  })
+
+  it('takes the first trailer when a message carries two', () => {
+    const out = commitsFrom(entry('a1b2c3d', 1, 'copied message', 'shop/one,shop/two'))
+    expect(out[0]?.task).toBe('shop/one')
   })
 })

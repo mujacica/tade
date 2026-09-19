@@ -67,6 +67,23 @@ export const PICTURES: readonly Picture[] = [
       'the files, an agent at work in the middle asking to run a command, and the orchestrator below.',
   },
   {
+    file: 'work.svg',
+    scenario: 'what-an-agent-has-done',
+    title: 'tade — what an agent has done',
+    about:
+      'The work tab beside an agent: its branch, the commits on it and how many carry its task’s ' +
+      'trailer, the pull request it is out for with what CI says, and the project’s own checks ' +
+      'run here — format and types green, tests red with what they printed.',
+  },
+  {
+    file: 'reviews.svg',
+    scenario: 'what-an-agent-has-done',
+    crop: { top: 2, width: 29, height: 21 },
+    about:
+      'The REVIEWS section down the side: every review that is open, each with what it is waiting ' +
+      'on — a draft with red checks, one that is ready, one that wants you.',
+  },
+  {
     file: 'orchestrator.svg',
     scenario: 'orchestrator-at-work',
     crop: { top: 22, height: 12 },

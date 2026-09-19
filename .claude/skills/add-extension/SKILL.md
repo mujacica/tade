@@ -50,6 +50,11 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
 - **`heard` on an action is for narrow phrases only** ("how much is Tade using"): matched against the
   whole utterance and run with no model. Anything looser is the orchestrator's, through the tool's
   description. Give the answer a `said` sentence, because the markdown is not for speaking.
+- **A list is a section in the sidebar** (`lists`): an id, a heading, how often it may be asked
+  again (`every`, never oftener than 30s), and `rows(ctx, filter)` reading the extension's own
+  cache. It never throws — a problem is one quiet row saying why — a section with no rows and no
+  problem is not drawn at all, and the window never asks it from a draw. A row is a title, a few
+  marks, where it opens (one of the extension's own tools) and the task it is about, if any.
 - **Polling costs something; measure it.** Anything polled gets a performance test (see
   `extensions/resources`): one command for the whole picture, bounded history, a time limit in the
   test.

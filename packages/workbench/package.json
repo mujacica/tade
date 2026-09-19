@@ -9,6 +9,9 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
+    "@tade/checks-core": "workspace:*",
+    "@tade/checks-local": "workspace:*",
+    "@tade/checks-scripted": "workspace:*",
     "@tade/core": "workspace:*",
     "@tade/drivers-core": "workspace:*",
     "@tade/drivers-pty": "workspace:*",

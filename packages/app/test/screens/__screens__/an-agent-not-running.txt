@@ -1,6 +1,6 @@
    T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  1   ◉  ⌫     +    █│ search › pagination    agent     +          pi ▾     claude-opus-5 ▾     high ▾     ×   
+ ▾ AGENTS  1   ◉  ⌫     +    █│ search › pagination    agent    work     +           claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ✓ pagination      $0.20 ▌ █│                                                                                         
  ▐   finished              ▌ █│  Ready for review, and no agent is running.                                             

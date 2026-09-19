@@ -230,6 +230,53 @@ export function settingsOf(config: Config): SettingGroup[] {
       ],
     },
     {
+      id: 'checks',
+      title: 'Checks',
+      about:
+        "A project's own checks, run here before anybody else sees the work. What a project checks is `.tade/checks.yaml`, beside its code; these are the rules about when Tade runs them.",
+      settings: [
+        {
+          path: 'checks.before',
+          title: 'Needed before',
+          means:
+            'when a push or commit needs a green run behind it. Only an agent working under policy approvals can actually be held; everyone else is told, and what happened is written down',
+          value: config.checks.before,
+          fallback: 'push',
+          type: { kind: 'choice', options: ['off', 'commit', 'push', 'commit and push'] },
+          live: true,
+        },
+        {
+          path: 'checks.on_red',
+          title: 'When one is red',
+          means:
+            'hold it and hand back what failed, tell the person and let it through, or only write it down',
+          value: config.checks.on_red,
+          fallback: 'hold',
+          type: { kind: 'choice', options: ['hold', 'tell', 'note'] },
+          live: true,
+        },
+        {
+          path: 'checks.parallel',
+          title: 'At once',
+          means:
+            'how many checks may run at once here; one that needs the machine to itself still runs alone',
+          value: String(config.checks.parallel),
+          fallback: '2',
+          type: { kind: 'number' },
+          live: true,
+        },
+        {
+          path: 'checks.ci',
+          title: 'Show what CI says',
+          means: 'put the review\u2019s own checks beside the local run; nothing without a forge',
+          value: String(config.checks.ci),
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: true,
+        },
+      ],
+    },
+    {
       id: 'voice',
       title: 'Voice',
       about: 'How you talk to Tade, and how it talks back.',

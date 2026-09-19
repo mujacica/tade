@@ -1,7 +1,9 @@
 # GitHub in Tade — and the forge after it
 
-A proposal. **Nothing here is built and no existing file changes**; the only file this task adds is
-this one. Written 2026-09-18 against the tree at `main`, for a human to read before anyone starts.
+A proposal, **now built** — see *What was built* at the end for what shipped and what did not.
+Written 2026-09-18 against the tree at `main`, for a human to read before anyone starts; the
+implementation followed it on 2026-09-19 and this header is the only line of the design that was
+edited afterwards.
 
 **Part I (§1–§17) is the forge**: reviews, checks somebody else ran, the loop that answers them.
 **[Part II (§18–§28)](#part-ii--local-actions-the-checks-you-run-before-anybody-sees-them) is local
@@ -1832,6 +1834,45 @@ For Part II, and unverified in the same way:
 
 ---
 
-*Nothing was implemented in the writing of this document. The only file it adds is this one — Part
-II included: the workflow in §20.4 is what the generator should produce, not a file this task
-wrote.*
+---
+
+## What was built
+
+Everything below shipped in one piece of work, against this document rather than around it.
+
+| Shipped | Where |
+|---|---|
+| The `Forge` port, its capabilities, its conformance suite and the neutral vocabulary (§3, §5) | `packages/forges/core` |
+| GitHub, through `gh`'s credential and one HTTP client, and a forge that answers from a table | `packages/forges/{github,scripted}` |
+| The registry and `forgeFor(remote)`; `probePr` replaced by it; `PrState` → neutral `ReviewState` (§4.1) | `packages/status/src/forges.ts`, `packages/core/src/model.ts` |
+| The `review` extension: settings, `setup`, eleven tools, four watches, the brief, the status item, linkers, the agents paragraph and the `open-a-review` skill (§7, §8, §11) | `packages/extensions/review` |
+| The `lists` surface on the extension port, its conformance and the `REVIEWS` sidebar section (§4.3, §10) | `packages/extensions/core`, `packages/app` |
+| The `Runner` port, the manifest, the plan, the record, the run lock, the rollup and the workflow generator (§19–§20) | `packages/checks/core` |
+| The local runner, and one that answers from a table | `packages/checks/{local,scripted}` |
+| `checks.*` config, the supervisor's gate, overrides read back out of the journal, the agent paragraph (§21) | `packages/core`, `packages/workbench` |
+| The `checks` extension — `checks_list`, `checks_run`, `checks_log`, `checks_override` — and the `run-the-checks` skill (§24.1) | `packages/extensions/checks` |
+| `tade checks`, `tade checks run`, `tade checks workflow [--write\|--check]`, `tade check` generalised (§24.2) | `packages/cli` |
+| The WORK tab: branch, commits and their trailers, the review, the checks, and running them (§22) | `packages/app` |
+| Tade's own manifest, the generated workflow, and the tests that keep them and `pnpm check` in step (§20.3) | `.tade/checks.yaml`, `.github/workflows/ci.yml`, `test/checks-manifest.test.ts` |
+
+**Decided differently, and why:**
+
+- **The gate reads; it does not run.** §21.1 wanted the supervisor to run the checks while holding
+  a push. Holding a tool call for the three minutes a suite takes is the thing that would break the
+  agent, so the gate reads the rollup at the commit in hand — instant — and refuses a push that has
+  no green run behind it, with what is missing and the one call that fixes it. The agent runs them
+  itself with `checks_run`, which is what its prompt tells it to do.
+- **The tools are an extension's, not `tade_*`.** §24.1 wanted Tade's own tools. Agents reach
+  extension tools through machinery that already exists and the window runs them where the config
+  and the runner are, so they are `checks_*` on a built-in extension that is always ready. Tade's
+  own tools, and every extension tool an agent or the orchestrator calls, are now written down as
+  `tool_call` — which is how an override is read back (§21.3) with no new event type.
+- **Per-check CI cells are not in the tab yet.** The WORK tab draws the local run per check and the
+  review's own rollup beside it (`✗ checks`, `checks running`). Asking a forge for every check of
+  every focused commit is a request per poll, and §13's budget says no; L3 is where that goes.
+- **Not built, deliberately:** `forges/gitlab` (M6), merge queues and stacks (M7), `checks/act` and
+  `checks.hook` (L5), and the notifications inbox. `checks.runner` is not a config key while there
+  is one runner: a setting Tade accepts and ignores reads like a promise.
+
+*The design above is left as it was written, including the parts this contradicts: what a plan said
+and what the work found are both worth reading later.*

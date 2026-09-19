@@ -7,14 +7,14 @@
         │  Models                │ Push to talk        ctrl  +  space       Change…                            │        
    ⠋ ref│  Orchestrator          │                   ✓ Hold works here: this terminal reports releases.        │        
      wor│  Approvals      bypass │                                                                             │        
-        │▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
- ▾ CHANG│  Window                │                                                                             │        
-  M pack│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
-  A …/we│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
-  M src/│  Reporting             │ Microphone        │  ▏                                         │ on restart │        
-        │  Keys                  │                   │ ON THIS MACHINE            private, no key │            │        
- ▾ FILES│  Accounts          ● 1 │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
-   ▾ src│                        │ Spoken replies    │ IN THE CLOUD                   needs a key │            │        
+        │  Checks                │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
+ ▾ CHANG│▌ Voice                 │                                                                             │        
+  M pack│  Window                │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
+  A …/we│  Projects           3  │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
+  M src/│  Budgets           ● 1 │ Microphone        │  ▏                                         │ on restart │        
+        │  Reporting             │                   │ ON THIS MACHINE            private, no key │            │        
+ ▾ FILES│  Keys                  │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
+   ▾ src│  Accounts          ● 1 │ Spoken replies    │ IN THE CLOUD                   needs a key │            │        
        w│                        │ Interruptions     │  OpenAI · whisper-1                        │ on restart │        
        w│                        │ Quiet hours       │  Groq · whisper-large-v3                   │ on restart │        
    ▸ tes│                        │                   ╰────────────────────────────────────────────╯            │        

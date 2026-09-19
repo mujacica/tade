@@ -15,6 +15,10 @@ export type Target =
   /** A note under NOTES, named by when it was said and what it said. */
   | { kind: 'note'; at: string; text: string }
   | { kind: 'lane'; task: string; lane: string }
+  /** The tab beside an agent's, showing what it has done rather than its screen. */
+  | { kind: 'pane-tab'; task: string; tab: 'work' }
+  /** A check on the work tab: clicking it shows what it printed. */
+  | { kind: 'check'; task: string; check: string }
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
   | { kind: 'file'; path: string }

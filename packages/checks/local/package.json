@@ -1,0 +1,13 @@
+{
+  "name": "@tade/checks-local",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tade/checks-core": "workspace:*"
+  }
+}

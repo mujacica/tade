@@ -79,7 +79,7 @@ const cases: Case[] = [
   { name: 'ahead unknown (no base)', git: git({ ahead: null }), want: 'queued' },
 
   // --- terminal and override states
-  { name: 'PR merged', git: git({ pr: { state: 'MERGED', url: 'u' } }), want: 'merged' },
+  { name: 'review merged', git: git({ pr: { state: 'merged', url: 'u' } }), want: 'merged' },
   { name: 'fast-forward merged into base', git: git({ mergedIntoBase: true }), want: 'merged' },
   {
     name: 'merged beats a live blocked agent',
@@ -109,13 +109,13 @@ const cases: Case[] = [
     want: 'failed',
   },
   {
-    name: 'PR closed unmerged, clean ahead',
-    git: git({ ahead: 2, pr: { state: 'CLOSED', url: 'u' } }),
+    name: 'review closed unmerged, clean ahead',
+    git: git({ ahead: 2, pr: { state: 'closed', url: 'u' } }),
     want: 'review',
   },
   {
-    name: 'PR open, clean ahead, no agent',
-    git: git({ ahead: 2, pr: { state: 'OPEN', url: 'u' } }),
+    name: 'review open, clean ahead, no agent',
+    git: git({ ahead: 2, pr: { state: 'open', url: 'u' } }),
     want: 'review',
   },
   {

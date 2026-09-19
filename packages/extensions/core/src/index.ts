@@ -3,6 +3,7 @@ export {
   type ExtensionRun,
   type ExtensionState,
   type HostOptions,
+  type ListSection,
   type LoadedExtension,
   settingFrom,
   shapeProblem,

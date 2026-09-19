@@ -119,10 +119,12 @@ describe('an agent an extension starts', () => {
     expect(again.task).toBe('shop/fix-shop-1a-2')
   }, 60_000)
 
-  it('ships dependencies, Jev, Sentry and resources, and loads yours beside them', async () => {
+  it('ships the checks, dependencies, Jev, reviews, Sentry and resources, and loads yours beside them', async () => {
     expect(BUILTIN_EXTENSIONS.map((one) => one.name)).toEqual([
+      'checks',
       'deps',
       'jev',
+      'review',
       'sentry',
       'resources',
     ])
@@ -135,8 +137,12 @@ describe('an agent an extension starts', () => {
     // With no key, a judge is absent rather than pretending: it says what it
     // needs and offers nothing, and everything else is exactly as it was.
     expect(host.list().map((one) => [one.name, one.state])).toEqual([
+      ['checks', 'ready'],
       ['deps', 'ready'],
       ['jev', 'needs setup'],
+      // No `gh` and no token in this environment: it says what to do and
+      // stops nothing else.
+      ['review', 'needs setup'],
       ['sentry', 'needs setup'],
       ['resources', 'ready'],
     ])

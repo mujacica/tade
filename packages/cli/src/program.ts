@@ -8,6 +8,7 @@ import { registerApp } from './commands/app.ts'
 import { registerBrief } from './commands/brief.ts'
 import { registerChat } from './commands/chat.ts'
 import { registerCheck } from './commands/check.ts'
+import { registerChecks } from './commands/checks.ts'
 import { registerConfig } from './commands/config.ts'
 import { registerLanes } from './commands/lanes.ts'
 import { registerNotes } from './commands/notes.ts'
@@ -75,6 +76,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerBrief(program, io, setExit)
   registerChat(program, io, setExit)
   registerCheck(program, io, setExit)
+  registerChecks(program, io, setExit)
   registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)
   registerNotes(program, io, setExit)

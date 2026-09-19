@@ -18,9 +18,11 @@ import {
   skillAbout,
   skillDirs,
 } from '@tade/core'
+import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
 import { jevExtension } from '@tade/extension-jev'
 import { resourcesExtension } from '@tade/extension-resources'
+import { reviewExtension } from '@tade/extension-review'
 import { sentryExtension } from '@tade/extension-sentry'
 import {
   type Audience,
@@ -162,8 +164,10 @@ export async function decideProposal(
 
 /** The extensions that ship with Tade, by name. */
 export const BUILTIN_EXTENSIONS: readonly TadeExtension[] = [
+  checksExtension,
   depsExtension,
   jevExtension,
+  reviewExtension,
   sentryExtension,
   resourcesExtension(),
 ]

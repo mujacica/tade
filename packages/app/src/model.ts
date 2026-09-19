@@ -190,6 +190,12 @@ export interface AppState {
   panel: Panel | null
   /** By task: the lane tab you chose, when it is not the agent. */
   viewing: Record<string, string>
+  /**
+   * By task: the pane shows its work instead of a lane. Absent means a lane,
+   * as it always has — `viewing` is not overloaded with a sentinel, which
+   * would collide the day somebody names a shell `work`.
+   */
+  paneTab: Record<string, 'work'>
   /** Agents elsewhere that asked for you while you were looking at something else. */
   toasts: { task: string; at: number }[]
   /** The terminals open along the bottom, in every project. */
@@ -289,6 +295,7 @@ export function initialState(): AppState {
     levels: [],
     panel: null,
     viewing: {},
+    paneTab: {},
     toasts: [],
     terminals: [],
     bottom: ORCHESTRATOR_TAB,
@@ -884,7 +891,24 @@ export function whichProject(
 
 /** Look at one of a task's lanes. */
 export function viewLane(state: AppState, task: string, lane: string): AppState {
-  return { ...focusTask(state, task), viewing: { ...state.viewing, [task]: lane } }
+  const paneTab = { ...state.paneTab }
+  // Clicking a lane's tab is leaving the work tab: the two are one row of
+  // tabs, and only one of them is in front.
+  delete paneTab[task]
+  return { ...focusTask(state, task), paneTab, viewing: { ...state.viewing, [task]: lane } }
+}
+
+/** Show a task's work — its branch, its commits, its review, its checks — in its pane. */
+export function viewWork(state: AppState, task: string): AppState {
+  return {
+    ...focusTask(state, task),
+    paneTab: { ...state.paneTab, [task]: 'work' },
+  }
+}
+
+/** Whether the pane for this task is showing its work rather than a lane. */
+export function showingWork(state: AppState, task: string | null): boolean {
+  return task !== null && state.paneTab[task] === 'work'
 }
 
 /** The second lane an agent's pane shows, while it is alive and not the one already shown. */

@@ -31,13 +31,14 @@ import {
 import type { LaneScreen } from '@tade/drivers-core'
 import { collectStatus, git } from '@tade/status'
 import { terminalsFrom, type Workbench } from '@tade/workbench'
+import { checksAt } from '@tade/workbench/checks'
 import { livenessFrom } from '@tade/workbench/lane-liveness'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import type { Change } from './view.ts'
+import type { Change, WorkView } from './view.ts'
 
 // Where the app gets its facts.
 //
@@ -89,6 +90,8 @@ const LISTING_MS = 2_000
 
 /** How long the branch a project's own checkout is on is good for. */
 const BRANCH_MS = 10_000
+/** How often a task's commits and recorded runs are read again, at the most. */
+const WORK_MS = 10_000
 
 /**
  * Fold what status, the lane registry and the approval queue each know into
@@ -211,6 +214,33 @@ export function changesFrom(nameStatus: string, numstat: string, status = ''): C
   return out.sort((a, b) => a.path.localeCompare(b.path))
 }
 
+/**
+ * The commits of a branch, as `git log` with the trailer format hands them
+ * back: `<sha>\0<when>\0<subject>\0<Tade-Task trailers>\0` per commit.
+ *
+ * The trailer is git's own mechanism, which is why attribution survives a
+ * squash merge and a machine with no Tade on it. A commit that names no task
+ * is unattributed, and that is a first-class answer rather than a guess.
+ */
+export function commitsFrom(
+  stdout: string,
+): { sha: string; at: number; subject: string; task: string | null }[] {
+  return stdout.split('\u0000\n').flatMap((entry) => {
+    const [sha, at, subject, trailer] = entry.replace(/^\n/, '').split('\u0000')
+    if (!sha) return []
+    return [
+      {
+        sha,
+        at: Number(at ?? 0) * 1000,
+        subject: subject ?? '',
+        // Several trailers on one commit is somebody copying a message: the
+        // first is the one it was written for.
+        task: (trailer ?? '').split(',')[0]?.trim() || null,
+      },
+    ]
+  })
+}
+
 /** The same tasks, as the resolver wants them. */
 export function knownTasks(snapshots: readonly TaskSnapshot[]): KnownTask[] {
   return snapshots.map((snapshot) => ({
@@ -260,6 +290,9 @@ export class Live {
   private readonly looking = new Set<string>()
   /** The branch each task was started from, as status last saw it. */
   private readonly bases = new Map<string, string>()
+  /** The last look at each task's commits and checks, for the work tab. */
+  private readonly works = new Map<string, { at: number; work: WorkView }>()
+  private readonly workLooking = new Set<string>()
   /** Each task's branch and how far ahead of its base, for removing it. */
   private readonly facts = new Map<
     string,
@@ -491,6 +524,107 @@ export class Live {
         .catch(() => {})
     }
     return seen?.branch ?? null
+  }
+
+  /**
+   * What a task has done, for the work tab: its branch, its commits and whose
+   * they are, and how its project's checks stand at the commit in hand.
+   *
+   * Answers from the last look at once and looks again in the background,
+   * like everything else here: the window draws four times a second and must
+   * never wait on git, or on a file, to do it.
+   */
+  work(task: string | null, review: WorkView['review'] = null): WorkView | null {
+    if (!task) return null
+    const root = this.worktrees.get(task)
+    if (!root) return null
+    const seen = this.works.get(task)
+    if ((!seen || this.now() - seen.at >= WORK_MS) && !this.workLooking.has(task)) {
+      this.workLooking.add(task)
+      void this.lookAtWork(task, root)
+        .then((work) => {
+          if (!work) return
+          this.works.set(task, { at: this.now(), work })
+          this.opts.onChange?.()
+        })
+        .catch(() => {})
+        .finally(() => this.workLooking.delete(task))
+    }
+    if (!seen) return null
+    // What status already knows is taken from it rather than looked up again:
+    // it is polled every couple of seconds anyway.
+    const facts = this.facts.get(task)
+    return {
+      ...seen.work,
+      ahead: facts?.ahead ?? seen.work.ahead,
+      dirty: this.changed.get(task)?.changes.length ?? seen.work.dirty,
+      review: review ?? seen.work.review,
+    }
+  }
+
+  private async lookAtWork(task: string, root: string): Promise<WorkView | null> {
+    const project = task.split('/')[0] ?? task
+    const base = this.bases.get(task) ?? null
+    const head = await git(root, ['rev-parse', 'HEAD'])
+    const commit = head.ok ? head.stdout.trim() : null
+    const since = base ? await git(root, ['merge-base', 'HEAD', base]) : null
+    const from = since?.ok ? since.stdout.trim() : null
+    // Trailers, so a commit says which task it belongs to wherever it ends
+    // up: git's own mechanism, readable in a year by somebody with no Tade.
+    const log = await git(root, [
+      'log',
+      '--no-color',
+      '-n',
+      '30',
+      '--format=%H%x00%ct%x00%s%x00%(trailers:key=Tade-Task,valueonly,separator=%x2C)%x00',
+      ...(from ? [`${from}..HEAD`] : []),
+    ])
+    const commits = log.ok ? commitsFrom(log.stdout) : []
+    const mine = commits.filter((one) => one.task === task).length
+    const stood = await checksAt({ config: this.opts.config, project, worktree: root, commit })
+    const checks = stood.plan.map((check) => {
+      const run = stood.at.find((one) => one.check === check.id)
+      const seconds =
+        run?.startedAt && run.finishedAt
+          ? (Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000
+          : null
+      return {
+        id: check.id,
+        state: run?.state ?? 'not run',
+        summary: run?.summary ?? check.skip ?? null,
+        seconds,
+      }
+    })
+    const notes: string[] = []
+    if (stood.plan.length > 0) {
+      // A tick here means less than a tick in CI, and says so rather than
+      // letting the two read as the same thing.
+      notes.push('Green here is the commands on this machine; the OS matrix is CI’s to say.')
+    }
+    return {
+      task,
+      branch: this.facts.get(task)?.branch ?? null,
+      base,
+      ahead: this.facts.get(task)?.ahead ?? null,
+      behind: null,
+      dirty: 0,
+      commit,
+      commits,
+      attributed:
+        commits.length === 0
+          ? ''
+          : mine === commits.length
+            ? 'all with this task’s trailer'
+            : `${mine} with this task’s trailer`,
+      review: null,
+      checks,
+      source:
+        stood.plan.length > 0
+          ? `from ${stood.manifest.from ?? stood.manifest.source}`
+          : 'No checks configured — write .tade/checks.yaml, and CI can be generated from it.',
+      running: false,
+      notes,
+    }
   }
 
   /**

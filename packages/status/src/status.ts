@@ -20,7 +20,7 @@ import { type AdoptedSession, scanTranscripts } from './adoption.ts'
 import { git, listWorktrees, probeGit, resolveBaseRef, type WorktreeEntry } from './git.ts'
 import { type LivenessProbe, noLanes } from './liveness.ts'
 import { type AgentProcess, listAgentProcesses } from './processes.ts'
-import { readTests } from './tests.ts'
+import { verifiedAt } from './tests.ts'
 
 // Assembles `tade status`: runs every probe fresh, then derives each task's
 // state with the pure state machine. Never throws: every failure becomes a
@@ -149,7 +149,11 @@ async function buildTask(
     git: g.snapshot,
     agents,
     // Only counts for the commit it ran against; anything older is unknown.
-    tests: await readTests(wt.path, g.snapshot?.head ?? null),
+    tests: await verifiedAt(wt.path, g.snapshot?.head ?? null, {
+      name: ref.name,
+      root: wt.path,
+      test: opts.config.projects[ref.name]?.test_command,
+    }),
   })
 
   return {

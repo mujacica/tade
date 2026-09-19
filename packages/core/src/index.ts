@@ -1,5 +1,6 @@
 export * from './attention.ts'
 export * from './brief.ts'
+export * from './checks.ts'
 export * from './compose.ts'
 export * from './config.ts'
 export * from './done.ts'

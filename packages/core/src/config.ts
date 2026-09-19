@@ -53,6 +53,31 @@ export type AgentWorkspace = (typeof AGENT_WORKSPACES)[number]
 export const COMMIT_RULES = ['when-done', 'own-files', 'as-you-go', 'never'] as const
 export type CommitRule = (typeof COMMIT_RULES)[number]
 
+/**
+ * When Tade runs a project's checks on its own, and what a red one does.
+ *
+ * `before` is written as *what Tade does unasked*, because that is all it can
+ * honestly promise: with `approvals.mode: 'policy'` a push an agent makes is
+ * held while the checks run, and with the default `bypass` nothing can be
+ * held at all — the agent is told the rule and Tade records what happened.
+ * A person typing `git push` in a terminal is nobody's to hold.
+ */
+export const ChecksConfigSchema = z.strictObject({
+  /** When Tade runs them unasked. `push` is the cheapest rule that catches what others would see. */
+  before: z.enum(['off', 'commit', 'push', 'commit and push']).default('push'),
+  /** What a failed required check does: hold it and hand back the tail, say so, or only write it down. */
+  on_red: z.enum(['hold', 'tell', 'note']).default('hold'),
+  /** Run only these check ids; everything the project defines when empty. */
+  only: z.array(z.string()).default([]),
+  /** How many may run at once here. One marked `alone` still runs by itself. */
+  parallel: z.int().positive().default(2),
+  /** How many finished runs a worktree keeps a record of. */
+  keep: z.int().positive().default(200),
+  /** Show what CI says about the same commit beside the local run. Inert without a forge. */
+  ci: z.boolean().default(true),
+})
+export type ChecksConfig = z.infer<typeof ChecksConfigSchema>
+
 export const ProjectConfigSchema = z.strictObject({
   root: z.string().min(1),
   brief: z.string().optional(),
@@ -76,6 +101,8 @@ export const ProjectConfigSchema = z.strictObject({
       tokens_per_day: z.int().positive().optional(),
     })
     .optional(),
+  /** This project's own answer to any of the `checks` settings. */
+  checks: ChecksConfigSchema.partial().optional(),
 })
 
 /** Whether a pattern compiles, so a typo is caught at `--check` time. */
@@ -338,6 +365,8 @@ export const ConfigSchema = z
         environment: z.string().default('laptop'),
       })
       .prefault({}),
+    /** When a project's own checks run, and what a red one does. */
+    checks: ChecksConfigSchema.prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
     /**
      * Settings for each extension, by its name. Which keys mean something is

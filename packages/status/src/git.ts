@@ -1,5 +1,7 @@
 import type { GitSnapshot } from '@tade/core'
+import { ForgeError, repoOf } from '@tade/forges-core'
 import { execa } from 'execa'
+import { type ForgeChoice, forgeExec, forgeFor } from './forges.ts'
 
 // Git is invoked directly. `--porcelain=v2` and `-z` are stable contracts;
 // everything is NUL-delimited because paths contain spaces and newlines.
@@ -166,8 +168,10 @@ export interface GitProbeOptions {
   baseRef: string | null
   /** Commit the task branched from (from task.yaml). */
   taskBase?: string | undefined
-  /** Query `gh` for PR state. Off in tests: it is a network call. */
+  /** Ask the forge what review this branch has. Off in tests: it is a network call. */
   pr: boolean
+  /** How to reach a forge: which one serves which host, and which account. Defaults suffice. */
+  forge?: Partial<ForgeChoice>
 }
 
 export interface GitProbeResult {
@@ -264,7 +268,7 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
   }
 
   let pr: GitSnapshot['pr'] = null
-  if (opts.pr && status.head) pr = await probePr(worktree, status.head)
+  if (opts.pr && status.head) pr = await probeReview(worktree, status.head, opts.forge ?? {})
 
   return {
     snapshot: {
@@ -285,24 +289,35 @@ export async function probeGit(worktree: string, opts: GitProbeOptions): Promise
   }
 }
 
-async function probePr(worktree: string, branch: string): Promise<GitSnapshot['pr']> {
-  const r = await execa('gh', ['pr', 'view', branch, '--json', 'state,url'], {
-    cwd: worktree,
-    reject: false,
-    timeout: 5_000,
-    detached: true,
-  })
-  if (r.exitCode !== 0 || typeof r.stdout !== 'string') return null
+/**
+ * The review this branch is out for, as whatever forge serves its remote
+ * says. The one narrow question status asks a forge, on every poll, with the
+ * window closed: a branch with no review is `null`, and so is a forge that
+ * cannot be reached, is not signed in to, or is rate limiting us — status
+ * never throws, and a task whose review state we could not read is a task we
+ * say nothing about rather than one we call merged.
+ */
+async function probeReview(
+  worktree: string,
+  branch: string,
+  choice: Partial<ForgeChoice>,
+): Promise<GitSnapshot['pr']> {
+  const origin = await git(worktree, ['config', '--get', 'remote.origin.url'])
+  const remote = origin.stdout.trim()
+  if (!origin.ok || !remote) return null
+  const repo = repoOf(remote)
+  if (!repo) return null
+  const forge = forgeFor(remote, { exec: forgeExec, cwd: worktree, ...choice })
+  if (!forge) return null
   try {
-    const j = JSON.parse(r.stdout) as { state?: unknown; url?: unknown }
-    if (
-      (j.state === 'OPEN' || j.state === 'MERGED' || j.state === 'CLOSED') &&
-      typeof j.url === 'string'
-    ) {
-      return { state: j.state, url: j.url }
-    }
-  } catch {}
-  return null
+    const review = await forge.reviewOf(repo, branch)
+    return review ? { state: review.state, url: review.url } : null
+  } catch (err) {
+    // Nothing here is worth a warning on every poll: the extension says once
+    // that it cannot reach the forge, and this degrades to "no review".
+    if (err instanceof ForgeError) return null
+    return null
+  }
 }
 
 function firstLine(s: string): string {

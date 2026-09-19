@@ -1,4 +1,5 @@
-import type { Config } from './config.ts'
+import { checksTold } from './checks.ts'
+import type { ChecksConfig, Config } from './config.ts'
 import type { Note } from './memory.ts'
 import { type Skill, skillText } from './skills.ts'
 
@@ -165,6 +166,13 @@ export interface AgentPromptInput {
   context: string | null
   /** How this project checks its work, when the config says. */
   testCommand?: string
+  /**
+   * The checks this project has, and the rule about when they run. Said
+   * instead of the one test command when a project has a manifest: an agent
+   * that knows the rule keeps it in every case, including the ones where
+   * nothing could hold it.
+   */
+  checks?: { ids: readonly string[]; rule: ChecksConfig; hold: boolean }
   /** Its harness gives it a way to say its task is finished (`tade_done`). */
   canSayDone?: boolean
 }
@@ -202,7 +210,8 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
             : 'You have no branch yet. Tade creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
         ]),
     COMMIT_TELLS[input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')],
-    input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null,
+    checksTold(input.checks?.rule ?? null, input.checks?.ids ?? [], input.checks?.hold ?? false) ??
+      (input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null),
     input.context
       ? `Whoever started this task left what you need to know in ${input.context}, with links to where the work came from. Read it before anything else.`
       : null,

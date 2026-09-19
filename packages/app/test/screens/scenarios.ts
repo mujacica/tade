@@ -13,6 +13,7 @@ import {
   type TaskSnapshot,
   toggleDone,
   toggleSection,
+  viewWork,
   withProjects,
   withTasks,
   withTerminals,
@@ -661,6 +662,97 @@ function searched(query: string): SearchEntry[] {
 }
 
 export const SCENARIOS: Scenario[] = [
+  {
+    name: 'what-an-agent-has-done',
+    about:
+      'The work tab beside an agent’s screen: its branch, the commits on it and whose they are, the review it is out for with what CI says about it, and how the project’s own checks stand at the commit in hand — run here, before anybody else has to look. The REVIEWS section down the side is every review that is open, from the same poll.',
+    state: viewWork(base(), 'checkout/stripe-v15'),
+    frame: frame({
+      work: {
+        task: 'checkout/stripe-v15',
+        branch: 'tade/stripe-v15',
+        base: 'main',
+        ahead: 3,
+        behind: 0,
+        dirty: 0,
+        commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+        commits: [
+          {
+            sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+            subject: 'move to the stripe v15 payment intents API',
+            at: NOW - 12 * 60_000,
+            task: 'checkout/stripe-v15',
+          },
+          {
+            sha: '9f0e1d2c3b4a59687778695a4b3c2d1e0f000000',
+            subject: 'keep the old webhook shape working for a release',
+            at: NOW - 60 * 60_000,
+            task: 'checkout/stripe-v15',
+          },
+          {
+            sha: '77c4ab0998877665544332211aabbccddeeff001',
+            subject: 'a test for the refund path',
+            at: NOW - 2 * 3_600_000,
+            task: null,
+          },
+        ],
+        attributed: '2 with this task’s trailer',
+        review: {
+          number: '#418',
+          title: 'stripe v15',
+          url: 'https://github.com/acme/checkout/pull/418',
+          marks: [
+            { text: 'draft', tone: 'quiet' },
+            { text: '✗ checks', tone: 'bad' },
+          ],
+        },
+        checks: [
+          { id: 'format', state: 'passed', summary: null, seconds: 2.1 },
+          { id: 'types', state: 'passed', summary: null, seconds: 6.4 },
+          {
+            id: 'tests',
+            state: 'failed',
+            summary: '8 failed  packages/app/test/view.test.ts',
+            seconds: 64,
+          },
+        ],
+        source: 'from .tade/checks.yaml',
+        running: false,
+        notes: ['Green here is the commands on this machine; the OS matrix is CI’s to say.'],
+      },
+      lists: [
+        {
+          id: 'review.open',
+          title: 'REVIEWS',
+          problem: null,
+          rows: [
+            {
+              section: 'review.open',
+              id: 'github.com/acme/checkout#418',
+              title: '#418  stripe v15',
+              marks: [
+                { text: 'draft', tone: 'quiet' },
+                { text: '✗ checks', tone: 'bad' },
+              ],
+              task: 'checkout/stripe-v15',
+            },
+            {
+              section: 'review.open',
+              id: 'github.com/acme/checkout#412',
+              title: '#412  retry refunds once',
+              marks: [{ text: 'ready', tone: 'good' }],
+            },
+            {
+              section: 'review.open',
+              id: 'github.com/acme/api#77',
+              title: '#77  bump zod',
+              marks: [{ text: 'you', tone: 'warning' }],
+            },
+          ],
+        },
+      ],
+    }),
+  },
   {
     name: 'watching-an-agent',
     about:

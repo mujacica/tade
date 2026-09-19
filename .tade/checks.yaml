@@ -1,0 +1,34 @@
+# What Tade checks itself with. `pnpm check` runs exactly these, in this order,
+# and `.github/workflows/ci.yml` is generated from this file — so the gate on
+# your machine and the gate in CI cannot drift apart without a test saying so.
+#
+# Edit here, then run `tade checks workflow --write`.
+checks:
+  - id: format
+    title: Formatting and lint
+    run: pnpm exec biome ci .
+    minutes: 3
+  - id: types
+    title: Types
+    run: pnpm exec tsc -p tsconfig.json
+    minutes: 5
+  - id: tests
+    title: Tests
+    run: pnpm exec vitest run
+    # The suite spawns real git and PTY processes with short timeouts. Anything
+    # CPU-heavy beside it starves them, and that looks exactly like a
+    # regression and is not one: 13 such failures over 485s became 465 passing
+    # in 8s once the suite had the machine to itself.
+    alone: true
+    minutes: 10
+ci:
+  runs_on: [ubuntu-latest, macos-latest]
+  node: '22'
+  setup:
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile

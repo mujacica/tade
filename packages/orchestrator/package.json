@@ -9,9 +9,11 @@
   },
   "dependencies": {
     "@tade/core": "workspace:*",
+    "@tade/extension-checks": "workspace:*",
     "@tade/extension-deps": "workspace:*",
     "@tade/extension-jev": "workspace:*",
     "@tade/extension-resources": "workspace:*",
+    "@tade/extension-review": "workspace:*",
     "@tade/extension-sentry": "workspace:*",
     "@tade/extensions-core": "workspace:*",
     "@tade/harnesses-core": "workspace:*",

@@ -437,4 +437,73 @@ describe('changing extensions while the window is open', () => {
     expect(settingFrom('', 'text')).toBeUndefined()
     expect(settingFrom('off', 'flag')).toBe(false)
   })
+
+  it('keeps a sidebar section from the extension\u2019s own cache, and asks it no oftener than it says', async () => {
+    let asked = 0
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        lists: [
+          {
+            id: 'warnings',
+            title: 'WEATHER',
+            every: '60s',
+            filters: [{ id: 'all', title: 'all' }],
+            async rows() {
+              asked++
+              return [{ id: 'rain', title: 'Rain this afternoon', marks: [{ text: 'soon' }] }]
+            },
+          },
+        ],
+      },
+    )
+    const tade = {
+      pid: 1,
+      lanes: () => [],
+      startAgent: async () => ({ task: 'x/y', worktree: '/tmp' }),
+    }
+    const [section] = await loaded.lists(tade)
+    expect(section).toMatchObject({ id: 'weather.warnings', title: 'WEATHER', problem: null })
+    expect(section?.rows[0]?.title).toBe('Rain this afternoon')
+    // Drawing is not a poll: asked again inside its own interval, it is the
+    // same answer and the extension was not troubled.
+    await loaded.lists(tade)
+    expect(asked).toBe(1)
+  })
+
+  it('draws a section that could not be filled as a problem, never as a throw', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        lists: [
+          {
+            id: 'warnings',
+            title: 'WEATHER',
+            every: '60s',
+            rows() {
+              throw new Error('the sky could not be reached')
+            },
+          },
+        ],
+      },
+    )
+    const [section] = await loaded.lists({
+      pid: 1,
+      lanes: () => [],
+      startAgent: async () => ({ task: 'x/y', worktree: '/tmp' }),
+    })
+    expect(section?.rows).toEqual([])
+    expect(section?.problem).toBe('the sky could not be reached')
+  })
+
+  it('refuses a list that would be asked oftener than every half minute', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        lists: [{ id: 'warnings', title: 'WEATHER', every: '5s', rows: async () => [] }],
+      },
+    )
+    expect(loaded.list()[0]).toMatchObject({ state: 'broken' })
+    expect(loaded.list()[0]?.problem).toContain('30s')
+  })
 })

@@ -1,7 +1,8 @@
-import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
+import { glyphOf, RunnerError, readChecks } from '@tade/checks-core'
 import { defaultConfigPath, loadConfig, tadeHome } from '@tade/core'
 import { collectStatus, writeTests } from '@tade/status'
+import { runProjectChecks } from '@tade/workbench/checks'
 import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
@@ -10,7 +11,9 @@ import { Exit, type Io } from '../io.ts'
 //
 // An agent reporting success on broken work is the first failure mode in the
 // design, which is why `review` is supposed to mean green tests and a clean
-// tree, checked by something that is not the agent. This is that something.
+// tree, checked by something that is not the agent. This is that something —
+// now the project's whole gate rather than one command, where a project says
+// what its checks are, and exactly today's behaviour where it does not.
 
 /** How much output to keep, so a failure can be explained without re-running. */
 const TAIL = 4_000
@@ -18,9 +21,11 @@ const TAIL = 4_000
 export function registerCheck(program: Command, io: Io, setExit: (code: number) => void): void {
   program
     .command('check <task>')
-    .description("Run a task's tests and record the result against its commit")
+    .description("Run a task's checks and record each against the commit it is on")
+    .option('--only <ids>', 'run only these checks, comma-separated')
+    .option('--no-record', 'run them without writing anything down')
     .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (taskId: string, opts: { config: string }) => {
+    .action(async (taskId: string, opts: { config: string; only?: string; record: boolean }) => {
       const cfg = await loadConfig(opts.config)
       if (!cfg.ok) {
         io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
@@ -46,11 +51,13 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
       }
       const worktree = found.task.worktree
       const head = found.task.git?.head ?? null
-      const command = cfg.config.projects[found.project.name]?.test_command ?? ''
+      const project = found.project.name
+      const test = cfg.config.projects[project]?.test_command
+      const manifest = await readChecks({ name: project, root: worktree, test })
 
-      if (!command) {
-        io.err(`${taskId.split('/')[0]} has no test_command in ${cfg.path}`)
-        io.err('  projects: { <name>: { test_command: "pnpm test" } }')
+      if (manifest.checks.length === 0) {
+        io.err(`${project} has nothing to check: write .tade/checks.yaml, or set`)
+        io.err(`  projects: { ${project}: { test_command: "pnpm test" } } in ${cfg.path}`)
         setExit(Exit.invalidInput)
         return
       }
@@ -60,43 +67,50 @@ export function registerCheck(program: Command, io: Io, setExit: (code: number) 
         return
       }
 
-      io.err(`$ ${command}`)
-      const { code, output } = await run(command, worktree, io)
-      await writeTests(worktree, {
-        status: code === 0 ? 'pass' : 'fail',
-        commit: head,
-        command,
-        at: new Date().toISOString(),
-        output: output.slice(-TAIL),
-      })
-      io.out(code === 0 ? `tests pass at ${head.slice(0, 8)}` : `tests fail at ${head.slice(0, 8)}`)
-      if (code !== 0) setExit(Exit.error)
+      const only = (opts.only ?? '')
+        .split(',')
+        .map((one) => one.trim())
+        .filter(Boolean)
+      let red = false
+      try {
+        const ran = await runProjectChecks({
+          config: cfg.config,
+          project,
+          worktree,
+          commit: head,
+          by: taskId,
+          home: homedir(),
+          only,
+          onRun: (run) => {
+            if (run.state === 'running') io.err(`$ ${run.check}`)
+          },
+          onOutput: (_check, chunk) => io.err(chunk.trimEnd()),
+        })
+        red = ran.some((run) => run.state === 'failed' || run.state === 'timed out')
+        for (const run of ran) {
+          io.out(`${glyphOf(run.state)} ${run.check} ${run.state} at ${head.slice(0, 8)}`)
+        }
+        // The one record `tade check` has always written, kept for one
+        // release so nobody's recorded run disappears on upgrade.
+        if (opts.record) {
+          await writeTests(worktree, {
+            status: red ? 'fail' : 'pass',
+            commit: head,
+            command: ran.map((run) => run.check).join(', '),
+            at: new Date().toISOString(),
+            output: ran
+              .flatMap((run) => (run.tail ? [`# ${run.check}`, run.tail] : []))
+              .join('\n')
+              .slice(-TAIL),
+          })
+        }
+      } catch (err) {
+        io.err(err instanceof Error ? err.message : String(err))
+        setExit(
+          err instanceof RunnerError && err.trouble === 'unknown' ? Exit.invalidInput : Exit.error,
+        )
+        return
+      }
+      if (red) setExit(Exit.error)
     })
-}
-
-/**
- * Run the project's own command, showing it as it goes and keeping the tail.
- * A shell is used because the command comes from the config as a command line
- * ("pnpm test && pnpm lint"), not as an argument vector.
- */
-async function run(
-  command: string,
-  cwd: string,
-  io: Io,
-): Promise<{ code: number; output: string }> {
-  return new Promise((done) => {
-    const child = spawn(command, { shell: true, cwd, stdio: ['ignore', 'pipe', 'pipe'] })
-    let output = ''
-    const collect = (chunk: string) => {
-      output += chunk
-      if (output.length > TAIL * 4) output = output.slice(-TAIL * 2)
-      io.err(chunk.trimEnd())
-    }
-    child.stdout?.setEncoding('utf8')
-    child.stderr?.setEncoding('utf8')
-    child.stdout?.on('data', collect)
-    child.stderr?.on('data', collect)
-    child.once('error', () => done({ code: 1, output: `${output}\ncould not run: ${command}` }))
-    child.once('exit', (code) => done({ code: code ?? 1, output }))
-  })
 }

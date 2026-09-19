@@ -226,6 +226,44 @@ export interface ExtensionWorkbench {
   lanes(): readonly { id: string; task: string; kind: string; pid: number | null; alive: boolean }[]
 }
 
+/**
+ * A row an extension keeps in the window: what it is, how it is going, and
+ * where clicking it goes. The window draws it and knows nothing else about
+ * it — which is what keeps the sidebar from having to learn what a forge is.
+ */
+export interface ListRow {
+  /** Stable, so the cursor stays on the same row across polls. */
+  id: string
+  title: string
+  /** A few words to the right: a repository, a branch, a time. */
+  note?: string
+  /** Short marks, drawn in order: `draft`, `✗ 2`, `✓`, `you`, `conflicts`. */
+  marks?: readonly { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[]
+  links?: readonly Link[]
+  /** What a click runs, if anything: one of the extension's own tools. */
+  opens?: { tool: string; input?: Record<string, unknown> }
+  /** The Tade task this row is about, when it is about one. */
+  task?: string
+}
+
+/**
+ * A section an extension keeps in the sidebar: cheap, cached, and never on
+ * the draw path. A section with nothing in it and nothing wrong is not drawn
+ * at all — an empty heading is a row of nothing.
+ */
+export interface ExtensionList {
+  /** Its name in the extension: `mine`. In the window it is `<extension>.<id>`. */
+  id: string
+  /** The section's heading: `REVIEWS`. */
+  title: string
+  /** How often it may be asked again, at the most: `60s`. The window never asks faster. */
+  every: string
+  /** Filters the section offers, the first being the default. */
+  filters?: readonly { id: string; title: string }[]
+  /** Rows, from the extension's own cache. Never throws: a problem is a row saying so. */
+  rows(ctx: WindowContext, filter: string): Promise<readonly ListRow[]>
+}
+
 /** A few words an extension keeps in the window's status bar, clicked for its view. */
 export interface StatusItem {
   text: string
@@ -294,6 +332,8 @@ export interface TadeExtension {
   actions?: readonly ExtensionAction[]
   /** Work it can watch for, on a clock. Offered; nothing is watched until someone turns one on. */
   watches?: readonly ExtensionWatch[]
+  /** Sections it keeps in the window's sidebar, asked for on their own clock. */
+  lists?: readonly ExtensionList[]
   /** What belongs in the brief, when anything does. */
   brief?(ctx: ExtensionContext): Promise<readonly BriefItem[]>
   /** Told to the orchestrator: when to reach for this, and how. */

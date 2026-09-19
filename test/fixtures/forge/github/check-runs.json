@@ -1,0 +1,35 @@
+{
+  "total_count": 3,
+  "check_runs": [
+    {
+      "id": 501,
+      "name": "format",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-09-19T05:01:00Z",
+      "completed_at": "2026-09-19T05:01:41Z",
+      "html_url": "https://github.com/acme/api/runs/501",
+      "output": { "title": "no problems" }
+    },
+    {
+      "id": 502,
+      "name": "types",
+      "status": "in_progress",
+      "conclusion": null,
+      "started_at": "2026-09-19T05:01:00Z",
+      "completed_at": null,
+      "html_url": "https://github.com/acme/api/runs/502",
+      "output": { "title": null }
+    },
+    {
+      "id": 503,
+      "name": "tests",
+      "status": "completed",
+      "conclusion": "failure",
+      "started_at": "2026-09-19T05:01:00Z",
+      "completed_at": "2026-09-19T05:03:12Z",
+      "html_url": "https://github.com/acme/api/runs/503",
+      "output": { "title": "8 failed" }
+    }
+  ]
+}

@@ -64,11 +64,38 @@ importers:
         specifier: workspace:*
         version: link:../voice/stt
 
+  packages/checks/core:
+    dependencies:
+      '@tade/telemetry':
+        specifier: workspace:*
+        version: link:../../telemetry
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+
+  packages/checks/local:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/checks/scripted:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/cli:
     dependencies:
       '@tade/app':
         specifier: workspace:*
         version: link:../app
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../checks/core
       '@tade/core':
         specifier: workspace:*
         version: link:../core
@@ -170,6 +197,21 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/extensions/checks:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../../checks/core
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/extensions-core':
+        specifier: workspace:*
+        version: link:../core
+      '@tade/workbench':
+        specifier: workspace:*
+        version: link:../../workbench
+
   packages/extensions/core:
     dependencies:
       '@tade/core':
@@ -212,6 +254,27 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/extensions/review:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../../checks/core
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/extensions-core':
+        specifier: workspace:*
+        version: link:../core
+      '@tade/forges-core':
+        specifier: workspace:*
+        version: link:../../forges/core
+      '@tade/status':
+        specifier: workspace:*
+        version: link:../../status
+      '@tade/workbench':
+        specifier: workspace:*
+        version: link:../../workbench
+
   packages/extensions/sentry:
     dependencies:
       '@tade/extensions-core':
@@ -220,6 +283,33 @@ importers:
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
+
+  packages/forges/core:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../../checks/core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/forges/github:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../../checks/core
+      '@tade/forges-core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/forges/scripted:
+    dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../../checks/core
+      '@tade/forges-core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/harnesses/core:
     dependencies:
@@ -269,6 +359,9 @@ importers:
       '@tade/core':
         specifier: workspace:*
         version: link:../core
+      '@tade/extension-checks':
+        specifier: workspace:*
+        version: link:../extensions/checks
       '@tade/extension-deps':
         specifier: workspace:*
         version: link:../extensions/deps
@@ -278,6 +371,9 @@ importers:
       '@tade/extension-resources':
         specifier: workspace:*
         version: link:../extensions/resources
+      '@tade/extension-review':
+        specifier: workspace:*
+        version: link:../extensions/review
       '@tade/extension-sentry':
         specifier: workspace:*
         version: link:../extensions/sentry
@@ -296,9 +392,21 @@ importers:
 
   packages/status:
     dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../checks/core
       '@tade/core':
         specifier: workspace:*
         version: link:../core
+      '@tade/forge-github':
+        specifier: workspace:*
+        version: link:../forges/github
+      '@tade/forge-scripted':
+        specifier: workspace:*
+        version: link:../forges/scripted
+      '@tade/forges-core':
+        specifier: workspace:*
+        version: link:../forges/core
       execa:
         specifier: ^10.0.1
         version: 10.0.1
@@ -353,6 +461,15 @@ importers:
 
   packages/workbench:
     dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../checks/core
+      '@tade/checks-local':
+        specifier: workspace:*
+        version: link:../checks/local
+      '@tade/checks-scripted':
+        specifier: workspace:*
+        version: link:../checks/scripted
       '@tade/core':
         specifier: workspace:*
         version: link:../core
@@ -398,6 +515,9 @@ importers:
 
   test:
     dependencies:
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../packages/checks/core
       yaml:
         specifier: ^2.9.0
         version: 2.9.0

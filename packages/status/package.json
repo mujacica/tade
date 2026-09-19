@@ -8,7 +8,11 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@tade/checks-core": "workspace:*",
     "@tade/core": "workspace:*",
+    "@tade/forge-github": "workspace:*",
+    "@tade/forge-scripted": "workspace:*",
+    "@tade/forges-core": "workspace:*",
     "execa": "^10.0.1",
     "yaml": "^2.9.0"
   }

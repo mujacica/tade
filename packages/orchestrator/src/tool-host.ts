@@ -3,7 +3,7 @@ import { createServer, type Server, type Socket } from 'node:net'
 import { dirname } from 'node:path'
 import { DONE_RULES, type DoneRule, type LaneId, type Plan, When } from '@tade/core'
 import type { PermissionDecision, RunId, WorkerImage } from '@tade/harnesses-core'
-import type { Workbench } from '@tade/workbench'
+import { clipped, type Workbench } from '@tade/workbench'
 
 // How the orchestrator's tools reach the workbench.
 //
@@ -173,11 +173,16 @@ export class ToolHost {
       },
       'extension/call': async (p) => {
         if (!opts.extensions) throw new Error('Tade has no extensions loaded')
-        return opts.extensions({
-          tool: String(p.tool),
-          input: (p.input ?? {}) as Record<string, unknown>,
-          callId: String(p.callId ?? ''),
+        const input = (p.input ?? {}) as Record<string, unknown>
+        const tool = String(p.tool)
+        // Written down before it runs: an act with a who and a why — how an
+        // override is read back out of the journal — and one that failed
+        // still happened.
+        await tade.log.append({
+          type: 'tool_call',
+          detail: { tool, input: clipped(input), caller: 'orchestrator' },
         })
+        return opts.extensions({ tool, input, callId: String(p.callId ?? '') })
       },
       'task/park': (p) =>
         tade.parkTask(String(p.worktree), p.parked === true, p.task ? String(p.task) : undefined),

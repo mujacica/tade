@@ -114,6 +114,33 @@ export function extensionConformance(
       }
     })
 
+    it('keeps its sidebar sections cheap, cached and unable to throw', async () => {
+      const host = await load()
+      const tade = {
+        pid: process.pid,
+        lanes: () => [],
+        startAgent: async () => ({ task: 'here/none', worktree: '/nonexistent' }),
+      }
+      const sections = await host.lists(tade)
+      expect(sections.map((one) => one.id)).toEqual(
+        (extension.lists ?? []).map((list) => `${extension.name}.${list.id}`),
+      )
+      for (const section of sections) {
+        // A section that could not be filled says why on itself: the window
+        // draws one quiet row, and nothing else stops.
+        expect(section.problem === null || typeof section.problem === 'string').toBe(true)
+        for (const row of section.rows) {
+          expect(row.id).toBeTruthy()
+          expect(row.title).toBeTruthy()
+        }
+        const ids = section.rows.map((row) => row.id)
+        expect(new Set(ids).size).toBe(ids.length)
+      }
+      // Asked again inside its own interval, it is the same answer and
+      // nothing was asked of anybody: drawing is never a poll.
+      expect(await host.lists(tade)).toEqual(sections)
+    })
+
     it('says why a watch cannot look when it is not set up, rather than looking', async () => {
       const host = await load({ settings: {}, env: {} })
       if (host.list()[0]?.state === 'ready') return

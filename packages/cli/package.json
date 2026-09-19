@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tade/app": "workspace:*",
+    "@tade/checks-core": "workspace:*",
     "@tade/core": "workspace:*",
     "@tade/extensions-core": "workspace:*",
     "@tade/harnesses-core": "workspace:*",

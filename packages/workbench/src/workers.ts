@@ -93,6 +93,19 @@ export interface WorkerSupervisorOptions {
   onExtensionCall?: (call: ExtensionCall) => Promise<string>
   /** Where Tade's own trouble goes, and what times its agents' turns. */
   report?: Reporter
+  /**
+   * The checks rule, asked about a call the policy would otherwise let
+   * through: a push with nothing green behind it comes back refused, with
+   * what is missing. Absent means no rule, which is what a window without a
+   * config has.
+   */
+  checks?: (call: {
+    task: string | null
+    project: string | null
+    worktree: string
+    tool: string
+    input: Readonly<Record<string, unknown>>
+  }) => Promise<{ allow: true; note?: string } | { allow: false; reason: string }>
 }
 
 interface RunState {
@@ -120,6 +133,7 @@ export class WorkerSupervisor {
   private readonly approvals: ApprovalSettings
   private readonly onTitle: WorkerSupervisorOptions['onTitle']
   private readonly onExtensionCall: WorkerSupervisorOptions['onExtensionCall']
+  private readonly checks: WorkerSupervisorOptions['checks']
   private readonly runs = new Map<string, RunState>()
   private readonly pendingApprovals = new Map<string, PendingApproval>()
   /** By task: what each agent last said about its model and context. */
@@ -147,6 +161,7 @@ export class WorkerSupervisor {
     this.approvals = opts.approvals
     this.onTitle = opts.onTitle
     this.onExtensionCall = opts.onExtensionCall
+    this.checks = opts.checks
     this.timing = agentTurns(opts.report ?? noReporter())
   }
 
@@ -531,6 +546,20 @@ export class WorkerSupervisor {
         result = { ok: false, text: err instanceof Error ? err.message : String(err) }
       }
     }
+    // Written down: one of Tade's own tools called by an agent is an act with
+    // a who and a why — how an override is read back out of the journal long
+    // after the window closed — and a tool that failed is news either way.
+    await this.log.append({
+      type: 'tool_call',
+      task: state?.task ?? null,
+      run,
+      detail: {
+        tool: signal.tool,
+        input: clipped(signal.input),
+        caller: 'agent',
+        ...(result.ok ? {} : { problem: result.text.slice(0, 300) }),
+      },
+    })
     await this.adapterOf(run)
       .answer(run, signal.callId, result)
       .catch(() => {})
@@ -577,6 +606,38 @@ export class WorkerSupervisor {
     }
 
     if (approval.decision === 'allow') {
+      // The policy would let it through; the checks rule is asked last,
+      // because a push with nothing green behind it is the one thing the
+      // policy has no opinion about.
+      const checked = this.checks
+        ? await this.checks({
+            task,
+            project: task ? (task.split('/')[0] ?? null) : null,
+            worktree: state?.worktree ?? '',
+            tool: signal.tool,
+            input: signal.input as Record<string, unknown>,
+          }).catch(() => ({ allow: true as const }))
+        : { allow: true as const }
+      if (!checked.allow) {
+        await this.adapterOf(run).decide(run, signal.requestId, {
+          allow: false,
+          reason: checked.reason,
+        })
+        await this.log.append({
+          type: 'permission_denied',
+          task,
+          run,
+          detail: {
+            requestId: signal.requestId,
+            tool: signal.tool,
+            summary: signal.summary,
+            tier: approval.tier,
+            rule: 'checks',
+            reason: checked.reason,
+          },
+        })
+        return
+      }
       await this.adapterOf(run).decide(run, signal.requestId, { allow: true })
       await this.log.append({
         type: 'tool_call',
@@ -591,6 +652,9 @@ export class WorkerSupervisor {
           tier: approval.tier,
           rule: approval.rule,
           approved: 'automatically',
+          // A red check that was overruled or only told about is still
+          // recorded red: nothing rewrites a run because somebody pushed.
+          ...('note' in checked && checked.note ? { checks: checked.note } : {}),
         },
       })
       return
@@ -628,6 +692,22 @@ export class WorkerSupervisor {
     if (!state) throw new WorkerNotFoundError(run)
     return state
   }
+}
+
+/**
+ * What a tool was called with, small enough to keep: the journal holds the
+ * shape of what happened, never a body of text somebody pasted into it.
+ */
+export function clipped(input: unknown): Record<string, unknown> {
+  if (typeof input !== 'object' || input === null) return {}
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    if (typeof value === 'string') out[key] = value.length > 300 ? `${value.slice(0, 300)}…` : value
+    else if (typeof value === 'number' || typeof value === 'boolean') out[key] = value
+    else if (Array.isArray(value))
+      out[key] = value.slice(0, 20).map((one) => String(one).slice(0, 100))
+  }
+  return out
 }
 
 /**

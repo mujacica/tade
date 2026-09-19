@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { readRecord, readTests, testsPath, writeTests } from '../src/tests.ts'
+import { readRecord, readTests, testsPath, verifiedAt, writeTests } from '../src/tests.ts'
 
 // A test result is about one commit. Everything here is about refusing to let
 // an old green run vouch for code it never saw.
@@ -73,5 +73,59 @@ describe('readRecord', () => {
       at: '',
       output: '',
     })
+  })
+})
+
+describe('verifiedAt', () => {
+  const manifest = [
+    'checks:',
+    '  - id: format',
+    '    run: pnpm exec biome ci .',
+    '  - id: tests',
+    '    run: pnpm exec vitest run',
+    '    alone: true',
+  ].join('\n')
+
+  const run = (check: string, state: string, commit = 'abc123') =>
+    JSON.stringify({
+      id: `${commit}:${check}:here:1`,
+      check,
+      commit,
+      state,
+      where: { kind: 'here', runner: 'local', host: 'mbp' },
+      required: true,
+      startedAt: '2026-09-19T05:00:00.000Z',
+      finishedAt: '2026-09-19T05:01:00.000Z',
+      code: state === 'passed' ? 0 : 1,
+      summary: null,
+      by: 'you',
+      tail: '',
+    })
+
+  const project = (root: string) => ({ name: 'demo', root })
+
+  it('is the rollup of the required checks, not of one command', async () => {
+    const worktree = tmp('tade-verified-')
+    mkdirSync(join(worktree, '.tade'), { recursive: true })
+    writeFileSync(join(worktree, '.tade', 'checks.yaml'), manifest)
+    writeFileSync(join(worktree, '.tade', 'checks.jsonl'), `${run('format', 'passed')}\n`)
+    // One of two required checks has run: unverified, never green.
+    expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('unknown')
+    writeFileSync(
+      join(worktree, '.tade', 'checks.jsonl'),
+      `${run('format', 'passed')}\n${run('tests', 'passed')}\n`,
+    )
+    expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('pass')
+    writeFileSync(
+      join(worktree, '.tade', 'checks.jsonl'),
+      `${run('format', 'passed')}\n${run('tests', 'failed')}\n`,
+    )
+    expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('fail')
+  })
+
+  it('still reads what `tade check` recorded for a project with nothing written down', async () => {
+    const worktree = tmp('tade-verified-')
+    await writeTests(worktree, record())
+    expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('pass')
   })
 })

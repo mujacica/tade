@@ -167,7 +167,13 @@ export function sharedTaskDir(id: string): string {
   return `${SHARED_TASKS_DIR}/${id.split('/').slice(1).join('-')}`
 }
 
-export const PrState = z.enum(['OPEN', 'MERGED', 'CLOSED'])
+/**
+ * Where a review stands, in the forge port's neutral words rather than any
+ * one forge's: GitHub shouts `MERGED`, GitLab says merge request, Gerrit says
+ * change. `draft` is a review that says it is not finished being argued with.
+ */
+export const ReviewState = z.enum(['draft', 'open', 'merged', 'closed'])
+export type ReviewState = z.infer<typeof ReviewState>
 
 export const GitSnapshot = z.object({
   branch: z.string().nullable(),
@@ -182,7 +188,8 @@ export const GitSnapshot = z.object({
   /** HEAD moved past `base` and is now contained in the base branch. */
   mergedIntoBase: z.boolean(),
   upstreamGone: z.boolean(),
-  pr: z.object({ state: PrState, url: z.string() }).nullable(),
+  /** The review this branch is out for, when there is one. */
+  pr: z.object({ state: ReviewState, url: z.string() }).nullable(),
 })
 export type GitSnapshot = z.infer<typeof GitSnapshot>
 

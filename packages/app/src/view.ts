@@ -41,6 +41,7 @@ import {
   queueRows,
   type ScheduleView,
   schedulesShown,
+  showingWork,
   shownName,
   spinner,
   splitShown,
@@ -86,6 +87,70 @@ export type { Drawn } from './ui.ts'
 export interface LaneView {
   lines: number
   cursor: { back: number; column: number }
+}
+
+/** A row an extension keeps in the sidebar, as the window draws it. */
+export interface ListRowView {
+  /** `<extension>.<list>`, so a click knows which list it came from. */
+  section: string
+  id: string
+  title: string
+  note?: string
+  marks?: readonly { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[]
+  links?: readonly { title: string; url: string }[]
+  /** What clicking it runs: one of the extension's own tools. */
+  opens?: { tool: string; input?: Record<string, unknown> }
+  /** The task it is about, when it is about one. */
+  task?: string
+}
+
+/** A section an extension keeps in the sidebar. */
+export interface ListSectionView {
+  id: string
+  title: string
+  rows: readonly ListRowView[]
+  /** Why there are no rows, when something is wrong. One quiet row says it. */
+  problem: string | null
+}
+
+/**
+ * What an agent has done, as the work tab draws it: its branch, its commits,
+ * the review it is out for and how its project's checks stand at the commit
+ * in hand. Every field is a query somebody else answered — nothing here is
+ * remembered, and drawing it reads nothing.
+ */
+export interface WorkView {
+  task: string
+  branch: string | null
+  base: string | null
+  ahead: number | null
+  behind: number | null
+  /** How many files are changed and not committed. */
+  dirty: number
+  /** The commit the checks are about. */
+  commit: string | null
+  commits: readonly { sha: string; subject: string; at: number; task: string | null }[]
+  /** How many of those commits say whose they are: "3 commits, 1 with this task's trailer". */
+  attributed: string
+  /** The review this branch is out for, when a forge knows of one. */
+  review: {
+    number: string
+    title: string
+    url: string
+    marks: readonly { text: string; tone?: 'quiet' | 'good' | 'warning' | 'bad' }[]
+  } | null
+  checks: readonly {
+    id: string
+    state: string
+    summary: string | null
+    seconds: number | null
+  }[]
+  /** Where the checks came from, or what to do when there are none. */
+  source: string
+  /** Something is running here now. */
+  running: boolean
+  /** What this cannot say: no forge, no network, what a local run does not prove. */
+  notes: readonly string[]
 }
 
 /** A file the task has changed, as git sees it. */
@@ -144,6 +209,10 @@ export interface Frame {
   } | null
   /** What the focused agent has changed since it branched. */
   changes?: readonly Change[]
+  /** What the focused agent has done, for the work tab beside its screen. */
+  work?: WorkView | null
+  /** The sections extensions keep in the sidebar, as they last answered. */
+  lists?: readonly ListSectionView[]
   /** The branch those changes are counted against. */
   base?: string | null
   /** What you have told Tade about this project, newest first. */
@@ -714,6 +783,10 @@ function renderSidebar(
     ...(queuedCount(state) + schedulesHere(state, frame) === 0
       ? []
       : [queueSection(state, frame, width, skin, pointer)]),
+    // What an extension keeps here — reviews, most of all — between the work
+    // that is waiting and the work in front of you. A section with no rows
+    // and nothing wrong is not drawn at all.
+    ...listSections(frame, width, skin, pointer),
     {
       id: 'changes',
       label: 'CHANGES',
@@ -1903,6 +1976,199 @@ function wrapWords(text: string, width: number): string[] {
  * count as finished. This is what clicking it shows — looking at queued work
  * is not starting it, which is the Start now beside its name.
  */
+/**
+ * The sections extensions keep in the sidebar, drawn from their own caches.
+ * The window knows nothing about what is in them: a row is a title, a few
+ * words, some marks and what clicking it runs.
+ */
+function listSections(frame: Frame, width: number, skin: Skin, _pointer: Pointer): Section[] {
+  const shown = (frame.lists ?? []).filter(
+    (section: ListSectionView) => section.rows.length > 0 || section.problem !== null,
+  )
+  return shown.map((section: ListSectionView) => ({
+    id: `list:${section.id}`,
+    label: section.title,
+    count: section.rows.length,
+    rows: (row: () => Row) =>
+      section.problem !== null && section.rows.length === 0
+        ? [
+            row()
+              .space(3)
+              .text(shortened(section.problem, Math.max(1, width - 5)), skin.hint)
+              .build(),
+          ]
+        : section.rows.map((one) => listRow(row(), one, skin, width)),
+  }))
+}
+
+/** One row an extension keeps: what it is, how it is going, and where it opens. */
+function listRow(
+  row: Row,
+  one: ListRowView,
+  skin: Skin,
+  width: number,
+): { text: string; hits: Hit[] } {
+  const target: Target = { kind: 'action', name: `list-row:${one.section}\u0000${one.id}` }
+  const marks = (one.marks ?? []).map((mark) => mark.text).join(' · ')
+  const room = Math.max(4, width - 6 - visibleWidth(marks))
+  row.space(2).text(shortened(one.title, room), (text) => text, target)
+  if (marks) {
+    row.right((r) => {
+      for (const mark of one.marks ?? []) r.text(mark.text, toneFor(mark.tone, skin)).space()
+    })
+  }
+  const built = row.build()
+  return { text: built.text, hits: [rowHit(0, width, target), ...built.hits] }
+}
+
+/**
+ * What an agent has actually done, where its screen would be: its branch,
+ * the commits on it and whose they are, the review it is out for, and how the
+ * project's own checks stand at the commit in hand — here, and on CI.
+ *
+ * Everything here is a query somebody else answered: the rows are drawn from
+ * the frame and nothing in this function reads a file or asks a forge.
+ */
+function workRows(
+  work: WorkView | null,
+  pane: AgentPane,
+  width: number,
+  _height: number,
+  skin: Skin,
+  pointer: Pointer,
+): { text: string; hits: Hit[] }[] {
+  const rows: { text: string; hits: Hit[] }[] = []
+  const line = (build: (r: Row) => void) => {
+    const r = new Row(width, skin, pointer).space(2)
+    build(r)
+    rows.push(r.build())
+  }
+  const said = (text: string) => shortened(text, Math.max(1, width - 6))
+  if (!work) {
+    rows.push(blank(width))
+    line((r) => r.text('Nothing is known about this work yet.', skin.hint))
+    return rows
+  }
+  rows.push(blank(width))
+  const ahead = work.ahead ?? 0
+  const behind = work.behind ?? 0
+  line((r) =>
+    r
+      .text('branch'.padEnd(8), skin.label)
+      .text(work.branch ?? 'none yet', skin.you)
+      .space(2)
+      .text(
+        said(
+          [
+            `${ahead} ahead`,
+            work.base ? `${behind} behind ${work.base}` : '',
+            work.dirty === 0 ? 'clean' : `${work.dirty} uncommitted`,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        ),
+        skin.hint,
+      ),
+  )
+  if (work.review) {
+    const review = work.review
+    line((r) => {
+      r.text('review'.padEnd(8), skin.label).text(`${review.number}  ${said(review.title)}`)
+      r.space(2)
+      for (const mark of review.marks) {
+        r.text(mark.text, toneFor(mark.tone, skin)).space()
+      }
+    })
+    line((r) => r.text(''.padEnd(8)).text(review.url, skin.hint, { kind: 'link', url: review.url }))
+  }
+
+  if (work.commits.length > 0) {
+    rows.push(blank(width))
+    line((r) =>
+      r
+        .text('COMMITS', skin.label)
+        .space()
+        .text(String(work.commits.length), skin.hint)
+        .space(2)
+        .text(work.attributed, skin.hint),
+    )
+    for (const commit of work.commits.slice(0, 8)) {
+      line((r) =>
+        r
+          .text(commit.sha.slice(0, 7), skin.hint)
+          .space()
+          .text(said(commit.subject))
+          .space()
+          .text(commit.task && commit.task !== pane.task ? `(${commit.task})` : '', skin.hint),
+      )
+    }
+  }
+
+  rows.push(blank(width))
+  const run: Target = { kind: 'action', name: `checks-run:${pane.task}` }
+  line((r) => {
+    r.text('CHECKS', skin.label)
+      .space()
+      .text(work.commit ? `at ${work.commit.slice(0, 7)}` : 'no commit', skin.hint)
+    r.right((one) => {
+      one.button(work.running ? 'Running…' : 'Run all', run, work.running ? 'rest' : 'primary')
+      one.space()
+    })
+  })
+  if (work.checks.length === 0) {
+    line((r) => r.text(said(work.source), skin.hint))
+  }
+  for (const check of work.checks) {
+    const target: Target = { kind: 'check', task: pane.task, check: check.id }
+    const tone =
+      check.state === 'passed'
+        ? skin.done
+        : check.state === 'failed' || check.state === 'timed out'
+          ? skin.bad
+          : check.state === 'running' || check.state === 'queued'
+            ? skin.busy
+            : skin.hint
+    line((r) => {
+      r.text(glyphFor(check.state), tone)
+        .space()
+        .text(
+          check.id.padEnd(9),
+          sameTarget(pointer.hover, target) ? skin.you : (text) => text,
+          target,
+        )
+        .space()
+        .text(check.state.padEnd(10), skin.hint)
+      if (check.seconds !== null) r.text(`${check.seconds.toFixed(1)}s`.padStart(7), skin.hint)
+      if (check.summary) r.space(2).text(said(check.summary), skin.hint)
+    })
+  }
+  for (const note of work.notes) {
+    rows.push(blank(width))
+    line((r) => r.text(said(note), skin.hint))
+  }
+  return rows
+}
+
+/** A mark's tone, as the skin says it. Quiet by default: most marks are facts. */
+function toneFor(
+  tone: 'quiet' | 'good' | 'warning' | 'bad' | undefined,
+  skin: Skin,
+): (text: string) => string {
+  if (tone === 'bad') return skin.bad
+  if (tone === 'good') return skin.done
+  if (tone === 'warning') return skin.waiting
+  return skin.hint
+}
+
+/** A check's state as one character, the same one the CLI prints. */
+function glyphFor(state: string): string {
+  if (state === 'passed') return '✓'
+  if (state === 'failed' || state === 'timed out') return '✗'
+  if (state === 'skipped' || state === 'cancelled') return '–'
+  if (state === 'not run') return '◦'
+  return '⋯'
+}
+
 function renderQueued(
   state: AppState,
   frame: Frame,
@@ -2222,10 +2488,12 @@ function renderMain(
     )
   }
 
-  const shown = laneShown(state, pane)
-  // A tab per lane — the agent, and any shell beside it — and + for another.
+  const work = showingWork(state, pane.task)
+  const shown = work ? null : laneShown(state, pane)
+  // A tab per lane — the agent, and any shell beside it — then the work tab,
+  // and + for another shell.
   const tabs = (r: Row) => {
-    if (pane.lanes.length === 0) r.tab('agent', { kind: 'task', task: pane.task }, true)
+    if (pane.lanes.length === 0) r.tab('agent', { kind: 'task', task: pane.task }, !work)
     for (const { id, label } of laneLabels(pane.lanes)) {
       const target: Target = { kind: 'lane', task: pane.task, lane: id }
       r.tab(label, target, id === shown)
@@ -2243,6 +2511,7 @@ function renderMain(
         r.button('▾', menu).button('×', close, 'danger')
       }
     }
+    r.tab('work', { kind: 'pane-tab', task: pane.task, tab: 'work' }, work)
     r.space().button('+', { kind: 'action', name: 'new-shell' }, 'add')
   }
 
@@ -2319,7 +2588,9 @@ function renderMain(
   // measured against the lane sizes the window asked the driver for.
   const lane = shown && !split ? (frame.paneScreen ?? null) : null
   const body = lane ? width - BAR : width
-  if (!shown) {
+  if (work) {
+    rows.push(...workRows(frame.work ?? null, pane, width, room, skin, pointer))
+  } else if (!shown) {
     rows.push(blank(width))
     rows.push(
       new Row(width, skin)
@@ -2438,7 +2709,10 @@ function renderMain(
     )
   }
   const drawn = stack(rows.slice(0, height))
-  if (pane.approval) return withApproval(drawn, pane.approval, width, height, skin, pointer)
+  // The approval card belongs to the agent's screen: over the work tab it
+  // would cover what somebody opened the tab to read.
+  if (pane.approval && !work)
+    return withApproval(drawn, pane.approval, width, height, skin, pointer)
   return drawn
 }
 

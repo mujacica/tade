@@ -6,6 +6,7 @@ import {
   ConfigSchema,
   checkBudget,
   checkPlan,
+  type checksFor,
   composeAgentPrompt,
   type DoneRule,
   type EventFilter,
@@ -52,7 +53,8 @@ import { git } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { recordAuthored } from './authored.ts'
-import { EventLog } from './events.ts'
+import { checksAt, checksGate } from './checks.ts'
+import { EventLog, readJournal } from './events.ts'
 import { HARNESS_ADAPTERS, type LaneHarness } from './harnesses.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
@@ -311,6 +313,16 @@ export class Workbench {
           rules: config.approvals.rules,
         },
         ...(opts.report ? { report: opts.report } : {}),
+        // The checks rule: a push with nothing green behind it comes back
+        // refused, with what is missing and the call that fixes it.
+        checks: checksGate({
+          config,
+          events: () => readJournal(opts.home, { types: ['tool_call'] }).catch(() => []),
+          head: async (worktree) => {
+            const head = await git(worktree, ['rev-parse', 'HEAD'])
+            return head.ok ? head.stdout.trim() : null
+          },
+        }),
         // Written into the task, not held: the branch may be named long after,
         // by a window opened later.
         onTitle: (task, worktree, title, named) => {
@@ -1283,6 +1295,34 @@ export class Workbench {
     }
   }
 
+  /**
+   * What a project's checks are, and the rule about when they run, for the
+   * agent's prompt. Nothing at all for a project that checks nothing, which
+   * is what leaves the old one-command sentence in place.
+   */
+  private async checksTold(
+    project: string,
+    cwd: string,
+  ): Promise<{ checks?: { ids: string[]; rule: ReturnType<typeof checksFor>; hold: boolean } }> {
+    try {
+      const stood = await checksAt({ config: this.config, project, worktree: cwd, commit: null })
+      if (stood.manifest.source === 'none' || stood.manifest.checks.length === 0) return {}
+      return {
+        checks: {
+          ids: stood.manifest.checks.map((check) => check.id),
+          rule: stood.rule,
+          // Only under `policy` can a push actually be held; anywhere else
+          // the rule is something the agent keeps, and Tade writes down.
+          hold: this.config.approvals.mode === 'policy' && stood.rule.on_red === 'hold',
+        },
+      }
+    } catch {
+      // A manifest that will not read is the extension's problem to report,
+      // never a reason an agent cannot start.
+      return {}
+    }
+  }
+
   /** What an agent starting on a task is told about where it is. */
   private async agentPrompt(task: string, cwd: string, canSayDone: boolean): Promise<string> {
     const project = task.split('/')[0] ?? ''
@@ -1305,6 +1345,7 @@ export class Workbench {
       commit: agents.commit,
       ...(agents.instructions ? { instructions: agents.instructions } : {}),
       ...(configured?.test_command ? { testCommand: configured.test_command } : {}),
+      ...(await this.checksTold(project, cwd)),
       canSayDone,
     })
   }

@@ -16,6 +16,7 @@ import type {
   JsonSchema,
   Link,
   Linker,
+  ListRow,
   ProjectRef,
   StatusItem,
   TadeExtension,
@@ -150,6 +151,25 @@ async function inTime<T>(
   }
 }
 
+/** A section an extension keeps in the sidebar, as the window draws it. */
+export interface ListSection {
+  /** `<extension>.<id>`: what the window names the section by. */
+  id: string
+  extension: string
+  title: string
+  filters: readonly { id: string; title: string }[]
+  /** Which filter these rows are for. */
+  filter: string
+  rows: readonly ListRow[]
+  /** Why there are no rows, when something is wrong. Never a throw. */
+  problem: string | null
+  /** When it was last asked, so the window can say how fresh it is. */
+  at: number
+}
+
+/** A list is asked for on its own clock; a slow one is left with what it had. */
+const LIST_TIMEOUT_MS = 10_000
+
 /** Ten minutes: a dependency update or a Seer analysis is slow, and a hung one must still end. */
 const TOOL_TIMEOUT_MS = 10 * 60_000
 /** A watch's look is meant to be cheap: a minute is already a slow one. */
@@ -160,6 +180,8 @@ export class ExtensionHost {
   private readonly entries: Entry[]
   private readonly opts: HostOptions
   private readonly listeners = new Set<(run: ExtensionRun) => void>()
+  /** The last answer from each sidebar section, so drawing costs nothing. */
+  private readonly listed = new Map<string, ListSection>()
   private counter = 0
 
   private constructor(entries: Entry[], opts: HostOptions) {
@@ -374,6 +396,82 @@ export class ExtensionHost {
       }
     }
     return out
+  }
+
+  /**
+   * The sections the ready extensions keep in the sidebar, each asked again
+   * only when its own `every` has passed. Every caller reads the same answer:
+   * status, the rows, the tools and the brief share one poll, and drawing
+   * never asks anybody anything.
+   *
+   * Never throws. A list that fails, hangs or is not ready is a section with
+   * a problem on it, which the window draws as one quiet row.
+   */
+  async lists(
+    tade: ExtensionWorkbench,
+    options: { filters?: Readonly<Record<string, string>>; timeoutMs?: number } = {},
+  ): Promise<ListSection[]> {
+    const now = (this.opts.now ?? Date.now)()
+    const out: ListSection[] = []
+    for (const entry of this.entries) {
+      for (const list of entry.extension.lists ?? []) {
+        const id = `${entry.extension.name}.${list.id}`
+        const filters = list.filters ?? []
+        const filter = options.filters?.[id] ?? filters[0]?.id ?? ''
+        const known = this.listed.get(id)
+        const every = everyMs(list.every)
+        const fresh = known !== undefined && known.filter === filter && now - known.at < every
+        if (fresh) {
+          out.push({ ...known, id, extension: entry.extension.name, title: list.title, filters })
+          continue
+        }
+        const problem = notReady(entry)
+        const asked: ListSection = problem
+          ? {
+              id,
+              extension: entry.extension.name,
+              title: list.title,
+              filters,
+              filter,
+              rows: [],
+              problem,
+              at: now,
+            }
+          : await this.askList(entry, list.title, id, filters, filter, tade, now, options.timeoutMs)
+        this.listed.set(id, asked)
+        out.push(asked)
+      }
+    }
+    return out
+  }
+
+  private async askList(
+    entry: Entry,
+    title: string,
+    id: string,
+    filters: readonly { id: string; title: string }[],
+    filter: string,
+    tade: ExtensionWorkbench,
+    now: number,
+    timeoutMs?: number,
+  ): Promise<ListSection> {
+    const list = entry.extension.lists?.find((one) => `${entry.extension.name}.${one.id}` === id)
+    const base = { id, extension: entry.extension.name, title, filters, filter, at: now }
+    if (!list) return { ...base, rows: [], problem: 'it is gone' }
+    const controller = new AbortController()
+    try {
+      const rows = await inTime(
+        Promise.resolve().then(() =>
+          list.rows({ ...entry.ctx, tade: asExtension(tade, entry.extension.name) }, filter),
+        ),
+        timeoutMs ?? LIST_TIMEOUT_MS,
+        `${id} did not answer in time`,
+        controller,
+      )
+      return { ...base, rows: [...rows], problem: null }
+    } catch (err) {
+      return { ...base, rows: [], problem: why(err) }
+    }
   }
 
   /** An extension's view, as markdown. Throws with the reason it could not be made. */
@@ -830,6 +928,19 @@ export function shapeProblem(extension: TadeExtension): string | null {
       return `its watch ${watch.id} needs a check and an agent`
     }
   }
+  const lists = new Set<string>()
+  for (const list of extension.lists ?? []) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(list.id ?? '')) {
+      return `its list "${String(list.id)}" is not a usable name: lowercase letters, digits and dashes`
+    }
+    if (lists.has(list.id)) return `it has two lists called ${list.id}`
+    lists.add(list.id)
+    if (!list.title) return `its list ${list.id} needs a heading`
+    if (typeof list.rows !== 'function') return `its list ${list.id} has no rows`
+    if (everyMs(list.every) < 30_000) {
+      return `its list ${list.id} asks every "${list.every}", which is oftener than every 30s`
+    }
+  }
   return null
 }
 
@@ -923,4 +1034,15 @@ function safely<T>(make: () => T, otherwise?: T): T {
 
 function why(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/** How often a sidebar section may be asked again: `30s`, `5m`, `1h`. */
+function everyMs(every: string): number {
+  const match = /^(\d+)\s*(s|sec|seconds?|m|min|minutes?|h|hours?)$/.exec(
+    String(every).trim().toLowerCase(),
+  )
+  if (!match) return 60_000
+  const n = Number(match[1])
+  const unit = match[2]?.[0]
+  return n * (unit === 's' ? 1_000 : unit === 'm' ? 60_000 : 3_600_000)
 }
