@@ -608,9 +608,15 @@ function renderTop(
   const waiting = state.panes.filter((pane) => markOf(pane) === 'needs-you').length
   const working = state.panes.filter((pane) => markOf(pane) === 'working').length
   // The talk key is the one thing here that must survive a narrow terminal;
-  // search is next, then what waits on you. The counts shorten, then go, first.
+  // search is next, then what waits on you. The counts shorten, then go, first,
+  // and the very last thing to go is the word beside the caps — never the caps.
   type Counts = 'full' | 'short' | 'waiting' | 'none'
-  const right = (show: { search: boolean; counts: Counts }) => (r: Row) => {
+  interface Fits {
+    search: boolean
+    counts: Counts
+    word: boolean
+  }
+  const right = (show: Fits) => (r: Row) => {
     if (waiting > 0 && show.counts !== 'none') {
       const label = show.counts === 'full' ? `! ${waiting} waiting` : `! ${waiting}`
       r.text(label, skin.waiting, { kind: 'action', name: 'next-waiting' }).space(2)
@@ -628,23 +634,27 @@ function renderTop(
       r.keys(keyCaps(frame.bindings?.search ?? 'ctrl+k')).space()
       r.text('search', sameTarget(state.hover, search) ? skin.link : skin.hint, search).space(3)
     }
-    talkChip(r, state, frame, skin)
+    talkChip(r, state, frame, skin, show.word)
     r.space()
   }
-  const tries: { search: boolean; counts: Counts }[] = [
-    { search: true, counts: 'full' },
-    { search: true, counts: 'short' },
-    { search: true, counts: 'waiting' },
-    { search: false, counts: 'short' },
-    { search: false, counts: 'waiting' },
-    { search: false, counts: 'none' },
+  const tries: Fits[] = [
+    { search: true, counts: 'full', word: true },
+    { search: true, counts: 'short', word: true },
+    { search: true, counts: 'waiting', word: true },
+    { search: false, counts: 'short', word: true },
+    { search: false, counts: 'waiting', word: true },
+    { search: false, counts: 'none', word: true },
+    // Room for the caps and nothing else. Dropping the word is the last thing
+    // left to drop, and it is the caps that say what to press — a bar that
+    // gave up the talk key to keep the word `talk` would have it backwards.
+    { search: false, counts: 'none', word: false },
   ]
   const fits = tries.find((show) => {
     const probe = new Row(width, skin)
     right(show)(probe)
     return row.used + 1 + probe.used <= width
   })
-  row.right(right(fits ?? { search: false, counts: 'none' }))
+  row.right(right(fits ?? { search: false, counts: 'none', word: false }))
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
 }
 
@@ -652,7 +662,7 @@ function renderTop(
  * The key you talk with, always on screen, in whatever state talking is in.
  * Red while the microphone is open: that is never something to have to infer.
  */
-function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin): void {
+function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin, word = true): void {
   const voice = frame.voice ?? { keys: ['ctrl', 'space'], available: false }
   const target: Target = { kind: 'action', name: 'voice' }
   if (state.talkingSince !== null && state.listening) {
@@ -676,6 +686,9 @@ function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin): void {
     r.button('Set up', target)
     return
   }
+  // Without the word the caps are the whole control, so they take the target:
+  // a chip nobody can click is not a chip that survived.
+  if (!word) return void r.keys(voice.keys, target)
   r.keys(voice.keys).space()
   r.text('talk', skin.hint, target)
 }

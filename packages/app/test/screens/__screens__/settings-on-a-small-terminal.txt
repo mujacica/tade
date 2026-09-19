@@ -1,9 +1,9 @@
-   T A D E      checkout    search    infra      +        ctrl  +  space   talk 
+   T A D E      checkout    search    infra      +           ctrl   +   space   
 ━━━╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮━━━
  ▾ │  search settin…  │ Telemetry                                           │   
    │                  │ Tade reporting its own trouble to a Sentry project  │───
- ▐ │  Agents          │ of yours, and reading that Sentry back. Never your… │t s
- ▐ │  Models          │                                                     │   
+ ▌ │  Agents          │ of yours, and reading that Sentry back. Never your… │t s
+ ▌ │  Models          │                                                     │   
    │  Orchestrator    │ Send to                   nothing is sent         ↻ │   
    │  Approvals       │▌Reporter                 ◉ sentry   ○ none        ↻ │   
    │  Checks          │   sentry sends through Sentry’s own SDK, imported   │   
@@ -19,6 +19,6 @@
    │                  │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕
 ───╰────────────────────────────────────────────────────────────────────────╯── 
- Ask Tade anything                             type, or hold   ctrl  +  space   
+ Ask Tade anything                          type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     claude-opus-5 ▾ │ 2h 5m │ $2.66 today ▾ 

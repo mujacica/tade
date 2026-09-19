@@ -2,8 +2,8 @@
 ━━━╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮━━━
  ▾ │  search sett…  │ Telemetry                     │l  
    │                │ Tade reporting its own        │───
- ▐ │  Agents        │ trouble to a Sentry project … │   
- ▐ │  Models        │                               │   
+ ▌ │  Agents        │ trouble to a Sentry project … │   
+ ▌ │  Models        │                               │   
    │  Orchestrator  │ Send to                     ↻ │+12
    │  Approvals     │    nothing is sent            │   
    │  Checks        │                               │   
@@ -17,6 +17,6 @@
    │                │ ● Saved as you change it.     │  ▕
  ❯ │                │                        Done   │d ▕
 ───╰────────────────────────────────────────────────╯── 
- Ask Tade anything     type, or hold   ctrl  +  space   
+ Ask Tade anything  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────
    Extensions     Settings     Mute       $2.66 today ▾ 

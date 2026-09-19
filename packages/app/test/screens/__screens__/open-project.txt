@@ -1,9 +1,9 @@
-   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS ╭─ Open a project ─────────────────────────────────────────────────────────────────────────── esc ─╮▾     ×   
           │   ‹    ›    ↑    ~ / src                                           ▏                             │──────────
- ▐ ! strip│                                                                                                  │          
- ▐   wants│ RECENT                       │ ◆ this folder   no git                                            │          
+ ▌ ! strip│                                                                                                  │          
+ ▌   wants│ RECENT                       │ ◆ this folder   no git                                            │          
           │ checkout   ~/src/checkout    │ ▸ payments/     git · main                                     ›  │          
    ⠋ refun│ tade       ~/tade            │▌▸ payroll/      no git                                         ›  │          
      worki│                              │ ▸ search/       git · main                                     ›  │          
@@ -29,6 +29,6 @@
           ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯         ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

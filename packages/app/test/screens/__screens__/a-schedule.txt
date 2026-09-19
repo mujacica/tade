@@ -1,4 +1,4 @@
-   T A D E      checkout      +              ! 1 waiting  ⠋ 1 working     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout      +        ! 1 waiting  ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    ▕│ checkout › deps weekly  ↻ every Monday at 09:00       Run now     ‖ Pause     ≡     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
@@ -17,8 +17,8 @@
    ↻ morning brief   08:45   ▕│  Mon 7 Sep 09:00   deps-weekly-0907                                                     
      ◆ every weekday at 0…   ▕│  Mon 31 Aug 09:00  deps-weekly-0831  2 missed before it                                 
                              ▕│                                                                                         
- ▐ ↻ deps weekly     09:00 ▌ ▕│                                                                                         
- ▐   ❯ every Monday at 09… ▌ ▕│                                                                                         
+ ▌ ↻ deps weekly     09:00   ▕│                                                                                         
+ ▌   ❯ every Monday at 09…   ▕│                                                                                         
                              ▕│                                                                                         
    ‖ perf nightly   paused   ▕│                                                                                         
      ❯ every day at 02:00    ▕│                                                                                         
@@ -39,6 +39,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

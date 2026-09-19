@@ -121,11 +121,23 @@ export interface Skin {
   transmit(text: string): string
 
   /**
-   * A list item as a tab: its row on a ground between two ends, when lit, and
-   * the same columns blank when not — so nothing moves as it lights. The one
-   * you are on has an accent for its left end. Exactly the row's width + 2.
+   * A list item as a tab: its row on a ground with a blank column either side,
+   * when lit, and the same columns blank when not — so nothing moves as it
+   * lights. The one you are on is marked down its left. Exactly the row's
+   * width + 2.
    */
   item(row: string, band: Band | null): string
+
+  /**
+   * The bar that marks the row you are on — a selected item, the focused line
+   * of a form, the choice a menu is at. Exactly one column, and the whole of
+   * it: the cell is filled edge to edge rather than given a glyph to draw, so
+   * a marked row is one clean line down its left and never a stack of little
+   * boxes with a hairline between them. The same reasoning as the scrollbar's,
+   * and for the same reason — see `scrollThumb`.
+   */
+  marker(): string
+
   /** A glyph as a button that takes no room of a block: ` × `, exactly label + 2 columns. */
   icon(label: string, state: IconState): string
 
@@ -274,6 +286,15 @@ const under =
  */
 const solid = (tone: number, glyph: string) => `${bg(tone)}${fg(tone)}${glyph}${RESET}`
 
+/**
+ * The one cell a marked row is marked with: the dark amber, filled edge to
+ * edge. Amber because that is Tade's own colour and what the rest of the
+ * chrome is lit with, and the dark step of it because a bar beside every
+ * selected row is always on screen — the bright one would shout over the row
+ * it is pointing at.
+ */
+const MARKER = solid(TONE.amberDark, '▌')
+
 /** A block in the control's own colour, label centred on its ground. */
 function block(label: string, ground: number, ink: number, bold = false, pad = '  '): string {
   return `${bg(ground)}${fg(ink)}${bold ? BOLD : ''}${pad}${label}${pad}${RESET}`
@@ -381,6 +402,7 @@ export const PLAIN: Skin = {
   transmit: identity,
   // Without colour the one you are on is marked the way focus is marked everywhere else.
   item: (row, band) => (band === 'selected' ? `▌${row} ` : ` ${row} `),
+  marker: () => '▌',
   icon: (label) => ` ${label} `,
   selected: identity,
   hovered: identity,
@@ -468,10 +490,14 @@ export const COLOUR: Skin = {
   item: (row, band) => {
     if (!band) return ` ${row} `
     const ground = TAB_GROUNDS[band]
-    // Half-width ends, which a terminal draws the full height of the row they are on.
-    const left = band === 'selected' ? fg(TONE.cyan) : fg(ground)
-    return `${left}▐${RESET}${under(ground)(row)}${fg(ground)}▌${RESET}`
+    // No end pieces: the ground is what says how far the row reaches, and the
+    // columns the half-blocks took are kept and filled with it, so squaring
+    // the ends off moved nothing. The one you are on is marked down its left
+    // by the same bar every other marked row in the window gets.
+    const left = band === 'selected' ? MARKER : solid(ground, ' ')
+    return `${left}${under(ground)(row)}${solid(ground, ' ')}`
   },
+  marker: () => MARKER,
   icon: (label, state) => {
     const [ground, ink, bold] = ICONS[state]
     return `${ground === null ? '' : bg(ground)}${fg(ink)}${bold ? BOLD : ''} ${label} ${RESET}`

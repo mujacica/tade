@@ -60,7 +60,7 @@ import { BAR, barRows } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
-import { blank, box, type Drawn, fit as fitRow, type Pointer, Row } from './ui.ts'
+import { blank, box, type Drawn, fit as fitRow, keysWidth, type Pointer, Row } from './ui.ts'
 import type { Change } from './view.ts'
 import {
   bytes,
@@ -297,7 +297,7 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       ctx.currentModel !== null &&
       (choice.id === ctx.currentModel || choice.id.endsWith(`/${ctx.currentModel}`))
     const r = new Row(inner, skin)
-      .text(on ? '▌' : ' ', skin.signal)
+      .marker(on)
       .space()
       .text(current ? '● ' : '  ', skin.done)
     const id = choice.id.slice(choice.provider.length + 1)
@@ -837,11 +837,7 @@ function resultRow(
     : entry.kind === 'file' || entry.kind === 'match'
       ? skin.busy
       : skin.tab
-  const r = new Row(width, skin)
-    .text(on ? '▌' : ' ', skin.signal)
-    .space()
-    .text(entry.mark, tone)
-    .space()
+  const r = new Row(width, skin).marker(on).space().text(entry.mark, tone).space()
   const hits = new Set(entry.hits ?? [])
   const label = [...entry.label]
   // Runs of matched and unmatched characters, painted as runs.
@@ -1222,50 +1218,55 @@ function keysSheet(ctx: PanelContext): Drawn {
   const inner = width - 2
   const label = (text: string) =>
     new Row(inner, skin, ctx.pointer).space().text(pad(text, 26), skin.label)
+  // What a key does, in whatever room its caps leave: capped a column short
+  // of the edge, so a long one ends in an ellipsis instead of running into
+  // the border of the box it is in.
+  const means = (row: Row, text: string) =>
+    row.text(cap(text, Math.max(0, inner - row.used - 1)), skin.hint).build()
   const talk = ctx.talkKey
   const rows: { text: string; hits: Hit[] }[] = [
     blank(inner),
-    label('Push to talk')
-      .keys(keyCaps(talk))
-      .space(2)
-      .text(ctx.releases && ctx.talkMode === 'hold' ? 'hold' : 'press, press again', skin.hint)
-      .build(),
+    means(
+      label('Push to talk').keys(keyCaps(talk)).space(2),
+      ctx.releases && ctx.talkMode === 'hold' ? 'hold' : 'press, press again',
+    ),
   ]
   // Every other key the window keeps, as it is set now.
   for (const binding of KEY_BINDINGS) {
     const bound = ctx.bindings[binding.key] ?? binding.fallback
-    rows.push(
-      label(binding.title).keys(keyCaps(bound)).space(2).text(binding.means, skin.hint).build(),
-    )
+    rows.push(means(label(binding.title).keys(keyCaps(bound)).space(2), binding.means))
   }
   rows.push(
     blank(inner),
     // Sending keeps the line, so say what leaves it: enter used to be both.
-    label('On the orchestrator line')
-      .keys(['↑'])
-      .keys(['↓'])
-      .space()
-      .keys(['ctrl', 'r'])
-      .space(2)
-      .text('what you said before · esc leaves', skin.hint)
-      .build(),
-    label('In a panel')
-      .keys(['enter'])
-      .space()
-      .keys(['esc'])
-      .space()
-      .keys(['↑'])
-      .keys(['↓'])
-      .space(2)
-      .text('the wheel scrolls it', skin.hint)
-      .build(),
-    label('In a file you are reading')
-      .keys(['ctrl', 'f'])
-      .keys(['ctrl', 'g'])
-      .keys(['ctrl', 's'])
-      .space(2)
-      .text('find · line · save', skin.hint)
-      .build(),
+    means(
+      label('On the orchestrator line')
+        .keys(['↑'])
+        .keys(['↓'])
+        .space()
+        .keys(['ctrl', 'r'])
+        .space(2),
+      'what you said before · esc leaves',
+    ),
+    means(
+      label('In a panel')
+        .keys(['enter'])
+        .space()
+        .keys(['esc'])
+        .space()
+        .keys(['↑'])
+        .keys(['↓'])
+        .space(2),
+      'the wheel scrolls it',
+    ),
+    means(
+      label('In a file you are reading')
+        .keys(['ctrl', 'f'])
+        .keys(['ctrl', 'g'])
+        .keys(['ctrl', 's'])
+        .space(2),
+      'find · line · save',
+    ),
     label('Quit').keys(['ctrl', 'c']).build(),
     blank(inner),
     new Row(inner, skin)
@@ -1433,7 +1434,7 @@ function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
   for (const { view, at } of recent.slice(0, list - 1)) {
     const on = at === panel.index
     const r = new Row(left, skin)
-      .text(on ? '▌' : ' ', skin.signal)
+      .marker(on)
       .text(pad(view.row.name, 11), on ? skin.you : (t: string) => t)
       .text(tildeOf(view.row.path, ctx.homeDir), skin.hint)
     const built = r.build()
@@ -1451,7 +1452,7 @@ function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
   const nameWidth = Math.min(30, Math.max(16, ...here.map(({ view }) => view.row.name.length + 4)))
   for (const { view, at } of here.slice(start, start + list - 1)) {
     const on = at === panel.index
-    const r = new Row(right, skin, pointer).text(on ? '▌' : ' ', skin.signal)
+    const r = new Row(right, skin, pointer).marker(on)
     if (view.row.kind === 'here') {
       r.text('◆ ', skin.signal).text(pad('this folder', nameWidth - 2), on ? skin.you : skin.label)
     } else {
@@ -1716,7 +1717,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
     const target = { kind: 'control' as const, id: `category:${category.id}` }
     const pointed = sameTarget(pointer.hover, target)
     const row = new Row(side, skin, pointer)
-      .text(on ? '▌' : ' ', skin.signal, target)
+      .marker(on, target)
       .space()
       .text(cap(category.title, side - 3), on ? skin.you : pointed ? skin.link : plain, target)
     row.right((r) => {
@@ -1828,7 +1829,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
     const beside = !layout.stacked && fitsInline(setting, room)
 
     const line = new Row(form, skin, keys)
-    line.text(focused ? '▌' : ' ', skin.signal, rowTarget)
+    line.marker(focused, rowTarget)
     line.text(padTo(setting.title, layout.label), focused || pointed ? skin.you : plain, rowTarget)
     let controlCol = line.used + GAP
     if (beside) {
@@ -2035,7 +2036,7 @@ function control(
     case 'key': {
       const target = { kind: 'control' as const, id: `capture:${setting.path}` }
       const caps = keyCaps(value || setting.fallback)
-      const width = caps.reduce((sum, cap) => sum + cap.length + 4, 0) + caps.length - 1
+      const width = keysWidth(caps)
       // The keys themselves are the control; the button is what says so, and
       // is only there where it fits beside them.
       row.keys(caps, target)
@@ -2196,7 +2197,7 @@ function settingsDropdown(
     const target = { kind: 'control' as const, id: `choose:${choice.value}` }
     const pointed = sameTarget(pointer.hover, target)
     const r = new Row(inner, skin, pointer)
-      .text(on ? '▌' : ' ', skin.signal)
+      .marker(on)
       .space()
       .text(cap(choice.label, inner - 4), on ? skin.you : pointed ? skin.link : (t: string) => t)
     r.right((right) => {
@@ -2250,8 +2251,7 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   ]
   const caps = row()
   if (pressed) {
-    const width =
-      keyCaps(pressed).reduce((sum, k) => sum + k.length + 4, 0) + keyCaps(pressed).length - 1
+    const width = keysWidth(keyCaps(pressed))
     caps.space(Math.max(1, Math.floor((inner - width) / 2))).keys(keyCaps(pressed))
   } else {
     caps.space(Math.floor((inner - 13) / 2)).text('waiting for a key', skin.hint)
@@ -2284,30 +2284,25 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   }
   rows.push({ text: ' '.repeat(inner), hits: [] })
   const suggested = row().space().text('Suggested: ', skin.hint)
+  // Each suggestion is a click that picks it, at the columns the row itself
+  // put it in — walking them a second time by hand is how the two answers
+  // come to disagree the next time the caps change shape.
+  const hits: Hit[] = []
   TALK_SUGGESTIONS.forEach((key, i) => {
     if (i > 0) suggested.space()
-    const at = suggested.used
+    const from = suggested.used
     suggested.keys(keyCaps(key))
-    void at
-  })
-  const built = suggested.build()
-  // Each suggestion is a click that picks it.
-  let col = 12
-  const hits: Hit[] = []
-  for (const key of TALK_SUGGESTIONS) {
-    const w = keyCaps(key).reduce((sum, k) => sum + k.length + 4, 0) + keyCaps(key).length - 1
     // Only the ones that were drawn: a hit past the edge of the box is a
     // click on a key cap nobody can see.
-    if (col + w <= inner)
+    if (suggested.used <= inner)
       hits.push({
         row: 0,
-        from: col,
-        to: col + w - 1,
+        from,
+        to: suggested.used - 1,
         target: { kind: 'control', id: `capture-suggest:${key}` },
       })
-    col += w + 1
-  }
-  rows.push({ text: built.text, hits })
+  })
+  rows.push({ text: suggested.build().text, hits })
   for (const line of wrapTo(
     'Never a key that types a character — you have to be able to type a space into your agent.',
     inner - 2,
@@ -2363,7 +2358,7 @@ function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
     const on =
       at === panel.index ||
       (ctx.pointer.hover?.kind === 'control' && ctx.pointer.hover.id === target.id)
-    const row = new Row(inner, skin).text(on && !item.off ? '▌' : ' ', skin.signal).space()
+    const row = new Row(inner, skin).marker(on && !item.off).space()
     const paint = item.off ? skin.faded : item.danger ? skin.bad : on ? skin.you : (t: string) => t
     row.text(item.label, paint, item.off ? undefined : target)
     const note = item.off ?? item.note
@@ -2461,7 +2456,7 @@ function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
   choices.slice(start, start + room).forEach((choice, offset) => {
     const at = start + offset
     const on = at === panel.index
-    const r = new Row(inner, skin).text(on ? '▌' : ' ', skin.signal).space()
+    const r = new Row(inner, skin).marker(on).space()
     if (choice.create) {
       r.text('+ ', skin.signal)
         .text('Create ', on ? skin.you : (t: string) => t)

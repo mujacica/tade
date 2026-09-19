@@ -23,6 +23,24 @@ export interface Pointer {
 
 export const NO_POINTER: Pointer = { hover: null, pressed: null }
 
+/** The clear column `keys` puts before a cap, and either side of the `+`. */
+const KEY_GAP = ' '
+
+/**
+ * Columns `Row.keys` will take, without drawing it: a leading gap and a cap
+ * of its label + 4 for each name, and a gap and a `+` before all but the
+ * first. A layout that has to know how wide the keys are before it places
+ * them asks here rather than working it out again — two answers to the same
+ * question drift the moment the spacing changes, and this one has.
+ */
+export function keysWidth(names: readonly string[]): number {
+  return names.reduce(
+    (sum, name, i) =>
+      sum + visibleWidth(name) + 4 + KEY_GAP.length + (i > 0 ? KEY_GAP.length + 1 : 0),
+    0,
+  )
+}
+
 /** A drawn region: its rows, and what each part of them is. */
 export interface Drawn {
   rows: string[]
@@ -109,14 +127,30 @@ export class Row {
    * Key caps joined by `+`: the shape of something you press. Given a target
    * the whole group is one control — what a key is set to is the thing you
    * click to set it again, and it lights as one.
+   *
+   * A cap is a painted block, so it needs ground around it to read as a key:
+   * with the `+` against the block on both sides a combination runs together
+   * into one long bar of colour rather than into two keys you press. So every
+   * cap gets a clear column before it, and the `+` one either side. The gaps
+   * belong to the target too — a control with holes punched through it is one
+   * you have to aim at.
    */
   keys(names: readonly string[], target?: Target): this {
     const lit = target !== undefined && sameTarget(this.pointer.hover, target)
     names.forEach((name, i) => {
-      if (i > 0) this.text('+', this.skin.hint, target)
+      if (i > 0) this.put(KEY_GAP, KEY_GAP.length, target).text('+', this.skin.hint, target)
+      this.put(KEY_GAP, KEY_GAP.length, target)
       this.put(this.skin.keycap(` ${name} `, lit), visibleWidth(name) + 4, target)
     })
     return this
+  }
+
+  /**
+   * The bar that marks the row you are on, or the column it takes left blank
+   * so that nothing moves as a row is marked. Exactly one column.
+   */
+  marker(on: boolean, target?: Target): this {
+    return this.put(on ? this.skin.marker() : ' ', 1, target)
   }
 
   badge(value: string | number): this {

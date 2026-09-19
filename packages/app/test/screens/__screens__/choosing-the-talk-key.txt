@@ -1,18 +1,18 @@
-   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Voice                                                                       │────────
- ▐ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
- ▐   wan│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
+ ▌ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
+ ▌   wan│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
         │  Models            │                                                            │                    │        
    ⠋ ref│  Orchestrator      │            Press the keys you want to hold to talk.        │ releases.          │        
      wor│  Approvals      byp│                                                            │                    │        
-        │  Checks            │                         ctrl  +  r                         │ to stop            │        
+        │  Checks            │                        ctrl   +   r                        │ to stop            │        
  ▾ CHANG│▌ Voice             │                                                            │                    │        
   M pack│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │       ↻ on restart │        
   A …/we│  Projects          │   While Tade holds it, your agents never see it.           │                    │        
   M src/│  Budgets           │                                                            │       ↻ on restart │        
-        │  Telemetry         │ Suggested:   ctrl  +  space     F5     ctrl  +  t          │                    │        
+        │  Telemetry         │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
  ▾ FILES│  Keys              │ Never a key that types a character — you have to be able   │                    │        
    ▾ src│  Accounts          │ to type a space into your agent.                           │                    │        
        w│                    │                                                            │       ↻ on restart │        
@@ -29,6 +29,6 @@
         │                        │                                                 Open config.yaml     Done   │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

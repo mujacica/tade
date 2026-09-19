@@ -1,9 +1,9 @@
-   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Telemetry                                                                   │────────
- ▐ ! str│                        │ Tade reporting its own trouble to a Sentry project of yours, and reading    │        
- ▐   wan│  Agents                │ that Sentry back. Never your work: what may be sent is an allow-list —      │        
+ ▌ ! str│                        │ Tade reporting its own trouble to a Sentry project of yours, and reading    │        
+ ▌   wan│  Agents                │ that Sentry back. Never your work: what may be sent is an allow-list —      │        
         │  Models                │ names, counts and Tade’s own words, with paths scrubbed to ~.               │        
    ⠋ ref│  Orchestrator          │                                                                             │        
      wor│  Approvals      bypass │ Send to                     nothing is sent                    ↻ on restart │        
@@ -29,6 +29,6 @@
         │                        │                                                 Open config.yaml     Done   │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

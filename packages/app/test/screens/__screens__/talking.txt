@@ -1,9 +1,9 @@
-   T A D E      checkout    search    infra      +       ! 1 waiting  ⠋ 1 working     ctrl  +  k   search    ● TX 0:04  
+   T A D E      checkout    search    infra      +    ! 1 waiting  ⠋ 1 working      ctrl   +   k   search    ● TX 0:04  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ checkout › stri…    agent    shell    work     +     claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
- ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
- ▐   wants you to approve… ▌ █│                                                                                         
+ ▌ ! stripe-v15      $1.26   █│                                                                                         
+ ▌   wants you to approve…   █│                                                                                         
                              █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
    ⠋ refunds         $0.62   █│    so src/webhooks.ts needs the new constructEvent signature.                           
      working                 █│                                                                                         

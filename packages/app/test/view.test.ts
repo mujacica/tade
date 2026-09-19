@@ -245,8 +245,10 @@ describe('the orchestrator strip', () => {
   it('is always there, even with nothing said yet', () => {
     const text = renderApp(state(), frame()).join('\n')
     expect(text).toContain('orchestrator')
-    // The key you talk with, as keys you press.
-    expect(text).toContain('[ ctrl ]+[ space ]')
+    // The key you talk with, as keys you press: a cap has ground before it
+    // and the `+` has ground either side, so a combination reads as two keys
+    // rather than as one long block.
+    expect(text).toContain('[ ctrl ] + [ space ]')
   })
 
   it('shows what was heard, where it went and why', () => {

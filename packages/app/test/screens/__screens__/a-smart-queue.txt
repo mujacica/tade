@@ -1,4 +1,4 @@
-   T A D E      checkout      +              ! 1 waiting  ⠋ 1 working     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout      +        ! 1 waiting  ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    ▕│ checkout › add-refunds  ! held                            Start now     ‖ Pause     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
@@ -11,11 +11,11 @@
  ▾ SMART QUEUE  8            ▕│  THE CHAIN IT IS IN                                                                     
    all  next  timed          ▕│  FIRST                         THIS ONE                      AFTER IT                   
                              ▕│  ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓      ╭──────────────────────╮   
- ▐ ! add-refunds      held ▌ ▕│  │ ✕ fix-charge         │─────▶┃ ! add-refunds   held ┃─────▶│ ◌ refund-emails      │   
- ▐ │ ◆ fix-charge failed:… ▌ ▕│  │   tests failed twice │      ┃   ◆ fix-charge fail… ┃      │   ◆ after add-refun… │   
+ ▌ ! add-refunds      held   ▕│  │ ✕ fix-charge         │─────▶┃ ! add-refunds   held ┃─────▶│ ◌ refund-emails      │   
+ ▌ │ ◆ fix-charge failed:…   ▕│  │   tests failed twice │      ┃   ◆ fix-charge fail… ┃      │   ◆ after add-refun… │   
    │                         ▕│  ╰──────────────────────╯      ┗━━━━━━━━━━━━━━━━━━━━━━┛      ╰──────────────────────╯   
- ▐ ╰─◌ refund-e…  ‖  ×  ≡  ▌ ▕│                                                                                         
- ▐     ◆ after add-refund… ▌ ▕│                                                                                         
+   ╰─◌ refund-e…  ‖  ×  ≡    ▕│                                                                                         
+       ◆ after add-refund…   ▕│                                                                                         
                              ▕│  WHY IT WAITS                                                                           
    ◌ docs-typos       next   ▕│  add-refunds    after fix-charge          both change src/charge.ts                     
      ◆ waiting for room      ▕│  refund-emails  after add-refunds         it emails what refund() returns               
@@ -51,6 +51,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

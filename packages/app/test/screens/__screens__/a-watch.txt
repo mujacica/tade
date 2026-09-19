@@ -1,4 +1,4 @@
-   T A D E      checkout      +              ! 1 waiting  ⠋ 2 working     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout      +        ! 1 waiting  ⠋ 2 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  3            +    █│ checkout › New Sentry err…  ◎ every hour              Run now     ‖ Pause     ≡     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
@@ -23,8 +23,8 @@
    ↻ deps weekly     09:00   █│                                                                                         
      ❯ every Monday at 09…   █│                                                                                         
                              █│                                                                                         
- ▐ ◎ New Sentry err… 10:00 ▌ █│                                                                                         
- ▐   sentry · every hour   ▌ █│                                                                                         
+ ▌ ◎ New Sentry err… 10:00   █│                                                                                         
+ ▌   sentry · every hour     █│                                                                                         
                              █│                                                                                         
    ‖ perf nightly   paused   █│                                                                                         
      ❯ every day at 02:00    █│                                                                                         
@@ -39,6 +39,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

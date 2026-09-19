@@ -1,9 +1,9 @@
-   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB                                                     │  
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──
- ▐│ Find  event▏                                   2 of 5                                         ↑    ↓     Close   │  
- ▐│   1 │ import Stripe from 'stripe'                                                                               ▕│  
+ ▌│ Find  event▏                                   2 of 5                                         ↑    ↓     Close   │  
+ ▌│   1 │ import Stripe from 'stripe'                                                                               ▕│  
   │   2 │ import { refund } from './ledger.ts'                                                                      ▕│  
   │   3 │                                                                                                           ▕│  
   │   4 │ /** Every event Stripe sends us, checked before anything acts on it. */                                   ▕│  

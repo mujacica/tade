@@ -1,9 +1,9 @@
-   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ checkout › stri…    agent    shell    work     +     claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
- ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
- ▐   wants you to approve… ▌ █│                                                                                         
+ ▌ ! stripe-v15      $1.26   █│                                                                                         
+ ▌   wants you to approve…   █│                                                                                         
                              █│                                                                                         
    ⠋ refunds╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮            
      working│ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                   │            
@@ -29,6 +29,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold   ctrl  +  space   
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
