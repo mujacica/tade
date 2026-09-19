@@ -11,6 +11,7 @@ import {
   type Queued,
   type QueueFacts,
   queueStateOf,
+  RUNTIME_EVENTS,
   type RuntimeReport,
   ruleMet,
   runtimeFrom,
@@ -65,17 +66,12 @@ const QUEUE_READS = [
 ] as const
 
 /**
- * What runtime is derived from: when an agent started and stopped, and when
- * the window that was watching it did — a run nobody wrote an exit for ended
- * when Tade closed, not at breakfast the next morning.
+ * What runtime is derived from: when an agent started and stopped, when its
+ * lane went, and when the window that was watching it did — a run nobody wrote
+ * an exit for ended when Tade closed, not at breakfast the next morning. The
+ * list is `runtimeFrom`'s own, so the panel can never read less than it reads.
  */
-const RUNTIME_READS = [
-  'run_started',
-  'run_exited',
-  'task_removed',
-  'tade_opened',
-  'tade_closing',
-] as const
+const RUNTIME_READS = RUNTIME_EVENTS
 
 /** A schedule's runs as the journal has them, newest last. */
 export interface ScheduleRun {

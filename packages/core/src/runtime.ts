@@ -1,4 +1,4 @@
-import type { TadeEvent } from './events.ts'
+import { type ReadableEventType, type TadeEvent, typeNow } from './events.ts'
 
 // How long the agents have been running, which is the other half of what they
 // cost.
@@ -9,14 +9,69 @@ import type { TadeEvent } from './events.ts'
 // an agent that is working right now is running right now, and a number that
 // only moves when it stops is no use while you watch it.
 //
-// Two things end a run nobody wrote an exit for. A window closing stops
-// watching, and one opening relaunches whatever was working — and writes a new
-// `run_started` for it. Counting the hours Tade was shut as runtime would add
-// a night's sleep to every agent, every morning.
+// Three things end a run nobody wrote an exit for, because an exit is the
+// thing most often missing: the journal that produced this comment had 100
+// `run_started` in it, 35 `run_exited` and 64 `lane_exited`.
+//
+// A window boundary. A window closing stops watching, and one opening
+// relaunches whatever was working — and writes a new `run_started` for it.
+// Counting the hours Tade was shut as runtime would add a night's sleep to
+// every agent, every morning. Boundaries are read by what they mean rather
+// than by the word they were written under (`typeNow`): a journal from before
+// the rename says `wilco_closing`, and not knowing that word left runs from
+// days earlier open, each clipping ten hours into every day since and turning
+// a morning's work into `7d 13h`.
+//
+// The lane going. An agent is the process in its lane, so a lane that has
+// exited cannot still be running, whatever was or was not written for the run.
+// Only the run's own lane counts, never its task's other lanes: a task can
+// have a terminal open beside its agent, and ending a run because a sibling
+// lane closed would shorten a run that is genuinely still going.
+//
+// And the ceiling below, for a boundary we never saw at all.
 //
 // The orchestrator is not in here. It has no run of its own — it lives as long
 // as the window does — and folding the time you had Tade open into "how long
 // the agents ran" would make the one number nobody could read.
+//
+// What it counts is wall clock from start to exit: an agent that spent eight
+// hours waiting for you to answer ran for eight hours, and agents working at
+// once add up, so twenty of them over a morning is legitimately days. That is
+// what "how long the agents ran" means here — it is not an estimate of effort.
+
+/**
+ * How long a run with nothing written after it may go on counting.
+ *
+ * A run is only still open here if nothing said otherwise: no exit, no lane
+ * gone, no window boundary. Tade writes a boundary every time it opens, so an
+ * honestly open run is one that started in the window that is open now — and a
+ * day is longer than any window session, with room to spare. Past that the
+ * likelier story is a boundary we could not read (a rename, a journal written
+ * by an older Tade, a filtered read that dropped one) than an agent that has
+ * worked a full day without a single event of its own.
+ *
+ * So it stops counting there rather than climbing for ever. Undercounting by
+ * hours is a number you can argue with; a run that counts to `now` for ever
+ * quietly becomes most of the total and nothing on the panel says why. This
+ * can never shorten a run we have evidence for: a run whose exit was written
+ * is timed by its exit however long it lasted, and one still open is counted
+ * in full for its first day.
+ */
+const OPEN_RUN_CEILING = 24 * 60 * 60 * 1000
+
+/**
+ * What runtime is read from. One list, so a second reader cannot quietly read
+ * less than the first — and the names these had before the rename come with
+ * them, because `EventFilter` matches on what a type means now.
+ */
+export const RUNTIME_EVENTS: readonly ReadableEventType[] = [
+  'run_started',
+  'run_exited',
+  'lane_exited',
+  'task_removed',
+  'tade_opened',
+  'tade_closing',
+]
 
 export interface Runtime {
   /** Wall clock, in milliseconds, inside the window asked about. */
@@ -52,6 +107,8 @@ interface Open {
   task: string | null
   model: string
   at: number
+  /** The lane it lives in, whose going ends it. */
+  lane: string | null
 }
 
 export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow): RuntimeReport {
@@ -82,12 +139,22 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
   for (const event of events) {
     const at = Date.parse(event.ts)
     if (!Number.isFinite(at)) continue
-    switch (event.type) {
+    switch (typeNow(event.type)) {
       case 'run_started': {
         // A second start with no exit between is the same run seen twice:
         // keep the first, or the time before it would vanish.
         const key = keyOf(event)
-        if (!open.has(key)) open.set(key, { task: event.task, model: modelOf(event), at })
+        // An agent is a lane with pi in it, named `<task>/agent` — the same
+        // name as its run — so the run id is the lane to watch when the start
+        // did not name one itself.
+        if (!open.has(key)) {
+          open.set(key, {
+            task: event.task,
+            model: modelOf(event),
+            at,
+            lane: event.lane ?? event.run,
+          })
+        }
         break
       }
       case 'run_exited':
@@ -95,6 +162,10 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
         // would otherwise count to now for ever.
         if (open.has(keyOf(event))) close(keyOf(event), at, false)
         else if (event.task) closeTask(open, event.task, (key) => close(key, at, false))
+        break
+      case 'lane_exited':
+        // By lane and only by lane: the process the run was is gone.
+        if (event.lane) closeLane(open, event.lane, (key) => close(key, at, false))
         break
       case 'task_removed':
         if (event.task) closeTask(open, event.task, (key) => close(key, at, false))
@@ -105,8 +176,13 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
         break
     }
   }
-  // Whatever is still open is still running.
-  for (const key of [...open.keys()]) close(key, now, true)
+  // Whatever is still open is still running — for as long as a run with
+  // nothing written after it can honestly be believed to be.
+  for (const [key, run] of [...open]) {
+    const ceiling = run.at + OPEN_RUN_CEILING
+    if (ceiling < now) close(key, ceiling, false)
+    else close(key, now, true)
+  }
   return report
 }
 
@@ -117,6 +193,10 @@ function keyOf(event: TadeEvent): string {
 
 function closeTask(open: Map<string, Open>, task: string, close: (key: string) => void): void {
   for (const [key, run] of [...open]) if (run.task === task) close(key)
+}
+
+function closeLane(open: Map<string, Open>, lane: string, close: (key: string) => void): void {
+  for (const [key, run] of [...open]) if (run.lane === lane) close(key)
 }
 
 function modelOf(event: TadeEvent): string {

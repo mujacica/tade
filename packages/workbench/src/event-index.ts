@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { type EventFilter, type TadeEvent, URGENCY_RANK } from '@tade/core'
+import { type EventFilter, type TadeEvent, typeNames, URGENCY_RANK } from '@tade/core'
 
 // A SQLite index over the event log. It is derived state: every row can be
 // rebuilt from events.jsonl, so losing or corrupting the database is never
@@ -111,8 +111,12 @@ export class EventIndex {
       params.push(filter.lane)
     }
     if (filter.types && filter.types.length > 0) {
-      where.push(`type IN (${filter.types.map(() => '?').join(',')})`)
-      params.push(...filter.types)
+      // By every name these were ever written under: the column holds the word
+      // in the journal, and rows written before the rename still hold the old
+      // one. An index built before the rename is never rebuilt for it.
+      const names = typeNames(filter.types)
+      where.push(`type IN (${names.map(() => '?').join(',')})`)
+      params.push(...names)
     }
     if (filter.minUrgency) {
       where.push('rank <= ?')

@@ -84,6 +84,34 @@ describe('EventLog', () => {
     await scanning.close()
   })
 
+  it('finds window events written under the name they had before the rename', async () => {
+    // An old journal is still the truth: `wilco_opened` is a window opening,
+    // and a read that cannot see one leaves every run of that era open.
+    const p = paths()
+    const legacy = (seq: number, type: string, ts: string) =>
+      `${JSON.stringify({ seq, ts, type, urgency: 'notable', task: null, lane: null, run: null, detail: {} })}\n`
+    writeFileSync(
+      p.path,
+      legacy(1, 'wilco_opened', '2026-09-13T15:08:49.702Z') +
+        legacy(2, 'wilco_closing', '2026-09-13T15:17:48.122Z'),
+    )
+
+    const log = await EventLog.open(p)
+    expect((await log.read({ types: ['tade_opened'] })).map((e) => e.seq)).toEqual([1])
+    expect((await log.read({ types: ['tade_opened', 'tade_closing'] })).map((e) => e.seq)).toEqual([
+      1, 2,
+    ])
+    // Asked for by their own old name too, and never for something else.
+    expect((await log.read({ types: ['wilco_closing'] })).map((e) => e.seq)).toEqual([2])
+    expect(await log.read({ types: ['run_started'] })).toEqual([])
+    await log.close()
+
+    // And the same answers scanning the file, with no index in the way.
+    const scanning = await EventLog.open({ ...p, indexPath: null })
+    expect((await scanning.read({ types: ['tade_opened'] })).map((e) => e.seq)).toEqual([1])
+    await scanning.close()
+  })
+
   describe('crash safety', () => {
     it('a torn final line is tolerated and reported, not fatal', async () => {
       const p = paths()

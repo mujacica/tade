@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EventType, TadeEvent } from '../src/events.ts'
+import type { ReadableEventType, TadeEvent } from '../src/events.ts'
 import { duration, noRuntime, runtimeFrom } from '../src/runtime.ts'
 import { startOfToday } from '../src/spend.ts'
 
@@ -15,7 +15,8 @@ let seq = 0
 const at = (minutes: number) => new Date(NOW - minutes * MINUTE).toISOString()
 
 const event = (
-  type: EventType,
+  // Old names included: a journal from before the rename is read, not refused.
+  type: ReadableEventType,
   over: Partial<TadeEvent> & { detail?: Record<string, unknown> } = {},
 ): TadeEvent =>
   ({
@@ -139,6 +140,120 @@ describe('runtimeFrom', () => {
     expect(report.total.ms).toBe(180 * MINUTE + 60 * MINUTE)
     expect(report.total.runs).toBe(2)
     expect(report.total.running).toBe(true)
+  })
+
+  it('ends a run at a window boundary written under its old name', () => {
+    // Before the project was renamed the window wrote `wilco_closing`. The
+    // journal is append-only, so those lines are still there and still mean a
+    // window closed: not reading them left runs from September counting to
+    // now, and a morning's work read as `7d 13h`.
+    const report = runtimeFrom(
+      [started(300), event('wilco_closing', { ts: at(240), task: null, run: null })],
+      { now: NOW },
+    )
+    expect(report.total.ms).toBe(60 * MINUTE)
+    expect(report.total.running).toBe(false)
+  })
+
+  it('ends a run at an opening written under its old name', () => {
+    const report = runtimeFrom(
+      [started(300), event('wilco_opened', { ts: at(120), task: null, run: null })],
+      { now: NOW },
+    )
+    expect(report.total.ms).toBe(180 * MINUTE)
+    expect(report.total.running).toBe(false)
+  })
+
+  it('reads a whole journal of old names as the window it was', () => {
+    // The shape the real journal has: runs relaunched at every opening, and
+    // never an exit written for them. Asked about the last hour, only the run
+    // of the last hour is in it — not five days of runs still open.
+    const day = 24 * 60
+    const journal: TadeEvent[] = [
+      started(3 * day, { run: 'wilco/agent-1/agent', task: 'wilco/agent-1' }),
+      event('wilco_closing', { ts: at(3 * day - 30), task: null, run: null }),
+      event('wilco_opened', { ts: at(2 * day), task: null, run: null }),
+      started(2 * day, { run: 'wilco/agent-1/agent', task: 'wilco/agent-1' }),
+      event('wilco_closing', { ts: at(2 * day - 45), task: null, run: null }),
+      event('tade_opened', { ts: at(30), task: null, run: null }),
+      started(30, { run: 'tade/agent-1/agent', task: 'tade/agent-1' }),
+    ]
+    const report = runtimeFrom(journal, { since: NOW - 60 * MINUTE, now: NOW })
+    expect(report.total.ms).toBe(30 * MINUTE)
+    expect(report.byTask['wilco/agent-1']).toBeUndefined()
+  })
+
+  it('ends a run whose lane exited, with no exit of its own written', () => {
+    // An agent is the process in its lane: a lane that has gone cannot still
+    // be running, and the journal has far more lane exits than run exits.
+    const report = runtimeFrom(
+      [
+        started(60),
+        event('lane_exited', { ts: at(20), lane: 'checkout/refunds/agent', run: null }),
+      ],
+      { now: NOW },
+    )
+    expect(report.total.ms).toBe(40 * MINUTE)
+    expect(report.total.running).toBe(false)
+  })
+
+  it('ends a run by the lane its start named, not by its run id', () => {
+    const report = runtimeFrom(
+      [
+        started(60, { run: 'r_1a2b', lane: 'checkout/refunds/agent' }),
+        event('lane_exited', { ts: at(20), lane: 'checkout/refunds/agent', run: null }),
+      ],
+      { now: NOW },
+    )
+    expect(report.total.ms).toBe(40 * MINUTE)
+  })
+
+  it('never shortens a run because another lane of its task went', () => {
+    // A task can have a terminal open beside its agent. That one closing says
+    // nothing at all about the agent, which is still working.
+    const report = runtimeFrom(
+      [started(60), event('lane_exited', { ts: at(20), lane: 'checkout/refunds/1', run: null })],
+      { now: NOW },
+    )
+    expect(report.total.ms).toBe(60 * MINUTE)
+    expect(report.total.running).toBe(true)
+  })
+
+  it('never shortens a run by a lane that exited before it started', () => {
+    // The relaunch order in the journal: the old lane goes, the window opens,
+    // the run starts again. The new run is not ended by the old lane's exit.
+    const report = runtimeFrom(
+      [
+        event('lane_exited', { ts: at(70), lane: 'checkout/refunds/agent', run: null }),
+        event('tade_opened', { ts: at(69), task: null, run: null }),
+        started(68),
+      ],
+      { now: NOW },
+    )
+    expect(report.total.ms).toBe(68 * MINUTE)
+    expect(report.total.running).toBe(true)
+  })
+
+  it('stops counting a run left open longer than a day', () => {
+    // Nothing ended it and no boundary followed it: past a day the likelier
+    // story is a boundary we could not read than an agent working since
+    // yesterday, and a run that counts for ever eats the whole total.
+    const report = runtimeFrom([started(5 * 24 * 60)], { now: NOW })
+    expect(report.total.ms).toBe(24 * 60 * MINUTE)
+    expect(report.total.running).toBe(false)
+  })
+
+  it('leaves a run open for its first day alone', () => {
+    const report = runtimeFrom([started(23 * 60)], { now: NOW })
+    expect(report.total.ms).toBe(23 * 60 * MINUTE)
+    expect(report.total.running).toBe(true)
+  })
+
+  it('never shortens a long run whose exit was written', () => {
+    // The ceiling is about runs with nothing written after them. An agent that
+    // genuinely ran for three days and said so is timed by what it said.
+    const report = runtimeFrom([started(4 * 24 * 60), exited(24 * 60)], { now: NOW })
+    expect(report.total.ms).toBe(3 * 24 * 60 * MINUTE)
   })
 
   it('ends a run whose task was removed', () => {

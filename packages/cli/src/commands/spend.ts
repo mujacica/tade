@@ -4,6 +4,7 @@ import {
   duration,
   loadConfig,
   noSpend,
+  RUNTIME_EVENTS,
   type Runtime,
   runtimeFrom,
   type Spend,
@@ -25,8 +26,8 @@ import type { Io } from '../io.ts'
 // A question, so it reads the journal itself: asking what today cost must work
 // with a window open.
 
-/** What runtime is derived from. Read unwindowed: a run that began before the window is still in it. */
-const RUNS = ['run_started', 'run_exited', 'task_removed', 'tade_opened', 'tade_closing'] as const
+/** Read unwindowed: a run that began before the window is still in it. */
+const RUNS = RUNTIME_EVENTS
 
 export function registerSpend(program: Command, io: Io): void {
   program
