@@ -4,19 +4,22 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   writeFileSync,
 } from 'node:fs'
 import { basename, join } from 'node:path'
 import {
   type Config,
   expandHome,
-  extensionDirs,
+  extensionEnabled,
   loadable,
   loadableSkills,
+  loadConfig,
   runtimeDir,
   type Skill,
   skillAbout,
   skillDirs,
+  writeSetting,
 } from '@tade/core'
 import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
@@ -31,27 +34,25 @@ import {
   type TadeExtension,
 } from '@tade/extensions-core'
 import type { WorkerExtras } from '@tade/harnesses-core'
-import {
-  branchSlug,
-  recordAuthored,
-  type Workbench,
-  type WorkbenchExtensions,
-} from '@tade/workbench'
+import { branchSlug, type Workbench, type WorkbenchExtensions } from '@tade/workbench'
 
 // Finding the tools Tade wrote for itself. The rules about which files count
 // are in core and tested there; this is the part that touches the disk.
 
 /**
- * Absolute paths of the extensions that should load, in a stable order.
+ * Absolute paths of the tools the orchestrator loads, in a stable order: the
+ * files in the extensions directory somebody has turned on. Being there is
+ * being listed; running is what a person says.
+ *
  * Never throws: no extensions directory is the normal case, not an error.
  */
-export function activeExtensions(root: string): string[] {
-  const dirs = extensionDirs(root)
-  try {
-    return loadable(readdirSync(dirs.active)).map((name) => join(dirs.active, name))
-  } catch {
-    return []
-  }
+export function enabledTools(
+  root: string,
+  settings: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {},
+): string[] {
+  return writtenTools(root)
+    .filter((tool) => extensionEnabled(settings[tool.name], 'yours'))
+    .map((tool) => tool.path)
 }
 
 /** Lessons a human has approved. Never throws. */
@@ -83,83 +84,102 @@ function skillsIn(dir: string): Skill[] {
 // orchestrator its tools and a paragraph about them, every agent the tools it
 // may call, what it is told, and the harness-native pieces extensions ship.
 
-/** Something Tade wrote for itself and is waiting on a human for. */
-export interface Proposal {
+/** A tool Tade wrote for itself: one file in the extensions directory. */
+export interface WrittenTool {
   name: string
-  /** A pi extension file for the orchestrator, or a folder that is a whole Tade extension. */
-  kind: 'tool' | 'extension'
   /** Why it was written, from the comment it starts with. */
   why: string
   path: string
 }
 
-/** What is waiting in `proposed/`, in name order. Never throws. */
-export function proposedExtensions(root: string): Proposal[] {
-  const dirs = extensionDirs(root)
-  let entries: import('node:fs').Dirent[]
+/**
+ * The single-file tools in the extensions directory, in name order — the ones
+ * the orchestrator loads, as against the folders, which are whole Tade
+ * extensions the window holds. Reading them says what they are; nothing here
+ * runs one. Never throws.
+ */
+export function writtenTools(root: string): WrittenTool[] {
+  let files: string[]
   try {
-    entries = readdirSync(dirs.proposed, { withFileTypes: true })
+    files = loadable(readdirSync(root))
   } catch {
     return []
   }
-  const why = (file: string) => {
-    try {
-      const first =
-        readFileSync(file, 'utf8')
-          .split('\n')
-          .find((line) => line.trim() !== '') ?? ''
-      return first
-        .replace(/^\s*(\/\/+|\/\*+|\*)\s?/, '')
-        .replace(/\*\/\s*$/, '')
-        .trim()
-    } catch {
-      return ''
-    }
+  return files.map((file) => ({
+    name: basename(file).replace(/\.(ts|js|mjs)$/, ''),
+    why: firstComment(join(root, file)),
+    path: join(root, file),
+  }))
+}
+
+/** What a file says it is, from the comment it starts with. Reading, never running. */
+function firstComment(file: string): string {
+  try {
+    const first =
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .find((line) => line.trim() !== '') ?? ''
+    return first
+      .replace(/^\s*(\/\/+|\/\*+|\*)\s?/, '')
+      .replace(/\*\/\s*$/, '')
+      .trim()
+  } catch {
+    return ''
   }
-  return entries
-    .flatMap((entry): Proposal[] => {
-      const path = join(dirs.proposed, entry.name)
-      if (entry.isDirectory() && existsSync(join(path, 'extension.ts'))) {
-        return [{ name: entry.name, kind: 'extension', why: why(join(path, 'extension.ts')), path }]
-      }
-      if (entry.isFile() && loadable([entry.name]).length === 1) {
-        return [
-          {
-            name: basename(entry.name).replace(/\.(ts|js|mjs)$/, ''),
-            kind: 'tool',
-            why: why(path),
-            path,
-          },
-        ]
-      }
-      return []
-    })
-    .sort((a, b) => a.name.localeCompare(b.name))
 }
 
 /**
- * Approve a proposal, which moves it to `active/` to load when Tade next
- * starts, or turn it down, which keeps it in `rejected/` so it is not proposed
- * again. Either way it is committed, so the decision can be found later.
+ * One folder, whatever Tade used to do.
+ *
+ * Extensions once lived in `active/` or waited in `proposed/`, and where a
+ * file sat is what decided whether it ran. Now there is one directory and a
+ * setting, so anything left in the old places is moved up beside the rest —
+ * once, quietly, keeping whatever was already there. What was in `active/` was
+ * running, so it is turned on where a config path is given: a person who
+ * upgrades must not silently lose a tool they were using. `rejected/` is left
+ * exactly where it is — moving something back in that somebody turned down is
+ * the one thing this must never do.
+ *
+ * Never throws: a directory that cannot be moved is not a reason to refuse to
+ * start.
  */
-export async function decideProposal(
-  root: string,
-  name: string,
-  verdict: 'approve' | 'reject',
-): Promise<string> {
-  const proposal = proposedExtensions(root).find((one) => one.name === name)
-  if (!proposal) throw new Error(`nothing proposed called ${name}`)
-  const dirs = extensionDirs(root)
-  const to = verdict === 'approve' ? dirs.active : dirs.rejected
-  mkdirSync(to, { recursive: true })
-  renameSync(proposal.path, join(to, basename(proposal.path)))
-  await recordAuthored(
-    root,
-    `${verdict === 'approve' ? 'activate' : 'reject'} ${proposal.kind} ${name}`,
-  )
-  return verdict === 'approve'
-    ? `${name} is approved: it loads when Tade next starts`
-    : `${name} is turned down, and kept so it is not proposed again`
+export function oneExtensionsFolder(root: string, configPath?: string): string[] {
+  const moved: string[] = []
+  for (const old of ['active', 'proposed'] as const) {
+    const from = join(root, old)
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = readdirSync(from, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      const target = join(root, entry.name)
+      if (existsSync(target)) continue
+      try {
+        mkdirSync(root, { recursive: true })
+        renameSync(join(from, entry.name), target)
+      } catch {
+        continue
+      }
+      const name = basename(entry.name).replace(/\.(ts|js|mjs)$/, '')
+      moved.push(name)
+      if (old === 'active' && configPath) {
+        try {
+          writeSetting(configPath, `extensions.${name}.enabled`, true)
+        } catch {
+          // A config that cannot be written is a tool that has to be turned on
+          // by hand, not a window that refuses to open.
+        }
+      }
+    }
+    try {
+      rmdirSync(from)
+    } catch {
+      // Something is still in it: leave it, and say nothing.
+    }
+  }
+  return moved
 }
 
 /** The extensions that ship with Tade, by name. */
@@ -174,21 +194,35 @@ export const BUILTIN_EXTENSIONS: readonly TadeExtension[] = [
 
 /**
  * Every extension this window runs with: the built-in ones, then yours from
- * the extensions directory's `active/`. Never throws: a broken one is listed
- * as broken.
+ * the extensions directory. Yours are listed whether or not they are on, and
+ * only the ones turned on are loaded. Never throws: a broken one is listed as
+ * broken.
  */
-export function loadExtensions(opts: {
+export async function loadExtensions(opts: {
   config: Config
   home: string
   safe?: boolean
   env?: NodeJS.ProcessEnv
   fetch?: typeof fetch
+  /** Where the settings are, so what used to be in `active/` stays on. */
+  configPath?: string
 }): Promise<ExtensionHost> {
+  const root = expandHome(opts.config.orchestrator.extensions)
+  // What the move turned on is read back before anything loads: an extension
+  // that was running before the upgrade has to still be running after it.
+  const moved = oneExtensionsFolder(root, opts.configPath)
+  const settings =
+    moved.length > 0 && opts.configPath
+      ? await loadConfig(opts.configPath).then(
+          (again) => (again.ok ? again.config.extensions : opts.config.extensions),
+          () => opts.config.extensions,
+        )
+      : opts.config.extensions
   return ExtensionHost.load({
     builtin: BUILTIN_EXTENSIONS,
-    root: expandHome(opts.config.orchestrator.extensions),
+    root,
     ...(opts.safe ? { safe: true } : {}),
-    config: { extensions: opts.config.extensions, projects: opts.config.projects },
+    config: { extensions: settings, projects: opts.config.projects },
     home: opts.home,
     ...(opts.env ? { env: opts.env } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),

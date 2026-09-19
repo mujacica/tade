@@ -102,7 +102,7 @@ needs a neutral noun, and Tade's own words are mostly taken:
 | Candidate | For | Against |
 |---|---|---|
 | `Change` | Gerrit's neutral word; matches "a change offered for merge" | **taken twice**: `view.Change` is a changed file in the sidebar, `deps.Change` is a version bump. Worst collision of the list. |
-| `Proposal` | exactly the semantics: a change proposed for a decision | **taken**: Tade's self-written extensions are inert *proposals* (`extensions/proposed/`, `tade_propose_extension`). A word that means two things in one product. |
+| `Proposal` | exactly the semantics: a change proposed for a decision | **taken, when this was written**: Tade's self-written extensions were inert *proposals* (`extensions/proposed/`). That workflow is since gone — extensions live in one folder, off until turned on — but the word still reads as two things in one product. |
 | `Pull` / `PullRequest` | what the human says | GitHub's vocabulary in a port. Straight R2 violation. |
 | `MergeRequest` | GitLab's | same, other vendor. |
 | `Submission` | forge-neutral, no collision | nobody says it; `submissions()` reads like a homework portal. |

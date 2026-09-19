@@ -586,10 +586,10 @@ describe('the Extensions panel', () => {
       ],
     },
   ]
-  const proposals = [{ name: 'notes', kind: 'tool' as const, why: 'x', path: '/p/notes.ts' }]
+  const written = [{ name: 'notes', why: 'x', path: '/p/notes.ts', on: false }]
 
-  it('moves through turning on and off, setting up, actions and proposals, and presses with enter', () => {
-    expect(extensionControls(views, proposals)).toEqual([
+  it('moves through turning on and off, setting up, actions and what Tade wrote, and presses with enter', () => {
+    expect(extensionControls(views, written)).toEqual([
       'toggle:deps',
       'setup:deps',
       'action:deps:check',
@@ -598,21 +598,20 @@ describe('the Extensions panel', () => {
       'watch:sentry:new-errors',
       'watching:regressions',
       'read:notes',
-      'approve:notes',
-      'reject:notes',
+      'toggle:notes',
     ])
     let panel = extensionsPanel()
     for (let i = 0; i < 4; i++)
-      panel = panelKey(panel, 'tab', '\t', { extensions: views, proposals }).panel as typeof panel
-    expect(panelKey(panel, 'enter', '\r', { extensions: views, proposals })).toMatchObject({
+      panel = panelKey(panel, 'tab', '\t', { extensions: views, written }).panel as typeof panel
+    expect(panelKey(panel, 'enter', '\r', { extensions: views, written })).toMatchObject({
       submit: true,
       choice: 'setup:sentry',
     })
     expect(
-      panelClick(extensionsPanel(), 'approve:notes', { extensions: views, proposals }),
+      panelClick(extensionsPanel(), 'toggle:notes', { extensions: views, written }),
     ).toMatchObject({
       submit: true,
-      choice: 'approve:notes',
+      choice: 'toggle:notes',
     })
   })
 

@@ -1359,6 +1359,52 @@ describe('the window, wired up', () => {
     expect(screenOf(terminal.written).some((row) => row.includes('weather · could not'))).toBe(true)
   }, 90_000)
 
+  it('lists a tool Tade wrote for itself, off, and turning it on is written down for next start', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    const root = join(home, 'extensions')
+    mkdirSync(root, { recursive: true })
+    writeFileSync(
+      join(root, 'standup.ts'),
+      '// Reads out what each agent did yesterday.\nexport default function () {}\n',
+    )
+    await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        orchestrator: { extensions: root },
+      }),
+      written: () => [
+        {
+          name: 'standup',
+          why: 'Reads out what each agent did yesterday.',
+          path: join(root, 'standup.ts'),
+        },
+      ],
+    })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('what Tade wrote, off', () =>
+      screenOf(terminal.written).some((row) => row.includes('standup') && row.includes('off')),
+    )
+    // Nothing was run to show it: what it is for is read out of the file.
+    expect(
+      screenOf(terminal.written).some((row) =>
+        row.includes('Reads out what each agent did yesterday.'),
+      ),
+    ).toBe(true)
+    const on = find('Turn on ]')
+    click(on.col + 2, on.row)
+    await until('it says when it will run', () =>
+      screenOf(terminal.written).some((row) =>
+        row.includes('standup is on — it loads the next time Tade starts'),
+      ),
+    )
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('enabled: true')
+  }, 60_000)
+
   it('turns a watch on for the orchestrator: what it finds is told, and what cannot be kept is refused', async () => {
     const told: string[] = []
     const extensions = await ExtensionHost.load({

@@ -18,15 +18,14 @@ import { piBinary } from '@tade/harnesses-pi/adapter'
 import { installedPieces } from '@tade/harnesses-pi/installed'
 import { credentials, findModel, loggedInProviders, usableModels } from '@tade/harnesses-pi/models'
 import {
-  decideProposal,
   extensionWorkbench,
   loadExtensions,
   Orchestrator,
   orchestratorExtensions,
-  proposedExtensions,
   ToolHost,
   type ToolHostOptions,
   workbenchExtensions,
+  writtenTools,
 } from '@tade/orchestrator'
 import { collectStatus } from '@tade/status'
 import { watchProcess } from '@tade/telemetry'
@@ -122,7 +121,12 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         name: 'load the extensions',
         op: 'tade.extensions',
       })
-      const extensions = await loadExtensions({ config: cfg.config, home, safe })
+      const extensions = await loadExtensions({
+        config: cfg.config,
+        home,
+        safe,
+        configPath: cfg.path,
+      })
       loadingExtensions.end()
       const extensionsRoot = expandHome(cfg.config.orchestrator.extensions)
       // What an extension may ask of the window, once there is one.
@@ -244,10 +248,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             shouldReload = true
             await app.stop()
           },
-          proposals: {
-            list: () => proposedExtensions(extensionsRoot),
-            decide: (name, verdict) => decideProposal(extensionsRoot, name, verdict),
-          },
+          written: () => writtenTools(extensionsRoot),
           extensions,
           harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
         })

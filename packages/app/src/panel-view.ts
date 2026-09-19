@@ -43,7 +43,6 @@ import {
   type OpenRow,
   type Panel,
   type PromptPanel,
-  type ProposalView,
   priceCells,
   type QuitPanel,
   type ReloadPanel,
@@ -54,6 +53,7 @@ import {
   setupControls,
   usesDropdown,
   visibleSettings,
+  type WrittenToolView,
   watchControl,
 } from './panels.ts'
 import { BAR, barRows } from './scrollbar.ts'
@@ -159,8 +159,8 @@ export interface PanelContext {
   extensions: readonly ExtensionView[]
   /** Extensions the harness loads itself, which Tade only lists. */
   harnessExtensions: readonly { name: string; where: string }[]
-  /** What Tade wrote for itself, waiting on you. */
-  proposals: readonly ProposalView[]
+  /** The tools Tade wrote for itself, on or off. */
+  written: readonly WrittenToolView[]
   /** The extension view being shown, once it has been asked for. */
   extensionView: { title: string; markdown: string } | null
   /** The extension being set up: its state, its guide and its fields. */
@@ -352,15 +352,15 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
 
 /**
  * The extensions: each with whether it works and, when it does not, what to
- * do about it; turning it on or off, setting it up, its actions; then what
- * Tade wrote for itself and is waiting on you to read. A fixed height,
- * scrolled to the control the keyboard is on, so nothing jumps while you move.
+ * do about it; turning it on or off, setting it up, its actions; then the
+ * tools Tade wrote for itself, to read and turn on. A fixed height, scrolled
+ * to the control the keyboard is on, so nothing jumps while you move.
  */
 function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(104, ctx.width - 4)
   const inner = width - 2
-  const controls = extensionControls(ctx.extensions, ctx.proposals)
+  const controls = extensionControls(ctx.extensions, ctx.written)
   const chosen = controls[panel.index] ?? null
   // The keyboard's control is lit as the pointer's would be, when the pointer is not on one.
   const pointer =
@@ -500,35 +500,41 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     lines.push(row().space().text('No extensions are loaded.', skin.hint).build(), blank(inner))
   }
 
-  if (ctx.proposals.length > 0) {
+  if (ctx.written.length > 0) {
     lines.push(
       row()
         .space()
         .text('WRITTEN BY TADE', skin.label)
-        .text('  waiting for you: approved ones load when Tade next starts', skin.hint)
+        .text('  tools for the orchestrator: one you turn on loads next start', skin.hint)
         .build(),
     )
-    for (const proposal of ctx.proposals) {
-      lines.push(
-        row()
-          .text('   ')
-          .text(proposal.name, skin.you)
-          .text(
-            `  ${proposal.kind === 'tool' ? 'a tool for the orchestrator' : 'an extension'}`,
-            skin.hint,
+    for (const tool of ctx.written) {
+      const title = row()
+        .text('   ')
+        .text(tool.on ? skin.done('●') : skin.hint('○'))
+        .space()
+        .text(tool.name, tool.on ? skin.you : skin.hint)
+        .text(tool.on ? '  on' : '  off', skin.hint)
+      title.right((r) =>
+        r
+          .button('Read', control(`read:${tool.name}`))
+          .space()
+          .button(
+            tool.on ? 'Turn off' : 'Turn on',
+            control(`toggle:${tool.name}`),
+            tool.on ? undefined : 'primary',
           )
-          .build(),
+          .space(),
       )
-      if (proposal.why) {
-        for (const piece of wrapTextWithAnsi(proposal.why, Math.max(10, inner - 6))) {
-          lines.push(row().text('   ').text(piece, skin.hint).build())
+      lines.push({
+        ...title.build(),
+        chosen: chosen === `read:${tool.name}` || chosen === `toggle:${tool.name}`,
+      })
+      if (tool.why) {
+        for (const piece of wrapTextWithAnsi(tool.why, Math.max(10, inner - 6))) {
+          lines.push(row().text('     ').text(piece, skin.hint).build())
         }
       }
-      buttons([
-        { id: `read:${proposal.name}`, label: 'Read' },
-        { id: `approve:${proposal.name}`, label: 'Approve', look: 'primary' },
-        { id: `reject:${proposal.name}`, label: 'Turn down', look: 'danger' },
-      ])
     }
     lines.push(blank(inner))
   }
@@ -560,7 +566,7 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     ? row().space().text(panel.said, skin.busy).build()
     : row()
         .space()
-        .text(`yours go in ${ctx.extensionsRoot}/active/<name>/extension.ts`, skin.hint)
+        .text(`yours go in ${ctx.extensionsRoot}/<name>/extension.ts, off until you say`, skin.hint)
         .right((r) => r.text('tab moves · enter presses · esc closes', skin.hint).space())
         .build()
   return box('Extensions', [...shown, footer], width, skin, { corner: 'esc' })

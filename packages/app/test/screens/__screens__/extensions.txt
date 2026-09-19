@@ -19,14 +19,14 @@
        w│   SyntaxError: Unexpected token '!'                                                                  │        
    ▸ tes│     Open folder                                                                                      │        
      pac│                                                                                                      │        
-     REA│ WRITTEN BY TADE  waiting for you: approved ones load when Tade next starts                           │        
-        │   release-notes  an extension                                                                        │        
-━   orch│   Drafts release notes from merged work, because you asked for them every Friday.                    │   ▾   ━
-        │     Read     Approve     Turn down                                                                   │        
-        │                                                                                                      │       ▕
-        │ PI'S OWN  loaded by pi itself, in every agent                                                        │       ▕
-        │   plan-mode  ~/.pi/agent/extensions                                                                  │       ▕
-        │ yours go in ~/.tade/extensions/active/<name>/extension.ts     tab moves · enter presses · esc closes │       ▕
+     REA│ ○ release-notes  yours · off                                                                         │        
+        │   Drafts release notes from merged work, because you asked for them every Friday.                    │        
+━   orch│     Turn on     Open folder                                                                          │   ▾   ━
+        │                                                                                                      │        
+        │ WRITTEN BY TADE  tools for the orchestrator: one you turn on loads next start                        │       ▕
+        │   ○ standup-notes  off                                                            Read     Turn on   │       ▕
+        │     Reads out what each agent did yesterday, because you ask every morning.                          │       ▕
+        │ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                                │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold   ctrl  +  space   

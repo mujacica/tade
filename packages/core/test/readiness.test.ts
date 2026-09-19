@@ -20,6 +20,7 @@ const facts = (over: Partial<ReadinessFacts> = {}): ReadinessFacts => ({
   speechOk: true,
   speechReason: null,
   judgeChosen: true,
+  extensions: [{ name: 'deps', title: 'Dependencies', chosen: true }],
   ...over,
 })
 
@@ -95,8 +96,9 @@ describe('readiness', () => {
       facts({ projects: [], loggedIn: false, apiKeys: [], driverOk: false, speechOk: false }),
     )
     // The talk key late, so the window opens on the key you just picked; the
-    // judge last of all, because it is the only step that costs money and the
-    // only one that sends anything anywhere.
+    // judge after it, because it is the only step that costs money and the
+    // only one that sends anything anywhere; the extensions last, so whatever
+    // the judge step already answered is not asked a second time.
     expect(steps.map((s) => s.id)).toEqual([
       'project',
       'model',
@@ -104,6 +106,7 @@ describe('readiness', () => {
       'voice',
       'talk',
       'judge',
+      'extensions',
     ])
     // A project first: choosing a model for nothing is a strange way to start.
     expect(nextStep(steps)?.id).toBe('project')
@@ -125,6 +128,27 @@ describe('readiness', () => {
     }
   })
 
+  it('asks which extensions to use, and only about the ones nobody has decided', () => {
+    // Nothing is on because it is there, so the question is real; one already
+    // answered — here, or in the window — is never asked again.
+    const some = readiness(
+      facts({
+        extensions: [
+          { name: 'deps', title: 'Dependencies', chosen: true },
+          { name: 'sentry', title: 'Sentry', chosen: false },
+        ],
+      }),
+    )
+    const step = some.find((one) => one.id === 'extensions')
+    expect(step).toMatchObject({ done: false, required: false })
+    expect(step?.detail).toContain('Sentry')
+    // Never a reason to stop: without any of them Tade is exactly itself.
+    expect(isReady(some)).toBe(true)
+    expect(
+      readiness(facts({ extensions: [] })).find((one) => one.id === 'extensions'),
+    ).toMatchObject({ done: true, detail: '' })
+  })
+
   it('every unfinished step says what to do about it', () => {
     const steps = readiness(
       facts({
@@ -138,6 +162,7 @@ describe('readiness', () => {
         speechReason: 'whisper.cpp is not installed',
         talkChosen: false,
         judgeChosen: false,
+        extensions: [{ name: 'deps', title: 'Dependencies', chosen: false }],
       }),
     )
     for (const step of steps) {

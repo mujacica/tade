@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { connect } from 'node:net'
 import { join } from 'node:path'
 
-/** Where proposals are written. Set by the orchestrator that launched us. */
+/** Where extensions live. Set by the orchestrator that launched us. */
 function extensionsRoot(): string {
   const configured = process.env.TADE_EXTENSIONS
   if (configured) return configured
@@ -144,8 +144,8 @@ export default function tadeTools(pi: PiApi): void {
   )
 
   tool(
-    'tade_propose_extension',
-    'Write a new tool for yourself. It is saved as a proposal and does nothing until a human reads it and runs `tade extensions activate`. Never assume a proposed tool is available.',
+    'tade_write_extension',
+    'Write a new tool for yourself. It is saved in the extensions folder turned off, and does nothing until a human reads it and turns it on — in Extensions, or `tade extensions enable` — after which it loads the next time Tade starts. Never assume a tool you wrote is available.',
     object(
       {
         name: string('short name, lowercase with dashes'),
@@ -159,14 +159,15 @@ export default function tadeTools(pi: PiApi): void {
       if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) {
         throw new Error(`${name} is not a usable name: lowercase letters, digits and dashes`)
       }
-      const dir = join(extensionsRoot(), 'proposed')
+      const dir = extensionsRoot()
       await mkdir(dir, { recursive: true })
       const path = join(dir, `${name}.ts`)
-      // The reason it was written goes in the file, because the review happens
-      // days later and a tool with no stated purpose gets turned down.
-      const header = `// ${String(p.why)}\n// Proposed by Tade on ${new Date().toISOString()}.\n\n`
+      // The reason it was written goes in the file: it is the first line the
+      // panel shows of something nobody has read yet, and a tool with no
+      // stated purpose never gets turned on.
+      const header = `// ${String(p.why)}\n// Written by Tade on ${new Date().toISOString()}.\n\n`
       await writeFile(path, header + String(p.source))
-      return `Proposed ${name}. It is not running: a human activates it with \`tade extensions activate ${name}\` after reading ${path}.`
+      return `Wrote ${name}, turned off. It is not running: a human reads ${path} and turns it on \`tade extensions enable ${name}\`, and it loads the next time Tade starts.`
     },
   )
 

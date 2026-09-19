@@ -4,189 +4,43 @@ import {
   activityFrom,
   defaultConfigPath,
   expandHome,
-  extensionDirs,
+  extensionEnabled,
   historyFrom,
   isExtensionName,
-  loadable,
   loadableSkills,
   loadConfig,
   skillDirs,
   skillStanding,
   tadeHome,
+  writeSetting,
 } from '@tade/core'
-import { activeSkills, loadExtensions } from '@tade/orchestrator'
+import { activeSkills, loadExtensions, writtenTools } from '@tade/orchestrator'
 import { recordAuthored } from '@tade/workbench'
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 
-// Reviewing what Tade wrote for itself: tools, and lessons.
+// What Tade wrote for itself: tools, and lessons.
 //
-// Both work the same way and for the same reason. Tade proposes; a human
-// reads it and decides; nothing takes effect until Tade is started again. A
-// hot-reloaded half-broken tool inside a running orchestrator is an evening
-// lost, and a lesson nobody read is a rule you did not agree to.
+// A tool lives in the extensions directory with every other extension and is
+// off until somebody turns it on; turning one on takes effect the next time
+// Tade starts, because a hot-reloaded half-broken tool inside a running
+// orchestrator is an evening lost. A lesson still waits in `proposed/` until
+// it is read, because a lesson nobody read is a rule you did not agree to.
 
-interface Kind {
-  /** The command name, and how it reads in a sentence. */
-  noun: string
-  one: string
-  ext: '.ts' | '.md'
-  dirs: (root: string) => { root: string; active: string; proposed: string; rejected: string }
-  list: (files: string[]) => string[]
-  root: (configured: string | undefined) => string
-  activated: string
-}
-
-const EXTENSIONS: Kind = {
-  noun: 'extensions',
-  one: 'tool',
-  ext: '.ts',
-  dirs: extensionDirs,
-  list: loadable,
-  root: (configured) => expandHome(configured ?? join(tadeHome(), 'extensions')),
-  activated: 'will load next time Tade starts',
-}
-
-const SKILLS: Kind = {
-  noun: 'skills',
-  one: 'lesson',
-  ext: '.md',
-  dirs: skillDirs,
-  list: loadableSkills,
+const SKILLS = {
   root: () => join(tadeHome(), 'skills'),
   activated: 'will be in the prompt next time Tade starts',
 }
 
-function names(dir: string, kind: Kind): string[] {
+/** The lessons in one directory, by name. Never throws: no directory is none. */
+function skillNames(dir: string): string[] {
   try {
-    const files = kind.list(readdirSync(dir)).map((file) => file.replace(kind.ext, ''))
-    // An extension of Tade's own is a folder with an `extension.ts` in it.
-    const folders =
-      kind.noun === 'extensions'
-        ? readdirSync(dir, { withFileTypes: true })
-            .filter(
-              (entry) => entry.isDirectory() && existsSync(join(dir, entry.name, 'extension.ts')),
-            )
-            .map((entry) => `${entry.name}/`)
-        : []
-    return [...files, ...folders].sort((a, b) => a.localeCompare(b))
+    return loadableSkills(readdirSync(dir))
+      .map((file) => file.replace('.md', ''))
+      .sort((a, b) => a.localeCompare(b))
   } catch {
     return []
-  }
-}
-
-async function rootFor(kind: Kind, configPath: string): Promise<string> {
-  const cfg = await loadConfig(configPath)
-  return kind.root(cfg.ok ? cfg.config.orchestrator.extensions : undefined)
-}
-
-function register(program: Command, io: Io, setExit: (code: number) => void, kind: Kind): void {
-  const group = program
-    .command(kind.noun)
-    .description(
-      kind.noun === 'skills'
-        ? 'Lessons Tade wrote for itself: what is proposed, and what it goes by'
-        : 'Tools Tade wrote for itself: what is proposed, and what runs',
-    )
-
-  group
-    .command('list', { isDefault: true })
-    .description('What is active, proposed and turned down')
-    .option('-c, --config <path>', 'config file path', defaultConfigPath())
-    .action(async (opts: { config: string }) => {
-      const dirs = kind.dirs(await rootFor(kind, opts.config))
-      if (kind.noun === 'extensions') {
-        const cfg = await loadConfig(opts.config)
-        if (cfg.ok) {
-          const host = await loadExtensions({
-            config: cfg.config,
-            home: tadeHome(),
-            safe: program.opts().safe === true,
-          })
-          for (const one of host.list()) {
-            io.out(`${one.title} (${one.name}, ${one.source}): ${one.state}`)
-            if (one.problem) io.out(`  ${one.problem}`)
-            if (one.tools.length > 0)
-              io.out(`  tools: ${one.tools.map((tool) => tool.name).join(', ')}`)
-            if (one.unknownSettings.length > 0) {
-              io.out(
-                `  not read: ${one.unknownSettings.map((key) => `extensions.${one.name}.${key}`).join(', ')}`,
-              )
-            }
-          }
-          io.out('')
-        }
-      }
-      const show = (label: string, found: string[]) =>
-        io.out(`${label.padEnd(10)}${found.length > 0 ? found.join(', ') : '—'}`)
-      show('active', names(dirs.active, kind))
-      // A lesson about something nobody has touched in a month is still
-      // approved; it just is not said. Show which, and why, or it looks like
-      // Tade quietly forgot.
-      if (kind.noun === 'skills') {
-        const cfg = await loadConfig(opts.config)
-        const quiet = skillStanding(
-          activeSkills(dirs.root),
-          activityFrom(
-            historyFrom(await readJournal(tadeHome(), { limit: 5_000 }), Date.now()),
-            cfg.ok ? Object.keys(cfg.config.projects) : [],
-          ),
-          Date.now(),
-        ).filter((standing) => standing.dormant)
-        for (const standing of quiet) {
-          io.out(`  ${standing.skill.name}: not being said — ${standing.reason}`)
-        }
-      }
-      const proposed = names(dirs.proposed, kind)
-      show('proposed', proposed)
-      show('rejected', names(dirs.rejected, kind))
-      if (proposed.length > 0) {
-        io.out('')
-        io.out(`read one in ${dirs.proposed}, then \`tade ${kind.noun} activate <name>\`.`)
-      }
-    })
-
-  for (const [verb, to, done] of [
-    ['activate', 'active', kind.activated],
-    ['reject', 'rejected', 'kept, so it is not proposed again'],
-  ] as const) {
-    group
-      .command(`${verb} <name>`)
-      .description(
-        verb === 'activate'
-          ? `Let a proposed ${kind.one} count`
-          : `Turn a proposed ${kind.one} down`,
-      )
-      .option('-c, --config <path>', 'config file path', defaultConfigPath())
-      .action(async (name: string, opts: { config: string }) => {
-        if (!isExtensionName(name)) {
-          io.err(`${name} is not a name Tade will use`)
-          setExit(Exit.invalidInput)
-          return
-        }
-        const dirs = kind.dirs(await rootFor(kind, opts.config))
-        const file = join(dirs.proposed, `${name}${kind.ext}`)
-        const folder = join(dirs.proposed, name)
-        const source = existsSync(file)
-          ? file
-          : kind.noun === 'extensions' && existsSync(join(folder, 'extension.ts'))
-            ? folder
-            : null
-        if (!source) {
-          io.err(`nothing proposed called ${name}`)
-          setExit(Exit.invalidInput)
-          return
-        }
-        const target = to === 'active' ? dirs.active : dirs.rejected
-        mkdirSync(target, { recursive: true })
-        renameSync(source, join(target, source === file ? `${name}${kind.ext}` : name))
-        // A decision about what Tade may do to itself is worth a commit: the
-        // question later is never "what is active" — the directory says that —
-        // but "when did this start, and what was going on when I agreed".
-        await recordAuthored(dirs.root, `${verb} ${kind.one} ${name}`)
-        io.out(`${name} — ${done}`)
-      })
   }
 }
 
@@ -195,10 +49,124 @@ export function registerExtensions(
   io: Io,
   setExit: (code: number) => void,
 ): void {
-  register(program, io, setExit, EXTENSIONS)
-  const group = program.commands.find((command) => command.name() === 'extensions')
+  const group = program
+    .command('extensions')
+    .description('Extensions: what is on, what is off, and what each of them can do')
+
   group
-    ?.command('run <tool>')
+    .command('list', { isDefault: true })
+    .description('What is loaded, what it needs, and what is sitting there turned off')
+    .option('-c, --config <path>', 'config file path', defaultConfigPath())
+    .action(async (opts: { config: string }) => {
+      const cfg = await loadConfig(opts.config)
+      if (!cfg.ok) {
+        io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
+        setExit(Exit.invalidInput)
+        return
+      }
+      const safe = program.opts().safe === true
+      const host = await loadExtensions({
+        config: cfg.config,
+        home: tadeHome(),
+        safe,
+        configPath: opts.config,
+      })
+      for (const one of host.list()) {
+        io.out(`${one.title} (${one.name}, ${one.source}): ${one.state}`)
+        if (one.problem) io.out(`  ${one.problem}`)
+        if (one.tools.length > 0)
+          io.out(`  tools: ${one.tools.map((tool) => tool.name).join(', ')}`)
+        if (one.unknownSettings.length > 0) {
+          io.out(
+            `  not read: ${one.unknownSettings.map((key) => `extensions.${one.name}.${key}`).join(', ')}`,
+          )
+        }
+      }
+      // The single-file tools the orchestrator loads. They are not the
+      // window's to hold, so the host does not list them: they are listed
+      // here, beside the rest, because there is one folder now.
+      const tools = writtenTools(expandHome(cfg.config.orchestrator.extensions))
+      if (tools.length > 0) {
+        io.out('')
+        io.out('tools for the orchestrator, written by Tade:')
+        for (const tool of tools) {
+          const on = !safe && extensionEnabled(cfg.config.extensions[tool.name], 'yours')
+          const state = on ? 'on' : safe ? 'off, left out by --safe' : 'off'
+          io.out(`  ${tool.name}: ${state}${tool.why ? ` — ${tool.why}` : ''}`)
+          io.out(`    ${tool.path}`)
+        }
+      }
+      // Only the ones nobody has decided about: something you turned off is
+      // not something waiting for you.
+      const undecided = [...host.list().filter((one) => one.source === 'yours'), ...tools].filter(
+        (one) => cfg.config.extensions[one.name]?.enabled === undefined,
+      )
+      if (undecided.length > 0) {
+        io.out('')
+        io.out(
+          'read one, then `tade extensions enable <name>`. It loads the next time Tade starts.',
+        )
+      }
+    })
+
+  group
+    .command('enable <name>')
+    .alias('activate')
+    .description(
+      'Turn an extension on — it loads the next time Tade starts (`activate` is the old name for this)',
+    )
+    .option('-c, --config <path>', 'config file path', defaultConfigPath())
+    .action((name: string, opts: { config: string }) => turn(name, opts.config, true))
+
+  group
+    .command('disable <name>')
+    .description('Turn an extension off — it stops loading the next time Tade starts')
+    .option('-c, --config <path>', 'config file path', defaultConfigPath())
+    .action((name: string, opts: { config: string }) => turn(name, opts.config, false))
+
+  /**
+   * Turning one on or off is a setting, not a move: what is on is written
+   * down where every other answer about this machine is, and the directory
+   * says nothing about it.
+   */
+  async function turn(name: string, configPath: string, on: boolean): Promise<void> {
+    if (!isExtensionName(name)) {
+      io.err(`${name} is not a name Tade will use`)
+      setExit(Exit.invalidInput)
+      return
+    }
+    const cfg = await loadConfig(configPath)
+    if (!cfg.ok) {
+      io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
+      setExit(Exit.invalidInput)
+      return
+    }
+    const root = expandHome(cfg.config.orchestrator.extensions)
+    const known =
+      existsSync(join(root, name, 'extension.ts')) ||
+      writtenTools(root).some((tool) => tool.name === name) ||
+      (await loadExtensions({ config: cfg.config, home: tadeHome(), configPath }))
+        .list()
+        .some((one) => one.name === name)
+    if (!known) {
+      io.err(`there is no extension called ${name}`)
+      setExit(Exit.invalidInput)
+      return
+    }
+    writeSetting(configPath, `extensions.${name}.enabled`, on)
+    // A decision about what Tade may do to itself is worth a commit: the
+    // question later is never "what is on" — the config says that — but "when
+    // did this start, and what was going on when I agreed".
+    await recordAuthored(root, `${on ? 'enable' : 'disable'} extension ${name}`)
+    io.out(
+      on
+        ? `${name} is on — it loads the next time Tade starts`
+        : `${name} is off — it stops loading the next time Tade starts`,
+    )
+  }
+
+  group
+    .command('run <tool>')
     .description(
       "Run one of an extension's tools and print its answer: `tade extensions run deps_check --project shop`",
     )
@@ -224,6 +192,7 @@ export function registerExtensions(
         config: cfg.config,
         home: tadeHome(),
         safe: program.opts().safe === true,
+        configPath: opts.config,
       })
       try {
         // No window here, so a tool that starts an agent says it needs one.
@@ -241,5 +210,73 @@ export function registerExtensions(
 }
 
 export function registerSkills(program: Command, io: Io, setExit: (code: number) => void): void {
-  register(program, io, setExit, SKILLS)
+  const group = program
+    .command('skills')
+    .description('Lessons Tade wrote for itself: what is proposed, and what it goes by')
+
+  group
+    .command('list', { isDefault: true })
+    .description('What is active, proposed and turned down')
+    .option('-c, --config <path>', 'config file path', defaultConfigPath())
+    .action(async (opts: { config: string }) => {
+      const dirs = skillDirs(SKILLS.root())
+      const show = (label: string, found: string[]) =>
+        io.out(`${label.padEnd(10)}${found.length > 0 ? found.join(', ') : '—'}`)
+      show('active', skillNames(dirs.active))
+      // A lesson about something nobody has touched in a month is still
+      // approved; it just is not said. Show which, and why, or it looks like
+      // Tade quietly forgot.
+      const cfg = await loadConfig(opts.config)
+      const quiet = skillStanding(
+        activeSkills(dirs.root),
+        activityFrom(
+          historyFrom(await readJournal(tadeHome(), { limit: 5_000 }), Date.now()),
+          cfg.ok ? Object.keys(cfg.config.projects) : [],
+        ),
+        Date.now(),
+      ).filter((standing) => standing.dormant)
+      for (const standing of quiet) {
+        io.out(`  ${standing.skill.name}: not being said — ${standing.reason}`)
+      }
+      const proposed = skillNames(dirs.proposed)
+      show('proposed', proposed)
+      show('rejected', skillNames(dirs.rejected))
+      if (proposed.length > 0) {
+        io.out('')
+        io.out(`read one in ${dirs.proposed}, then \`tade skills activate <name>\`.`)
+      }
+    })
+
+  for (const [verb, done] of [
+    ['activate', SKILLS.activated],
+    ['reject', 'kept, so it is not proposed again'],
+  ] as const) {
+    group
+      .command(`${verb} <name>`)
+      .description(
+        verb === 'activate' ? 'Let a proposed lesson count' : 'Turn a proposed lesson down',
+      )
+      .action(async (name: string) => {
+        if (!isExtensionName(name)) {
+          io.err(`${name} is not a name Tade will use`)
+          setExit(Exit.invalidInput)
+          return
+        }
+        const dirs = skillDirs(SKILLS.root())
+        const source = join(dirs.proposed, `${name}.md`)
+        if (!existsSync(source)) {
+          io.err(`nothing proposed called ${name}`)
+          setExit(Exit.invalidInput)
+          return
+        }
+        const target = verb === 'activate' ? dirs.active : dirs.rejected
+        mkdirSync(target, { recursive: true })
+        renameSync(source, join(target, `${name}.md`))
+        // A decision about what Tade may do to itself is worth a commit: the
+        // question later is never "what is active" — the directory says that
+        // — but "when did this start, and what was going on when I agreed".
+        await recordAuthored(dirs.root, `${verb} lesson ${name}`)
+        io.out(`${name} — ${done}`)
+      })
+  }
 }

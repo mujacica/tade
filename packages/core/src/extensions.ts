@@ -3,31 +3,13 @@ import { join } from 'node:path'
 // Tools Tade wrote for itself.
 //
 // Self-extension is the point, but a half-broken tool loaded into a running
-// orchestrator is an evening lost, so the rails are: written extensions land
-// in `proposed/` and do nothing until a human moves them; activating one needs
-// a restart, never a hot reload; and `--safe` boots with none of them,
-// which is the way back when one of them is what broke.
+// orchestrator is an evening lost, so the rails are: everything lives in one
+// directory and nothing there runs until somebody turns it on; turning one on
+// takes effect the next time Tade starts, never as a hot reload; and `--safe`
+// boots with none of them, which is the way back when one of them is what
+// broke.
 //
 // Pure: a listing in, the files that load out.
-
-export interface ExtensionDirs {
-  root: string
-  /** Loaded at startup. */
-  active: string
-  /** Written by the orchestrator, inert until moved. */
-  proposed: string
-  /** Turned down. Kept, so the same idea is not proposed twice. */
-  rejected: string
-}
-
-export function extensionDirs(root: string): ExtensionDirs {
-  return {
-    root,
-    active: join(root, 'active'),
-    proposed: join(root, 'proposed'),
-    rejected: join(root, 'rejected'),
-  }
-}
 
 /**
  * Which of a directory's files are extensions, in a stable order.
@@ -51,7 +33,28 @@ export function isExtensionName(name: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(name)
 }
 
-/** The file a proposal is written to, or null when the name is unusable. */
-export function proposalPath(dirs: ExtensionDirs, name: string): string | null {
-  return isExtensionName(name) ? join(dirs.proposed, `${name}.ts`) : null
+/**
+ * The file a tool Tade writes for itself goes in, or null when the name is
+ * unusable. Beside every other extension: there is one place they live, and
+ * being there is not being on.
+ */
+export function extensionPath(root: string, name: string): string | null {
+  return isExtensionName(name) ? join(root, `${name}.ts`) : null
+}
+
+/**
+ * Whether an extension may load at all.
+ *
+ * Tade's own ship with it and are on unless turned off. Yours — anything in
+ * the extensions directory, whoever wrote it — are off until somebody says
+ * otherwise, so a tool Tade wrote for itself is listed, readable and inert
+ * until a human turns it on. That is the rail that used to be a directory
+ * nobody loaded from.
+ */
+export function extensionEnabled(
+  settings: Readonly<Record<string, unknown>> | undefined,
+  source: 'built-in' | 'yours',
+): boolean {
+  const said = settings?.enabled
+  return source === 'built-in' ? said !== false : said === true
 }

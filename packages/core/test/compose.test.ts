@@ -74,8 +74,8 @@ describe('composePrompt', () => {
     expect(composePrompt({ config: config() })).not.toContain('Things you have been told')
   })
 
-  it('tells it that a proposed tool is not a tool it has', () => {
-    expect(composePrompt({ config: config() })).toContain('Proposals do nothing')
+  it('tells it that a tool it wrote is not a tool it has', () => {
+    expect(composePrompt({ config: config() })).toContain('off until a human turns it on')
   })
 })
 

@@ -1,17 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, loadConfig } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import {
   BUILTIN_EXTENSIONS,
-  decideProposal,
+  enabledTools,
   extensionWorkbench,
   loadExtensions,
-  proposedExtensions,
+  oneExtensionsFolder,
   workbenchExtensions,
+  writtenTools,
 } from '../src/extensions.ts'
 
 // What an extension's work becomes in a real repository: an agent in its own
@@ -149,38 +150,53 @@ describe('an agent an extension starts', () => {
     expect(host.specs('orchestrator').some((spec) => spec.name.startsWith('jev_'))).toBe(false)
   })
 
-  it('lists what Tade wrote for itself, and approving or turning one down moves it and is committed', async () => {
-    const root = tmp('wx-proposals-')
-    mkdirSync(join(root, 'proposed', 'release-notes'), { recursive: true })
+  it('lists the tools Tade wrote for itself, and loads only the ones turned on', async () => {
+    const root = tmp('wx-written-')
     writeFileSync(
-      join(root, 'proposed', 'release-notes', 'extension.ts'),
-      '// Drafts release notes from merged work.\nexport default {}\n',
-    )
-    writeFileSync(
-      join(root, 'proposed', 'standup.ts'),
+      join(root, 'standup.ts'),
       '// Reads out yesterday.\nexport default function () {}\n',
     )
-    expect(proposedExtensions(root)).toEqual([
-      {
-        name: 'release-notes',
-        kind: 'extension',
-        why: 'Drafts release notes from merged work.',
-        path: join(root, 'proposed', 'release-notes'),
-      },
-      {
-        name: 'standup',
-        kind: 'tool',
-        why: 'Reads out yesterday.',
-        path: join(root, 'proposed', 'standup.ts'),
-      },
+    writeFileSync(join(root, 'notes.ts'), '// Writes the week up.\nexport default function () {}\n')
+    // A whole extension is a folder, and the window holds those; these are
+    // the single files the orchestrator loads.
+    mkdirSync(join(root, 'release-notes'), { recursive: true })
+    writeFileSync(join(root, 'release-notes', 'extension.ts'), 'export default {}\n')
+
+    expect(writtenTools(root)).toEqual([
+      { name: 'notes', why: 'Writes the week up.', path: join(root, 'notes.ts') },
+      { name: 'standup', why: 'Reads out yesterday.', path: join(root, 'standup.ts') },
     ])
-    expect(await decideProposal(root, 'release-notes', 'approve')).toContain(
-      'loads when Tade next starts',
-    )
-    expect(existsSync(join(root, 'active', 'release-notes', 'extension.ts'))).toBe(true)
-    await decideProposal(root, 'standup', 'reject')
-    expect(existsSync(join(root, 'rejected', 'standup.ts'))).toBe(true)
-    expect(proposedExtensions(root)).toEqual([])
-    await expect(decideProposal(root, 'standup', 'approve')).rejects.toThrow('nothing proposed')
+    // Sitting there is not being on: nothing loads until somebody says so.
+    expect(enabledTools(root, {})).toEqual([])
+    expect(enabledTools(root, { standup: { enabled: true }, notes: { enabled: false } })).toEqual([
+      join(root, 'standup.ts'),
+    ])
+  })
+
+  it('moves what was in active/ and proposed/ into the one folder, and keeps what was running on', async () => {
+    const root = tmp('wx-onefolder-')
+    const config = join(tmp('wx-onefolder-home-'), 'config.yaml')
+    mkdirSync(join(root, 'active', 'release-notes'), { recursive: true })
+    writeFileSync(join(root, 'active', 'release-notes', 'extension.ts'), 'export default {}\n')
+    mkdirSync(join(root, 'proposed'), { recursive: true })
+    writeFileSync(join(root, 'proposed', 'standup.ts'), '// Reads out yesterday.\n')
+    // Turned down once: it stays turned down, and is never moved back in.
+    mkdirSync(join(root, 'rejected'), { recursive: true })
+    writeFileSync(join(root, 'rejected', 'shouty.ts'), '// No.\n')
+
+    expect(oneExtensionsFolder(root, config).sort()).toEqual(['release-notes', 'standup'])
+    expect(existsSync(join(root, 'release-notes', 'extension.ts'))).toBe(true)
+    expect(existsSync(join(root, 'standup.ts'))).toBe(true)
+    expect(existsSync(join(root, 'active'))).toBe(false)
+    expect(existsSync(join(root, 'proposed'))).toBe(false)
+    expect(existsSync(join(root, 'rejected', 'shouty.ts'))).toBe(true)
+    // What was in `active/` was running, so it keeps running; what was only
+    // proposed stays off until somebody turns it on.
+    expect(readFileSync(config, 'utf8')).toContain('release-notes')
+    const after = await loadConfig(config)
+    expect(after.ok && after.config.extensions['release-notes']?.enabled).toBe(true)
+    expect(after.ok && after.config.extensions.standup).toBeUndefined()
+    // Run again, it has nothing left to do.
+    expect(oneExtensionsFolder(root, config)).toEqual([])
   })
 })

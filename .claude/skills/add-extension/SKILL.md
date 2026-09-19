@@ -17,10 +17,20 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
 | `packages/extensions/core/src/conformance.ts` | The suite every extension passes |
 | `packages/extensions/<name>/` | A built-in extension: `src/extension.ts`, `skills/`, `test/` |
 | `packages/orchestrator/src/extensions.ts` | `BUILTIN_EXTENSIONS` (the registry) and what loading gives each part |
-| `~/.tade/extensions/active/<name>/extension.ts` | Yours: default-export the extension |
+| `~/.tade/extensions/<name>/extension.ts` | Yours: default-export the extension. One folder, and off until turned on |
 
 ## Rules
 
+- **Being in the folder is not being on.** Tade's own (`BUILTIN_EXTENSIONS`) are on unless
+  `extensions.<name>.enabled: false`; everything in `~/.tade/extensions/` is off until
+  `enabled: true`, and one that is off is *never imported* — it is listed by its folder name and
+  the first comment line of its file, and nothing in it runs. Turning one on takes effect the next
+  time Tade starts (`tade extensions enable <name>`, Extensions, or the setup wizard's last
+  question); the host says so rather than loading it mid-session. `extensionEnabled` in
+  `packages/core` is the one rule, and `--safe` overrides all of it.
+- **One of yours calls itself what its folder is called**, or it is listed as broken: the folder is
+  what is turned on and what `extensions.<name>` configures, so two names would mean setting it up
+  in one place and switching it in another.
 - **Tools start with the extension's name**: `sentry_issues`, `deps_check`. The host refuses anything
   else, which is what keeps two extensions from shadowing each other or Tade's own `tade_*` tools.
 - **Say who a tool is for** (`for: ['orchestrator', 'agent']`). Anything that changes something

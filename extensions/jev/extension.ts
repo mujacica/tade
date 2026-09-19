@@ -1,6 +1,7 @@
-// A sketch, not a build. Proposals are inert: nothing here runs until a human
-// copies it to `~/.tade/extensions/active/jev/extension.ts` (or it is made a
-// built-in under `packages/extensions/jev`) and Tade is started again.
+// A sketch, not a build, and now superseded: the real one ships as a built-in
+// under `packages/extensions/jev`. Nothing here runs — an extension in this
+// folder is listed and off until somebody turns it on
+// (`extensions.jev.enabled`), and Tade is started again.
 //
 // What it is for, and what was decided and why, is in `docs/jev-integration.md`.
 // Read that first — and note that the watch below is the FIRST DRAFT's shape:

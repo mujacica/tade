@@ -30,6 +30,7 @@ import {
   describeWork,
   dueNow,
   expandHome,
+  extensionEnabled,
   HARNESS_CHOICES,
   holdSaid,
   inWrittenOrder,
@@ -216,7 +217,6 @@ import {
   type PanelInputs,
   type PanelOutcome,
   type PromptPanel,
-  type ProposalView,
   panelClick,
   panelKey,
   priceSaid,
@@ -231,6 +231,7 @@ import {
   spendPanel,
   terminalMenuItems,
   thinkingMenuItems,
+  type WrittenToolView,
 } from './panels.ts'
 import {
   ago,
@@ -624,11 +625,11 @@ export interface AppOptions {
    * The callback should stop the app, release the home lock, and re-exec.
    */
   reloadWindow?: () => Promise<void>
-  /** What Tade wrote for itself and is waiting on you: to list, and to decide. */
-  proposals?: {
-    list(): ProposalView[]
-    decide(name: string, verdict: 'approve' | 'reject'): Promise<string>
-  }
+  /**
+   * The tools Tade wrote for itself, to list. Whether each is on is a
+   * setting, which the window reads and writes like any other.
+   */
+  written?: () => { name: string; why: string; path: string }[]
   /** Extensions the harness loads by itself, which Tade lists but does not run. */
   harnessExtensions?: () => Promise<{ name: string; where: string }[]>
   now?: () => number
@@ -1107,7 +1108,7 @@ export class App {
     }
     if (panel.kind === 'extensions') {
       return {
-        proposals: this.opts.proposals?.list() ?? [],
+        written: this.writtenViews(),
         extensions: this.extensionViews(),
         harnessExtensions: this.harnessPieces,
         extensionsRoot: tilde(expandHome(this.opts.config.orchestrator.extensions)),
@@ -2130,7 +2131,7 @@ export class App {
         this.harnessPieces = (await this.opts.harnessExtensions?.().catch(() => [])) ?? []
         {
           // The keyboard starts on the first thing to run, not on turning it off.
-          const controls = extensionControls(this.extensionViews(), this.opts.proposals?.list())
+          const controls = extensionControls(this.extensionViews(), this.writtenViews())
           const first = controls.findIndex((control) => control.startsWith('action:'))
           this.state = {
             ...this.state,
@@ -4904,6 +4905,17 @@ export class App {
     this.draw()
   }
 
+  /**
+   * The tools Tade wrote for itself, as the panel shows them: the files it
+   * found, and whether each is turned on, which is a setting like any other.
+   */
+  private writtenViews(): WrittenToolView[] {
+    return (this.opts.written?.() ?? []).map((tool) => ({
+      ...tool,
+      on: extensionEnabled(this.opts.config.extensions[tool.name], 'yours'),
+    }))
+  }
+
   /** The extensions, as the panel shows them. */
   private extensionViews(): ExtensionView[] {
     const offers = this.opts.extensions?.watches() ?? []
@@ -4995,39 +5007,36 @@ export class App {
           return
         case 'toggle': {
           const was = host?.list().find((one) => one.name === name)
-          const on = was?.state === 'off'
-          // On is the default, so turning one on takes the setting away.
-          writeSetting(this.configPath, `extensions.${name}.enabled`, on ? undefined : false)
+          const tool = was ? null : this.writtenViews().find((one) => one.name === name)
+          if (!was && !tool) return stay(null)
+          const on = was ? was.state === 'off' : tool?.on !== true
+          // Written down either way: one of Tade's own is on unless it says
+          // otherwise, and one of yours is off until it says so.
+          writeSetting(this.configPath, `extensions.${name}.enabled`, on)
           await this.reloadExtensions()
+          if (tool) {
+            // Nothing is loaded mid-session, so say when it takes effect.
+            return stay(
+              on
+                ? `${name} is on — it loads the next time Tade starts`
+                : `${name} is off — it stops loading the next time Tade starts`,
+            )
+          }
           const now = host?.list().find((one) => one.name === name)
+          const later =
+            now?.state === 'off' && now.problem?.startsWith('turned on') ? ` — ${now.problem}` : ''
           return stay(
             on
-              ? `${was?.title ?? name} is on${now?.state === 'needs setup' ? `, and needs setting up: ${now.problem}` : ''}`
+              ? `${was?.title ?? name} is on${later}${now?.state === 'needs setup' ? `, and needs setting up: ${now.problem}` : ''}`
               : `${was?.title ?? name} is off`,
           )
         }
         case 'read': {
-          const proposal = this.opts.proposals?.list().find((one) => one.name === name)
-          if (!proposal) return stay(null)
+          const tool = this.writtenViews().find((one) => one.name === name)
+          if (!tool) return stay(null)
           this.state = { ...this.state, panel: null }
-          await this.openPlace({ path: proposal.path })
+          await this.openPlace({ path: tool.path })
           return
-        }
-        case 'approve':
-        case 'reject': {
-          const said = await this.opts.proposals?.decide(
-            name,
-            verb === 'approve' ? 'approve' : 'reject',
-          )
-          const count = extensionControls(
-            this.extensionViews(),
-            this.opts.proposals?.list() ?? [],
-          ).length
-          this.state = {
-            ...this.state,
-            panel: { ...panel, index: Math.min(panel.index, Math.max(0, count - 1)) },
-          }
-          return stay(said ?? null)
         }
         default:
           return stay(null)
@@ -6223,7 +6232,7 @@ export class App {
       choices: this.choices,
       items: this.menuItemsFor(this.state.panel),
       extensions: this.extensionViews(),
-      proposals: this.state.panel?.kind === 'extensions' ? (this.opts.proposals?.list() ?? []) : [],
+      written: this.state.panel?.kind === 'extensions' ? this.writtenViews() : [],
       setupFields:
         this.state.panel?.kind === 'extension-setup'
           ? (this.setupFacts(this.state.panel)?.fields ?? [])

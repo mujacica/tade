@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
 import {
+  type Config,
   defaultConfigPath,
   isReady,
   loadConfig,
@@ -15,6 +16,7 @@ import {
   tadeHome,
 } from '@tade/core'
 import { piBinary, usableModels } from '@tade/harnesses-pi'
+import { loadExtensions } from '@tade/orchestrator'
 import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
 import { drivers, makeJudge } from '@tade/workbench'
 import type { Command } from 'commander'
@@ -127,6 +129,33 @@ export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
     // Whatever records that the extension is on or off is the answer: two
     // places saying whether a judge is on is the bug this avoids.
     judgeChosen: config?.extensions?.jev?.enabled !== undefined,
+    extensions: await extensionsHere(config),
+  }
+}
+
+/**
+ * The extensions this machine has, and which of them somebody has decided
+ * about. Asked of the host rather than a list written here, so the ones Tade
+ * ships with and the ones in your extensions folder are offered the same way.
+ * Never throws: nothing to offer is an empty list, not a failed setup.
+ */
+async function extensionsHere(
+  config: Config | null,
+): Promise<{ name: string; title: string; chosen: boolean }[]> {
+  if (!config) return []
+  try {
+    const host = await loadExtensions({
+      config,
+      home: tadeHome(),
+      configPath: defaultConfigPath(),
+    })
+    return host.list().map((one) => ({
+      name: one.name,
+      title: one.title,
+      chosen: config.extensions[one.name]?.enabled !== undefined,
+    }))
+  } catch {
+    return []
   }
 }
 
@@ -190,6 +219,7 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
             if (step.id === 'voice') await setUpVoice(ui, facts)
             if (step.id === 'talk') await setUpTalkKey(ui)
             if (step.id === 'judge') await setUpJudge(ui)
+            if (step.id === 'extensions') await setUpExtensions(ui)
           } catch (err) {
             // One step that cannot be finished is not a reason to abandon the
             // others: somebody who has to go and export an API key should
@@ -440,6 +470,60 @@ async function setUpJudge(ui: Ui): Promise<void> {
   // and the review watch stays off until somebody turns it on, per project.
   ui.say('  its tools are available to you and your agents; the review watch stays off')
   ui.say('  until you turn it on (say "watch what the agents change" in the window)')
+}
+
+/**
+ * Which extensions to use.
+ *
+ * Nothing is on because it is there: what Tade ships with, and anything in
+ * your extensions folder — including what Tade wrote for itself — is listed
+ * and off until somebody picks it. That is the whole of the safety, so this is
+ * the question it deserves, asked once, last, and skippable in one key. Only
+ * the ones nobody has decided about are offered; whatever the judge step or
+ * the window already answered is left exactly as it is.
+ */
+async function setUpExtensions(ui: Ui): Promise<void> {
+  const loaded = await loadConfig(defaultConfigPath())
+  const all = await extensionsHere(loaded.ok ? loaded.config : null)
+  const waiting = all.filter((one) => !one.chosen)
+  if (waiting.length === 0) return
+
+  ui.say('Extensions are what Tade can do that it was not built knowing about: your')
+  ui.say('dependencies, your reviews, your errors, what the machine is spending. Each is off')
+  ui.say('until you say so, and one you turn on loads the next time Tade starts.')
+  ui.say('Settings › Extensions turns any of them on or off later, and sets them up.')
+  ui.say('')
+
+  const choice = await ui.choose(`Which of the ${waiting.length} should Tade use?`, [
+    'all of them — each still says what it needs before it does anything',
+    'let me pick',
+    'none for now',
+  ])
+  if (choice === 2) {
+    for (const one of waiting) setExtension(one.name, false)
+    ui.say('  all off — Settings › Extensions whenever you want one')
+    return
+  }
+  if (choice === 0) {
+    for (const one of waiting) setExtension(one.name, true)
+    ui.say(`  on: ${waiting.map((one) => one.title).join(', ')}`)
+    ui.say('  they load the next time Tade starts')
+    return
+  }
+  for (const one of waiting) {
+    const on = await ui.confirm(`use ${one.title}?`, true)
+    setExtension(one.name, on)
+    ui.say(`  ${one.title} is ${on ? 'on' : 'off'}`)
+  }
+  ui.say('  what you turned on loads the next time Tade starts')
+}
+
+/** On or off, written down: there is one answer to whether an extension runs. */
+function setExtension(name: string, on: boolean): void {
+  patchConfig((config) => {
+    const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
+    config.extensions = { ...extensions, [name]: { ...(extensions[name] ?? {}), enabled: on } }
+  })
 }
 
 async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {

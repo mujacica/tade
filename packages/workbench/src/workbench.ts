@@ -358,7 +358,7 @@ export class Workbench {
       // commit now, so it is reviewable rather than merely present.
       await recordAuthored(
         expandHome(config.orchestrator.extensions),
-        'tools proposed since Tade was last open',
+        'tools written since Tade was last open',
       )
       await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Tade was last open')
       await workbench.resupervise().catch(() => {})

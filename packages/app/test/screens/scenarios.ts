@@ -1235,7 +1235,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'extensions',
     about:
-      'The Extensions panel: what works, what needs setting up and how, what is broken, the actions of each, and what pi loads by itself.',
+      'The Extensions panel: what works, what needs setting up and how, what is broken, what is sitting there turned off, the actions of each, the tools Tade wrote for itself, and what pi loads by itself.',
     state: { ...base(), panel: extensionsPanel() },
     frame: frame({
       panel: {
@@ -1295,16 +1295,31 @@ export const SCENARIOS: Scenario[] = [
             actions: [],
             unknownSettings: [],
             configurable: false,
-            folder: '/Users/me/.tade/extensions/active/standup',
+            folder: '/Users/me/.tade/extensions/standup',
+            watches: [],
+          },
+          {
+            name: 'release-notes',
+            title: 'release-notes',
+            description:
+              'Drafts release notes from merged work, because you asked for them every Friday.',
+            source: 'yours',
+            state: 'off',
+            problem: 'not turned on',
+            tools: [],
+            actions: [],
+            unknownSettings: [],
+            configurable: false,
+            folder: '/Users/me/.tade/extensions/release-notes',
             watches: [],
           },
         ],
-        proposals: [
+        written: [
           {
-            name: 'release-notes',
-            kind: 'extension',
-            why: 'Drafts release notes from merged work, because you asked for them every Friday.',
-            path: '/Users/me/.tade/extensions/proposed/release-notes',
+            name: 'standup-notes',
+            why: 'Reads out what each agent did yesterday, because you ask every morning.',
+            path: '/Users/me/.tade/extensions/standup-notes.ts',
+            on: false,
           },
         ],
         harnessExtensions: [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }],

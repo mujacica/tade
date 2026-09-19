@@ -6,15 +6,15 @@ const run = promisify(execFile)
 
 // The history of what Tade wrote for itself.
 //
-// Tools and lessons an agent proposed are the one part of Tade that Tade
-// changes, so they are the one part where "when did this appear, and what was
-// happening at the time" has to be answerable months later. A directory of
+// Tools an agent wrote and lessons it proposed are the one part of Tade that
+// Tade changes, so they are the one part where "when did this appear, and what
+// was happening at the time" has to be answerable months later. A directory of
 // files cannot answer it; a git repository can, and costs a commit.
 //
 // This is the first of the four things that make self-extension safe to allow
-// at all. The others — `--safe`, proposals being inert until a human moves
-// them, and no hot reload — are elsewhere and were built first; this one is
-// what makes an unwelcome change reviewable and undoable rather than merely
+// at all. The others — `--safe`, nothing loading until somebody turns it on,
+// and no hot reload — are elsewhere and were built first; this one is what
+// makes an unwelcome change reviewable and undoable rather than merely
 // stoppable.
 //
 // Never throws. A machine without git, or a directory that is already inside
@@ -40,9 +40,9 @@ function gitOptions(cwd: string): { cwd: string } {
 /**
  * Record the current state of a directory Tade writes to.
  *
- * Called after anything changes it — a proposal arriving, a human activating
- * or turning one down — and on opening, which catches whatever agents wrote
- * while nobody was looking.
+ * Called after anything changes it — a tool Tade wrote for itself arriving, a
+ * human turning one on or off — and on opening, which catches whatever agents
+ * wrote while nobody was looking.
  */
 export async function recordAuthored(root: string, message: string): Promise<AuthoredHistory> {
   try {

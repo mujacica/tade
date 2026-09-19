@@ -596,14 +596,14 @@ export function extensionViewPanel(extension: string): ExtensionViewPanel {
   return { kind: 'extension-view', extension, scroll: 0, busy: false }
 }
 
-/** Something Tade wrote for itself, waiting for you to read it and decide. */
-export interface ProposalView {
+/** A tool Tade wrote for itself: one file, for you to read and turn on. */
+export interface WrittenToolView {
   name: string
-  /** A tool for the orchestrator, or a whole extension. */
-  kind: 'tool' | 'extension'
   /** What it is for, as Tade said when it wrote it. */
   why: string
   path: string
+  /** Whether it is turned on. It loads the next time Tade starts. */
+  on: boolean
 }
 
 export function extensionsPanel(): ExtensionsPanel {
@@ -614,11 +614,12 @@ export function extensionsPanel(): ExtensionsPanel {
  * Every control in the panel, in the order the keyboard moves through them:
  * for each extension, turning it on or off, setting it up, its actions, its
  * folder, and watching what it offers to watch — or showing the watch, once it
- * is on; then, for each proposal, reading, approving and turning it down.
+ * is on; then, for each tool Tade wrote for itself, reading it and turning it
+ * on or off.
  */
 export function extensionControls(
   views: readonly ExtensionView[],
-  proposals: readonly ProposalView[] = [],
+  written: readonly WrittenToolView[] = [],
 ): string[] {
   const controls: string[] = []
   for (const view of views) {
@@ -634,8 +635,8 @@ export function extensionControls(
       if (control) controls.push(control)
     }
   }
-  for (const proposal of proposals) {
-    controls.push(`read:${proposal.name}`, `approve:${proposal.name}`, `reject:${proposal.name}`)
+  for (const tool of written) {
+    controls.push(`read:${tool.name}`, `toggle:${tool.name}`)
   }
   return controls
 }
@@ -915,8 +916,8 @@ export interface PanelInputs {
   extensions?: readonly ExtensionView[]
   /** Models there are to choose from. */
   models?: readonly ModelChoice[]
-  /** What Tade wrote for itself and is waiting on you. */
-  proposals?: readonly ProposalView[]
+  /** The tools Tade wrote for itself, on or off. */
+  written?: readonly WrittenToolView[]
   /** The fields of the extension being set up. */
   setupFields?: readonly SetupFieldView[]
 }
@@ -1216,7 +1217,7 @@ export function panelKey(
       : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
   }
   if (panel.kind === 'extensions') {
-    const controls = extensionControls(inputs.extensions ?? [], inputs.proposals ?? [])
+    const controls = extensionControls(inputs.extensions ?? [], inputs.written ?? [])
     if (key === 'escape') return close
     if (panel.busy) return stay(panel)
     if (key === 'up' || key === 'shift+tab' || key === 'left')
@@ -1286,9 +1287,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   }
   if (panel.kind === 'extensions') {
     if (control === 'close') return close
-    const index = extensionControls(inputs.extensions ?? [], inputs.proposals ?? []).indexOf(
-      control,
-    )
+    const index = extensionControls(inputs.extensions ?? [], inputs.written ?? []).indexOf(control)
     return index < 0
       ? stay(panel)
       : { panel: { ...panel, index, said: null }, submit: true, choice: control }

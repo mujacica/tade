@@ -64,7 +64,6 @@ describe('the tools the orchestrator has', () => {
       'tade_orchestrator_model',
       'tade_park',
       'tade_plan',
-      'tade_propose_extension',
       'tade_propose_skill',
       'tade_queue',
       'tade_queue_change',
@@ -85,6 +84,7 @@ describe('the tools the orchestrator has', () => {
       'tade_terminal_rename',
       'tade_terminal_run',
       'tade_terminal_search',
+      'tade_write_extension',
     ])
   })
 

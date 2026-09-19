@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { whenProblem } from '@tade/core'
+import { extensionEnabled, whenProblem } from '@tade/core'
 import type {
   Audience,
   BriefItem,
@@ -28,12 +28,13 @@ import { inputProblem } from './schema.ts'
 
 // Holding the extensions a window runs with, and running them.
 //
-// Built-in ones ship with Tade. Yours are folders in the extensions
-// directory's `active/`, each with an `extension.ts`, and they follow the rails
-// every self-written thing does: a proposal does nothing until a human moves
-// it there, it loads when Tade starts and never mid-session, and `--safe`
-// starts with none of them. A broken one is listed as broken with the reason;
-// it never stops the others, or Tade, from starting.
+// Built-in ones ship with Tade. Yours are the folders in the extensions
+// directory, each with an `extension.ts`, and they follow the rails every
+// self-written thing does: sitting there is being listed, not being loaded —
+// one nobody has turned on is never even imported — turning one on takes
+// effect when Tade next starts and never mid-session, and `--safe` starts
+// with none of them. A broken one is listed as broken with the reason; it
+// never stops the others, or Tade, from starting.
 
 export type ExtensionState = 'ready' | 'needs setup' | 'off' | 'broken'
 
@@ -76,7 +77,7 @@ export interface ExtensionRun {
 
 export interface HostOptions {
   builtin?: readonly TadeExtension[]
-  /** The extensions directory: yours are the folders in its `active/`. */
+  /** The extensions directory: yours are the folders in it. */
   root?: string | null
   /** Start with none of yours. */
   safe?: boolean
@@ -114,13 +115,20 @@ interface Entry {
   extension: TadeExtension
   loaded: LoadedExtension
   ctx: ExtensionContext
+  /**
+   * Whether its module was imported this time round. One of yours that is off
+   * was not, so nothing about it can change until Tade starts again.
+   */
+  imported: boolean
 }
 
 /** Why an extension cannot be used now, or null when it is ready. */
 function notReady(entry: Entry): string | null {
   const { state, title, problem } = entry.loaded
   if (state === 'ready') return null
-  if (state === 'off') return `${title} is turned off`
+  // "Turned off", "not turned on", "left out by --safe": what it says is why,
+  // and each of those is a different thing to do about it.
+  if (state === 'off') return `${title} is ${problem ?? 'turned off'}`
   const because = problem ? `: ${problem}` : ''
   return state === 'needs setup'
     ? `${title} needs setting up${because}`
@@ -199,23 +207,44 @@ export class ExtensionHost {
       extension: TadeExtension | null
       source: 'built-in' | 'yours'
       path: string | null
+      /** It would not load, and this is why. */
       error: string | null
+      /** It was not loaded at all, and this is why. Nothing is wrong with it. */
+      off: string | null
+      /** What it says it is, read from its file rather than run. */
+      about: string
       name: string
     }[] = (opts.builtin ?? []).map((extension) => ({
       extension,
       source: 'built-in' as const,
       path: extension.root ?? null,
       error: null,
+      off: null,
+      about: '',
       name: extension.name,
     }))
     for (const folder of yourFolders(opts.root)) {
       const name = folder.split('/').at(-1) ?? folder
-      if (opts.safe) {
+      // Not imported until somebody has turned it on: importing a module runs
+      // whatever is at the top of it, so "listed and off" has to mean the file
+      // was read and not executed. Never asked and turned down are different
+      // answers, and the one to do something about is the first.
+      const said = opts.config.extensions[name]?.enabled
+      const off = opts.safe
+        ? 'left out by --safe'
+        : extensionEnabled(opts.config.extensions[name], 'yours')
+          ? null
+          : said === false
+            ? 'turned off'
+            : 'not turned on'
+      if (off) {
         found.push({
           extension: null,
           source: 'yours',
           path: folder,
-          error: 'started with --safe',
+          error: null,
+          off,
+          about: firstComment(join(folder, 'extension.ts')),
           name,
         })
         continue
@@ -234,10 +263,20 @@ export class ExtensionHost {
           source: 'yours',
           path: folder,
           error: null,
+          off: null,
+          about: '',
           name,
         })
       } catch (err) {
-        found.push({ extension: null, source: 'yours', path: folder, error: why(err), name })
+        found.push({
+          extension: null,
+          source: 'yours',
+          path: folder,
+          error: why(err),
+          off: null,
+          about: firstComment(join(folder, 'extension.ts')),
+          name,
+        })
       }
     }
 
@@ -249,7 +288,7 @@ export class ExtensionHost {
       const base: LoadedExtension = {
         name: extension?.name ?? one.name,
         title: extension?.title ?? one.name,
-        description: extension?.description ?? '',
+        description: extension?.description ?? one.about,
         source: one.source,
         path: one.path,
         state: 'ready',
@@ -264,13 +303,14 @@ export class ExtensionHost {
       }
       if (!extension) {
         host.entries.push({
-          extension: { name: one.name, title: one.name, description: '' },
+          extension: { name: one.name, title: one.name, description: one.about },
           loaded: {
             ...base,
-            state: one.error === 'started with --safe' ? 'off' : 'broken',
-            problem: one.error,
+            state: one.off ? 'off' : 'broken',
+            problem: one.off ?? one.error,
           },
           ctx: host.context(one.name, settings),
+          imported: false,
         })
         continue
       }
@@ -278,10 +318,18 @@ export class ExtensionHost {
       const clash = taken.has(extension.name)
         ? `another extension is already called ${extension.name}`
         : null
+      // One name for one extension: the folder is what somebody turns on and
+      // what its settings are under, so an extension that calls itself
+      // something else would be set up in one place and switched in another.
+      const named =
+        one.source === 'yours' && extension.name !== one.name
+          ? `its folder is called ${one.name} but it calls itself ${extension.name}: they have to match, because the folder is the name you turn on`
+          : null
       taken.add(extension.name)
       const ctx = host.context(extension.name, settings)
-      const entry: Entry = { extension, loaded: base, ctx }
-      if (shape || clash) entry.loaded = { ...base, state: 'broken', problem: shape ?? clash }
+      const entry: Entry = { extension, loaded: base, ctx, imported: true }
+      if (shape || clash || named)
+        entry.loaded = { ...base, state: 'broken', problem: shape ?? clash ?? named }
       else await host.evaluate(entry, settings)
       host.entries.push(entry)
     }
@@ -298,7 +346,7 @@ export class ExtensionHost {
       state: 'ready' as ExtensionState,
       problem: null,
     }
-    if (settings.enabled === false) {
+    if (!extensionEnabled(settings, entry.loaded.source)) {
       entry.loaded = { ...base, state: 'off', problem: 'turned off' }
       return
     }
@@ -310,16 +358,29 @@ export class ExtensionHost {
 
   /**
    * Take new settings — turned on or off, set up — and say again which
-   * extensions work. What is broken stays broken, and what `--safe` left out
-   * stays out: those need Tade started again, which is the point of them.
+   * extensions work. What is broken stays broken, what `--safe` left out stays
+   * out, and one of yours that was off when the window opened was never
+   * imported, so turning it on says when it will run rather than running it:
+   * all three need Tade started again, which is the point of them.
    */
   async reconfigure(
     extensions: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
   ): Promise<void> {
     for (const entry of this.entries) {
-      if (entry.loaded.state === 'broken' || (entry.loaded.source === 'yours' && this.opts.safe))
+      if (entry.loaded.state === 'broken') continue
+      const settings = extensions[entry.extension.name] ?? {}
+      if (!entry.imported) {
+        if (this.opts.safe) continue
+        entry.loaded = {
+          ...entry.loaded,
+          state: 'off',
+          problem: extensionEnabled(settings, 'yours')
+            ? 'turned on — it loads next time Tade starts'
+            : 'not turned on',
+        }
         continue
-      await this.evaluate(entry, extensions[entry.extension.name] ?? {})
+      }
+      await this.evaluate(entry, settings)
     }
   }
 
@@ -868,21 +929,44 @@ function asExtension(tade: ExtensionWorkbench, name: string): ExtensionWorkbench
   }
 }
 
-/** Your extension folders: each directory in `active/` with an `extension.ts`, in name order. */
+/**
+ * Your extension folders: each directory in the extensions directory with an
+ * `extension.ts`, in name order. There is one place they live; whether each
+ * runs is what the settings say.
+ */
 function yourFolders(root: string | null | undefined): string[] {
   if (!root) return []
-  const active = join(root, 'active')
   try {
-    return readdirSync(active, { withFileTypes: true })
+    return readdirSync(root, { withFileTypes: true })
       .filter(
         (entry) =>
           entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.startsWith('_'),
       )
-      .map((entry) => join(active, entry.name))
+      .map((entry) => join(root, entry.name))
       .filter((folder) => existsSync(join(folder, 'extension.ts')))
       .sort((a, b) => a.localeCompare(b))
   } catch {
     return []
+  }
+}
+
+/**
+ * What a file says it is, from the comment it starts with: the one thing that
+ * can be known about an extension nobody has turned on, because reading a file
+ * is not running it. Empty when there is nothing to read.
+ */
+function firstComment(file: string): string {
+  try {
+    const first =
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .find((line) => line.trim() !== '') ?? ''
+    return first
+      .replace(/^\s*(\/\/+|\/\*+|\*)\s?/, '')
+      .replace(/\*\/\s*$/, '')
+      .trim()
+  } catch {
+    return ''
   }
 }
 

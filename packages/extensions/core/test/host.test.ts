@@ -98,9 +98,9 @@ describe('loading extensions', () => {
     expect((await host({ city: 'Vienna', enabled: false })).list()[0]?.state).toBe('off')
   })
 
-  it('loads yours from active/, and lists a broken one with why, without stopping the rest', async () => {
+  it('loads the ones you turned on, lists the rest off, and a broken one with why', async () => {
     const root = tmp('tade-ext-')
-    const mine = join(root, 'active', 'greeting')
+    const mine = join(root, 'greeting')
     mkdirSync(mine, { recursive: true })
     writeFileSync(
       join(mine, 'extension.ts'),
@@ -109,40 +109,84 @@ describe('loading extensions', () => {
         tools: [{ name: 'greeting_hello', description: 'Hello.', parameters: { type: 'object', properties: {} }, for: ['agent'], run: async () => ({ text: 'hello' }) }],
       }\n`,
     )
-    const broken = join(root, 'active', 'broken')
+    const broken = join(root, 'broken')
     mkdirSync(broken, { recursive: true })
     writeFileSync(join(broken, 'extension.ts'), 'this is not typescript !!!\n')
-    // Proposed ones do nothing until a human moves them.
-    mkdirSync(join(root, 'proposed', 'waiting'), { recursive: true })
-    writeFileSync(join(root, 'proposed', 'waiting', 'extension.ts'), 'export default {}\n')
+    // One nobody has turned on: listed, with what it says it is, and never
+    // imported — which is why a file that would throw on import is quiet here.
+    const waiting = join(root, 'waiting')
+    mkdirSync(waiting, { recursive: true })
+    writeFileSync(
+      join(waiting, 'extension.ts'),
+      '// Reads out yesterday.\nthrow new Error("never run")\n',
+    )
 
-    const loaded = await ExtensionHost.load({
-      builtin: [weather()],
-      root,
-      config: { extensions: { weather: { city: 'Vienna' } }, projects },
-      home: '/home',
-    })
+    const config = {
+      extensions: {
+        weather: { city: 'Vienna' },
+        greeting: { enabled: true },
+        broken: { enabled: true },
+      },
+      projects,
+    }
+    const loaded = await ExtensionHost.load({ builtin: [weather()], root, config, home: '/home' })
     expect(loaded.list().map((one) => [one.name, one.source, one.state])).toEqual([
       ['weather', 'built-in', 'ready'],
       ['broken', 'yours', 'broken'],
       ['greeting', 'yours', 'ready'],
+      ['waiting', 'yours', 'off'],
     ])
+    const off = loaded.list().find((one) => one.name === 'waiting')
+    expect(off?.problem).toBe('not turned on')
+    expect(off?.description).toBe('Reads out yesterday.')
     expect(loaded.specs('agent').map((spec) => spec.name)).toContain('greeting_hello')
+
+    // Turned on while the window is open: it says when it will run, and does
+    // not run now — there is no hot reload, which is the point of it.
+    await loaded.reconfigure({ ...config.extensions, waiting: { enabled: true } })
+    expect(loaded.list().find((one) => one.name === 'waiting')).toMatchObject({
+      state: 'off',
+      problem: 'turned on — it loads next time Tade starts',
+    })
+    expect(loaded.specs('agent').map((spec) => spec.name)).not.toContain('waiting_anything')
 
     // --safe starts with none of yours, broken or not.
     const safe = await ExtensionHost.load({
       builtin: [weather()],
       root,
       safe: true,
-      config: { extensions: { weather: { city: 'Vienna' } }, projects },
+      config,
       home: '/home',
     })
     expect(
       safe
         .list()
         .filter((one) => one.source === 'yours')
-        .map((one) => one.state),
-    ).toEqual(['off', 'off'])
+        .map((one) => [one.state, one.problem]),
+    ).toEqual([
+      ['off', 'left out by --safe'],
+      ['off', 'left out by --safe'],
+      ['off', 'left out by --safe'],
+    ])
+    expect(safe.list()[0]).toMatchObject({ name: 'weather', state: 'ready' })
+  })
+
+  it('refuses one of yours that calls itself something other than its folder', async () => {
+    // The folder is what you turn on and what its settings are under, so two
+    // names would mean setting it up in one place and switching it in another.
+    const root = tmp('tade-ext-named-')
+    mkdirSync(join(root, 'greeting'), { recursive: true })
+    writeFileSync(
+      join(root, 'greeting', 'extension.ts'),
+      "export default { name: 'hello', title: 'Hello', description: 'Says hello.' }\n",
+    )
+    const loaded = await ExtensionHost.load({
+      root,
+      config: { extensions: { greeting: { enabled: true } }, projects },
+      home: '/home',
+    })
+    expect(loaded.list()[0]).toMatchObject({ state: 'broken' })
+    expect(loaded.list()[0]?.problem).toContain('it calls itself hello')
   })
 
   it('refuses one that is put together wrong', async () => {

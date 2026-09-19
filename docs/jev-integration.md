@@ -1637,7 +1637,7 @@ steps, and `tade setup` walks them. It gains one:
   keeping a private one beside it — two places that say whether Jev is on is the bug this whole
   paragraph exists to avoid.
 
-It dovetails with the wizard's coming extensions question (the queued `extensions-no-proposed` work
+It dovetails with the wizard's coming extensions question (the `extensions-no-proposed` work
 makes which extensions are on a wizard choice and a settings toggle): the judge step *is* that
 question asked for one extension, with the key check attached. Whichever lands first, the other
 reuses it; neither invents a second mechanism.
@@ -1851,8 +1851,9 @@ commits.
    table** — and if the answer is no, everything above still stands on its own.
 5. The review watch (section 4): task diffs, settle time, two stages, `found: 'ask'`, questions and
    thresholds in one file. A sketch is in
-   [`extensions/proposed/jev/extension.ts`](../extensions/proposed/jev/extension.ts) — inert, as
-   proposals are, and written against the first draft's per-commit shape, so read section 4 first.
+   [`extensions/jev/extension.ts`](../extensions/jev/extension.ts) — off, as anything in that
+   folder is until it is turned on, superseded by the built-in under `packages/extensions/jev`,
+   and written against the first draft's per-commit shape, so read section 4 first.
 6. The record (section 5): `reviews.jsonl`, the derived verdict, `jev_findings`, the tables. It goes
    in **with** the watch, not after it — a month of findings nobody can score is a month wasted.
 7. Tier 1 of the window (section 6): two actions, a status item with its view, a brief line. All

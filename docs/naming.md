@@ -1052,7 +1052,7 @@ Grouped by what breaks if you get it wrong. (Examples use `marlo`; substitute wh
 
 | Thing | Where | Why it needs a compatibility path |
 |---|---|---|
-| `~/.wilco` home | `wilcoHome()`, `packages/core/src/config.ts` | Holds `config.yaml`, `memory.jsonl` (notes — nothing can recover them), `events.jsonl` + its SQLite index, `schedules.jsonl`, `lanes.json`, `window.json`, `skills/`, `extensions/active|proposed/`. Move on first start, or read the old path when the new one is absent. |
+| `~/.wilco` home | `wilcoHome()`, `packages/core/src/config.ts` | Holds `config.yaml`, `memory.jsonl` (notes — nothing can recover them), `events.jsonl` + its SQLite index, `schedules.jsonl`, `lanes.json`, `window.json`, `skills/`, `extensions/`. Move on first start, or read the old path when the new one is absent. |
 | Per-project `.wilco/` | 141 references in `.ts` alone; `tasks/<name>/task.yaml`, `context.md`, `mkrepo` fixtures | Every existing task lives there, and a task's id is in its file, not its branch. |
 | Branch prefix `wilco/` | `TASK_BRANCH_PREFIX` in `packages/status/src/status.ts` and `packages/workbench/src/tasks.ts`, `app.ts`, `mkrepo.ts` | Branches already pushed keep the old prefix; status must accept both, probably forever. |
 | pi session ids `wilco-<task>` | `sessionIdFor()`, `packages/harnesses/pi/src/adapter.ts` | The id is what makes reopening ordinary. Change the formula and every existing agent loses its conversation — and task names are never reused, so there is no second chance. Keep the old prefix for tasks that already have a session. |

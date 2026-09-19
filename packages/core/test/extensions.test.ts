@@ -1,15 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extensionDirs, isExtensionName, loadable, proposalPath } from '../src/extensions.ts'
-
-describe('extensionDirs', () => {
-  it('keeps proposed, active and rejected apart', () => {
-    const dirs = extensionDirs('/home/me/.tade/extensions')
-    expect(dirs.active).toBe('/home/me/.tade/extensions/active')
-    expect(dirs.proposed).toBe('/home/me/.tade/extensions/proposed')
-    // Kept rather than deleted, so the same idea is not proposed twice.
-    expect(dirs.rejected).toBe('/home/me/.tade/extensions/rejected')
-  })
-})
+import { extensionEnabled, extensionPath, isExtensionName, loadable } from '../src/extensions.ts'
 
 describe('loadable', () => {
   it('takes the source files and nothing else', () => {
@@ -53,15 +43,30 @@ describe('isExtensionName', () => {
   })
 })
 
-describe('proposalPath', () => {
-  const dirs = extensionDirs('/x')
-
-  it('lands in proposed, never active', () => {
-    // An agent writes proposals. A human decides what runs.
-    expect(proposalPath(dirs, 'summarise-prs')).toBe('/x/proposed/summarise-prs.ts')
+describe('extensionPath', () => {
+  it('lands in the one directory extensions live in', () => {
+    // Tade writes it there and a human turns it on: there is no second place.
+    expect(extensionPath('/x', 'summarise-prs')).toBe('/x/summarise-prs.ts')
   })
 
   it('refuses a name it will not write', () => {
-    expect(proposalPath(dirs, '../../etc/passwd')).toBeNull()
+    expect(extensionPath('/x', '../../etc/passwd')).toBeNull()
+  })
+})
+
+describe('extensionEnabled', () => {
+  it('has Tade’s own on unless they are turned off', () => {
+    expect(extensionEnabled(undefined, 'built-in')).toBe(true)
+    expect(extensionEnabled({ city: 'Vienna' }, 'built-in')).toBe(true)
+    expect(extensionEnabled({ enabled: false }, 'built-in')).toBe(false)
+  })
+
+  it('leaves yours off until somebody turns one on', () => {
+    // Sitting in the directory is being listed, not being loaded: an
+    // extension Tade wrote for itself runs when a human says so.
+    expect(extensionEnabled(undefined, 'yours')).toBe(false)
+    expect(extensionEnabled({ token: 'x' }, 'yours')).toBe(false)
+    expect(extensionEnabled({ enabled: true }, 'yours')).toBe(true)
+    expect(extensionEnabled({ enabled: false }, 'yours')).toBe(false)
   })
 })

@@ -272,7 +272,7 @@ export interface Frame {
       | 'models'
       | 'modelTarget'
       | 'currentModel'
-      | 'proposals'
+      | 'written'
       | 'setup'
       | 'extensionView'
     >
@@ -459,7 +459,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     models: extra.models ?? [],
     modelTarget: extra.modelTarget ?? 'the orchestrator',
     currentModel: extra.currentModel ?? null,
-    proposals: extra.proposals ?? [],
+    written: extra.written ?? [],
     setup: extra.setup ?? null,
     extensionView: extra.extensionView ?? null,
   })

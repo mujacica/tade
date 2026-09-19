@@ -81,7 +81,7 @@ describe('a provider’s error', () => {
     expect(
       problemOf({
         type: 'extension_error',
-        extensionPath: '/x/extensions/active/standup/extension.ts',
+        extensionPath: '/x/extensions/standup/extension.ts',
         event: 'tool_call',
         error: 'boom',
       }),

@@ -10,7 +10,7 @@
 
 // A judge is a Tade concept with a port and a registry behind it, and Jev is
 // one implementation of it — so the step is `judge`, never a vendor's name.
-export type StepId = 'project' | 'model' | 'workspace' | 'voice' | 'talk' | 'judge'
+export type StepId = 'project' | 'model' | 'workspace' | 'voice' | 'talk' | 'judge' | 'extensions'
 
 export interface ReadinessFacts {
   /** `~/.tade/config.yaml` exists and parses. */
@@ -57,6 +57,13 @@ export interface ReadinessFacts {
    * or off rather than keeping a second answer of its own.
    */
   judgeChosen?: boolean
+  /**
+   * The extensions this machine has, and which of them somebody has decided
+   * about. Nothing Tade or you wrote is on until it is picked, so the last
+   * question of setting up is which ones to use — and one already answered,
+   * here or in the window, is never asked again.
+   */
+  extensions?: readonly { name: string; title: string; chosen: boolean }[]
 }
 
 export interface Step {
@@ -73,7 +80,15 @@ export interface Step {
 
 /** What a fresh machine still needs, in the order it should be done. */
 export function readiness(facts: ReadinessFacts): Step[] {
-  return [project(facts), model(facts), workspace(facts), voice(facts), talk(facts), judge(facts)]
+  return [
+    project(facts),
+    model(facts),
+    workspace(facts),
+    voice(facts),
+    talk(facts),
+    judge(facts),
+    extensions(facts),
+  ]
 }
 
 /** Ready enough to be useful. Voice is a convenience and never blocks. */
@@ -189,7 +204,29 @@ function judge(facts: ReadinessFacts): Step {
   }
 }
 
-/** The key you hold to talk. The last step, so the window opens on the key you picked. */
+/**
+ * Which extensions to use. Last, and never required: an extension nobody has
+ * picked is listed and off, so the worst that comes of skipping this is that
+ * Tade does exactly what it does without any of them. Only the ones nobody
+ * has decided about are counted — a step that asks again about something you
+ * turned on last week is a step people learn to skip.
+ */
+function extensions(facts: ReadinessFacts): Step {
+  const all = facts.extensions ?? []
+  const waiting = all.filter((one) => !one.chosen)
+  return {
+    id: 'extensions',
+    title: 'Which extensions to use',
+    done: waiting.length === 0,
+    detail:
+      waiting.length === 0
+        ? ''
+        : `${waiting.length} of ${all.length} not picked yet: ${waiting.map((one) => one.title).join(', ')}`,
+    required: false,
+  }
+}
+
+/** The key you hold to talk. */
 function talk(facts: ReadinessFacts): Step {
   const done = facts.talkChosen === true
   return {

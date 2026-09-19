@@ -11,7 +11,7 @@ import {
   usableModels,
 } from '@tade/harnesses-pi'
 import { composeBriefing } from './briefing.ts'
-import { activeExtensions, activeSkills } from './extensions.ts'
+import { activeSkills, enabledTools } from './extensions.ts'
 
 /** Where approved lessons live, beside everything else Tade keeps. */
 function skillsRoot(opts: { home: string }): string {
@@ -150,11 +150,13 @@ export class Orchestrator {
       opts.model ?? (choice?.ok ? { provider: choice.provider, id: choice.id } : undefined)
 
     // Tade's own tools always load. The ones it wrote for itself load after
-    // them, so a self-written tool can never shadow `status` or `approve`.
+    // them, so a self-written tool can never shadow `status` or `approve` —
+    // and only the ones somebody turned on load at all.
     const written = opts.safe
       ? []
-      : activeExtensions(
+      : enabledTools(
           expandHome(opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions')),
+          opts.config?.extensions ?? {},
         )
 
     // What it missed. The conversation comes back by itself; the world it was
@@ -207,8 +209,8 @@ export class Orchestrator {
         ...(opts.env ?? process.env),
         TADE_SOCKET: opts.socket,
         TADE_HOME: opts.home,
-        // Where proposals are written, so the tools do not have to guess at
-        // paths the config may have moved.
+        // Where extensions live, so the tools do not have to guess at paths
+        // the config may have moved.
         TADE_EXTENSIONS: expandHome(
           opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
         ),

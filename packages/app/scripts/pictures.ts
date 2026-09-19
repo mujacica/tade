@@ -216,8 +216,9 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'extensions',
     crop: 'panel',
     about:
-      'The Extensions panel: what is ready, what needs setting up and why, what is broken, the ' +
-      'watches each offers, and the extensions Tade has written for itself waiting to be approved.',
+      'The Extensions panel: what is ready, what needs setting up and why, what is broken, what ' +
+      'is sitting there turned off, the watches each offers, and the tools Tade has written for ' +
+      'itself, off until you read them and turn them on.',
   },
   {
     file: 'sentry.svg',

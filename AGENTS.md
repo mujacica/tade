@@ -152,14 +152,20 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
   The orchestrator is never sandboxed; it has to drive your terminal.
 - **What Tade writes for itself is under git** (`recordAuthored`), committed as `Tade` and never
-  as the user. That is the fourth safety rail, with `--safe`, inert proposals and no hot reload: the
-  other three let you stop an unwelcome change, and this is what lets you see and undo one. Losing
-  the history is never a reason to refuse the change itself.
-- **No hot reload of extensions.** Tade writes proposals into `extensions/proposed/` and they do
-  nothing until a human moves them; an activated one loads the next time Tade starts. `--safe`
-  loads none of them and must keep working with a broken one sitting in `active/` — safe mode that
-  only works when nothing is wrong is not a recovery path. Tade's own tools always load first, so a
-  self-written one can never shadow `status` or `approve`.
+  as the user. That is the fourth safety rail, with `--safe`, nothing loading unasked and no hot
+  reload: the other three let you stop an unwelcome change, and this is what lets you see and undo
+  one. Losing the history is never a reason to refuse the change itself.
+- **Extensions live in one folder, and being there is not being on.** `~/.tade/extensions/` is the
+  only place they live — yours, and the ones Tade writes for itself, which land there off and are
+  read before anybody runs them. One nobody turned on is *listed and never imported*, because
+  importing a module runs it; turning one on is a setting (`extensions.<name>.enabled`, the window,
+  `tade extensions enable`) and it loads **the next time Tade starts**, never as a hot reload.
+  Tade's own ship with it and are on unless turned off; everything else is off until somebody says
+  otherwise (`extensionEnabled`). `--safe` loads none of yours and must keep working with a broken
+  one sitting in the folder — safe mode that only works when nothing is wrong is not a recovery
+  path. Tade's own tools always load first, so a self-written one can never shadow `status` or
+  `approve`. Lessons are still proposed (`skills/proposed/`): a rule you did not agree to is a
+  different risk from a tool you did not run.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
 - **Under the `pty` driver lanes are Tade's own children**, so they die with it; under `tmux` they

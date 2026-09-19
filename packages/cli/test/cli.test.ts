@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { constants } from 'node:fs'
-import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -53,6 +53,45 @@ describe('tade CLI', () => {
   it('an unknown command exits 2', () => {
     expect(tade(['frobnicate']).code).toBe(2)
   })
+
+  // One folder, and being in it is not being on. This is the whole of the
+  // safety around what Tade writes for itself, so it is exercised through the
+  // real binary: the move out of the old places, what is listed, and that
+  // turning one on is a setting rather than a file being moved somewhere.
+  it('lists extensions off until they are turned on, and enable writes it down', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'tade-ext-'))
+    const root = join(home, 'extensions')
+    await mkdir(join(root, 'proposed'), { recursive: true })
+    await writeFile(
+      join(root, 'proposed', 'standup.ts'),
+      '// Reads out what each agent did yesterday.\nexport default function () {}\n',
+    )
+    const path = join(home, 'config.yaml')
+    await writeFile(path, `orchestrator:\n  extensions: ${root}\n`)
+
+    const listed = tade(['extensions', 'list', '--config', path], { TADE_HOME: home })
+    expect(listed.code).toBe(0)
+    expect(listed.stdout).toContain('standup: off — Reads out what each agent did yesterday.')
+    expect(listed.stdout).toContain('tade extensions enable <name>')
+    // Moved out of `proposed/` into the one folder, and nothing was run.
+    await expect(access(join(root, 'standup.ts'))).resolves.toBeUndefined()
+
+    // `activate` is the old name for it, and still works.
+    const on = tade(['extensions', 'activate', 'standup', '--config', path], { TADE_HOME: home })
+    expect(on.code).toBe(0)
+    expect(on.stdout).toContain('the next time Tade starts')
+    expect(await readFile(path, 'utf8')).toContain('enabled: true')
+    expect(tade(['extensions', 'list', '--config', path], { TADE_HOME: home }).stdout).toContain(
+      'standup: on',
+    )
+
+    // A name nothing answers to is refused rather than written down.
+    const missing = tade(['extensions', 'enable', 'nothing-here', '--config', path], {
+      TADE_HOME: home,
+    })
+    expect(missing.code).toBe(2)
+    expect(missing.stderr).toContain('no extension called nothing-here')
+  }, 30_000)
 
   // `pnpm link --global` puts a `tade` shim on PATH that execs whatever `bin.tade`
   // names. If the entry goes missing or stops pointing at a runnable file, the

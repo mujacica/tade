@@ -204,12 +204,13 @@ looking at can still reach you — and be answered from where you are.
 
 ## Extensions
 
-Dependencies, Jev, Sentry and Resources ship with Tade; yours go beside them in
-`~/.tade/extensions/active/<name>/extension.ts`. An extension brings tools the orchestrator and your
-agents can both call, settings, and watches. Tade writes extensions and lessons for itself too — and
-they do nothing until you read and approve them (`tade extensions`, `tade skills`).
+Checks, Dependencies, Jev, Reviews, Sentry and Resources ship with Tade; yours go beside them in
+`~/.tade/extensions/<name>/extension.ts`. An extension brings tools the orchestrator and your agents
+can both call, settings, and watches. Being there is not being on: an extension of yours is listed
+and off until you turn it on, here or with `tade extensions enable`, and it loads the next time Tade
+starts. Tade writes tools for itself into the same folder, off, for you to read first.
 
-![The Extensions panel: what is ready, what needs setting up, what is broken, the watches on offer](docs/images/extensions.svg)
+![The Extensions panel: what is ready, what needs setting up, what is broken, what is off, the watches on offer](docs/images/extensions.svg)
 
 ---
 
@@ -335,7 +336,7 @@ tade status       # every task, derived fresh from git and processes
 tade spend        # what the agents cost, and how long they ran
 tade notes        # what you have told Tade, newest first
 tade schedules    # what runs on a clock, and when it runs next
-tade extensions   # what is loaded, and what it needs
+tade extensions   # what is loaded, what it needs, and what is off
 tade --help       # everything else
 ```
 
@@ -396,8 +397,9 @@ projects:
 
 - **Resources** keeps what Tade and everything it runs is using in the status bar.
 
-Turn them on and off, set them up, and approve what Tade wrote for itself from **Extensions**
-(`ctrl+shift+e`). `tade --safe` starts with none of the self-written ones loaded.
+Turn them on and off, set them up, and read what Tade wrote for itself from **Extensions**
+(`ctrl+shift+e`) — `tade setup` asks which ones to use, and one you turn on loads the next time Tade
+starts. `tade --safe` starts with none of yours loaded, however they are set.
 
 ### Tade's own trouble
 
