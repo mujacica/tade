@@ -190,6 +190,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   marked `lost` in `lanes.json` when the next window cannot find it, and that window opens it again
   where it left off. Stopping, removing or exiting clears the mark. Queued work and schedules are
   asked for too: what came due while Tade was closed starts when it opens, and says why.
+- **The orchestrator picks its conversation back up, it is never introduced again.** It talks in one
+  pi session whose id never changes (`ORCHESTRATOR_SESSION`, from `ORCHESTRATOR_TASK`), so closing
+  Tade and opening it again continues the same conversation, with everything that was discussed
+  still in it — never `--continue`, which pi refuses beside a session id and which would pick up
+  whatever session was newest. A model chosen for it restarts the process, not the conversation.
+  What a session cannot hold is the world, so every open also composes a briefing from the journal
+  (`composeBriefing`): when Tade was last open, which agents were still running, what finished, what
+  is held, what is queued and scheduled in the queue's own words, and the last things you said, in
+  yours. It is appended to its prompt as a snapshot with times on it and says so — status is still a
+  query, and what is true now is `tade_status`'s to answer, never the briefing's.
 - **Every agent is told it runs in Tade** (`composeAgentPrompt`): its task, where it works and
   who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
   notes about the work, and its context file. Appended to the harness's own instructions, never

@@ -53,10 +53,10 @@ describe('Orchestrator', () => {
 
   async function start(
     options: Parameters<typeof startFakeModel>[0],
-    over: { safe?: boolean } = {},
+    over: Partial<Parameters<typeof Orchestrator.start>[0]> = {},
   ) {
     model = await startFakeModel(options)
-    const runDir = tmp('tade-chat-run-')
+    const runDir = over.runDir ?? tmp('tade-chat-run-')
     orchestrator = await Orchestrator.start({
       home,
       socket: tools.path,
@@ -68,6 +68,11 @@ describe('Orchestrator', () => {
       ...over,
     })
     return orchestrator
+  }
+
+  /** Everything the model was told on a given request, system prompt included. */
+  function told(request = 0): string {
+    return JSON.stringify(model?.requests[request] ?? {})
   }
 
   it('answers, and says when it has finished', async () => {
@@ -84,6 +89,43 @@ describe('Orchestrator', () => {
     expect(said[0]).toBe('Nothing is running.')
     // Without this a surface would never know it could speak again.
     await until(() => idle)
+  }, 90_000)
+
+  it('comes back to the same conversation when Tade is closed and opened again', async () => {
+    // The whole of remembering where it left off: one session id, kept for
+    // ever, so the second start is a continuation and not an introduction.
+    const runDir = tmp('tade-chat-run-')
+    const first = await start({ finalText: 'Noted.' }, { runDir })
+    expect(await first.askFor('the release is on the 14th', 30_000)).toBe('Noted.')
+    await first.stop()
+    await model?.close()
+
+    const again = await start({ finalText: 'The 14th.' }, { runDir })
+    expect(await again.askFor('when is the release?', 30_000)).toBe('The 14th.')
+    // Not a summary of what was said: what was said.
+    expect(told()).toContain('the release is on the 14th')
+  }, 90_000)
+
+  it('opens knowing where things stood, from the journal', async () => {
+    // The conversation comes back on its own; the world it was about does not.
+    await tade.log.append({ type: 'said', detail: { text: 'start the refunds one' } })
+    await tade.log.append({ type: 'task_created', task: 'app/refunds', detail: { by: 'you' } })
+    await tade.log.append({ type: 'run_started', task: 'app/refunds' })
+    await tade.log.append({ type: 'tade_closing', detail: { pid: 1 } })
+    const chat = await start(
+      { finalText: 'Caught up.' },
+      {
+        journal: await tade.events({ limit: 100 }),
+        queue: '- app/migrate — after app/refunds',
+      },
+    )
+    expect(await chat.askFor('where are we', 30_000)).toBe('Caught up.')
+    const prompt = told()
+    expect(prompt).toContain('Where things stood when this window opened')
+    expect(prompt).toContain('app/refunds, started')
+    // The queue's own words, and theirs, both reach it.
+    expect(prompt).toContain('- app/migrate — after app/refunds')
+    expect(prompt).toContain('start the refunds one')
   }, 90_000)
 
   it('lets a surface watch it work: the tool, how it went, the words as they come', async () => {

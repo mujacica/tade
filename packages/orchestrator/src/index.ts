@@ -1,5 +1,6 @@
 // The tools extension is deliberately not exported: pi loads it from disk, and
 // importing it here would pull agent-side code into the window's process.
+export { type BriefingInput, composeBriefing } from './briefing.ts'
 export {
   activeExtensions,
   activeSkills,

@@ -1,9 +1,16 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Note, SkillActivity, Unsubscribe } from '@tade/core'
+import type { Config, Note, SkillActivity, TadeEvent, Unsubscribe } from '@tade/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
 import type { WorkerExtras, WorkerImage, WorkerModel } from '@tade/harnesses-core'
-import { type AvailableModel, chooseModel, PiAdapter, usableModels } from '@tade/harnesses-pi'
+import {
+  type AvailableModel,
+  chooseModel,
+  PiAdapter,
+  sessionIdFor,
+  usableModels,
+} from '@tade/harnesses-pi'
+import { composeBriefing } from './briefing.ts'
 import { activeExtensions, activeSkills } from './extensions.ts'
 
 /** Where approved lessons live, beside everything else Tade keeps. */
@@ -20,6 +27,17 @@ const CLI_BIN = fileURLToPath(new URL('../../cli/src/bin.ts', import.meta.url))
 
 export const ORCHESTRATOR_RUN = 'orchestrator'
 export const ORCHESTRATOR_TASK = 'tade/orchestrator'
+/**
+ * The one conversation Tade has with you, for as long as this home exists.
+ *
+ * Named rather than generated, for the same reason an agent's session is:
+ * pi creates a session with this id the first time and continues it every
+ * time after, so closing Tade and opening it again is not a special case —
+ * the same command line starts the conversation once and resumes it for ever.
+ * A generated id was why reopening the window met someone who had never heard
+ * of you.
+ */
+export const ORCHESTRATOR_SESSION = sessionIdFor(ORCHESTRATOR_TASK)
 
 export interface OrchestratorOptions {
   /** Tade's state directory, passed through to the tools. */
@@ -52,8 +70,18 @@ export interface OrchestratorOptions {
    * told about them, and harness-native pieces they ship.
    */
   extensions?: { prompt: string; extras: WorkerExtras }
-  /** Carry on the conversation it had last time, rather than starting a new one. */
-  resume?: boolean
+  /**
+   * The journal, for the briefing it opens with: what happened while it was
+   * not running, so a conversation that carries on knows the world moved.
+   * Passed in rather than read here, so composing stays a pure function of
+   * facts; without it the briefing is only what the queue says.
+   */
+  journal?: readonly TadeEvent[]
+  /**
+   * What is queued and scheduled, in the queue's own words — the same answer
+   * `tade_queue` gives. Only a window has a queue, so only a window has this.
+   */
+  queue?: string
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
@@ -129,6 +157,14 @@ export class Orchestrator {
           expandHome(opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions')),
         )
 
+    // What it missed. The conversation comes back by itself; the world it was
+    // talking about does not, so the journal is read back to it as of now.
+    const briefing = composeBriefing({
+      now: opts.now ?? Date.now(),
+      events: opts.journal ?? [],
+      ...(opts.queue ? { queue: opts.queue } : {}),
+    })
+
     const adapter = new PiAdapter({
       runDir: opts.runDir,
       // Tade's own interface: gating its tool calls on approval would mean
@@ -157,7 +193,14 @@ export class Orchestrator {
               }),
             ]
           : []),
-        ...(opts.resume ? ['--continue'] : []),
+        // Where things stood, kept apart from what Tade is: one is a
+        // snapshot with times on it, the other is true whenever it is read.
+        ...(briefing ? ['--append-system-prompt', briefing] : []),
+        // The same conversation every time, which is the whole of remembering
+        // where it left off. Never with --continue, which pi refuses
+        // alongside it and which would pick whatever session was newest.
+        '--session-id',
+        ORCHESTRATOR_SESSION,
         ...(opts.args ?? []),
       ],
       env: {

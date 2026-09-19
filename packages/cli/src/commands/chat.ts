@@ -65,13 +65,14 @@ export function registerChat(program: Command, io: Io, setExit: (code: number) =
           ).text,
       })
 
+      // What it is told happened before this, and which of its lessons still
+      // apply: both are the journal, read once.
+      const journal = await tade.events({ limit: 2_000 })
       const chat = await Orchestrator.start({
         // Fetched and handed over, so composing the prompt stays pure.
         notes: tade.recallAll(),
-        activity: activityFrom(
-          historyFrom(await tade.events({ limit: 2_000 }), Date.now()),
-          Object.keys(cfg.config.projects),
-        ),
+        activity: activityFrom(historyFrom(journal, Date.now()), Object.keys(cfg.config.projects)),
+        journal,
         home,
         socket: tools.path,
         runDir: join(home, 'orchestrator'),

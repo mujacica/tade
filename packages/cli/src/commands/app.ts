@@ -258,11 +258,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // could have, and it says so in the strip when it arrives. If it never
         // does — no model configured yet — everything except free text still
         // works, which is the honest outcome.
-        const startThinker = async (resume: boolean) => {
+        const startThinker = async () => {
           // Read again: a model chosen in the window is in the file, not in
           // what was loaded when this started.
           const now = await loadConfig(opts.config)
           const config = now.ok ? now.config : cfg.config
+          // The journal it opens on: what its own lessons are measured
+          // against, and what it is told happened while it was not running.
+          const journal = await client.events({ limit: 2_000 }).catch(() => [])
           return (
             Orchestrator.start({
               home,
@@ -274,11 +277,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               notes: client.recallAll(),
               // And which of its own lessons still apply.
               activity: activityFrom(
-                historyFrom(await client.events({ limit: 2_000 }), Date.now()),
+                historyFrom(journal, Date.now()),
                 Object.keys(config.projects),
               ),
+              journal,
+              // What it was tracking: the queue's own words, so the briefing
+              // and tade_queue can never say different things.
+              queue: await queue?.describe().catch(() => ''),
               safe,
-              ...(resume ? { resume: true } : {}),
               extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
               onUsage: (usage) => {
                 void client.log
@@ -311,14 +317,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               })
           )
         }
-        let starting = startThinker(false)
+        let starting = startThinker()
         // A new model for the orchestrator: the old one stops, and the new one
-        // carries on the same conversation.
+        // carries on the same conversation — its session id never changes, so
+        // there is nothing to ask for beyond starting it again.
         restartThinker = async () => {
           await starting
           await stopOrchestrator()
           orchestrator = null
-          starting = startThinker(true)
+          starting = startThinker()
           await starting
         }
         // Leaving the terminal in raw mode would outlive us, so stop on a
