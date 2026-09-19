@@ -12,7 +12,7 @@
   M pack│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │       ↻ on restart │        
   A …/we│  Projects          │   While Tade holds it, your agents never see it.           │                    │        
   M src/│  Budgets           │                                                            │       ↻ on restart │        
-        │  Reporting         │ Suggested:   ctrl  +  space     F5     ctrl  +  t          │                    │        
+        │  Telemetry         │ Suggested:   ctrl  +  space     F5     ctrl  +  t          │                    │        
  ▾ FILES│  Keys              │ Never a key that types a character — you have to be able   │                    │        
    ▾ src│  Accounts          │ to type a space into your agent.                           │                    │        
        w│                    │                                                            │       ↻ on restart │        

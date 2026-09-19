@@ -3,7 +3,10 @@ import {
   loadConfig,
   parseSetting,
   type Setting,
+  type SettingValue,
   settingsOf,
+  shownValue,
+  wantedInstead,
   writeSetting,
 } from '@tade/core'
 
@@ -43,16 +46,15 @@ export async function editSettings(ui: Ui, path: string): Promise<void> {
     ui.say(
       changed === undefined
         ? `${chosen.setting.title} back to its default (${chosen.setting.fallback})`
-        : `${chosen.setting.title} is now ${String(changed)}`,
+        : // Never read a credential back out loud: it would sit in the
+          // scrollback of whatever terminal this was run in.
+          `${chosen.setting.title} is now ${shownValue(chosen.setting, String(changed))}`,
     )
   }
 }
 
 /** Ask for the new value in whatever way suits it. `null` means never mind. */
-async function change(
-  ui: Ui,
-  setting: Setting,
-): Promise<string | number | boolean | undefined | null> {
+async function change(ui: Ui, setting: Setting): Promise<SettingValue | null> {
   ui.say('')
   ui.say(`${setting.title}: ${setting.means}`)
 
@@ -69,7 +71,7 @@ async function change(
   if (said === '' && setting.value === '') return null
   const parsed = parseSetting(setting, said)
   if (said !== '' && parsed === undefined) {
-    ui.say(`  that is not a usable value — ${placeholder} is the shape of one`)
+    ui.say(`  that needs ${wantedInstead(setting)} — ${placeholder} is the shape of one`)
     return null
   }
   return parsed
@@ -92,6 +94,6 @@ export function addProject(path: string, name: string, root: string): void {
  * Read, change, write: the file belongs to whoever wrote it, so comments and
  * key order survive everything this touches except the one line it changed.
  */
-function write(path: string, key: string, value: string | number | boolean | undefined): void {
+function write(path: string, key: string, value: SettingValue): void {
   writeSetting(path, key, value)
 }

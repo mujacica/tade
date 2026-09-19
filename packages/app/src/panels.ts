@@ -1,4 +1,4 @@
-import { type Setting, type SettingGroup, THINKING_LEVELS } from '@tade/core'
+import { type Setting, type SettingGroup, settingFound, stepped, THINKING_LEVELS } from '@tade/core'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 import {
@@ -931,10 +931,7 @@ export function visibleSettings(panel: SettingsPanel, groups: readonly SettingGr
     const seen = new Set<string>()
     return groups
       .flatMap((group) => group.settings.map((setting) => ({ group, setting })))
-      .filter(({ group, setting }) => {
-        const haystack = `${group.title} ${setting.title} ${setting.means}`.toLowerCase()
-        return words.every((word) => haystack.includes(word))
-      })
+      .filter(({ group, setting }) => settingFound(group, setting, words))
       .map(({ setting }) => setting)
       .filter((setting) => {
         if (seen.has(setting.path)) return false
@@ -1646,9 +1643,8 @@ function operate(panel: SettingsPanel, setting: Setting, key: string | undefined
       }
       return stay(panel)
     case 'number': {
-      const now = Number(setting.value || setting.fallback) || 0
-      if (key === 'left') return settle(panel, setting.path, String(Math.max(1, now - 1)))
-      if (key === 'right') return settle(panel, setting.path, String(now + 1))
+      if (key === 'left') return settle(panel, setting.path, stepped(setting, -1))
+      if (key === 'right') return settle(panel, setting.path, stepped(setting, 1))
       if (key === 'enter')
         return stay({ ...panel, editing: { path: setting.path, text: setting.value } })
       return stay(panel)
@@ -1729,8 +1725,7 @@ function settingsClick(panel: SettingsPanel, control: string, inputs: PanelInput
       const [path, delta] = arg.split('=')
       const target = rows.find((row) => row.path === path)
       if (!target || path === undefined) return stay(panel)
-      const now = Number(target.value || target.fallback) || 0
-      return settle(panel, path, String(Math.max(1, now + Number(delta))))
+      return settle(panel, path, stepped(target, Number(delta)))
     }
     case 'edit':
       return setting

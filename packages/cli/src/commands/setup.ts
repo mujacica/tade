@@ -8,6 +8,7 @@ import {
   defaultConfigPath,
   isReady,
   loadConfig,
+  ownerOnly,
   type ReadinessFacts,
   readiness,
   resolveCommand,
@@ -632,7 +633,9 @@ function patchConfig(change: (config: Record<string, unknown>) => void): void {
   writeDifferences(doc, [], before, after)
   mkdirSync(dirname(path), { recursive: true })
   mkdirSync(tadeHome(), { recursive: true })
-  writeFileSync(path, doc.toString())
+  // The file can hold a DSN, so it is the owner's alone to read.
+  writeFileSync(path, doc.toString(), { mode: 0o600 })
+  ownerOnly(path)
 }
 
 function writeDifferences(doc: Document, at: string[], before: unknown, after: unknown): void {

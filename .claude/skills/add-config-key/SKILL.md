@@ -34,8 +34,14 @@ Schema: `ConfigSchema` in `packages/core/src/config.ts` (zod 4).
    changes, which is what makes a setting apply at once.
 4. If people will want to change it, add it to `settingsOf` in `packages/core/src/settings.ts`, in
    the group they would look for it in: a `title`, a `means` sentence saying what changing it does,
-   a `kind` (`choice`, `flag`, `number` with a `unit`, `text`, `hours`, `key`, `model`), and
-   `live: false` if it is only read when Tade starts — the panel labels it *on restart*.
+   a `kind` (`choice`, `flag`, `number` with a `unit` — `fraction` for a share of something —
+   `text` (`pairs` for `a=b, c=d`), `hours`, `key`, `model`), and `live: false` if it is only read
+   when Tade starts — the panel labels it *on restart*.
+   - Name the group and the setting the words somebody would search for, and put the rest in
+     `keywords`: the panel's search reads `findableBy`, which is the title, the `means`, the key
+     itself and those words. A setting nobody can find is a setting nobody has.
+   - `secret: true` for anything credential-shaped: it is shown in its own field and masked
+     everywhere else (`shownValue`), and `config.yaml` is written `0600`.
 5. Its `means` sentence is its documentation. The README shows config only for setting up something
    people cannot start without (an extension's organization, say).
 6. `pnpm check`.

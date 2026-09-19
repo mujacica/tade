@@ -418,8 +418,9 @@ telemetry:
   traces: 0.1                           # how much of Tade's own work is timed
 ```
 
-`$TADE_TELEMETRY_DSN` does the same without putting it in a file, and **Settings › Reporting** has
-the switches. Point Tade's own repository and a Sentry watch at it and it fixes itself:
+`$TADE_TELEMETRY_DSN` does the same without putting it in a file, and **Settings › Telemetry** has
+all of it — every switch above, with what it sends written beside it, and which Sentry the
+extension reads back. Point Tade's own repository and a Sentry watch at it and it fixes itself:
 
 ```yaml
 projects:

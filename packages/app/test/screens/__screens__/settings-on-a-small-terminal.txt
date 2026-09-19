@@ -1,21 +1,21 @@
    T A D E      checkout    search    infra      +        ctrl  +  space   talk 
 ━━━╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮━━━
- ▾ │  search settin…  │ Reporting                                           │   
-   │                  │ Where Tade reports its own crashes and warnings, so │───
- ▐ │  Agents          │ you can see them and hand them to an agent. Nothin… │t s
+ ▾ │  search settin…  │ Telemetry                                           │   
+   │                  │ Tade reporting its own trouble to a Sentry project  │───
+ ▐ │  Agents          │ of yours, and reading that Sentry back. Never your… │t s
  ▐ │  Models          │                                                     │   
    │  Orchestrator    │ Send to                   nothing is sent         ↻ │   
-   │  Approvals       │▌Crashes and warnings        ● on                  ↻ │   
-   │  Checks          │   send them as issues, which is what an agent can   │   
-   │  Voice           │   be put on                                         │╮  
- ▾ │  Window          │ What happened around t…     ● on                  ↻ ││  
-  M│  Projects     3  │ Numbers                     ● on                  ↻ ││  
-  A│  Budgets     ● 1 │ What agents do              ● on                  ↻ │╯  
-  M│▌ Reporting       │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
-━  │  Keys            │ Which Tade this is        laptop                  ↻ │  ━
-   │  Accounts    ● 1 │                                                     │   
-   │                  │                                                     │  ▕
-   │                  │                                                     │  ▕
+   │  Approvals       │▌Reporter                 ◉ sentry   ○ none        ↻ │   
+   │  Checks          │   sentry sends through Sentry’s own SDK, imported   │   
+   │  Voice           │   only when there is a DSN; none sends nothing      │╮  
+ ▾ │  Window          │                                                     ││  
+  M│  Projects     3  │ Crashes and warnings        ● on                  ↻ ││  
+  A│  Budgets     ● 1 │ What happened around t…     ● on                  ↻ │╯  
+  M│▌ Telemetry       │ Numbers                     ● on                  ↻ │   
+━  │  Keys            │ What agents do              ● on                  ↻ │  ━
+   │  Accounts    ● 1 │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
+   │                  │ Which Tade this is        laptop                  ↻ │  ▕
+   │                  │ Read Sentry back            ● on                  ↻ │  ▕
    │                  │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕
 ───╰────────────────────────────────────────────────────────────────────────╯── 

@@ -12,7 +12,7 @@
   M pack│  Window                │▌Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
   A …/we│  Projects           3  │                 ╭─  ───────────────────────────────────── ▴ ─╮              │        
   M src/│  Budgets           ● 1 │ Microphone      │  ▏                                         │ ↻ on restart │        
-        │  Reporting             │                 │ ON THIS MACHINE            private, no key │              │        
+        │  Telemetry             │                 │ ON THIS MACHINE            private, no key │              │        
  ▾ FILES│  Keys                  │ Muted           │▌ whisper · base.en · on this machine     ✓ │              │        
    ▾ src│  Accounts          ● 1 │ Spoken replies  │ IN THE CLOUD                   needs a key │              │        
        w│                        │ Interruptions   │  OpenAI · whisper-1                        │ ↻ on restart │        

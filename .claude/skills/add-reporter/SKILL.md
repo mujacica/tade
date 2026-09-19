@@ -19,7 +19,7 @@ extension can watch Tade and hand an agent its own bug. It is off until someone 
 | `packages/telemetry/src/none.ts` | the one that sends nothing, which is Tade unless asked |
 | `packages/telemetry/src/conformance.ts` | the suite every reporter passes |
 | `packages/cli/src/telemetry.ts` | the one place that opens one, feeds it the journal, and reports a crash |
-| `packages/core/src/config.ts`, `settings.ts` | `telemetry.*`, and the Reporting group in Settings |
+| `packages/core/src/config.ts`, `settings.ts` | `telemetry.*`, and the Telemetry group in Settings — which also carries the Sentry extension's own keys, because where Tade sends its trouble and where it reads it back is one decision |
 
 ## Rules
 
@@ -43,6 +43,10 @@ extension can watch Tade and hand an agent its own bug. It is off until someone 
   no DSN, so call sites report without asking first whether anyone is listening.
 - **One place decides.** `reporterFor` in the CLI reads the config and the environment; everything
   else is handed a `Reporter`. Nothing reads `telemetry.*` twice.
+- **A switch says what it sends.** Every `telemetry.*` setting is in the Telemetry group with a
+  `means` that names what goes and what never does, so somebody can decide from the panel without
+  reading `shape.ts`. Add a key to the reporter and you add it there, `live: false`, because the
+  reporter is imported once when Tade starts and only when there is a DSN.
 
 ## Steps
 

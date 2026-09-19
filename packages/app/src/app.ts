@@ -59,6 +59,7 @@ import {
   type ThinkingLevel,
   taskOrigin,
   type When,
+  wantedInstead,
   watchedFrom,
 } from '@tade/core'
 import {
@@ -6390,7 +6391,9 @@ export class App {
       } else {
         const typed = setting ? parseSetting(setting, value) : value
         if (value !== '' && typed === undefined)
-          throw new Error(`${setting?.title ?? path} needs a number above zero.`)
+          throw new Error(
+            `${setting?.title ?? path} needs ${setting ? wantedInstead(setting) : 'a usable value'}.`,
+          )
         writeSetting(this.configPath, path, typed)
       }
       const loaded = await loadConfig(this.configPath)
@@ -6399,6 +6402,11 @@ export class App {
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
       this.useConfig(loaded.config)
+      // An extension's own setting means nothing until the extension has it:
+      // Settings can change one (which Sentry the Sentry extension reads), so
+      // the host is handed the config here as it is from the Extensions panel.
+      if (path.startsWith('extensions.'))
+        await this.opts.extensions?.reconfigure(loaded.config.extensions)
       // How hard the orchestrator thinks is live only if the one running is
       // told: a setting that looks applied and is not is worse than one that
       // waits honestly, so where it could not be told, it says so.

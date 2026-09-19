@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -496,7 +496,23 @@ export function writeSetting(
   const at = key.split('.')
   if (value === undefined || value === '') doc.deleteIn(at)
   else doc.setIn(at, typeof value === 'object' ? doc.createNode(value) : value)
-  writeFileSync(path, doc.toString())
+  writeFileSync(path, doc.toString(), { mode: 0o600 })
+  ownerOnly(path)
+}
+
+/**
+ * The config can hold a credential — `telemetry.dsn` — so it is the owner's
+ * alone to read. Writing with `mode` only covers a file that is being made;
+ * one that was already there is narrowed here, keeping whatever the owner may
+ * do with it and taking away what everybody else could.
+ */
+export function ownerOnly(path: string): void {
+  try {
+    const mode = statSync(path).mode & 0o777
+    if (mode & 0o077) chmodSync(path, mode & 0o700)
+  } catch {
+    // A file we cannot stat or chmod is not a reason to lose the setting.
+  }
 }
 
 /** Load config from disk. A missing file is not an error: defaults apply. */

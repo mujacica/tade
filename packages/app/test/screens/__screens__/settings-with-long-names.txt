@@ -1,29 +1,29 @@
    T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings       │ Reporting                                                                   │────────
- ▐ ! str│                        │ Where Tade reports its own crashes and warnings, so you can see them and    │        
- ▐   wan│  Agents                │ hand them to an agent. Nothing is sent until you say where; what is sent is │        
-        │  Models                │ the shape of what happened, never your code or what you said.               │        
+        │  search settings       │ Telemetry                                                                   │────────
+ ▐ ! str│                        │ Tade reporting its own trouble to a Sentry project of yours, and reading    │        
+ ▐   wan│  Agents                │ that Sentry back. Never your work: what may be sent is an allow-list —      │        
+        │  Models                │ names, counts and Tade’s own words, with paths scrubbed to ~.               │        
    ⠋ ref│  Orchestrator          │                                                                             │        
      wor│  Approvals      bypass │ Send to                     nothing is sent                    ↻ on restart │        
-        │  Checks                │ Crashes and warnings          ● on                             ↻ on restart │        
- ▾ CHANG│  Voice                 │▌What happened around them     ● on                             ↻ on restart │        
-  M pack│  Window                │                            send tasks, runs, the queue and schedules as     │        
-  A …/we│  Projects           3  │                            logs, to read beside an issue                    │        
-  M src/│  Budgets           ● 1 │ Numbers                       ● on                             ↻ on restart │        
-        │▌ Reporting             │ What agents do                ● on                             ↻ on restart │        
- ▾ FILES│  Keys                  │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
-   ▾ src│  Accounts          ● 1 │ Which Tade this is          laptop                             ↻ on restart │        
-       w│                        │                                                                             │        
-       w│                        │                                                                             │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │                                                                             │        
-     REA│                        │                                                                             │        
-        │                        │                                                                             │        
-━   orch│                        │                                                                             │   ▾   ━
-        │                        │                                                                             │        
-        │                        │                                                                             │       ▕
+        │  Checks                │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
+ ▾ CHANG│  Voice                 │                                                                             │        
+  M pack│  Window                │▌Crashes and warnings          ● on                             ↻ on restart │        
+  A …/we│  Projects           3  │                            Tade’s crashes and warnings as issues, with      │        
+  M src/│  Budgets           ● 1 │                            source lines from its files, never yours         │        
+        │▌ Telemetry             │ What happened around them     ● on                             ↻ on restart │        
+ ▾ FILES│  Keys                  │ Numbers                       ● on                             ↻ on restart │        
+   ▾ src│  Accounts          ● 1 │ What agents do                ● on                             ↻ on restart │        
+       w│                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+       w│                        │ Which Tade this is          laptop                             ↻ on restart │        
+   ▸ tes│                        │ Read Sentry back              ● on                             ↻ on restart │        
+     pac│                        │ Sentry organization         $SENTRY_ORG, or sentry-cli’s default            │        
+     REA│                        │ Sentry projects             each project’s own name                         │        
+        │                        │ Your own Sentry             https://sentry.io                               │        
+━   orch│                        │ Token variable              SENTRY_AUTH_TOKEN                               │   ▾   ━
+        │                        │ New issues in the brief       ● on                                          │        
+        │                        │ What the brief counts       is:unresolved firstSeen:-24h                    │       ▕
         │                        │                                                                             │       ▕
         │                        │ ● Saved as you change it.                                                   │       ▕
         │                        │                                                 Open config.yaml     Done   │       ▕

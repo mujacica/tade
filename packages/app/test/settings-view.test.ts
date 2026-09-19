@@ -181,7 +181,7 @@ describe('the settings form at any width', () => {
       .slice(2, 6)
       .map((row) => row.trim())
       .join(' ')
-    expect(said).toContain('Where Tade reports its own crashes')
+    expect(said).toContain('Tade reporting its own trouble')
     // Cut where it has to be, and never past the edge.
     for (const row of rows) expect(visibleWidth(row)).toBe(visibleWidth(rows[0] ?? ''))
   })

@@ -27,11 +27,21 @@ export type SettingKind =
       /** For a list: the heading each option sits under, and a note beside it. */
       about?: Readonly<Record<string, { group: string; note: string; label?: string }>>
     }
-  | { kind: 'text'; placeholder: string }
+  | {
+      kind: 'text'
+      placeholder: string
+      /**
+       * Read back as pairs — `tade=tade-app, web=web-a+web-b` — for a setting
+       * whose reader wants a map rather than a line of text.
+       */
+      pairs?: boolean
+    }
   | {
       kind: 'number'
       /** Said after the value: `an hour, at most`. */
       unit?: string
+      /** A share of something, 0 to 1, rather than a whole number above zero. */
+      fraction?: boolean
     }
   /** A span of the day, `22:00-07:00`, shown as two times. */
   | { kind: 'hours' }
@@ -58,6 +68,16 @@ export interface Setting {
    * than one that waits honestly.
    */
   live: boolean
+  /**
+   * Other words that should find it, for what its title and `means` do not
+   * happen to say. Searching for the thing you want should find it.
+   */
+  keywords?: readonly string[]
+  /**
+   * Credential-shaped. It is shown in its own field, where you type it, and
+   * nowhere else: not in a list of settings, not in what is said back to you.
+   */
+  secret?: boolean
 }
 
 export interface SettingGroup {
@@ -66,6 +86,8 @@ export interface SettingGroup {
   title: string
   /** One sentence under the title: what the group is about. */
   about: string
+  /** Other words that should find this group and everything in it. */
+  keywords?: readonly string[]
   settings: Setting[]
 }
 
@@ -82,6 +104,12 @@ export function settingsOf(config: Config): SettingGroup[] {
   const window = config.surfaces.window
   const route = config.workers.routes[config.workers.default]
   const projects = Object.entries(config.projects)
+  // The Sentry extension's own settings, shown beside the reporting ones:
+  // where Tade sends its trouble and where it reads it back are one decision,
+  // and looking for “Sentry” should not end in two different panels.
+  const sentry: Readonly<Record<string, unknown>> = config.extensions.sentry ?? {}
+  const sentryText = (key: string): string =>
+    typeof sentry[key] === 'string' ? (sentry[key] as string) : ''
   return [
     {
       id: 'agents',
@@ -458,66 +486,100 @@ export function settingsOf(config: Config): SettingGroup[] {
     },
     {
       id: 'telemetry',
-      title: 'Reporting',
+      title: 'Telemetry',
       about:
-        'Where Tade reports its own crashes and warnings, so you can see them and hand them to an agent. Nothing is sent until you say where; what is sent is the shape of what happened, never your code or what you said.',
+        'Tade reporting its own trouble to a Sentry project of yours, and reading that Sentry back. Never your work: what may be sent is an allow-list — names, counts and Tade’s own words, with paths scrubbed to ~.',
+      keywords: [
+        'telemetry',
+        'sentry',
+        'dsn',
+        'reporting',
+        'crashes',
+        'errors',
+        'traces',
+        'logs',
+        'metrics',
+        'monitoring',
+        'privacy',
+      ],
       settings: [
         {
           path: 'telemetry.dsn',
           title: 'Send to',
           means:
-            'a Sentry DSN, from that project’s Client Keys; empty sends nothing, and $TADE_TELEMETRY_DSN does the same without a file',
+            'a Sentry DSN of yours, from that project’s Client Keys, or $TADE_TELEMETRY_DSN; empty sends nothing',
           value: config.telemetry.dsn,
           fallback: 'nothing is sent',
           type: { kind: 'text', placeholder: 'https://…@…ingest.sentry.io/…' },
           live: false,
+          secret: true,
+          keywords: ['sentry', 'dsn', 'telemetry'],
+        },
+        {
+          path: 'telemetry.driver',
+          title: 'Reporter',
+          means:
+            'sentry sends through Sentry’s own SDK, imported only when there is a DSN; none sends nothing',
+          value: config.telemetry.driver,
+          fallback: 'sentry',
+          type: { kind: 'choice', options: ['sentry', 'none'] },
+          live: false,
+          keywords: ['sentry', 'telemetry', 'off'],
         },
         {
           path: 'telemetry.errors',
           title: 'Crashes and warnings',
-          means: 'send them as issues, which is what an agent can be put on',
+          means:
+            'Tade’s crashes and warnings as issues, with source lines from its files, never yours',
           value: String(config.telemetry.errors),
           fallback: 'true',
           type: { kind: 'flag' },
           live: false,
+          keywords: ['sentry', 'issues', 'telemetry'],
         },
         {
           path: 'telemetry.logs',
           title: 'What happened around them',
-          means: 'send tasks, runs, the queue and schedules as logs, to read beside an issue',
+          means:
+            'tasks, runs, the queue and schedules beside an issue: names and kinds, never what was said',
           value: String(config.telemetry.logs),
           fallback: 'true',
           type: { kind: 'flag' },
           live: false,
+          keywords: ['sentry', 'telemetry'],
         },
         {
           path: 'telemetry.metrics',
           title: 'Numbers',
-          means: 'send tokens, money and how many agents are running',
+          means:
+            'tokens, dollars, agents running and what failed, by model and task name: numbers, not the work',
           value: String(config.telemetry.metrics),
           fallback: 'true',
           type: { kind: 'flag' },
           live: false,
+          keywords: ['sentry', 'telemetry', 'tokens', 'cost'],
         },
         {
           path: 'telemetry.agents',
           title: 'What agents do',
           means:
-            'time turns, the tools they call and what they cost, which is what agent monitoring is drawn from',
+            'every turn as a trace: tools, model, tokens — never a prompt, an answer or a tool’s input',
           value: String(config.telemetry.agents),
           fallback: 'true',
           type: { kind: 'flag' },
           live: false,
+          keywords: ['sentry', 'telemetry', 'traces', 'agents'],
         },
         {
           path: 'telemetry.traces',
           title: 'How much of Tade is timed',
           means:
-            'from 0 to 1: opening the window, a look at the tasks that took too long. Agents’ turns are timed whatever this says',
+            'the share of Tade’s own work that is timed; agents’ turns are timed whatever this says',
           value: String(config.telemetry.traces),
           fallback: '0.1',
-          type: { kind: 'number' },
+          type: { kind: 'number', fraction: true, unit: 'of what Tade does' },
           live: false,
+          keywords: ['sentry', 'telemetry', 'sampling'],
         },
         {
           path: 'telemetry.environment',
@@ -527,6 +589,81 @@ export function settingsOf(config: Config): SettingGroup[] {
           fallback: 'laptop',
           type: { kind: 'text', placeholder: 'laptop' },
           live: false,
+          keywords: ['sentry', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.enabled',
+          title: 'Read Sentry back',
+          means:
+            'the Sentry extension: what broke, traces and logs in the window, and an agent put on an issue',
+          value: sentry.enabled === false ? 'false' : 'true',
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: false,
+          keywords: ['sentry', 'extension', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.org',
+          title: 'Sentry organization',
+          means:
+            'whose Sentry the extension reads, as its slug in the address of its pages; $SENTRY_ORG when empty',
+          value: sentryText('org'),
+          fallback: '$SENTRY_ORG, or sentry-cli’s default',
+          type: { kind: 'text', placeholder: 'acme' },
+          live: true,
+          keywords: ['sentry', 'org', 'organization', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.projects',
+          title: 'Sentry projects',
+          means:
+            'which Sentry project each Tade project reports to: tade=tade-app, + for more than one',
+          value: pairsText(sentry.projects),
+          fallback: 'each project’s own name',
+          type: { kind: 'text', placeholder: 'tade=tade-app, web=web-a+web-b', pairs: true },
+          live: true,
+          keywords: ['sentry', 'project', 'slug', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.url',
+          title: 'Your own Sentry',
+          means: 'the address of a Sentry you run yourself; sentry.io when empty',
+          value: sentryText('url'),
+          fallback: 'https://sentry.io',
+          type: { kind: 'text', placeholder: 'https://sentry.acme.com' },
+          live: true,
+          keywords: ['sentry', 'url', 'self-hosted', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.token_env',
+          title: 'Token variable',
+          means:
+            'the variable the read token is in; Tade never keeps a copy. $SENTRY_AUTH_TOKEN when empty',
+          value: sentryText('token_env'),
+          fallback: 'SENTRY_AUTH_TOKEN',
+          type: { kind: 'text', placeholder: 'SENTRY_AUTH_TOKEN' },
+          live: true,
+          keywords: ['sentry', 'token', 'auth', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.brief',
+          title: 'New issues in the brief',
+          means: 'say how many new Sentry issues there are when you are told how things stand',
+          value: sentry.brief === false ? 'false' : 'true',
+          fallback: 'true',
+          type: { kind: 'flag' },
+          live: true,
+          keywords: ['sentry', 'brief', 'telemetry'],
+        },
+        {
+          path: 'extensions.sentry.brief_query',
+          title: 'What the brief counts',
+          means: 'a Sentry search; is:unresolved firstSeen:-24h when empty',
+          value: sentryText('brief_query'),
+          fallback: 'is:unresolved firstSeen:-24h',
+          type: { kind: 'text', placeholder: 'is:unresolved firstSeen:-24h' },
+          live: true,
+          keywords: ['sentry', 'brief', 'query', 'telemetry'],
         },
       ],
     },
@@ -676,10 +813,102 @@ export const KEY_BINDINGS: readonly {
 /** The modifiers a number is held with to go to an agent or a project. */
 export const NUMBER_MODIFIERS = ['ctrl', 'alt', 'ctrl+shift', 'ctrl+alt', 'off'] as const
 
+/**
+ * Everything a setting can be found by: what it is called, what it says, the
+ * group it is in, and whatever else somebody would look for it as — the key
+ * itself included, because `telemetry.dsn` is a thing people type. Searching
+ * for the thing you want is how a panel of switches stays usable, so a word
+ * nobody put in the prose goes in `keywords` rather than being lost.
+ */
+export function findableBy(group: SettingGroup, setting: Setting): string {
+  return [
+    group.title,
+    ...(group.keywords ?? []),
+    setting.title,
+    setting.means,
+    setting.path.replace(/[._]/g, ' '),
+    ...(setting.keywords ?? []),
+  ]
+    .join(' ')
+    .toLowerCase()
+}
+
+/** What a setting wanted instead, when what was typed could not be read as one. */
+export function wantedInstead(setting: Setting): string {
+  const type = setting.type
+  if (type.kind === 'number')
+    return type.fraction ? 'a number from 0 to 1' : 'a whole number above zero'
+  if (type.kind === 'text' && type.pairs) return `pairs, like ${type.placeholder}`
+  return 'a usable value'
+}
+
+/** Whether a search — every word of it — finds this setting. */
+export function settingFound(
+  group: SettingGroup,
+  setting: Setting,
+  words: readonly string[],
+): boolean {
+  const haystack = findableBy(group, setting)
+  return words.every((word) => haystack.includes(word.toLowerCase()))
+}
+
+/**
+ * What a setting may be shown as away from the field it is typed into. A
+ * credential-shaped one is never repeated: a DSN printed by `tade config`,
+ * read back after saving, or scrolled past in a list is a DSN in somebody's
+ * scrollback.
+ */
+export function shownValue(setting: Setting, value = setting.value): string {
+  if (!setting.secret || value === '') return value
+  // Kept readable enough to tell one project from another: everything before
+  // the `@` is the part that is not yours to show.
+  const at = value.indexOf('@')
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(value)?.[0] ?? ''
+  return at > 0 ? `${scheme}…@${value.slice(at + 1)}` : '…'
+}
+
 /** One line per setting, for a list you choose from. */
 export function describeSetting(setting: Setting): string {
-  const shown = setting.value === '' ? `(${setting.fallback})` : setting.value
+  const shown = setting.value === '' ? `(${setting.fallback})` : shownValue(setting)
   return `${setting.title.padEnd(30)} ${shown}`
+}
+
+/** A map setting as it is typed: `tade=tade-app, web=web-a+web-b`. */
+export function pairsText(value: unknown): string {
+  if (typeof value !== 'object' || value === null) return ''
+  return Object.entries(value as Record<string, unknown>)
+    .map(([key, one]) => `${key}=${Array.isArray(one) ? one.map(String).join('+') : String(one)}`)
+    .join(', ')
+}
+
+/** Pairs as they were typed, as the map their reader wants. */
+export function pairsFrom(text: string): Record<string, string | string[]> {
+  return Object.fromEntries(
+    text
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .flatMap((part) => {
+        const [key, ...rest] = part.split('=')
+        const value = rest.join('=').trim()
+        return key?.trim() && value
+          ? [[key.trim(), value.includes('+') ? value.split('+').map((one) => one.trim()) : value]]
+          : []
+      }),
+  )
+}
+
+/**
+ * What the arrows on a number make of it, kept inside what the setting allows.
+ * A share of something moves a tenth at a time and never leaves 0 to 1; a
+ * count moves by one and never goes below it.
+ */
+export function stepped(setting: Setting, delta: number): string {
+  if (setting.type.kind !== 'number') return setting.value
+  const now = Number(setting.value || setting.fallback) || 0
+  if (!setting.type.fraction) return String(Math.max(1, now + delta))
+  // A tenth at a time, rounded: 0.1 + 0.1 is 0.30000000000000004 otherwise.
+  return String(Math.min(1, Math.max(0, Math.round((now + delta * 0.1) * 10) / 10)))
 }
 
 /**
@@ -690,7 +919,7 @@ export function describeSetting(setting: Setting): string {
 export function applySetting(
   config: Record<string, unknown>,
   path: string,
-  value: string | number | boolean | undefined,
+  value: SettingValue,
 ): void {
   const parts = path.split('.')
   const last = parts.pop()
@@ -705,11 +934,16 @@ export function applySetting(
   else here[last] = value
 }
 
-/** What a typed answer means for a setting, or null if it cannot mean anything. */
-export function parseSetting(
-  setting: Setting,
-  said: string,
-): string | number | boolean | undefined {
+/** What a setting can be written down as. */
+export type SettingValue =
+  | string
+  | number
+  | boolean
+  | Readonly<Record<string, string | string[]>>
+  | undefined
+
+/** What a typed answer means for a setting, or undefined if it cannot mean anything. */
+export function parseSetting(setting: Setting, said: string): SettingValue {
   const text = said.trim()
   if (text === '') return undefined
   switch (setting.type.kind) {
@@ -717,7 +951,16 @@ export function parseSetting(
       return /^(y|yes|true|on)$/i.test(text)
     case 'number': {
       const value = Number(text)
+      if (setting.type.fraction)
+        return Number.isFinite(value) && value >= 0 && value <= 1 ? value : undefined
       return Number.isInteger(value) && value > 0 ? value : undefined
+    }
+    case 'text': {
+      if (!setting.type.pairs) return text
+      // Nothing that reads as a pair is nothing to write: the key goes away
+      // rather than being left as an empty map.
+      const pairs = pairsFrom(text)
+      return Object.keys(pairs).length > 0 ? pairs : undefined
     }
     default:
       return text

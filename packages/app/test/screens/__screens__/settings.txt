@@ -12,7 +12,7 @@
   M pack│  Window                │ Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
   A …/we│  Projects           3  │                                                                             │        
   M src/│  Budgets           ● 1 │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
-        │  Reporting             │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
+        │  Telemetry             │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
  ▾ FILES│  Keys                  │ Muted           ●    off                                                    │        
    ▾ src│  Accounts          ● 1 │ Spoken replies     ● on                                                     │        
        w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        

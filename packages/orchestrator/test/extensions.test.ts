@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig } from '@tade/core'
+import { ConfigSchema, loadConfig, settingsOf } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -198,5 +198,23 @@ describe('an agent an extension starts', () => {
     expect(after.ok && after.config.extensions.standup).toBeUndefined()
     // Run again, it has nothing left to do.
     expect(oneExtensionsFolder(root, config)).toEqual([])
+  })
+})
+
+// Sentry is two halves of one decision — where Tade sends its own trouble, and
+// which Sentry it reads back — and somebody looking for either goes to
+// Settings. A key the extension declares and Settings does not show is one
+// only the extension page can reach, which is where nobody looked.
+describe('setting Sentry up', () => {
+  it('shows every setting the Sentry extension has in the Telemetry category', () => {
+    const sentry = BUILTIN_EXTENSIONS.find((one) => one.name === 'sentry')
+    if (!sentry) throw new Error('no Sentry extension')
+    const group = settingsOf(ConfigSchema.parse({})).find((one) => one.id === 'telemetry')
+    const shown = new Set(group?.settings.map((setting) => setting.path))
+    for (const setting of sentry.settings ?? []) {
+      expect(shown, setting.key).toContain(`extensions.sentry.${setting.key}`)
+    }
+    // And turning the extension itself off, which is a setting like any other.
+    expect(shown).toContain('extensions.sentry.enabled')
   })
 })

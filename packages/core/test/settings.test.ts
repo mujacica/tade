@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
-import { applySetting, describeSetting, parseSetting, settingsOf } from '../src/settings.ts'
+import {
+  applySetting,
+  describeSetting,
+  parseSetting,
+  type SettingGroup,
+  settingFound,
+  settingsOf,
+  shownValue,
+  stepped,
+} from '../src/settings.ts'
 
 // The settings worth putting in front of somebody, and what writing one back
 // does to the file they wrote by hand.
@@ -37,6 +46,132 @@ describe('what there is to change', () => {
     for (const option of ['pty', 'tmux']) {
       expect(() => config({ workspace: { driver: option } })).not.toThrow()
     }
+  })
+})
+
+describe('telemetry', () => {
+  const group = (over: Record<string, unknown> = {}): SettingGroup => {
+    const found = settingsOf(config(over)).find((one) => one.id === 'telemetry')
+    if (!found) throw new Error('no telemetry group')
+    return found
+  }
+  /** What a search in the Settings panel would show, out of every group. */
+  const searched = (text: string, over: Record<string, unknown> = {}): string[] => {
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean)
+    return settingsOf(config(over))
+      .flatMap((one) => one.settings.filter((setting) => settingFound(one, setting, words)))
+      .map((setting) => setting.path)
+  }
+
+  it('is called what somebody looking for it would call it', () => {
+    // It was called "Reporting", so the word people search for — the one the
+    // config key, the docs and Sentry itself use — was nowhere in the panel.
+    expect(group().title).toBe('Telemetry')
+  })
+
+  it('is found by telemetry, sentry and dsn, whatever it is called', () => {
+    for (const word of ['telemetry', 'sentry', 'dsn']) {
+      expect(searched(word)).toContain('telemetry.dsn')
+    }
+    expect(searched('sentry org')).toContain('extensions.sentry.org')
+    expect(searched('traces')).toContain('telemetry.traces')
+  })
+
+  it('has every key the reporter reads, and the extension’s own', () => {
+    // A setting Tade accepts and ignores is worse than one it does not have,
+    // and one it reads but never shows is a switch nobody can find.
+    expect(group().settings.map((setting) => setting.path)).toEqual([
+      'telemetry.dsn',
+      'telemetry.driver',
+      'telemetry.errors',
+      'telemetry.logs',
+      'telemetry.metrics',
+      'telemetry.agents',
+      'telemetry.traces',
+      'telemetry.environment',
+      'extensions.sentry.enabled',
+      'extensions.sentry.org',
+      'extensions.sentry.projects',
+      'extensions.sentry.url',
+      'extensions.sentry.token_env',
+      'extensions.sentry.brief',
+      'extensions.sentry.brief_query',
+    ])
+  })
+
+  it('says what is sent and what never is, in the panel itself', () => {
+    // Somebody should be able to decide from what is in front of them.
+    const about = group().about.toLowerCase()
+    expect(about).toContain('allow-list')
+    expect(about).toContain('never your work')
+    expect(about).toContain('~')
+    const means = Object.fromEntries(
+      group().settings.map((setting) => [setting.path, setting.means]),
+    )
+    expect(means['telemetry.agents']).toContain('never a prompt')
+    expect(means['telemetry.errors']).toContain('never yours')
+    expect(means['telemetry.logs']).toContain('never what was said')
+    expect(means['telemetry.dsn']).toContain('empty sends nothing')
+  })
+
+  it('waits honestly: the reporter is read once, when Tade starts', () => {
+    for (const setting of group().settings.filter((one) => one.path.startsWith('telemetry.'))) {
+      expect(setting.live).toBe(false)
+    }
+  })
+
+  it('shows the extension’s settings as they are written down', () => {
+    const over = {
+      extensions: {
+        sentry: { org: 'acme', projects: { tade: 'tade-app', web: ['web-a', 'web-b'] } },
+      },
+    }
+    const of = (path: string) => group(over).settings.find((one) => one.path === path)?.value
+    expect(of('extensions.sentry.org')).toBe('acme')
+    expect(of('extensions.sentry.projects')).toBe('tade=tade-app, web=web-a+web-b')
+    // Built-in and on unless somebody turned it off.
+    expect(of('extensions.sentry.enabled')).toBe('true')
+    expect(
+      group({ extensions: { sentry: { enabled: false } } }).settings.find(
+        (one) => one.path === 'extensions.sentry.enabled',
+      )?.value,
+    ).toBe('false')
+  })
+
+  it('writes the project mapping back as the map the extension reads', () => {
+    const setting = find('extensions.sentry.projects')
+    const file: Record<string, unknown> = {}
+    applySetting(file, setting.path, parseSetting(setting, 'tade=tade-app, web=web-a+web-b'))
+    expect(file).toEqual({
+      extensions: { sentry: { projects: { tade: 'tade-app', web: ['web-a', 'web-b'] } } },
+    })
+    expect(() => config(file)).not.toThrow()
+    // Nothing that reads as a pair leaves no setting at all, rather than {}.
+    expect(parseSetting(setting, 'nonsense')).toBeUndefined()
+  })
+
+  it('takes the share of Tade that is timed as the fraction it is', () => {
+    const traces = find('telemetry.traces')
+    // A whole number above zero is what every other number setting takes, and
+    // it is what made this one impossible to change from the panel.
+    expect(parseSetting(traces, '0.25')).toBe(0.25)
+    expect(parseSetting(traces, '0')).toBe(0)
+    expect(parseSetting(traces, '2')).toBeUndefined()
+    expect(stepped(traces, 1)).toBe('0.2')
+    expect(stepped(traces, -1)).toBe('0')
+    expect(stepped(find('telemetry.traces', { telemetry: { traces: 1 } }), 1)).toBe('1')
+    // And a count still steps by one, never below one.
+    expect(stepped(find('checks.parallel'), 1)).toBe('3')
+    expect(stepped(find('checks.parallel', { checks: { parallel: 1 } }), -1)).toBe('1')
+  })
+
+  it('never repeats the DSN away from the field it is typed into', () => {
+    const dsn = 'https://abc123def456@o4507.ingest.sentry.io/12345'
+    const setting = find('telemetry.dsn', { telemetry: { dsn } })
+    expect(setting.secret).toBe(true)
+    // Enough to tell which project it is; never the key that writes to it.
+    expect(shownValue(setting)).toBe('https://…@o4507.ingest.sentry.io/12345')
+    expect(describeSetting(setting)).not.toContain('abc123def456')
   })
 })
 

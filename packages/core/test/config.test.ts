@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { loadConfig, parseConfig } from '../src/config.ts'
+import { loadConfig, parseConfig, writeSetting } from '../src/config.ts'
 
 describe('parseConfig', () => {
   it('fills defaults for an empty file', () => {
@@ -91,5 +91,27 @@ describe('loadConfig', () => {
     await writeFile(path, 'workers:\n  default: codex\n')
     const r = await loadConfig(path)
     expect(r.ok && r.config.workers.default).toBe('codex')
+  })
+})
+
+// The config can hold a DSN, and a DSN is a credential: a file anybody on the
+// machine can read is the leak nobody notices.
+describe('writing a setting', () => {
+  it('makes the file the owner’s alone to read', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
+    const path = join(dir, 'config.yaml')
+    writeSetting(path, 'telemetry.dsn', 'https://k@o1.ingest.sentry.io/2')
+    expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
+
+  it('narrows one that was already readable by everybody', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))
+    const path = join(dir, 'config.yaml')
+    await writeFile(path, '# mine\nworkspace: { driver: tmux }\n')
+    await chmod(path, 0o644)
+    writeSetting(path, 'telemetry.dsn', 'https://k@o1.ingest.sentry.io/2')
+    expect((await stat(path)).mode & 0o077).toBe(0)
+    // And the file is still the one its owner wrote, comment and all.
+    expect(await readFile(path, 'utf8')).toContain('# mine')
   })
 })
