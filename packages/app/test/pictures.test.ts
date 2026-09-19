@@ -15,10 +15,10 @@ import { SCENARIOS } from './screens/scenarios.ts'
 // every other test passes, so they are checked here.
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-const images = join(repo, 'docs', 'images')
+const images = join(repo, 'images')
 const readme = readFileSync(join(repo, 'README.md'), 'utf8')
 
-const wanted = [...readme.matchAll(/docs\/images\/([a-z0-9-]+\.svg)/g)].map((match) => match[1])
+const wanted = [...readme.matchAll(/(?<!\/)images\/([a-z0-9-]+\.svg)/g)].map((match) => match[1])
 const drawn = [REEL.file, ...PICTURES.map((picture) => picture.file)]
 
 describe('the pictures the README is made of', () => {

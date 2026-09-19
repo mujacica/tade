@@ -19,7 +19,7 @@ only explanation anybody gets.
 | `packages/workbench/src/judges.ts` | `JUDGES`: the one map a name becomes an implementation in |
 | `packages/extensions/jev/src/questions.ts` | every question and every threshold Tade asks, in one file |
 | `packages/extensions/jev/src/extension.ts` | the tools, the review watch, the window's tier 1 |
-| `docs/jev-integration.md` | why each of them is where it is, and the line a judgement may not cross |
+| `AGENTS.md` ("A judge answers, it never decides") | the line a judgement may not cross |
 
 ## Adding an implementation
 

@@ -16,7 +16,7 @@ Tade is an IDE for the agents doing the work: an orchestrator you talk to, agent
 repositories, a queue that knows what waits for what, and every file, diff, terminal and dollar in
 front of you while it happens.
 
-![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](docs/images/tade.svg)
+![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](images/tade.svg)
 
 ```sh
 git clone <this repository> tade && cd tade
@@ -34,7 +34,7 @@ Node ≥ 22.19, pnpm 10 and git. No build step — [full install and setup below
 Agents down the left with what each has cost, their changes, the files, the agent you are watching
 in the middle, the orchestrator along the bottom. One terminal, no browser, no daemon.
 
-![The Tade window: agents, changes, files, an agent asking to run a command, and the orchestrator below](docs/images/window.svg)
+![The Tade window: agents, changes, files, an agent asking to run a command, and the orchestrator below](images/window.svg)
 
 ---
 
@@ -44,7 +44,7 @@ Say or type what you want. It starts, steers and stops agents, opens terminals a
 them, and shows every tool as it runs — including the ones that fail, with the reason. Drop a
 screenshot on the window and it goes with whatever you say next.
 
-![The orchestrator answering a request, each tool shown as it runs, one failing with the reason](docs/images/orchestrator.svg)
+![The orchestrator answering a request, each tool shown as it runs, one failing with the reason](images/orchestrator.svg)
 
 ---
 
@@ -54,7 +54,7 @@ Hold `ctrl+space` and talk. Speech stays on your machine by default (whisper.cpp
 as a few spoken sentences with the rest on screen, and mute is instant — it cuts the sentence being
 said, not the next one.
 
-![Push to talk: the strip says it is listening, a level meter moves with your voice](docs/images/voice.svg)
+![Push to talk: the strip says it is listening, a level meter moves with your voice](images/voice.svg)
 
 ---
 
@@ -67,8 +67,8 @@ from git, processes and transcripts, never remembered.
 
 <table>
 <tr>
-<td width="34%"><img src="docs/images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>
-<td width="66%"><img src="docs/images/terminals.svg" alt="A shell open beside the agent, in the same worktree, with a divider you can drag"></td>
+<td width="34%"><img src="images/agents.svg" alt="Agents down the side, one of each kind: working, idle, waiting for approval, failed, finished, queued, paused"></td>
+<td width="66%"><img src="images/terminals.svg" alt="A shell open beside the agent, in the same worktree, with a divider you can drag"></td>
 </tr>
 </table>
 
@@ -80,11 +80,11 @@ Ask for five things at once. What can run now runs; the rest waits for exactly w
 starts by itself. Click a piece of queued work and you see the whole chain, why each link waits, and
 what its agent will be told — looking is never starting.
 
-![Queued work opened: the chain it is in drawn as boxes, why each waits, and what its agent will be told](docs/images/queue.svg)
+![Queued work opened: the chain it is in drawn as boxes, why each waits, and what its agent will be told](images/queue.svg)
 
 When something upstream fails, the work it feeds is **held**, not lost — and Tade says so and asks.
 
-![Queued work held because what it waited on failed, with the choices: wait for a retry, start anyway, remove](docs/images/queue-held.svg)
+![Queued work held because what it waited on failed, with the choices: wait for a retry, start anyway, remove](images/queue-held.svg)
 
 ---
 
@@ -94,7 +94,7 @@ When something upstream fails, the work it feeds is **held**, not lost — and T
 a record of every run. There is no daemon — what came due while Tade was closed is caught up once
 when it opens, or skipped, as the schedule says.
 
-![A schedule: every Monday at 09:00 it starts an agent, what it is told, when it runs next, and every run so far](docs/images/schedules.svg)
+![A schedule: every Monday at 09:00 it starts an agent, what it is told, when it runs next, and every run so far](images/schedules.svg)
 
 ---
 
@@ -103,7 +103,7 @@ when it opens, or skipped, as the schedule says.
 A watch is a schedule that looks before it acts: a cheap check with no model, and an agent on each
 new finding. Extensions offer them; nothing is watched until you turn one on.
 
-![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](docs/images/watches.svg)
+![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](images/watches.svg)
 
 ---
 
@@ -113,7 +113,7 @@ The repository is right there while the agents work it: the file tree, the diffs
 terminal in the same worktree — and a file you can open where you are, highlighted and numbered,
 found in with `ctrl+f`, typed into and saved, or handed to the editor you actually use.
 
-![A file open in the window: highlighted, numbered, typed into, with save, copy path and open in your editor](docs/images/editor.svg)
+![A file open in the window: highlighted, numbered, typed into, with save, copy path and open in your editor](images/editor.svg)
 
 ---
 
@@ -122,7 +122,7 @@ found in with `ctrl+f`, typed into and saved, or handed to the editor you actual
 `ctrl+k` finds agents, files in every worktree, the lines inside them and the things Tade can do —
 each result saying which project and which agent it belongs to. `file:42` goes straight to a line.
 
-![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](docs/images/search.svg)
+![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](images/search.svg)
 
 ---
 
@@ -133,8 +133,8 @@ worktree and path it is all happening in.
 
 <table>
 <tr>
-<td width="30%"><img src="docs/images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
-<td width="70%"><img src="docs/images/diff.svg" alt="A changed file as a diff, with buttons to open it in your editor or ask the agent about it"></td>
+<td width="30%"><img src="images/changes.svg" alt="Files coloured the way git sees them, and the branch, worktree and path the agent works in"></td>
+<td width="70%"><img src="images/diff.svg" alt="A changed file as a diff, with buttons to open it in your editor or ask the agent about it"></td>
 </tr>
 </table>
 
@@ -148,7 +148,7 @@ time per checkout, and records each against the commit it ran on; a push with no
 it is held with what is missing, and an agent that is certain a failure is not its own overrules
 that out loud, with a reason the person is told.
 
-![The work tab: branch, commits and whose they are, the pull request it is out for, and the project's own checks run here](docs/images/work.svg)
+![The work tab: branch, commits and whose they are, the pull request it is out for, and the project's own checks run here](images/work.svg)
 
 ---
 
@@ -160,7 +160,7 @@ Agents open reviews with a `Tade-Task:` trailer, so which work a commit belongs 
 out of git forever. Watches can fix what is red and answer the bots — and nothing merges anything
 unless you asked for exactly that.
 
-![The REVIEWS section: every open review with what it is waiting on](docs/images/reviews.svg)
+![The REVIEWS section: every open review with what it is waiting on](images/reviews.svg)
 
 ---
 
@@ -170,7 +170,7 @@ What every agent and the orchestrator cost today, this window or this week — t
 dollars, each project against the budget you gave it. Runtime is derived from when agents started
 and exited, so nothing holds a stopwatch.
 
-![Spend: every agent with its model, tokens, share, runtime and cost, and each project against its budget](docs/images/spend.svg)
+![Spend: every agent with its model, tokens, share, runtime and cost, and each project against its budget](images/spend.svg)
 
 ---
 
@@ -179,7 +179,7 @@ and exited, so nothing holds a stopwatch.
 Tade has to be light, and proves it: what it and everything it runs is using, in the status bar and
 broken down by project, by kind and by agent.
 
-![Resources: CPU and memory by project, by kind, and by agent](docs/images/resources.svg)
+![Resources: CPU and memory by project, by kind, and by agent](images/resources.svg)
 
 ---
 
@@ -189,7 +189,7 @@ Notes are the one thing Tade is told rather than derives, so they are kept word 
 you own. Say *"remember the staging key rotates on the 1st"*, or press `+`. Agents are given the
 notes that concern their work.
 
-![A note being written: about this project or about everything, kept word for word](docs/images/notes.svg)
+![A note being written: about this project or about everything, kept word for word](images/notes.svg)
 
 ---
 
@@ -198,7 +198,7 @@ notes that concern their work.
 Projects along the top, agents running in all of them at once. An agent in a project you are not
 looking at can still reach you — and be answered from where you are.
 
-![Projects along the top, and an agent in another project asking for approval](docs/images/projects.svg)
+![Projects along the top, and an agent in another project asking for approval](images/projects.svg)
 
 ---
 
@@ -210,7 +210,7 @@ can both call, settings, and watches. Being there is not being on: an extension 
 and off until you turn it on, here or with `tade extensions enable`, and it loads the next time Tade
 starts. Tade writes tools for itself into the same folder, off, for you to read first.
 
-![The Extensions panel: what is ready, what needs setting up, what is broken, what is off, the watches on offer](docs/images/extensions.svg)
+![The Extensions panel: what is ready, what needs setting up, what is broken, what is off, the watches on offer](images/extensions.svg)
 
 ---
 
@@ -221,7 +221,7 @@ watch: each new issue is an agent with the stack trace, the trace and the logs a
 context. Point Tade's own telemetry at a Sentry project of yours and it reports **itself** the same
 way — so Tade can be handed its own bug.
 
-![An agent started from a Sentry issue: the issue and trace one click away, the context file the first thing it reads](docs/images/sentry.svg)
+![An agent started from a Sentry issue: the issue and trace one click away, the context file the first thing it reads](images/sentry.svg)
 
 ---
 
@@ -232,7 +232,7 @@ in to, priced per million tokens, filtered as you type — and how hard it shoul
 come from the harness you are signed in to; harnesses come from one registry, pi today and others as
 adapters.
 
-![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](docs/images/models.svg)
+![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](images/models.svg)
 
 ---
 
@@ -241,7 +241,7 @@ adapters.
 Every key Tade keeps, on `F1`, and every one of them changeable in Settings. Everything else goes
 straight to the agent or terminal you are typing at.
 
-![The keys Tade keeps, talking first](docs/images/keys.svg)
+![The keys Tade keeps, talking first](images/keys.svg)
 
 ---
 
@@ -251,7 +251,7 @@ One paragraph of what is stopped, what is moving and what the extensions found �
 voice, or as `tade brief` from any shell. Nothing in it is remembered: `tade status` derives every
 task again from git, processes and transcripts, and answers while the window is open.
 
-![The brief: one paragraph of what is blocked, what is moving and what extensions found](docs/images/brief.svg)
+![The brief: one paragraph of what is blocked, what is moving and what extensions found](images/brief.svg)
 
 ---
 
@@ -262,23 +262,24 @@ Off by default, and every command an agent runs is classified and written down e
 another project's toast. Agents can be boxed in with `seatbelt` or `bwrap`; a sandbox that cannot be
 applied fails the run rather than quietly running without one.
 
-![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](docs/images/approval.svg)
+![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](images/approval.svg)
 
 ---
 
 ## Planned
 
-Written down in full, not built yet — read them before asking for them:
+Named here so nothing above has to hint at it — these are not built:
 
 - **The rest of the forge** — GitLab and the other forges against the same port, merge queues,
   stacked reviews, and running a workflow in its own container (`act`) rather than the commands it
   runs. GitHub, the review loop and local actions are built (see **The checks** and **Reviews**
-  above). [`docs/github-integration.md`](docs/github-integration.md)
+  above); the port they are built against is neutral, which is what leaves room for the rest
+  (`packages/forges/core`).
 - **The rest of the judge** — asking a question in `ctrl+k` instead of matching one, watching agent
   turns for an agent going in circles, and catching a destructive command the approval rules do not
   name. The judge, its tools, the review watch and the onboarding step are built (see **Jev** under
-  Extensions); these three are written down and deliberately not.
-  [`docs/jev-integration.md`](docs/jev-integration.md)
+  Extensions); these three are deliberately not, and a judge may only ever add caution
+  (`packages/judges/core`).
 - **More harnesses** — Claude Code and Codex are named in the harness registry and not supported
   yet.
 
@@ -315,8 +316,8 @@ what it means beside it, and what needs a restart marked.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/first-open.svg" alt="Tade opened on a project with nothing running yet: its repository, branch and files, and what to do next"></td>
-<td width="50%"><img src="docs/images/settings.svg" alt="Settings over the window: categories down the side, and a real control for each with what it means beside it"></td>
+<td width="50%"><img src="images/first-open.svg" alt="Tade opened on a project with nothing running yet: its repository, branch and files, and what to do next"></td>
+<td width="50%"><img src="images/settings.svg" alt="Settings over the window: categories down the side, and a real control for each with what it means beside it"></td>
 </tr>
 </table>
 
@@ -462,7 +463,7 @@ inert until a person approves it, and is committed as `Tade`, so you can see it 
 pnpm check                 # lint, types and tests: the full gate
 pnpm tade                  # run the CLI from source, without linking it
 pnpm screens               # a page of every screen the window must keep looking like
-pnpm screens --assets      # redraw docs/images from those same screens
+pnpm screens --assets      # redraw images/ from those same screens
 ```
 
 Every picture in this README is drawn from the scenarios the golden screen tests protect — change

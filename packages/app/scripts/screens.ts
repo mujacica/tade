@@ -18,8 +18,8 @@ import { writePictures } from './pictures.ts'
 //
 // The pictures come from the same scenarios, which is what keeps the README
 // showing the window Tade actually has: they are regenerated, never taken by
-// hand. `docs/images` is where they live, because that is where the README
-// and the site built from it look for them.
+// hand. `images/` at the top of the repository is where they live, because
+// that is where the README and the site built from it look for them.
 
 const here = dirname(fileURLToPath(import.meta.url))
 const goldens = join(here, '..', 'test', 'screens', '__screens__')
@@ -28,7 +28,7 @@ const args = process.argv.slice(2)
 
 const assets = args.indexOf('--assets')
 if (assets >= 0) {
-  const dir = resolve(args[assets + 1] ?? join(repo, 'docs', 'images'))
+  const dir = resolve(args[assets + 1] ?? join(repo, 'images'))
   let total = 0
   for (const written of writePictures(dir)) {
     total += written.bytes

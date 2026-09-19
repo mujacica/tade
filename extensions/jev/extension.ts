@@ -3,13 +3,14 @@
 // folder is listed and off until somebody turns it on
 // (`extensions.jev.enabled`), and Tade is started again.
 //
-// What it is for, and what was decided and why, is in `docs/jev-integration.md`.
-// Read that first — and note that the watch below is the FIRST DRAFT's shape:
-// every commit, on a clock, one finding per commit. Section 4 of the document
-// supersedes it, for reasons the document argues: the unit is a task's whole
-// diff against its base, the moment is when that branch has stopped moving,
-// and what Jev flags is read by something that can explain it before anybody
-// is told. The tools and the settings below still stand; the watch is kept as
+// Read `packages/extensions/jev` for what shipped, and AGENTS.md ("A judge
+// answers, it never decides") for the line it may not cross — and note that
+// the watch below is the FIRST DRAFT's shape: every commit, on a clock, one
+// finding per commit. The built-in supersedes it, and why is the interesting
+// part: the unit is a task's whole diff against its base, not a commit, the
+// moment is when that branch has stopped moving, not a tick of a clock, and
+// what Jev flags is read by something that can explain it before anybody is
+// told. The tools and the settings below still stand; the watch is kept as
 // written so the two drafts can be compared.
 //
 // This sketch also deliberately does NOT do two things the real one must:
