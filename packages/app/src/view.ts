@@ -3464,8 +3464,8 @@ function renderFoot(
   for (const button of BUTTONS) {
     // Violet means something here wants you: an extension to set up, or sound
     // that is off. The same violet the sidebar marks an agent waiting on you
-    // with, at the amber's own brightness. Otherwise a button is grey,
-    // whatever it does.
+    // with, as dark and as saturated as the brand's amber. Otherwise a button
+    // is grey, whatever it does.
     const muted = button.action === 'mute' && frame.muted === true
     const needed = button.action === 'extensions' && (frame.extensionsNeedYou ?? 0) > 0
     row

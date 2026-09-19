@@ -160,12 +160,30 @@ const BOLD = `${ESC}1m`
 /**
  * The palette, as xterm-256 numbers.
  *
- * Tade's colour is amber, and the rule the others keep is *value*: every tone
- * that carries meaning is as light as that amber, so no accent shouts over
- * another and the window reads as one design. In relative luminance — the
- * WCAG one, 0 to 1 — amber is .56, violet .57, green .56, cyan .56. The violet
- * was xterm 141 at .35, a third darker than everything it sat beside, which is
- * what made the extensions button look borrowed from somewhere else.
+ * Tade's colour is amber, and what the others keep is its *mood*: full
+ * saturation at half lightness — a dark yellow, not a bright one — so every
+ * accent is the same colour at another hue and the window reads as one
+ * design. The violet is that amber turned round the wheel: xterm 92,
+ * `#8700d7`, the same full saturation a shade deeper.
+ *
+ * A tone plays two parts, and which part it plays decides what else has to be
+ * true of it.
+ *
+ * As *text* on the window's near-black ground it has to be light enough to
+ * read, so the text tones sit near the amber's own value — in relative
+ * luminance, the WCAG one from 0 to 1: amber .52, green .55, cyan .56, the
+ * violet's text shade (177) .39 — none of them under 7:1 against the window's
+ * ground or 4:1 against the row you are on. The ground shade would be a
+ * smudge there, which is why the violet is the one tone written down twice.
+ *
+ * As the *ground* of a button it is the colour itself, and the ink is
+ * whatever can be read on it: dark ink on the amber, light ink on the violet
+ * (6:1 at rest, 5:1 lit). No purple that is still purple can be as light as a
+ * yellow — stretch one until it is and out comes a pale lavender wanting dark
+ * letters, which is what this palette had, and what looked borrowed from
+ * another design standing next to a dark amber. Dark ground, light label: the
+ * way every grey button in the window is built, which is what keeps it
+ * reading as a button.
  *
  * Red is the one exception, and deliberately: something that has gone wrong is
  * allowed to be darker and louder than the rest, because it is not decoration.
@@ -178,9 +196,11 @@ const TONE = {
   /** The same amber with the light taken out of it: a switch held down. */
   amberDark: 94,
   /** Waiting on you, and the press the window would like next. */
-  violet: 183,
-  /** The same, under the pointer. */
-  violetLight: 189,
+  violet: 92,
+  /** The same, under the pointer: the same hue with the light turned up. */
+  violetLight: 129,
+  /** The same violet as text, light enough to be read on the window's ground. */
+  violetText: 177,
   /** Done. */
   green: 114,
   /** Where you are. The one complement in the palette, at the amber's own value. */
@@ -264,7 +284,9 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   hover: [GREY.hovered, TONE.inkLight, false],
   pressed: [GREY.pressed, TONE.ink, false],
   primary: [TONE.amber, TONE.ink, true],
-  attention: [TONE.violet, TONE.ink, true],
+  // The one coloured button with light letters on it: a dark ground takes the
+  // same ink a grey button does, and the amber's ink would be lost on it.
+  attention: [TONE.violet, GREY.bright, true],
   danger: [TONE.red, TONE.ink, true],
   off: [GREY.raised, GREY.chrome, false],
   add: [GREY.control, TONE.amber, true],
@@ -277,7 +299,7 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
  */
 const LIT: Partial<Record<Look, [ground: number, ink: number, bold: boolean]>> = {
   primary: [TONE.amberLight, TONE.ink, true],
-  attention: [TONE.violetLight, TONE.ink, true],
+  attention: [TONE.violetLight, TONE.inkLight, true],
   danger: [TONE.redLight, TONE.ink, true],
 }
 
@@ -380,7 +402,7 @@ export const COLOUR: Skin = {
   signal: paint(`${fg(TONE.amber)}${BOLD}`),
   tab: paint(fg(GREY.tab)),
   label: paint(`${fg(GREY.heading)}${BOLD}`),
-  waiting: paint(fg(TONE.violet)),
+  waiting: paint(fg(TONE.violetText)),
   busy: paint(fg(TONE.amber)),
   bad: paint(fg(TONE.red)),
   done: paint(fg(TONE.green)),

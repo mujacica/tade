@@ -2038,4 +2038,11 @@ export const SCENARIOS: Scenario[] = [
     state: base(),
     frame: frame({ width: 80, height: 24 }),
   },
+  {
+    name: 'buttons-that-want-you',
+    about:
+      'The two buttons along the bottom that want you — an extension to set up, and sound turned off — in the violet the sidebar marks a waiting agent with: a dark ground and a light label, like every other button, and a shade lighter under the pointer. The one screen where a coloured button is pointed at, which is how a hover nobody could see was found.',
+    state: { ...base(), hover: { kind: 'action', name: 'mute' } },
+    frame: frame({ muted: true, extensionsNeedYou: 1 }),
+  },
 ]
