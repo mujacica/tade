@@ -23,6 +23,9 @@ process.stdin.on('data', (chunk) => {
     // Colour, for checking that a styled capture keeps it and a plain one does not.
     if (line === 'paint') process.stdout.write('\x1b[38;5;196mred\x1b[0m \x1b[1mbold\x1b[0m\r\n')
     if (line.length > 0) process.stdout.write(`got:${line}\r\n`)
+    // A prompt, and no newline after it: this is where a shell leaves the
+    // cursor, and the only way to ask for it on purpose.
+    if (line === 'prompt') process.stdout.write('$ ')
     i = buffer.indexOf('\r')
     j = buffer.indexOf('\n')
   }

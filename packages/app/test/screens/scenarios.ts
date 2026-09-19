@@ -557,9 +557,10 @@ function searched(query: string): SearchEntry[] {
 export const SCENARIOS: Scenario[] = [
   {
     name: 'watching-an-agent',
-    about: 'The window with an agent waiting on an approval, its changes, spend and the talk key.',
+    about:
+      'The window with an agent waiting on an approval, its changes, spend and the talk key. The bar down the right of the sidebar and of the agent says where in each you are, and the block on the agent’s screen is where what you type would land.',
     state: base(),
-    frame: frame(),
+    frame: frame({ paneScreen: { lines: 180, cursor: { back: 0, column: 25 } } }),
   },
   {
     name: 'pointing-at-a-button',
@@ -794,6 +795,34 @@ export const SCENARIOS: Scenario[] = [
           '',
           '~/src/checkout (main) $ ',
         ].join('\n'),
+        // Where the shell left its cursor, and how far back the lane reads:
+        // the block you type at, and the bar that says where you are.
+        view: { lines: 240, cursor: { back: 0, column: 24 } },
+      },
+    }),
+  },
+  {
+    name: 'reading-back-a-terminal',
+    about:
+      'A terminal scrolled back through what it printed: the bar on the right says how far back, and the foot of it offers the newest line again.',
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+      ]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal',
+      terminalScroll: 120,
+    },
+    frame: frame({
+      terminal: {
+        screen: [
+          ' ✓ src/ledger.test.ts (4 tests) 12ms',
+          ' ✓ src/refunds.test.ts (9 tests) 31ms',
+          ' ✓ src/webhooks.test.ts (12 tests) 48ms',
+          ' ✗ charges once when the webhook retries',
+          '   AssertionError: expected 2 charges to be 1',
+        ].join('\n'),
+        view: { lines: 240, cursor: { back: 0, column: 24 } },
       },
     }),
   },

@@ -1,7 +1,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import { KEY_BINDINGS, type Setting, type SettingGroup } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
-import type { Hit } from './hits.ts'
+import type { Hit, Target } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { linkedRow } from './links.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
@@ -46,6 +46,7 @@ import {
   visibleSettings,
   watchControl,
 } from './panels.ts'
+import { BAR, barRows } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
@@ -62,6 +63,8 @@ export interface PanelContext {
   height: number
   skin: Skin
   pointer: Pointer
+  /** The panel's own scrollbar is being dragged, so it is drawn lit. */
+  scrolling?: boolean
   /** Tade's home, as you would type it: where worktrees are made. */
   home: string
   route: { harness: string; model: string | null; provider: string | null } | null
@@ -916,17 +919,43 @@ function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
         .build(),
     )
   } else {
+    // A column down the right is the file's scrollbar: where in it you are
+    // reading, and a handle to move.
+    const text = inner - BAR
     const digits = Math.max(3, String(lines.length).length)
     const scroll = Math.max(0, Math.min(panel.scroll, lines.length - body))
+    const read: { text: string; hits: Hit[] }[] = []
     lines.slice(scroll, scroll + body).forEach((line, offset) => {
       const number = scroll + offset + 1
       const marked = !formatted && panel.line === number
       const gutter = formatted ? '' : `${marked ? '▶' : ' '}${String(number).padStart(digits)} │ `
-      const text = fitRow(line.replaceAll('\t', '  '), Math.max(1, inner - visibleCells(gutter)))
-      const row = `${formatted ? '' : marked ? skin.signal(gutter.slice(0, 1)) + skin.you(gutter.slice(1, -2)) + skin.chrome('│ ') : skin.hint(gutter.slice(0, -2)) + skin.chrome('│ ')}${text}`
-      rows.push({
+      const cut = fitRow(line.replaceAll('\t', '  '), Math.max(1, text - visibleCells(gutter)))
+      const row = `${formatted ? '' : marked ? skin.signal(gutter.slice(0, 1)) + skin.you(gutter.slice(1, -2)) + skin.chrome('│ ') : skin.hint(gutter.slice(0, -2)) + skin.chrome('│ ')}${cut}`
+      read.push({
         text: marked ? skin.selected(row) : row,
-        hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } }],
+        hits: [{ row: 0, from: 0, to: text - 1, target: { kind: 'scroll', area: 'panel' } }],
+      })
+    })
+    while (read.length < body)
+      read.push({
+        text: ' '.repeat(text),
+        hits: [{ row: 0, from: 0, to: text - 1, target: { kind: 'scroll', area: 'panel' } }],
+      })
+    const bar = barRows(
+      { total: lines.length, shown: body, offset: scroll, rows: body },
+      skin,
+      ctx.scrolling === true || ctx.pointer.hover?.kind === 'scrollbar',
+    )
+    const target: Target = {
+      kind: 'scrollbar',
+      area: 'panel',
+      total: lines.length,
+      shown: body,
+    }
+    read.forEach((row, i) => {
+      rows.push({
+        text: `${row.text}${bar[i] ?? ' '}`,
+        hits: [...row.hits, { row: 0, from: text, to: text, target }],
       })
     })
   }

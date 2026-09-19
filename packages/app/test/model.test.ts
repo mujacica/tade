@@ -10,6 +10,7 @@ import {
   focusNumber,
   focusTask,
   glyph,
+  grabBar,
   headline,
   historyMatch,
   initialState,
@@ -26,6 +27,7 @@ import {
   queueOf,
   removeAttachment,
   resizeTo,
+  scrollBarTo,
   searchKey,
   selectProject,
   setDictation,
@@ -584,5 +586,38 @@ describe('attachments', () => {
     expect(none.attached).toEqual(['/c.png'])
     const last = removeAttachment(none, '/c.png')
     expect(last.attached).toEqual([])
+  })
+})
+
+describe('dragging a scrollbar', () => {
+  const bar = { area: 'sidebar' as const, total: 100, shown: 10 }
+  const track = { top: 2, rows: 10 }
+
+  it('scrolls to where the thumb was dropped, whichever way the region counts', () => {
+    // Taken hold of on the track rather than on the thumb: it comes to the pointer.
+    const middle = grabBar(state(), bar, track, 7)
+    expect(middle.scroll).toBeGreaterThan(30)
+    expect(middle.scroll).toBeLessThan(60)
+    expect(scrollBarTo(middle, 2).scroll).toBe(0)
+    expect(scrollBarTo(middle, 200).scroll).toBe(90)
+    // A screen counts back from its newest line, so the same drag is the same
+    // place said the other way round.
+    const screen = grabBar(state(), { ...bar, area: 'pane' }, track, 12)
+    expect(screen.paneScroll).toBe(0)
+    expect(scrollBarTo(screen, 2).paneScroll).toBe(90)
+  })
+
+  it('moves with the pointer from where the thumb was taken hold of, not under it', () => {
+    // At the newest line the thumb is at the foot of the track — three rows of
+    // ten here — so pressing its middle and dragging nowhere moves nothing.
+    const held = grabBar(state(), { area: 'pane', total: 30, shown: 10 }, track, 10)
+    expect(held.paneScroll).toBe(0)
+    expect(held.scrolling).toMatchObject({ area: 'pane', grab: 1 })
+    // And the same press, dragged a row up, is a row further back.
+    expect(scrollBarTo(held, 9).paneScroll).toBeGreaterThan(0)
+  })
+
+  it('lets go of it, and of nothing else', () => {
+    expect(scrollBarTo(state(), 5)).toEqual(state())
   })
 })

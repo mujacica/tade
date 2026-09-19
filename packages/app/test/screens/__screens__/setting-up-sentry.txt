@@ -1,8 +1,8 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-                              │─────────────────────────────────────────────────────────────────────────────────────────
- ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
+ ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants y╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
             │ ◐ Needs setting up: no Sentry token                                                          │            
    ⠋ refunds│                                                                                              │            
@@ -10,7 +10,7 @@
             │  Paste it below, or log in with sentry-cli login and leave it empty.                         │            
  ▾ CHANGES  │  Say which Sentry project each of your projects sends to.                                    │            
   M package.│ Create a token ↗                                                                             │            
-  A src/webh│                                                                                              │            
+  A …/webhoo│                                                                                              │            
   M src/webh│ Auth token       sntryu_…                                                                    │            
             │                 kept in your config; $SENTRY_AUTH_TOKEN wins when set                        │            
  ▾ FILES    │ Organization     acme▏                                                                       │            
@@ -23,11 +23,11 @@
             │ tab moves · enter presses · space turns on and off              ▐ Close ▌ ▐ Save and check ▌ │            
 ━ ▐ orchestr╰──────────────────────────────────────────────────────────────────────────────────────────────╯ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

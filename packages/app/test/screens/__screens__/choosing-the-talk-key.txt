@@ -10,7 +10,7 @@
         │▌ Voice             │                       ▐ ctrl ▌+▐ r ▌                       │ss to stop          │        
  ▾ CHANG│  Window            │                                                            │                    │        
   M pack│  Projects          │ ▲ Pi and most shells search history with ctrl+r.           │▾      ↻ on restart │        
-  A src/│  Budgets           │   While Tade holds it, your agents never see it.           │                    │        
+  A …/we│  Budgets           │   While Tade holds it, your agents never see it.           │                    │        
   M src/│  Reporting         │                                                            │       ↻ on restart │        
         │  Keys              │ Suggested: ▐ ctrl ▌+▐ space ▌ ▐ F5 ▌ ▐ ctrl ▌+▐ t ▌        │                    │        
  ▾ FILES│  Accounts          │ Never a key that types a character — you have to be        │                    │        
@@ -23,11 +23,11 @@
         │                        │                                                                             │        
 ━ ▐ orch│                        │                                                                             │ ▐ ▾ ▌ ━
         │                        │                                                                             │        
-        │                        │                                                                             │        
-        │                        │                                                                             │        
-        │                        │ ● Saved as you change it.                                                   │        
-        │                        │                                               ▐ Open config.yaml ▌ ▐ Done ▌ │        
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯        
+        │                        │                                                                             │       ▕
+        │                        │                                                                             │       ▕
+        │                        │ ● Saved as you change it.                                                   │       ▕
+        │                        │                                               ▐ Open config.yaml ▌ ▐ Done ▌ │       ▕
+ ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

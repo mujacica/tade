@@ -1,17 +1,17 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-                              │─────────────────────────────────────────────────────────────────────────────────────────
- ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
+ ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants you to appro╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
                        │ $2.66  1.9M tokens                  ▐ Today ▌  This window    7 days   │                       
-   ⠋ refunds          $│                                                                        │                       
+   ⠋ refunds         $0│                                                                        │                       
      working           │ by ▐ Agent ▌  Project    Model                                         │                       
                        │                                                                        │                       
- ▾ CHANGES  3         v│ WHO                 MODEL            TOKENS  SHARE           COST      │                       
+ ▾ CHANGES  3        vs│ WHO                 MODEL            TOKENS  SHARE           COST      │                       
   M package.json       │ ◆ orchestrator      claude-opus-5      412k  ███░░░░░░░░░   $0.58      │                       
-  A src/webhooks.test.t│ ! stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
-  M src/webhooks.ts    │ ⠋ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
+  A …/webhooks.test.ts │ ! stripe-v15        claude-opus-5      880k  ██████░░░░░░   $1.26      │                       
+  M src/webhooks.ts   +│ ⠋ refunds           claude-opus-5      460k  ███░░░░░░░░░   $0.62      │                       
                        │ ✓ search/pagination claude-sonnet-5    148k  █░░░░░░░░░░░   $0.20      │                       
  ▾ FILES               │                                                                        │                       
    ▾ src/              │ BUDGETS                                                                │                       
@@ -20,14 +20,14 @@
    ▸ test/             │                                                                        │                       
      package.json      │ Prices as pi reports them.                                             │                       
      README.md         ╰────────────────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+                             ▕│                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

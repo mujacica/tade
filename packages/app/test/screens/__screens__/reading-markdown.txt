@@ -2,32 +2,32 @@
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│ ~/src/checkout/README.md  markdown · 14 lines · 412 B                                    ▐ Formatted ▌  Source   │▌ 
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──
- ▐│ checkout                                                                                                         │  
- ▐│                                                                                                                  │  
-  │ Takes the money, and gives it back when it has to.                                                               │  
-  │                                                                                                                  │  
-  │ Running it                                                                                                       │  
-  │                                                                                                                  │  
- ▾│ - pnpm dev starts it against the Stripe test keys                                                                │  
-  │ - pnpm test runs everything, webhooks included                                                                   │  
-  │                                                                                                                  │  
-  │ ```ts                                                                                                            │  
-  │   const event = await stripe.webhooks.constructEventAsync(body, sig, key)                                        │  
- ▾│ ```                                                                                                              │  
-  │                                                                                                                  │  
-  │ │ Never force-push to main.                                                                                      │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-━ │                                                                                                                  │ ━
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
- ❯│                                                                                                                  │  
+ ▐│ checkout                                                                                                        ▕│  
+ ▐│                                                                                                                 ▕│  
+  │ Takes the money, and gives it back when it has to.                                                              ▕│  
+  │                                                                                                                 ▕│  
+  │ Running it                                                                                                      ▕│  
+  │                                                                                                                 ▕│  
+ ▾│ - pnpm dev starts it against the Stripe test keys                                                               ▕│  
+  │ - pnpm test runs everything, webhooks included                                                                  ▕│  
+  │                                                                                                                 ▕│  
+  │ ```ts                                                                                                           ▕│  
+  │   const event = await stripe.webhooks.constructEventAsync(body, sig, key)                                       ▕│  
+ ▾│ ```                                                                                                             ▕│  
+  │                                                                                                                 ▕│  
+  │ │ Never force-push to main.                                                                                     ▕│  
+  │                                                                                                                 ▕│  
+  │                                                                                                                 ▕│  
+  │                                                                                                                 ▕│  
+  │                                                                                                                 ▕│  
+  │                                                                                                                 ▕│  
+━ │                                                                                                                 ▕│ ━
+  │                                                                                                                 ▕│  
+  │                                                                                                                 ▕│ ▕
+  │                                                                                                                 ▕│ ▕
+  │                                                                                                                 ▕│ ▕
+  │                                                                                                                 ▕│ ▕
+ ❯│                                                                                                                 ▕│ ▕
 ──│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│─ 
  A│ rows 1–14 of 14  ↑↓ scroll · space a page · e editor                  ▐ Copy path ▌ ▐ Open in editor ▌ ▐ Close ▌ │▌ 
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯──

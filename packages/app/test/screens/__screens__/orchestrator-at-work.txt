@@ -1,33 +1,33 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠸ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │                                                                                         
-                              │   Nothing is running in checkout.                                                       
-   ! stripe-v15       $1.26   │                                                                                         
-     wants you to approve …   │   ▐ + New agent ▌ ▐ Open project ▌                                                      
-                              │                                                                                         
-   ⠸ refunds          $0.62   │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
-     working                  │                                                                                         
-                              │                                                                                         
- ▾ CHANGES  3         vs main │                                                                                         
-  M package.json        +2 −1 │                                                                                         
-  A src/webhooks.test.ts  +48 │                                                                                         
-  M src/webhooks.ts    +12 −4 │                                                                                         
-                              │                                                                                         
- ▾ FILES                      │                                                                                         
+ ▾ AGENTS  2         ▐  +  ▌ █│                                                                                         
+                             █│   Nothing is running in checkout.                                                       
+   ! stripe-v15      $1.26   █│                                                                                         
+     wants you to approve…   █│   ▐ + New agent ▌ ▐ Open project ▌                                                      
+                             █│                                                                                         
+   ⠸ refunds         $0.62   █│   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
+     working                 ▕│                                                                                         
+                             ▕│                                                                                         
+ ▾ CHANGES  3        vs main ▕│                                                                                         
+  M package.json       +2 −1 ▕│                                                                                         
+  A …/webhooks.test.ts   +48 ▕│                                                                                         
+  M src/webhooks.ts   +12 −4 ▕│                                                                                         
+                             ▕│                                                                                         
+ ▾ FILES                     ▕│                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-❯ run the webhook tests and tell me what broke                                                                          
-  ✓ status                                                                                                              
-    2 agents, 1 waiting                                                                                                 
-  ✗ terminal run · tests · "pnpm test src/webhooks"                                                                     
-    no terminal called tests is open in checkout: open one first, or name another                                       
-  ⠸ terminal open · checkout · tests                                                                                    
-◆ Opening a tests terminal first, then▍                                                                                 
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+❯ run the webhook tests and tell me what broke                                                                         ▕
+  ✓ status                                                                                                             ▕
+    2 agents, 1 waiting                                                                                                ▕
+  ✗ terminal run · tests · "pnpm test src/webhooks"                                                                    ▕
+    no terminal called tests is open in checkout: open one first, or name another                                      ▕
+  ⠸ terminal open · checkout · tests                                                                                   ▕
+◆ Opening a tests terminal first, then▍                                                                                ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

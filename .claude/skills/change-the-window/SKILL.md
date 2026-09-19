@@ -182,6 +182,16 @@ file and cannot be tested.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
   (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
   keeps `state.scroll`, a panel's list moves its own index.
+- **Anything that scrolls has a bar down its right** (`scrollbar.ts`, `barBeside` in `view.ts`): a
+  column the region gives up, a thumb saying how much is in view and where, and a
+  `{ kind: 'scrollbar', area, total, shown }` hit on every row of it carrying what it was drawn
+  from — so a drag becomes a line to scroll to (`grabBar`, `scrollBarTo`) without laying the region
+  out again. Where the region is a lane, the *window* owns that column: take it off the size in
+  `paneSize` / `captureTerminal` too, or the lane draws its last column under the bar.
+- **The cursor is the window's to draw.** A capture is text; where typing lands comes from the
+  driver (`Live.screen`, `Frame.paneScreen` / `terminal.view`) and is laid on the cell as a block
+  (`blockAt`, `skin.cursor`) on whichever of the pane and the terminal has the keyboard — and never
+  on a screen scrolled back from it, where the cursor is not.
 - **Extensions reach the window through the host, never by name.** Their status items come from
   `ExtensionHost.statuses()` (polled in `tick`, never awaited by a frame) into `Frame.statuses`; a
   click opens the `extension-view` panel on `host.view()`. Add a hook to the extension port rather
@@ -192,6 +202,9 @@ file and cannot be tested.
 - **The orchestrator line is pi's own `Editor`** (cursor, wrapping, undo, paste markers), drawn by
   the app into `Frame.input` and boxed by `inputBox`. Keep `state.dictation` in step with it
   (`syncLine`) — everything else reads the dictation. Opening it never changes the panel's height.
+  Each line it drew carries an `{ kind: 'input', line }` hit, and a click on one goes back to the
+  editor as a click on its own row: it knows its padding and its wrapping, so it, not the window,
+  works out which character you meant.
 - **What you type to Tade is journaled** (`said` events) and comes back with ↑/↓ (the editor's
   history) and ctrl+r, only while the line is open — anywhere else those keys are the agent's.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):

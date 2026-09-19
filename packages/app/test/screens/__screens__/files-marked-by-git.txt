@@ -1,33 +1,33 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▸ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
- ▸ CHANGES  3         vs main │─────────────────────────────────────────────────────────────────────────────────────────
- ▾ FILES                      │                                                                                         
-   ▾ src/                   • │                                                                                         
-       webhooks.test.ts     U │                                                                                         
-       webhooks.ts          M │                                                                                         
-   ▸ test/                  • │                                                                                         
-     package.json             │                                                                                         
-     README.md                │                                                                                         
-                              │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ GIT                        │    so src/webhooks.ts needs the new constructEvent signature.                           
-   repo     ~/src/checkout    │                                                                                         
-   branch   tade/stripe-v15   │  ▸ Read src/webhooks.ts                                                                 
-   from     main              │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   worktree …ckout-stripe-v15 │  ▸ bash npm i stripe@15                                                                 
-   path     /Users/me/.tade/  │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-            worktrees/        │  │ bash  npm i stripe@15                                        │                       
-            checkout-stripe-v │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-            15                │  ╰──────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+ ▸ AGENTS  2         ▐  +  ▌ ▕│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▸ CHANGES  3        vs main ▕│─────────────────────────────────────────────────────────────────────────────────────────
+ ▾ FILES                     ▕│                                                                                         
+   ▾ src/                  • ▕│                                                                                         
+       webhooks.test.ts    U ▕│                                                                                         
+       webhooks.ts         M ▕│                                                                                         
+   ▸ test/                 • ▕│                                                                                         
+     package.json            ▕│                                                                                         
+     README.md               ▕│                                                                                         
+                             ▕│                                                                                         
+ ▸ NOTES  4          ▐  +  ▌ ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+ ▾ GIT                       ▕│    so src/webhooks.ts needs the new constructEvent signature.                           
+   repo     ~/src/checkout   ▕│                                                                                         
+   branch   …de/stripe-v15   ▕│  ▸ Read src/webhooks.ts                                                                 
+   from     main             ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   worktree …kout-stripe-v15 ▕│  ▸ bash npm i stripe@15                                                                 
+   path     /Users/me/.tade/ ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+            worktrees/       ▕│  │ bash  npm i stripe@15                                        │                       
+            checkout-stripe- ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+            v15              ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+                             ▕│                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

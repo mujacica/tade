@@ -10,7 +10,7 @@
           │  □ src/webhooks.test.ts  checkout › stripe-v15                                                   │          
  ▾ CHANGES│ IN FILES  2                                                                                      │          
   M packag│  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync(  │          
-  A src/we│  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
+  A …/webh│  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
   M src/we│                                                                                                  │          
           │                                                                                                  │          
  ▾ FILES  │                                                                                                  │          
@@ -23,11 +23,11 @@
           │                                                                                                  │          
 ━ ▐ orches│                                                                                                  │ ▌ ▐ ▾ ▌ ━
           │                                                                                                  │          
-          │                                                                                                  │          
-          │                                                                                                  │          
-          │                                                                                                  │          
-          │ ↑↓ move · tab completes · enter opens · esc closes                                               │          
- ❯ what yo╰──────────────────────────────────────────────────────────────────────────────────────────────────╯          
+          │                                                                                                  │         ▕
+          │                                                                                                  │         ▕
+          │                                                                                                  │         ▕
+          │ ↑↓ move · tab completes · enter opens · esc closes                                               │         ▕
+ ❯ what yo╰──────────────────────────────────────────────────────────────────────────────────────────────────╯         ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

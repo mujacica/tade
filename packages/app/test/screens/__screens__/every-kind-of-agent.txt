@@ -1,33 +1,33 @@
  ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌           ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  7          ▐  +  ▌ │ checkout › Update notes panel to…  ▐ agent ▌ ▐ + ▌ ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-                              │─────────────────────────────────────────────────────────────────────────────────────────
-   ⠋ Agent spend inv… $5.73   │                                                                                         
-     working                  │                                                                                         
-                              │                                                                                         
- ▐ ● Update notes panel to… ▌ │                                                                                         
- ▐   idle · waiting for you ▌ │                                                                                         
-                              │                                                                                         
- ▐ ! stripe-v15       ×  ≡  ▌ │                                                                                         
- ▐   wants you to approve … ▌ │                                                                                         
-                              │                                                                                         
-   ✕ reload                   │                                                                                         
-     agent exited with cod…   │                                                                                         
-                              │                                                                                         
-   ✓ refunds                  │                                                                                         
-     finished · Refunds ch…   │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-                              │    so src/webhooks.ts needs the new constructEvent signature.                           
-   ○ queue                    │                                                                                         
-     not started              │  ▸ Read src/webhooks.ts                                                                 
-                              │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   ‖ later                    │  ▸ bash npm i stripe@15                                                                 
+ ▾ AGENTS  7         ▐  +  ▌ █│ checkout › Update notes panel to…  ▐ agent ▌ ▐ + ▌ ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ⠋ Agent spend in… $5.73   █│                                                                                         
+     working                 █│                                                                                         
+                             █│                                                                                         
+ ▐ ● Update notes panel t… ▌ █│                                                                                         
+ ▐   idle · waiting for y… ▌ █│                                                                                         
+                             █│                                                                                         
+ ▐ ! stripe-v15      ×  ≡  ▌ █│                                                                                         
+ ▐   wants you to approve… ▌ █│                                                                                         
+                             █│                                                                                         
+   ✕ reload                  ▕│                                                                                         
+     agent exited with co…   ▕│                                                                                         
+                             ▕│                                                                                         
+   ✓ refunds                 ▕│                                                                                         
+     finished · Refunds c…   ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+                             ▕│    so src/webhooks.ts needs the new constructEvent signature.                           
+   ○ queue                   ▕│                                                                                         
+     not started             ▕│  ▸ Read src/webhooks.ts                                                                 
+                             ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+   ‖ later                   ▕│  ▸ bash npm i stripe@15                                                                 
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

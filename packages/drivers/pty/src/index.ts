@@ -9,6 +9,7 @@ import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneOutputListener,
+  type LaneScreen,
   type LaneSpec,
   UnsupportedCapabilityError,
   type WorkspaceCapabilities,
@@ -185,10 +186,7 @@ export class PtyDriver implements WorkspaceDriver {
     // then only the rows asked for. Above them can be ten thousand lines of
     // scrollback, and painting every one of them to keep the last forty was
     // most of what echoing a keystroke cost.
-    let last = buffer.baseY + lane.term.rows - 1
-    while (last >= 0 && (buffer.getLine(last)?.translateToString(true).trim() ?? '') === '') {
-      last--
-    }
+    const last = lastWritten(buffer, lane.term.rows)
     const rows: string[] = []
     for (let i = Math.max(0, last - opts.lines + 1); i <= last; i++) {
       const row = buffer.getLine(i)
@@ -197,6 +195,21 @@ export class PtyDriver implements WorkspaceDriver {
       )
     }
     return rows.join('\n')
+  }
+
+  async screen(id: LaneId): Promise<LaneScreen> {
+    const lane = this.live(id)
+    await settled(lane.term)
+    if (lane.closed) throw new LaneClosedError(id)
+    const buffer = lane.term.buffer.active
+    // Measured exactly as `capture` measures it, from the same last row it
+    // would end on: a depth and a cursor that disagree with the text draw a
+    // scrollbar and a block in the wrong places.
+    const last = lastWritten(buffer, lane.term.rows)
+    return {
+      lines: last + 1,
+      cursor: { back: last - (buffer.baseY + buffer.cursorY), column: buffer.cursorX },
+    }
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {
@@ -324,6 +337,17 @@ async function settled(term: XTerm, ms = FRAME_WAIT_MS): Promise<void> {
     if (Date.now() >= deadline || !term.modes.synchronizedOutputMode) return
     await new Promise((resolve) => setTimeout(resolve, 2))
   }
+}
+
+/**
+ * The last row with anything on it, counting the scrollback: where a capture
+ * ends, and what the cursor and the depth are both measured against. Read from
+ * the bottom up, because under the last thing written is usually blank screen.
+ */
+function lastWritten(buffer: import('@xterm/headless').IBuffer, rows: number): number {
+  let last = buffer.baseY + rows - 1
+  while (last >= 0 && (buffer.getLine(last)?.translateToString(true).trim() ?? '') === '') last--
+  return last
 }
 
 function safely(fn: () => void): void {

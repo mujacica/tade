@@ -1,4 +1,10 @@
-import { stripTerminalSequences, truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
+import {
+  compositeTuiLine,
+  sliceByColumn,
+  stripTerminalSequences,
+  truncateToWidth,
+  visibleWidth,
+} from '@earendil-works/pi-tui'
 import { DONE_RULE_MEANS, describeLook, type QueueState, taskOrigin } from '@tade/core'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
@@ -34,6 +40,7 @@ import {
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
 import { drawPlan, type PlanBox, type PlanTone } from './plan-graph.ts'
+import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
@@ -55,6 +62,16 @@ import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '
 
 export type { Drawn } from './ui.ts'
 
+/**
+ * What a lane's screen is like around its text: how many lines it holds, and
+ * where what you type lands — counted back from the last line captured, as the
+ * driver reports it.
+ */
+export interface LaneView {
+  lines: number
+  cursor: { back: number; column: number }
+}
+
 /** A file the task has changed, as git sees it. */
 export interface Change {
   path: string
@@ -69,6 +86,12 @@ export interface Frame {
   height: number
   /** The focused lane's screen, as captured. May carry ANSI. */
   screen: string
+  /**
+   * How far back that lane can be read, and where typing lands in it: what the
+   * scrollbar beside it and the block on it are drawn from. Absent where
+   * nothing has been read yet, and the pane draws neither.
+   */
+  paneScreen?: LaneView | null
   /** The orchestrator's own screen, when it is running where you can see it. */
   orchestrator?: string
   /**
@@ -79,6 +102,8 @@ export interface Frame {
   terminal?: {
     screen: string
     find?: { lines: readonly string[]; line: number | null; query: string } | null
+    /** How far back it can be read, and where typing lands in it. */
+    view?: LaneView | null
   }
   /** The files of the focused agent's worktree, or of the project when there is none. */
   files?: readonly FileEntry[]
@@ -310,6 +335,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     height: rows.length,
     skin,
     pointer,
+    scrolling: state.scrolling?.area === 'panel',
     home: frame.home ?? '~/.tade',
     route: frame.route ?? null,
     spend: frame.spendView ?? null,
@@ -387,12 +413,15 @@ export function draw(state: AppState, frame: Frame): Drawn {
       }
   let drawn = overlay(window, panel, at, width, skin, !anchor)
   if (anchor) {
-    // Not faded, but still a menu: a click anywhere else closes it.
+    // Not faded, but still a menu: a click anywhere else closes it. The menu's
+    // own hits are put back where it was put, rather than counted off the
+    // front of the window's — a window whose parts a menu happens to cover
+    // whole would take that many of the menu's rows away with them.
     drawn = {
       rows: drawn.rows,
       hits: [
         ...drawn.rows.map((_, i) => rowHit(i, width, { kind: 'dismiss' })),
-        ...drawn.hits.filter((hit) => hit.target.kind !== 'dismiss').slice(window.hits.length),
+        ...shift(panel.hits, at.row, at.col),
       ],
     }
   }
@@ -586,11 +615,14 @@ interface Section {
 function renderSidebar(
   state: AppState,
   frame: Frame,
-  width: number,
+  full: number,
   height: number,
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
+  // A column of it belongs to the bar down its right; everything below is laid
+  // out in what is left.
+  const width = Math.max(1, full - BAR)
   const tasks = tasksOf(state)
   const changes = frame.changes ?? []
   const notes = frame.notes ?? []
@@ -707,11 +739,52 @@ function renderSidebar(
   // Tailing is for screens that grow at the bottom; a sidebar is read from the
   // top, so it scrolls, and never past its last row.
   const scroll = Math.max(0, Math.min(state.scroll, out.length - height))
-  const shown = stack(out.slice(scroll, scroll + height))
-  const under = Array.from({ length: height }, (_, i) =>
-    rowHit(i, width, { kind: 'scroll', area: 'sidebar' }),
+  const shown = out.slice(scroll, scroll + height)
+  while (shown.length < height) shown.push(blank(width))
+  const stacked = stack(
+    barBeside(
+      shown,
+      { total: out.length, shown: height, offset: scroll, rows: height },
+      'sidebar',
+      width,
+      state,
+      skin,
+    ),
   )
-  return { rows: shown.rows, hits: [...under, ...shown.hits] }
+  const under = Array.from({ length: height }, (_, i) =>
+    rowHit(i, full, { kind: 'scroll', area: 'sidebar' }),
+  )
+  return { rows: stacked.rows, hits: [...under, ...stacked.hits] }
+}
+
+/**
+ * Rows with a scrollbar against their right edge: each one as drawn, in the
+ * room it was given, and one more column saying where in the whole thing you
+ * are.
+ *
+ * The bar's hits carry what it was drawn from, so a drag on it can be turned
+ * back into a line to scroll to without laying the region out a second time.
+ */
+function barBeside(
+  rows: readonly { text: string; hits: Hit[] }[],
+  view: Scrolled,
+  area: ScrollArea,
+  width: number,
+  state: AppState,
+  skin: Skin,
+): { text: string; hits: Hit[] }[] {
+  const bar = barRows(view, skin, isScrolling(state, area))
+  const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
+  return Array.from({ length: view.rows }, (_, i) => ({
+    text: `${fit(rows[i]?.text ?? '', width)}${bar[i] ?? ' '}`,
+    hits: [...(rows[i]?.hits ?? []), { row: 0, from: width, to: width, target }],
+  }))
+}
+
+/** Whether the pointer is on this region's bar, or holding it. */
+function isScrolling(state: AppState, area: ScrollArea): boolean {
+  if (state.scrolling?.area === area) return true
+  return state.hover?.kind === 'scrollbar' && state.hover.area === area
 }
 
 /** The repository, the branch in front of you, and the worktree an agent works in. */
@@ -1985,6 +2058,11 @@ function renderMain(
   if (room <= 0) return stack(rows.slice(0, height))
 
   const split = shown ? splitShown(state, pane) : null
+  // The bar down the right of the agent's screen, and the column it takes from
+  // it. Only where there is one screen: a split is two, and its halves are
+  // measured against the lane sizes the window asked the driver for.
+  const lane = shown && !split ? (frame.paneScreen ?? null) : null
+  const body = lane ? width - BAR : width
   if (!shown) {
     rows.push(blank(width))
     rows.push(
@@ -2050,15 +2128,25 @@ function renderMain(
   } else if (state.paneScroll > 0) {
     // Scrolled back: exactly the lines asked for, and a way back to the newest.
     const lines = frame.screen.split('\n').slice(-(room - 1))
-    for (let gap = room - 1 - lines.length; gap > 0; gap--) rows.push(blank(width))
-    for (const line of lines) rows.push(linkedRow(line, width, skin, pointer, frame.linkers))
-    rows.push(scrolledBar(state.paneScroll, 'pane-end', width, skin, pointer))
+    for (let gap = room - 1 - lines.length; gap > 0; gap--) rows.push(blank(body))
+    for (const line of lines) rows.push(linkedRow(line, body, skin, pointer, frame.linkers))
+    rows.push(scrolledBar(state.paneScroll, 'pane-end', body, skin, pointer))
   } else {
-    const kind = pane.lanes.find((lane) => lane.id === shown)?.kind
+    const kind = pane.lanes.find((one) => one.id === shown)?.kind
     // An approval card sits at the bottom; the conversation ends above it.
     const reading = kind === 'agent' && pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
     rows.push(
-      ...laneLines(frame.screen, kind ?? 'shell', width, reading, skin, pointer, frame.linkers),
+      ...laneLines(
+        frame.screen,
+        kind ?? 'shell',
+        body,
+        reading,
+        skin,
+        pointer,
+        frame.linkers,
+        // The block where what you type lands, on the lane the keyboard is on.
+        lane && typingIn(state) === 'pane' ? lane.cursor : null,
+      ),
     )
   }
   // Anywhere on the agent's screen gives it the keyboard back, and the wheel
@@ -2072,7 +2160,27 @@ function renderMain(
     })
   }
 
-  while (rows.length < height) rows.push(blank(width))
+  while (rows.length < height) rows.push(blank(lane ? body : width))
+  if (lane) {
+    const seen = Math.max(0, height - 2)
+    rows.splice(
+      2,
+      seen,
+      ...barBeside(
+        rows.slice(2, 2 + seen),
+        {
+          total: Math.max(lane.lines, seen),
+          shown: seen,
+          offset: Math.max(0, lane.lines - seen - state.paneScroll),
+          rows: seen,
+        },
+        'pane',
+        body,
+        state,
+        skin,
+      ),
+    )
+  }
   const drawn = stack(rows.slice(0, height))
   if (pane.approval) return withApproval(drawn, pane.approval, width, height, skin, pointer)
   return drawn
@@ -2093,6 +2201,7 @@ function laneLines(
   skin: Skin,
   pointer: Pointer,
   linkers: Frame['linkers'],
+  cursor: LaneView['cursor'] | null = null,
 ): { text: string; hits: Hit[] }[] {
   const lines = screen.split('\n')
   const out: { text: string; hits: Hit[] }[] = []
@@ -2100,9 +2209,50 @@ function laneLines(
     while (lines.length > 0 && stripTerminalSequences(lines.at(-1) ?? '').trim() === '') lines.pop()
     for (let gap = rows - lines.length; gap > 0; gap--) out.push(blank(width))
   }
+  // Which row the last line captured ended on: what the cursor is counted
+  // back from, and the one thing the two anchorings above disagree about.
+  const last = kind === 'agent' ? rows - 1 : Math.min(lines.length, rows) - 1
   for (const line of lines.slice(-rows)) out.push(linkedRow(line, width, skin, pointer, linkers))
   while (out.length < rows) out.push(blank(width))
+  if (cursor) blockAt(out, last - cursor.back, cursor.column, width, skin)
   return out
+}
+
+/**
+ * The cursor, as a terminal draws it: one cell laid under what is on it, so
+ * you can see where typing will land and what it will land on.
+ *
+ * Put in place after the rows are drawn rather than while they are, because it
+ * belongs to the lane's own screen and the rows are what a capture says that
+ * screen held — and off the rows it is simply not drawn, which is what a
+ * screen scrolled back from the cursor should look like.
+ */
+function blockAt(
+  rows: { text: string; hits: Hit[] }[],
+  row: number,
+  column: number,
+  width: number,
+  skin: Skin,
+): void {
+  const on = rows[row]
+  if (!on || row < 0 || column < 0 || column >= width) return
+  const under = stripTerminalSequences(sliceByColumn(on.text, column, 1, true))
+  // A cell holding half of a wide character is not a cell a block fits in.
+  if (visibleWidth(under) > 1) return
+  rows[row] = {
+    ...on,
+    text: compositeTuiLine(on.text, skin.cursor(under === '' ? ' ' : under), column, 1, width),
+  }
+}
+
+/**
+ * Where what you type goes. The orchestrator's line takes it the moment it is
+ * open, and a panel while one is up; otherwise it is the pane or the terminal,
+ * whichever was last clicked into.
+ */
+function typingIn(state: AppState): 'pane' | 'terminal' | null {
+  if (state.panel || state.dictation !== null || state.listening) return null
+  return state.keyboard
 }
 
 /** Rows given what a click and the wheel anywhere on them mean, under what they already hold. */
@@ -2358,10 +2508,34 @@ function renderStrip(
           actions: 'terminal-split',
           skin,
           pointer,
-          first: (w, h) => terminalBody(frame.terminal, w, h, skin, state.terminalScroll, pointer),
-          second: (w, h) => terminalBody(frame.splitTerminal, w, h, skin, 0, pointer, 'split'),
+          first: (w, h) =>
+            terminalBody({
+              terminal: frame.terminal,
+              width: w,
+              room: h,
+              skin,
+              scroll: state.terminalScroll,
+              pointer,
+            }),
+          second: (w, h) =>
+            terminalBody({
+              terminal: frame.splitTerminal,
+              width: w,
+              room: h,
+              skin,
+              pointer,
+              side: 'split',
+            }),
         })
-      : terminalBody(frame.terminal, width, room, skin, state.terminalScroll, pointer)
+      : terminalBody({
+          terminal: frame.terminal,
+          width,
+          room,
+          skin,
+          scroll: state.terminalScroll,
+          pointer,
+          state,
+        })
     return { rows: [...rows, ...drawn.rows], hits: [...hits, ...shift(drawn.hits, 2)] }
   }
 
@@ -2393,15 +2567,17 @@ function renderStrip(
     return { rows: rows.slice(0, height), hits }
   }
 
+  // A column down the right of the conversation belongs to its scrollbar.
+  const inner = width - BAR
   const body: Line[] = transcriptLines(
     state.transcript,
-    width,
+    inner,
     skin,
     pointer,
     frame.now ?? 0,
     frame.linkers,
   )
-  const quiet = (text: string): Line => ({ text: fit(text, width), hits: [] })
+  const quiet = (text: string): Line => ({ text: fit(text, inner), hits: [] })
   if (state.question) {
     body.push(quiet(skin.waiting(` ? ${state.question.question}`)))
     body.push(quiet(skin.hint(`   ${state.question.candidates.join('  ·  ')}`)))
@@ -2434,17 +2610,30 @@ function renderStrip(
   const shown = isAction(state.dictation)
     ? commands.slice(0, bodyRoom)
     : body.slice(Math.max(0, end - bodyRoom), end)
-  for (let gap = bodyRoom - shown.length; gap > 0; gap--) {
-    hits.push(rowHit(rows.length, width, { kind: 'scroll', area: 'transcript' }))
-    hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
-    rows.push(' '.repeat(width))
-  }
-  for (const line of shown) {
+  const conversation: { text: string; hits: Hit[] }[] = []
+  for (let gap = bodyRoom - shown.length; gap > 0; gap--) conversation.push(blank(inner))
+  for (const line of shown) conversation.push({ text: line.text, hits: [...line.hits] })
+  // Listing commands is not reading the conversation: there is nothing to
+  // scroll through, and the bar says so.
+  const lines = isAction(state.dictation) ? bodyRoom : body.length
+  for (const row of barBeside(
+    conversation,
+    {
+      total: Math.max(lines, bodyRoom),
+      shown: bodyRoom,
+      offset: Math.max(0, lines - bodyRoom - scroll),
+      rows: bodyRoom,
+    },
+    'transcript',
+    inner,
+    state,
+    skin,
+  )) {
     // Under everything, the wheel; over that, the strip; over that, links.
     hits.push(rowHit(rows.length, width, { kind: 'scroll', area: 'transcript' }))
     hits.push(rowHit(rows.length, width, { kind: 'orchestrator' }))
-    hits.push(...shift(line.hits, rows.length))
-    rows.push(line.text)
+    hits.push(...shift(row.hits, rows.length))
+    rows.push(row.text)
   }
   const box = inputBox(state, frame, width, inputHeight, skin, pointer, voice.keys, scroll)
   for (let i = 0; i < box.rows.length; i++) {
@@ -2518,7 +2707,15 @@ function inputBox(
   const content: string[] = []
   const typed = inputRows(state, frame)
   if (open && !state.historySearch && frame.input) {
-    content.push(...typed.slice(-(height - 1)).map((line) => fit(line, width)))
+    // Every line the editor drew, and which of its own lines each one is:
+    // clicking one puts the caret where the click landed, as a text box does.
+    const drawn = typed.slice(-(height - 1))
+    const from = typed.length - drawn.length
+    drawn.forEach((line, i) => {
+      // The box's own rows: its top rule, then one per line the editor drew.
+      hits.push(rowHit(i + 1, width, { kind: 'input', line: from + i }))
+      content.push(fit(line, width))
+    })
   } else {
     const line = new Row(width, skin, pointer).space()
     if (state.historySearch) {
@@ -2607,18 +2804,33 @@ function bottomTabs(
  * A terminal's screen, tailing like an agent's. While finding in it, its
  * scrollback instead, with the line found in view and what matched lit.
  */
-function terminalBody(
-  terminal: Frame['terminal'],
-  width: number,
-  room: number,
-  skin: Skin,
-  scroll = 0,
-  pointer: Pointer = { hover: null, pressed: null },
-  side?: 'split',
-): Drawn {
+function terminalBody(opts: {
+  terminal: Frame['terminal']
+  width: number
+  room: number
+  skin: Skin
+  scroll?: number
+  pointer?: Pointer
+  /** The half beside the one in front, which has neither bar nor cursor of its own. */
+  side?: 'split'
+  /**
+   * The window, for the terminal in front: what its bar is lit by, and whether
+   * what you type goes here. Left out for a split's second half.
+   */
+  state?: AppState
+}): Drawn {
+  const { terminal, room, skin, side } = opts
+  const scroll = opts.scroll ?? 0
+  const pointer = opts.pointer ?? { hover: null, pressed: null }
+  const find = terminal?.find
+  // The bar down its right, and the column it takes: only the terminal in
+  // front, whose lane the window sized to leave room for it. Never while
+  // finding, where what is shown is the scrollback being searched and a bar
+  // drawn from the live screen would point at the wrong part of it.
+  const view = opts.state && !side && !find ? (terminal?.view ?? null) : null
+  const width = view ? opts.width - BAR : opts.width
   const rows: string[] = []
   const hits: Hit[] = []
-  const find = terminal?.find
   if (find) {
     const at = find.line ?? find.lines.length - 1
     const start = Math.max(0, Math.min(at - Math.floor(room / 2), find.lines.length - room))
@@ -2646,15 +2858,47 @@ function terminalBody(
   } else {
     const lines = (terminal?.screen ?? '').split('\n')
     for (const line of lines.slice(-room)) rows.push(fit(line, width))
+    // The block where what you type lands, where this is where it goes.
+    if (view && opts.state && typingIn(opts.state) === 'terminal') {
+      const paint = rows.map((text) => ({ text, hits: [] }))
+      blockAt(
+        paint,
+        Math.min(lines.length, room) - 1 - view.cursor.back,
+        view.cursor.column,
+        width,
+        skin,
+      )
+      rows.splice(0, rows.length, ...paint.map((row) => row.text))
+    }
   }
   while (rows.length < room) rows.push(' '.repeat(width))
   const own = hits.splice(0)
   for (let i = 0; i < rows.length; i++) {
-    if (!side) hits.push(rowHit(i, width, { kind: 'scroll', area: 'terminal' }))
-    hits.push(rowHit(i, width, side ? { kind: 'terminal', side } : { kind: 'terminal' }))
+    if (!side) hits.push(rowHit(i, opts.width, { kind: 'scroll', area: 'terminal' }))
+    hits.push(rowHit(i, opts.width, side ? { kind: 'terminal', side } : { kind: 'terminal' }))
   }
   hits.push(...own)
-  return { rows, hits }
+  if (!view || !opts.state) return { rows, hits }
+  // The bar last, over the click map: dragging it is not clicking into the
+  // terminal, and a press that did both would scroll and steal the keyboard.
+  const seen = rows.length
+  const drawn = barBeside(
+    rows.map((text, i) => ({
+      text,
+      hits: hits.filter((hit) => hit.row === i).map((hit) => ({ ...hit, row: 0 })),
+    })),
+    {
+      total: Math.max(view.lines, seen),
+      shown: seen,
+      offset: Math.max(0, view.lines - seen - scroll),
+      rows: seen,
+    },
+    'terminal',
+    width,
+    opts.state,
+    skin,
+  )
+  return stack(drawn)
 }
 
 /** The last row of a screen scrolled back: how far, and the way to the newest line. */

@@ -1,4 +1,4 @@
-import { visibleWidth } from '@earendil-works/pi-tui'
+import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
 import { hitAt } from '../src/hits.ts'
@@ -18,6 +18,7 @@ import {
   withTerminals,
   withTranscript,
 } from '../src/model.ts'
+import { COLOUR } from '../src/skin.ts'
 import { youSaid } from '../src/transcript.ts'
 import { BUTTONS, draw, renderApp, wrapPath } from '../src/view.ts'
 
@@ -395,5 +396,69 @@ describe('agent spend', () => {
     const text = plain(rows.join('\n'))
     expect(text).toContain('pagination')
     expect(text).toContain('$0.35')
+  })
+})
+
+describe('the bar down the right of what scrolls', () => {
+  const tall = () => ({ ...frame({ width: 100, height: 18 }), skin: COLOUR })
+
+  it('says where in the sidebar you are, and can be taken hold of there', () => {
+    const { rows, hits } = draw(state(), tall())
+    const sidebar = hits.find((hit) => hit.target.kind === 'scroll')
+    const width = sidebar ? sidebar.to + 1 : 0
+    const bar = hits.filter(
+      (hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'sidebar',
+    )
+    // One column of it, one hit per row, and the column it claims is the one
+    // it draws in: a bar you can take hold of where it is not is worse than none.
+    expect(bar.length).toBeGreaterThan(5)
+    for (const hit of bar) {
+      expect(hit.from).toBe(width - 1)
+      expect(hit.to).toBe(width - 1)
+      expect(plain(rows[hit.row] ?? '')[hit.from]).toMatch(/[\u2588\u2595]/)
+    }
+    // Short of room for everything the sidebar holds, it says how much is in view.
+    expect(plain(rows.join('\n'))).toContain('\u2588')
+  })
+
+  it('says how far back a terminal goes, and marks where typing lands in it', () => {
+    const terminals = {
+      ...withTerminals(state(), [{ id: 'checkout/terminals/1', project: 'checkout', name: 'x' }]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal' as const,
+    }
+    const drawn = draw(terminals, {
+      ...tall(),
+      terminal: {
+        screen: '$ pnpm test\n \u2713 48 tests\n$ ',
+        view: { lines: 400, cursor: { back: 0, column: 2 } },
+      },
+    })
+    const bar = drawn.hits.filter(
+      (hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'terminal',
+    )
+    expect(bar.length).toBeGreaterThan(0)
+    expect(bar.every((hit) => hit.to === 99)).toBe(true)
+    // Nearly all of it is behind you, so the thumb is at the foot of its track.
+    const thumb = bar.filter((hit) => plain(drawn.rows[hit.row] ?? '')[99] === '\u2588')
+    expect(thumb).toHaveLength(1)
+    expect(thumb[0]?.row).toBe(bar.at(-1)?.row)
+    // The cursor is a block laid on the cell after the prompt, and what was
+    // under it is still there.
+    const row = drawn.rows.find((one) => one.includes('48;5;255'))
+    expect(stripTerminalSequences(row ?? '').slice(0, 3)).toBe('$  ')
+  })
+
+  it('draws no cursor where typing would not go there', () => {
+    const terminals = {
+      ...withTerminals(state(), [{ id: 'checkout/terminals/1', project: 'checkout', name: 'x' }]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'pane' as const,
+    }
+    const drawn = draw(terminals, {
+      ...tall(),
+      terminal: { screen: '$ ', view: { lines: 40, cursor: { back: 0, column: 2 } } },
+    })
+    expect(drawn.rows.some((row) => row.includes('48;5;255'))).toBe(false)
   })
 })

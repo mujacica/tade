@@ -13,6 +13,7 @@ import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneOutputListener,
+  type LaneScreen,
   type LaneSpec,
   type WorkspaceCapabilities,
   type WorkspaceDriver,
@@ -231,6 +232,37 @@ export class TmuxDriver implements WorkspaceDriver {
     const all = out.split('\n')
     while (all.length > 0 && all.at(-1)?.trim() === '') all.pop()
     return all.slice(Math.max(0, all.length - opts.lines)).join('\n')
+  }
+
+  async screen(id: LaneId): Promise<LaneScreen> {
+    const lane = this.live(id)
+    // Two asks, because tmux answers them apart: how much there is to read,
+    // and where the cursor is on the screen at the bottom of it. The cursor is
+    // reported against the last line a capture would end on, so it has to be
+    // counted against the same trimming capture does.
+    const [text, where] = await Promise.all([
+      this.tmux(['capture-pane', '-p', '-t', lane.window, '-S', `-${this.opts.scrollback}`]),
+      this.tmux([
+        'display-message',
+        '-p',
+        '-t',
+        lane.window,
+        '#{cursor_x} #{cursor_y} #{pane_height}',
+      ]),
+    ])
+    const all = text.split('\n')
+    // tmux ends its output with a newline; that is not a row of anything.
+    if (all.at(-1) === '') all.pop()
+    const captured = all.length
+    while (all.length > 0 && all.at(-1)?.trim() === '') all.pop()
+    const [x = 0, y = 0, height = 0] = where.trim().split(/\s+/).map(Number)
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height) || height <= 0) {
+      return { lines: all.length, cursor: { back: 0, column: 0 } }
+    }
+    // Where the visible screen starts in what was captured: everything above
+    // it is scrollback, and the cursor's row is counted from there.
+    const top = captured - height
+    return { lines: all.length, cursor: { back: all.length - 1 - (top + y), column: x } }
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

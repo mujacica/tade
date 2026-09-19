@@ -32,7 +32,7 @@ import {
   type Unsubscribe,
   writeSetting,
 } from '@tade/core'
-import type { WorkspaceCapabilities, WorkspaceDriver } from '@tade/drivers-core'
+import type { LaneScreen, WorkspaceCapabilities, WorkspaceDriver } from '@tade/drivers-core'
 import type {
   PermissionDecision,
   RunId,
@@ -482,6 +482,11 @@ export class Workbench {
   /** The lane's screen. `styled` keeps its colour, for drawing it the way it looks. */
   capture(lane: LaneId, lines = 100, styled = false): Promise<string> {
     return this.registry.capture(lane, lines, styled)
+  }
+
+  /** How far back that screen can be read, and where typing appears in it. */
+  screen(lane: LaneId): Promise<LaneScreen> {
+    return this.registry.screen(lane)
   }
 
   resize(lane: LaneId, cols: number, rows: number): Promise<void> {

@@ -8,8 +8,9 @@ import {
   type WatchLook,
 } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
-import type { Target } from './hits.ts'
+import type { ScrollArea, Target } from './hits.ts'
 import type { Panel } from './panels.ts'
+import { offsetAt, thumbOf } from './scrollbar.ts'
 import { emptyTranscript, fromTurn, type Transcript, tadeDid } from './transcript.ts'
 
 // What the app is showing, as data.
@@ -199,6 +200,20 @@ export interface AppState {
   orchestratorDraft: string
   /** A divider being dragged. */
   resizing: 'sidebar' | 'bottom' | 'split' | 'terminal-split' | null
+  /**
+   * A scrollbar being dragged: which region's, where its track is on the
+   * screen, what it was drawn from, and where in the thumb it was taken hold
+   * of — so what it does next is a sum, not a jump to wherever the pointer is.
+   */
+  scrolling: {
+    area: ScrollArea
+    top: number
+    rows: number
+    total: number
+    shown: number
+    /** Rows between the top of the thumb and where it was pressed. */
+    grab: number
+  } | null
   /** A second lane shown with an agent's own, by task: a shell beside it, or below. */
   splits: Record<string, Split>
   /** A second terminal shown with the one in front of the bottom panel. */
@@ -274,6 +289,7 @@ export function initialState(): AppState {
     keyboard: 'pane',
     sizes: {},
     resizing: null,
+    scrolling: null,
     splits: {},
     terminalSplit: null,
     order: {},
@@ -882,6 +898,80 @@ export function toggleFolder(state: AppState, path: string): AppState {
 /** Scroll the sidebar. `draw` keeps it from going past the end. */
 export function scrollSidebar(state: AppState, rows: number): AppState {
   return { ...state, scroll: Math.max(0, state.scroll + rows) }
+}
+
+/**
+ * Lines above the first one in view, for a region that scrolls. Each keeps it
+ * its own way — a sidebar counts down from the top, a screen counts back from
+ * the newest line — and a scrollbar is drawn from the one number they have in
+ * common.
+ */
+export function offsetOf(state: AppState, area: ScrollArea, total: number, shown: number): number {
+  const back = (lines: number) => Math.max(0, total - shown - lines)
+  switch (area) {
+    case 'sidebar':
+      return Math.max(0, Math.min(state.scroll, total - shown))
+    case 'pane':
+      return back(state.paneScroll)
+    case 'terminal':
+      return back(state.terminalScroll)
+    case 'transcript':
+      return back(state.transcriptScroll)
+    case 'panel':
+      return state.panel && 'scroll' in state.panel
+        ? Math.max(0, Math.min(state.panel.scroll, Math.max(0, total - shown)))
+        : 0
+  }
+}
+
+/**
+ * Take hold of a scrollbar, at a row of the window. Grabbed on the thumb it
+ * moves with the pointer from there; grabbed on the track the thumb comes to
+ * the pointer, which is what every other scrollbar does.
+ */
+export function grabBar(
+  state: AppState,
+  bar: { area: ScrollArea; total: number; shown: number },
+  track: { top: number; rows: number },
+  y: number,
+): AppState {
+  const view = {
+    total: bar.total,
+    shown: bar.shown,
+    rows: track.rows,
+    offset: offsetOf(state, bar.area, bar.total, bar.shown),
+  }
+  const thumb = thumbOf(view)
+  const at = y - track.top
+  const size = thumb?.size ?? 1
+  const grab =
+    thumb && at >= thumb.from && at < thumb.from + size
+      ? at - thumb.from
+      : Math.floor((size - 1) / 2)
+  return scrollBarTo({ ...state, scrolling: { ...bar, ...track, grab } }, y)
+}
+
+/** Drag the bar being held to a row of the window, and scroll what it belongs to. */
+export function scrollBarTo(state: AppState, y: number): AppState {
+  const bar = state.scrolling
+  if (!bar) return state
+  const view = { total: bar.total, shown: bar.shown, rows: bar.rows, offset: 0 }
+  const offset = offsetAt(view, y - bar.top - bar.grab)
+  const back = Math.max(0, bar.total - bar.shown - offset)
+  switch (bar.area) {
+    case 'sidebar':
+      return { ...state, scroll: offset }
+    case 'pane':
+      return { ...state, paneScroll: back }
+    case 'terminal':
+      return { ...state, terminalScroll: back }
+    case 'transcript':
+      return { ...state, transcriptScroll: back }
+    case 'panel':
+      return state.panel && 'scroll' in state.panel
+        ? { ...state, panel: { ...state.panel, scroll: offset } }
+        : state
+  }
 }
 
 /** Fold or unfold a sidebar section. */

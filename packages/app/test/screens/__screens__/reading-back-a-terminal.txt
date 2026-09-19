@@ -10,10 +10,10 @@
                              █│                                                                                         
  ▾ CHANGES  3        vs main █│                                                                                         
   M package.json       +2 −1 █│                                                                                         
-  A …/webhooks.test.ts   +48 ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                          
-  M src/webhooks.ts   +12 −4 ▕│    so src/webhooks.ts needs the new constructEvent signature.                           
-                             ▕│                                                                                         
- ▾ FILES                     ▕│  ▸ Read src/webhooks.ts                                                                 
+  A …/webhooks.test.ts   +48 █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+  M src/webhooks.ts   +12 −4 █│    so src/webhooks.ts needs the new constructEvent signature.                           
+                             █│                                                                                         
+ ▾ FILES                     █│  ▸ Read src/webhooks.ts                                                                 
    ▾ src/                    ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
        webhooks.test.ts      ▕│  ▸ bash npm i stripe@15                                                                 
        webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
@@ -21,14 +21,14 @@
      package.json            ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
      README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       
                              ▕│                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator   ▐ tests ▌ ▐ ▾ ▌▐ × ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⌕ ▌ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
+ ✓ src/ledger.test.ts (4 tests) 12ms                                                                                   ▕
+ ✓ src/refunds.test.ts (9 tests) 31ms                                                                                  ▕
+ ✓ src/webhooks.test.ts (12 tests) 48ms                                                                                ▕
+ ✗ charges once when the webhook retries                                                                               █
+   AssertionError: expected 2 charges to be 1                                                                          ▕
                                                                                                                        ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+── ↑ 120 lines back                                                                                       ▐ ↓ newest ▌ ▕
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

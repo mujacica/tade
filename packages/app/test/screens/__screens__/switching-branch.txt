@@ -1,10 +1,10 @@
  ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌                                      ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━╭─ Switch branch ──────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS             ▐ │  fix▏                                                                │                        
+ ▾ AGENTS            ▐  │  fix▏                                                                │                        
                         │ on main now                                                          │                        
    none yet — + starts o│                                                                      │                        
                         │▌ + Create fix                                                        │                        
- ▾ CHANGES            vs│    fix/refund-retries                                     3 days ago │                        
+ ▾ CHANGES           vs │    fix/refund-retries                                     3 days ago │                        
    open an agent to see │    fix/webhook-signature                                 2 weeks ago │                        
                         │                                                                      │                        
  ▾ FILES                │                                                                      │                        
@@ -15,19 +15,19 @@
      package.json       │                                                                      │                        
      README.md          │                                                                      │                        
                         │                                                                      │                        
- ▸ NOTES  4           ▐ │                                                                      │                        
+ ▸ NOTES  4          ▐  │                                                                      │                        
  ▾ GIT                  │                                                                      │                        
    repo     ~/src/checko│                                                                      │                        
-   branch   tade/stripe-│                                                                      │                        
+   branch   …de/stripe-v│                                                                      │                        
    from     main        │                                                                      │                        
-   worktree …ckout-strip│                                                                      │                        
+   worktree …kout-stripe│                                                                      │                        
 ━ ▐ orchestrator ▌ ▐ + ▌│                                                                      │━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                         │                                                                      │                        
-                        │                                                                      │                        
-                        │                                                                      │                        
-                        │                                                                      │                        
-                        │ ↑↓ choose · enter switches · a new name creates it        ▐ Cancel ▌ │                        
- ❯ what you say   ◆ the ╰──────────────────────────────────────────────────────────────────────╯                        
+                        │                                                                      │                       ▕
+                        │                                                                      │                       ▕
+                        │                                                                      │                       ▕
+                        │ ↑↓ choose · enter switches · a new name creates it        ▐ Cancel ▌ │                       ▕
+ ❯ what you say   ◆ the ╰──────────────────────────────────────────────────────────────────────╯                       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

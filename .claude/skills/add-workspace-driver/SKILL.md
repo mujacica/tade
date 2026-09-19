@@ -40,6 +40,13 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   no cursor moves, no clears — because the window draws them straight into a pane. A backend with a
   screen model (tmux `capture-pane -e`) gives this for free; one without has to build it from cells,
   as the pty driver does from its headless xterm.
+- **`screen()` is what the text cannot say.** How many lines the lane holds — screen and
+  scrollback together, which is the most `capture` can return — and where the cursor is, as a
+  column and how many lines *back from the last line `capture` returns* it sits (negative when it is
+  on the empty rows below that line, which is where a program that just printed a line leaves it).
+  Measure both exactly the way your own `capture` measures, or the window draws a scrollbar and a
+  block cursor in the wrong places. The suite checks that a capture asked for more lines than there
+  are returns exactly `lines` of them.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver

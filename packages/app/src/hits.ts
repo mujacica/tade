@@ -36,6 +36,17 @@ export type Target =
   | { kind: 'menu'; subject: MenuSubject }
   /** Somewhere the wheel scrolls, laid under what is drawn there. */
   | { kind: 'scroll'; area: ScrollArea }
+  /**
+   * The bar down the right of it: where you are, and a handle to move. It
+   * carries what it was drawn from, because a drag has to be turned back into
+   * a line to scroll to and the drawing is the only thing that knows the sums.
+   */
+  | { kind: 'scrollbar'; area: ScrollArea; total: number; shown: number }
+  /**
+   * A line of the orchestrator's input, by the visual line the editor drew:
+   * clicking one puts the caret where the click was, as any text box does.
+   */
+  | { kind: 'input'; line: number }
   /** A file the task changed: clicking it shows the change. */
   | { kind: 'change'; task: string; path: string }
   /** A link on an agent's screen. */
@@ -105,10 +116,29 @@ export function pressable(target: Target | null): boolean {
     target.kind !== 'orchestrator' &&
     target.kind !== 'dismiss' &&
     target.kind !== 'scroll' &&
+    target.kind !== 'scrollbar' &&
+    target.kind !== 'input' &&
     target.kind !== 'terminal' &&
     target.kind !== 'pane' &&
     target.kind !== 'divider'
   )
+}
+
+/**
+ * The rows one thing covers: where it starts and how many rows it is. Read
+ * back out of the map rather than remembered while drawing, because a region's
+ * rows are moved to where the region ended up long after it drew them — so
+ * only the map knows where a scrollbar actually is.
+ */
+export function extentOf(hits: readonly Hit[], target: Target): { top: number; rows: number } {
+  let top = Number.POSITIVE_INFINITY
+  let bottom = -1
+  for (const hit of hits) {
+    if (!sameTarget(hit.target, target)) continue
+    top = Math.min(top, hit.row)
+    bottom = Math.max(bottom, hit.row)
+  }
+  return bottom < 0 ? { top: 0, rows: 0 } : { top, rows: bottom - top + 1 }
 }
 
 /** Move a region's hits to where the region was put. */

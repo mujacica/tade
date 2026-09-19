@@ -68,6 +68,24 @@ export interface CaptureOptions {
   styled?: boolean
 }
 
+/**
+ * What a lane's screen is like around the text `capture` returns: how far back
+ * it can be read, and where what you type lands. Neither can be read out of the
+ * text itself, and both are what a window needs to draw a scrollbar that says
+ * where you are and a cursor that says where you are typing.
+ */
+export interface LaneScreen {
+  /** Lines the screen and everything kept above it hold together: the most `capture` can return. */
+  lines: number
+  /**
+   * Where what you type appears: the column, and how many lines above the last
+   * line `capture` returns it sits — 0 on that line. Negative where the cursor
+   * is below it, on the empty rows a capture leaves out, which is where a
+   * program that has just printed a line leaves it.
+   */
+  cursor: { back: number; column: number }
+}
+
 export type LaneOutputListener = (chunk: Uint8Array) => void
 export type LaneExitListener = (exit: { code: number | null; signal: number | null }) => void
 
@@ -89,6 +107,8 @@ export interface WorkspaceDriver {
   write(lane: LaneId, data: Uint8Array): Promise<void>
   /** A rendered snapshot of the screen, not a soup of escape sequences. */
   capture(lane: LaneId, opts: CaptureOptions): Promise<string>
+  /** How far back that snapshot can go, and where typing appears in it. */
+  screen(lane: LaneId): Promise<LaneScreen>
   resize(lane: LaneId, cols: number, rows: number): Promise<void>
   focus(lane: LaneId): Promise<void>
   setTitle(lane: LaneId, title: string): Promise<void>

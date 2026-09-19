@@ -1,33 +1,33 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-                              │─────────────────────────────────────────────────────────────────────────────────────────
- ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
- ▐   wants you to approve … ▌ │                                                                                         
-                              │                                                                                         
-   ⠋ refunds          $0.62   │                                                                                         
+ ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
+ ▐   wants you to approve… ▌ █│                                                                                         
+                             █│                                                                                         
+   ⠋ refunds         $0.62   █│                                                                                         
      working            ╭─ New note ───────────────────────────────────────────────────── esc ─╮                        
                         │                                                                      │                        
- ▾ CHANGES  3         vs│ NOTE ABOUT CHECKOUT                                                  │                        
-  M package.json        │  The staging key rotates on the 1st▏                                 │                        
-  A src/webhooks.test.ts│                                                                      │                        
-  M src/webhooks.ts    +│ ◉ About checkout   ○ About everything                                │                        
+ ▾ CHANGES  3        vs │ NOTE ABOUT CHECKOUT                                                  │                        
+  M package.json       +│  The staging key rotates on the 1st▏                                 │                        
+  A …/webhooks.test.ts  │                                                                      │                        
+  M src/webhooks.ts   +1│ ◉ About checkout   ○ About everything                                │                        
                         │ Kept word for word. Saying "remember …" to Tade does the same.       │                        
  ▾ FILES                │                                                                      │                        
    ▾ src/               │                                           ▐ Cancel ▌ ▐ Save note ⏎ ▌ │                        
        webhooks.test.ts ╰──────────────────────────────────────────────────────────────────────╯                        
-       webhooks.ts            │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   ▸ test/                    │  │ bash  npm i stripe@15                                        │                       
-     package.json             │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
-     README.md                │  ╰──────────────────────────────────────────────────────────────╯                       
-                              │                                                                                         
+       webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
+     package.json            ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+     README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+                             ▕│                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

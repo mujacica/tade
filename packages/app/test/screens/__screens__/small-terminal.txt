@@ -1,23 +1,23 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2      ▐  +  ▌ │ checkou…  ▐ agent ▌  shell   ▐ + ▌                  
-                          │─────────────────────────────────────────────────────
- ▐ ! stripe-v15   $1.26 ▌ │    so src/webhooks.ts needs the new constructEvent s
- ▐   wants you to appr… ▌ │                                                     
-                          │  ▸ Read src/webhooks.ts                             
-   ⠋ refunds      $0.62   │  ▸ Edit src/webhooks.ts  +12 −4                     
-     working              │  ▸ bash npm i stripe@15                             
-                          │  ╭─ wants approval ──────────────────────────────╮  
- ▾ CHANGES  3     vs main │  │ bash  npm i stripe@15                         │  
-  M package.json    +2 −1 │  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
-  A …ebhooks.test.ts  +48 │  ╰───────────────────────────────────────────────╯  
-  M …/webhooks.ts  +12 −4 │                                                     
+ ▾ AGENTS  2     ▐  +  ▌ █│ checkou…  ▐ agent ▌  shell   ▐ + ▌                  
+                         █│─────────────────────────────────────────────────────
+ ▐ ! stripe-v15  $1.26 ▌ █│    so src/webhooks.ts needs the new constructEvent s
+ ▐   wants you to app… ▌ █│                                                     
+                         █│  ▸ Read src/webhooks.ts                             
+   ⠋ refunds     $0.62   ▕│  ▸ Edit src/webhooks.ts  +12 −4                     
+     working             ▕│  ▸ bash npm i stripe@15                             
+                         ▕│  ╭─ wants approval ──────────────────────────────╮  
+ ▾ CHANGES  3    vs main ▕│  │ bash  npm i stripe@15                         │  
+  M package.json   +2 −1 ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                       │  
+  A …bhooks.test.ts  +48 ▕│  ╰───────────────────────────────────────────────╯  
+  M …webhooks.ts  +12 −4 ▕│                                                     
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                 
-                                                                                
-                                                                                
-                                                                                
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools           
+                                                                               ▕
+                                                                               ▕
+                                                                               ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools          ▕
 ─────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                             type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────

@@ -61,6 +61,12 @@ export interface Skin {
   faded(text: string): string
   /** A link under the pointer. */
   link(text: string): string
+  /**
+   * The block where what you type lands: one cell, the character under it kept
+   * so the cursor never hides what it sits on. Exactly one cell wide either
+   * way — a cursor that changes a row's width tears the screen it is on.
+   */
+  cursor(text: string): string
 
   /** `▐ label ▌`, exactly label + 4 columns. */
   button(label: string, look: Look): string
@@ -236,6 +242,9 @@ export const PLAIN: Skin = {
   hint: identity,
   faded: identity,
   link: identity,
+  // Without colour nothing can be laid under a letter, so only an empty cell
+  // can show the cursor — which is where it is nine times in ten.
+  cursor: (text) => (text.trim() === '' ? '█' : text),
   button: (label) => `[ ${label} ]`,
   tabbed: (label, on) => (on ? `[ ${label} ]` : `  ${label}  `),
   keycap: (label) => `[${label}]`,
@@ -273,6 +282,7 @@ export const COLOUR: Skin = {
   hint: paint(fg(GREY.quiet)),
   faded: paint(fg(GREY.faded)),
   link: paint(`${fg(TONE.amber)}${ESC}4m`),
+  cursor: paint(`${bg(GREY.bright)}${fg(TONE.ink)}`),
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
     return pill(label, ground, ink, bold)

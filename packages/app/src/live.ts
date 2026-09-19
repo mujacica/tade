@@ -26,6 +26,7 @@ import {
   watchedFrom,
   workedFrom,
 } from '@tade/core'
+import type { LaneScreen } from '@tade/drivers-core'
 import { collectStatus, git } from '@tade/status'
 import { terminalsFrom, type Workbench } from '@tade/workbench'
 import { livenessFrom } from '@tade/workbench/lane-liveness'
@@ -586,6 +587,20 @@ export class Live {
     } catch {
       // A lane that just exited is not an error worth showing.
       return ''
+    }
+  }
+
+  /**
+   * How far back a lane can be read, and where typing appears in it — what a
+   * scrollbar and a cursor are drawn from. Nothing when it has no lane, or
+   * when the lane went away while we asked.
+   */
+  async screen(lane: string | null): Promise<LaneScreen | null> {
+    if (!lane) return null
+    try {
+      return await this.opts.client.screen(lane as never)
+    } catch {
+      return null
     }
   }
 

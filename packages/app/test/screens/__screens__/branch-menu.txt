@@ -1,21 +1,21 @@
  ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌                                      ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS             ▐  +  ▌ │                                                                                         
-                              │   Nothing is running in checkout.                                                       
-   none yet — + starts one    │                                                                                         
-                              │   ▐ + New agent ▌ ▐ Open project ▌                                                      
- ▾ CHANGES            vs main │                                                                                         
-   open an agent to see       │   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
-                              │                                                                                         
- ▾ FILES                      │                                                                                         
-   ▾ src/                     │                                                                                         
-       webhooks.test.ts       │                                                                                         
-       webhooks.ts            │                                                                                         
-   ▸ test/                    │                                                                                         
-     package.json             │                                                                                         
-     README.md                │                                                                                         
-                              │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
+ ▾ AGENTS            ▐  +  ▌ ▕│                                                                                         
+                             ▕│   Nothing is running in checkout.                                                       
+   none yet — + starts one   ▕│                                                                                         
+                             ▕│   ▐ + New agent ▌ ▐ Open project ▌                                                      
+ ▾ CHANGES           vs main ▕│                                                                                         
+   open an agent to see      ▕│   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
+                             ▕│                                                                                         
+ ▾ FILES                     ▕│                                                                                         
+   ▾ src/                    ▕│                                                                                         
+       webhooks.test.ts      ▕│                                                                                         
+       webhooks.ts           ▕│                                                                                         
+   ▸ test/                   ▕│                                                                                         
+     package.json            ▕│                                                                                         
+     README.md               ▕│                                                                                         
+                             ▕│                                                                                         
+ ▸ NOTES  4          ▐  +  ▌ ▕│                                                                                         
  ▾ G╭─ main ─────────────────────╮                                                                                      
    r│▌ Switch branch…            │                                                                                      
    b│  New branch…               │                                                                                      
@@ -23,11 +23,11 @@
     │────────────────────────────│                                                                                      
 ━ ▐ │  Copy branch name          │━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
     │  Copy path                 │                                                                                      
-    ╰────────────────────────────╯                                                                                      
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+    ╰────────────────────────────╯                                                                                     ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

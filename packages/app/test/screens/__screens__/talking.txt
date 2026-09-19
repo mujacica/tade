@@ -1,20 +1,20 @@
  ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌    ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search    ● TX 0:04  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
-                              │─────────────────────────────────────────────────────────────────────────────────────────
- ▐ ! stripe-v15       $1.26 ▌ │                                                                                         
- ▐   wants you to approve … ▌ │                                                                                         
-                              │  ● Upgrading stripe to v15. The webhook signature API changed,                          
-   ⠋ refunds          $0.62   │    so src/webhooks.ts needs the new constructEvent signature.                           
-     working                  │                                                                                         
-                              │  ▸ Read src/webhooks.ts                                                                 
- ▾ CHANGES  3         vs main │  ▸ Edit src/webhooks.ts  +12 −4                                                         
-  M package.json        +2 −1 │  ▸ bash npm i stripe@15                                                                 
-  A src/webhooks.test.ts  +48 │  ╭─ wants approval ─────────────────────────────────────────────╮                       
-  M src/webhooks.ts    +12 −4 │  │ bash  npm i stripe@15                                        │                       
-                              │  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
- ▾ FILES                      │  ╰──────────────────────────────────────────────────────────────╯                       
-   ▾ src/                     │                                                                                         
+ ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
+ ▐   wants you to approve… ▌ █│                                                                                         
+                             █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+   ⠋ refunds         $0.62   █│    so src/webhooks.ts needs the new constructEvent signature.                           
+     working                 █│                                                                                         
+                             ▕│  ▸ Read src/webhooks.ts                                                                 
+ ▾ CHANGES  3        vs main ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+  M package.json       +2 −1 ▕│  ▸ bash npm i stripe@15                                                                 
+  A …/webhooks.test.ts   +48 ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+  M src/webhooks.ts   +12 −4 ▕│  │ bash  npm i stripe@15                                        │                       
+                             ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+ ▾ FILES                     ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   ▾ src/                    ▕│                                                                                         
 ━  ● TX  listening 0:04 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ release to send · esc cancels ━
                                                                                                                         
                                                                                                                         

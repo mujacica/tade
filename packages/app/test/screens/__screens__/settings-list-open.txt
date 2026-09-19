@@ -10,7 +10,7 @@
         │▌ Voice                 │ Mode              ◉ Hold to talk   ○ Press to start, press to stop          │        
  ▾ CHANG│  Window                │                                                                             │        
   M pack│  Projects           3  │▌Speech to text     whisper · base.en · on this machine  ▾      ↻ on restart │        
-  A src/│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
+  A …/we│  Budgets           ● 1 │                   ╭─  ───────────────────────────────────── ▴ ─╮            │        
   M src/│  Reporting             │ Microphone        │  ▏                                         │ on restart │        
         │  Keys                  │                   │ ON THIS MACHINE            private, no key │            │        
  ▾ FILES│  Accounts          ● 1 │ Muted             │▌ whisper · base.en · on this machine     ✓ │            │        
@@ -23,11 +23,11 @@
         │                        │                                                                             │        
 ━ ▐ orch│                        │                                                                             │ ▐ ▾ ▌ ━
         │                        │                                                                             │        
-        │                        │                                                                             │        
-        │                        │                                                                             │        
-        │                        │ ● Saved as you change it.                                                   │        
-        │                        │                                               ▐ Open config.yaml ▌ ▐ Done ▌ │        
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯        
+        │                        │                                                                             │       ▕
+        │                        │                                                                             │       ▕
+        │                        │ ● Saved as you change it.                                                   │       ▕
+        │                        │                                               ▐ Open config.yaml ▌ ▐ Done ▌ │       ▕
+ ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

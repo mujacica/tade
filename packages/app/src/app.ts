@@ -74,6 +74,7 @@ import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
 import {
+  extentOf,
   type Hit,
   hitAt,
   pressable,
@@ -112,6 +113,7 @@ import {
   focusNumber,
   focusTask,
   glyph,
+  grabBar,
   initialState,
   keyAction,
   laneShown,
@@ -131,6 +133,7 @@ import {
   removeAttachment,
   resizeTo,
   type ScheduleView,
+  scrollBarTo,
   scrollSidebar,
   scrollTranscript,
   searchKey,
@@ -236,6 +239,7 @@ import {
 } from './queue.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
+import { BAR } from './scrollbar.ts'
 import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } from './search.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
@@ -253,7 +257,7 @@ import {
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
-import { draw, type Frame } from './view.ts'
+import { draw, type Frame, type LaneView } from './view.ts'
 import {
   formattable,
   formattedLines,
@@ -297,6 +301,14 @@ const MAX_SPEECH_MS = 120_000
 
 const HELP = 'tab moves · / lists commands · ctrl+space talks · ctrl+c quits'
 
+/** Two readings of a lane's screen that say the same thing, and so redraw nothing. */
+function same(a: LaneView | null, b: LaneView | null): boolean {
+  if (!a || !b) return a === b
+  return (
+    a.lines === b.lines && a.cursor.back === b.cursor.back && a.cursor.column === b.cursor.column
+  )
+}
+
 /** A printable key, which is somebody starting to type rather than a shortcut. */
 function printable(data: string): boolean {
   return data.length === 1 && data >= ' ' && data !== '\x7f'
@@ -311,6 +323,13 @@ export type PointerEvent =
   | { kind: 'wheel'; area: ScrollArea; rows: number }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
+  /** A scrollbar taken hold of: what it was drawn from, where its track is, and where it was pressed. */
+  | {
+      kind: 'take'
+      bar: { area: ScrollArea; total: number; shown: number }
+      track: { top: number; rows: number }
+      y: number
+    }
   | { kind: 'drag'; x: number; y: number }
   /** An agent dragged along the list: it would land at place `to` if let go now. */
   | { kind: 'reorder'; task: string; to: number }
@@ -430,6 +449,20 @@ class Window implements Component {
         if (event.button === 'left' && target?.kind === 'divider') {
           this.dragging = true
           return { capture: true, render: this.onPointer({ kind: 'grab', edge: target.edge }) }
+        }
+        // So does a scrollbar. Where its track is on the screen is read back
+        // out of the map: the region that drew it no longer knows where it ended up.
+        if (event.button === 'left' && target?.kind === 'scrollbar') {
+          this.dragging = true
+          return {
+            capture: true,
+            render: this.onPointer({
+              kind: 'take',
+              bar: { area: target.area, total: target.total, shown: target.shown },
+              track: extentOf(this.hits, target),
+              y: event.y,
+            }),
+          }
         }
         // A right-click is a click the moment it is pressed: the terminal
         // reports no click for it, and a menu should not wait for a release.
@@ -616,6 +649,13 @@ export class App {
   private readonly watching = new Map<'pane' | 'terminal', { lane: string; stop: () => void }>()
   /** The terminal in front, as last captured. */
   private terminalScreen = ''
+  /**
+   * What the driver says about the two screens in front — how far back each
+   * goes, and where typing lands in it. Read beside the capture, because a
+   * scrollbar drawn from one frame's text and another frame's depth jumps.
+   */
+  private paneView: LaneView | null = null
+  private terminalView: LaneView | null = null
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
@@ -1173,7 +1213,12 @@ export class App {
         keys: keyCaps(this.opts.config.surfaces.voice.talk.key),
         available: this.opts.recorder !== undefined,
       },
-      terminal: { screen: this.terminalScreen, find: this.findView() },
+      terminal: {
+        screen: this.terminalScreen,
+        find: this.findView(),
+        view: this.terminalView,
+      },
+      paneScreen: this.paneView,
       home: tilde(this.opts.home),
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
@@ -1256,7 +1301,19 @@ export class App {
       case 'grab':
         this.state = { ...this.state, resizing: event.edge }
         return true
-      case 'drag':
+      case 'take':
+        this.state = grabBar(this.state, event.bar, event.track, event.y)
+        // A screen scrolled back is read further back than it is tall: ask for
+        // the lines now rather than at the next beat.
+        if (event.bar.area === 'pane' || event.bar.area === 'terminal') this.soonTick()
+        return true
+      case 'drag': {
+        const bar = this.state.scrolling
+        if (bar) {
+          this.state = scrollBarTo(this.state, event.y)
+          if (bar.area === 'pane' || bar.area === 'terminal') this.soonTick()
+          return true
+        }
         if (!this.state.resizing) return false
         if (this.state.resizing === 'split' || this.state.resizing === 'terminal-split') {
           this.state = this.dragSplit(this.state.resizing, event)
@@ -1264,6 +1321,7 @@ export class App {
         }
         this.state = resizeTo(this.state, event, { height: Math.max(6, this.terminal.rows) })
         return true
+      }
       case 'move': {
         if (sameTarget(this.state.hover, event.target)) return false
         const shapeOf = (target: Target | null) =>
@@ -1290,6 +1348,10 @@ export class App {
         this.state = dragAgent(this.state, event.task, event.to)
         return true
       case 'release':
+        if (this.state.scrolling) {
+          this.state = { ...this.state, scrolling: null, pressed: null }
+          return true
+        }
         if (this.state.resizing) {
           // Where you let go is where it stays, this time and next.
           this.state = { ...this.state, resizing: null }
@@ -1718,6 +1780,25 @@ export class App {
         // The keyboard goes to the orchestrator's line; the agent you were
         // watching stays in view behind it, a click away.
         if (this.state.dictation === null) this.state = setDictation(this.state, '')
+        break
+      case 'input':
+        // A click in what you have typed puts the caret there, as it does in
+        // any text box. The editor works out the column itself, from the same
+        // line it drew: it knows where its own padding and wrapping are.
+        this.editor.handleMouse({
+          type: 'click',
+          button: 'left',
+          x: at.x,
+          // Its own rows: the rule it draws above the text, then the lines.
+          y: target.line + 1,
+          screenX: at.x,
+          screenY: at.y,
+          width: this.terminal.columns,
+          height: this.terminal.rows,
+          shift: false,
+          alt: false,
+          ctrl: false,
+        })
         break
       case 'file':
       case 'place':
@@ -4063,7 +4144,7 @@ export class App {
     const pane = this.state.panes.find((p) => p.task === this.state.focused)
     const lane = pane ? laneShown(this.state, pane) : null
     const split = pane ? splitShown(this.state, pane) : null
-    const halves = this.halves(this.paneSize(), split)
+    const halves = this.halves(this.paneSize(split !== null), split)
     const size = halves.first
     if (lane) await this.fitLane(lane, size)
     this.watch(lane)
@@ -4082,6 +4163,13 @@ export class App {
       size.rows,
       'paneScroll',
     )
+    // Only for the one screen the bar and the cursor are drawn on: a split is
+    // two lanes and gets neither.
+    const view = split ? null : ((await this.live?.screen(lane)) ?? null)
+    if (!same(view, this.paneView)) {
+      this.paneView = view
+      this.draw()
+    }
     const terminal = await this.captureTerminal()
     // While the orchestrator or an agent down the side works, its spinner is news every frame.
     const working =
@@ -4172,12 +4260,15 @@ export class App {
     })
     if (!terminal || this.state.bottomMode === 'min') {
       this.watch(null, 'terminal')
+      this.terminalView = null
       return false
     }
     const split = terminalSplitShown(this.state)
     const halves = this.halves(
       {
-        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1),
+        // Less the scrollbar's column, which the window draws and the lane
+        // must not: a split has none, and takes the width back.
+        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1 - (split ? 0 : BAR)),
         rows: Math.max(1, layout.stripHeight - 2),
       },
       split,
@@ -4204,6 +4295,11 @@ export class App {
       size.rows,
       'terminalScroll',
     )
+    const view = split ? null : ((await this.live?.screen(terminal.id)) ?? null)
+    if (!same(view, this.terminalView)) {
+      this.terminalView = view
+      changed = true
+    }
     if (screen === this.terminalScreen) return changed
     this.terminalScreen = screen
     return true
@@ -4444,12 +4540,17 @@ export class App {
   }
 
   /** The agent's part of the window: the pane, less its title and rule. */
-  private paneSize(): { cols: number; rows: number } {
+  private paneSize(split = false): { cols: number; rows: number } {
     const layout = resolveLayout(this.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
-    return { cols: Math.max(20, layout.mainWidth), rows: Math.max(4, layout.bodyHeight - 2) }
+    // The scrollbar's column is the window's, not the lane's: a lane sized to
+    // the whole pane would draw its last column under the bar.
+    return {
+      cols: Math.max(20, layout.mainWidth - (split ? 0 : BAR)),
+      rows: Math.max(4, layout.bodyHeight - 2),
+    }
   }
 
   /**

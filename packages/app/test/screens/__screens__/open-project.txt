@@ -10,7 +10,7 @@
           │                              │                                                                   │          
  ▾ CHANGES│                              │                                                                   │          
   M packag│                              │                                                                   │          
-  A src/we│                              │                                                                   │          
+  A …/webh│                              │                                                                   │          
   M src/we│                              │                                                                   │          
           │                              │                                                                   │          
  ▾ FILES  │                              │                                                                   │          
@@ -23,11 +23,11 @@
           │ ▲ payroll isn't a git repository. Agents work in git worktrees,                                  │          
 ━ ▐ orches│   so Tade needs one before it can start work there.                                              │ ▌ ▐ ▾ ▌ ━
           │   ■ git init, and commit what's there as the first commit                                        │          
-          │                                                                                                  │          
-          │ Name   payroll                                                 ▐ Cancel ▌ ▐ Open ~/src/payroll ▌ │          
-          │ click to choose · click again or → to go in · ← up · enter opens                                 │          
-          ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯          
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+          │                                                                                                  │         ▕
+          │ Name   payroll                                                 ▐ Cancel ▌ ▐ Open ~/src/payroll ▌ │         ▕
+          │ click to choose · click again or → to go in · ← up · enter opens                                 │         ▕
+          ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯         ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

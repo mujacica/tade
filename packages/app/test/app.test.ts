@@ -1186,9 +1186,7 @@ describe('the window, wired up', () => {
     await until('marked in the queue', () =>
       screenOf(terminal.written).some((row) => /! Rain/.test(row)),
     )
-    expect(screenOf(terminal.written).some((row) => row.includes('weather · could not l'))).toBe(
-      true,
-    )
+    expect(screenOf(terminal.written).some((row) => row.includes('weather · could not'))).toBe(true)
   }, 90_000)
 
   it('turns a watch on for the orchestrator: what it finds is told, and what cannot be kept is refused', async () => {
@@ -1388,6 +1386,53 @@ describe('the window, wired up', () => {
       scope: 'app',
     })
   })
+
+  it('scrolls the sidebar by dragging the bar down its right', async () => {
+    // Short of room, so there is more in the sidebar than fits and the bar has
+    // a thumb to take hold of.
+    terminal.columns = 100
+    terminal.rows = 14
+    await start()
+    await until('the first frame', () =>
+      screenOf(terminal.written).some((row) => row.includes('AGENTS')),
+    )
+    const lines = screenOf(terminal.written)
+    const top = lines.findIndex((line) => line.includes('AGENTS'))
+    const bar = (lines[top] ?? '').indexOf('\u2502') - 1
+    expect(bar).toBeGreaterThan(10)
+    const thumb = lines.findIndex((line) => line[bar] === '\u2588')
+    expect(thumb).toBeGreaterThanOrEqual(top)
+    // Pressed on the thumb, dragged to the foot of the track, let go.
+    terminal.press(`\x1b[<0;${bar + 1};${thumb + 1}M`)
+    terminal.press(`\x1b[<32;${bar + 1};${thumb + 6}M`)
+    terminal.press(`\x1b[<0;${bar + 1};${thumb + 6}m`)
+    await until(
+      'the sidebar scrolled',
+      () => !(screenOf(terminal.written)[top] ?? '').includes('AGENTS'),
+    )
+  }, 30_000)
+
+  it('puts the caret where you click in what you have typed', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Clicking the line opens it; then it takes what you type.
+    const line = find('Ask Tade anything')
+    click(line.col, line.row)
+    await until('the line open', () =>
+      screenOf(terminal.written).some((row) => row.includes('enter sends')),
+    )
+    for (const char of 'abcdef') terminal.press(char)
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('abcdef')),
+    )
+    // A click in the middle of it, and then a letter: it lands where the click was.
+    const typed = find('abcdef')
+    click(typed.col + 2, typed.row)
+    terminal.press('X')
+    await until('the caret moved', () =>
+      screenOf(terminal.written).some((row) => row.includes('abXcdef')),
+    )
+  }, 30_000)
 
   it('moves an agent to where it is dragged in the list, and remembers it there', async () => {
     await start()

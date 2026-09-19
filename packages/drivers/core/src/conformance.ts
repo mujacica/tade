@@ -442,6 +442,34 @@ export function testWorkspaceDriver(
       expect(few).toContain('got:n11')
     })
 
+    // A window draws a scrollbar and a cursor from these two numbers, and
+    // nothing in the captured text can tell it either: how far back the lane
+    // goes, and where what you type lands in what it just drew.
+    it('says how far back it can be read, and where typing appears', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const first = await driver.screen(s.id)
+      expect(first.lines).toBeGreaterThan(0)
+      for (let i = 0; i < 40; i++) await driver.write(s.id, line(`n${i}`))
+      await waitFor(s.id, 'got:n39')
+      const after = await driver.screen(s.id)
+      // Forty lines printed is forty lines further back to read, whatever the
+      // screen is tall: a depth that stops at the screen is a scrollbar that lies.
+      expect(after.lines).toBeGreaterThan(first.lines + 30)
+      // Asked for more lines than there are, a capture returns exactly that many.
+      expect((await capture(s.id, 1_000)).split('\n').length).toBe(after.lines)
+      // The child prints whole lines, so it leaves the cursor at the start of
+      // the empty row under the last of them — the row a capture leaves out.
+      expect(after.cursor.column).toBe(0)
+      expect(after.cursor.back).toBe(-1)
+      // A prompt drawn without a newline: typing lands on the last line captured.
+      await driver.write(s.id, line('prompt'))
+      await until(async () => (await driver.screen(s.id)).cursor.back === 0)
+      const typing = await driver.screen(s.id)
+      expect(typing.cursor).toEqual({ back: 0, column: 2 })
+    })
+
     // Closing Tade and opening it again is the ordinary case, not the
     // exceptional one, so a driver whose lanes outlive us has to be able to
     // walk back into them: finding a lane is worth nothing if the handle it

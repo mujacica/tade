@@ -5,6 +5,7 @@ import { type LaneId, LaneKind } from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
+  type LaneScreen,
   type LaneSpec,
   type WorkspaceDriver,
 } from '@tade/drivers-core'
@@ -283,6 +284,12 @@ export class LaneRegistry {
   async capture(id: LaneId, lines: number, styled = false): Promise<string> {
     this.requireAlive(id)
     return this.driver.capture(id, { lines, ...(styled ? { styled } : {}) })
+  }
+
+  /** How far back that lane can be read, and where typing appears in it. */
+  async screen(id: LaneId): Promise<LaneScreen> {
+    this.requireAlive(id)
+    return this.driver.screen(id)
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

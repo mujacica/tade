@@ -1,55 +1,55 @@
  ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌           ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2          ▐  +  ▌ │ checkout › add-refunds  ! held                          ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
-                              │─────────────────────────────────────────────────────────────────────────────────────────
-   ✕ fix-charge               │                                                                                         
-     tests failed twice       │  ! Held: fix-charge failed: tests failed twice.                                         
-                              │    It will not start by itself. What should happen?                                     
-   ⠋ bump-mailer              │                                                                                         
-     working                  │  ▐ Wait for a retry ▌ ▐ Start anyway ▌ ▐ Remove ▌                                       
-                              │                                                                                         
- ▾ SMART QUEUE  8    ▐ plan ▌ │  WAITS ON                                                                               
-   all  next  timed   ‖ pause │  ✕ fix-charge  tests failed twice                                                       
-                              │    both change src/charge.ts                                                            
- ▐ ! add-refunds       held ▌ │                                                                                         
- ▐   ◆ fix-charge failed: … ▌ │  WILL BE TOLD                                                                           
-                              │  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
-   ◌ docs-typos        next   │                                                                                         
-     ◆ waiting for room       │  TOUCHES    src/refunds.ts, src/charge.ts                                               
-                              │  FINISHES   when its agent says it has finished — the usual choice                      
- ▐ ◌ refund-emai…  ‖  ×  ≡  ▌ │  FROM       the orchestrator                                                            
- ▐   ◆ after add-refunds +1 ▌ │                                                                                         
-                              │                                                                                         
-   ◷ release-notes    18:00   │                                                                                         
-     ❯ waits for its time     │                                                                                         
-                              │                                                                                         
-   ‖ perf-check      paused   │                                                                                         
-     ❯ paused                 │                                                                                         
-                              │                                                                                         
-   ↻ morning brief    08:45   │                                                                                         
-     ◆ every weekday at 08…   │                                                                                         
-                              │                                                                                         
-   ↻ deps weekly      09:00   │                                                                                         
-     ❯ every Monday at 09:…   │                                                                                         
-                              │                                                                                         
-   ‖ perf nightly    paused   │                                                                                         
-     ❯ every day at 02:00     │                                                                                         
-                              │                                                                                         
- ▸ CHANGES  3         vs main │                                                                                         
- ▸ FILES                      │                                                                                         
- ▸ NOTES  4           ▐  +  ▌ │                                                                                         
- ▸ GIT                        │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
-                              │                                                                                         
+ ▾ AGENTS  2         ▐  +  ▌ ▕│ checkout › add-refunds  ! held                          ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
+                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
+   ✕ fix-charge              ▕│                                                                                         
+     tests failed twice      ▕│  ! Held: fix-charge failed: tests failed twice.                                         
+                             ▕│    It will not start by itself. What should happen?                                     
+   ⠋ bump-mailer             ▕│                                                                                         
+     working                 ▕│  ▐ Wait for a retry ▌ ▐ Start anyway ▌ ▐ Remove ▌                                       
+                             ▕│                                                                                         
+ ▾ SMART QUEUE  8   ▐ plan ▌ ▕│  WAITS ON                                                                               
+   all  next  timed  ‖ pause ▕│  ✕ fix-charge  tests failed twice                                                       
+                             ▕│    both change src/charge.ts                                                            
+ ▐ ! add-refunds      held ▌ ▕│                                                                                         
+ ▐   ◆ fix-charge failed:… ▌ ▕│  WILL BE TOLD                                                                           
+                             ▕│  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
+   ◌ docs-typos       next   ▕│                                                                                         
+     ◆ waiting for room      ▕│  TOUCHES    src/refunds.ts, src/charge.ts                                               
+                             ▕│  FINISHES   when its agent says it has finished — the usual choice                      
+ ▐ ◌ refund-ema…  ‖  ×  ≡  ▌ ▕│  FROM       the orchestrator                                                            
+ ▐   ◆ after add-refunds … ▌ ▕│                                                                                         
+                             ▕│                                                                                         
+   ◷ release-notes   18:00   ▕│                                                                                         
+     ❯ waits for its time    ▕│                                                                                         
+                             ▕│                                                                                         
+   ‖ perf-check     paused   ▕│                                                                                         
+     ❯ paused                ▕│                                                                                         
+                             ▕│                                                                                         
+   ↻ morning brief   08:45   ▕│                                                                                         
+     ◆ every weekday at 0…   ▕│                                                                                         
+                             ▕│                                                                                         
+   ↻ deps weekly     09:00   ▕│                                                                                         
+     ❯ every Monday at 09…   ▕│                                                                                         
+                             ▕│                                                                                         
+   ‖ perf nightly   paused   ▕│                                                                                         
+     ❯ every day at 02:00    ▕│                                                                                         
+                             ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▸ FILES                     ▕│                                                                                         
+ ▸ NOTES  4          ▐  +  ▌ ▕│                                                                                         
+ ▸ GIT                       ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
-                                                                                                                        
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

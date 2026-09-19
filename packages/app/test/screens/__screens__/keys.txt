@@ -10,7 +10,7 @@
               │ Next waiting agent        ▐ ctrl ▌+▐ q ▌  the agent waiting on you                       │              
  ▾ CHANGES  3 │ New agent                 ▐ ctrl ▌+▐ n ▌  start one in the project you are in            │              
   M package.js│ New terminal              ▐ ctrl ▌+▐ t ▌  a terminal in the bottom panel                 │              
-  A src/webhoo│ Open project              ▐ ctrl ▌+▐ o ▌  add or go to a repository                      │              
+  A …/webhooks│ Open project              ▐ ctrl ▌+▐ o ▌  add or go to a repository                      │              
   M src/webhoo│ Mute                      ▐ ctrl ▌+▐ m ▌  no speech and no sounds, and back              │              
               │ Extensions                ▐ ctrl ▌+▐ shift ▌+▐ e ▌  turn them on and off, set them up    │              
  ▾ FILES      │ Settings                  ▐ ctrl ▌+▐ , ▌  this panel                                     │              
@@ -23,11 +23,11 @@
               │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
 ━ ▐ orchestrat│ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
               │ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │              
-              │                                                                                          │              
-              │ Everything else goes to the agent or terminal you're typing at.                          │              
-              │                                                                         ▐ Change keys… ▌ │              
-              ╰──────────────────────────────────────────────────────────────────────────────────────────╯              
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                   
+              │                                                                                          │             ▕
+              │ Everything else goes to the agent or terminal you're typing at.                          │             ▕
+              │                                                                         ▐ Change keys… ▌ │             ▕
+              ╰──────────────────────────────────────────────────────────────────────────────────────────╯             ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
