@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COLOUR, PLAIN } from '../src/skin.ts'
+import { COLOUR, markLabel, PLAIN } from '../src/skin.ts'
 import { type TitleFacts, titleMark, windowTitle } from '../src/title.ts'
 
 // What the terminal window calls itself, and the corner mark it is drawn
@@ -69,11 +69,13 @@ describe('the corner mark', () => {
     expect(COLOUR.mark('TADE').replace(ansi, '')).toBe(PLAIN.mark('TADE'))
   })
 
-  it('is amber: dark ground, light letters, the inverse of a lit tab', () => {
+  it('is the tab you are on, spelt out: one drawing, so the two cannot drift', () => {
     const mark = COLOUR.mark('TADE')
-    expect(mark).toContain('48;5;94m')
-    expect(mark).toContain('38;5;222m')
-    // A tab you are on is dark ink on bright amber; the mark must not be that.
-    expect(mark).not.toContain('48;5;214m')
+    // Bright amber ground, dark ink — the project button beside it, to the byte.
+    expect(mark).toContain('48;5;214m')
+    expect(mark).toContain('38;5;233m')
+    expect(mark).toBe(COLOUR.tabbed(markLabel('TADE'), true, false))
+    // Capitals, a space between each: the whole of what makes it a mark.
+    expect(mark).toContain('T A D E')
   })
 })

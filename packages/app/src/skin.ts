@@ -53,8 +53,9 @@ export interface Skin {
   /** The Tade mark. */
   brand(text: string): string
   /**
-   * The wordmark as a block, for the corner it lives in: exactly label + 4
-   * columns, painted or not, so nothing shifts when colour goes away.
+   * The wordmark as a block, for the corner it lives in: the project tab you
+   * are on, spelt out. Exactly label + 4 columns, painted or not, so nothing
+   * shifts when colour goes away.
    */
   mark(label: string): string
   /** Something you can act on that is not a button: `+`, a link. */
@@ -158,9 +159,9 @@ const BOLD = `${ESC}1m`
 const TONE = {
   /** Tade itself, and anything Tade is doing: the brand, work in progress, links. */
   amber: 214,
-  /** The mark's letters, and the crown of the wordmark. */
+  /** The same amber under the pointer: a primary button lit, a switch thrown. */
   amberLight: 222,
-  /** The mark's ground: the same amber with the light taken out of it. */
+  /** The same amber with the light taken out of it: a switch held down. */
   amberDark: 94,
   /** Waiting on you, and the press the window would like next. */
   violet: 183,
@@ -266,6 +267,20 @@ const identity = (text: string) => text
  */
 export const markLabel = (label: string) => [...label].join(' ')
 
+/**
+ * A tab, painted: filled in the brand's amber when it is the one you are on,
+ * lit under the pointer, quiet otherwise.
+ *
+ * Its own function because the corner mark is drawn with it — the mark *is*
+ * this block, spelt out — and two hand-styled amber blocks in one row are two
+ * things that drift apart the first time the palette moves.
+ */
+function tabBlock(label: string, on: boolean, hover: boolean): string {
+  if (on) return block(label, TONE.amber, TONE.ink, true)
+  if (hover) return block(label, GREY.control, GREY.bright)
+  return paint(fg(GREY.tab))(`  ${label}  `)
+}
+
 /** The grounds of a lit tab down the side: pointed at, and the one you are on. */
 const TAB_GROUNDS: Record<Band, number> = { selected: GREY.control, hovered: GREY.raised }
 
@@ -284,6 +299,9 @@ export const PLAIN: Skin = {
   brand: identity,
   // The same columns the painted mark uses, unpainted: stripped of colour, the
   // two renders are identical, which is what the setup screen's test asserts.
+  // Not `[ T A D E ]` the way a tab you are on is written here, because the
+  // brackets are this skin's word for something you can press, and the mark
+  // is the one thing in the top row that is not.
   mark: (label) => `  ${markLabel(label)}  `,
   signal: identity,
   tab: identity,
@@ -325,13 +343,13 @@ export const COLOUR: Skin = {
   chrome: paint(fg(GREY.chrome)),
   edge: paint(fg(GREY.edge)),
   brand: paint(`${fg(TONE.amber)}${BOLD}`),
-  // A badge of the brand's own colour: light amber letters on amber with the
-  // light taken out, a plain block like every other control. Deliberately the
-  // inverse of a lit tab — which is dark ink on bright amber — because the mark
-  // is the one thing in the top row that is not something you can press, and the
-  // corner should still be the warmest thing on the screen.
-  mark: (label) =>
-    `${bg(TONE.amberDark)}${fg(TONE.amberLight)}${BOLD}  ${markLabel(label)}  ${RESET}`,
+  // The tab of the project you are on, spelt out: the same block, the same
+  // bright amber, the same ink, the same two columns of ground either side —
+  // drawn by the very function the tabs are, so the corner and the project
+  // beside it can never come to disagree about what the brand looks like. The
+  // spelling is the whole difference, and is what keeps the mark from reading
+  // as one more tab you could press.
+  mark: (label) => tabBlock(markLabel(label), true, false),
   signal: paint(`${fg(TONE.amber)}${BOLD}`),
   tab: paint(fg(GREY.tab)),
   label: paint(`${fg(GREY.heading)}${BOLD}`),
@@ -354,11 +372,7 @@ export const COLOUR: Skin = {
     const [ground, ink, bold] = (lit === true ? LIT[look] : undefined) ?? LOOKS[look]
     return block(label, ground, ink, bold, ' ')
   },
-  tabbed: (label, on, hover) => {
-    if (on) return block(label, TONE.amber, TONE.ink, true)
-    if (hover) return block(label, GREY.control, GREY.bright)
-    return paint(fg(GREY.tab))(`  ${label}  `)
-  },
+  tabbed: tabBlock,
   keycap: (label, hover) =>
     `${bg(hover === true ? GREY.bright : GREY.pressed)}${fg(TONE.ink)}${BOLD} ${label} ${RESET}`,
   badge: paint(`${bg(GREY.control)}${fg(GREY.pressed)}`),
