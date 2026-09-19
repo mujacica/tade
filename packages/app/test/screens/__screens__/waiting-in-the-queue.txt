@@ -9,7 +9,7 @@
      working                 ▕│  FIRST                         THEN                          THIS ONE                   
                              ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓   
  ▾ SMART QUEUE  5     plan   ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶┃ ◌ refund-emails      ┃   
-   all  next  timed  ‖ pause ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
+   all  next  timed          ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
                              ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ┗━━━━━━━━━━━━━━━━━━━━━━┛   
    ! add-refunds      held   ▕│                                                         │                               
    │ ◆ fix-charge failed:…   ▕│  ╭──────────────────────╮                               │                               

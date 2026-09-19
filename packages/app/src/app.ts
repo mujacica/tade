@@ -42,7 +42,6 @@ import {
   parseQuietHours,
   parseSetting,
   QUEUE_CHANGES,
-  queuePaused,
   queueStateOf,
   readyToStart,
   reflectionPrompt,
@@ -1268,7 +1267,6 @@ export class App {
       ...this.inputFor(width),
       statuses: this.statuses,
       schedules: this.scheduleViews(),
-      queuePaused: this.queueHeld(),
       clock: (at: number) => whenShort(at, this.now()),
       date: (at: number) => {
         const time = new Date(at)
@@ -1958,29 +1956,9 @@ export class App {
       this.draw()
       return
     }
-    if (action === 'queue-all-pause' || action === 'queue-all-resume') {
-      const project = this.state.project
-      if (!project) return
-      await this.opts.client
-        .changeQueued({
-          project,
-          change: action === 'queue-all-pause' ? 'pause' : 'resume',
-          by: 'you',
-        })
-        .catch((err: unknown) => {
-          this.state = notice(this.state, why(err))
-        })
-      await this.live?.refresh()
-      if (action === 'queue-all-resume') await this.advanceQueue()
-      this.state = notice(
-        this.state,
-        action === 'queue-all-pause'
-          ? `${project}'s queue is held: nothing new starts until you say`
-          : `${project}'s queue is going again`,
-      )
-      this.draw()
-      return
-    }
+    // There is no pause-everything button: pausing is done to one piece of
+    // work, beside its name. The whole queue can still be held from the
+    // orchestrator (`tade_queue_change` with a project and no task).
     const queued = /^queue-(start|pause|resume|wait|remove):(.+)$/.exec(action)
     if (queued?.[1] && queued[2]) {
       await this.changeQueue(queued[2], queued[1])
@@ -5589,12 +5567,6 @@ export class App {
         })
       },
     }
-  }
-
-  /** Whether the project in front of you has its whole queue held back. */
-  private queueHeld(): boolean {
-    const project = this.state.project
-    return project !== null && queuePaused(this.live?.queueFacts().events ?? [], project)
   }
 
   /** Every schedule, as the SMART QUEUE shows it. */

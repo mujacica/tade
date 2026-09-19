@@ -9,7 +9,7 @@
      working                 ▕│    Wait for a retry     Start anyway     Remove                                         
                              ▕│                                                                                         
  ▾ SMART QUEUE  8     plan   ▕│  THE CHAIN IT IS IN                                                                     
-   all  next  timed  ‖ pause ▕│  FIRST                         THIS ONE                      AFTER IT                   
+   all  next  timed          ▕│  FIRST                         THIS ONE                      AFTER IT                   
                              ▕│  ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓      ╭──────────────────────╮   
  ▐ ! add-refunds      held ▌ ▕│  │ ✕ fix-charge         │─────▶┃ ! add-refunds   held ┃─────▶│ ◌ refund-emails      │   
  ▐ │ ◆ fix-charge failed:… ▌ ▕│  │   tests failed twice │      ┃   ◆ fix-charge fail… ┃      │   ◆ after add-refun… │   

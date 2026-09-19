@@ -246,8 +246,6 @@ export interface Frame {
   clock?: (at: number) => string
   /** Every schedule, as the SMART QUEUE shows it. */
   schedules?: readonly ScheduleView[]
-  /** The whole queue of the project in front of you is held back. */
-  queuePaused?: boolean
   /** A moment with its date, for where a time alone would be ambiguous: `Mon 7 Sep 09:00`. */
   date?: (at: number) => string
   /** How to divide the window. Defaults when absent. */
@@ -1177,10 +1175,7 @@ function queueSection(
     rows: (row) => {
       const entries = queueRows(state)
       const schedules = schedulesShown(frame.schedules ?? [], state)
-      // Kept on screen while it is paused, or there would be no way to start it again.
-      const paused = frame.queuePaused === true
-      const filters =
-        all > 1 || paused ? [queueFilters(row(), state.queueFilter, skin, paused)] : []
+      const filters = all > 1 ? [queueFilters(row(), state.queueFilter, skin)] : []
       if (entries.length === 0 && schedules.length === 0) {
         const none =
           state.queueFilter === 'timed'
@@ -1458,13 +1453,14 @@ function capitalised(text: string): string {
   return text ? `${text[0]?.toUpperCase() ?? ''}${text.slice(1)}` : text
 }
 
-/** The filters over the SMART QUEUE, as words: the one showing is lit. */
-function queueFilters(
-  row: Row,
-  current: QueueFilter,
-  skin: Skin,
-  paused: boolean,
-): { text: string; hits: Hit[] } {
+/**
+ * The filters over the SMART QUEUE, as words: the one showing is lit.
+ *
+ * Nothing here pauses anything: pausing is something you do to one piece of
+ * work, beside its name — in its tab, its menu, or on the card it opens — so
+ * it is never in doubt which one you are pausing.
+ */
+function queueFilters(row: Row, current: QueueFilter, skin: Skin): { text: string; hits: Hit[] } {
   row.space(3)
   QUEUE_FILTERS.forEach((filter, i) => {
     if (i > 0) row.space(2)
@@ -1473,15 +1469,6 @@ function queueFilters(
       name: `queue-filter:${filter}`,
     })
   })
-  // Everything at once, so a queue can be held back without pausing each piece.
-  row.right((r) =>
-    r
-      .text(paused ? '▶ resume' : '‖ pause', paused ? skin.waiting : skin.tab, {
-        kind: 'action',
-        name: paused ? 'queue-all-resume' : 'queue-all-pause',
-      })
-      .space(),
-  )
   return row.build()
 }
 

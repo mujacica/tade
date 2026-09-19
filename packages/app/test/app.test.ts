@@ -1055,7 +1055,7 @@ describe('the window, wired up', () => {
     )
   }, 60_000)
 
-  it('holds a whole project’s queue from the SMART QUEUE, and starts it again', async () => {
+  it('pauses one piece of queued work from its card, and there is no pause-everything button', async () => {
     terminal.columns = 120
     terminal.rows = 60
     const window = await start()
@@ -1077,19 +1077,65 @@ describe('the window, wired up', () => {
     await until('the queue on screen', () =>
       screenOf(terminal.written).some((row) => row.includes('all  next  timed')),
     )
-    const pause = find('‖ pause')
-    click(pause.col + 1, pause.row)
-    await until('everything held', () =>
-      screenOf(terminal.written).some((row) => row.includes("app's queue is held")),
+    // Nothing over the queue pauses everything at once: the filters, and no more.
+    expect(screenOf(terminal.written).some((row) => row.includes('‖ pause'))).toBe(false)
+
+    // Looking at it is not starting it: its card says which one you are pausing.
+    const lines = screenOf(terminal.written)
+    const row = lines.findIndex((line) => line.slice(0, 28).includes('second-one'))
+    expect(row).toBeGreaterThanOrEqual(0)
+    click((lines[row]?.indexOf('second-one') ?? 0) + 1, row)
+    await until('its card', () =>
+      screenOf(terminal.written).some(
+        (line) => line.includes('‖ Pause') && line.includes('second-one'),
+      ),
     )
+    const pause = find('‖ Pause')
+    click(pause.col + 1, pause.row)
+    await until('that one paused', async () =>
+      /app\/second-one — paused/.test(await window.queueTools().describe()),
+    )
+    // Its own work finishing starts nothing while it is paused.
+    await client.markDone('app/first-one', { by: 'you' })
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect(client.runs().some((run) => run.task === 'app/second-one')).toBe(false)
+
+    const resume = find('▶ Resume')
+    click(resume.col + 1, resume.row)
+    await until(
+      'it starts again',
+      () => client.runs().some((run) => run.task === 'app/second-one'),
+      15_000,
+    )
+  }, 60_000)
+
+  it('still holds a whole project’s queue when the orchestrator asks, with no button for it', async () => {
+    terminal.columns = 120
+    terminal.rows = 60
+    const window = await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    await window.queueTools().plan({
+      project: 'app',
+      said: 'one now, one after',
+      agents: [
+        { name: 'first-one', said: 'one now', prompt: '', after: [], touches: [] },
+        {
+          name: 'second-one',
+          said: 'one after',
+          prompt: '',
+          after: [{ agent: 'first-one', why: 'they touch the same thing' }],
+          touches: [],
+        },
+      ],
+    })
+    await window.queueTools().change({ project: 'app', change: 'pause' })
     // Its own work finishing starts nothing while the queue is held.
     await client.markDone('app/first-one', { by: 'you' })
     await new Promise((resolve) => setTimeout(resolve, 2_500))
     expect(client.runs().some((run) => run.task === 'app/second-one')).toBe(false)
     expect(await window.queueTools().describe()).toContain('paused with the queue')
 
-    const resume = find('▶ resume')
-    click(resume.col + 1, resume.row)
+    await window.queueTools().change({ project: 'app', change: 'resume' })
     await until(
       'it starts again',
       () => client.runs().some((run) => run.task === 'app/second-one'),
