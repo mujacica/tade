@@ -277,6 +277,48 @@ describe('the window, wired up', () => {
     )
   })
 
+  it('selects the whole line with ctrl+a, and one backspace takes it', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00') // opens the line you type into
+    for (const char of 'why is refunds slow') terminal.press(char)
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('why is refunds slow')),
+    )
+
+    terminal.press('\x01') // ctrl+a: all of it
+    terminal.press('\x7f') // backspace: the selection, not the last character
+    await until('the line to be empty again', () =>
+      screenOf(terminal.written).every((row) => !row.includes('why is refunds')),
+    )
+    // Emptied, not closed: the keyboard is still on the orchestrator's line.
+    expect(screenOf(terminal.written).some((row) => row.includes('enter sends'))).toBe(true)
+  })
+
+  it('replaces what is selected with what you type next', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'why is refunds slow') terminal.press(char)
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('why is refunds slow')),
+    )
+
+    terminal.press('\x01') // ctrl+a
+    for (const char of 'and search') terminal.press(char)
+    terminal.press('\r')
+    await until('the question', () => asked.length === 1)
+    expect(asked[0]).toBe('and search')
+  })
+
   it('keeps the keyboard on the orchestrator after sending, until you leave it', async () => {
     const asked: string[] = []
     await start({

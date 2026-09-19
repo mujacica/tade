@@ -118,7 +118,22 @@ import {
   unended,
   withNews,
 } from './inbox.ts'
-import { appKey, checkTalkKey, keyCaps } from './keys.ts'
+import {
+  caretOf,
+  clickedSpan,
+  cutSpan,
+  type LineKey,
+  lineKey,
+  putCaret,
+  type RowStart,
+  rowStarts,
+  type Selection,
+  type Span,
+  sequenceFor,
+  spanOf,
+  withSelection,
+} from './input.ts'
+import { appKey, checkTalkKey, keyCaps, normalKey } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
@@ -317,6 +332,12 @@ const LOOK_SOON_MS = 8
 const REPAINT_MS = 2_000
 /** How much of what you said up and ctrl+r reach back through. */
 const HISTORY_MAX = 1_000
+/**
+ * The column of ground pi's editor leaves either side of the line's text.
+ * What is selected is laid on the rows it drew, so where its text starts in
+ * them has to be the same number it was given.
+ */
+const INPUT_PAD = 1
 /** How often extensions are asked what they keep in the status bar. */
 const STATUS_MS = 5_000
 /**
@@ -360,7 +381,20 @@ export type PointerEvent =
       x: number
       y: number
       cell: number
+      /** Presses in a row on the same cell: two takes a word, three a line. */
+      clicks: number
     }
+  /**
+   * Selecting text on the orchestrator's line: pressed at a column of one of
+   * its rows, and dragged from there. `extend` is shift held, which takes the
+   * selection from where the caret already is instead of starting a new one.
+   */
+  | { kind: 'select'; line: number; x: number; extend: boolean; drag: boolean }
+  /**
+   * A drag that was selecting text on that line has been let go: what it
+   * covers is copied, as a drag anywhere else on the window is.
+   */
+  | { kind: 'selected' }
   | { kind: 'wheel'; area: ScrollArea; rows: number }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
@@ -443,6 +477,11 @@ class Window implements Component {
    * control selects here instead, and letting go copies it.
    */
   private selection: { from: Cell; to: Cell; moved: boolean } | null = null
+  /**
+   * A press on the line you type on: every drag until it is let go is
+   * selecting text in it, not dragging a selection across the window.
+   */
+  private selectingInput: { dragged: boolean } | null = null
 
   constructor(
     frame: Window['frame'],
@@ -485,6 +524,23 @@ class Window implements Component {
             render: this.onPointer({ kind: 'reorder', task: this.held.task, to }),
           }
         }
+        // Dragging in the line you type on takes the selection with it, and
+        // only while the pointer is still over one of its rows: off the end
+        // of them it stays where it last was rather than jumping.
+        if (event.type === 'drag' && this.selectingInput) {
+          if (target?.kind !== 'input') return { handled: true, render: false }
+          this.selectingInput = { dragged: true }
+          return {
+            handled: true,
+            render: this.onPointer({
+              kind: 'select',
+              line: target.line,
+              x: event.x,
+              extend: false,
+              drag: true,
+            }),
+          }
+        }
         if (event.type === 'drag' && this.selection) {
           this.selection = { ...this.selection, to: { x: event.x, y: event.y }, moved: true }
           return { handled: true, render: true }
@@ -513,10 +569,35 @@ class Window implements Component {
         // A right-click is a click the moment it is pressed: the terminal
         // reports no click for it, and a menu should not wait for a release.
         if (event.button === 'right' && target) {
-          this.onPointer({ kind: 'click', target, button: 'right', x: event.x, y: event.y, cell })
+          this.onPointer({
+            kind: 'click',
+            target,
+            button: 'right',
+            x: event.x,
+            y: event.y,
+            cell,
+            clicks: 1,
+          })
           return { handled: true }
         }
         if (event.button !== 'left') return undefined
+        // The line you type on takes its own selection, so a press in it puts
+        // the caret down rather than starting one across the window.
+        if (target?.kind === 'input') {
+          this.held = null
+          this.selection = null
+          this.selectingInput = { dragged: false }
+          return {
+            handled: true,
+            render: this.onPointer({
+              kind: 'select',
+              line: target.line,
+              x: event.x,
+              extend: event.shift,
+              drag: false,
+            }),
+          }
+        }
         // An agent pressed may be about to be dragged somewhere else in the list.
         this.held = target?.kind === 'task' ? heldAgent(this.hits, target.task, event.y) : null
         // Anywhere that is not a control is text you might select.
@@ -530,6 +611,8 @@ class Window implements Component {
       case 'release': {
         this.dragging = false
         this.held = null
+        if (this.selectingInput?.dragged) this.onPointer({ kind: 'selected' })
+        this.selectingInput = null
         const chosen = this.selection?.moved ? ordered(this.selection) : null
         if (chosen) {
           const text = selectedText(this.rows, chosen)
@@ -548,6 +631,7 @@ class Window implements Component {
           x: event.x,
           y: event.y,
           cell,
+          clicks: event.clickCount ?? 1,
         })
         return { handled: true }
       case 'wheel': {
@@ -737,6 +821,20 @@ export class App {
   private history: string[] = []
   /** pi's own editor, for the orchestrator's line. */
   private readonly editor: Editor
+  /**
+   * What is selected on that line: where the selection was started, and where
+   * the caret has since taken it. The editor holds the text and the caret —
+   * this is the one thing it has no idea about, so the head is read back out
+   * of it rather than remembered, and only the anchor is kept.
+   */
+  private anchor: number | null = null
+  /**
+   * The line's rows as they were last drawn, and where each starts in the
+   * text: what a click on a row and a selection up or down a row are counted
+   * in. Read back out of what was drawn, because the editor wraps and scrolls
+   * the text its own way.
+   */
+  private inputRows: RowStart[] = []
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
   private speakingTurn = false
@@ -841,7 +939,7 @@ export class App {
           noMatch: plain,
         },
       },
-      { paddingX: 1 },
+      { paddingX: INPUT_PAD },
     )
     this.closed = new Promise((resolve) => {
       this.settle = resolve
@@ -1424,7 +1522,7 @@ export class App {
               ? 'ew-resize'
               : 'ns-resize'
             : // Text you can put the caret in: the shape everything else uses for that.
-              target?.kind === 'caret'
+              target?.kind === 'caret' || target?.kind === 'input'
               ? 'text'
               : pressable(target)
                 ? 'pointer'
@@ -1470,8 +1568,18 @@ export class App {
           x: event.x,
           y: event.y,
           cell: event.cell,
+          clicks: event.clicks,
         })
         return true
+      case 'select':
+        this.selectTo(event.line, event.x, event.extend, event.drag)
+        return true
+      case 'selected': {
+        const selected = this.selectionSpan()
+        if (selected)
+          void this.copySelection(this.editor.getText().slice(selected.from, selected.to))
+        return false
+      }
     }
   }
 
@@ -1655,6 +1763,8 @@ export class App {
       ) {
         if (this.state.dictation === null) this.state = setDictation(this.state, '')
         this.syncLine()
+        // Pasted over a selection, as typing over one: it replaces it.
+        this.removeSelection()
         // As pi takes a paste: a long one becomes a marker, sent in full.
         this.editor.handleInput(`\x1b[200~${paste}\x1b[201~`)
         this.state = setDictation(this.state, this.editor.getText())
@@ -1728,6 +1838,7 @@ export class App {
         // Tab on a command being typed finishes it, as a shell would.
         const [best] = matchActions(this.state, this.state.dictation ?? '')
         if (best) {
+          this.anchor = null
           this.editor.setText(`${best.name} `)
           this.state = setDictation(this.state, `${best.name} `)
           this.draw()
@@ -1790,7 +1901,7 @@ export class App {
   private clicked(
     target: Target,
     button: 'left' | 'right' = 'left',
-    at: { x: number; y: number; cell?: number } = { x: 0, y: 0 },
+    at: { x: number; y: number; cell?: number; clicks?: number } = { x: 0, y: 0 },
   ): void {
     if (this.state.panel) {
       this.clickPanel(target, at.cell ?? 0)
@@ -1897,25 +2008,16 @@ export class App {
         // watching stays in view behind it, a click away.
         if (this.state.dictation === null) this.state = setDictation(this.state, '')
         break
-      case 'input':
+      case 'input': {
         // A click in what you have typed puts the caret there, as it does in
-        // any text box. The editor works out the column itself, from the same
-        // line it drew: it knows where its own padding and wrapping are.
-        this.editor.handleMouse({
-          type: 'click',
-          button: 'left',
-          x: at.x,
-          // Its own rows: the rule it draws above the text, then the lines.
-          y: target.line + 1,
-          screenX: at.x,
-          screenY: at.y,
-          width: this.terminal.columns,
-          height: this.terminal.rows,
-          shift: false,
-          alt: false,
-          ctrl: false,
-        })
+        // any text box; a second press takes the word it is in and a third
+        // the whole line, which is what every other text box does too.
+        this.caretAt(target.line, at.x)
+        const taken = clickedSpan(this.editor.getText(), this.caretOffset(), at.clicks ?? 1)
+        this.anchor = taken.to > taken.from ? taken.from : null
+        if (taken.to > taken.from) this.moveCaretTo(taken.to)
         break
+      }
       case 'file':
       case 'place':
         // Read here first; the viewer has the button for your editor.
@@ -3859,6 +3961,12 @@ export class App {
    * Type on the orchestrator's line. pi's own editor takes the keys — the
    * cursor, words, undo, a paste, lines that wrap, ↑ for what was said —
    * so the line behaves as pi's does. Enter sends it; escape abandons it.
+   *
+   * What is selected is Tade's own, because the editor has no idea there is
+   * a selection: the few keys a selection changes the meaning of are
+   * answered here — backspace takes the selection rather than a character,
+   * ctrl+a takes all of it, shift and an arrow reach further — and
+   * everything that puts text in replaces what was selected first.
    */
   private type(data: string): void {
     if (isKeyRelease(data)) return
@@ -3867,12 +3975,16 @@ export class App {
     if (this.state.historySearch) {
       const searched = searchKey(this.state, this.history, key, data)
       this.state = searched.state
-      if (!this.state.historySearch) this.editor.setText(this.state.dictation ?? '')
+      if (!this.state.historySearch) {
+        this.editor.setText(this.state.dictation ?? '')
+        this.anchor = null
+      }
       if (searched.send) this.submit()
       else this.draw()
       return
     }
     if (key === 'ctrl+r') {
+      this.anchor = null
       this.state = startHistorySearch(setDictation(this.state, this.editor.getText()), this.history)
       this.draw()
       return
@@ -3883,14 +3995,175 @@ export class App {
     }
     if (key === 'escape') {
       // Escape abandons it rather than sending half a sentence, pictures and all.
+      this.anchor = null
       this.editor.setText('')
       this.state = setListening(setDictation({ ...this.state, attached: [] }, null), false)
       this.draw()
       return
     }
-    this.editor.handleInput(data)
+    if (!this.selectionKey(key ?? null)) {
+      // A letter, or a line break: what is selected is what it replaces.
+      // Anything else the editor has its own mind about, and a selection
+      // nobody can see the point of any more is let go of.
+      if (printable(data) || key === 'shift+enter' || key === 'alt+enter') this.removeSelection()
+      else this.anchor = null
+      this.editor.handleInput(data)
+    }
     this.state = setDictation(this.state, this.editor.getText())
     this.draw()
+  }
+
+  /**
+   * The keys a selection changes the meaning of, answered against what is
+   * selected. True when the key was spent here and the editor must not also
+   * see it.
+   */
+  private selectionKey(key: string | null): boolean {
+    const what: LineKey | null = lineKey(key === null ? null : normalKey(key))
+    if (!what) return false
+    const text = this.editor.getText()
+    const selected = this.selectionSpan()
+    switch (what.do) {
+      case 'select all':
+        this.anchor = 0
+        this.moveCaretTo(text.length)
+        return true
+      case 'delete':
+        // With nothing selected it is the editor's own backspace, a grapheme
+        // or a whole paste marker at a time.
+        if (!selected) {
+          this.anchor = null
+          return false
+        }
+        this.removeSelection()
+        return true
+      case 'move':
+        return this.moveOrExtend(what, selected, text)
+    }
+  }
+
+  /**
+   * An arrow, home or end, with or without shift. Shift takes the selection
+   * with the caret; without it a selection is let go of, and collapses to the
+   * end the caret was sent towards rather than moving on from where it was.
+   */
+  private moveOrExtend(
+    what: Extract<LineKey, { do: 'move' }>,
+    selected: Span | null,
+    text: string,
+  ): boolean {
+    if (!what.extend) {
+      this.anchor = null
+      if (!selected || what.by !== 'char') return false
+      this.moveCaretTo(what.back ? selected.from : selected.to)
+      return true
+    }
+    if (this.anchor === null) this.anchor = this.caretOffset()
+    if (what.by === 'row') {
+      this.moveCaretTo(this.rowStep(what.back, text))
+      return true
+    }
+    const key =
+      what.by === 'word'
+        ? what.back
+          ? 'alt+left'
+          : 'alt+right'
+        : what.by === 'line'
+          ? what.back
+            ? 'home'
+            : 'end'
+          : what.back
+            ? 'left'
+            : 'right'
+    // The move itself is the editor's: it knows what a word is to it, and
+    // where its own lines wrap.
+    this.editor.handleInput(sequenceFor(key))
+    return true
+  }
+
+  /**
+   * Where the caret lands a row up or down: the same column of the row
+   * before or after the one it is on, counted in the rows the line was last
+   * drawn as — past the first is the very start, past the last is the very
+   * end, which is what a text box does. The editor's own up and down are not
+   * used here: on the first row up is how you reach what you said last, and
+   * shift held is no reason to go looking through the history.
+   */
+  private rowStep(back: boolean, text: string): number {
+    const at = this.caretOffset()
+    const rows = this.inputRows.filter((row) => row.at !== null)
+    let index = -1
+    rows.forEach((row, i) => {
+      if ((row.at ?? 0) <= at) index = i
+    })
+    const to = rows[index + (back ? -1 : 1)]
+    if (index < 0 || !to || to.at === null) return back ? 0 : text.length
+    const column = at - (rows[index]?.at ?? 0)
+    return Math.min(to.at + column, to.at + to.length)
+  }
+
+  /** Where the editor's caret is, as one offset into the text. */
+  private caretOffset(): number {
+    return caretOf(this.editor)
+  }
+
+  /** What is selected on the line, in reading order, or nothing. */
+  private selectionSpan(): Span | null {
+    if (this.anchor === null) return null
+    const length = this.editor.getText().length
+    const selection: Selection = {
+      anchor: Math.max(0, Math.min(this.anchor, length)),
+      head: this.caretOffset(),
+    }
+    return spanOf(selection)
+  }
+
+  /** Put the editor's caret at an offset, by the keys that move it. */
+  private moveCaretTo(offset: number): void {
+    putCaret(this.editor, offset)
+  }
+
+  /** Take out what is selected, if anything is. */
+  private removeSelection(): boolean {
+    const selected = this.selectionSpan()
+    this.anchor = null
+    if (!selected) return false
+    cutSpan(this.editor, selected)
+    return true
+  }
+
+  /**
+   * The caret where the pointer is, and the selection with it: a press starts
+   * one where it landed, shift held reaches there from where the caret
+   * already was, and every drag after the press takes it further.
+   */
+  private selectTo(line: number, x: number, extend: boolean, drag: boolean): void {
+    const was = this.caretOffset()
+    this.caretAt(line, x)
+    if (drag) this.anchor = this.anchor ?? was
+    else this.anchor = extend ? (this.anchor ?? was) : this.caretOffset()
+  }
+
+  /**
+   * The caret at a column of one of the line's rows. The editor works the
+   * column out itself, from the same rows it drew: it knows where its own
+   * padding and wrapping are.
+   */
+  private caretAt(line: number, x: number): void {
+    this.editor.handleMouse({
+      type: 'click',
+      button: 'left',
+      x,
+      // Its own rows: the rule it draws above the text, then the lines.
+      y: line + 1,
+      screenX: x,
+      screenY: 0,
+      width: this.terminal.columns,
+      height: this.terminal.rows,
+      shift: false,
+      alt: false,
+      ctrl: false,
+    })
   }
 
   /**
@@ -3938,6 +4211,7 @@ export class App {
     this.syncLine()
     const said = this.editor.getExpandedText().trim()
     this.editor.setText('')
+    this.anchor = null
     // Emptied where it was open. Closed only where it never was: push-to-talk
     // that ends with nothing to transcribe comes through here too, and that
     // is not you typing.
@@ -4910,13 +5184,26 @@ export class App {
     if (this.state.dictation === null) return {}
     this.editor.focused = true
     this.editor.borderColor = this.skin.signal
-    return { input: { lines: this.editor.render(width) } }
+    const drawn = this.editor.render(width)
+    // The rules it draws above and below the text are not text: the rows
+    // between them are what a selection is in, and what a click counts in.
+    const body = drawn.slice(1, -1)
+    const text = this.editor.getText()
+    this.inputRows = rowStarts(body, text, INPUT_PAD)
+    const selected = this.selectionSpan()
+    if (!selected) return { input: { lines: drawn } }
+    const lit = withSelection(body, text, selected, this.skin, INPUT_PAD, width)
+    return { input: { lines: [drawn[0] ?? '', ...lit, ...drawn.slice(body.length + 1)] } }
   }
 
   /** The editor holds what the state says the line holds. */
   private syncLine(): void {
     const wanted = this.state.dictation ?? ''
-    if (this.editor.getText() !== wanted) this.editor.setText(wanted)
+    if (this.editor.getText() === wanted) return
+    // Text put there by something else — a transcript, a command finished for
+    // you — is a new line, and nothing of the old one is still selected.
+    this.editor.setText(wanted)
+    this.anchor = null
   }
 
   private thinkerAccount(): NonNullable<Frame['orchestratorAccount']> {

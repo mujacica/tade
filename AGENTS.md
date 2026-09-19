@@ -177,6 +177,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   and reading a whole answer out is how people learn to stop listening. And **mute is now**: the
   sentence being said is cut off where it is (`Speaker.stop`) and what was queued behind it is
   dropped (`VoiceSurface.silence`), because the moment you press it is the moment you needed it.
+- **The line you type on is pi's editor; what is selected on it is Tade's own.** The editor holds
+  the text and the caret, and a window that reports its own mouse has to be told what a second
+  click means — so the selection is two offsets kept beside it (`app/src/input.ts`), and every
+  change to the line is made by pressing the keys a person would press (`putCaret`, `cutSpan`),
+  never by reaching into the editor's state. Slower, and right about everything reaching in would
+  have to be taught: a grapheme of four code points, a paste collapsed to one marker, a line that
+  wraps. The drawing is the editor's too — the selection is laid over the rows it drew, placed in
+  the text by matching them (`rowStarts`), because a second description of how it wraps would be
+  right until the day it was not.
 - **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
