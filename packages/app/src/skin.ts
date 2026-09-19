@@ -67,6 +67,12 @@ export interface Skin {
    * way — a cursor that changes a row's width tears the screen it is on.
    */
   cursor(text: string): string
+  /**
+   * A span of text a find turned up: the one you are on, and the rest. Exactly
+   * the columns it was given either way — a match is laid over the line it is
+   * in, and a line that changes width tears the file it is in.
+   */
+  found(text: string, on: boolean): string
 
   /** `▐ label ▌`, exactly label + 4 columns. */
   button(label: string, look: Look): string
@@ -245,6 +251,9 @@ export const PLAIN: Skin = {
   // Without colour nothing can be laid under a letter, so only an empty cell
   // can show the cursor — which is where it is nine times in ten.
   cursor: (text) => (text.trim() === '' ? '█' : text),
+  // A match is left as it was, for the same reason: the bar says how many
+  // there are and which one you are on, and the line it is on is marked.
+  found: (text) => text,
   button: (label) => `[ ${label} ]`,
   tabbed: (label, on) => (on ? `[ ${label} ]` : `  ${label}  `),
   keycap: (label) => `[${label}]`,
@@ -283,6 +292,8 @@ export const COLOUR: Skin = {
   faded: paint(fg(GREY.faded)),
   link: paint(`${fg(TONE.amber)}${ESC}4m`),
   cursor: paint(`${bg(GREY.bright)}${fg(TONE.ink)}`),
+  found: (text, on) =>
+    paint(on ? `${bg(TONE.amber)}${fg(TONE.ink)}` : `${bg(GREY.control)}${fg(GREY.bright)}`)(text),
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
     return pill(label, ground, ink, bold)
@@ -342,6 +353,8 @@ export function pointerShapes(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 /** Ask for a pointer shape, by its CSS name. */
-export function pointerSequence(shape: 'pointer' | 'default' | 'ew-resize' | 'ns-resize'): string {
+export function pointerSequence(
+  shape: 'pointer' | 'default' | 'text' | 'ew-resize' | 'ns-resize',
+): string {
   return `\x1b]22;${shape}\x1b\\`
 }

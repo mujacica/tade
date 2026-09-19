@@ -53,7 +53,14 @@ import {
   youSaid,
 } from '../../src/transcript.ts'
 import type { Frame } from '../../src/view.ts'
-import { formattedLines, sourceLines, type ViewedFile } from '../../src/viewer.ts'
+import {
+  editFrom,
+  formattedLines,
+  sourceLines,
+  textLines,
+  typeIn,
+  type ViewedFile,
+} from '../../src/viewer.ts'
 
 // The screens the window must keep looking like.
 //
@@ -439,6 +446,7 @@ const webhooksFile: ViewedFile = {
   binary: false,
   truncated: false,
   language: 'typescript',
+  mtimeMs: 1_700_000_000_000,
   error: null,
   text: [
     "import Stripe from 'stripe'",
@@ -466,6 +474,7 @@ const readmeFile: ViewedFile = {
   binary: false,
   truncated: false,
   language: 'markdown',
+  mtimeMs: 1_700_000_000_000,
   error: null,
   text: [
     '# checkout',
@@ -490,6 +499,7 @@ function viewing(file: ViewedFile, width?: number) {
   return {
     file,
     source: sourceLines(file, false),
+    text: textLines(file),
     formatted: width ? formattedLines(file, width, false) : null,
   }
 }
@@ -1614,6 +1624,31 @@ export const SCENARIOS: Scenario[] = [
     state: {
       ...base(),
       panel: filePanel('/Users/me/src/checkout/src/webhooks.ts', 9),
+    },
+    frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),
+  },
+  {
+    name: 'finding-in-a-file',
+    about: 'ctrl+f in a file: every match lit, the one you are on amber, its line marked.',
+    state: {
+      ...base(),
+      panel: {
+        ...filePanel('/Users/me/src/checkout/src/webhooks.ts'),
+        asking: { kind: 'find', query: 'event', index: 1 },
+        line: 9,
+      },
+    },
+    frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),
+  },
+  {
+    name: 'editing-a-file',
+    about: 'Clicked into and typed in: the block where typing lands, and a Save that says so.',
+    state: {
+      ...base(),
+      panel: {
+        ...filePanel('/Users/me/src/checkout/src/webhooks.ts'),
+        edit: typeIn(editFrom(textLines(webhooksFile), 5, 47), '_V2'),
+      },
     },
     frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),
   },

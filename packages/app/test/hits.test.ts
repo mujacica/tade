@@ -1,6 +1,6 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { hitAt, rowHit, sameTarget } from '../src/hits.ts'
+import { hitAt, hitBoxAt, rowHit, sameTarget } from '../src/hits.ts'
 import { COLOUR, PLAIN } from '../src/skin.ts'
 import { box, overlay, Row, stack } from '../src/ui.ts'
 
@@ -132,6 +132,12 @@ describe('hitAt', () => {
     expect(hitAt([under, over], 3, 1)).toEqual(over.target)
     expect(hitAt([under, over], 9, 1)).toEqual(under.target)
     expect(hitAt([], 0, 0)).toBeNull()
+  })
+
+  it('hands back the hit itself for what cares how far along it you clicked', () => {
+    const row = { row: 1, from: 8, to: 40, target: { kind: 'caret' as const, line: 3 } }
+    expect(hitBoxAt([row], 12, 1)?.from).toBe(8)
+    expect(hitBoxAt([row], 2, 1)).toBeNull()
   })
 
   it('compares targets by what they are', () => {

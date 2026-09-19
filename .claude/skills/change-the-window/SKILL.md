@@ -22,7 +22,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion | a disk or git |
 | `finder.ts` | What search looks through: `git ls-files` and `git grep`, and parsing both | — (a real repo) |
 | `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
-| `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out | a terminal (not a disk) |
+| `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out, finding in it and typing into it | a terminal (not a disk) |
 | `editor.ts` | Which editor opens a file, with what arguments; what on screen is a link | a terminal |
 | `diff.ts` | A unified diff as drawable lines | a terminal |
 | `router.ts` | Whether a keystroke is for the agent or for Tade | a terminal |
@@ -192,6 +192,15 @@ file and cannot be tested.
   driver (`Live.screen`, `Frame.paneScreen` / `terminal.view`) and is laid on the cell as a block
   (`blockAt`, `skin.cursor`) on whichever of the pane and the terminal has the keyboard — and never
   on a screen scrolled back from it, where the cursor is not.
+- **A file is read in the window, and typed into a little.** The viewer finds (`ctrl+f`) and goes to
+  a line (`ctrl+g`) in one bar that takes a row of the body, so the panel keeps its height; clicking
+  the text puts a caret in it (`{ kind: 'caret', line }`, the column from how far along the hit the
+  click landed) and `ctrl+s` writes it back. It is for the short edit, never a replacement for the
+  editor the button beside it opens: a file only part-read or binary is not typeable at all
+  (`editable`), and a save is refused outright when the file moved on disk underneath — agents are
+  editing these files while you read them. An `Edited` remembers where each line came from, so a
+  line nobody touched keeps the colour the whole-file pass gave it and only the line you changed is
+  coloured again: colouring a megabyte on every keystroke is tens of milliseconds.
 - **Extensions reach the window through the host, never by name.** Their status items come from
   `ExtensionHost.statuses()` (polled in `tick`, never awaited by a frame) into `Frame.statuses`; a
   click opens the `extension-view` panel on `host.view()`. Add a hook to the extension port rather

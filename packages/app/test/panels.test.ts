@@ -9,11 +9,13 @@ import {
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
+  type FilePanel,
   fileMenuItems,
   filePanel,
   findPanel,
   harnessMenuItems,
   laneMenuItems,
+  type Panel,
   panelClick,
   panelKey,
   perMillion,
@@ -21,6 +23,8 @@ import {
   priceSaid,
   promptPanel,
   type SetupFieldView,
+  savedFile,
+  scrollFile,
   searchPanel,
   setupControls,
   spendPanel,
@@ -141,6 +145,136 @@ describe('the file viewer', () => {
     expect(panelKey(at, 'e', 'e')).toMatchObject({ submit: true, choice: 'editor' })
     expect(panelClick(at, 'editor')).toMatchObject({ submit: true, choice: 'editor' })
     expect(panelKey(at, 'escape', '\x1b').panel).toBeNull()
+  })
+})
+
+describe('finding in a file, and going to a line', () => {
+  const text = ['const event = 1', '', 'if (event) return', 'const other = 2', 'done(event)']
+  const inputs = { text, lines: text.length, body: 3, columns: 60 }
+  const type = (panel: Panel, word: string) => {
+    let out = panel
+    for (const char of word) out = panelKey(out, char, char, inputs).panel as Panel
+    return out as FilePanel
+  }
+
+  it('opens the find bar on ctrl+f and walks the matches, wrapping', () => {
+    let panel = panelKey(filePanel('/r/a.ts'), 'ctrl+f', '\x06', inputs).panel as FilePanel
+    expect(panel.asking).toEqual({ kind: 'find', query: '', index: 0 })
+    panel = type(panel, 'event')
+    // Typing lands on the first match and marks its line, counting from 1.
+    expect(panel).toMatchObject({ line: 1, asking: { query: 'event', index: 0 } })
+    panel = panelKey(panel, 'enter', '\r', inputs).panel as FilePanel
+    expect(panel).toMatchObject({ line: 3, asking: { index: 1 } })
+    panel = panelKey(panel, 'enter', '\r', inputs).panel as FilePanel
+    expect(panel).toMatchObject({ line: 5, asking: { index: 2 }, scroll: 3 })
+    // Round the end, and back the other way with the bar's own arrows.
+    panel = panelKey(panel, 'enter', '\r', inputs).panel as FilePanel
+    expect(panel).toMatchObject({ line: 1, asking: { index: 0 } })
+    panel = panelClick(panel, 'match-previous', inputs).panel as FilePanel
+    expect(panel).toMatchObject({ line: 5, asking: { index: 2 } })
+  })
+
+  it('shuts the bar on escape, and leaves the file open', () => {
+    const panel = panelKey(filePanel('/r/a.ts'), 'ctrl+f', '\x06', inputs).panel as FilePanel
+    const shut = panelKey(panel, 'escape', '\x1b', inputs).panel as FilePanel
+    expect(shut.asking).toBeNull()
+    expect(panelKey(shut, 'escape', '\x1b', inputs).panel).toBeNull()
+  })
+
+  it('goes to the line typed, and no further than the file goes', () => {
+    let panel = panelKey(filePanel('/r/a.ts'), 'ctrl+g', '\x07', inputs).panel as FilePanel
+    panel = type(panel, '4')
+    expect(panel.asking).toEqual({ kind: 'goto', digits: '4' })
+    panel = panelKey(panel, 'enter', '\r', inputs).panel as FilePanel
+    expect(panel).toMatchObject({ line: 4, scroll: 2 })
+    panel = type(panelKey(panel, 'ctrl+g', '\x07', inputs).panel as FilePanel, '900')
+    panel = panelKey(panel, 'enter', '\r', inputs).panel as FilePanel
+    expect(panel.line).toBe(5)
+  })
+
+  it('reads the source: neither of them has a formatted line to land on', () => {
+    const markdown = filePanel('/r/README.md', null, true)
+    expect(markdown.formatted).toBe(true)
+    expect(panelKey(markdown, 'ctrl+f', '\x06', inputs).panel).toMatchObject({ formatted: false })
+    expect(panelKey(markdown, 'ctrl+g', '\x07', inputs).panel).toMatchObject({ formatted: false })
+  })
+})
+
+describe('typing into a file', () => {
+  const text = ['const a = 1', 'const b = 2', 'done()']
+  const inputs = { text, lines: text.length, body: 3, columns: 60 }
+  const clicked = (panel: Panel, line: number, cell: number) =>
+    panelClick(panel, `caret:${line}:${cell}`, inputs).panel as FilePanel
+
+  it('puts the caret where the click landed, and types there', () => {
+    let panel = clicked(filePanel('/r/a.ts'), 1, 7)
+    expect(panel.edit).toMatchObject({ row: 1, column: 7, dirty: false })
+    panel = panelKey(panel, undefined, 'X', inputs).panel as FilePanel
+    expect(panel.edit?.lines[1]).toBe('const bX = 2')
+    expect(panel.edit?.dirty).toBe(true)
+    // Reading keys are typed now: the file is what has the keyboard.
+    panel = panelKey(panel, 'e', 'e', inputs).panel as FilePanel
+    expect(panel.edit?.lines[1]).toBe('const bXe = 2')
+  })
+
+  it('saves on ctrl+s, and only when there is something to save', () => {
+    const put = clicked(filePanel('/r/a.ts'), 0, 0)
+    expect(panelKey(put, 'ctrl+s', '\x13', inputs)).toMatchObject({ submit: false })
+    const typed = panelKey(put, undefined, 'x', inputs).panel as FilePanel
+    expect(panelKey(typed, 'ctrl+s', '\x13', inputs)).toMatchObject({
+      submit: true,
+      choice: 'save',
+    })
+    expect(panelClick(typed, 'save', inputs)).toMatchObject({ submit: true, choice: 'save' })
+  })
+
+  it('asks once before throwing away what was typed, and never silently', () => {
+    const typed = panelKey(clicked(filePanel('/r/a.ts'), 0, 0), undefined, 'x', inputs)
+      .panel as FilePanel
+    const asked = panelKey(typed, 'escape', '\x1b', inputs).panel as FilePanel
+    expect(asked.said).toMatch(/ctrl\+s/)
+    expect(asked.warned).toBe(true)
+    expect(panelKey(asked, 'escape', '\x1b', inputs).panel).toBeNull()
+    // The same for the two ways out that are clicks.
+    expect(panelClick(typed, 'close', inputs).panel).toMatchObject({ warned: true })
+    expect(panelClick(typed, 'editor', inputs)).toMatchObject({ submit: false })
+    // Nothing typed, nothing to ask about.
+    const put = clicked(filePanel('/r/a.ts'), 0, 0)
+    expect(panelKey(put, 'escape', '\x1b', inputs).panel).toBeNull()
+  })
+
+  it('takes a paste as the lines it is', () => {
+    const put = clicked(filePanel('/r/a.ts'), 0, 11)
+    const pasted = panelKey(put, undefined, '\x1b[200~ // one\n// two\x1b[201~', inputs)
+      .panel as FilePanel
+    expect(pasted.edit?.lines).toEqual(['const a = 1 // one', '// two', 'const b = 2', 'done()'])
+  })
+
+  it('is scrolled by the wheel without the caret moving', () => {
+    const typed = clicked(filePanel('/r/a.ts'), 0, 0)
+    const wheeled = scrollFile(typed, 2, 3)
+    expect(wheeled.scroll).toBe(2)
+    expect(wheeled.edit).toMatchObject({ row: 0, column: 0 })
+    expect(scrollFile(wheeled, 9, 3).scroll).toBe(2)
+    expect(scrollFile(wheeled, -9, 3).scroll).toBe(0)
+  })
+
+  it('keeps the caret in view as it moves', () => {
+    const many = Array.from({ length: 40 }, (_, i) => `line ${i}`)
+    const wide = { text: many, lines: many.length, body: 5, columns: 60 }
+    let panel = panelClick(filePanel('/r/a.ts'), 'caret:0:0', wide).panel as FilePanel
+    for (let i = 0; i < 6; i++) panel = panelKey(panel, 'down', '', wide).panel as FilePanel
+    expect(panel.edit?.row).toBe(6)
+    expect(panel.scroll).toBe(4)
+  })
+
+  it('saved, comes from the file again', () => {
+    const typed = panelKey(clicked(filePanel('/r/a.ts'), 0, 5), undefined, '!', inputs)
+      .panel as FilePanel
+    const saved = savedFile(typed, ['const!a = 1', 'const b = 2', 'done()'], 'Saved a.ts.')
+    expect(saved.edit).toMatchObject({ dirty: false, row: 0, column: 6 })
+    expect(saved.edit?.from).toEqual([0, 1, 2])
+    expect(saved.said).toBe('Saved a.ts.')
   })
 })
 

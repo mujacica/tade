@@ -1,6 +1,18 @@
 import { type Setting, type SettingGroup, THINKING_LEVELS } from '@tade/core'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
+import {
+  caretAt,
+  cellOf,
+  columnOf,
+  type Edited,
+  editFrom,
+  editKey,
+  leftOf,
+  type Match,
+  matchesIn,
+  typeIn,
+} from './viewer.ts'
 
 // Panels: the questions the window asks, floating over it.
 //
@@ -385,6 +397,10 @@ export interface SearchPanel {
 /**
  * A file, read inside the window: coloured, with line numbers, and a button
  * for the editor. Markdown can be read formatted or as its source.
+ *
+ * Clicked into, it is also typed into — for the short edit that is not worth
+ * leaving the window for. `ctrl+s` saves it, and the button for the real
+ * editor stays where it was.
  */
 export interface FilePanel {
   kind: 'file'
@@ -396,8 +412,21 @@ export interface FilePanel {
   scroll: number
   /** Markdown laid out rather than shown as source. */
   formatted: boolean
+  /** The one bar under the file's name: finding in it, or going to a line. */
+  asking: FileAsk | null
+  /** What has been typed into it, once you have clicked in. */
+  edit: Edited | null
+  /** Said in the footer: what the last save did, or why it would not. */
+  said: string | null
+  /** Esc was pressed on unsaved work, and asked before throwing it away. */
+  warned: boolean
   busy: false
 }
+
+/** Finding in the file, or going to a line: whichever bar is open. */
+export type FileAsk =
+  | { kind: 'find'; query: string; index: number }
+  | { kind: 'goto'; digits: string }
 
 /** The keys Tade keeps, and the way to change the one that is yours. */
 export interface KeysPanel {
@@ -754,7 +783,40 @@ export function filePanel(path: string, line: number | null = null, markdown = f
     line,
     scroll: line ? Math.max(0, line - 6) : 0,
     formatted: markdown && line === null,
+    asking: null,
+    edit: null,
+    said: null,
+    warned: false,
     busy: false,
+  }
+}
+
+/** The matches in the file for the find bar as it stands, in line order. */
+export function fileMatches(panel: FilePanel, text: readonly string[]): Match[] {
+  return panel.asking?.kind === 'find' ? matchesIn(text, panel.asking.query) : []
+}
+
+/**
+ * The wheel over a file: it scrolls what is shown, and never moves the caret.
+ * Down is further into the file, as it is everywhere else.
+ */
+export function scrollFile(panel: FilePanel, by: number, lines: number): FilePanel {
+  const last = Math.max(0, lines - 1)
+  return { ...panel, scroll: Math.max(0, Math.min(last, panel.scroll + by)) }
+}
+
+/**
+ * The file saved: what is on screen is what is on disk again, so nothing is
+ * unsaved and every line comes from the file once more — the caret stays where
+ * it was typing.
+ */
+export function savedFile(panel: FilePanel, lines: readonly string[], said: string): FilePanel {
+  const edit = panel.edit
+  return {
+    ...panel,
+    said,
+    warned: false,
+    edit: edit ? editFrom(lines, edit.row, edit.column) : null,
   }
 }
 
@@ -825,6 +887,11 @@ export interface PanelInputs {
   entries?: readonly SearchEntry[]
   /** How many lines the file panel has to scroll through. */
   lines?: number
+  /** The file's own lines, uncoloured: what a find looks through and an edit starts from. */
+  text?: readonly string[]
+  /** How many lines the file panel shows at once, and how wide they are drawn. */
+  body?: number
+  columns?: number
   /** The project's branches, for switching. */
   branches?: readonly BranchRow[]
   /** How many lines the find panel's query matches. */
@@ -1110,7 +1177,7 @@ export function panelKey(
   if (panel.kind === 'settings') return settingsKey(panel, key, data, inputs)
   if (panel.kind === 'open-project') return openKey(panel, key, data, inputs.rows ?? [])
   if (panel.kind === 'search') return searchKey(panel, key, data, inputs.entries ?? [])
-  if (panel.kind === 'file') return fileKey(panel, key, inputs.lines ?? 0)
+  if (panel.kind === 'file') return fileKey(panel, key, data, inputs)
   if (panel.kind === 'keys') return key === 'escape' || key === 'enter' ? close : stay(panel)
   if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
   if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
@@ -1172,7 +1239,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'settings') return settingsClick(panel, control, inputs)
   if (panel.kind === 'open-project') return openClick(panel, control, inputs.rows ?? [])
   if (panel.kind === 'search') return searchClick(panel, control, inputs.entries ?? [])
-  if (panel.kind === 'file') return fileClick(panel, control)
+  if (panel.kind === 'file') return fileClick(panel, control, inputs)
   if (panel.kind === 'keys')
     return control === 'change-keys' ? { panel, submit: true, choice: 'change-keys' } : stay(panel)
   if (panel.kind === 'model') {
@@ -1869,14 +1936,31 @@ function searchClick(
   return stay(panel)
 }
 
-/** Reading: the arrows a line, page keys and space a screen, `e` or enter to the editor. */
-function fileKey(panel: FilePanel, key: string | undefined, lines: number): PanelOutcome {
+/**
+ * Reading: the arrows a line, page keys and space a screen, `e` or enter to
+ * the editor. `ctrl+f` finds, `ctrl+g` goes to a line — and once you have
+ * clicked into the text, everything printable is typed into it instead.
+ */
+function fileKey(
+  panel: FilePanel,
+  key: string | undefined,
+  data: string,
+  inputs: PanelInputs,
+): PanelOutcome {
+  const lines = inputs.lines ?? 0
+  const body = Math.max(1, inputs.body ?? 20)
+  if (panel.asking) return askKey(panel, panel.asking, key, data, inputs)
+  if (panel.edit) return typingKey(panel, panel.edit, key, data, body)
   const last = Math.max(0, lines - 1)
   const to = (scroll: number) => stay({ ...panel, scroll: Math.max(0, Math.min(last, scroll)) })
   switch (key) {
     case 'escape':
     case 'q':
       return close
+    case 'ctrl+f':
+      return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
+    case 'ctrl+g':
+      return stay(asking(panel, { kind: 'goto', digits: '' }))
     case 'down':
       return to(panel.scroll + 1)
     case 'up':
@@ -1900,15 +1984,169 @@ function fileKey(panel: FilePanel, key: string | undefined, lines: number): Pane
   }
 }
 
-function fileClick(panel: FilePanel, control: string): PanelOutcome {
+/**
+ * Typing into the file. Every printable key is a character in it, so the
+ * reading keys are gone while the caret is down: what is left is `ctrl+s` to
+ * save, the two bars, and esc — which asks once when there is something
+ * unsaved to lose.
+ */
+function typingKey(
+  panel: FilePanel,
+  edit: Edited,
+  key: string | undefined,
+  data: string,
+  body: number,
+): PanelOutcome {
+  if (key === 'ctrl+s')
+    return edit.dirty
+      ? { panel: { ...panel, warned: false }, submit: true, choice: 'save' }
+      : stay(panel)
+  if (key === 'ctrl+f') return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
+  if (key === 'ctrl+g') return stay(asking(panel, { kind: 'goto', digits: '' }))
+  if (key === 'escape') return edit.dirty && !panel.warned ? stay(warn(panel)) : close
+  const moved = editKey(edit, key, body)
+  if (moved) return stay(typedInto(panel, moved, body))
+  // A paste is text like any other here, newlines and all — pasting a line in
+  // is half of what a short edit is for.
+  const paste = pastedText(data)
+  if (paste !== null) return stay(typedInto(panel, typeIn(edit, paste), body))
+  const text = typed(data, key)
+  return text ? stay(typedInto(panel, typeIn(edit, text), body)) : stay(panel)
+}
+
+/** What was pasted, out of the markers a terminal wraps a paste in. */
+function pastedText(data: string): string | null {
+  const open = '\x1b[200~'
+  const shut = '\x1b[201~'
+  if (!data.startsWith(open)) return null
+  const end = data.indexOf(shut)
+  return data.slice(open.length, end < 0 ? undefined : end)
+}
+
+/**
+ * Asked once before what was typed is thrown away. Nothing here can put an
+ * edit back, so the second press is the one that loses it.
+ */
+function warn(panel: FilePanel): FilePanel {
+  return { ...panel, warned: true, said: 'Not saved. ctrl+s keeps it — again loses it.' }
+}
+
+/** The file as it now is, with the caret in view and the last answer cleared. */
+function typedInto(panel: FilePanel, edit: Edited, body: number): FilePanel {
+  return {
+    ...panel,
+    edit,
+    line: null,
+    warned: false,
+    said: null,
+    scroll: inView(panel.scroll, edit.row, body),
+  }
+}
+
+/** Finding, and going to a line: one bar, and the same keys in both. */
+function askKey(
+  panel: FilePanel,
+  ask: FileAsk,
+  key: string | undefined,
+  data: string,
+  inputs: PanelInputs,
+): PanelOutcome {
+  const body = Math.max(1, inputs.body ?? 20)
+  const text = inputs.text ?? []
+  if (key === 'escape') return stay({ ...panel, asking: null })
+  if (ask.kind === 'goto') {
+    if (key === 'enter') {
+      const line = Number(ask.digits)
+      if (!line) return stay({ ...panel, asking: null })
+      return stay(atLine(panel, Math.min(Math.max(1, line), Math.max(1, text.length)), body))
+    }
+    if (key === 'backspace') return stay(asking(panel, { ...ask, digits: ask.digits.slice(0, -1) }))
+    const digits = typed(data, key).replace(/\D/g, '')
+    return digits ? stay(asking(panel, { ...ask, digits: ask.digits + digits })) : stay(panel)
+  }
+  const at = (index: number, query = ask.query): PanelOutcome => {
+    const found = matchesIn(text, query)
+    const next = found.length === 0 ? 0 : ((index % found.length) + found.length) % found.length
+    const match = found[next]
+    const moved = asking(panel, { ...ask, query, index: next })
+    return stay(match ? atLine(moved, match.line + 1, body, match.column) : moved)
+  }
+  if (key === 'enter' || key === 'down' || key === 'ctrl+f') return at(ask.index + 1)
+  if (key === 'up') return at(ask.index - 1)
+  if (key === 'backspace') return at(0, [...ask.query].slice(0, -1).join(''))
+  if (key === 'ctrl+u') return at(0, '')
+  const typing = typed(data, key)
+  return typing ? at(0, ask.query + typing) : stay(panel)
+}
+
+/** A bar opened over the source: neither find nor go to line has a formatted line to land on. */
+function asking(panel: FilePanel, ask: FileAsk): FilePanel {
+  return { ...panel, asking: ask, formatted: false, said: null, warned: false }
+}
+
+/** The line found or asked for: marked, brought into view, and taken by the caret. */
+function atLine(panel: FilePanel, line: number, body: number, column = 0): FilePanel {
+  return {
+    ...panel,
+    line,
+    scroll: inView(panel.scroll, line - 1, body),
+    ...(panel.edit ? { edit: caretAt(panel.edit, line - 1, column) } : {}),
+  }
+}
+
+/**
+ * A line kept on screen, two rows in from either edge, moving no further than
+ * it has to: a caret that scrolls the file every time it moves is unreadable.
+ */
+function inView(scroll: number, row: number, body: number): number {
+  const margin = Math.min(2, Math.max(0, Math.floor((body - 1) / 2)))
+  if (row < scroll + margin) return Math.max(0, row - margin)
+  if (row > scroll + body - 1 - margin) return Math.max(0, row - body + 1 + margin)
+  return scroll
+}
+
+function fileClick(panel: FilePanel, control: string, inputs: PanelInputs): PanelOutcome {
+  // `caret:<line>:<cell>` — a click in the text, by the line it landed on and
+  // how far into it. Which character that is depends on the tabs and the wide
+  // characters before it, and on how far the view has slid to keep the caret
+  // on screen, so it is worked out here rather than drawn into the id.
+  if (control.startsWith('caret:')) {
+    const [row, cell] = control.slice('caret:'.length).split(':').map(Number)
+    const text = inputs.text ?? []
+    if (row === undefined || cell === undefined || text.length === 0) return stay(panel)
+    const edit = panel.edit ?? editFrom(text)
+    const columns = Math.max(1, inputs.columns ?? 80)
+    const left = leftOf(cellOf(edit.lines[edit.row] ?? '', edit.column), columns)
+    const line = edit.lines[Math.max(0, Math.min(edit.lines.length - 1, row))] ?? ''
+    return stay({
+      ...panel,
+      edit: caretAt(edit, row, columnOf(line, cell + left)),
+      line: null,
+      said: null,
+      warned: false,
+    })
+  }
+  // The bar's own arrows: the same step its keys take.
+  if (control === 'match-next' || control === 'match-previous') {
+    const ask = panel.asking
+    if (ask?.kind !== 'find') return stay(panel)
+    return askKey(panel, ask, control === 'match-next' ? 'down' : 'up', '', inputs)
+  }
+  // Leaving the file, either way, loses what was typed into it: both ask first.
+  const losing = panel.edit?.dirty === true && !panel.warned
   switch (control) {
     case 'close':
-      return close
+      return losing ? stay(warn(panel)) : close
+    case 'save':
+      return panel.edit?.dirty ? { panel, submit: true, choice: 'save' } : stay(panel)
+    case 'shut-bar':
+      return stay({ ...panel, asking: null })
     case 'editor':
+      return losing ? stay(warn(panel)) : { panel, submit: true, choice: control }
     case 'copy-path':
       return { panel, submit: true, choice: control }
     case 'formatted':
-      return stay({ ...panel, formatted: true, scroll: 0 })
+      return losing ? stay(warn(panel)) : stay({ ...panel, formatted: true, scroll: 0, edit: null })
     case 'source':
       return stay({ ...panel, formatted: false, scroll: 0 })
     default:

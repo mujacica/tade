@@ -76,7 +76,7 @@ import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
 import {
   extentOf,
   type Hit,
-  hitAt,
+  hitBoxAt,
   pressable,
   type ScrollArea,
   sameTarget,
@@ -164,7 +164,7 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
-import { fileViewSize, type OpenRowView, type PanelContext } from './panel-view.ts'
+import { fileBodySize, fileViewSize, type OpenRowView, type PanelContext } from './panel-view.ts'
 import {
   type BranchRow,
   branchMenuItems,
@@ -181,6 +181,7 @@ import {
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
+  type FilePanel,
   fileMenuItems,
   filePanel,
   findPanel,
@@ -209,7 +210,9 @@ import {
   promptPanel,
   queueMenuItems,
   type SettingsPanel,
+  savedFile,
   scheduleMenuItems,
+  scrollFile,
   searchPanel,
   settingsPanel,
   spendPanel,
@@ -259,11 +262,14 @@ import {
 import { transcriptLines } from './transcript-view.ts'
 import { draw, type Frame, type LaneView } from './view.ts'
 import {
+  editedText,
   formattable,
   formattedLines,
   markdownLines,
   readForView,
+  saveEdited,
   sourceLines,
+  textLines,
   type ViewedFile,
 } from './viewer.ts'
 
@@ -319,7 +325,15 @@ export type PointerEvent =
   | { kind: 'move'; target: Target | null }
   | { kind: 'press'; target: Target | null }
   | { kind: 'release' }
-  | { kind: 'click'; target: Target; button: 'left' | 'right'; x: number; y: number }
+  /** `cell` is how far along what was clicked the pointer landed, from its left edge. */
+  | {
+      kind: 'click'
+      target: Target
+      button: 'left' | 'right'
+      x: number
+      y: number
+      cell: number
+    }
   | { kind: 'wheel'; area: ScrollArea; rows: number }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
@@ -423,7 +437,12 @@ class Window implements Component {
   }
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-    const target = hitAt(this.hits, event.x, event.y)
+    const box = hitBoxAt(this.hits, event.x, event.y)
+    const target = box?.target ?? null
+    // How far along the thing you clicked the pointer landed. Only the hit
+    // knows where it starts: a panel is centred, and what drew the row was
+    // laid out long before it was put where it ended up.
+    const cell = box ? event.x - box.from : 0
     switch (event.type) {
       case 'move':
       case 'drag':
@@ -467,7 +486,7 @@ class Window implements Component {
         // A right-click is a click the moment it is pressed: the terminal
         // reports no click for it, and a menu should not wait for a release.
         if (event.button === 'right' && target) {
-          this.onPointer({ kind: 'click', target, button: 'right', x: event.x, y: event.y })
+          this.onPointer({ kind: 'click', target, button: 'right', x: event.x, y: event.y, cell })
           return { handled: true }
         }
         if (event.button !== 'left') return undefined
@@ -495,7 +514,14 @@ class Window implements Component {
       }
       case 'click':
         if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
-        this.onPointer({ kind: 'click', target, button: event.button, x: event.x, y: event.y })
+        this.onPointer({
+          kind: 'click',
+          target,
+          button: event.button,
+          x: event.x,
+          y: event.y,
+          cell,
+        })
         return { handled: true }
       case 'wheel': {
         const area = scrollAt(this.hits, event.x, event.y)
@@ -698,6 +724,8 @@ export class App {
   private viewed: {
     file: ViewedFile
     source: string[]
+    /** The same lines uncoloured: what a find looks through and a caret counts in. */
+    text: string[]
     formatted: { width: number; lines: string[] } | null
   } | null = null
   /** Every file in every place search looks, and when they were listed. */
@@ -1270,6 +1298,12 @@ export class App {
     switch (event.kind) {
       case 'wheel': {
         const panel = this.state.panel
+        if (event.area === 'panel' && panel?.kind === 'file') {
+          // Over a file the wheel scrolls it. It cannot be the down key here:
+          // with a caret in the text, that key moves the caret.
+          this.state = { ...this.state, panel: scrollFile(panel, event.rows, this.fileLines()) }
+          return true
+        }
         if (event.area === 'panel' && panel) {
           const key = event.rows > 0 ? 'down' : 'up'
           let outcome: PanelOutcome = { panel, submit: false }
@@ -1329,9 +1363,12 @@ export class App {
             ? target.edge === 'sidebar'
               ? 'ew-resize'
               : 'ns-resize'
-            : pressable(target)
-              ? 'pointer'
-              : 'default'
+            : // Text you can put the caret in: the shape everything else uses for that.
+              target?.kind === 'caret'
+              ? 'text'
+              : pressable(target)
+                ? 'pointer'
+                : 'default'
         const was = shapeOf(this.state.hover)
         this.state = { ...this.state, hover: event.target }
         const now = shapeOf(event.target)
@@ -1369,7 +1406,11 @@ export class App {
         return true
       case 'click':
         this.state = { ...this.state, pressed: null }
-        this.clicked(event.target, event.button, { x: event.x, y: event.y })
+        this.clicked(event.target, event.button, {
+          x: event.x,
+          y: event.y,
+          cell: event.cell,
+        })
         return true
     }
   }
@@ -1684,10 +1725,10 @@ export class App {
   private clicked(
     target: Target,
     button: 'left' | 'right' = 'left',
-    at: { x: number; y: number } = { x: 0, y: 0 },
+    at: { x: number; y: number; cell?: number } = { x: 0, y: 0 },
   ): void {
     if (this.state.panel) {
-      this.clickPanel(target)
+      this.clickPanel(target, at.cell ?? 0)
       return
     }
     // The path under GIT opens its folder; right-clicked, it is copied.
@@ -2190,7 +2231,12 @@ export class App {
   /** Read a file into the viewer, at a line if there is one. */
   private openFile(path: string, line: number | null = null): void {
     const file = readForView(path)
-    this.viewed = { file, source: sourceLines(file, !this.skin.colour), formatted: null }
+    this.viewed = {
+      file,
+      source: sourceLines(file, !this.skin.colour),
+      text: textLines(file),
+      formatted: null,
+    }
     this.state = { ...this.state, panel: filePanel(path, line, formattable(file)) }
     this.draw()
   }
@@ -2200,7 +2246,7 @@ export class App {
     const viewed = this.viewed
     if (!viewed) return null
     if (!formattable(viewed.file))
-      return { file: viewed.file, source: viewed.source, formatted: null }
+      return { file: viewed.file, source: viewed.source, text: viewed.text, formatted: null }
     const room = fileViewSize(width, this.terminal.rows).width - 4
     if (viewed.formatted?.width !== room) {
       viewed.formatted = {
@@ -2208,7 +2254,44 @@ export class App {
         lines: formattedLines(viewed.file, room, !this.skin.colour),
       }
     }
-    return { file: viewed.file, source: viewed.source, formatted: viewed.formatted.lines }
+    return {
+      file: viewed.file,
+      source: viewed.source,
+      text: viewed.text,
+      formatted: viewed.formatted.lines,
+    }
+  }
+
+  /**
+   * Write what was typed into the file back, and read it again — so what is on
+   * screen is what is on disk, coloured as a whole file rather than line by
+   * line, and the tree beside it shows git's new mark for it.
+   *
+   * A save that could not happen stays in the panel, with the file still open
+   * and everything typed still in it.
+   */
+  private async saveFile(panel: FilePanel): Promise<void> {
+    const viewed = this.viewed
+    const edit = panel.edit
+    if (!viewed || !edit || viewed.file.path !== panel.path) return
+    try {
+      const file = saveEdited(viewed.file, editedText(edit, viewed.file))
+      this.viewed = {
+        file,
+        source: sourceLines(file, !this.skin.colour),
+        text: textLines(file),
+        formatted: null,
+      }
+      this.state = {
+        ...this.state,
+        panel: savedFile(panel, this.viewed.text, `Saved ${basename(panel.path)}.`),
+      }
+      this.draw()
+      await this.live?.refresh()
+    } catch (err) {
+      this.state = { ...this.state, panel: { ...panel, said: why(err), warned: true } }
+    }
+    this.draw()
   }
 
   private async openLink(url: string): Promise<void> {
@@ -2276,9 +2359,17 @@ export class App {
     this.draw()
   }
 
-  private clickPanel(target: Target): void {
+  private clickPanel(target: Target, cell = 0): void {
     const panel = this.state.panel
     if (!panel) return
+    if (target.kind === 'caret') {
+      // A click in the file puts the caret in it. The line is the hit's; which
+      // character of it is how far along the hit the click landed, which the
+      // panel turns into a column — it knows about tabs and about how far the
+      // body has slid to keep the caret on screen.
+      this.applyPanel(panelClick(panel, `caret:${target.line}:${cell}`, this.panelInputs()))
+      return
+    }
     if (target.kind === 'dismiss') {
       this.state = { ...this.state, panel: panel.busy ? panel : null }
     } else if (target.kind === 'control') {
@@ -2346,7 +2437,15 @@ export class App {
       case 'file':
         if (choice === 'editor') {
           this.state = { ...this.state, panel: null }
-          await this.openPlace({ path: panel.path, ...(panel.line ? { line: panel.line } : {}) })
+          await this.openPlace({
+            path: panel.path,
+            ...(panel.edit ? { line: panel.edit.row + 1, column: panel.edit.column + 1 } : {}),
+            ...(!panel.edit && panel.line ? { line: panel.line } : {}),
+          })
+          return
+        }
+        if (choice === 'save') {
+          await this.saveFile(panel)
           return
         }
         if (choice === 'copy-path') {
@@ -5852,10 +5951,18 @@ export class App {
 
   /** What panels need to know that they do not hold. */
   private panelInputs(): PanelInputs {
+    const panel = this.state.panel
+    // The file's own lines, and only while they are the file the panel is on:
+    // a caret counts columns in them, and in the wrong file it would land
+    // somewhere nobody pointed at.
+    const viewed = panel?.kind === 'file' && this.viewed?.file.path === panel.path
+    const file = panel?.kind === 'file' ? this.fileBody(panel) : null
     return {
       entries: this.searchEntries(),
       lines:
         this.state.panel?.kind === 'extension-view' ? this.extensionViewLines() : this.fileLines(),
+      text: viewed ? (this.viewed?.text ?? []) : [],
+      ...(file ? { body: file.rows, columns: file.columns } : {}),
       branches: this.branchRows,
       found: this.findMatches().length,
       rows:
@@ -5889,9 +5996,20 @@ export class App {
     const panel = this.state.panel
     if (panel?.kind !== 'file' || !this.viewed) return 0
     const viewing = this.viewingAt(this.terminal.columns)
+    if (panel.edit) return panel.edit.lines.length
     return panel.formatted && viewing?.formatted
       ? viewing.formatted.length
       : this.viewed.source.length
+  }
+
+  /** The size of the viewer's body, for keeping the caret in it and for reading a click. */
+  private fileBody(panel: FilePanel): { rows: number; columns: number } {
+    return fileBodySize(
+      this.terminal.columns,
+      this.terminal.rows,
+      this.fileLines(),
+      panel.asking !== null,
+    )
   }
 
   private get configPath(): string {

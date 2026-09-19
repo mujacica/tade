@@ -47,6 +47,12 @@ export type Target =
    * clicking one puts the caret where the click was, as any text box does.
    */
   | { kind: 'input'; line: number }
+  /**
+   * A line of the file being read, by its line in the file: clicking one puts
+   * the caret there and lets you type. Which character that is comes from how
+   * far along the hit the click landed, which only the hit knows.
+   */
+  | { kind: 'caret'; line: number }
   /** A file the task changed: clicking it shows the change. */
   | { kind: 'change'; task: string; path: string }
   /** A link on an agent's screen. */
@@ -86,9 +92,17 @@ export function scrollAt(hits: readonly Hit[], x: number, y: number): ScrollArea
 
 /** What is at this cell, if anything. Later hits win: they are drawn on top. */
 export function hitAt(hits: readonly Hit[], x: number, y: number): Target | null {
-  let found: Target | null = null
+  return hitBoxAt(hits, x, y)?.target ?? null
+}
+
+/**
+ * The same, as the hit itself: what was clicked *and* where it starts, for the
+ * few things that care how far along them the pointer landed.
+ */
+export function hitBoxAt(hits: readonly Hit[], x: number, y: number): Hit | null {
+  let found: Hit | null = null
   for (const hit of hits) {
-    if (hit.row === y && x >= hit.from && x <= hit.to) found = hit.target
+    if (hit.row === y && x >= hit.from && x <= hit.to) found = hit
   }
   return found
 }
@@ -118,6 +132,7 @@ export function pressable(target: Target | null): boolean {
     target.kind !== 'scroll' &&
     target.kind !== 'scrollbar' &&
     target.kind !== 'input' &&
+    target.kind !== 'caret' &&
     target.kind !== 'terminal' &&
     target.kind !== 'pane' &&
     target.kind !== 'divider'

@@ -22,12 +22,12 @@
      README.md│                                                                                          │              
               │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
 ━ ▐ orchestrat│ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
-              │ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │              
+              │ In a file you are reading ▐ ctrl ▌+▐ f ▌▐ ctrl ▌+▐ g ▌▐ ctrl ▌+▐ s ▌  find · line · save │              
+              │ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │             ▕
               │                                                                                          │             ▕
               │ Everything else goes to the agent or terminal you're typing at.                          │             ▕
               │                                                                         ▐ Change keys… ▌ │             ▕
-              ╰──────────────────────────────────────────────────────────────────────────────────────────╯             ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+ ❯ what you sa╰──────────────────────────────────────────────────────────────────────────────────────────╯             ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
