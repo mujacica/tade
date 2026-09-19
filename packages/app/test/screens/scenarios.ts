@@ -261,6 +261,58 @@ const queueTasks: TaskSnapshot[] = [
   },
 ]
 
+/** A chain of work, each piece waiting on the one before it, and one that waits on nothing. */
+const chainTasks: TaskSnapshot[] = [
+  { task: 'checkout/schema', state: 'working', lane: 'checkout/schema/agent' },
+  {
+    task: 'checkout/api',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/schema'] },
+      after: [{ task: 'checkout/schema', why: 'the endpoints follow the tables' }],
+      prompt: 'Add the refunds endpoints once the tables are in.',
+      touches: ['src/api/refunds.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/client',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/api'] },
+      after: [{ task: 'checkout/api', why: 'it calls what the endpoints return' }],
+      prompt: 'Call the new refunds endpoints from the dashboard.',
+      touches: ['src/client/refunds.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/docs',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/client'] },
+      after: [{ task: 'checkout/client', why: 'it screenshots the dashboard' }],
+      prompt: 'Write up refunds for the guide.',
+      touches: ['docs/refunds.md'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/tidy-mailer',
+    state: 'queued',
+    queued: {
+      state: { kind: 'ready' },
+      after: [],
+      prompt: 'Tidy the mailer templates.',
+      touches: [],
+      at: null,
+    },
+  },
+]
+
 /** Schedules beside the queued work: one on repeat, one that asks the orchestrator, one paused. */
 const queueSchedules: ScheduleView[] = [
   {
@@ -636,7 +688,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'a-smart-queue',
     about:
-      'Work planned together: two agents working, and under them the SMART QUEUE — held because what it waited on failed, next, waiting on two, at a time, and paused — told apart by shape, with filters over it. The held one is open: it will not start by itself, and says what can be done.',
+      'Work planned together: two agents working, and under them the SMART QUEUE in the order the resolved tree gives — held because what it waited on failed, with what waits on it shifted right and joined to it by a line, then next, at a time, and paused — told apart by shape, with filters over it. The held one is open: it will not start by itself, it says what can be done, and the chain it is in is drawn with its own box the heavy one.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), queueTasks),
@@ -711,7 +763,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'waiting-in-the-queue',
     about:
-      'Queued work open in front of you: what it waits on and why, what its agent will be told, what it will change, and how it counts as finished.',
+      'Queued work open in front of you — which is what clicking it in the queue shows: the whole chain it is in as boxes, its own drawn heavier, every wait’s reason under it, what its agent will be told, what it will change, and how it counts as finished.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), queueTasks),
@@ -721,6 +773,19 @@ export const SCENARIOS: Scenario[] = [
       queueFilter: 'next',
     },
     frame: frame({ screen: '', height: 44, clock: utcClock }),
+  },
+  {
+    name: 'a-chain-in-the-queue',
+    about:
+      'A chain four deep, in the middle of it. Down the side, the queue in the order the tree resolves to: what can start now first, then the chain — each piece shifted right of what it waits on and joined to it by a line that carries through the room between the tabs. In front of you, the whole chain as boxes, left to right, with the one you are on drawn heavier, and every wait’s reason under it.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), chainTasks),
+        'checkout/client',
+      ),
+      folded: ['changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({ screen: '', width: 150, height: 40, clock: utcClock }),
   },
   {
     name: 'pointing-at-a-note',

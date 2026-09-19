@@ -71,14 +71,42 @@ describe('a plan, laid out', () => {
     for (const row of rows) expect([...row].length).toBeLessThanOrEqual(60)
   })
 
-  it('says a plan is too wide for its columns rather than squeezing it', () => {
-    const chain = ['a', 'b', 'c'].map((task) => box(task))
+  it('draws the one you are on heavier, and says which box every cell belongs to', () => {
     const drawing = drawPlan(
-      chain,
-      [
-        { from: 'a', to: 'b' },
-        { from: 'b', to: 'c' },
-      ],
+      [box('fix'), { ...box('refunds'), here: true }],
+      [{ from: 'fix', to: 'refunds' }],
+      60,
+      () => '',
+    )
+    const rows = plain(drawing)
+    // Heavier lines, so which one is the subject reads with the colour off.
+    expect(rows[2]).toBe('│ ◌ fix                │─────▶┃ ◌ refunds            ┃')
+    expect(drawing.rows[2]?.find((run) => run.text.includes('fix'))?.task).toBe('fix')
+    expect(drawing.rows[2]?.find((run) => run.text.includes('refunds'))?.task).toBe('refunds')
+    // The heavy box is painted as the one you are on, whatever its own tone.
+    expect(drawing.rows[1]?.find((run) => run.task === 'refunds')?.tone).toBe('here')
+    // The lines between boxes belong to nobody: clicking one goes nowhere.
+    expect(drawing.rows[2]?.find((run) => run.text.includes('▶'))?.task).toBeUndefined()
+  })
+
+  it('draws narrower boxes rather than nothing when the roomy ones do not fit', () => {
+    const chain = ['a', 'b', 'c'].map((task) => box(task))
+    const waits = [
+      { from: 'a', to: 'b' },
+      { from: 'b', to: 'c' },
+    ]
+    const drawing = drawPlan(chain, waits, 60, () => '')
+    expect(drawing.tooWide).toBe(false)
+    const rows = plain(drawing)
+    expect(rows[1]).toBe('╭──────────────╮    ╭──────────────╮    ╭──────────────╮')
+    for (const row of rows) expect([...row].length).toBeLessThanOrEqual(60)
+  })
+
+  it('says a plan is too wide for its columns rather than squeezing it', () => {
+    const tasks = ['a', 'b', 'c', 'd', 'e']
+    const drawing = drawPlan(
+      tasks.map((task) => box(task)),
+      tasks.slice(1).map((task, i) => ({ from: tasks[i] ?? '', to: task })),
       60,
       () => '',
     )

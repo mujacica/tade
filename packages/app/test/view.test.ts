@@ -462,3 +462,90 @@ describe('the bar down the right of what scrolls', () => {
     expect(drawn.rows.some((row) => row.includes('48;5;255'))).toBe(false)
   })
 })
+
+describe('the smart queue', () => {
+  // A plan under way: one held, what waits on it, and one that only needs room.
+  const plan: TaskSnapshot[] = [
+    { task: 'checkout/fix-charge', state: 'failed', reason: 'tests failed twice' },
+    {
+      task: 'checkout/add-refunds',
+      state: 'queued',
+      queued: {
+        state: { kind: 'held', on: 'checkout/fix-charge', because: 'checkout/fix-charge failed' },
+        after: [{ task: 'checkout/fix-charge', why: 'both change charge.ts' }],
+        prompt: 'add refunds',
+        touches: [],
+        at: null,
+      },
+    },
+    {
+      task: 'checkout/refund-emails',
+      state: 'queued',
+      queued: {
+        state: { kind: 'waiting', on: ['checkout/add-refunds'] },
+        after: [{ task: 'checkout/add-refunds', why: 'it emails what refund() returns' }],
+        prompt: 'email the customer',
+        touches: [],
+        at: null,
+      },
+    },
+    {
+      task: 'checkout/docs-typos',
+      state: 'queued',
+      queued: { state: { kind: 'ready' }, after: [], prompt: 'fix typos', touches: [], at: null },
+    },
+  ]
+
+  const queued = (over: Partial<AppState> = {}): AppState => ({
+    ...withTasks(withProjects(initialState(), ['checkout']), plan),
+    project: 'checkout',
+    folded: ['changes', 'files', 'notes', 'where'],
+    ...over,
+  })
+
+  it('shifts each piece right of what it waits on, and joins them with a line', () => {
+    const rows = renderApp(queued(), frame({ width: 100, height: 40 })).map(plain)
+    const side = (name: string) => rows.findIndex((row) => row.includes(name))
+    // Down the side in the order the tree gives: the held one, what waits on
+    // it under it, then the work that only waits for room.
+    expect(side('add-refunds')).toBeLessThan(side('refund-emails'))
+    expect(side('refund-emails')).toBeLessThan(side('docs-typos'))
+    const child = rows[side('refund-emails')] ?? ''
+    // Hanging off what it waits on, and further right than it.
+    expect(child).toContain('╰─')
+    expect(child.indexOf('refund-emails')).toBeGreaterThan(
+      (rows[side('add-refunds')] ?? '').indexOf('add-refunds'),
+    )
+    // The line carries on through the room between the two tabs.
+    expect(
+      rows.slice(side('add-refunds'), side('refund-emails')).some((row) => row.includes('│')),
+    ).toBe(true)
+  })
+
+  it('draws the chain a piece of queued work is in, and lets you click along it', () => {
+    const drawn = draw(focusTask(queued(), 'checkout/refund-emails'), {
+      ...frame({ width: 140, height: 44 }),
+    })
+    const text = drawn.rows.map(plain).join('\n')
+    expect(text).toContain('THE CHAIN IT IS IN')
+    // A box per piece of the path, the one in front of you drawn heavier.
+    expect(text).toContain('┏')
+    expect(text).toContain('fix-charge')
+    expect(text).toContain('WHY IT WAITS')
+    expect(text).toContain('it emails what refund() returns')
+    // Every box in the chain is a way to go to what it is a box of.
+    const drawnBoxes = new Set(
+      drawn.rows
+        .map((row, i) => (/[╭┏][─━]{3}/.test(plain(row)) ? i : -1))
+        .filter((row) => row >= 0),
+    )
+    expect(drawnBoxes.size).toBeGreaterThan(0)
+    const clicks = drawn.hits.filter(
+      (hit) =>
+        hit.target.kind === 'task' &&
+        hit.target.task === 'checkout/fix-charge' &&
+        drawnBoxes.has(hit.row),
+    )
+    expect(clicks.length).toBeGreaterThan(0)
+  })
+})

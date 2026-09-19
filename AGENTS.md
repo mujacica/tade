@@ -75,6 +75,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   A plan is checked against what the project is already on — agents working, work an earlier plan
   left queued — and says what it will run into rather than refusing: what an agent will touch is a
   reading of the code, and the orchestrator may know better.
+- **Looking at queued work is never starting it.** Clicking it opens what it is — the chain it is
+  in drawn as boxes, every wait's reason, what its agent will be told, where it came from — and
+  starting it is its own act (`Start now`, its menu, `tade_queue_change`), which goes through the
+  queue so what started it and why is written down. It is shown where the resolved tree puts it:
+  what comes next first, and under each piece whatever waits on it, shifted right of it and joined
+  to it by a line — and `next` is the front of that tree, not everything that happens to be waiting.
 - **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
   to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
   it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,

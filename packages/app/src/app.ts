@@ -1749,6 +1749,10 @@ export class App {
       case 'task': {
         this.state = focusTask(this.state, target.task)
         const pane = this.state.panes.find((p) => p.task === target.task)
+        // Queued work is not started by looking at it: clicking it shows what
+        // it waits on, what its agent will be told and where it came from.
+        // Starting it is a button on that screen, and its menu's Start now.
+        if (pane?.queued) break
         // Clicking a task opens it. Resuming a session sends nothing to the
         // model, so this costs nothing until you type — which is what makes it
         // safe for a click, and not for tab, which passes over tasks on the
@@ -2122,9 +2126,14 @@ export class App {
       case 'deny':
         await this.decide(false)
         return
-      case 'open-agent':
-        await this.openAgent()
+      case 'open-agent': {
+        // Queued work has no agent yet: starting it goes through the queue, so
+        // what started it and why is written down.
+        const pane = this.state.panes.find((one) => one.task === this.state.focused)
+        if (pane?.queued) await this.changeQueue(pane.task, 'start')
+        else await this.openAgent()
         return
+      }
       case 'new-terminal':
         await this.openTerminal()
         return
@@ -3448,7 +3457,8 @@ export class App {
       case 'open': {
         this.state = focusTask(this.state, task)
         const pane = this.state.panes.find((p) => p.task === task)
-        if (pane && !pane.lane) await this.openAgent()
+        // Queued work opens as what it is: a plan, not an agent. Start now starts it.
+        if (pane && !pane.queued && !pane.lane) await this.openAgent()
         break
       }
       case 'start':

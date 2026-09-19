@@ -2,12 +2,15 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 
 // A plan, drawn: which work comes first, what waits on what, and what can run
 // side by side. Each column is a step — everything in it can run once the
-// columns before have finished — and a line with an arrow is a wait.
+// columns before have finished — and a line with an arrow is a wait. One path
+// through a plan is drawn the same way, which is how a piece of queued work
+// shows the whole chain it is in.
 //
 // Laid out the way layered graphs usually are: each task in the column after
 // the last thing it waits on, a wait that skips columns carried through them as
 // a line of its own so no line crosses a box, and each column ordered to sit
-// near what it waits on. Pure: tasks and waits in, rows of characters out.
+// near what it waits on. Pure: tasks and waits in, rows of characters out —
+// each run saying which box it is part of, so the caller can make one clickable.
 
 export interface PlanBox {
   task: string
@@ -18,6 +21,8 @@ export interface PlanBox {
   /** Its second line: what it is doing, or what it waits for. */
   note: string
   tone: PlanTone
+  /** The one you are looking at: drawn in a heavier box, so it reads without colour. */
+  here?: boolean
 }
 
 export interface PlanWait {
@@ -26,11 +31,23 @@ export interface PlanWait {
 }
 
 /** How a part of the drawing is painted, named by what it is rather than its colour. */
-export type PlanTone = 'busy' | 'hint' | 'waiting' | 'bad' | 'done' | 'faded' | 'line' | 'label'
+export type PlanTone =
+  | 'busy'
+  | 'hint'
+  | 'waiting'
+  | 'bad'
+  | 'done'
+  | 'faded'
+  | 'line'
+  | 'label'
+  | 'here'
 
 export interface PlanDrawing {
-  /** One entry per row: its text, cut into runs that share a tone. */
-  rows: { text: string; tone: PlanTone | null }[][]
+  /**
+   * One entry per row: its text, cut into runs that share a tone and a box.
+   * A run inside a box says whose it is, so a box can be clicked.
+   */
+  rows: { text: string; tone: PlanTone | null; task?: string }[][]
   /** How many columns the plan needed, when it was too wide to draw as columns. */
   tooWide: boolean
 }
@@ -58,9 +75,18 @@ const JOINS: Record<number, string> = {
   [UP | DOWN | LEFT | RIGHT]: '┼',
 }
 
-/** Columns a box takes, and the room between two columns of them. */
-const BOX = 24
-const GAP = 6
+/**
+ * Columns a box takes, and the room between two columns of them — roomiest
+ * first. A chain of four is worth drawing narrower; drawing nothing is worth
+ * less than a tight box, and lines through boxes are worth less than either.
+ */
+const SIZES: readonly { box: number; gap: number }[] = [
+  { box: 24, gap: 6 },
+  { box: 20, gap: 5 },
+  { box: 16, gap: 4 },
+]
+/** What a box says at its right — a cost, or when it starts — needs this much box. */
+const RIGHT_FITS = 20
 /** Rows a box takes, with one of room under it. */
 const SLOT = 5
 
@@ -143,6 +169,7 @@ class Grid {
   private readonly chars: (string | null)[][]
   private readonly joins: number[][]
   private readonly tones: (PlanTone | null)[][]
+  private readonly whose: (string | null)[][]
 
   constructor(width: number, height: number) {
     this.width = width
@@ -150,6 +177,16 @@ class Grid {
     this.chars = Array.from({ length: height }, () => Array<string | null>(width).fill(null))
     this.joins = Array.from({ length: height }, () => Array<number>(width).fill(0))
     this.tones = Array.from({ length: height }, () => Array<PlanTone | null>(width).fill(null))
+    this.whose = Array.from({ length: height }, () => Array<string | null>(width).fill(null))
+  }
+
+  /** Say that a patch of the grid is a box's own, so what is drawn on it can be clicked. */
+  claim(x: number, y: number, width: number, height: number, task: string): void {
+    for (let row = y; row < y + height; row++) {
+      const whose = this.whose[row]
+      if (!whose) continue
+      for (let at = x; at < x + width; at++) if (at >= 0 && at < this.width) whose[at] = task
+    }
   }
 
   put(x: number, y: number, text: string, tone: PlanTone | null): void {
@@ -175,15 +212,16 @@ class Grid {
     if (tones && tones[x] === null) tones[x] = 'line'
   }
 
-  rows(): { text: string; tone: PlanTone | null }[][] {
+  rows(): { text: string; tone: PlanTone | null; task?: string }[][] {
     return this.chars.map((row, y) => {
-      const runs: { text: string; tone: PlanTone | null }[] = []
+      const runs: { text: string; tone: PlanTone | null; task?: string }[] = []
       row.forEach((char, x) => {
         const drawn = char ?? JOINS[this.joins[y]?.[x] ?? 0] ?? ' '
         const tone = drawn === ' ' ? null : (this.tones[y]?.[x] ?? null)
+        const task = this.whose[y]?.[x] ?? undefined
         const last = runs.at(-1)
-        if (last && last.tone === tone) last.text += drawn
-        else runs.push({ text: drawn, tone })
+        if (last && last.tone === tone && last.task === task) last.text += drawn
+        else runs.push({ text: drawn, tone, ...(task ? { task } : {}) })
       })
       return runs
     })
@@ -198,8 +236,9 @@ function cut(text: string, width: number): string {
 
 /**
  * The plan in columns within a width, with the heading of each column above
- * it. When it needs more columns than fit, it says so rather than drawing
- * lines through boxes, and the caller says the plan another way.
+ * it, in the roomiest boxes that fit. When not even the tight ones do, it says
+ * so rather than drawing lines through boxes, and the caller says the plan
+ * another way.
  */
 export function drawPlan(
   boxes: readonly PlanBox[],
@@ -211,8 +250,11 @@ export function drawPlan(
     boxes.map((box) => box.task),
     waits,
   )
-  const needed = columns.length * BOX + Math.max(0, columns.length - 1) * GAP
-  if (needed > width) return { rows: [], tooWide: true }
+  const fits = SIZES.find(
+    (size) => columns.length * size.box + Math.max(0, columns.length - 1) * size.gap <= width,
+  )
+  if (!fits) return { rows: [], tooWide: true }
+  const { box: BOX, gap: GAP } = fits
   const tall = Math.max(1, ...columns.map((column) => column.length)) * SLOT
   const grid = new Grid(width, tall + 1)
   const byTask = new Map(boxes.map((box) => [box.task, box]))
@@ -230,15 +272,19 @@ export function drawPlan(
         for (let i = 0; i < BOX; i++) grid.join(x + i, y + 1, LEFT | RIGHT)
         return
       }
-      const edge = box.tone === 'done' || box.tone === 'busy' ? box.tone : 'line'
-      grid.put(x, y, `╭${'─'.repeat(BOX - 2)}╮`, edge)
-      grid.put(x, y + 3, `╰${'─'.repeat(BOX - 2)}╯`, edge)
+      // The one you are on is drawn heavier, and in its own tone: which box is
+      // the subject has to read with the colour off.
+      const here = box.here === true
+      const edge = here ? 'here' : box.tone === 'done' || box.tone === 'busy' ? box.tone : 'line'
+      grid.claim(x, y, BOX, 4, box.task)
+      grid.put(x, y, here ? `┏${'━'.repeat(BOX - 2)}┓` : `╭${'─'.repeat(BOX - 2)}╮`, edge)
+      grid.put(x, y + 3, here ? `┗${'━'.repeat(BOX - 2)}┛` : `╰${'─'.repeat(BOX - 2)}╯`, edge)
       for (const line of [1, 2]) {
-        grid.put(x, y + line, '│', edge)
-        grid.put(x + BOX - 1, y + line, '│', edge)
+        grid.put(x, y + line, here ? '┃' : '│', edge)
+        grid.put(x + BOX - 1, y + line, here ? '┃' : '│', edge)
       }
       const inner = BOX - 4
-      const right = box.right ? cut(box.right, 8) : ''
+      const right = box.right && BOX >= RIGHT_FITS ? cut(box.right, 8) : ''
       const name = cut(box.name, inner - 2 - (right ? visibleWidth(right) + 1 : 0))
       grid.put(x + 2, y + 1, box.mark, box.tone)
       grid.put(x + 4, y + 1, name, null)

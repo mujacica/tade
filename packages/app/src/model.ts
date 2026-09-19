@@ -107,7 +107,7 @@ export interface ScheduleView {
   }
 }
 
-/** Which queued work the SMART QUEUE shows: all of it, what waits on agents, or what waits for a time. */
+/** Which queued work the SMART QUEUE shows: all of it, what is directly next, or what waits for a time. */
 export type QueueFilter = 'all' | 'next' | 'timed'
 
 export const QUEUE_FILTERS: readonly QueueFilter[] = ['all', 'next', 'timed']
@@ -396,7 +396,7 @@ export function tasksOf(
   }))
 }
 
-/** In what order queued work is listed: what needs deciding, then what starts soonest. */
+/** In what order the front of a path is listed: what needs deciding, then what starts soonest. */
 const QUEUE_RANK: Readonly<Record<QueueState['kind'], number>> = {
   held: 0,
   ready: 1,
@@ -405,36 +405,149 @@ const QUEUE_RANK: Readonly<Record<QueueState['kind'], number>> = {
   paused: 4,
 }
 
-/** Whether queued work is what a filter shows. */
-export function shownBy(filter: QueueFilter, queued: QueuedView): boolean {
+/** Whether queued work is what a filter shows: `next` is only what is directly next. */
+export function shownBy(filter: QueueFilter, row: { queued: QueuedView; depth: number }): boolean {
   if (filter === 'all') return true
-  const timed = queued.at !== null || queued.state.kind === 'scheduled'
-  return filter === 'timed' ? timed : !timed
+  const timed = row.queued.at !== null || row.queued.state.kind === 'scheduled'
+  if (filter === 'timed') return timed
+  // Directly next: nothing it waits on is still to happen, so it is the front
+  // of its path — not everything that happens to wait on an agent somewhere.
+  return !timed && row.depth === 0
 }
 
 /**
- * The queued work in the project in front of you, as the filter shows it:
- * what needs deciding first, then what starts soonest, then what is paused.
+ * Queued work where the resolved path puts it: what it still waits on, how far
+ * down the path it sits, and which queued work it hangs from.
  */
-export function queueOf(
-  state: AppState,
-): Array<AgentPane & { queued: QueuedView; focused: boolean }> {
+export interface QueueRow {
+  pane: AgentPane & { queued: QueuedView; focused: boolean }
+  /** How many things still have to happen before it. 0 is directly next. */
+  depth: number
+  /** The queued work it hangs from — the last of its waits — or null at the front of a path. */
+  parent: string | null
+}
+
+/**
+ * What queued work is still behind, as the queue reads it now rather than as
+ * it was planned: work that waits says what it waits on itself; work held or
+ * ready is behind nothing — a decision, or room, is all it needs; work paused
+ * or waiting for a clock is read from its plan, because pausing it hid what it
+ * waits on.
+ */
+function stillAfter(
+  pane: AgentPane & { queued: QueuedView },
+  panes: readonly AgentPane[],
+): string[] {
+  const state = pane.queued.state
+  if (state.kind === 'waiting') return [...state.on]
+  if (state.kind === 'held' || state.kind === 'ready') return []
+  return pane.queued.after
+    .map((dep) => panes.find((one) => one.task === dep.task))
+    .filter((one): one is AgentPane => one !== undefined && markOf(one) !== 'done')
+    .map((one) => one.task)
+}
+
+/**
+ * The project's queued work as the resolved tree has it: what comes next
+ * first, and under each piece whatever waits on it, however deep. Work at the
+ * front of a path is ordered by what needs deciding, then by what starts
+ * soonest; the whole of one path is listed before the next one starts.
+ */
+export function queueTree(state: AppState): QueueRow[] {
   const here = state.panes.filter(
     (pane): pane is AgentPane & { queued: QueuedView } =>
       Boolean(pane.queued) && pane.project === (state.project ?? pane.project),
   )
+  const byTask = new Map(here.map((pane) => [pane.task, pane]))
+  const queued = new Set(byTask.keys())
+  const after = new Map(here.map((pane) => [pane.task, stillAfter(pane, state.panes)]))
+  const depths = new Map<string, number>()
+  const depthOf = (task: string, seen: Set<string>): number => {
+    const found = depths.get(task)
+    if (found !== undefined) return found
+    // A plan that waits on itself is a plan nobody can order: it stops here.
+    if (seen.has(task)) return 0
+    seen.add(task)
+    const waits = after.get(task) ?? []
+    // A wait on an agent already running is one hop, whatever it is doing.
+    const at =
+      waits.length === 0
+        ? 0
+        : 1 + Math.max(...waits.map((dep) => (queued.has(dep) ? depthOf(dep, seen) : 0)))
+    depths.set(task, at)
+    return at
+  }
+  for (const pane of here) depthOf(pane.task, new Set())
+
+  const order = new Map(here.map((pane, i) => [pane.task, i]))
   const at = (pane: { queued: QueuedView }) =>
     pane.queued.state.kind === 'scheduled' ? pane.queued.state.at : (pane.queued.at ?? 0)
-  return here
-    .map((pane, i) => ({ pane, i }))
-    .filter(({ pane }) => shownBy(state.queueFilter, pane.queued))
-    .sort(
-      (a, b) =>
-        QUEUE_RANK[a.pane.queued.state.kind] - QUEUE_RANK[b.pane.queued.state.kind] ||
-        at(a.pane) - at(b.pane) ||
-        a.i - b.i,
+  const first = (a: string, b: string) => {
+    const one = byTask.get(a)
+    const two = byTask.get(b)
+    if (!one || !two) return 0
+    return (
+      QUEUE_RANK[one.queued.state.kind] - QUEUE_RANK[two.queued.state.kind] ||
+      at(one) - at(two) ||
+      (order.get(a) ?? 0) - (order.get(b) ?? 0)
     )
-    .map(({ pane }) => ({ ...pane, focused: pane.task === state.focused }))
+  }
+  // What it hangs from is the last of its waits: the deepest piece of queued
+  // work it is behind. Waiting only on running agents puts it at the front.
+  const under = new Map<string | null, string[]>()
+  for (const pane of here) {
+    const parent =
+      (after.get(pane.task) ?? [])
+        .filter((dep) => queued.has(dep) && dep !== pane.task)
+        .sort(
+          (a, b) =>
+            (depths.get(b) ?? 0) - (depths.get(a) ?? 0) ||
+            (order.get(a) ?? 0) - (order.get(b) ?? 0),
+        )[0] ?? null
+    under.set(parent, [...(under.get(parent) ?? []), pane.task])
+  }
+  for (const tasks of under.values()) tasks.sort(first)
+
+  const rows: QueueRow[] = []
+  const listed = new Set<string>()
+  const walk = (task: string, parent: string | null) => {
+    if (listed.has(task)) return
+    const pane = byTask.get(task)
+    if (!pane) return
+    listed.add(task)
+    rows.push({
+      pane: { ...pane, focused: pane.task === state.focused },
+      depth: depths.get(task) ?? 0,
+      parent,
+    })
+    for (const child of under.get(task) ?? []) walk(child, task)
+  }
+  for (const task of under.get(null) ?? []) walk(task, null)
+  // Work a ring of waits kept out of the walk is still work: it is listed too.
+  for (const pane of [...here].sort((a, b) => first(a.task, b.task))) walk(pane.task, null)
+  return rows
+}
+
+/**
+ * The queued work the SMART QUEUE shows, in the resolved tree's order, as the
+ * filter has it — and whatever you are looking at, filter or no filter: a list
+ * that leaves out the thing in front of you is a list you cannot trust.
+ */
+export function queueRows(state: AppState): QueueRow[] {
+  return queueTree(state).filter(
+    (row) =>
+      row.pane.focused || shownBy(state.queueFilter, { queued: row.pane.queued, depth: row.depth }),
+  )
+}
+
+/**
+ * The queued work in the project in front of you, as the filter shows it, in
+ * the order the resolved tree puts it.
+ */
+export function queueOf(
+  state: AppState,
+): Array<AgentPane & { queued: QueuedView; focused: boolean }> {
+  return queueRows(state).map((row) => row.pane)
 }
 
 /** How much queued work there is in the project in front of you, whatever the filter. */
@@ -551,7 +664,7 @@ export function openSchedule(state: AppState, id: string): AppState {
 /**
  * The schedules the SMART QUEUE shows for the project in front of you, as the
  * filter has it: soonest first, then paused ones, then ones with nothing left
- * to run. None under `next`, which is work waiting on agents.
+ * to run. None under `next`, which is the queued work that could start now.
  */
 export function schedulesShown(
   schedules: readonly ScheduleView[],
@@ -576,8 +689,21 @@ export function schedulesShown(
  * everything that waits, started or not. Work nothing waits on and that waits
  * on nothing is not part of a plan.
  */
-export function planOf(state: AppState): {
+export function planOf(state: AppState): Plan {
+  const { here, waits } = planned(state)
+  const inPlan = new Set(waits.flatMap((wait) => [wait.from, wait.to]))
+  return { tasks: here.filter((pane) => inPlan.has(pane.task)), waits }
+}
+
+/** A plan, or a piece of one: the work in it, and what waits on what. */
+export interface Plan {
   tasks: AgentPane[]
+  waits: { from: string; to: string; why: string }[]
+}
+
+/** The project in front of you and every wait planned in it, started or not. */
+function planned(state: AppState): {
+  here: AgentPane[]
   waits: { from: string; to: string; why: string }[]
 } {
   const here = state.panes.filter((pane) => pane.project === (state.project ?? pane.project))
@@ -588,8 +714,37 @@ export function planOf(state: AppState): {
       why: dep.why,
     })),
   )
-  const inPlan = new Set(waits.flatMap((wait) => [wait.from, wait.to]))
-  return { tasks: here.filter((pane) => inPlan.has(pane.task)), waits }
+  return { here, waits }
+}
+
+/**
+ * The whole dependency chain one piece of work sits on: everything it waits
+ * on, however far back, everything that waits on it, however far forward, and
+ * the waits between them. Its neighbours' neighbours are somebody else's path
+ * and are left out — what is drawn is the path this work is on.
+ */
+export function chainOf(state: AppState, task: string): Plan {
+  const { here, waits } = planned(state)
+  const kept = new Set([task])
+  const walk = (back: boolean) => {
+    const edge = [task]
+    while (edge.length > 0) {
+      const one = edge.pop()
+      for (const wait of waits) {
+        if ((back ? wait.to : wait.from) !== one) continue
+        const next = back ? wait.from : wait.to
+        if (kept.has(next)) continue
+        kept.add(next)
+        edge.push(next)
+      }
+    }
+  }
+  walk(true)
+  walk(false)
+  return {
+    tasks: here.filter((pane) => kept.has(pane.task)),
+    waits: waits.filter((wait) => kept.has(wait.from) && kept.has(wait.to)),
+  }
 }
 
 /** Move focus along the sidebar, wrapping at both ends. */

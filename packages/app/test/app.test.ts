@@ -1007,6 +1007,10 @@ describe('the window, wired up', () => {
     click(tab.col + 1, tab.row)
     await until('its card', () => terminal.written.includes('it needs what that finds'))
     expect(terminal.written).toContain('fix what look-first found')
+    // Looking at queued work is not starting it: clicking the row shows what it
+    // waits on and what it will be told, and nothing has run.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(client.runs().some((run) => run.task === 'app/fix-after')).toBe(false)
     const button = find('Start now')
     click(button.col + 2, button.row)
     await until(

@@ -32,6 +32,13 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   takes facts and `now` and returns an answer. Test the rule in core; the window only applies it.
 - **Queued work is a task.** A task file with `start` — never a second store. It is made when it is
   planned, in the project's own workspace, and started by `startQueued`.
+- **The queue is shown as the tree it resolves to.** `queueTree` (`app/src/model.ts`) orders queued
+  work by the path it is on — what comes next first, and under each piece whatever waits on it —
+  from the states the rules derived, never from the plan alone; `queueRows` is that list as the
+  filter has it, `next` being the front of the tree. The side shifts each piece right of what it
+  waits on (`queueStems`), and a card draws the whole chain with `chainOf` + `drawPlan`, the same
+  drawing the plan view uses. **Clicking queued work opens its card, never starts it**: starting is
+  `queue-start` through `queueTools().change`, so the journal says who started it and why.
 - **Write it down, then do it.** `schedule_fired` before a schedule's task is made, so a window that
   stops half way never runs it twice; `watch_found` for every finding, a failed start included, so
   one finding never makes work twice.

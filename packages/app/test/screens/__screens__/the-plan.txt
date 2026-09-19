@@ -12,13 +12,13 @@
    all  next  timed  ‖ pause ▕│  ╭──────────────────────╮                               │                               
                              ▕│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
    ! add-refunds      held   ▕│  │   working            │                                                               
-     ◆ fix-charge failed:…   ▕│  ╰──────────────────────╯                                                               
-                             ▕│                                                                                         
-   ◌ docs-typos       next   ▕│                                                                                         
-     ◆ waiting for room      ▕│  WHY THIS ORDER                                                                         
+   │ ◆ fix-charge failed:…   ▕│  ╰──────────────────────╯                                                               
+   │                         ▕│                                                                                         
+   ╰─◌ refund-emails         ▕│                                                                                         
+       ◆ after add-refund…   ▕│  WHY THIS ORDER                                                                         
                              ▕│  add-refunds    after fix-charge          both change src/charge.ts                     
-   ◌ refund-emails           ▕│  refund-emails  after add-refunds         it emails what refund() returns               
-     ◆ after add-refunds …   ▕│                 after bump-mailer         the mailer’s send() changes in v4             
+   ◌ docs-typos       next   ▕│  refund-emails  after add-refunds         it emails what refund() returns               
+     ◆ waiting for room      ▕│                 after bump-mailer         the mailer’s send() changes in v4             
                              ▕│                                                                                         
    ◷ release-notes   18:00   ▕│                                                                                         
      ❯ waits for its time    ▕│                                                                                         

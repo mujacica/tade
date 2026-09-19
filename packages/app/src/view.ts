@@ -14,6 +14,7 @@ import { type Linker, linkedRow } from './links.ts'
 import {
   type AgentPane,
   type AppState,
+  chainOf,
   conversing,
   glyph,
   isAction,
@@ -27,8 +28,9 @@ import {
   QUEUE_FILTERS,
   type QueuedView,
   type QueueFilter,
+  type QueueRow,
   queuedCount,
-  queueOf,
+  queueRows,
   type ScheduleView,
   schedulesShown,
   shownName,
@@ -39,7 +41,13 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
-import { drawPlan, type PlanBox, type PlanTone } from './plan-graph.ts'
+import {
+  drawPlan,
+  layoutPlan,
+  type PlanBox,
+  type PlanDrawing,
+  type PlanTone,
+} from './plan-graph.ts'
 import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
@@ -912,6 +920,8 @@ function markTone(mark: string | null, skin: Skin): ((text: string) => string) |
 interface ListItem {
   rows: { text: string; hits: Hit[] }[]
   band: Band | null
+  /** What goes in the room under it, where a blank row would be: a tree's lines carry on. */
+  under?: { text: string; hits: Hit[] }
 }
 
 /**
@@ -920,7 +930,7 @@ interface ListItem {
  */
 function tabList(items: readonly ListItem[], width: number): { text: string; hits: Hit[] }[] {
   const out = [blank(width)]
-  for (const item of items) out.push(...item.rows, blank(width))
+  for (const item of items) out.push(...item.rows, item.under ?? blank(width))
   return out
 }
 
@@ -1133,6 +1143,10 @@ function queueSays(pane: AgentPane & { queued: QueuedView }): string {
 /**
  * The SMART QUEUE: work made and waiting to start, under the agents that are
  * working, with a filter over it once there is more than one to filter.
+ *
+ * In the order the resolved tree gives — what comes next first, and under each
+ * piece whatever waits on it — each piece shifted right of what it waits on
+ * and joined to it by a line, so the side says the same shape the plan does.
  */
 function queueSection(
   state: AppState,
@@ -1152,7 +1166,7 @@ function queueSection(
       ? { action: { label: 'plan', target: { kind: 'action', name: 'queue-plan' }, look: 'rest' } }
       : {}),
     rows: (row) => {
-      const entries = queueOf(state)
+      const entries = queueRows(state)
       const schedules = schedulesShown(frame.schedules ?? [], state)
       // Kept on screen while it is paused, or there would be no way to start it again.
       const paused = frame.queuePaused === true
@@ -1160,19 +1174,30 @@ function queueSection(
         all > 1 || paused ? [queueFilters(row(), state.queueFilter, skin, paused)] : []
       if (entries.length === 0 && schedules.length === 0) {
         const none =
-          state.queueFilter === 'timed' ? 'nothing waits for a time' : 'nothing waits on agents'
+          state.queueFilter === 'timed'
+            ? 'nothing waits for a time'
+            : state.queueFilter === 'next'
+              ? 'nothing is next: everything queued waits on something'
+              : 'nothing is queued'
         return [
           ...filters,
           blank(width),
-          row().space(3).text(none, skin.hint).build(),
+          row()
+            .space(3)
+            .text(shortened(none, Math.max(1, width - 4)), skin.hint)
+            .build(),
           blank(width),
         ]
       }
+      // Where the tree puts each piece, so the side reads like the plan does.
+      const stems = queueStems(entries)
       return [
         ...filters,
         ...tabList(
           [
-            ...entries.map((pane) => queueRow(width, skin, pointer, pane, frame)),
+            ...entries.map((one, i) =>
+              queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame),
+            ),
             ...schedules.map((one) =>
               scheduleRow(width, skin, pointer, one, state.schedule === one.id, frame),
             ),
@@ -1451,18 +1476,59 @@ function queueFilters(
   return row.build()
 }
 
+/** How many levels of the tree the side shifts work by: deeper work hangs from the last. */
+const QUEUE_LEVELS = 3
+
+/**
+ * The lines drawn to the left of queued work, so the side says the same tree
+ * the plan does: each piece shifted right of what it waits on, hanging from it
+ * by a turn, and the lines of whatever is still to come carried down past it.
+ *
+ * `stem` goes before its mark; `bars` is what carries on under it, drawn both
+ * on its second row and in the room beneath, so a two-row tab never breaks a
+ * line in half.
+ */
+function queueStems(rows: readonly QueueRow[]): { stem: string; bars: string }[] {
+  const index = new Map(rows.map((row, i) => [row.pane.task, i]))
+  // Only work that is shown can be hung from: a filter may leave a parent out.
+  const parent = rows.map((row) => (row.parent === null ? -1 : (index.get(row.parent) ?? -1)))
+  const level = rows.map(() => 0)
+  rows.forEach((_, i) => {
+    const up = parent[i] ?? -1
+    level[i] = up < 0 ? 0 : (level[up] ?? 0) + 1
+  })
+  const more = (of: number, after: number) => rows.some((_, j) => j > after && parent[j] === of)
+  return rows.map((_, i) => {
+    const chain: number[] = []
+    for (let up = parent[i] ?? -1; up >= 0; up = parent[up] ?? -1) chain.unshift(up)
+    // Deeper than there is room for: the levels nearest it are the ones drawn.
+    const shown = chain.slice(-QUEUE_LEVELS)
+    const lines = shown.map((up) => (more(up, i) ? '│ ' : '  '))
+    const stem =
+      shown.length === 0
+        ? ''
+        : `${lines.slice(0, -1).join('')}${more(shown.at(-1) ?? -1, i) ? '├─' : '╰─'}`
+    // Its own line, under its mark, carries whatever waits on it.
+    const bars = `${lines.join('')}${more(i, i) ? '│' : ' '}`.trimEnd()
+    return { stem, bars }
+  })
+}
+
 /**
  * Queued work down the side, as a tab like an agent's: its mark, its name, and
- * when it starts; under it, what it waits for and who asked. Under the pointer,
- * pause (or resume), remove and a menu take the place of when.
+ * when it starts; under it, what it waits for and who asked. It sits right of
+ * what it waits on, hanging from it by a line. Under the pointer, pause (or
+ * resume), remove and a menu take the place of when.
  */
 function queueRow(
   width: number,
   skin: Skin,
   pointer: Pointer,
-  pane: AgentPane & { queued: QueuedView; focused: boolean },
+  row: QueueRow,
+  stems: { stem: string; bars: string },
   frame: Frame,
 ): ListItem {
+  const pane = row.pane
   const target: Target = { kind: 'task', task: pane.task }
   const paused = pane.queued.state.kind === 'paused'
   const toggle: Target = {
@@ -1474,7 +1540,9 @@ function queueRow(
   const pointed = [target, toggle, remove, menu].some((one) => sameTarget(pointer.hover, one))
   const band: Band | null = pane.focused ? 'selected' : pointed ? 'hovered' : null
   const look = queueLook(pane.queued, skin, frame)
+  const shift = visibleWidth(stems.stem)
   const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  if (stems.stem) inner.text(stems.stem, skin.chrome, target)
   inner.text(look.glyph, look.tone, target).space()
   const right = pointed ? QUEUE_ICONS : look.when ? visibleWidth(look.when) + 1 : 0
   const room = Math.max(1, inner.width - inner.used - right - 1)
@@ -1490,12 +1558,21 @@ function queueRow(
       r.text(look.when, look.whenTone, target).space()
     }
   })
+  const said = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  if (stems.bars) said.text(stems.bars, skin.chrome, target)
+  // Level with the name above it, whatever lines pass under the mark.
+  said.space(Math.max(1, shift + 3 - said.used))
+  said.text(shortened(queueSays(pane), Math.max(1, said.width - said.used - 1)), skin.hint, target)
   return {
     rows: [
       tabbed(width, skin, band, inner.build(), target),
-      secondRow(width, skin, pointer, band, queueSays(pane), target, 3),
+      tabbed(width, skin, band, said.build(), target),
     ],
     band,
+    // The lines of what is still to come carry on through the room beneath it.
+    ...(stems.bars
+      ? { under: new Row(width, skin).space(3).text(stems.bars, skin.chrome).build() }
+      : {}),
   }
 }
 
@@ -1514,8 +1591,6 @@ function renderPlan(
   pointer: Pointer,
 ): Drawn {
   const { tasks, waits } = planOf(state)
-  const spend = frame.spend?.byTask ?? {}
-  const now = frame.now ?? 0
   const working = tasks.filter((pane) => !pane.queued && markOf(pane) === 'working').length
   const queued = tasks.filter((pane) => pane.queued).length
   const header = new Row(width, skin, pointer).space()
@@ -1535,56 +1610,13 @@ function renderPlan(
     line((r) => r.text('Nothing here waits on anything: there is no plan to draw.', skin.hint))
   }
 
-  const boxes: PlanBox[] = tasks.map((pane) => {
-    if (pane.queued) {
-      const look = queueLook(pane.queued, skin, frame)
-      return {
-        task: pane.task,
-        mark: look.glyph,
-        name: shownName(pane),
-        right: look.when,
-        note: queueSays({ ...pane, queued: pane.queued }),
-        tone: planTone(
-          pane.queued.state.kind === 'held'
-            ? 'waiting'
-            : pane.queued.state.kind === 'ready'
-              ? 'busy'
-              : pane.queued.state.kind === 'paused'
-                ? 'faded'
-                : 'hint',
-        ),
-      }
-    }
-    const spent = spend[pane.task]
-    return {
-      task: pane.task,
-      mark: glyph(pane, now),
-      name: shownName(pane),
-      right: spent && spent.usd > 0 ? dollars(spent.usd) : '',
-      note: doing(pane),
-      tone: planTone(MARK_TONES[markOf(pane)]),
-    }
-  })
+  const boxes = planBoxes(tasks, frame, skin, null)
   const drawing = drawPlan(boxes, waits, Math.max(0, width - 4), (column) =>
     column === 0 ? 'FIRST' : 'THEN',
   )
-  const paint: Record<PlanTone, (text: string) => string> = {
-    busy: skin.busy,
-    hint: skin.hint,
-    waiting: skin.waiting,
-    bad: skin.bad,
-    done: skin.done,
-    faded: skin.faded,
-    line: skin.chrome,
-    label: skin.label,
-  }
-  if (!drawing.tooWide) {
-    for (const runs of drawing.rows) {
-      line((r) => {
-        for (const run of runs) r.text(run.text, run.tone ? paint[run.tone] : (text) => text)
-      })
-    }
-  } else {
+  const paint = planPaint(skin)
+  if (!drawing.tooWide) planLines(drawing, skin, line)
+  else {
     // Too many steps to draw side by side: each task under what it waits on.
     for (const box of boxes) {
       const after = waits
@@ -1594,7 +1626,7 @@ function renderPlan(
         r
           .text(box.mark, paint[box.tone])
           .space()
-          .text(box.name)
+          .text(box.name, (text) => text, { kind: 'task', task: box.task })
           .text(after.length > 0 ? `  after ${after.join(', ')}` : '', skin.hint),
       )
     }
@@ -1603,19 +1635,7 @@ function renderPlan(
   if (waits.length > 0) {
     rows.push(blank(width))
     line((r) => r.text('WHY THIS ORDER', skin.label))
-    const name = (task: string) => inProject(state.project ?? '', task)
-    const first = Math.min(18, Math.max(...waits.map((wait) => visibleWidth(name(wait.to)))) + 2)
-    let previous = ''
-    for (const wait of waits) {
-      const to = name(wait.to)
-      line((r) =>
-        r
-          .text(shortened(to === previous ? '' : to, first - 1).padEnd(first))
-          .text(shortened(`after ${name(wait.from)}`, 24).padEnd(26), skin.busy)
-          .text(shortened(wait.why || '—', Math.max(1, width - first - 30)), skin.hint),
-      )
-      previous = to
-    }
+    whyLines(waits, state.project ?? '', width, skin, line)
   }
 
   const shown = stack(rows.slice(0, height))
@@ -1633,6 +1653,112 @@ function planTone(tone: string): PlanTone {
     tone === 'faded'
     ? tone
     : 'hint'
+}
+
+/** Which of the skin's tones each part of a drawn plan is painted in. */
+function planPaint(skin: Skin): Record<PlanTone, (text: string) => string> {
+  return {
+    busy: skin.busy,
+    hint: skin.hint,
+    waiting: skin.waiting,
+    bad: skin.bad,
+    done: skin.done,
+    faded: skin.faded,
+    line: skin.chrome,
+    label: skin.label,
+    here: skin.you,
+  }
+}
+
+/**
+ * A box per piece of work, for a plan or for one path through it: its mark,
+ * its name, what it cost or when it starts, and what it is doing — or, queued,
+ * what it is waiting for. `here` is the one you are looking at, drawn heavier.
+ */
+function planBoxes(
+  tasks: readonly AgentPane[],
+  frame: Frame,
+  skin: Skin,
+  here: string | null,
+): PlanBox[] {
+  const spend = frame.spend?.byTask ?? {}
+  const now = frame.now ?? 0
+  return tasks.map((pane) => {
+    const mine = pane.task === here ? { here: true } : {}
+    if (pane.queued) {
+      const look = queueLook(pane.queued, skin, frame)
+      return {
+        task: pane.task,
+        mark: look.glyph,
+        name: shownName(pane),
+        right: look.when,
+        note: queueSays({ ...pane, queued: pane.queued }),
+        tone: planTone(
+          pane.queued.state.kind === 'held'
+            ? 'waiting'
+            : pane.queued.state.kind === 'ready'
+              ? 'busy'
+              : pane.queued.state.kind === 'paused'
+                ? 'faded'
+                : 'hint',
+        ),
+        ...mine,
+      }
+    }
+    const spent = spend[pane.task]
+    return {
+      task: pane.task,
+      mark: glyph(pane, now),
+      name: shownName(pane),
+      right: spent && spent.usd > 0 ? dollars(spent.usd) : '',
+      note: doing(pane),
+      tone: planTone(MARK_TONES[markOf(pane)]),
+      ...mine,
+    }
+  })
+}
+
+/** A drawn plan as rows, each box a thing you can click to go to it. */
+function planLines(
+  drawing: PlanDrawing,
+  skin: Skin,
+  line: (build: (r: Row) => void) => void,
+): void {
+  const paint = planPaint(skin)
+  for (const runs of drawing.rows) {
+    line((r) => {
+      for (const run of runs) {
+        r.text(
+          run.text,
+          run.tone ? paint[run.tone] : (text) => text,
+          run.task ? { kind: 'task', task: run.task } : undefined,
+        )
+      }
+    })
+  }
+}
+
+/** Every wait and the reason given for it, a line each: what put the work in this order. */
+function whyLines(
+  waits: readonly { from: string; to: string; why: string }[],
+  project: string,
+  width: number,
+  skin: Skin,
+  line: (build: (r: Row) => void) => void,
+): void {
+  const name = (task: string) => inProject(project, task)
+  const first = Math.min(18, Math.max(...waits.map((wait) => visibleWidth(name(wait.to)))) + 2)
+  let previous = ''
+  for (const wait of waits) {
+    const to = name(wait.to)
+    line((r) =>
+      r
+        .text(shortened(to === previous ? '' : to, first - 1).padEnd(first))
+        .text(shortened(`after ${name(wait.from)}`, 24).padEnd(26), skin.busy)
+        .text(shortened(wait.why || '—', Math.max(1, width - first - 30)), skin.hint),
+    )
+    previous = to
+  }
 }
 
 /** A queued task's state, in a word, for its card. */
@@ -1675,8 +1801,10 @@ function wrapWords(text: string, width: number): string[] {
 
 /**
  * Queued work in front of you, where an agent's screen would be: where it
- * stands and what to do about it, what it waits on and why, what its agent
- * will be told, and how it will count as finished.
+ * stands and what to do about it, the whole chain it is in drawn as boxes with
+ * every wait's reason under it, what its agent will be told, and how it will
+ * count as finished. This is what clicking it shows — looking at queued work
+ * is not starting it, which is the Start now beside its name.
  */
 function renderQueued(
   state: AppState,
@@ -1788,14 +1916,45 @@ function renderQueued(
       break
   }
 
-  if (queued.after.length > 0) {
+  // The whole path it is on, drawn: everything it waits on however far back,
+  // everything that waits on it, a box each, and an arrow for every wait. Its
+  // own box is the heavy one. Too wide to draw, and it is said as a list.
+  const chain = chainOf(state, pane.task)
+  const laid = layoutPlan(
+    chain.tasks.map((one) => one.task),
+    chain.waits,
+  )
+  const at = laid.columns.findIndex((column) => column.includes(pane.task))
+  const drawing =
+    chain.waits.length > 0
+      ? drawPlan(
+          planBoxes(chain.tasks, frame, skin, pane.task),
+          chain.waits,
+          Math.max(0, width - 4),
+          (column) =>
+            column === at ? 'THIS ONE' : column > at ? 'AFTER IT' : column === 0 ? 'FIRST' : 'THEN',
+        )
+      : null
+  if (drawing && !drawing.tooWide) {
+    rows.push(blank(width))
+    line((r) => r.text('THE CHAIN IT IS IN', skin.label))
+    planLines(drawing, skin, line)
+    if (chain.waits.length > 0) {
+      rows.push(blank(width))
+      line((r) => r.text('WHY IT WAITS', skin.label))
+      whyLines(chain.waits, pane.project, width, skin, line)
+    }
+  } else if (queued.after.length > 0) {
     rows.push(blank(width))
     line((r) => r.text('WAITS ON', skin.label))
     for (const dep of queued.after) {
       const other = state.panes.find((one) => one.task === dep.task)
+      const to: Target = { kind: 'task', task: dep.task }
       line((r) => {
         r.text(other ? glyph(other, frame.now ?? 0) : '✕', other ? toneOf(other, skin) : skin.bad)
-        r.space().text(name(dep.task)).space(2)
+        r.space()
+          .text(name(dep.task), (text) => text, to)
+          .space(2)
         // What it waits on may itself be waiting: then that is what it is doing.
         const now = !other
           ? 'not there any more'

@@ -25,6 +25,7 @@ import {
   type QueuedView,
   queuedCount,
   queueOf,
+  queueTree,
   removeAttachment,
   resizeTo,
   scrollBarTo,
@@ -261,14 +262,61 @@ describe('the smart queue', () => {
     )
   })
 
-  it('shows what waits on agents, or what waits for a time', () => {
+  it('shows what waits for a time, or only what is directly next', () => {
     const state = withTasks(initialState(), plan)
     const shown = (queueFilter: AppState['queueFilter']) =>
       queueOf({ ...state, queueFilter }).map((task) => task.name)
     expect(shown('timed')).toEqual(['soon', 'later'])
-    expect(shown('next')).toEqual(['stuck', 'next', 'after', 'stopped'])
+    // `next` is the front of the path: `after` still waits on an agent, so it
+    // is not next, however much it is waiting on one.
+    expect(shown('next')).toEqual(['stuck', 'next', 'stopped'])
     // Filtered away is not gone: the count is still all of it.
     expect(queuedCount({ ...state, queueFilter: 'timed' })).toBe(6)
+  })
+
+  it('orders the queue by the resolved tree, each piece under what it waits on', () => {
+    const chain: TaskSnapshot[] = [
+      { task: 'app/fix', state: 'failed', reason: 'tests failed' },
+      { task: 'app/mailer', state: 'working' },
+      queued('app/typos', { kind: 'ready' }),
+      queued('app/emails', { kind: 'waiting', on: ['app/refunds', 'app/mailer'] }),
+      queued('app/refunds', { kind: 'held', on: 'app/fix', because: 'app/fix failed' }),
+      queued('app/thanks', { kind: 'waiting', on: ['app/emails'] }),
+    ]
+    // What each waits on is in its plan, which is what the tree is read from.
+    const withAfter = chain.map((task) =>
+      task.queued
+        ? {
+            ...task,
+            queued: {
+              ...task.queued,
+              after:
+                task.task === 'app/emails'
+                  ? [
+                      { task: 'app/refunds', why: 'it emails what it returns' },
+                      { task: 'app/mailer', why: 'send() changes' },
+                    ]
+                  : task.task === 'app/thanks'
+                    ? [{ task: 'app/emails', why: 'it follows the email' }]
+                    : task.task === 'app/refunds'
+                      ? [{ task: 'app/fix', why: 'both change charge.ts' }]
+                      : [],
+            },
+          }
+        : task,
+    )
+    const state = withTasks(initialState(), withAfter)
+    const tree = queueTree(state)
+    // The held one is at the front of its path; what waits on it follows it,
+    // however deep, before the work that only waits for room.
+    expect(tree.map((row) => row.pane.name)).toEqual(['refunds', 'emails', 'thanks', 'typos'])
+    expect(tree.map((row) => row.depth)).toEqual([0, 1, 2, 0])
+    expect(tree.map((row) => row.parent)).toEqual([null, 'app/refunds', 'app/emails', null])
+    // Directly next: the held one, which needs deciding, and the one with room.
+    expect(queueOf({ ...state, queueFilter: 'next' }).map((task) => task.name)).toEqual([
+      'refunds',
+      'typos',
+    ])
   })
 })
 

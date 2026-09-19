@@ -5,31 +5,31 @@
    ✕ fix-charge              ▕│                                                                                         
      tests failed twice      ▕│  ◌ Waits on add-refunds, bump-mailer, then starts by itself.                            
                              ▕│                                                                                         
-   ⠋ bump-mailer             ▕│  WAITS ON                                                                               
-     working                 ▕│  ! add-refunds  ◆ fix-charge failed: tests failed twice                                 
-                             ▕│    it emails what refund() returns                                                      
- ▾ SMART QUEUE  5   ▐ plan ▌ ▕│  ⠋ bump-mailer  working                                                                 
-   all  next  timed  ‖ pause ▕│    the mailer’s send() changes in v4                                                    
+   ⠋ bump-mailer             ▕│  THE CHAIN IT IS IN                                                                     
+     working                 ▕│  FIRST                         THEN                          THIS ONE                   
+                             ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓   
+ ▾ SMART QUEUE  5   ▐ plan ▌ ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶┃ ◌ refund-emails      ┃   
+   all  next  timed  ‖ pause ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
+                             ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ┗━━━━━━━━━━━━━━━━━━━━━━┛   
+   ! add-refunds      held   ▕│                                                         │                               
+   │ ◆ fix-charge failed:…   ▕│  ╭──────────────────────╮                               │                               
+   │                         ▕│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
+ ▐ ╰─◌ refund-emails       ▌ ▕│  │   working            │                                                               
+ ▐     ◆ after add-refund… ▌ ▕│  ╰──────────────────────╯                                                               
                              ▕│                                                                                         
-   ! add-refunds      held   ▕│  WILL BE TOLD                                                                           
-     ◆ fix-charge failed:…   ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
-                             ▕│  │ came back and when.                                                                  
    ◌ docs-typos       next   ▕│                                                                                         
-     ◆ waiting for room      ▕│  TOUCHES    src/mail/refund.ts                                                          
-                             ▕│  FINISHES   when its agent says it has finished — the usual choice                      
- ▐ ◌ refund-emails         ▌ ▕│  FROM       the orchestrator                                                            
- ▐   ◆ after add-refunds … ▌ ▕│                                                                                         
+     ◆ waiting for room      ▕│  WHY IT WAITS                                                                           
+                             ▕│  add-refunds    after fix-charge          both change src/charge.ts                     
+   ‖ perf-check     paused   ▕│  refund-emails  after add-refunds         it emails what refund() returns               
+     ❯ paused                ▕│                 after bump-mailer         the mailer’s send() changes in v4             
                              ▕│                                                                                         
-   ‖ perf-check     paused   ▕│                                                                                         
-     ❯ paused                ▕│                                                                                         
-                             ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│                                                                                         
- ▸ FILES                     ▕│                                                                                         
- ▸ NOTES  4          ▐  +  ▌ ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│  WILL BE TOLD                                                                           
+ ▸ FILES                     ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
+ ▸ NOTES  4          ▐  +  ▌ ▕│  │ came back and when.                                                                  
  ▸ GIT                       ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
+                             ▕│  TOUCHES    src/mail/refund.ts                                                          
+                             ▕│  FINISHES   when its agent says it has finished — the usual choice                      
+                             ▕│  FROM       the orchestrator                                                            
                              ▕│                                                                                         
 ━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
                                                                                                                         
