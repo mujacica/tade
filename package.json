@@ -14,6 +14,8 @@
     "lint": "biome check .",
     "check": "biome ci . && tsc -p tsconfig.json && vitest run",
     "tade": "node packages/cli/src/bin.ts",
+    "link:global": "cd packages/cli && pnpm link --global",
+    "unlink:global": "pnpm uninstall -g @tade/cli",
     "postinstall": "node scripts/fix-pty-permissions.mjs",
     "screens": "node packages/app/scripts/screens.ts",
     "notices": "node scripts/notices.ts"

@@ -44,8 +44,15 @@ git owns the work, and status is always read from them, so closing Tade loses no
 ```sh
 git clone <this repository> tade && cd tade
 pnpm install
-cd packages/cli && pnpm link --global    # puts `tade` on your PATH
+pnpm run link:global    # puts `tade` on your PATH, from any directory
 ```
+
+There is no build, so the link points straight at this checkout: `tade` always runs the code you
+have, and `git pull` is the upgrade. Check it with `which tade` and `tade --version`; undo it with
+`pnpm run unlink:global`.
+
+If `tade` is not found afterwards, the global bin directory is not on your `PATH` — `pnpm bin -g`
+prints it, and `pnpm setup` adds it to your shell profile.
 
 ## Use
 
@@ -124,7 +131,7 @@ own go in `~/.tade/extensions/active/<name>/extension.ts`.
 
 ```sh
 pnpm check         # lint, types and tests: the full gate
-pnpm tade         # run the CLI from source
+pnpm tade          # run the CLI from source, without linking it
 ```
 
 [AGENTS.md](AGENTS.md) is the guide for anyone — or any agent — changing Tade, and

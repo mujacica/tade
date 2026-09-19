@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
@@ -51,5 +52,21 @@ describe('tade CLI', () => {
 
   it('an unknown command exits 2', () => {
     expect(tade(['frobnicate']).code).toBe(2)
+  })
+
+  // `pnpm link --global` puts a `tade` shim on PATH that execs whatever `bin.tade`
+  // names. If the entry goes missing or stops pointing at a runnable file, the
+  // install path in the README silently stops working.
+  it('ships a `tade` bin entry pointing at a runnable bin.ts', async () => {
+    const manifest = fileURLToPath(new URL('../package.json', import.meta.url))
+    const pkg = JSON.parse(await readFile(manifest, 'utf8')) as {
+      bin?: Record<string, string>
+    }
+    expect(pkg.bin?.tade).toBe('./src/bin.ts')
+
+    const entry = resolve(manifest, '..', pkg.bin?.tade ?? '')
+    expect(entry).toBe(bin)
+    await expect(access(entry, constants.X_OK)).resolves.toBeUndefined()
+    expect(await readFile(entry, 'utf8')).toMatch(/^#!\/usr\/bin\/env node\n/)
   })
 })
