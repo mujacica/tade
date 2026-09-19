@@ -20,7 +20,7 @@
    ▸ test/    │ Allow                     ▐ a ▌  allow what an agent asks, while one waits               │              
      package.j│ Deny                      ▐ d ▌  deny what an agent asks, while one waits                │              
      README.md│                                                                                          │              
-              │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before                │              
+              │ On the orchestrator line  ▐ ↑ ▌▐ ↓ ▌ ▐ ctrl ▌+▐ r ▌  what you said before · esc leaves   │              
 ━ ▐ orchestrat│ In a panel                ▐ enter ▌ ▐ esc ▌ ▐ ↑ ▌▐ ↓ ▌  the wheel scrolls it             │ ▐ ⤢ ▌ ▐ ▾ ▌ ━
               │ In a file you are reading ▐ ctrl ▌+▐ f ▌▐ ctrl ▌+▐ g ▌▐ ctrl ▌+▐ s ▌  find · line · save │              
               │ Quit                      ▐ ctrl ▌+▐ c ▌                                                 │             ▕

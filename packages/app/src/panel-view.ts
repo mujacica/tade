@@ -1231,13 +1231,14 @@ function keysSheet(ctx: PanelContext): Drawn {
   }
   rows.push(
     blank(inner),
+    // Sending keeps the line, so say what leaves it: enter used to be both.
     label('On the orchestrator line')
       .keys(['↑'])
       .keys(['↓'])
       .space()
       .keys(['ctrl', 'r'])
       .space(2)
-      .text('what you said before', skin.hint)
+      .text('what you said before · esc leaves', skin.hint)
       .build(),
     label('In a panel')
       .keys(['enter'])

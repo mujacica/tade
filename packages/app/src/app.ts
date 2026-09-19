@@ -3753,12 +3753,26 @@ export class App {
     for (const line of this.history.slice(-100)) this.editor.addToHistory(line)
   }
 
-  /** Hand what was said to the surface, which works out who you meant. */
+  /**
+   * Hand what was said to the surface, which works out who you meant.
+   *
+   * Sending empties the line; it never closes it. The keyboard is on the
+   * orchestrator because you put it there, and one message is rarely all you
+   * have to say — a line that closed itself dropped the next sentence into
+   * whichever agent happened to be in front of you. Escape is what leaves.
+   */
   private submit(): void {
     this.syncLine()
     const said = this.editor.getExpandedText().trim()
     this.editor.setText('')
-    this.state = setListening(setDictation({ ...this.state, historySearch: null }, null), false)
+    // Emptied where it was open. Closed only where it never was: push-to-talk
+    // that ends with nothing to transcribe comes through here too, and that
+    // is not you typing.
+    const open = this.state.dictation !== null
+    this.state = setListening(
+      setDictation({ ...this.state, historySearch: null }, open ? '' : null),
+      false,
+    )
     this.draw()
     // A command is carried out here; anything else is a sentence for Tade.
     if (said.startsWith('/')) {

@@ -277,6 +277,42 @@ describe('the window, wired up', () => {
     )
   })
 
+  it('keeps the keyboard on the orchestrator after sending, until you leave it', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+
+    terminal.press('\x00') // opens the line you type into
+    for (const char of 'why is refunds slow') terminal.press(char)
+    terminal.press('\r')
+    await until('the first question', () => asked.length === 1)
+
+    // Nothing reopens the line: sending emptied it, it did not close it, so
+    // the next sentence goes to the orchestrator and not to the agent in front.
+    for (const char of 'and what about search') terminal.press(char)
+    terminal.press('\r')
+    await until('the second question', () => asked.length === 2)
+    expect(asked).toEqual(['why is refunds slow', 'and what about search'])
+
+    // Escape is the way out, and then the keyboard is the agent's again.
+    terminal.written = ''
+    terminal.press('\x1b')
+    await until('the line to close', () =>
+      screenOf(terminal.written).some((row) => row.includes('Ask Tade anything')),
+    )
+    for (const char of 'typed at the agent') terminal.press(char)
+    terminal.press('\r')
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(asked).toHaveLength(2)
+  })
+
   it('says what the orchestrator answers once, as it streams in', async () => {
     const said: string[] = []
     const speaker = await Speaker.create({
