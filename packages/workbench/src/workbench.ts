@@ -754,6 +754,11 @@ export class Workbench {
    * Start queued work: from where it should begin, on what it was planned to
    * run on, told what it was planned to be told. Said in the journal, so what
    * started it and why is there to be asked about later.
+   *
+   * Told once. Work whose agent already has a conversation has had its
+   * instruction — it was started before, and the queue is looking at it again
+   * because what says so was lost — so it is brought back where it left off
+   * instead, and the journal says which of the two happened.
    */
   async startQueued(req: {
     task: string
@@ -768,17 +773,26 @@ export class Workbench {
       await beginFrom(req.worktree, req.task, req.from)
     }
     const { start } = file
-    const lane = await this.startAgent({
-      task: req.task as TaskId,
-      cwd: req.worktree,
-      prompt: start.prompt,
-      ...(start.model ? { model: start.model } : {}),
-      ...(start.thinking && isThinkingLevel(start.thinking) ? { thinking: start.thinking } : {}),
-    })
+    const told = await this.hasConversation(req.task)
+    const lane = told
+      ? await this.reopenAgent({ task: req.task as TaskId, cwd: req.worktree })
+      : await this.startAgent({
+          task: req.task as TaskId,
+          cwd: req.worktree,
+          prompt: start.prompt,
+          ...(start.model ? { model: start.model } : {}),
+          ...(start.thinking && isThinkingLevel(start.thinking)
+            ? { thinking: start.thinking }
+            : {}),
+        })
     await this.log.append({
       type: 'queue_started',
       task: req.task,
-      detail: { why: req.why, after: start.after.map((dep) => dep.task) },
+      detail: {
+        why: req.why,
+        after: start.after.map((dep) => dep.task),
+        ...(told ? { reopened: true } : {}),
+      },
     })
     return lane
   }
@@ -1124,12 +1138,29 @@ export class Workbench {
   // --- agents
 
   /**
+   * Bring an agent back to where it left off: the same lane, the same
+   * conversation, and nothing said to it.
+   *
+   * This is what reopening the window does, and it is deliberately not
+   * `startAgent` with an empty prompt by convention — the request has no
+   * prompt to pass, so no caller can reattach and instruct in one breath.
+   * An agent that was already told what to do must never be told again: it
+   * would start the work over, on top of what it has already done.
+   */
+  reopenAgent(req: Omit<StartRunRequest, 'prompt'>): Promise<LaneRecord> {
+    return this.startAgent({ ...req, prompt: '' })
+  }
+
+  /**
    * Put an agent to work, in a lane you can watch.
    *
    * This is how agents run: pi as itself, in a terminal, driven by the same
    * keystrokes you would type. It outlives us exactly as far as the driver
    * says it does, and reopening finds it again rather than starting it over —
    * the lane by adoption, the conversation by pi's own session id.
+   *
+   * `prompt` is the opening instruction, which is said once. Coming back to
+   * an agent is `reopenAgent`, which says nothing.
    */
   async startAgent(req: StartRunRequest): Promise<LaneRecord> {
     this.guardParallel(req.task)
@@ -1154,10 +1185,7 @@ export class Workbench {
     // The model new agents start on is for new agents. One coming back to its
     // conversation keeps the model that conversation was on, which its session
     // remembers — told the default instead, it would quietly change models.
-    const resuming =
-      (await sessionFileFor(req.task, this.sessionsRoot ? { root: this.sessionsRoot } : {}).catch(
-        () => null,
-      )) !== null
+    const resuming = await this.hasConversation(req.task)
     const thinking = req.thinking ?? (resuming ? undefined : this.thinkingFor(req.task))
     const spec = {
       run: lane as RunId,
@@ -1194,6 +1222,9 @@ export class Workbench {
         cwd: req.cwd,
         command: launch.command,
         args: launch.args,
+        // Said at this launch and written down nowhere: what puts the lane
+        // back later must not repeat the instruction it opened with.
+        ...(launch.opening ? { opening: launch.opening } : {}),
         env: launch.env,
         title: req.task,
       })
@@ -1204,6 +1235,19 @@ export class Workbench {
       await this.workers.stop(lane as RunId).catch(() => {})
       throw err
     }
+  }
+
+  /**
+   * Whether this task's agent has a conversation to come back to, which its
+   * harness keeps rather than Tade. A task that has one has been told what it
+   * is for at least once.
+   */
+  private async hasConversation(task: string): Promise<boolean> {
+    const file = await sessionFileFor(
+      task,
+      this.sessionsRoot ? { root: this.sessionsRoot } : {},
+    ).catch(() => null)
+    return file !== null
   }
 
   /** What a task's file says: what was asked, and the name a person chose, if any. */

@@ -190,6 +190,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   marked `lost` in `lanes.json` when the next window cannot find it, and that window opens it again
   where it left off. Stopping, removing or exiting clears the mark. Queued work and schedules are
   asked for too: what came due while Tade was closed starts when it opens, and says why.
+- **An opening instruction is said once, and nothing that comes back says it again.** Starting an
+  agent with a first prompt (`startAgent`) and reattaching to the conversation it already has
+  (`reopenAgent`) are two acts, not one call with an empty string: the prompt reaches the harness as
+  `LaunchSpec.opening`, is appended at that launch only, and is never written into the lane's spec —
+  so relaunching a lane from what was stored, or reopening the window, reattaches in silence. Queued
+  work whose agent already has a conversation is brought back rather than told again (`reopened` in
+  `queue_started`): an agent that hears its first instruction twice does the work twice.
 - **The orchestrator picks its conversation back up, it is never introduced again.** It talks in one
   pi session whose id never changes (`ORCHESTRATOR_SESSION`, from `ORCHESTRATOR_TASK`), so closing
   Tade and opening it again continues the same conversation, with everything that was discussed

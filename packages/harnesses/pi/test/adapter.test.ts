@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { PiAdapter, piBinary, runSocket } from '../src/adapter.ts'
+import { PiAdapter, piBinary, runSocket, sessionIdFor } from '../src/adapter.ts'
 import { describeToolCall } from '../src/tade.ts'
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 20_000): Promise<void> {
@@ -48,6 +48,33 @@ describe('PiAdapter', () => {
     adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
     const launch = adapter.launchSpec({ run: 'r1', task: 'app/t', cwd: '/wt/t', prompt: '' })
     expect(launch.command).toBe(process.execPath)
+  })
+
+  it('keeps the opening instruction out of the line that comes back to a session', () => {
+    adapter = new PiAdapter({ runDir: tmp('tade-pi-') })
+    const launch = adapter.launchSpec({
+      run: 'r1',
+      task: 'app/refunds',
+      cwd: '/wt/refunds',
+      prompt: 'fix the double charge',
+    })
+    // Said once, on its own, so nothing that relaunches from what was written
+    // down can say it again.
+    expect(launch.opening).toEqual(['fix the double charge'])
+    expect(launch.args).not.toContain('fix the double charge')
+    // And that line is the one that continues the conversation: same session.
+    expect(launch.args).toContain('--session-id')
+    expect(launch.args).toContain(sessionIdFor('app/refunds'))
+
+    // Nothing to say, nothing appended: reopening looks exactly like this.
+    const again = adapter.launchSpec({
+      run: 'r1',
+      task: 'app/refunds',
+      cwd: '/wt/refunds',
+      prompt: '',
+    })
+    expect(again.opening).toBeUndefined()
+    expect(again.args).toEqual(launch.args)
   })
 
   it('starts pi with the Tade extension attached and the run supervised', async () => {

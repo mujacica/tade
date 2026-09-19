@@ -300,8 +300,23 @@ export type WorkerSignalListener = (signal: WorkerSignal) => void
 /** Everything needed to run an agent somewhere we can see it. */
 export interface LaunchSpec {
   command: string
+  /**
+   * How to run it, and how to come back to it: the same line either way,
+   * because a harness that names its own session continues the conversation
+   * it started. Safe to write down and launch again.
+   */
   args: string[]
   env: Record<string, string>
+  /**
+   * What says the opening instruction, appended after `args` at launch and
+   * nowhere else.
+   *
+   * Starting a conversation and coming back to one are not the same act. A
+   * first prompt belongs to the first launch only, so it is kept apart from
+   * the line that is written down: nothing that relaunches a lane from what
+   * was stored can say the first instruction a second time.
+   */
+  opening?: string[]
 }
 
 export interface WorkerAdapter {
@@ -311,6 +326,10 @@ export interface WorkerAdapter {
   /**
    * How to run this agent in a lane. Tade places the process — that is the
    * driver's job — so the adapter only says what to run.
+   *
+   * An opening prompt comes back in `opening`, never in `args`: what is
+   * written down has to be the line that reattaches, not the one that starts
+   * a conversation over.
    */
   launchSpec(spec: WorkerSpec): LaunchSpec
   /**

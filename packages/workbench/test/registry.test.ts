@@ -170,6 +170,43 @@ describe('the lane registry, across a restart', () => {
   })
 
   describe('what it writes down', () => {
+    it('says an opening instruction once, and never again when the lane is put back', async () => {
+      const registry = await session(new PtyDriver({ scrollback: 200 }))
+      // A stand-in for an agent: it prints what it was told and stays up.
+      const script =
+        'console.log("told:" + process.argv.slice(1).join(" ")); setInterval(() => {}, 1000)'
+      await registry.spawn({
+        id: 'app/refunds/agent' as LaneId,
+        task: 'app/refunds',
+        kind: 'agent',
+        cwd: home,
+        command: process.execPath,
+        args: ['-e', script],
+        opening: ['fix the double charge'],
+        cols: 120,
+        rows: 24,
+      })
+      await until(async () =>
+        (await registry.capture('app/refunds/agent' as LaneId, 50)).includes(
+          'told:fix the double charge',
+        ),
+      )
+
+      // The spec is how to come back, so what was said once is not in it.
+      expect(registry.get('app/refunds/agent' as LaneId)?.spec.args).toEqual(['-e', script])
+      expect(readFileSync(path, 'utf8')).not.toContain('fix the double charge')
+
+      // The window closed on it, and it is opened again where it left off.
+      await registry.close('app/refunds/agent' as LaneId)
+      await registry.relaunch('app/refunds/agent' as LaneId)
+      await until(async () =>
+        (await registry.capture('app/refunds/agent' as LaneId, 50)).includes('told:'),
+      )
+      expect(await registry.capture('app/refunds/agent' as LaneId, 50)).not.toContain(
+        'fix the double charge',
+      )
+    })
+
     it('keeps the environment Tade set, never what the lane inherited, and only for you to read', async () => {
       process.env.TADE_TEST_SECRET = 'sk-not-for-disk'
       try {

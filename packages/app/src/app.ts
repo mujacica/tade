@@ -3972,7 +3972,10 @@ export class App {
     if (this.opening.has(task)) return
     this.opening.add(task)
     try {
-      await this.opts.client.startAgent({ task: task as never, cwd: worktree, prompt: '' })
+      // Reattached, never restarted: its lane and its conversation come back
+      // exactly where they were, and nothing is said to it. An agent told its
+      // first instruction a second time would do the work again.
+      await this.opts.client.reopenAgent({ task: task as never, cwd: worktree })
       await this.live?.refresh()
       const told = notice(this.state, `opened ${task} where it left off`)
       this.state = focus ? focusTask(told, task) : told

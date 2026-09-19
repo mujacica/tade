@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { sandboxed, type ThinkingLevel, type Unsubscribe } from '@tade/core'
 import {
+  type LaunchSpec,
   type PermissionDecision,
   type RunId,
   WORKER_ENV,
@@ -242,12 +243,13 @@ export class PiAdapter implements WorkerAdapter {
    * directory, and every task has its own worktree, so they are already
    * partitioned by task — and leaving them where pi puts them means you can
    *`cd` into the worktree, run pi yourself, and be in the same conversation.
+   *
+   * Which is why the opening prompt is handed back on its own, in `opening`,
+   * rather than as the last argument: the line without it is the line that
+   * reattaches, and reopening Tade must say nothing to an agent that was
+   * already told once.
    */
-  launchSpec(spec: WorkerSpec): {
-    command: string
-    args: string[]
-    env: Record<string, string>
-  } {
+  launchSpec(spec: WorkerSpec): LaunchSpec {
     const launch = sandboxed(
       {
         command: process.execPath,
@@ -263,13 +265,17 @@ export class PiAdapter implements WorkerAdapter {
           COMPAT_PATH,
           ...extrasArgs(spec),
           ...this.opts.args,
-          // Last, so the opening instruction is not mistaken for a flag.
-          ...(spec.prompt ? [spec.prompt] : []),
         ],
       },
       spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
     )
-    return { ...launch, env: this.runEnv(spec) }
+    return {
+      ...launch,
+      env: this.runEnv(spec),
+      // Appended last by whoever launches, so the opening instruction is not
+      // mistaken for a flag — and left out of every launch after the first.
+      ...(spec.prompt ? { opening: [spec.prompt] } : {}),
+    }
   }
 
   /**

@@ -82,7 +82,14 @@ export interface SpawnRequest {
   kind: LaneKind
   cwd: string
   command: string
+  /** How to run it, and how to come back to it: written down as the lane's spec. */
   args?: string[]
+  /**
+   * Arguments that say something once: an agent's opening instruction.
+   * Appended after `args` at launch and never written down, so a lane put
+   * back from what was stored reattaches instead of starting over.
+   */
+  opening?: string[]
   env?: Record<string, string>
   cols?: number
   rows?: number
@@ -159,7 +166,17 @@ export class LaneRegistry {
       // Keep the stored spec when the lane is gone: it is how `relaunch` puts
       // the work back. When it is here, the driver's handle is fresher.
       const record: LaneRecord = handle
-        ? { ...lane, spec: handle.spec, pid: handle.pid, title: handle.title, alive: handle.alive }
+        ? {
+            ...lane,
+            // The handle remembers the line the lane was opened with, opening
+            // instruction and all — tmux keeps the whole spec on its window.
+            // What was written down is the line to come back on, so that is
+            // the one kept; everything else about the lane is the driver's.
+            spec: { ...handle.spec, args: lane.spec.args },
+            pid: handle.pid,
+            title: handle.title,
+            alive: handle.alive,
+          }
         : // Alive when the file was last written and gone now: the window closed on it.
           { ...lane, alive: false, ...(lane.alive ? { lost: true } : {}) }
       this.lanes.set(lane.id, record)
@@ -211,7 +228,7 @@ export class LaneRegistry {
       id: req.id,
       cwd: req.cwd,
       command: req.command,
-      args: req.args ?? [],
+      args: [...(req.args ?? []), ...(req.opening ?? [])],
       ...(req.env ? { env: req.env } : {}),
       ...(req.cols ? { cols: req.cols } : {}),
       ...(req.rows ? { rows: req.rows } : {}),
@@ -222,7 +239,10 @@ export class LaneRegistry {
       id: req.id,
       task: req.task,
       kind: req.kind,
-      spec: handle.spec,
+      // Without what was said once: the spec is how to come back to this
+      // lane, and a relaunch that repeated the opening instruction would set
+      // an agent off on work it has already done.
+      spec: { ...handle.spec, args: req.args ?? [] },
       pid: handle.pid,
       startedAt: handle.startedAt,
       title: handle.title,
@@ -242,7 +262,12 @@ export class LaneRegistry {
     return record
   }
 
-  /** Relaunch a lane from its stored spec, after it went away. */
+  /**
+   * Relaunch a lane from its stored spec, after it went away. Nothing is said
+   * to it: the stored spec is the line that reattaches, so an agent comes
+   * back to its conversation rather than being told its first instruction
+   * again.
+   */
   async relaunch(id: LaneId): Promise<LaneRecord> {
     const record = this.require(id)
     if (record.alive) return record

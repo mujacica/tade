@@ -201,6 +201,34 @@ describe('task and run RPC', () => {
     expect(client.lane('app/refunds/agent' as never)?.alive).toBe(false)
   }, 60_000)
 
+  it('says the opening instruction once: reopening an agent says nothing to it', async () => {
+    const task = await client.createTask({
+      project: 'app',
+      slug: 'refunds',
+      intent: INTENT,
+      workspace: 'worktree',
+    })
+    const lane = await client.startAgent({
+      task: task.id,
+      cwd: task.worktree,
+      prompt: 'start with the webhook',
+    })
+    // Said to the agent once, when it started...
+    const launched = (await client.driver.list()).find((one) => one.id === lane.id)
+    expect(launched?.spec.args).toContain('start with the webhook')
+    // ...and left out of what is written down, which is how it comes back.
+    expect(lane.spec.args).not.toContain('start with the webhook')
+    expect(readFileSync(join(home, 'lanes.json'), 'utf8')).not.toContain('start with the webhook')
+
+    // The window closed on it, and opens it again where it left off.
+    await client.stopAgent(task.id)
+    const back = await client.reopenAgent({ task: task.id, cwd: task.worktree })
+    const again = (await client.driver.list()).find((one) => one.id === back.id)
+    expect(again?.spec.args).not.toContain('start with the webhook')
+    // The same conversation, not a new one: the session id is the task's.
+    expect(again?.spec.args).toContain(sessionIdFor(task.id))
+  }, 60_000)
+
   it('starts new agents on the model last chosen for one, and a returning one on its own', async () => {
     const sessionsRoot = tmp('tade-sessions-')
     await client.close()

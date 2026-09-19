@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PlannedAgent } from '@tade/core'
+import { sessionIdFor } from '@tade/harnesses-pi'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
@@ -91,12 +92,51 @@ describe('queued work', () => {
     expect(own).toContain('id: app/add-refunds')
     // ...and its own work is what comes after this, not after where it was planned.
     expect(own).toContain(`base: ${repo.head(fix.worktree)}`)
-    expect(lane.spec.args).toContain('please do add-refunds')
+    // Told at launch and nowhere else: what is written down is the line that
+    // comes back to it, which cannot say its instruction a second time.
+    expect(lane.spec.args).not.toContain('please do add-refunds')
+    expect((await client.driver.list()).find((one) => one.id === lane.id)?.spec.args).toContain(
+      'please do add-refunds',
+    )
     const [started] = await client.events({ types: ['queue_started'] })
     expect(started).toMatchObject({
       task: 'app/add-refunds',
       detail: { why: 'app/fix-charge has finished', after: ['app/fix-charge'] },
     })
+    expect(started?.detail.reopened).toBeUndefined()
+  }, 60_000)
+
+  it('tells queued work what it is for once, and brings back what has already been told', async () => {
+    // Its own sessions directory, so what pi remembers is this test's alone.
+    const sessionsRoot = tmp('tade-sessions-')
+    await client.close()
+    client = await Workbench.open({ home, version: '9.9.9', sessionsRoot })
+    const {
+      made: [again],
+    } = await client.planTasks({ project: 'app', said: '', agents: [agent('again')] })
+    if (!again) throw new Error('the plan made nothing')
+
+    // It ran before — pi kept the conversation — and whatever said so was
+    // lost, so the queue is looking at it as though it had never started.
+    const dir = join(sessionsRoot, 'worktree')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(
+      join(dir, `2026-09-13T04-14-42-404Z_${sessionIdFor(again.id)}.jsonl`),
+      '{"type":"session","version":3}\n',
+    )
+
+    const lane = await client.startQueued({
+      task: again.id,
+      worktree: again.worktree,
+      why: 'there was room for it',
+    })
+    // Nothing said to it: it comes back where it left off instead of being
+    // set off on work it has already done.
+    expect((await client.driver.list()).find((one) => one.id === lane.id)?.spec.args).not.toContain(
+      'please do again',
+    )
+    const [started] = await client.events({ types: ['queue_started'] })
+    expect(started?.detail).toMatchObject({ reopened: true })
   }, 60_000)
 
   it('puts two things it waited on together, and will not begin from two that conflict', async () => {
