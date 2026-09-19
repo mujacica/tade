@@ -81,9 +81,18 @@ export const reviewExtension: TadeExtension = {
       means: 'which signed-in account to use per host: github.com=you',
     },
     {
+      key: 'token',
+      kind: 'secret',
+      env: ['GITHUB_TOKEN', 'GH_TOKEN'],
+      envFrom: 'token_env',
+      means:
+        'a forge token with `repo` scope, for when `gh` is not what you use. Paste it here and Tade keeps it in the keychain, never in the config; $GITHUB_TOKEN still wins',
+    },
+    {
       key: 'token_env',
       kind: 'string',
-      means: 'the variable a token is in, when `gh` is not what you use',
+      means:
+        'the variable a token is in, when `gh` is not what you use; whatever is there beats the pasted one',
     },
     { key: 'include', kind: 'list', means: 'owner/repo globs that are yours to watch: acme/*' },
     { key: 'exclude', kind: 'list', means: 'globs never listed or watched, whatever include says' },
@@ -121,12 +130,19 @@ export const reviewExtension: TadeExtension = {
     return {
       guide: [
         'Tade reads reviews with whatever you are already signed in with: the GitHub CLI, or a token.',
-        '1. `gh auth login` in a terminal, or set `$GITHUB_TOKEN` to a token with `repo` scope.',
+        '1. `gh auth login` in a terminal — or paste a token with `repo` scope below, which Tade keeps in your keychain and never in `config.yaml`. `$GITHUB_TOKEN` still wins when it is set.',
         '2. Say which repositories are yours to watch (`include`), as `owner/repo` or `acme/*`.',
         '3. Nothing is watched until you turn a watch on — ask the orchestrator to watch failing checks.',
         `Tade is reading ${settings.include.length > 0 ? settings.include.join(', ') : "each project's own repository"}.`,
       ],
       fields: [
+        {
+          key: 'token',
+          label: 'Token',
+          kind: 'secret',
+          placeholder: 'ghp_…',
+          help: 'only when you do not use `gh`; kept in the keychain',
+        },
         { key: 'include', label: 'Repositories', kind: 'list', placeholder: 'acme/*, you/tade' },
         { key: 'exclude', label: 'Never these', kind: 'list' },
         {

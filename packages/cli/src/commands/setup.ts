@@ -12,7 +12,9 @@ import {
   type ReadinessFacts,
   readiness,
   resolveCommand,
+  Secrets,
   type Step,
+  secretName,
   stringEnv,
   tadeHome,
 } from '@tade/core'
@@ -442,15 +444,32 @@ async function setUpJudge(ui: Ui): Promise<void> {
   }
 
   const variable = 'TYPESAFE_API_KEY'
-  const key = process.env[variable] ?? ''
+  const secrets = Secrets.open({ home: tadeHome() })
+  const fromEnv = (process.env[variable] ?? '').trim()
+  let key = fromEnv
+  let where = `$${variable}`
   if (!key) {
-    // Never typed into Tade: a key typed into a wizard is a key in a file, and
-    // the step simply stays undone, which blocks nothing.
-    ui.say('  Create one at https://console.typesafe.ai/settings/keys — or ask for access at')
-    ui.say('  https://typesafe.ai if you are not in yet. Then add this to your shell profile:')
-    ui.say(`    export ${variable}="…the key the console gave you…"`)
-    ui.say('  Tade reads it there and never keeps a copy.')
-    throw new Error(`set ${variable} in your shell, then run \`tade setup\` again`)
+    // Pasting one is offered here rather than refused on principle. It is
+    // never written to the config: it goes to the keychain, or to a file of
+    // Tade's own that only you can read — and the environment still wins.
+    const kept = secrets.get(secretName('jev', 'key'))
+    if (kept) {
+      key = kept
+      where = secrets.where(secretName('jev', 'key')) ?? 'where Tade keeps keys'
+    } else {
+      ui.say('  Create one at https://console.typesafe.ai/settings/keys — or ask for access at')
+      ui.say('  https://typesafe.ai if you are not in yet.')
+      ui.say(`  Paste it here and Tade keeps it in ${secrets.keeper?.label ?? 'nowhere'}, never`)
+      ui.say(`  in your config. \`export ${variable}="…"\` in your shell works too, and wins.`)
+      const typed = await ui.secret('paste the key (enter to skip)')
+      if (!typed) {
+        ui.say('  skipped — Settings › Extensions › Jev whenever you want it')
+        return
+      }
+      where = secrets.set(secretName('jev', 'key'), typed)
+      key = typed
+      ui.say(`  kept in ${where}`)
+    }
   }
 
   // One request, and only here: somebody is sitting in front of the screen
@@ -463,8 +482,8 @@ async function setUpJudge(ui: Ui): Promise<void> {
   })
   ui.say(
     problem
-      ? `  the key in $${variable} did not work: ${problem}`
-      : `  the key in $${variable} works — Jev is on`,
+      ? `  the key in ${where} did not work: ${problem}`
+      : `  the key in ${where} works — Jev is on`,
   )
   ui.say('  it asks the version Tade pins; Settings › Extensions › Jev changes it')
   // Turning it on is not turning anything loose: the tools become available

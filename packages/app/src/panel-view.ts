@@ -6,7 +6,14 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from '@earendil-works/pi-tui'
-import { duration, KEY_BINDINGS, type Setting, type SettingGroup } from '@tade/core'
+import {
+  duration,
+  KEY_BINDINGS,
+  masked,
+  type Setting,
+  type SettingGroup,
+  shownValue,
+} from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
 import { type Hit, sameTarget, type Target } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
@@ -666,10 +673,17 @@ function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): Drawn {
         id: `field:${field.key}`,
       })
     } else {
-      r.field(value, Math.max(10, inner - label - 4), {
+      // A key is bullets from the first character, here and everywhere else:
+      // what is drawn is what ends up in a screen recording.
+      const shown = field.kind === 'secret' ? masked(value) : value
+      r.field(shown, Math.max(10, inner - label - 4), {
         caret: focused,
         target: { kind: 'control', id: `field:${field.key}` },
-        ...(value === '' && field.placeholder ? { ghost: field.placeholder } : {}),
+        ...(value === '' && field.kind === 'secret' && field.have
+          ? { ghost: `kept — ${field.have}` }
+          : value === '' && field.placeholder
+            ? { ghost: field.placeholder }
+            : {}),
       })
     }
     rows.push(r.build())
@@ -2090,10 +2104,14 @@ function control(
     case 'text': {
       const target = { kind: 'control' as const, id: `edit:${setting.path}` }
       const width = Math.max(8, Math.min(40, room))
+      // A credential is bullets as it is typed and a sentence about where it
+      // is when it is not: a key on a screen is a key in a recording.
       if (panel.editing?.path === setting.path) {
-        row.field(panel.editing.text, width, { caret: true, target })
+        const typed = setting.secret ? masked(panel.editing.text) : panel.editing.text
+        row.field(typed, width, { caret: true, target })
       } else {
-        row.field(value || setting.fallback, width, { hint: !value, target })
+        const shown = setting.secret ? shownValue(setting) : value
+        row.field(shown || setting.fallback, width, { hint: !shown, target })
       }
       return
     }

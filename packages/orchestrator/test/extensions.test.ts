@@ -209,10 +209,30 @@ describe('setting Sentry up', () => {
   it('shows every setting the Sentry extension has in the Telemetry category', () => {
     const sentry = BUILTIN_EXTENSIONS.find((one) => one.name === 'sentry')
     if (!sentry) throw new Error('no Sentry extension')
-    const group = settingsOf(ConfigSchema.parse({})).find((one) => one.id === 'telemetry')
-    const shown = new Set(group?.settings.map((setting) => setting.path))
+    // Its token is a credential, so it is a field in Keys and tokens rather
+    // than a line in the config — shown in Settings either way, which is the
+    // point: what the extension declares, Settings has somewhere to put.
+    const secrets = (sentry.settings ?? [])
+      .filter((setting) => setting.kind === 'secret')
+      .map((setting) => ({
+        name: `sentry.${setting.key}`,
+        title: `Sentry ${setting.key}`,
+        means: setting.means,
+        from: null,
+      }))
+    const groups = settingsOf(ConfigSchema.parse({}), secrets)
+    const shown = new Set(
+      groups
+        .filter((one) => one.id === 'telemetry' || one.id === 'credentials')
+        .flatMap((one) => one.settings)
+        .map((setting) => setting.path),
+    )
     for (const setting of sentry.settings ?? []) {
-      expect(shown, setting.key).toContain(`extensions.sentry.${setting.key}`)
+      expect(shown, setting.key).toContain(
+        setting.kind === 'secret'
+          ? `secrets.sentry.${setting.key}`
+          : `extensions.sentry.${setting.key}`,
+      )
     }
     // And turning the extension itself off, which is a setting like any other.
     expect(shown).toContain('extensions.sentry.enabled')

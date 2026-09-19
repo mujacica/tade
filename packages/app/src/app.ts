@@ -52,6 +52,8 @@ import {
   resolveRoute,
   type Schedule,
   type ScheduleDoes,
+  type Setting,
+  type SettingGroup,
   settingsOf,
   speakable,
   startFrom,
@@ -1161,7 +1163,7 @@ export class App {
     if (panel.kind === 'settings') {
       return {
         choices: this.choices,
-        settings: settingsOf(this.opts.config),
+        settings: this.settingRows(),
         accounts: this.accounts,
         configPath: tilde(this.configPath),
         releases: kittyActive(this.terminal),
@@ -2685,7 +2687,7 @@ export class App {
     for (const project of projects(this.state)) {
       entries.push({ id: `project:${project}`, kind: 'project', label: project, mark: '▣' })
     }
-    for (const group of settingsOf(this.opts.config)) {
+    for (const group of this.settingRows()) {
       for (const setting of group.settings) {
         entries.push({
           id: `setting:${group.id}`,
@@ -5268,6 +5270,23 @@ export class App {
     }
   }
 
+  /**
+   * Every setting Settings shows: what the config holds, and a field for each
+   * credential the loaded extensions ask for — so a key can be pasted here as
+   * well as on the extension's own page, and is kept in the same one place.
+   */
+  private settingRows(): SettingGroup[] {
+    const secrets = (this.opts.extensions?.secrets() ?? []).map((one) => ({
+      name: one.name,
+      title: `${one.title} ${one.label.toLowerCase()}`,
+      means: one.means,
+      from: one.from,
+      placeholder: one.placeholder,
+      variables: one.variables,
+    }))
+    return settingsOf(this.opts.config, secrets)
+  }
+
   /** The setup panel's facts: the extension as it stands, and what its fields offer. */
   private setupFacts(panel: ExtensionSetupPanel): NonNullable<PanelContext['setup']> | null {
     const host = this.opts.extensions
@@ -5287,6 +5306,7 @@ export class App {
         placeholder: field.placeholder,
         kind: field.kind,
         choices: this.setupChoices[field.key] ?? [],
+        ...(field.have ? { have: field.have } : {}),
       })),
     }
   }
@@ -5298,8 +5318,23 @@ export class App {
     if (!host || !setup) return
     const before = readFileSync(this.configPath, 'utf8')
     try {
+      const kept: string[] = []
       for (const field of setup.fields) {
-        const value = settingFrom(panel.values[field.key] ?? '', field.kind)
+        const typed = panel.values[field.key] ?? ''
+        if (field.kind === 'secret') {
+          // Never into the config. A key goes to the keychain, or to Tade's
+          // own 0600 file, and an empty field that had nothing in it is left
+          // alone rather than forgetting what is already kept.
+          if (typed.trim() === '') continue
+          const saved = host.saveSecret(panel.extension, field.key, typed)
+          kept.push(
+            saved.beaten
+              ? `${field.label} is in ${saved.where}, but ${saved.beaten} is set and wins`
+              : `${field.label} is in ${saved.where}`,
+          )
+          continue
+        }
+        const value = settingFrom(typed, field.kind)
         writeSetting(
           this.configPath,
           `extensions.${panel.extension}.${field.key}`,
@@ -5308,13 +5343,27 @@ export class App {
       }
       await this.reloadExtensions()
       const now = host.list().find((one) => one.name === panel.extension)
+      const said = [
+        now?.state === 'ready' ? `Saved. ${now.title} is ready.` : kept.length > 0 ? 'Saved.' : '',
+        ...kept,
+      ]
+        .filter((line) => line !== '')
+        .join(' ')
       this.state = {
         ...this.state,
         panel: {
           ...panel,
           busy: false,
+          // What was typed is gone from the panel the moment it is kept:
+          // nothing holds a key in memory for the next repaint to draw.
+          values: Object.fromEntries(
+            Object.entries(panel.values).map(([key, value]) => [
+              key,
+              setup.fields.find((one) => one.key === key)?.kind === 'secret' ? '' : value,
+            ]),
+          ),
           error: now?.state === 'ready' ? null : (now?.problem ?? null),
-          said: now?.state === 'ready' ? `Saved. ${now.title} is ready.` : null,
+          said: said === '' ? null : said,
         },
       }
     } catch (err) {
@@ -6315,7 +6364,7 @@ export class App {
           ? (this.setupFacts(this.state.panel)?.fields ?? [])
           : [],
       models: this.models,
-      settings: settingsOf(this.opts.config),
+      settings: this.settingRows(),
       accounts: this.accounts.length,
     }
   }
@@ -6380,9 +6429,16 @@ export class App {
   }
 
   private async saveSetting(panel: SettingsPanel, path: string, value: string): Promise<void> {
-    const setting = settingsOf(this.opts.config)
+    const setting = this.settingRows()
       .flatMap((group) => group.settings)
       .find((one) => one.path === path)
+    // A credential never goes near the config, so it never goes near the
+    // read-change-write below either: it is kept, and the extension asked
+    // again whether it can work now.
+    if (setting?.kept) {
+      await this.saveKey(panel, setting, value)
+      return
+    }
     const before = readFileSync(this.configPath, 'utf8')
     try {
       if (setting?.type.kind === 'key') {
@@ -6434,6 +6490,33 @@ export class App {
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
             : 'Saved. It applies now.'
+      this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
+    } catch (err) {
+      this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }
+    }
+    this.draw()
+  }
+
+  /**
+   * Keep a key somebody pasted into Settings. It goes where Tade keeps
+   * credentials — never the config — and what is said back says where it
+   * went, whether the environment still beats it, and never the key.
+   */
+  private async saveKey(panel: SettingsPanel, setting: Setting, value: string): Promise<void> {
+    const kept = setting.kept ?? ''
+    const [extension, ...rest] = kept.split('.')
+    try {
+      const host = this.opts.extensions
+      if (!host || !extension || rest.length === 0) throw new Error(`nowhere to keep ${kept}`)
+      const saved = host.saveSecret(extension, rest.join('.'), value)
+      // Its extension may have been waiting on exactly this to be ready.
+      await host.reconfigure(this.opts.config.extensions)
+      const said =
+        value.trim() === ''
+          ? `${setting.title} is cleared.`
+          : saved.beaten
+            ? `Saved in ${saved.where} — but ${saved.beaten} is set, and that is what is used.`
+            : `Saved in ${saved.where}. It applies now.`
       this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
     } catch (err) {
       this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }

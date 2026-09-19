@@ -17,13 +17,25 @@ export function judgeName(ctx: ExtensionContext): string {
   return typeof said === 'string' && said !== '' ? said : 'jev'
 }
 
-/** The key, from wherever the settings say it is. Never read from a file. */
+/**
+ * The key: the environment first — `$TYPESAFE_API_KEY`, or whatever `key_env`
+ * names — then the one somebody pasted into Tade, which is kept in the OS
+ * keychain or a file of Tade's own. Never from the config, which people commit.
+ */
 export function keyOf(ctx: ExtensionContext): string {
-  const variable =
-    typeof ctx.settings.key_env === 'string' && ctx.settings.key_env !== ''
-      ? ctx.settings.key_env
-      : 'TYPESAFE_API_KEY'
-  return ctx.env[variable] ?? ''
+  return ctx.secret('key')?.value ?? ''
+}
+
+/** Where the key came from, for saying so without saying the key. */
+export function keyFrom(ctx: ExtensionContext): string | null {
+  return ctx.secret('key')?.from ?? null
+}
+
+/** The environment variable the key is read from, as the settings have it. */
+export function keyVariable(ctx: ExtensionContext): string {
+  return typeof ctx.settings.key_env === 'string' && ctx.settings.key_env !== ''
+    ? ctx.settings.key_env
+    : 'TYPESAFE_API_KEY'
 }
 
 /** The judge these settings name, built but not asked. */

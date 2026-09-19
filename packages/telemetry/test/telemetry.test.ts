@@ -57,6 +57,30 @@ describe('what is never sent', () => {
     expect(scrub('used ghp_0123456789abcdefghij', HOME)).toBe('used …')
   })
 
+  it('takes out a key somebody pasted into Tade, whoever issued it', () => {
+    // Tade now holds keys for anything that asks for one — a judge, a forge,
+    // Sentry — so the last net under the allow-list has to catch a shape it
+    // was never told about, not a list of the issuers we knew on the day.
+    const keys = [
+      'tsk_9f8e7d6c5b4a3210fedcba98',
+      'sk-proj-0123456789abcdefghijklmn',
+      'sntryu_0123456789abcdefghij',
+      'ghp_0123456789abcdefghijklmnopqrstuv',
+    ]
+    for (const key of keys) {
+      expect(scrub(`the judge refused ${key} at 401`, HOME)).not.toContain(key)
+      expect(about({ message: `the judge refused ${key} at 401` }, HOME).message).not.toContain(key)
+      const sent = fromEvent(
+        event({ type: 'warning', detail: { message: `could not ask the judge: ${key} expired` } }),
+        HOME,
+      )
+      expect(JSON.stringify(sent)).not.toContain(key)
+    }
+    // And a key under a detail nobody allow-listed is not sent at all, whole
+    // or scrubbed: `key` is not in KEPT, so it never reaches the net above.
+    expect(about({ key: 'tsk_9f8e7d6c5b4a3210fedcba98', code: 401 }, HOME)).toEqual({ code: 401 })
+  })
+
   it('sends only the few details that are Tade’s own words, never anybody’s text', () => {
     expect(
       about(

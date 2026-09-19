@@ -39,6 +39,7 @@ function access(ctx: ExtensionContext): SentryAccess | { problem: string } {
     env: ctx.env,
     folders: ctx.projects.map((project) => project.root),
     now: ctx.now(),
+    pasted: ctx.secret('token'),
   })
 }
 
@@ -189,6 +190,14 @@ export const sentryExtension: TadeExtension = {
   root: ROOT,
   settings: [
     {
+      key: 'token',
+      kind: 'secret',
+      env: ['SENTRY_AUTH_TOKEN', 'SENTRY_TOKEN'],
+      envFrom: 'token_env',
+      means:
+        'a user auth token (org:read, project:read, event:read, event:write). Paste it here and Tade keeps it in the keychain, never in the config; $SENTRY_AUTH_TOKEN still wins',
+    },
+    {
       key: 'org',
       kind: 'string',
       means: 'the Sentry organization slug (or $SENTRY_ORG, or sentry-cli’s default)',
@@ -201,7 +210,8 @@ export const sentryExtension: TadeExtension = {
     {
       key: 'token_env',
       kind: 'string',
-      means: 'the environment variable the token is in, when it is not SENTRY_AUTH_TOKEN',
+      means:
+        'the environment variable the token is in, when it is not SENTRY_AUTH_TOKEN; whatever is there beats the pasted one',
     },
     {
       key: 'projects',
@@ -595,13 +605,14 @@ export const sentryExtension: TadeExtension = {
       env: ctx.env,
       folders: ctx.projects.map((project) => project.root),
       now: ctx.now(),
+      pasted: ctx.secret('token'),
     })
     const variable = found.tokenVariable ?? 'SENTRY_AUTH_TOKEN'
     return {
       guide: [
         found.token
-          ? `**Token:** found in ${found.token.from}. Tade reads it there and never keeps a copy.`
-          : `**Token:** Tade needs one that can read your organization, and never stores it. Either run \`sentry-cli login\` (it keeps the token in \`~/.sentryclirc\`, where Tade reads it), or create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and add \`export ${variable}=…\` to your shell's profile — then start Tade from a new terminal.`,
+          ? `**Token:** found in ${found.token.from}. It is never written to your config and never shown again.`
+          : `**Token:** create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and paste it below — Tade keeps it in your keychain, never in \`config.yaml\`. Or run \`sentry-cli login\` (it keeps one in \`~/.sentryclirc\`, where Tade reads it), or \`export ${variable}=…\` in your shell, which wins over anything pasted.`,
         found.org
           ? `**Organization:** ${found.org}.`
           : '**Organization:** type its slug below — the part after `sentry.io/organizations/` — or, with a token, choose from the ones it can see.',
@@ -609,6 +620,13 @@ export const sentryExtension: TadeExtension = {
         '**Your own Sentry:** leave Sentry empty for sentry.io; for a self-hosted or local one, give its address.',
       ],
       fields: [
+        {
+          key: 'token',
+          label: 'Auth token',
+          kind: 'secret',
+          placeholder: 'sntryu_…',
+          help: 'kept in the keychain; $SENTRY_AUTH_TOKEN wins when it is set',
+        },
         {
           key: 'org',
           label: 'Organization',

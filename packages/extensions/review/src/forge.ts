@@ -91,13 +91,30 @@ function forgeOptions(ctx: ExtensionContext, cwd?: string) {
   return {
     exec: ctx.exec,
     fetch: ctx.fetch,
-    env: ctx.env,
+    // A token pasted into Tade reaches the forge as the variable it already
+    // reads, and only where the environment has not set one: the forge asks
+    // for a credential exactly as it did, and the environment still wins.
+    env: withPastedToken(ctx, settings),
     accounts: settings.accounts,
     hostForges: settings.hostForges,
     ...(settings.tokenEnv ? { tokenEnv: settings.tokenEnv } : {}),
     ...(cwd ? { cwd } : {}),
     now: ctx.now,
   }
+}
+
+/**
+ * The environment the forge is handed: yours, with a token pasted into Tade
+ * put under the variable the forge reads — never over one that is already set.
+ */
+function withPastedToken(
+  ctx: ExtensionContext,
+  settings: Settings,
+): Readonly<Record<string, string | undefined>> {
+  const pasted = ctx.secret('token')
+  if (!pasted || pasted.from.startsWith('$')) return ctx.env
+  const variable = settings.tokenEnv ?? 'GITHUB_TOKEN'
+  return { ...ctx.env, [variable]: pasted.value }
 }
 
 /** A project's remote, as git has it. Empty when it has none — not an error. */
@@ -263,6 +280,7 @@ export function credentialProblem(ctx: ExtensionContext): string | null {
   const settings = settingsOf(ctx)
   const names = settings.tokenEnv ? [settings.tokenEnv] : ['GITHUB_TOKEN', 'GH_TOKEN']
   if (names.some((name) => (ctx.env[name] ?? '').trim() !== '')) return null
+  if (ctx.secret('token')) return null
   const path = ctx.env.PATH ?? ''
   const found = path
     .split(':')

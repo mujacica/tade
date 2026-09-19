@@ -18,7 +18,15 @@ import {
 import type { Question } from '@tade/judges-core'
 import { readJournal } from '@tade/workbench/events'
 import { readSchedules } from '@tade/workbench/schedules'
-import { Asking, allowed, judgeName, readyProblem, thresholds } from './ask.ts'
+import {
+  Asking,
+  allowed,
+  judgeName,
+  keyFrom,
+  keyVariable,
+  readyProblem,
+  thresholds,
+} from './ask.ts'
 import { changesIn, unitFor, unitsIn } from './changes.ts'
 import {
   agentQuestions,
@@ -235,6 +243,14 @@ export const jevExtension: TadeExtension = {
   root: ROOT,
   settings: [
     {
+      key: 'key',
+      kind: 'secret',
+      env: 'TYPESAFE_API_KEY',
+      envFrom: 'key_env',
+      means:
+        'the TypeSafe API key. Paste it here and Tade keeps it in the keychain, never in the config; $TYPESAFE_API_KEY still wins when it is set',
+    },
+    {
       key: 'judge',
       kind: 'string',
       means: 'which judge answers: jev (the default), or scripted, which answers from a table',
@@ -248,7 +264,8 @@ export const jevExtension: TadeExtension = {
     {
       key: 'key_env',
       kind: 'string',
-      means: 'the environment variable the TypeSafe key is in, when it is not TYPESAFE_API_KEY',
+      means:
+        'the environment variable the TypeSafe key is in, when it is not TYPESAFE_API_KEY; whatever is there beats the pasted one',
     },
     { key: 'url', kind: 'string', means: 'the TypeSafe to ask, when it is not api.typesafe.ai' },
     {
@@ -962,6 +979,13 @@ export const jevExtension: TadeExtension = {
     ],
     fields: [
       {
+        key: 'key',
+        label: 'API key',
+        kind: 'secret',
+        placeholder: 'paste the key from the console',
+        help: 'kept in the keychain, never in the config; leave empty to keep the one you have',
+      },
+      {
         key: 'model',
         label: 'Version',
         kind: 'text',
@@ -1014,13 +1038,16 @@ export const jevExtension: TadeExtension = {
   harness: { pi: { skills: ['skills/ask-jev'] } },
 }
 
-/** What the setup guide says about the key, which is never typed into Tade. */
+/**
+ * What the setup guide says about the key. Tade used to refuse to take one at
+ * all — a key typed into a wizard is a key in a file — which only moved the
+ * job to your shell profile. Now it takes one and keeps it where a key
+ * belongs, and says which of the two it is reading.
+ */
 function keyGuide(ctx: ExtensionContext): string {
-  const variable =
-    typeof ctx.settings.key_env === 'string' && ctx.settings.key_env !== ''
-      ? ctx.settings.key_env
-      : 'TYPESAFE_API_KEY'
-  return readyProblem(ctx) === null
-    ? `**Key:** found in $${variable}. Tade reads it there and never keeps a copy.`
-    : `**Key:** create one at console.typesafe.ai/settings/keys, then add \`export ${variable}="…"\` to your shell's profile and start Tade from a new terminal. Tade never stores it, and never asks you to type it in here — a key typed into a wizard is a key in a file.`
+  const variable = keyVariable(ctx)
+  const from = keyFrom(ctx)
+  return from
+    ? `**Key:** found in ${from}. It is never written to your config, never shown again, and never in the logs.`
+    : `**Key:** create one at console.typesafe.ai/settings/keys and paste it below. Tade keeps it in your keychain — or, where there is none, in a file of its own that only you can read — never in \`config.yaml\`. \`export ${variable}="…"\` in your shell still works and still wins.`
 }

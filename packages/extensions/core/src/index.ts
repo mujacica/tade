@@ -1,10 +1,12 @@
 export {
+  type DeclaredSecret,
   ExtensionHost,
   type ExtensionRun,
   type ExtensionState,
   type HostOptions,
   type ListSection,
   type LoadedExtension,
+  type SetupFieldView,
   settingFrom,
   shapeProblem,
   type ToolSpec,

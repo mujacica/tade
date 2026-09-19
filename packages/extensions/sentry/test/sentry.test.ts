@@ -450,7 +450,20 @@ describe('setting Sentry up', () => {
     expect(loaded.list()[0]).toMatchObject({ state: 'needs setup' })
     const setup = loaded.setupOf('sentry')
     expect(setup?.guide[0]).toContain('found in $SENTRY_AUTH_TOKEN')
-    expect(setup?.fields.map((field) => field.key)).toEqual(['org', 'projects', 'url', 'brief'])
+    expect(setup?.fields.map((field) => field.key)).toEqual([
+      'token',
+      'org',
+      'projects',
+      'url',
+      'brief',
+    ])
+    // The token is there to paste one in, and says where the one in use is
+    // without ever handing the value back to what draws it.
+    expect(setup?.fields[0]).toMatchObject({
+      kind: 'secret',
+      value: '',
+      have: '$SENTRY_AUTH_TOKEN',
+    })
     expect(await loaded.choices('sentry', 'org')).toEqual(['acme', 'globex'])
     await loaded.reconfigure({ sentry: { org: 'acme' } })
     expect(loaded.list()[0]).toMatchObject({ state: 'ready' })

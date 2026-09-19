@@ -41,7 +41,30 @@ export interface ExtensionSetting {
   key: string
   /** What it means, in a sentence: shown wherever the setting is. */
   means: string
-  kind: 'string' | 'boolean' | 'number' | 'list' | 'map'
+  /**
+   * `secret` is a credential: it is never in the config and never drawn back.
+   * You are given entry, masking and storage for it — the OS keychain, or a
+   * file of Tade's own written `0600` — and you read it with `ctx.secret`.
+   */
+  kind: 'string' | 'boolean' | 'number' | 'list' | 'map' | 'secret'
+  /**
+   * For a `secret`: the environment variable it has always been read from,
+   * or several, in order. Whatever is set there wins over what was pasted, so
+   * a machine that works today goes on working exactly as it does.
+   */
+  env?: string | readonly string[]
+  /**
+   * For a `secret`: the setting somebody names a different environment
+   * variable in (`key_env`), for an extension that offers one.
+   */
+  envFrom?: string
+}
+
+/** A credential, and where it came from — the place, never a second copy of the value. */
+export interface SecretFound {
+  value: string
+  /** How to say where it came from: `$TYPESAFE_API_KEY`, `the macOS keychain`. */
+  from: string
 }
 
 /** What a tool answers: words for whoever asked, and where they point. */
@@ -118,17 +141,18 @@ export interface SetupField {
   /**
    * `text` is one value; `list` is values separated by commas; `map` is
    * `name=value` pairs separated by commas, like which Sentry project each of
-   * yours reports to; `flag` is on or off.
+   * yours reports to; `flag` is on or off; `secret` is a credential, typed
+   * masked and kept out of the config — declare it as a `secret` setting too.
    */
-  kind: 'text' | 'list' | 'map' | 'flag'
+  kind: 'text' | 'list' | 'map' | 'flag' | 'secret'
   /** Values to offer, looked up when asked: the organizations a token can see. */
   choices?(ctx: ExtensionContext): Promise<readonly string[]>
 }
 
 /**
  * How to set an extension up, in the window: what it needs in words, the
- * settings to fill in, and where to go for what cannot be filled in here — a
- * token is never typed into Tade, which would put it in a file.
+ * settings to fill in — a key among them, as a `secret` field — and where to
+ * go for what has to be got somewhere else.
  */
 export interface ExtensionSetup {
   /** Steps, in markdown, in the order to take them. */
@@ -293,6 +317,13 @@ export interface ExtensionContext {
    */
   project(name?: string | null): ProjectRef
   env: Readonly<Record<string, string | undefined>>
+  /**
+   * A credential this extension declared as a `secret` setting: from the
+   * environment when it is set there — the variables the setting declared,
+   * and the one its `envFrom` setting names — otherwise from where Tade keeps
+   * what was pasted into it. Never from the config, which people commit.
+   */
+  secret(key: string): SecretFound | null
   fetch: typeof fetch
   /** Run a program. Never throws: a failure is its code and what it said. */
   exec(

@@ -344,6 +344,7 @@ describe('the words and the settings', () => {
       projects: [],
       project: () => ({ name: 'api', root: '/src/api' }),
       env: {},
+      secret: () => null,
       fetch: globalThis.fetch,
       exec: async () => ({ code: 0, stdout: '', stderr: '' }),
       home: '/home',

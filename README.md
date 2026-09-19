@@ -368,9 +368,14 @@ projects:
 - **Dependencies** checks npm, pnpm catalogs, PyPI, crates.io and Go modules for what is behind,
   vulnerable or deprecated, and hands the updates to an agent: *"verify and update all the
   dependencies in checkout"*. Its **Vulnerable dependencies** watch looks daily.
+Every extension that needs a key takes one **pasted into Tade** — Settings › Keys and tokens, or
+the extension's own page. It goes to your keychain, or to a `0600` file in `~/.tade` where there is
+no keychain; never into `config.yaml`, which people commit, and never back onto the screen. A
+variable in your shell still wins over anything pasted, so a machine that works today keeps working.
+
 - **Sentry** reads issues, traces, logs, spans and metrics, and starts agents on fixes with
-  everything Sentry knows in their context. It uses your sentry-cli credentials; name the
-  organisation:
+  everything Sentry knows in their context. It uses your sentry-cli credentials, or a token you
+  paste in; name the organisation:
 
   ```yaml
   extensions:
@@ -383,10 +388,11 @@ projects:
   diff, a thousand log lines, a request before it becomes a plan, a queue that needs an order — and
   answers with a probability and no paragraph. Its **Review what agents change** watch reads a
   branch when it stops moving and reports what it flags, for a person or an agent to read. It
-  never approves, merges or closes anything. It needs a key and does nothing without one:
+  never approves, merges or closes anything. It needs a key and does nothing without one — paste
+  one from console.typesafe.ai/settings/keys into Settings › Extensions › Jev, or:
 
   ```sh
-  export TYPESAFE_API_KEY="…"        # from console.typesafe.ai/settings/keys
+  export TYPESAFE_API_KEY="…"        # still wins over anything pasted
   ```
 
   ```yaml

@@ -670,9 +670,14 @@ export interface SetupFieldView {
   label: string
   help: string
   placeholder: string
-  kind: 'text' | 'list' | 'map' | 'flag'
+  kind: 'text' | 'list' | 'map' | 'flag' | 'secret'
   /** What it offers to choose from, once looked up. */
   choices: readonly string[]
+  /**
+   * For a secret: where the key it has now is (`$TYPESAFE_API_KEY`, `the
+   * macOS keychain`), or empty. Never the key itself — nothing draws that.
+   */
+  have?: string
 }
 
 export function extensionSetupPanel(

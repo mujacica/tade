@@ -49,6 +49,12 @@ const SECRETS: readonly RegExp[] = [
   /\bgh[pousr]_[A-Za-z0-9]{16,}/g,
   /\bxox[baprs]-[A-Za-z0-9-]{10,}/g,
   /\bey[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{8,}/g,
+  /\bsk-[A-Za-z0-9_-]{16,}/g,
+  // A key somebody pasted into Tade is whatever shape its issuer chose, and
+  // Tade now holds keys for anything that asks: a short prefix and a long
+  // random tail is what nearly all of them look like, so the shape goes
+  // rather than the list of issuers we happened to think of.
+  /\b[A-Za-z][A-Za-z0-9]{1,11}_[A-Za-z0-9]{24,}\b/g,
   /\b(?:bearer|token|authorization)[=:]\s*\S+/gi,
 ]
 
@@ -149,10 +155,14 @@ export function fromEvent(event: TadeEvent, home: string): FromEvent {
   const task = event.task ?? undefined
   const project = task?.split('/')[0]
   if (event.type === 'warning') {
-    const message = typeof event.detail.message === 'string' ? event.detail.message : 'something'
+    const raw = typeof event.detail.message === 'string' ? event.detail.message : 'something'
+    // Scrubbed before it is shaped, not after: a fingerprint is sent like
+    // everything else, and one built from the raw words would carry out the
+    // credential the message itself just had taken out of it.
+    const message = scrub(raw, home)
     return {
       trouble: {
-        error: scrub(message, home),
+        error: message,
         where: 'tade',
         level: 'warning',
         ...(task ? { task } : {}),

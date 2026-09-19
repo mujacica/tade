@@ -208,6 +208,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Nothing inherited is written to disk.** A lane's spec keeps only the environment Tade set
   (`withoutInherited`); the rest is everyone's shell environment, tokens included, and a relaunch
   inherits it again. Tade's own files that could hold such things are written `0600`.
+- **A key is pasted in, and kept where keys are kept.** Refusing credentials on principle — a key
+  typed into a wizard is a key in a file — only moved the job to everybody's shell profile, so the
+  worry is answered instead of obeyed: anything that needs one declares a `secret` setting
+  (`kind: 'secret'`, with the environment variable it has always read as `env`), and gets entry,
+  masking and storage for it. What is pasted goes to the OS keychain (`Secrets`,
+  `core/src/secrets.ts`), or to `<home>/secrets.json` written `0600` where there is none — never to
+  `config.yaml`, which `writeSetting` refuses outright, and one written there by hand is reported
+  as not read rather than quietly working. **The environment always wins** (`ctx.secret`), so a
+  machine that exports a variable today behaves exactly as it does. It is never drawn back:
+  bullets in the field, a place rather than a value anywhere else (`masked`, `shownValue`), never
+  in the journal, and taken out of anything telemetry would send.
 - **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
   that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.

@@ -16,6 +16,7 @@ import {
   loadableSkills,
   loadConfig,
   runtimeDir,
+  Secrets,
   type Skill,
   skillAbout,
   skillDirs,
@@ -206,6 +207,8 @@ export async function loadExtensions(opts: {
   fetch?: typeof fetch
   /** Where the settings are, so what used to be in `active/` stays on. */
   configPath?: string
+  /** Where pasted credentials are kept; this home's own unless given. */
+  secrets?: Secrets
 }): Promise<ExtensionHost> {
   const root = expandHome(opts.config.orchestrator.extensions)
   // What the move turned on is read back before anything loads: an extension
@@ -224,6 +227,9 @@ export async function loadExtensions(opts: {
     ...(opts.safe ? { safe: true } : {}),
     config: { extensions: settings, projects: opts.config.projects },
     home: opts.home,
+    // Credentials live with the home, never with the config: one home, one
+    // set of keys, wherever they are being read or pasted from.
+    secrets: opts.secrets ?? Secrets.open({ home: opts.home }),
     ...(opts.env ? { env: opts.env } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
     expandHome,

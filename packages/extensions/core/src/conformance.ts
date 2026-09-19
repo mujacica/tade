@@ -141,6 +141,30 @@ export function extensionConformance(
       expect(await host.lists(tade)).toEqual(sections)
     })
 
+    it('takes its credentials from the environment and never from the config', async () => {
+      const declared = (extension.settings ?? []).filter((setting) => setting.kind === 'secret')
+      if (declared.length === 0) return
+      const host = await load()
+      for (const setting of declared) {
+        const listed = host.secrets().find((one) => one.key === setting.key)
+        expect(listed).toMatchObject({ name: `${extension.name}.${setting.key}` })
+        // A credential goes in the keychain or Tade's own file. Written into
+        // the config it is not read — and is reported as not read, rather
+        // than sitting in a repository looking as though it works.
+        const inConfig = await load({
+          settings: { ...(options.settings ?? {}), [setting.key]: 'pasted-into-the-config' },
+        })
+        expect(inConfig.list()[0]?.unknownSettings).toContain(setting.key)
+        // And what the environment says is what is used, whatever is kept.
+        const [variable] = typeof setting.env === 'string' ? [setting.env] : (setting.env ?? [])
+        if (!variable) continue
+        const fromEnv = await load({ env: { [variable]: 'from-the-shell' } })
+        expect(fromEnv.secrets().find((one) => one.key === setting.key)?.from).toBe(`$${variable}`)
+      }
+      // Whatever is listed, none of it is the credential itself.
+      expect(JSON.stringify(host.secrets())).not.toContain('from-the-shell')
+    })
+
     it('says why a watch cannot look when it is not set up, rather than looking', async () => {
       const host = await load({ settings: {}, env: {} })
       if (host.list()[0]?.state === 'ready') return

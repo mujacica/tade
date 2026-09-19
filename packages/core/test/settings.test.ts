@@ -175,6 +175,51 @@ describe('telemetry', () => {
   })
 })
 
+describe('keys and tokens', () => {
+  const secrets = [
+    {
+      name: 'jev.key',
+      title: 'Jev api key',
+      means: 'the TypeSafe API key',
+      from: null,
+      placeholder: 'tsk_…',
+      variables: ['TYPESAFE_API_KEY'],
+    },
+  ]
+
+  it('is a group only when something asked for a key', () => {
+    expect(settingsOf(config()).some((group) => group.id === 'credentials')).toBe(false)
+    expect(settingsOf(config(), secrets).some((group) => group.id === 'credentials')).toBe(true)
+  })
+
+  it('offers a field for one, kept out of the config and never shown', () => {
+    const [setting] =
+      settingsOf(config(), secrets).find((one) => one.id === 'credentials')?.settings ?? []
+    if (!setting) throw new Error('no field for the key')
+    expect(setting).toMatchObject({ secret: true, kept: 'jev.key', value: '' })
+    // Nothing is written to the config for it: `kept` says where it goes, and
+    // the path is not a config path at all.
+    expect(setting.path).toBe('secrets.jev.key')
+    expect(setting.fallback).toBe('not set')
+    expect(describeSetting(setting)).toContain('(not set)')
+    // With one kept, it says where — the place, never the key.
+    const [set] =
+      settingsOf(config(), [{ ...secrets[0]!, from: 'the macOS keychain' }]).find(
+        (one) => one.id === 'credentials',
+      )?.settings ?? []
+    expect(set?.fallback).toBe('kept — the macOS keychain')
+    expect(shownValue(set!, 'tsk_0123456789')).not.toContain('tsk_')
+  })
+
+  it('is found by what people look for it as', () => {
+    const group = settingsOf(config(), secrets).find((one) => one.id === 'credentials')
+    if (!group?.settings[0]) throw new Error('no key group')
+    for (const words of [['api', 'key'], ['token'], ['typesafe_api_key'], ['keychain']]) {
+      expect(settingFound(group, group.settings[0], words)).toBe(true)
+    }
+  })
+})
+
 describe('writing one back', () => {
   it('puts it where the schema expects it', () => {
     const file: Record<string, unknown> = {}

@@ -178,6 +178,24 @@ describe('answering it', () => {
     expect(answers).toEqual(['/src/other', 'app'])
   })
 
+  it('takes a pasted key without ever drawing it', async () => {
+    const terminal = new FakeTerminal()
+    const key = 'tsk_secret_0123456789'
+    let answered = ''
+    await runScreen({ title: 'Setting up', terminal }, async (ui: Ui) => {
+      const typed = ui.secret('paste your key')
+      await until(() => terminal.written.includes('paste your key'))
+      for (const char of key) terminal.press(char)
+      await until(() => terminal.written.includes('•••'))
+      terminal.press('\r')
+      answered = await typed
+    })
+    expect(answered).toBe(key)
+    // The flow got the key; the screen never had a character of it on it.
+    expect(terminal.written).not.toContain(key)
+    expect(terminal.written).not.toContain('tsk_')
+  })
+
   it('treats enter on a yes/no question as the suggestion', async () => {
     const terminal = new FakeTerminal()
     const said: boolean[] = []

@@ -486,6 +486,13 @@ export function writeSetting(
     | Readonly<Record<string, unknown>>
     | undefined,
 ): void {
+  // The config is a file people read out loud, copy between machines and
+  // commit. A credential goes to the keychain or to Tade's own 0600 file
+  // (`Secrets`), and a caller that confuses the two is stopped here rather
+  // than discovered in somebody's repository.
+  if (key === 'secrets' || key.startsWith('secrets.')) {
+    throw new Error(`${key} is a credential: it is kept out of the config, never written to it`)
+  }
   let text = ''
   try {
     text = readFileSync(path, 'utf8')

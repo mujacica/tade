@@ -11,9 +11,9 @@
  ▾ CHANGES  │  Say which Sentry project each of your projects sends to.                                    │            
   M package.│ Create a token ↗                                                                             │            
   A …/webhoo│                                                                                              │            
-  M src/webh│ Auth token       sntryu_…                                                                    │            
-            │                 kept in your config; $SENTRY_AUTH_TOKEN wins when set                        │            
- ▾ FILES    │ Organization     acme▏                                                                       │            
+  M src/webh│ Auth token       ••••••••••••▏                                                               │            
+            │                 kept in the keychain; $SENTRY_AUTH_TOKEN wins when it is set                 │            
+ ▾ FILES    │ Organization     acme                                                                        │            
    ▾ src/   │                 its slug, as in the URL                                                      │            
        webho│                   acme     acme-labs                                                         │            
        webho│ Projects         checkout: checkout-web                                                      │            

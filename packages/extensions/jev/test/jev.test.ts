@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { Secrets } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
@@ -72,6 +73,7 @@ function host(options: {
   env?: Record<string, string | undefined>
   fetch?: typeof fetch
   now?: number
+  secrets?: Secrets
 }) {
   return ExtensionHost.load({
     builtin: [jevExtension],
@@ -83,6 +85,7 @@ function host(options: {
     env: options.env ?? {},
     fetch: options.fetch ?? offline,
     now: () => options.now ?? NOW,
+    ...(options.secrets ? { secrets: options.secrets } : {}),
   })
 }
 
@@ -115,6 +118,30 @@ describe('with no key', () => {
       env: { MY_TYPESAFE_KEY: 'k' },
     })
     expect(loaded.list()[0]).toMatchObject({ state: 'ready', problem: null })
+  })
+
+  it('takes a key pasted into Tade, and still lets the shell win', async () => {
+    const home = tmp('tade-jev-')
+    const secrets = Secrets.open({ home, platform: 'linux' })
+    const loaded = await host({ home, env: {}, secrets })
+    expect(loaded.list()[0]).toMatchObject({ state: 'needs setup' })
+    // Pasted — not into the config, which is never read for it.
+    const saved = loaded.saveSecret('jev', 'key', 'tsk_0123456789')
+    expect(saved.where).toContain('secrets.json')
+    await loaded.reconfigure({ jev: {} })
+    expect(loaded.list()[0]).toMatchObject({ state: 'ready', problem: null })
+    const setup = loaded.setupOf('jev')
+    expect(setup?.guide[0]).toContain('found in')
+    expect(setup?.guide.join(' ')).not.toContain('tsk_0123456789')
+    expect(setup?.fields[0]).toMatchObject({ key: 'key', kind: 'secret', value: '' })
+
+    // And a variable in the shell is what is used, whatever was pasted.
+    const exported = await host({
+      home,
+      env: { TYPESAFE_API_KEY: 'from-the-shell' },
+      secrets,
+    })
+    expect(exported.setupOf('jev')?.guide[0]).toContain('found in $TYPESAFE_API_KEY')
   })
 
   it('is ready with a judge that asks nobody, which nothing chooses for you', async () => {

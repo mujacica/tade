@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
-import { ConfigSchema } from '@tade/core'
+import { ConfigSchema, Secrets } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { ScriptedRecorder, ScriptedTranscriber } from '@tade/voice-stt'
 import { Speaker } from '@tade/voice-tts'
@@ -964,6 +964,54 @@ describe('the window, wired up', () => {
     await until('saved', () => terminal.written.includes('applies now'))
     // The workbench's own copy is the one that decides where a task is made.
     expect(client.config.agents.workspace).toBe('worktree')
+  })
+
+  it('pastes a key from Settings, into the keychain and not the config', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    const secrets = Secrets.open({ home, platform: 'linux' })
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          settings: [
+            { key: 'key', kind: 'secret', env: 'WEATHER_API_KEY', means: 'the forecast key' },
+          ],
+          ready: (ctx) => (ctx.secret('key') ? null : 'weather needs a key'),
+          setup: () => ({
+            guide: ['Paste the key.'],
+            fields: [{ key: 'key', label: 'API key', kind: 'secret' }],
+          }),
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+      env: {},
+      secrets,
+    })
+    await start({ extensions })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    // Every key anything asks for is one group, wherever the thing asking for
+    // it lives: it is a key, and that is how people look for it.
+    await until('the settings', () => terminal.written.includes('Keys and tokens'))
+    const category = find('Keys and tokens')
+    click(category.col + 1, category.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Weather api key')),
+    )
+    const field = find('Weather api key')
+    click(field.col + 30, field.row)
+    for (const char of 'wk_0123456789') terminal.press(char)
+    terminal.press('\r')
+    await until('saved', () => terminal.written.includes('Saved in'))
+    expect(secrets.get('weather.key')).toBe('wk_0123456789')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('wk_0123456789')
+    // Neither as it was typed, nor read back to you afterwards.
+    expect(terminal.written).not.toContain('wk_0123456789')
   })
 
   it("opens an agent's menu with a right-click, listing what can be done", async () => {
@@ -2025,6 +2073,63 @@ describe('the window, wired up', () => {
       screenOf(terminal.written).some((row) => row.includes('Saved. Weather is ready.')),
     )
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('city: Graz')
+  })
+
+  it('takes a pasted key, keeps it out of the config, and never draws it', async () => {
+    terminal.columns = 120
+    terminal.rows = 50
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
+    const secrets = Secrets.open({ home, platform: 'linux' })
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          settings: [
+            { key: 'key', kind: 'secret', env: 'WEATHER_API_KEY', means: 'the forecast key' },
+          ],
+          ready: (ctx) => (ctx.secret('key') ? null : 'weather needs a key'),
+          setup: () => ({
+            guide: ['Paste the key from the console.'],
+            fields: [{ key: 'key', label: 'API key', kind: 'secret' }],
+          }),
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+      env: {},
+      secrets,
+    })
+    await start({ extensions })
+    await until('the footer', () =>
+      screenOf(terminal.written).some((row) => row.includes('Extensions ]')),
+    )
+    const button = find('Extensions ]')
+    click(button.col + 2, button.row)
+    await until('the panel', () =>
+      screenOf(terminal.written).some((row) => row.includes('◐ Weather')),
+    )
+    const setup = find('Set up… ]')
+    click(setup.col + 2, setup.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('API key')),
+    )
+    for (const char of 'wk_0123456789') terminal.press(char)
+    await until('bullets where the key is', () =>
+      screenOf(terminal.written).some((row) => row.includes('•••')),
+    )
+    // Typed, and nowhere on the screen: not as it is typed, not after.
+    expect(terminal.written).not.toContain('wk_0123456789')
+    const save = find('Save and check ]')
+    click(save.col + 2, save.row)
+    await until('ready', () =>
+      screenOf(terminal.written).some((row) => row.includes('Weather is ready')),
+    )
+    // Kept where keys are kept — and not in the config, which people commit.
+    expect(secrets.get('weather.key')).toBe('wk_0123456789')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('wk_0123456789')
+    expect(terminal.written).not.toContain('wk_0123456789')
   })
 
   it('keeps what an extension watches in the status bar, and opens its view from there', async () => {

@@ -6,9 +6,10 @@ import { dirname, join } from 'node:path'
 // Tade needs nothing new when you already use it from a terminal.
 //
 // In order: what Tade's config says; the environment sentry-cli reads
-// (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`); a `.sentryclirc` in a
-// project or your home; and the login the newer `sentry` CLI keeps. Nothing is
-// ever written back to any of them, and a token is never shown.
+// (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`); a token pasted into Tade,
+// which it keeps in the keychain and never in the config; a `.sentryclirc` in
+// a project or your home; and the login the newer `sentry` CLI keeps. Nothing
+// is ever written back to any of them, and a token is never shown.
 
 export interface SentryAccess {
   token: string
@@ -149,6 +150,8 @@ export function findCredentials(options: {
   env: Readonly<Record<string, string | undefined>>
   folders: readonly string[]
   now: number
+  /** The token pasted into Tade, from `ctx.secret`. The environment beats it. */
+  pasted?: { value: string; from: string } | null
 }): {
   token: { value: string; from: string } | null
   org: string | null
@@ -170,6 +173,9 @@ export function findCredentials(options: {
         : undefined
   const rc = fromSentryclirc(options.folders, env)
   const cli = fromSentryCli(env, options.now)
+  // `ctx.secret` has already looked in the environment, so a pasted token
+  // only ever fills the gap the environment left.
+  const pasted = options.pasted?.value ? options.pasted : undefined
   const url = (
     text('url') ??
     env.SENTRY_HOST ??
@@ -179,7 +185,7 @@ export function findCredentials(options: {
     'https://sentry.io'
   ).replace(/\/+$/, '')
   return {
-    token: fromEnv ?? rc.token ?? cli.token ?? null,
+    token: fromEnv ?? pasted ?? rc.token ?? cli.token ?? null,
     org: text('org') ?? env.SENTRY_ORG ?? rc.org ?? cli.org ?? null,
     url: url.startsWith('http') ? url : `https://${url}`,
     tokenVariable,
@@ -195,11 +201,12 @@ export function findAccess(options: {
   env: Readonly<Record<string, string | undefined>>
   folders: readonly string[]
   now: number
+  pasted?: { value: string; from: string } | null
 }): SentryAccess | { problem: string } {
   const found = findCredentials(options)
   if (!found.token) {
     return {
-      problem: `no Sentry token: set ${found.tokenVariable ? `$${found.tokenVariable}` : '$SENTRY_AUTH_TOKEN'} to a user auth token (org:read, project:read, event:read, event:write), or log in with sentry-cli`,
+      problem: `no Sentry token: paste a user auth token (org:read, project:read, event:read, event:write) into Settings › Extensions › Sentry, set ${found.tokenVariable ? `$${found.tokenVariable}` : '$SENTRY_AUTH_TOKEN'}, or log in with sentry-cli`,
     }
   }
   if (!found.org) {

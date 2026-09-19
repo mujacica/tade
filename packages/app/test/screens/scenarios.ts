@@ -1338,16 +1338,16 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'setting-up-sentry',
     about:
-      'Setting an extension up: why it is not working, a guide in steps, where to get what it needs, and a field for each thing, with what the token can see offered to pick.',
+      'Setting an extension up: why it is not working, a guide in steps, where to get what it needs, and a field for each thing — the key typed in as bullets, kept in the keychain — with what the token can see offered to pick.',
     state: {
       ...base(),
       panel: {
         ...extensionSetupPanel('sentry', [
-          { key: 'token', value: '' },
+          { key: 'token', value: 'sntryu_typed_just_now' },
           { key: 'org', value: 'acme' },
           { key: 'projects', value: 'checkout: checkout-web' },
         ]),
-        index: 1,
+        index: 0,
       },
     },
     frame: frame({
@@ -1368,9 +1368,11 @@ export const SCENARIOS: Scenario[] = [
             {
               key: 'token',
               label: 'Auth token',
-              help: 'kept in your config; $SENTRY_AUTH_TOKEN wins when set',
+              help: 'kept in the keychain; $SENTRY_AUTH_TOKEN wins when it is set',
               placeholder: 'sntryu_…',
-              kind: 'text',
+              // A key is typed as bullets and kept out of the config: the
+              // field never draws a character of it, here or anywhere.
+              kind: 'secret',
               choices: [],
             },
             {

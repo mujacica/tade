@@ -46,6 +46,15 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   ("set $SENTRY_AUTH_TOKEN…"), not that something failed.
 - **Every setting is declared** in `settings`. A key under `extensions.<name>` that is not declared is
   reported as not read, in the panel and `tade extensions`.
+- **A credential is a `secret` setting, never a string one.** Declare it once —
+  `{ key: 'token', kind: 'secret', env: 'SENTRY_AUTH_TOKEN', envFrom: 'token_env', means: … }` — and
+  read it with `ctx.secret('token')`, which answers `{ value, from }` or null. Tade gives you the
+  rest: a masked field in your `setup` (`kind: 'secret'`), a row in Settings › Keys and tokens, and
+  storage in the OS keychain or a `0600` file of its own. The environment wins over what was
+  pasted, so anything that worked before still does; a secret is **never** read from the config, and
+  one written there is listed as not read. Never put a credential in `settings` as a string, never
+  write one with `writeSetting` (it refuses), and never put its value in an answer, a log line or a
+  `ready()` message — say where it came from (`found.from`), which is a place, not a value.
 - **Answers are markdown for a reader** — a model or a person. Put URLs in `links` so they are
   written out and clickable; add `linkers` for ids that should open somewhere (Sentry short ids).
 - **Throw with a reason someone can act on.** The host turns it into the tool's failure, which the

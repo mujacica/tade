@@ -78,6 +78,27 @@ export interface Setting {
    * nowhere else: not in a list of settings, not in what is said back to you.
    */
   secret?: boolean
+  /**
+   * Not written to the config at all: kept under this name —
+   * `<extension>.<key>` — where Tade keeps credentials, which is the OS
+   * keychain or a file of its own written `0600`. Whoever saves it hands it
+   * to the secret store rather than to `writeSetting`.
+   */
+  kept?: string
+}
+
+/** A credential something asked for, as Settings offers a field for it. */
+export interface SecretRow {
+  /** What it is kept under: `jev.key`. */
+  name: string
+  /** What to call it: `Jev API key`. */
+  title: string
+  means: string
+  /** Where the one it has now is (`$TYPESAFE_API_KEY`), or null when there is none. */
+  from: string | null
+  placeholder?: string
+  /** The environment variables it is read from first, for saying which wins. */
+  variables?: readonly string[]
 }
 
 export interface SettingGroup {
@@ -91,8 +112,14 @@ export interface SettingGroup {
   settings: Setting[]
 }
 
-/** Everything worth putting in front of somebody, grouped as they think of it. */
-export function settingsOf(config: Config): SettingGroup[] {
+/**
+ * Everything worth putting in front of somebody, grouped as they think of it.
+ *
+ * `secrets` are the credentials whatever is loaded has asked for — an
+ * extension's key, a forge's token. They are settings like any other to
+ * whoever draws them, and the one thing that is never in the config.
+ */
+export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): SettingGroup[] {
   const voice = config.surfaces.voice
   // `…/ggml-base.en.bin` is the base.en model: the name people know it by.
   const whisperModel =
@@ -667,6 +694,49 @@ export function settingsOf(config: Config): SettingGroup[] {
         },
       ],
     },
+    ...(secrets.length > 0
+      ? [
+          {
+            id: 'credentials',
+            title: 'Keys and tokens',
+            about:
+              'The keys Tade holds for you. Paste one in and it goes to your keychain — or, where there is none, to a file of Tade’s own that only you can read. Never into config.yaml, which people commit, never into the journal, and never drawn back. A variable in your shell still wins over anything pasted.',
+            keywords: [
+              'key',
+              'keys',
+              'token',
+              'secret',
+              'credential',
+              'api key',
+              'keychain',
+              'paste',
+              'password',
+            ],
+            settings: secrets.map(
+              (secret): Setting => ({
+                path: `secrets.${secret.name}`,
+                title: secret.title,
+                means: secret.means,
+                // Never what it is: only that there is one, and where.
+                value: '',
+                fallback: secret.from ? `kept — ${secret.from}` : 'not set',
+                type: { kind: 'text', placeholder: secret.placeholder || 'paste it here' },
+                live: true,
+                secret: true,
+                kept: secret.name,
+                keywords: [
+                  'key',
+                  'token',
+                  'secret',
+                  'credential',
+                  ...(secret.variables ?? []),
+                  secret.name,
+                ],
+              }),
+            ),
+          },
+        ]
+      : []),
     {
       id: 'keys',
       title: 'Keys',
