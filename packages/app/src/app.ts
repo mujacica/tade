@@ -5662,18 +5662,32 @@ export class App {
   private async doAdvanceQueue(): Promise<string[]> {
     const live = this.live
     if (!live) return []
-    const facts = live.queueFacts()
     const items = live.queued.filter((item) => !this.startingQueued.has(item.task))
+    // What the tree says now, for whatever is about to start in it: `touches`
+    // was one person's reading of the code when the work was planned, and
+    // agents have been changing files ever since. Looked at here, at the
+    // moment of starting, because that is the moment it is true.
+    await live.lookAtTrees(items).catch(() => {})
+    const facts = live.queueFacts()
     for (const item of items) {
       const state = queueStateOf(item, facts)
-      if (state.kind !== 'held' || state.on === null) continue
-      if (holdSaid(item.task, state.because, facts.events)) continue
-      await this.opts.client.holdQueued(item.task, state.because, { on: state.on }).catch(() => {})
+      if (state.kind !== 'held') continue
+      // A start that failed wrote its own hold when it failed; what waits on
+      // trouble and what the tree moved under are written here.
+      const how =
+        state.on !== null
+          ? { on: state.on }
+          : state.changed
+            ? { changed: state.changed, by: state.by ?? [] }
+            : null
+      if (!how) continue
+      if (holdSaid(item.task, state, facts.events)) continue
+      await this.opts.client.holdQueued(item.task, state.because, how).catch(() => {})
       this.state = withTranscript(
         this.state,
         tadeDid(this.state.transcript, `${item.task} is held: ${state.because}`, this.now()),
       )
-      void this.tell(heldMessage(item.task, state.because)).catch(() => {})
+      void this.tell(heldMessage(item.task, state.because, state.changed)).catch(() => {})
     }
     // Room only where a project says how many may run: the queue waits for a
     // slot rather than failing the start the way a limit used to.

@@ -75,6 +75,22 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const project = string('project name, as configured; the one you are in when there is only one')
 
 /**
+ * What has already happened to the code, for a question that would otherwise
+ * be asked about a guess. Tade holds queued work the tree has moved under and
+ * writes why; this is how that evidence reaches a reading of the plan or of
+ * the order. It can only add caution: nothing here unholds anything, and the
+ * reason a person is given stays the sentence Tade wrote.
+ */
+const changed = list(
+  string('a path, and who changed it: `src/charge.ts — shop/fix-charge, which is working`'),
+  'what agents at work have already changed, where that is known',
+)
+
+function asChanged(said: unknown): string[] {
+  return Array.isArray(said) ? said.map(String) : []
+}
+
+/**
  * The last record read, and when. The status bar asks every few seconds
  * whether anybody is looking or not, and reading the whole journal on that
  * beat is exactly what makes a window heavy: what is polled is cheap and
@@ -618,7 +634,7 @@ export const jevExtension: TadeExtension = {
     {
       name: 'jev_plan_check',
       description:
-        'Read a plan before you keep it, and say which agents would collide: the same files, the same behaviour (an interface and what implements it, a setting and what reads it, a name and everywhere it is used), one job split in two, one that needs another finished first, and which would leave the project’s checks failing until something else lands. It advises only: tade_plan still refuses what cannot be kept, and a wait you add is yours to explain in your own words — "Jev said so" is not a reason anybody can read.',
+        'Read a plan before you keep it, and say which agents would collide: the same files, the same behaviour (an interface and what implements it, a setting and what reads it, a name and everywhere it is used), one job split in two, one that needs another finished first, and which would leave the project’s checks failing until something else lands. Give it `changed` when work has already been held because the code moved under it, and it reads the plan against what has actually happened rather than what somebody read an hour ago. It advises only: tade_plan still refuses what cannot be kept, a hold is Tade’s and stays Tade’s, and a wait you add is yours to explain in your own words — "Jev said so" is not a reason anybody can read.',
       parameters: object(
         {
           project,
@@ -634,6 +650,7 @@ export const jevExtension: TadeExtension = {
             ),
             'the agents in the plan, as tade_plan would take them',
           ),
+          changed,
         },
         ['agents'],
       ),
@@ -655,6 +672,9 @@ export const jevExtension: TadeExtension = {
         const state = {
           project: found?.name ?? '',
           agents: agents.map((one) => ({ name: one.name, will: one.prompt, touches: one.touches })),
+          // What the code has actually done since, where somebody handed it
+          // over: the questions are the same, asked against the tree.
+          changed: asChanged(input.changed),
         }
         const pairs: { first: string; second: string; concerns: string[] }[] = []
         const couldRunTogether = agents.flatMap((one, index) =>
@@ -731,7 +751,7 @@ export const jevExtension: TadeExtension = {
     {
       name: 'jev_queue_order',
       description:
-        'Suggest what should come first out of what is queued, and why for each. It only reorders work that is already ready: it can never jump a wait, unhold a hold, resume a pause or start anything. What can be counted — how many things wait on this one, how long it has waited — is counted here rather than judged. When somebody asked you to sort the queue, write the order with tade_queue_change (change: order); otherwise say what you would do and let them choose.',
+        'Suggest what should come first out of what is queued, and why for each. It only reorders work that is already ready: it can never jump a wait, unhold a hold, resume a pause or start anything. What can be counted — how many things wait on this one, how long it has waited — is counted here rather than judged. Give it `changed` when agents at work have already changed things, and work those changes have moved under is read as later rather than sooner. When somebody asked you to sort the queue, write the order with tade_queue_change (change: order); otherwise say what you would do and let them choose.',
       parameters: object(
         {
           project,
@@ -751,6 +771,7 @@ export const jevExtension: TadeExtension = {
             string('task: what it is doing'),
             'what is already going, which ordering has to live beside',
           ),
+          changed,
         },
         ['items'],
       ),
@@ -775,6 +796,7 @@ export const jevExtension: TadeExtension = {
         const state = {
           queued: items.map((one) => ({ task: one.task, about: one.about, waits_on: one.after })),
           already_going: Array.isArray(input.running) ? input.running.map(String) : [],
+          changed: asChanged(input.changed),
         }
         const questions: Question[] = items.flatMap((one, index) =>
           QUEUE_ASKS.map((asked) => ({

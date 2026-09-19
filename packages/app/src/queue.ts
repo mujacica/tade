@@ -130,8 +130,24 @@ export function whyStarting(item: Queued, facts: QueueFacts): string {
 /**
  * What the orchestrator is told when queued work is held. It does not choose:
  * it tells the person, and does what they say.
+ *
+ * A hold on what the tree says gets a sentence of its own, because the answer
+ * is a different one: the work can still be started, but the code it was
+ * planned against is not the code it would start on. The reason is Tade's own
+ * words either way — a judge may be asked for a second reading of the plan or
+ * of what should go first, and what it says is material for the orchestrator,
+ * never the reason a person is given.
  */
-export function heldMessage(task: string, because: string): string {
+export function heldMessage(task: string, because: string, changed?: readonly string[]): string {
+  if (changed && changed.length > 0) {
+    return [
+      `${task} is held, and will not start by itself: ${because}.`,
+      'It was planned against code that has moved since, so what its agent was told may no longer fit.',
+      'Tell the person what changed and ask what they want: start it anyway, change what it is told, put something else first, or leave it until the other work has landed.',
+      'tade_queue_change does each of those (start, order, pause), and tade_plan writes a new plan.',
+      'jev_plan_check and jev_queue_order will read the plan and the queue again beside what has changed, if you want a second reading before you ask — say what you think in your own words, not theirs.',
+    ].join(' ')
+  }
   return [
     `${task} is held, and will not start by itself: ${because}.`,
     'Tell the person, and ask what they want: wait for a retry, start it anyway, change the plan, or remove it.',

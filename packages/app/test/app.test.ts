@@ -1601,6 +1601,90 @@ describe('the window, wired up', () => {
     )
   }, 30_000)
 
+  it('looks at the tree before it starts queued work, and holds what has moved under it', async () => {
+    const told: string[] = []
+    const window = await start({
+      thinker: {
+        ask: async () => 'ok',
+        tell: async (text: string) => {
+          told.push(text)
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tools = window.queueTools()
+    await tools.plan({
+      project: 'app',
+      said: 'fix the charge, have a look, then write both of them up',
+      agents: [
+        {
+          name: 'fix-charge',
+          said: 'fix the charge',
+          prompt: 'fix it',
+          after: [],
+          touches: ['charge.ts'],
+        },
+        { name: 'look-around', said: 'have a look', prompt: 'look', after: [], touches: [] },
+        {
+          name: 'write-up',
+          said: 'write up the charge',
+          prompt: 'write up how charging works',
+          after: [{ agent: 'look-around', why: 'it needs what that finds' }],
+          touches: ['charge.ts'],
+        },
+        {
+          name: 'mail-notes',
+          said: 'write up the mailer',
+          prompt: 'write up how mail works',
+          after: [{ agent: 'look-around', why: 'it needs what that finds' }],
+          touches: ['mail.ts'],
+        },
+      ],
+    })
+    await until('the first two started', () => client.runs().length === 2, 10_000)
+
+    // The agent at work commits the very file the write-up was planned
+    // around. Its trailer is what says whose the commit is.
+    repo.write({ 'charge.ts': 'charge once\n' })
+    repo.git('add', 'charge.ts')
+    repo.git('commit', '-q', '-m', 'charge once\n\nTade-Task: app/fix-charge')
+    await client.markDone('app/look-around', { by: 'you' })
+
+    // Nobody has been near the mailer, so that one starts by rule as it always did.
+    await until(
+      'the one nobody collided with started',
+      () => client.runs().some((run) => run.task === 'app/mail-notes'),
+      15_000,
+    )
+    // The other is held on the evidence, with the files and whose they are.
+    const [held] = await client.events({ types: ['queue_held'], task: 'app/write-up' })
+    expect(held).toMatchObject({
+      task: 'app/write-up',
+      detail: { changed: ['charge.ts'], by: ['app/fix-charge'] },
+    })
+    expect(String(held?.detail.because)).toBe(
+      'app/fix-charge, which is working, has already changed charge.ts, which this was planned to change',
+    )
+    expect(client.runs().some((run) => run.task === 'app/write-up')).toBe(false)
+    await until('the orchestrator told', () =>
+      told.some((text) => text.includes('app/write-up is held')),
+    )
+    expect(told.find((text) => text.includes('app/write-up is held'))).toContain(
+      'It was planned against code that has moved since',
+    )
+
+    // Said once: the hold is not repeated at every look while it waits.
+    await new Promise((resolve) => setTimeout(resolve, 2_500))
+    expect((await client.events({ types: ['queue_held'], task: 'app/write-up' })).length).toBe(1)
+
+    // The person's answer is written down, read back, and it starts.
+    expect(await tools.change({ task: 'app/write-up', change: 'start', by: 'you' })).toBe(
+      'Done. Started app/write-up.',
+    )
+    const [started] = await client.events({ types: ['queue_started'], task: 'app/write-up' })
+    expect(started?.detail.why).toBe('it was started anyway')
+  }, 60_000)
+
   it('holds work whose dependency stopped, tells the orchestrator, and starts it when told to', async () => {
     const told: string[] = []
     const window = await start({

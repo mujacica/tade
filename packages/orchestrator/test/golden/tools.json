@@ -354,7 +354,7 @@
   },
   {
     "name": "tade_queue",
-    "description": "What is waiting to start, and why: after what, until when, held by what, or paused. Answer questions about queued work with this, not from memory.",
+    "description": "What is waiting to start, and why: after what, until when, held by what, or paused. Work held because agents at work have already changed the files it was planned around says so, and says which files and whose. Answer questions about queued work with this, not from memory.",
     "parameters": {
       "type": "object",
       "properties": {},

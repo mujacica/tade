@@ -10,7 +10,9 @@ import {
   type Note,
   type Queued,
   type QueueFacts,
+  queueStanding,
   queueStateOf,
+  type Reality,
   RUNTIME_EVENTS,
   type RuntimeReport,
   ruleMet,
@@ -83,6 +85,40 @@ export interface ScheduleRun {
 
 /** How long a folder listing is good for. */
 const LISTING_MS = 2_000
+
+/** How many commits one look at a project's tree reads, at the most. */
+const COMMITS_READ = 200
+
+/**
+ * One commit per record, its `Tade-Task` trailer and the files it changed,
+ * out of one `git log`. The markers are control characters because a commit
+ * subject can hold anything a person can type, and a separator somebody can
+ * write by accident is a parser that lies.
+ */
+export const CHANGED_FORMAT =
+  '\u0001%H\u0002%(trailers:key=Tade-Task,valueonly,separator=%x03)\u0002'
+
+/**
+ * What `git log --name-only` in `CHANGED_FORMAT` said: which task each commit
+ * belongs to, and what it changed. A commit with no trailer belongs to
+ * nobody, which is always an allowed answer — it is left out rather than
+ * guessed at.
+ */
+export function changedFrom(stdout: string): { commit: string; task: string; paths: string[] }[] {
+  const out: { commit: string; task: string; paths: string[] }[] = []
+  for (const record of stdout.split('\u0001')) {
+    if (record === '') continue
+    const [commit = '', trailer = '', rest = ''] = record.split('\u0002')
+    const task = (trailer.split('\u0003')[0] ?? '').trim()
+    if (task === '') continue
+    const paths = rest
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line !== '')
+    out.push({ commit, task, paths })
+  }
+  return out
+}
 
 /** How long the branch a project's own checkout is on is good for. */
 const BRANCH_MS = 10_000
@@ -322,6 +358,8 @@ export class Live {
   private queue: Queued[] = []
   private states = new Map<string, { state: TaskState; reason: string }>()
   private upstreams = new Map<string, Upstream>()
+  /** What each project's tree said the last time work was about to start in it. */
+  private realities = new Map<string, Reality>()
   private timer: NodeJS.Timeout | null = null
   private refreshing: Promise<void> | null = null
 
@@ -382,7 +420,92 @@ export class Live {
       finished: this.finished,
       events: this.queueEvents,
       now: this.now(),
+      reality: this.realities,
     }
+  }
+
+  /**
+   * Look at the tree of every project something is about to start in, and
+   * keep what it says. The guess in a task file was written when the work was
+   * planned; this is the same files now, and an agent that started since has
+   * been changing them all along.
+   *
+   * Only where the rule already says work is ready, which is rarely: two git
+   * calls at the moment of starting, and none at all while a queue waits.
+   */
+  async lookAtTrees(items: readonly Queued[]): Promise<void> {
+    const facts = this.queueFacts()
+    const want = new Set<string>()
+    for (const item of items) {
+      if (queueStanding(item, facts).kind === 'ready') want.add(item.project)
+    }
+    // Replaced, never merged: what a project's tree said an hour ago, when
+    // something else was about to start, is not evidence about anything now.
+    const looked = new Map<string, Reality>()
+    await Promise.all(
+      [...want].map(async (project) => looked.set(project, await this.lookAtTree(project))),
+    )
+    this.realities = looked
+  }
+
+  /** What one project's tree says now: who is at work in it, and what has moved. */
+  private async lookAtTree(project: string): Promise<Reality> {
+    const workspace = this.opts.config.agents.workspace
+    const at = this.atWork(project)
+    const working = [...at.keys()].sort()
+    const bare: Reality = { workspace, working, dirty: [], committed: [] }
+    // In worktrees nothing is changed under anybody, so there is nothing to
+    // read: the branch is the answer, not the tree.
+    if (workspace !== 'checkout') return bare
+    const root = this.opts.config.projects[project]?.root
+    if (!root || working.length === 0) return bare
+    const since = [...at.values()].sort((one, other) => one - other)[0]
+    const [status, log] = await Promise.all([
+      git(root, ['status', '--porcelain=v2', '-z', '--untracked-files=all']),
+      git(root, [
+        'log',
+        '-n',
+        String(COMMITS_READ),
+        ...(since === undefined ? [] : [`--since=${new Date(since).toISOString()}`]),
+        `--format=${CHANGED_FORMAT}`,
+        '--name-only',
+      ]),
+    ])
+    const committed = new Map<string, Set<string>>()
+    for (const commit of log.ok ? changedFrom(log.stdout) : []) {
+      // Whose a commit is, is read back out of the trailer that says so —
+      // never a table Tade keeps. One without it belongs to nobody.
+      if (!at.has(commit.task)) continue
+      const paths = committed.get(commit.task) ?? new Set<string>()
+      for (const path of commit.paths) paths.add(path)
+      committed.set(commit.task, paths)
+    }
+    return {
+      workspace,
+      working,
+      dirty: status.ok ? Object.keys(marksFrom(status.stdout)).sort() : [],
+      committed: [...committed].map(([task, paths]) => ({ task, paths: [...paths].sort() })),
+    }
+  }
+
+  /**
+   * The agents at work in a project now, and when each started — a run the
+   * journal opened and never closed. An agent between turns is still in the
+   * checkout and still about to change things, which is why this is its run
+   * and not whether status happens to call it `working` this second.
+   */
+  private atWork(project: string): Map<string, number> {
+    const open = new Map<string, number>()
+    for (const event of this.queueEvents) {
+      const task = event.task
+      if (!task?.startsWith(`${project}/`)) continue
+      if (event.type === 'run_started') open.set(task, Date.parse(event.ts))
+      if (event.type === 'run_exited') open.delete(task)
+    }
+    // Work that is finished is work whatever starts next builds on, not work
+    // going on around it.
+    for (const task of this.finished.keys()) open.delete(task)
+    return open
   }
 
   /** What each task could hand queued work to begin from: its branch, where it is, its rule. */

@@ -6,7 +6,14 @@ import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { describe, expect, it } from 'vitest'
 import { mkrepo } from '../../../test/fixtures/mkrepo.ts'
-import { changesFrom, commitsFrom, knownTasks, snapshotsFrom } from '../src/live.ts'
+import {
+  CHANGED_FORMAT,
+  changedFrom,
+  changesFrom,
+  commitsFrom,
+  knownTasks,
+  snapshotsFrom,
+} from '../src/live.ts'
 
 // What the window shows is a fold of three sources that each know part of the
 // truth: status knows the states, the registry knows the screens, the approval
@@ -189,6 +196,28 @@ describe('changesFrom', () => {
     expect(at('new name.ts')?.mark).toBe('R')
     // Tade's own record of the task is not a change anybody made.
     expect(changes.some((change) => change.path.startsWith('.tade'))).toBe(false)
+  })
+})
+
+describe('changedFrom', () => {
+  it('reads what each agent at work has committed, out of real git', async () => {
+    const repo = mkrepo()
+    repo.commit('first', { 'charge.ts': 'a\n', 'mail.ts': 'a\n' })
+    repo.write({ 'charge.ts': 'b\n' })
+    repo.git('add', '-A')
+    repo.git('commit', '-q', '-m', 'charge once\n\nTade-Task: shop/fix-charge')
+    repo.write({ 'a file with spaces.ts': 'new\n' })
+    repo.git('add', '-A')
+    repo.git('commit', '-q', '-m', 'nobody signed this one')
+
+    const log = await git(repo.root, ['log', `--format=${CHANGED_FORMAT}`, '--name-only'])
+    const out = changedFrom(log.stdout)
+    // A commit with no trailer belongs to nobody, and is left out rather
+    // than guessed at.
+    expect(out).toEqual([
+      { commit: expect.any(String), task: 'shop/fix-charge', paths: ['charge.ts'] },
+    ])
+    expect(changedFrom('')).toEqual([])
   })
 })
 

@@ -525,6 +525,36 @@ describe('advising, never deciding', () => {
     expect(answer.text).toMatch(/1 waiting on it/)
     expect(answer.text).toMatch(/already ready/)
   })
+
+  it('reads the queue against what has actually changed, and only ever later for it', async () => {
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ runs_into_changes__0: 0.9 }, seen),
+    })
+    const answer = await loaded.call(
+      'jev_queue_order',
+      {
+        items: [
+          { task: 'shop/write-up', about: 'write up how charging works' },
+          { task: 'shop/mail-notes', about: 'write up how mail works' },
+        ],
+        changed: ['src/charge.ts — shop/fix-charge, which is working'],
+      },
+      asked,
+    )
+    // The evidence reaches the judge as state, not as a decision.
+    const state = JSON.parse(String((seen[0] as { state: unknown }).state)) as {
+      changed: string[]
+    }
+    expect(state.changed).toEqual(['src/charge.ts — shop/fix-charge, which is working'])
+    // And it can only push work later: the one the tree moved under is last.
+    const data = answer.data as { order: string[] }
+    expect(data.order).toEqual(['shop/mail-notes', 'shop/write-up'])
+    expect(answer.text).toMatch(/runs into what has already changed/)
+    expect(answer.text).toMatch(/never what may go at all/)
+  })
 })
 
 describe('the rubric', () => {

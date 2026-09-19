@@ -262,6 +262,12 @@ export const QUEUE_ASKS: readonly QueueAsk[] = [
     ask: (about) =>
       `Does the work described as ${about} read like something another piece of work in the state has already done?`,
   },
+  {
+    id: 'runs_into_changes',
+    about: 'runs into what has already changed',
+    ask: (about) =>
+      `Would the work described as ${about} run into the changes already made to the code, listed in the state as changed, so that what it was planned to do no longer fits?`,
+  },
 ]
 
 /** What matters more when ordering a queue, as a weight per question. */
@@ -272,6 +278,9 @@ export const QUEUE_WEIGHTS: Readonly<Record<string, number>> = {
   risky_together: -2,
   needs_person: -1,
   stale: -3,
+  // Only ever later, never sooner: a reading of what has moved under queued
+  // work can add caution to an order and can take none away.
+  runs_into_changes: -2,
 }
 
 /** A question asked once per thing in a list: `broken_now__3`. */

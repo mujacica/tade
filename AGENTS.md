@@ -81,6 +81,22 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   A plan is checked against what the project is already on — agents working, work an earlier plan
   left queued — and says what it will run into rather than refusing: what an agent will touch is a
   reading of the code, and the orchestrator may know better.
+- **What a plan guessed is checked against the tree before anything starts.** `touches` is one
+  reading of the code, made when the plan was written; by the time work is about to start, agents
+  have been changing files for an hour. So the window looks (`lookAtTrees`) at the moment of
+  starting — and only then, at the projects the rule already says something is ready in: what is
+  changed and not committed, and what each agent with a run still open has committed since it
+  started, whose read back out of the `Tade-Task:` trailer and never guessed. Overlap it did not
+  expect holds it (`collidesNow`), through the one hold path there is. Only in a shared checkout:
+  with a worktree each, nothing is being changed under anybody, and what two branches do to one
+  file is a merge, which the plan already said. Evidence may only ever *hold*: it reaches
+  `readyToStart` through `queueStateOf`, so it can never start what the rule would not, never jump
+  a wait, never unhold and never exceed `max_parallel` — and held work is not ready, so it never
+  takes the slot of work behind it. It heals rather than waits on a person: the look that finds
+  the files settled starts the work, and until somebody looks again the last hold written stands,
+  so every reader says the same thing. `jev_plan_check` and `jev_queue_order` will read the plan
+  and the order again beside what has changed, which can only make work later; the reason anybody
+  is given is the sentence Tade wrote.
 - **An order among queued work is a written fact, and only a preference.** `inWrittenOrder` reads
   the last `order` somebody wrote (`queue_changed`) and the window sorts what it hands
   `readyToStart` with it, so it changes which of the *ready* ones goes first and nothing else: it

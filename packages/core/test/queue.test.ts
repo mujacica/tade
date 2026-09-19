@@ -10,7 +10,9 @@ import {
   type PlannedAgent,
   type Queued,
   type QueueFacts,
+  queueStanding,
   queueStateOf,
+  type Reality,
   readyToStart,
   startFrom,
   writtenOrder,
@@ -49,6 +51,7 @@ function facts(over: {
   tasks?: Record<string, TaskState | [TaskState, string]>
   finished?: string[]
   events?: TadeEvent[]
+  reality?: Record<string, Partial<Reality>>
 }): QueueFacts {
   const finished = new Map<string, Finished>()
   for (const task of over.finished ?? []) finished.set(task, { at: '', by: 'agent', summary: '' })
@@ -62,6 +65,16 @@ function facts(over: {
     finished,
     events: over.events ?? [],
     now: NOW,
+    ...(over.reality
+      ? {
+          reality: new Map(
+            Object.entries(over.reality).map(([project, seen]) => [
+              project,
+              { workspace: 'checkout', working: [], dirty: [], committed: [], ...seen },
+            ]),
+          ),
+        }
+      : {}),
   }
 }
 
@@ -218,6 +231,139 @@ describe('where queued work stands', () => {
     expect(describeQueueState({ kind: 'waiting', on: ['a', 'b'] }, clock)).toBe('after a and b')
     expect(describeQueueState({ kind: 'scheduled', at: NOW }, clock)).toBe('at 13:00')
     expect(describeQueueState({ kind: 'ready' }, clock)).toBe('next')
+  })
+})
+
+describe('what the tree says when work is about to start', () => {
+  // What it was planned to change, as somebody read the code an hour ago.
+  const notes = queued('shop/notes-on-charge', { touches: ['src/charge.ts', 'docs/'] })
+
+  it('holds work whose files an agent at work has already changed, and says whose', () => {
+    const seen = facts({
+      reality: {
+        shop: {
+          working: ['shop/fix-charge'],
+          committed: [{ task: 'shop/fix-charge', paths: ['src/charge.ts', 'src/mail.ts'] }],
+        },
+      },
+    })
+    expect(queueStateOf(notes, seen)).toEqual({
+      kind: 'held',
+      on: null,
+      because:
+        'shop/fix-charge, which is working, has already changed src/charge.ts, which this was planned to change',
+      changed: ['src/charge.ts'],
+      by: ['shop/fix-charge'],
+    })
+    // The rule is still the rule: held work is not ready, so it can never
+    // take the slot of work behind it.
+    expect(readyToStart([notes], seen, new Map([['shop', 1]]))).toEqual([])
+    // And the rule without the tree still says it would start, which is how
+    // the window knows whose tree is worth a git call.
+    expect(queueStanding(notes, seen)).toEqual({ kind: 'ready' })
+  })
+
+  it('holds on a file being changed now without saying whose it is', () => {
+    const seen = facts({
+      reality: { shop: { working: ['shop/fix-charge'], dirty: ['docs/refunds.md'] } },
+    })
+    expect(queueStateOf(notes, seen)).toMatchObject({
+      kind: 'held',
+      because:
+        'docs/, which this was planned to change, is changed and not committed, while shop/fix-charge works in the same checkout',
+      changed: ['docs/'],
+      by: [],
+    })
+  })
+
+  it('starts when nobody has touched its files', () => {
+    const seen = facts({
+      reality: {
+        shop: {
+          working: ['shop/fix-charge'],
+          dirty: ['src/mail.ts'],
+          committed: [{ task: 'shop/fix-charge', paths: ['src/mail.ts'] }],
+        },
+      },
+    })
+    expect(queueStateOf(notes, seen)).toEqual({ kind: 'ready' })
+    expect(readyToStart([notes], seen, new Map())).toEqual(['shop/notes-on-charge'])
+  })
+
+  it('starts when the person says to, and never asks them twice', () => {
+    const held = [
+      event('queue_held', 'shop/notes-on-charge', {
+        because: 'shop/fix-charge, which is working, has already changed src/charge.ts',
+        changed: ['src/charge.ts'],
+        by: ['shop/fix-charge'],
+      }),
+    ]
+    const collides = {
+      shop: {
+        working: ['shop/fix-charge'],
+        committed: [{ task: 'shop/fix-charge', paths: ['src/charge.ts'] }],
+      },
+    }
+    expect(queueStateOf(notes, facts({ events: held, reality: collides }))).toMatchObject({
+      kind: 'held',
+    })
+    const released = [
+      ...held,
+      event('queue_changed', 'shop/notes-on-charge', { change: 'start', by: 'you' }),
+    ]
+    expect(queueStateOf(notes, facts({ events: released, reality: collides }))).toEqual({
+      kind: 'ready',
+    })
+  })
+
+  it('stands on what was written until somebody looks again, and heals when they do', () => {
+    const held = [
+      event('queue_held', 'shop/notes-on-charge', {
+        because: 'shop/fix-charge, which is working, has already changed src/charge.ts',
+        changed: ['src/charge.ts'],
+      }),
+    ]
+    // Nobody has looked at this project's tree: the last hold stands, so
+    // every reader says the same thing about it.
+    expect(queueStateOf(notes, facts({ events: held }))).toMatchObject({
+      kind: 'held',
+      changed: ['src/charge.ts'],
+    })
+    // A look that finds the files settled starts it: work never waits on a
+    // person for a reason that has gone.
+    expect(
+      queueStateOf(notes, facts({ events: held, reality: { shop: { working: ['shop/fix'] } } })),
+    ).toEqual({ kind: 'ready' })
+  })
+
+  it('is not held by what it waits on, by itself, or by a worktree of somebody else', () => {
+    const after = queued('shop/add-refunds', {
+      touches: ['src/charge.ts'],
+      after: [{ task: 'shop/fix-charge', why: 'both change src/charge.ts' }],
+    })
+    const changed = {
+      working: ['shop/fix-charge'],
+      committed: [{ task: 'shop/fix-charge', paths: ['src/charge.ts'] }],
+    }
+    // What it waits on is what it builds on.
+    expect(
+      queueStateOf(after, facts({ finished: ['shop/fix-charge'], reality: { shop: changed } })),
+    ).toEqual({ kind: 'ready' })
+    // A worktree each: nothing is being changed under anybody, and what two
+    // branches do to one file is a merge, not a reason to hold a start.
+    expect(
+      queueStateOf(notes, facts({ reality: { shop: { ...changed, workspace: 'worktree' } } })),
+    ).toEqual({ kind: 'ready' })
+    // Work that said nothing about what it touches cannot be checked.
+    expect(queueStateOf(queued('shop/have-a-look'), facts({ reality: { shop: changed } }))).toEqual(
+      {
+        kind: 'ready',
+      },
+    )
+    // And with nobody at work, the tree is nobody's business but the person's.
+    expect(queueStateOf(notes, facts({ reality: { shop: { dirty: ['src/charge.ts'] } } }))).toEqual(
+      { kind: 'ready' },
+    )
   })
 })
 

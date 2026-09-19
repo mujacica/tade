@@ -276,7 +276,7 @@ export default function tadeTools(pi: PiApi): void {
 
   tool(
     'tade_queue',
-    'What is waiting to start, and why: after what, until when, held by what, or paused. Answer questions about queued work with this, not from memory.',
+    'What is waiting to start, and why: after what, until when, held by what, or paused. Work held because agents at work have already changed the files it was planned around says so, and says which files and whose. Answer questions about queued work with this, not from memory.',
     object({}),
     () => rpc('queue/list', {}),
   )

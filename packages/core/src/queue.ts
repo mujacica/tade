@@ -25,13 +25,54 @@ export interface QueueFacts {
   /** The journal: what was removed, stopped, failed, paused or started anyway. */
   events: readonly TadeEvent[]
   now: number
+  /**
+   * What each project's tree actually says, for work about to start in it.
+   * A project nobody has looked at is absent — which is not the same as a
+   * project where nothing has changed, and is why this is a map and not a
+   * list: with no look, the last hold written stands until it is answered.
+   */
+  reality?: ReadonlyMap<string, Reality>
+}
+
+/**
+ * What a project's tree says now, rather than what whoever planned the work
+ * read in it. Gathered at the moment something is about to start, because
+ * that is the moment it is true: an agent that began after the plan was
+ * written has been changing files ever since.
+ */
+export interface Reality {
+  workspace: 'checkout' | 'worktree'
+  /** The agents at work in it now, by task. */
+  working: readonly string[]
+  /** Changed and not committed, whoever changed them. */
+  dirty: readonly string[]
+  /** What each agent at work has committed since it started, by task. */
+  committed: readonly { task: string; paths: readonly string[] }[]
+}
+
+/** What queued work would land in the middle of, and why that is held. */
+export interface Collision {
+  /** The files both it and work going on now change. */
+  paths: string[]
+  /** Whose changes they are, where git says whose. */
+  by: string[]
+  /** Why it is held, in a sentence a person can read. */
+  because: string
 }
 
 export type QueueState =
   /** What it waits on has not finished. */
   | { kind: 'waiting'; on: string[] }
   /** Someone has to decide: what it waits on failed, stopped or went, or it could not start. */
-  | { kind: 'held'; on: string | null; because: string }
+  | {
+      kind: 'held'
+      on: string | null
+      because: string
+      /** The files work going on now has changed, when that is what holds it. */
+      changed?: readonly string[]
+      /** Whose changes they are, where git says whose. */
+      by?: readonly string[]
+    }
   /** Not before a time. */
   | { kind: 'scheduled'; at: number }
   /** Paused, on its own or with everything else in its project. */
@@ -194,8 +235,16 @@ function ownTrouble(task: string, events: readonly TadeEvent[], since: number): 
 /**
  * Whether a hold was already said since anyone last answered it: said once, a
  * hold waits for an answer, and asking again every refresh is nagging.
+ *
+ * A hold on what the tree says is matched by being one, not by its words: the
+ * files being changed under queued work change from one look to the next, and
+ * a sentence that grows a filename is not news worth waking anybody for.
  */
-export function holdSaid(task: string, because: string, events: readonly TadeEvent[]): boolean {
+export function holdSaid(
+  task: string,
+  held: { because: string; changed?: readonly string[] },
+  events: readonly TadeEvent[],
+): boolean {
   let said = false
   for (const event of events) {
     if (event.task !== task) continue
@@ -206,18 +255,38 @@ export function holdSaid(task: string, because: string, events: readonly TadeEve
     ) {
       said = false
     }
-    if (event.type === 'queue_held' && event.detail.because === because) said = true
+    if (event.type !== 'queue_held') continue
+    if (event.detail.because === held.because) said = true
+    if (held.changed && Array.isArray(event.detail.changed)) said = true
   }
   return said
 }
 
+/**
+ * Where one piece of queued work stands before anybody looks at the tree:
+ * everything the journal and the clock say, and nothing about what other
+ * agents have been doing to the files since.
+ *
+ * This is how the window knows which trees are worth the git calls: what this
+ * says is ready is what is about to start, and only those are looked at.
+ */
+export function queueStanding(item: Queued, facts: QueueFacts): QueueState {
+  return stateOf(item, facts, false)
+}
+
 /** Where one piece of queued work stands. */
 export function queueStateOf(item: Queued, facts: QueueFacts): QueueState {
+  return stateOf(item, facts, true)
+}
+
+function stateOf(item: Queued, facts: QueueFacts, tree: boolean): QueueState {
   if (queuePaused(facts.events, item.project)) return { kind: 'paused', all: true }
   const choices = choicesFor(item.task, facts.events)
   if (choices.paused) return { kind: 'paused', all: false }
   const own = ownTrouble(item.task, facts.events, choices.answeredAt)
   if (own) return { kind: 'held', on: null, because: own }
+  // Started anyway: somebody has already answered for this one, and an answer
+  // is not asked twice — not for what it waits on, and not for the tree.
   if (choices.anyway) return { kind: 'ready' }
   const on: string[] = []
   for (const dep of item.start.after) {
@@ -229,13 +298,110 @@ export function queueStateOf(item: Queued, facts: QueueFacts): QueueState {
   if (on.length > 0) return { kind: 'waiting', on }
   const at = item.start.at ? Date.parse(item.start.at) : Number.NaN
   if (Number.isFinite(at) && at > facts.now) return { kind: 'scheduled', at }
+  if (!tree) return { kind: 'ready' }
+  // Last, and only ever to hold: what the plan guessed about the code,
+  // against what has actually happened to it since.
+  const clash = collides(item, facts, choices.answeredAt)
+  if (clash) {
+    return { kind: 'held', on: null, because: clash.because, changed: clash.paths, by: clash.by }
+  }
   return { kind: 'ready' }
+}
+
+/**
+ * What holds queued work on the evidence: what the last look at the tree
+ * found, or — where nobody has looked — what the last look wrote down and
+ * nobody has answered. A hold heals on its own: the look that finds the
+ * files settled says ready, so work never waits on a person for a reason
+ * that has gone.
+ */
+function collides(item: Queued, facts: QueueFacts, since: number): Collision | null {
+  const seen = facts.reality?.get(item.project)
+  if (seen) return collidesNow(item, seen)
+  return writtenCollision(item.task, facts.events, since)
+}
+
+/**
+ * Where what queued work says it touches meets what agents at work have
+ * actually changed. `touches` is a reading of the code somebody made when the
+ * work was planned; this is the same files an hour later, and the difference
+ * is the whole point.
+ *
+ * Only in a shared checkout: with a worktree each, nothing is being changed
+ * under anybody, and what two branches do to one file is a merge — which was
+ * said when the plan was checked, and is not a reason to hold a start.
+ */
+export function collidesNow(item: Queued, seen: Reality): Collision | null {
+  if (seen.workspace !== 'checkout') return null
+  // Work that said nothing about what it would change cannot be checked
+  // against the tree, and holding everything that said nothing would stop the
+  // queue rather than guard it.
+  if (item.start.touches.length === 0) return null
+  const others = seen.working.filter((task) => task !== item.task)
+  if (others.length === 0) return null
+  // What it waits on is what it builds on: those changes are the reason it is
+  // starting at all.
+  const waits = new Set(item.start.after.map((dep) => dep.task))
+  const shares = (theirs: readonly string[]) =>
+    item.start.touches.filter((path) => theirs.some((other) => sameOrInside(path, other)))
+  const paths = new Set<string>()
+  const by: string[] = []
+  const said: string[] = []
+  for (const one of seen.committed) {
+    if (one.task === item.task || waits.has(one.task)) continue
+    const shared = shares(one.paths)
+    if (shared.length === 0) continue
+    for (const path of shared) paths.add(path)
+    by.push(one.task)
+    said.push(
+      `${one.task}, which is working, has already changed ${joined(shared)}, which this was planned to change`,
+    )
+  }
+  // Nobody's name is on an uncommitted change — git does not say whose it is,
+  // and Tade does not guess. What it says instead is true: the file is being
+  // changed now, and these are the agents in the same checkout.
+  const loose = shares(seen.dirty).filter((path) => !paths.has(path))
+  if (loose.length > 0) {
+    for (const path of loose) paths.add(path)
+    said.push(
+      `${joined(loose)}, which this was planned to change, ${loose.length === 1 ? 'is' : 'are'} changed and not committed, while ${joined(others)} ${others.length === 1 ? 'works' : 'work'} in the same checkout`,
+    )
+  }
+  if (said.length === 0) return null
+  return { paths: [...paths].sort(), by, because: said.join('; ') }
+}
+
+/** The last hold written about the tree and not answered since. */
+function writtenCollision(
+  task: string,
+  events: readonly TadeEvent[],
+  since: number,
+): Collision | null {
+  let found: Collision | null = null
+  for (const event of events) {
+    if (event.task !== task || event.seq <= since) continue
+    if (event.type !== 'queue_held' || !Array.isArray(event.detail.changed)) continue
+    found = {
+      paths: event.detail.changed.map(String),
+      by: Array.isArray(event.detail.by) ? event.detail.by.map(String) : [],
+      because:
+        typeof event.detail.because === 'string'
+          ? event.detail.because
+          : 'the code it was planned against has changed since',
+    }
+  }
+  return found
 }
 
 /**
  * What to start now, in the order given: whatever is ready, as far as each
  * project has room. `room` is how many more agents a project may run; one it
  * does not name has no limit.
+ *
+ * Evidence reaches this the only way it may: through `queueStateOf`, which
+ * holds work the tree has moved under. Held work is not ready, so it never
+ * takes a slot from work behind it — and nothing the rule would not have
+ * started can be started by anything anybody looked at.
  */
 export function readyToStart(
   items: readonly Queued[],

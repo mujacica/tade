@@ -1034,7 +1034,14 @@ export class Workbench {
   async holdQueued(
     task: string,
     because: string,
-    how: { on?: string; start?: 'failed' },
+    how: {
+      on?: string
+      start?: 'failed'
+      /** The files work going on now had changed under it, when that is what held it. */
+      changed?: readonly string[]
+      /** Whose changes they were, where git said whose. */
+      by?: readonly string[]
+    },
   ): Promise<void> {
     await this.log.append({
       type: 'queue_held',
@@ -1043,6 +1050,8 @@ export class Workbench {
         because,
         ...(how.on ? { on: how.on } : {}),
         ...(how.start ? { start: how.start } : {}),
+        ...(how.changed ? { changed: [...how.changed] } : {}),
+        ...(how.by && how.by.length > 0 ? { by: [...how.by] } : {}),
       },
     })
   }
