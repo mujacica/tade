@@ -106,7 +106,16 @@ import {
   readImage,
   shellQuote,
 } from './images.ts'
-import { addNews, eventNews, type News, taskNews, withNews } from './inbox.ts'
+import {
+  addEnded,
+  addNews,
+  agentEnded,
+  eventNews,
+  type News,
+  taskNews,
+  unended,
+  withNews,
+} from './inbox.ts'
 import { appKey, checkTalkKey, keyCaps } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -1523,6 +1532,11 @@ export class App {
         this.state = onEvent(this.state, event, this.now())
         const heard = eventNews(event)
         if (heard) this.news = addNews(this.news, heard, this.now())
+        // An agent that is gone, however it went: told rather than discovered
+        // by the orchestrator steering something that is not there any more.
+        const ended = agentEnded(event)
+        if (ended) this.news = addEnded(this.news, ended, this.now())
+        if (event.type === 'run_started' && event.task) this.news = unended(this.news, event.task)
         this.draw()
       },
       onWarning: (message) => {

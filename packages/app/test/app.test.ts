@@ -439,6 +439,52 @@ describe('the window, wired up', () => {
     expect(asked[0]?.endsWith('What they said:\nhow is it going')).toBe(true)
   }, 30_000)
 
+  it('tells the orchestrator that agents are gone, rather than letting a call find out', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+
+    // Exactly what ending an agent writes down, whoever ended it: the window's
+    // stop, its cleanup, tade_run_stop, tade_run_cleanup, removing the task.
+    await client.log.append({
+      type: 'run_exited',
+      task: 'app/refunds',
+      run: 'app/refunds/agent',
+      detail: { stopped: true },
+    })
+    await client.log.append({
+      type: 'run_exited',
+      task: 'app/search',
+      run: 'app/search/agent',
+      detail: { code: 1 },
+    })
+    // Subscribers are told on the microtask after the write, so a turn of the
+    // timer is the window having heard both. And nothing was said yet: news
+    // waits for the next thing you say rather than cutting across a turn.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(asked).toEqual([])
+
+    terminal.press('\x00')
+    for (const char of 'how is it going') terminal.press(char)
+    terminal.press('\r')
+    await until('the orchestrator asked', () => asked.length === 1)
+    const told = asked[0] ?? ''
+    // Which, how many, and why each — and where to get what is true now.
+    expect(told).toContain('2 agents are gone')
+    expect(told).toContain('app/refunds (stopped)')
+    expect(told).toContain('app/search (it exited on its own, code 1)')
+    expect(told).toContain('tade_status says what is running')
+    // Riding along with what was said, never a turn of its own.
+    expect(told.endsWith('What they said:\nhow is it going')).toBe(true)
+  }, 30_000)
+
   it('brings back what you said with up, and finds it with ctrl+r, in the next window too', async () => {
     const asked: string[] = []
     const thinker = {
