@@ -2,6 +2,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
+  carriedNote,
+  carryOver,
   glyphOf,
   latestAt,
   planFor,
@@ -48,8 +50,11 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
       const head = await headOf(where.root)
       const plan = planFor(manifest.checks)
       const runs = await readRuns(where.root)
-      const at = latestAt(runs, head)
-      const said = rollup(plan, runs, head)
+      // A run recorded just before a commit that holds exactly what it read
+      // still stands at that commit: it is the same bytes.
+      const covering = await carryOver(where.root, runs, head)
+      const at = latestAt(runs, covering)
+      const said = rollup(plan, runs, covering)
       if (opts.json) {
         io.out(
           JSON.stringify(
@@ -80,7 +85,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
         const run = at.find((one) => one.check === check.id)
         io.out(
           run
-            ? `  ${glyphOf(run.state)} ${check.id.padEnd(10)} ${run.state.padEnd(10)} ${whereOf(run)}${run.summary ? ` — ${run.summary}` : ''}`
+            ? `  ${glyphOf(run.state)} ${check.id.padEnd(10)} ${run.state.padEnd(10)} ${whereOf(run)}${run.summary ? ` — ${run.summary}` : ''}${carriedNote(run, covering.carried?.has(run.id) ?? false)}`
             : `  ◦ ${check.id.padEnd(10)} has not run at this commit`,
         )
       }

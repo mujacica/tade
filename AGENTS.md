@@ -108,6 +108,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the agent is told the rule and what happened is written down. Overruling it is an act, not a
   setting — `checks_override`, with a reason, read back out of the journal — and a red run that was
   overruled is still recorded red.
+- **A run is about a tree, not a commit id.** It is recorded against the commit that was checked
+  out, and an agent's next act is to commit — so what it read is also written down (`coverageOf`):
+  that commit's tree, every tracked path whose bytes on disk differed from it, and the untracked
+  files that were also there. A later commit carries the run (`carryOver`) only when applying that
+  record to the run's tree yields exactly the commit's tree, because the same commands over the
+  same bytes give the same answer. Agents share one checkout, so this is where it has to be exact:
+  a partial commit, another agent's file caught in the run and left out of it, anything edited
+  after the run — the bytes committed are not the bytes read, and the answer stays `unknown`.
+  Untracked files cannot be in that comparison, since no tree holds them; they are recorded so a
+  commit that *adds* one matches, and one that stays untracked is on disk for the run and for any
+  re-run, so it is not what makes the two trees differ.
 - **A judge answers, it never decides.** A judge (`packages/judges/core`) is a model that takes
   bounded questions — yes-no, one of these options, one of these levels — and answers each with a
   probability and no prose, cheaply enough to ask of every diff and every log line. It may only

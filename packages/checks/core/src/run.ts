@@ -1,5 +1,6 @@
+import { coverageOf } from './coverage.ts'
 import { waitForRunLock } from './lock.ts'
-import type { Check, CheckLog, CheckRun, ProjectRef, Runner } from './port.ts'
+import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './port.ts'
 import { RunnerError, settled } from './port.ts'
 import { writeRun } from './records.ts'
 
@@ -62,8 +63,9 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
   for (const run of skipped) request.onRun?.(run)
   const toRun = plan.filter((check) => !check.skip)
   if (toRun.length === 0) {
-    await record(project.root, skipped, request)
-    return skipped
+    const all = covering(skipped, await coverageOf(project.root, commit))
+    await record(project.root, all, request)
+    return all
   }
 
   // The lock is taken when the machine is what is being asked for: a check
@@ -83,6 +85,13 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
     )
   }
 
+  // What the commands are about to read, taken once the worktree is ours to
+  // read: the commit's tree and whatever differs from it on disk. It is what
+  // lets the commit made right after this one still count as checked, and it
+  // is taken before rather than after, because what is asked later is whether
+  // the bytes that were committed are the bytes that were read.
+  const covered = await coverageOf(project.root, commit)
+
   const controller = new AbortController()
   request.signal?.addEventListener('abort', () => controller.abort(), { once: true })
   try {
@@ -93,12 +102,16 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
       onRun: (run) => request.onRun?.(run),
       onOutput: (check, chunk) => request.onOutput?.(check, chunk),
     })
-    const all = [...skipped, ...ran]
+    const all = covering([...skipped, ...ran], covered)
     await record(project.root, all, request)
     return all
   } finally {
     if (lock && !('held' in lock)) await lock.release()
   }
+}
+
+function covering(runs: readonly CheckLog[], covered: Covered | null): CheckLog[] {
+  return runs.map((run) => (covered ? { ...run, covered } : run))
 }
 
 async function record(

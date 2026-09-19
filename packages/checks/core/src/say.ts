@@ -19,6 +19,15 @@ export function glyphOf(state: CheckRun['state']): string {
   return '⋯'
 }
 
+/**
+ * What to say beside a run recorded against an earlier commit that still
+ * stands, because the bytes it read are the bytes this commit holds. Said
+ * rather than hidden: anybody reading a tick is owed what ran, and when.
+ */
+export function carriedNote(run: CheckRun, carried: boolean): string {
+  return carried ? ` (ran at ${run.commit.slice(0, 8)}, over these very bytes)` : ''
+}
+
 /** Where it ran, as a person reads it: `here`, or the forge's own name. */
 export function whereOf(run: CheckRun): string {
   return run.where.kind === 'here' ? 'here' : run.where.forge

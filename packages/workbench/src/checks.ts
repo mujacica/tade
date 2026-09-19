@@ -3,6 +3,7 @@ import {
   type CheckLog,
   type CheckRun,
   type ChecksManifest,
+  carryOver,
   latestAt,
   planFor,
   type Runner,
@@ -41,6 +42,11 @@ export interface ProjectChecks {
   runs: CheckLog[]
   /** The newest run of each check at the commit in hand. */
   at: CheckRun[]
+  /**
+   * Of those, the ones recorded against an earlier commit that still stand,
+   * because what they read is byte-for-byte what this commit holds.
+   */
+  carried: ReadonlySet<string>
   rollup: ReturnType<typeof rollup>
   rule: ChecksConfig
 }
@@ -64,12 +70,17 @@ export async function checksAt(opts: {
     only: rule.only,
   })
   const runs = await readRuns(opts.worktree)
+  // A run is about a tree, not a commit id: one taken just before the commit
+  // that holds exactly what it read still speaks for it. Anything else — a
+  // partial commit, somebody else's file caught in the run — does not.
+  const at = await carryOver(opts.worktree, runs, opts.commit)
   return {
     manifest,
     plan,
     runs,
-    at: latestAt(runs, opts.commit),
-    rollup: rollup(plan, runs, opts.commit),
+    at: latestAt(runs, at),
+    carried: at.carried ?? new Set(),
+    rollup: rollup(plan, runs, at),
     rule,
   }
 }

@@ -1,6 +1,13 @@
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { type CheckLog, type CheckRun, checkLine, latestAt, RunnerError } from '@tade/checks-core'
+import {
+  type CheckLog,
+  type CheckRun,
+  carriedNote,
+  checkLine,
+  latestAt,
+  RunnerError,
+} from '@tade/checks-core'
 import {
   type ChecksConfig,
   type Config,
@@ -96,7 +103,7 @@ export const checksExtension: TadeExtension = {
           const run = stood.at.find((one) => one.check === check.id)
           lines.push(
             run
-              ? checkLine(run)
+              ? `${checkLine(run)}${carriedNote(run, stood.carried.has(run.id))}`
               : `- ◦ \`${check.id}\` has not run at this commit${check.skip ? ` (${check.skip})` : ''}`,
           )
         }

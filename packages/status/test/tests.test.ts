@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { type CheckLog, coverageOf, writeRun } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
-import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { readRecord, readTests, testsPath, verifiedAt, writeTests } from '../src/tests.ts'
 
 // A test result is about one commit. Everything here is about refusing to let
@@ -127,5 +128,45 @@ describe('verifiedAt', () => {
     const worktree = tmp('tade-verified-')
     await writeTests(worktree, record())
     expect(await verifiedAt(worktree, 'abc123', project(worktree))).toBe('pass')
+  })
+
+  // The whole point of recording what a run read: an agent checks its work and
+  // then commits it, and the commit it just made is the work that was checked.
+  it('is green at the commit an agent made of exactly what the run read', async () => {
+    const repo = mkrepo()
+    repo.commit('start', { '.tade/checks.yaml': manifest, 'a.txt': 'a\n' })
+    repo.write({ 'a.txt': 'a, edited\n' })
+    const before = repo.head()
+    const covered = await coverageOf(repo.root, before)
+    for (const check of ['format', 'tests']) {
+      await writeRun(repo.root, {
+        ...(JSON.parse(run(check, 'passed', before)) as CheckLog),
+        covered,
+      })
+    }
+    expect(await verifiedAt(repo.root, before, project(repo.root))).toBe('pass')
+
+    repo.git('add', 'a.txt')
+    repo.git('commit', '-q', '-m', 'the work')
+    expect(await verifiedAt(repo.root, repo.head(), project(repo.root))).toBe('pass')
+  })
+
+  it('is unknown at a commit that holds a byte nobody ran anything over', async () => {
+    const repo = mkrepo()
+    repo.commit('start', { '.tade/checks.yaml': manifest, 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    repo.write({ 'a.txt': 'a, edited\n' })
+    const before = repo.head()
+    const covered = await coverageOf(repo.root, before)
+    for (const check of ['format', 'tests']) {
+      await writeRun(repo.root, {
+        ...(JSON.parse(run(check, 'passed', before)) as CheckLog),
+        covered,
+      })
+    }
+    // Another agent's file goes in with it.
+    repo.write({ 'b.txt': 'theirs\n' })
+    repo.git('add', 'a.txt', 'b.txt')
+    repo.git('commit', '-q', '-m', 'mine and theirs')
+    expect(await verifiedAt(repo.root, repo.head(), project(repo.root))).toBe('unknown')
   })
 })

@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { type CheckLog, coverageOf, writeRun } from '@tade/checks-core'
 import { ConfigSchema, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { checksAt, checksGate, pushOrCommit } from '../src/checks.ts'
 
 // The rule about pushing without a green run, and what it can honestly do.
@@ -49,6 +50,21 @@ function worktreeWith(runs: { check: string; state: string; tail?: string }[] = 
   }
   return root
 }
+
+const green = (check: string, commit: string): CheckLog => ({
+  id: `${commit.slice(0, 7)}:${check}:here:1`,
+  check,
+  commit,
+  state: 'passed',
+  where: { kind: 'here', runner: 'local', host: 'mbp' },
+  required: true,
+  startedAt: '2026-09-19T05:00:00.000Z',
+  finishedAt: '2026-09-19T05:01:00.000Z',
+  code: 0,
+  summary: null,
+  by: 'shop/refunds',
+  tail: '',
+})
 
 const config = (over: Record<string, unknown> = {}) =>
   ConfigSchema.parse({
@@ -160,6 +176,54 @@ describe('the checks gate', () => {
   it('has no opinion about a project with nothing to check', async () => {
     const empty = tmp('tade-gate-')
     expect(await gate(empty)(push(empty))).toEqual({ allow: true })
+  })
+
+  // The gate reads what is recorded for the commit in hand, and an agent's
+  // commit is made a second after the run that checked it.
+  it('lets the push through after a commit of exactly what the run read', async () => {
+    const repo = mkrepo()
+    repo.commit('start', { '.tade/checks.yaml': MANIFEST, 'a.txt': 'a\n' })
+    repo.write({ 'a.txt': 'a, edited\n' })
+    const before = repo.head()
+    const covered = await coverageOf(repo.root, before)
+    for (const check of ['format', 'tests']) {
+      await writeRun(repo.root, { ...green(check, before), covered })
+    }
+    repo.git('add', 'a.txt')
+    repo.git('commit', '-q', '-m', 'the work')
+
+    const ask = checksGate({
+      config: config(),
+      events: async () => [],
+      head: async () => repo.head(),
+      now: () => Date.parse('2026-09-19T09:00:00Z'),
+    })
+    expect(await ask(push(repo.root))).toEqual({ allow: true })
+  })
+
+  it('refuses it when the commit holds work the run never read', async () => {
+    const repo = mkrepo()
+    repo.commit('start', { '.tade/checks.yaml': MANIFEST, 'a.txt': 'a\n', 'b.txt': 'b\n' })
+    repo.write({ 'a.txt': 'a, edited\n' })
+    const before = repo.head()
+    const covered = await coverageOf(repo.root, before)
+    for (const check of ['format', 'tests']) {
+      await writeRun(repo.root, { ...green(check, before), covered })
+    }
+    // Somebody else's file goes in with mine.
+    repo.write({ 'b.txt': 'theirs\n' })
+    repo.git('add', 'a.txt', 'b.txt')
+    repo.git('commit', '-q', '-m', 'mine and theirs')
+
+    const ask = checksGate({
+      config: config(),
+      events: async () => [],
+      head: async () => repo.head(),
+      now: () => Date.parse('2026-09-19T09:00:00Z'),
+    })
+    const answer = await ask(push(repo.root))
+    expect(answer.allow).toBe(false)
+    if (!answer.allow) expect(answer.reason).toContain('have not run at this commit')
   })
 })
 

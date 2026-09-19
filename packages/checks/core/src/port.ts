@@ -77,6 +77,31 @@ export type RunPlace =
   | { kind: 'here'; runner: string; host: string }
   | { kind: 'forge'; forge: string; job: string; url: string | null }
 
+/** What was at a path: the blob git would store there, and the mode. Both null where nothing was. */
+export interface CoveredPath {
+  path: string
+  oid: string | null
+  /** `100644`, `100755`. Null where nothing was there. */
+  mode: string | null
+}
+
+/**
+ * What a run actually read, which is a tree and not a commit id.
+ *
+ * A run is recorded against the commit that was checked out, but what the
+ * commands read is the worktree: that commit's tree, with whatever differed
+ * from it on disk. Recording both is what lets a run still speak for the
+ * commit made right after it — see `coverage.ts` for when it does.
+ */
+export interface Covered {
+  /** The tree of the commit the run ran at. */
+  tree: string
+  /** Tracked paths whose bytes on disk differed from that tree, and what was there. Sorted. */
+  dirty: readonly CoveredPath[]
+  /** Untracked, unignored files that were also on disk, as far as they were read. Sorted. */
+  untracked: readonly CoveredPath[]
+}
+
 /** One run of one check against one commit. The same shape wherever it ran. */
 export interface CheckRun {
   /** Stable for the life of the run, so a row does not jump: `<commit>:<check>:<where>:<n>`. */
@@ -96,6 +121,13 @@ export interface CheckRun {
   summary: string | null
   /** Who asked: an agent's task, the orchestrator, you, a rule, or the forge. */
   by: string | null
+  /**
+   * The bytes it read, where anybody looked: what makes a run still true of a
+   * commit that came after it. Absent on a forge's run, and on every run
+   * recorded before this was written down — and absent means the run says
+   * nothing about any commit but its own.
+   */
+  covered?: Covered | null
 }
 
 /** A run with what it printed. Kept as a tail, scrubbed; never the whole log. */

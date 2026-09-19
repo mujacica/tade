@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { scrub } from '@tade/telemetry'
-import type { Check, CheckLog, CheckRun } from './port.ts'
+import type { Check, CheckLog, CheckRun, Covered, CoveredPath } from './port.ts'
 import { settled } from './port.ts'
 
 // What ran here, kept because it cannot be recovered any other way.
@@ -70,12 +70,30 @@ export async function writeRun(
   await writeFile(path, `${[...kept, line].join('\n')}\n`, { mode: 0o600 })
 }
 
+/**
+ * The commit a question is about, and which runs recorded against another
+ * commit still speak for it: `carryOver` works that out by what they read.
+ */
+export interface At {
+  commit: string | null
+  /** Ids of runs whose bytes are this commit's, though they were recorded elsewhere. */
+  carried?: ReadonlySet<string>
+}
+
+/** A commit, or a commit with what carries over to it. */
+export type AtCommit = string | null | At
+
+function asAt(at: AtCommit): At {
+  return typeof at === 'string' || at === null ? { commit: at } : at
+}
+
 /** The newest run of each check at a commit: what "how does it stand" means. */
-export function latestAt<T extends CheckRun>(runs: readonly T[], commit: string | null): T[] {
+export function latestAt<T extends CheckRun>(runs: readonly T[], at: AtCommit): T[] {
+  const { commit, carried } = asAt(at)
   if (!commit) return []
   const newest = new Map<string, T>()
   for (const run of runs) {
-    if (run.commit !== commit) continue
+    if (run.commit !== commit && !carried?.has(run.id)) continue
     const key = `${run.check}:${run.where.kind === 'here' ? 'here' : `forge:${run.where.forge}:${run.where.job}`}`
     const already = newest.get(key)
     if (!already || order(run) >= order(already)) newest.set(key, run)
@@ -91,10 +109,10 @@ function order(run: CheckRun): number {
 export function rollup(
   checks: readonly Check[],
   runs: readonly CheckRun[],
-  commit: string | null,
+  at: AtCommit,
 ): { state: 'pass' | 'fail' | 'unknown'; failed: string[]; missing: string[] } {
   const required = checks.filter((check) => check.required)
-  const here = latestAt(runs, commit).filter((run) => run.where.kind === 'here')
+  const here = latestAt(runs, at).filter((run) => run.where.kind === 'here')
   const failed: string[] = []
   const missing: string[] = []
   for (const check of required) {
@@ -158,5 +176,32 @@ function asRun(value: unknown): CheckLog | null {
     summary: typeof raw.summary === 'string' ? raw.summary : null,
     by: typeof raw.by === 'string' ? raw.by : null,
     tail: typeof raw.tail === 'string' ? raw.tail : '',
+    // A record written before this existed, or one we cannot read, has no
+    // coverage — which says the run is about its own commit and no other.
+    covered: asCovered(raw.covered),
   }
+}
+
+function asCovered(value: unknown): Covered | null {
+  if (typeof value !== 'object' || value === null) return null
+  const raw = value as Record<string, unknown>
+  if (typeof raw.tree !== 'string' || raw.tree === '') return null
+  const dirty = asPaths(raw.dirty)
+  const untracked = asPaths(raw.untracked)
+  if (!dirty || !untracked) return null
+  return { tree: raw.tree, dirty, untracked }
+}
+
+function asPaths(value: unknown): CoveredPath[] | null {
+  if (!Array.isArray(value)) return null
+  const out: CoveredPath[] = []
+  for (const one of value) {
+    if (typeof one !== 'object' || one === null) return null
+    const raw = one as Record<string, unknown>
+    if (typeof raw.path !== 'string' || raw.path === '') return null
+    const oid = typeof raw.oid === 'string' ? raw.oid : null
+    const mode = typeof raw.mode === 'string' ? raw.mode : null
+    out.push({ path: raw.path, oid, mode })
+  }
+  return out
 }

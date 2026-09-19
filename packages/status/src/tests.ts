@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { readChecks, readRuns, rollup } from '@tade/checks-core'
+import { carryOver, readChecks, readRuns, rollup } from '@tade/checks-core'
 import type { TestSignal } from '@tade/core'
 
 // Whether a task's tests passed, and whether that is still true.
@@ -12,7 +12,9 @@ import type { TestSignal } from '@tade/core'
 //
 // A result is about one commit. Tests that passed three commits ago say
 // nothing about this one, so a record that does not name the current HEAD is
-// worth no more than never having run them.
+// worth no more than never having run them — unless it names the very bytes
+// this commit holds, which is what a check run records and `carryOver` reads.
+// The old `tests.json` records no such thing, so it stays commit-exact.
 
 export interface TestRecord {
   status: 'pass' | 'fail'
@@ -57,7 +59,11 @@ export async function verifiedAt(
     ...(project?.test ? { test: project.test } : {}),
   })
   if (manifest.checks.length === 0) return readTests(worktree, head)
-  const state = rollup(manifest.checks, await readRuns(worktree), head).state
+  const runs = await readRuns(worktree)
+  // A run taken just before a commit, over the bytes that commit holds, is a
+  // run of this commit whatever it is called: `carryOver` says which those
+  // are, and says nothing about any other.
+  const state = rollup(manifest.checks, runs, await carryOver(worktree, runs, head)).state
   // A project that has checks but has never run one through Tade still has
   // whatever `tade check` recorded before this existed.
   return state === 'unknown' ? readTests(worktree, head) : state

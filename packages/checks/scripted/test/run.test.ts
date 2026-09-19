@@ -1,7 +1,7 @@
 import type { Check } from '@tade/checks-core'
-import { RunnerError, readRuns, runChecks, takeRunLock } from '@tade/checks-core'
+import { carryOver, RunnerError, readRuns, runChecks, takeRunLock } from '@tade/checks-core'
 import { describe, expect, it } from 'vitest'
-import { tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { makeScriptedRunner } from '../src/index.ts'
 
 // Running checks the way Tade runs them: the lock, the record, and what is
@@ -31,6 +31,26 @@ describe('running a project\u2019s checks', () => {
     const written = await readRuns(root)
     expect(written.map((one) => one.check).sort()).toEqual(['format', 'tests'])
     expect(written.every((one) => one.commit === 'a1b2c3d4e5')).toBe(true)
+  })
+
+  it('writes down what it read, so the commit made a second later is still checked', async () => {
+    const repo = mkrepo()
+    repo.commit('start', { 'a.txt': 'a\n' })
+    repo.write({ 'a.txt': 'a, edited\n' })
+    const ran = await runChecks({
+      runner: makeScriptedRunner({}),
+      project: { name: 'demo', root: repo.root },
+      checks: [check('format'), check('tests')],
+      commit: repo.head(),
+      by: 'demo/task',
+    })
+    expect(ran.every((one) => one.covered?.dirty.some((path) => path.path === 'a.txt'))).toBe(true)
+
+    repo.git('add', 'a.txt')
+    repo.git('commit', '-q', '-m', 'the work')
+    const written = await readRuns(repo.root)
+    const at = await carryOver(repo.root, written, repo.head())
+    expect([...(at.carried ?? [])].sort()).toEqual(written.map((one) => one.id).sort())
   })
 
   it('reports what cannot run here as skipped, with why, and never runs it', async () => {
