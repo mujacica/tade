@@ -1,11 +1,11 @@
- ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌                                                      ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout      +                                                         ⠋ 1 working     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  1               ▐  +  ▌ ▕│ checkout › client  ◌ waiting                                                    ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
+ ▾ AGENTS  1                  +    ▕│ checkout › client  ◌ waiting                                                      Start now     ‖ Pause     ×   
                                    ▕│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    ⠋ schema                        ▕│                                                                                                                 
      working                       ▕│  ◌ Waits on api, then starts by itself.                                                                         
                                    ▕│                                                                                                                 
- ▾ SMART QUEUE  4         ▐ plan ▌ ▕│  THE CHAIN IT IS IN                                                                                             
+ ▾ SMART QUEUE  4           plan   ▕│  THE CHAIN IT IS IN                                                                                             
    all  next  timed        ‖ pause ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
                                    ▕│  ╭──────────────────╮     ╭──────────────────╮     ┏━━━━━━━━━━━━━━━━━━┓     ╭──────────────────╮                
    ◌ tidy-mailer            next   ▕│  │ ⠋ schema         │────▶│ ◌ api            │────▶┃ ◌ client         ┃────▶│ ◌ docs           │                
@@ -22,12 +22,12 @@
                                    ▕│  │ Call the new refunds endpoints from the dashboard.                                                           
  ▸ CHANGES  3              vs main ▕│                                                                                                                 
  ▸ FILES                           ▕│  TOUCHES    src/client/refunds.ts                                                                               
- ▸ NOTES  4                ▐  +  ▌ ▕│  FINISHES   when its agent says it has finished — the usual choice                                              
+ ▸ NOTES  4                   +    ▕│  FINISHES   when its agent says it has finished — the usual choice                                              
  ▸ GIT                             ▕│  FROM       the orchestrator                                                                                    
                                    ▕│                                                                                                                 
                                    ▕│                                                                                                                 
                                    ▕│                                                                                                                 
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                                                       
                                                                                                                                                      ▕
                                                                                                                                                      ▕
@@ -35,6 +35,6 @@
                                                                                                                                                      ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                                                ▕
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                                                   type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                                                   type, or hold   ctrl  +  space   
 ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌                                             claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                                               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

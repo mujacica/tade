@@ -5,9 +5,14 @@
 // design was drawn in, so what was designed is what you get.
 //
 // Every control has a fixed width that does not depend on colour. A button is
-// `▐ label ▌` painted and `[ label ]` plain, both label + 4 columns, so the
-// layout and the map of what is clickable are identical with or without it —
-// the plain skin is not a degraded layout, only an unpainted one.
+// `  label  ` on its own ground painted and `[ label ]` plain, both label + 4
+// columns, so the layout and the map of what is clickable are identical with or
+// without it — the plain skin is not a degraded layout, only an unpainted one.
+//
+// A control is a plain block: no half-block end caps. They were decoration, and
+// decoration on every button in the window reads as noise rather than as shape.
+// The columns they took are kept and filled with the control's own ground, so
+// removing them squared the ends off without moving anything.
 //
 // Separate from the setup screen's palette on purpose: that one names the roles
 // a form has, this one the roles a window has.
@@ -74,11 +79,11 @@ export interface Skin {
    */
   found(text: string, on: boolean): string
 
-  /** `▐ label ▌`, exactly label + 4 columns. */
+  /** A block with the label centred: `  label  `, exactly label + 4 columns. */
   button(label: string, look: Look): string
   /** A tab: filled when on, `  label  ` when not. Label + 4 either way. */
   tabbed(label: string, on: boolean, hover: boolean): string
-  /** One key as a key cap: `▐ctrl▌`, label + 2. Pass the spaces you want inside. */
+  /** One key as a key cap: a block, label + 2. Pass the spaces you want inside. */
   keycap(label: string): string
   /** A count: ` 3 `. */
   badge(text: string): string
@@ -93,7 +98,7 @@ export interface Skin {
    * you are on has an accent for its left end. Exactly the row's width + 2.
    */
   item(row: string, band: Band | null): string
-  /** A glyph as a button that takes no room of a pill: ` × `, exactly label + 2 columns. */
+  /** A glyph as a button that takes no room of a block: ` × `, exactly label + 2 columns. */
   icon(label: string, state: IconState): string
 
   /** A whole row laid on the selection colour, resets and all. */
@@ -195,9 +200,9 @@ const under =
   (row: string): string =>
     `${bg(n)}${row.replaceAll(RESET, `${RESET}${bg(n)}`)}${RESET}`
 
-/** A pill: half-block caps in the button's own colour, label on its ground. */
-function pill(label: string, ground: number, ink: number, bold = false): string {
-  return `${fg(ground)}▐${RESET}${bg(ground)}${fg(ink)}${bold ? BOLD : ''} ${label} ${RESET}${fg(ground)}▌${RESET}`
+/** A block in the control's own colour, label centred on its ground. */
+function block(label: string, ground: number, ink: number, bold = false): string {
+  return `${bg(ground)}${fg(ink)}${bold ? BOLD : ''}  ${label}  ${RESET}`
 }
 
 const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
@@ -234,9 +239,9 @@ export const PLAIN: Skin = {
   chrome: identity,
   edge: identity,
   brand: identity,
-  // The same glyphs the painted mark uses, unpainted: stripped of colour, the
+  // The same columns the painted mark uses, unpainted: stripped of colour, the
   // two renders are identical, which is what the setup screen's test asserts.
-  mark: (label) => `▐ ${markLabel(label)} ▌`,
+  mark: (label) => `  ${markLabel(label)}  `,
   signal: identity,
   tab: identity,
   label: identity,
@@ -274,12 +279,12 @@ export const COLOUR: Skin = {
   edge: paint(fg(GREY.edge)),
   brand: paint(`${fg(TONE.amber)}${BOLD}`),
   // A badge of the brand's own colour: light amber letters on amber with the
-  // light taken out, capped in the ground so the ends round off. Deliberately
-  // the inverse of a lit tab — which is dark ink on bright amber — because the
-  // mark is the one thing in the top row that is not something you can press,
-  // and the corner should still be the warmest thing on the screen.
+  // light taken out, a plain block like every other control. Deliberately the
+  // inverse of a lit tab — which is dark ink on bright amber — because the mark
+  // is the one thing in the top row that is not something you can press, and the
+  // corner should still be the warmest thing on the screen.
   mark: (label) =>
-    `${fg(TONE.amberDark)}▐${RESET}${bg(TONE.amberDark)}${fg(TONE.amberLight)}${BOLD} ${markLabel(label)} ${RESET}${fg(TONE.amberDark)}▌${RESET}`,
+    `${bg(TONE.amberDark)}${fg(TONE.amberLight)}${BOLD}  ${markLabel(label)}  ${RESET}`,
   signal: paint(`${fg(TONE.amber)}${BOLD}`),
   tab: paint(fg(GREY.tab)),
   label: paint(`${fg(GREY.heading)}${BOLD}`),
@@ -296,15 +301,14 @@ export const COLOUR: Skin = {
     paint(on ? `${bg(TONE.amber)}${fg(TONE.ink)}` : `${bg(GREY.control)}${fg(GREY.bright)}`)(text),
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
-    return pill(label, ground, ink, bold)
+    return block(label, ground, ink, bold)
   },
   tabbed: (label, on, hover) => {
-    if (on) return pill(label, TONE.amber, TONE.ink, true)
-    if (hover) return pill(label, GREY.control, GREY.bright)
+    if (on) return block(label, TONE.amber, TONE.ink, true)
+    if (hover) return block(label, GREY.control, GREY.bright)
     return paint(fg(GREY.tab))(`  ${label}  `)
   },
-  keycap: (label) =>
-    `${fg(GREY.pressed)}▐${RESET}${bg(GREY.pressed)}${fg(TONE.ink)}${BOLD}${label}${RESET}${fg(GREY.pressed)}▌${RESET}`,
+  keycap: (label) => `${bg(GREY.pressed)}${fg(TONE.ink)}${BOLD} ${label} ${RESET}`,
   badge: paint(`${bg(GREY.control)}${fg(GREY.pressed)}`),
   field: (text, hint) => paint(`${bg(GREY.raised)}${fg(hint ? GREY.quiet : GREY.bright)}`)(text),
   transmit: paint(`${bg(TONE.red)}${fg(TONE.inkLight)}${BOLD}`),

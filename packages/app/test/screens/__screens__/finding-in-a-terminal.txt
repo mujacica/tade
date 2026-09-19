@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    █│ checkout › stripe-v15    agent    shell     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants you to approve… ▌ █│                                                                                         
@@ -18,10 +18,10 @@
        webhooks.test.ts      ▕│  ▸ bash npm i stripe@15                                                                 
        webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
-     package.json            ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+     package.json            ▕│  │   Allow once     Deny                                        │                       
      README.md               ▕│  ╰───────────────────────────╭─ Find in tests ────────────────────────────────── esc ─╮ 
-                             ▕│                              │  assert▏                           1 of 2   ▐ ↑ ▌▐ ↓ ▌ │ 
-━   orchestrator   ▐ tests ▌ ▐ ▾ ▌▐ × ▌ ▐ + ▌ ━━━━━━━━━━━━━━━╰────────────────────────────────────────────────────────╯━
+                             ▕│                              │  assert▏                           1 of 2     ↑    ↓   │ 
+━   orchestrator     tests     ▾    ×     +   ━━━━━━━━━━━━━━━╰────────────────────────────────────────────────────────╯━
                                                                                                                         
  ✓ src/ledger.test.ts (4 tests)                                                                                         
  ✗ charges once                                                                                                         
@@ -31,4 +31,4 @@
    AssertionError: expected 2 refunds to be 1                                                                           
 $                                                                                                                       
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

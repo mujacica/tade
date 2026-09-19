@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌    ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search    ● TX 0:04  
+   T A D E      checkout    search    infra      +       ! 1 waiting  ⠋ 1 working     ctrl  +  k   search    ● TX 0:04  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    █│ checkout › stripe-v15    agent    shell     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants you to approve… ▌ █│                                                                                         
@@ -12,7 +12,7 @@
   M package.json       +2 −1 ▕│  ▸ bash npm i stripe@15                                                                 
   A …/webhooks.test.ts   +48 ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
   M src/webhooks.ts   +12 −4 ▕│  │ bash  npm i stripe@15                                        │                       
-                             ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+                             ▕│  │   Allow once     Deny                                        │                       
  ▾ FILES                     ▕│  ╰──────────────────────────────────────────────────────────────╯                       
    ▾ src/                    ▕│                                                                                         
 ━  ● TX  listening 0:04 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ release to send · esc cancels ━
@@ -31,4 +31,4 @@
                                                                                                                         
  ◉  speak — Tade hears you until you let go                                                                             
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌           ! 1 waiting  ⠋ 2 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout      +              ! 1 waiting  ⠋ 2 working     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  3         ▐  +  ▌ █│ checkout › New Sentry err…  ◎ every hour            ▐ Run now ▌ ▐ ‖ Pause ▌ ▐ ≡ ▌ ▐ × ▌ 
+ ▾ AGENTS  3            +    █│ checkout › New Sentry err…  ◎ every hour              Run now     ‖ Pause     ≡     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
    ✕ fix-charge              █│                                                                                         
      tests failed twice      █│  Every hour, it looks with sentry.new-errors, and starts work on what it finds.         
@@ -11,7 +11,7 @@
    ⠋ fix-checkout-3e         █│  FROM       sentry · turned on by you                                                   
      working                 █│                                                                                         
                              █│  FOUND                                                                                  
- ▾ SMART QUEUE  9   ▐ plan ▌ █│  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
+ ▾ SMART QUEUE  9     plan   █│  Mon 14 Sep 09:00  could not start · CHECKOUT-3F: Error: card_declined is not handled   
    all  next  timed  ‖ pause █│                    Sentry answered 502: Bad Gateway                                     
                              █│  Mon 14 Sep 09:00  ⠋ fix-checkout-3e · CHECKOUT-3E: TypeError: Cannot read properties…  
    ◷ release-notes   18:00   █│  Sun 13 Sep 16:00  fix-checkout-3a · CHECKOUT-3A: RangeError: Invalid currency code     
@@ -31,7 +31,7 @@
                              █│                                                                                         
  ▸ CHANGES  3        vs main ▕│                                                                                         
  ▸ FILES                     ▕│                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -39,6 +39,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

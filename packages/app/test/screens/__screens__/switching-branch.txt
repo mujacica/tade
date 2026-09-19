@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌                                      ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout      +                                           ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━╭─ Switch branch ──────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS            ▐  │  fix▏                                                                │                        
+ ▾ AGENTS               │  fix▏                                                                │                        
                         │ on main now                                                          │                        
    none yet — + starts o│                                                                      │                        
                         │▌ + Create fix                                                        │                        
@@ -15,20 +15,20 @@
      package.json       │                                                                      │                        
      README.md          │                                                                      │                        
                         │                                                                      │                        
- ▸ NOTES  4          ▐  │                                                                      │                        
+ ▸ NOTES  4             │                                                                      │                        
  ▾ GIT                  │                                                                      │                        
    repo     ~/src/checko│                                                                      │                        
    branch   …de/stripe-v│                                                                      │                        
    from     main        │                                                                      │                        
    worktree …kout-stripe│                                                                      │                        
-━ ▐ orchestrator ▌ ▐ + ▌│                                                                      │━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +  │                                                                      │━━━━━━━━━━   ⤢     ▾   ━
                         │                                                                      │                        
                         │                                                                      │                       ▕
                         │                                                                      │                       ▕
                         │                                                                      │                       ▕
-                        │ ↑↓ choose · enter switches · a new name creates it        ▐ Cancel ▌ │                       ▕
+                        │ ↑↓ choose · enter switches · a new name creates it          Cancel   │                       ▕
  ❯ what you say   ◆ the ╰──────────────────────────────────────────────────────────────────────╯                       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌ ▐  +  ▌           ! 1 waiting  ⠋ 1 working   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout      +              ! 1 waiting  ⠋ 1 working     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ ▕│ checkout › refund-emails  ◌ waiting                     ▐ Start now ▌ ▐ ‖ Pause ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    ▕│ checkout › refund-emails  ◌ waiting                       Start now     ‖ Pause     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
    ✕ fix-charge              ▕│                                                                                         
      tests failed twice      ▕│  ◌ Waits on add-refunds, bump-mailer, then starts by itself.                            
@@ -8,7 +8,7 @@
    ⠋ bump-mailer             ▕│  THE CHAIN IT IS IN                                                                     
      working                 ▕│  FIRST                         THEN                          THIS ONE                   
                              ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓   
- ▾ SMART QUEUE  5   ▐ plan ▌ ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶┃ ◌ refund-emails      ┃   
+ ▾ SMART QUEUE  5     plan   ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶┃ ◌ refund-emails      ┃   
    all  next  timed  ‖ pause ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
                              ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ┗━━━━━━━━━━━━━━━━━━━━━━┛   
    ! add-refunds      held   ▕│                                                         │                               
@@ -25,13 +25,13 @@
                              ▕│                                                                                         
  ▸ CHANGES  3        vs main ▕│  WILL BE TOLD                                                                           
  ▸ FILES                     ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
- ▸ NOTES  4          ▐  +  ▌ ▕│  │ came back and when.                                                                  
+ ▸ NOTES  4             +    ▕│  │ came back and when.                                                                  
  ▸ GIT                       ▕│                                                                                         
                              ▕│  TOUCHES    src/mail/refund.ts                                                          
                              ▕│  FINISHES   when its agent says it has finished — the usual choice                      
                              ▕│  FROM       the orchestrator                                                            
                              ▕│                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -39,6 +39,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    █│ checkout › stripe-v15    agent    shell     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants you to approve… ▌ █│                                                                                         
@@ -13,10 +13,10 @@
   A …/webhooks.test.ts   +48 ▕│  ▸ bash npm i stripe@15                                                                 
   M src/webhooks.ts   +12 −4 ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
                              ▕│  │ bash  npm i stripe@15                                        │                       
- ▾ FILES                     ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+ ▾ FILES                     ▕│  │   Allow once     Deny                                        │                       
    ▾ src/                    ▕│  ╰──────────────────────────────────────────────────────────────╯                       
        webhooks.test.ts      ▕│                                                                                         
-━   orchestrator   ▐ tests ▌ ▐ ▾ ▌▐ × ▌   server              ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⌕ ▌ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     tests     ▾    ×     server                +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⌕     ⤢     ▾   ━
                                                                                                                         
 ~/src/checkout (main) $ pnpm test --watch                                                                               
  ✓ 48 tests                                                                                                             
@@ -24,11 +24,11 @@
                                                                                                                         
                                                                                                                         
                                                                                                                         
-── server  typing here                                                                                ▐ ⇄ ▌ ▐ ⇆ ▌ ▐ × ▌ 
+── server  typing here                                                                                  ⇄     ⇆     ×   
 ~/src/checkout (main) $ pnpm dev                                                                                        
   ready on http://localhost:3000                                                                                        
                                                                                                                         
                                                                                                                         
                                                                                                                         
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

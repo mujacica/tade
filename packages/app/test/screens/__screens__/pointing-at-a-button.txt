@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    █│ checkout › stripe-v15    agent    shell     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants you to approve… ▌ █│                                                                                         
@@ -18,10 +18,10 @@
        webhooks.test.ts      ▕│  ▸ bash npm i stripe@15                                                                 
        webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
-     package.json            ▕│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+     package.json            ▕│  │   Allow once     Deny                                        │                       
      README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       
                              ▕│                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -29,6 +29,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

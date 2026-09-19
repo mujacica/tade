@@ -1,34 +1,34 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━━━━
- ▾ AGENT│ ● Dependencies  built-in · ready                                                             2 tools │▌ ▐ × ▌ 
+ ▾ AGENT│ ● Dependencies  built-in · ready                                                             2 tools │    ×   
         │   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │────────
  ▐ ! str│   an agent’s worktree.                                                                               │        
- ▐   wan│   ▐ Turn off ▌ ▐ Settings… ▌ ▐ Check dependencies ▌ ▐ Update dependencies (minor) ▌                  │        
-        │   ▐ Update dependencies (major) ▌                                                                    │        
+ ▐   wan│     Turn off     Settings…     Check dependencies     Update dependencies (minor)                    │        
+        │     Update dependencies (major)                                                                      │        
    ⠋ ref│                                                                                                      │        
      wor│ ◐ Sentry  built-in · needs setup                                                             2 tools │        
         │   no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read,  │        
  ▾ CHANG│   event:write), or log in with sentry-cli                                                            │        
   M pack│   not read: extensions.sentry.orgg                                                                   │        
-  A …/we│   ▐ Turn off ▌ ▐ Set up… ▌                                                                           │        
-  M src/│   ◎ New Sentry errors  every 1h                                                   ▐ Watch checkout ▌ │        
+  A …/we│     Turn off     Set up…                                                                             │        
+  M src/│   ◎ New Sentry errors  every 1h                                                     Watch checkout   │        
         │     Looks for issues first seen in Sentry since its last look, and starts an agent on each with      │        
  ▾ FILES│     everything Sentry knows, to find the cause, fix it and test it.                                  │        
    ▾ src│                                                                                                      │        
        w│ ✗ standup  yours · broken                                                                            │        
        w│   SyntaxError: Unexpected token '!'                                                                  │        
-   ▸ tes│   ▐ Open folder ▌                                                                                    │        
+   ▸ tes│     Open folder                                                                                      │        
      pac│                                                                                                      │        
      REA│ WRITTEN BY TADE  waiting for you: approved ones load when Tade next starts                           │        
         │   release-notes  an extension                                                                        │        
-━ ▐ orch│   Drafts release notes from merged work, because you asked for them every Friday.                    │ ▐ ▾ ▌ ━
-        │   ▐ Read ▌ ▐ Approve ▌ ▐ Turn down ▌                                                                 │        
+━   orch│   Drafts release notes from merged work, because you asked for them every Friday.                    │   ▾   ━
+        │     Read     Approve     Turn down                                                                   │        
         │                                                                                                      │       ▕
         │ PI'S OWN  loaded by pi itself, in every agent                                                        │       ▕
         │   plan-mode  ~/.pi/agent/extensions                                                                  │       ▕
         │ yours go in ~/.tade/extensions/active/<name>/extension.ts     tab moves · enter presses · esc closes │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

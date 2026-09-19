@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    █│ checkout › stripe-v15    agent    shell     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants you to approve… ▌ █│                                                                                         
@@ -10,7 +10,7 @@
                              █│                                                                                         
  ▸ CHANGES  3        vs main █│                                                                                         
  ▸ FILES                     █│                                                                                         
- ▸ NOTES  4          ▐  +  ▌ █│                                                                                         
+ ▸ NOTES  4             +    █│                                                                                         
  ▾ GIT                       █│                                                                                         
    repo     ~/src/checkout   █│                                                                                         
    branch   …e/fix-shop-1a   █│                                                                                         
@@ -18,10 +18,10 @@
    about    SHOP-1A ↗        █│Reading .tade/context.md for SHOP-1A before touching src/refunds.ts                      
    about    trace a1b2c3d4 ↗ █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    worktree …out-fix-shop-1a █│  │ bash  npm i stripe@15                                        │                       
-   path     /Users/me/.tade/ █│  │ ▐ Allow once ▌ ▐ Deny ▌                                      │                       
+   path     /Users/me/.tade/ █│  │   Allow once     Deny                                        │                       
             worktrees/       █│  ╰──────────────────────────────────────────────────────────────╯                       
             checkout-fix-sho ▕│                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -29,6 +29,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

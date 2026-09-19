@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│ checkout › stripe-v15  ▐ agent ▌  shell   ▐ + ▌    ▐ claude-opus-5 ▾ ▌ ▐ high ▾ ▌ ▐ × ▌ 
+ ▾ AGENTS  2            +    █│ checkout › stripe-v15    agent    shell     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▐ ! stripe-v15      $1.26 ▌ █│                                                                                         
  ▐   wants y╭─ Set up Sentry ──────────────────────────────────────────────────────────────────────── esc ─╮            
@@ -15,13 +15,13 @@
             │                 kept in your config; $SENTRY_AUTH_TOKEN wins when set                        │            
  ▾ FILES    │ Organization     acme▏                                                                       │            
    ▾ src/   │                 its slug, as in the URL                                                      │            
-       webho│                 ▐ acme ▌ ▐ acme-labs ▌                                                       │            
+       webho│                   acme     acme-labs                                                         │            
        webho│ Projects         checkout: checkout-web                                                      │            
    ▸ test/  │                 your project: its Sentry project, comma separated                            │            
      package│                                                                                              │            
      README.│                                                                                              │            
-            │ tab moves · enter presses · space turns on and off              ▐ Close ▌ ▐ Save and check ▌ │            
-━ ▐ orchestr╰──────────────────────────────────────────────────────────────────────────────────────────────╯ ⤢ ▌ ▐ ▾ ▌ ━
+            │ tab moves · enter presses · space turns on and off                Close     Save and check   │            
+━   orchestr╰──────────────────────────────────────────────────────────────────────────────────────────────╯ ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -29,6 +29,6 @@
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

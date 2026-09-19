@@ -1,6 +1,6 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━╭─ Model for the orchestrator ─────────────────────────────────────────────────────────────────────────────── esc ─╮━━
- ▾│  ▏type to narrow: opus, kimi, openrouter…                                                                        │▌ 
+ ▾│  ▏type to narrow: opus, kimi, openrouter…                                                                        │  
   │ the orchestrator is on openrouter/anthropic/claude-opus-5                                                        │──
  ▐│                                                                                                                  │  
  ▐│                                                in     out  cached   $ per 1M tokens                              │  
@@ -27,8 +27,8 @@
   │                                                                                                                  │ ▕
   │                                                                                                                  │ ▕
   │                                                                                                                  │ ▕
- ❯│ ↑↓ choose · enter switches · 5 of 5                                                                   ▐ Cancel ▌ │ ▕
+ ❯│ ↑↓ choose · enter switches · 5 of 5                                                                     Cancel   │ ▕
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯─ 
- Ask Tade anything                                                                     type, or hold ▐ ctrl ▌+▐ space ▌ 
+ Ask Tade anything                                                                     type, or hold   ctrl  +  space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

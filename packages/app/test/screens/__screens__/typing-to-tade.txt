@@ -1,11 +1,11 @@
- ▐ T A D E ▌  ▐ checkout ▌  search    infra   ▐  +  ▌        ! 1  ⠋ 1   ▐ ctrl ▌+▐ k ▌ search   ▐ ctrl ▌+▐ space ▌ talk 
+   T A D E      checkout    search    infra      +           ! 1  ⠋ 1     ctrl  +  k   search     ctrl  +  space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2         ▐  +  ▌ █│                                                                                         
+ ▾ AGENTS  2            +    █│                                                                                         
                              █│   Nothing is running in checkout.                                                       
    ! stripe-v15      $1.26   █│                                                                                         
-     wants you to approve…   █│   ▐ + New agent ▌ ▐ Open project ▌                                                      
+     wants you to approve…   █│     + New agent     Open project                                                        
                              █│                                                                                         
-   ⠋ refunds         $0.62   █│   Or hold ▐ ctrl ▌+▐ space ▌ and say what you want done.                                
+   ⠋ refunds         $0.62   █│   Or hold   ctrl  +  space   and say what you want done.                                
      working                 █│                                                                                         
                              █│                                                                                         
  ▾ CHANGES  3        vs main █│                                                                                         
@@ -21,7 +21,7 @@
      package.json            ▕│                                                                                         
      README.md               ▕│                                                                                         
                              ▕│                                                                                         
-━ ▐ orchestrator ▌ ▐ + ▌ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ ▐ ⤢ ▌ ▐ ▾ ▌ ━
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
                                                                                                                        ▕
@@ -31,4 +31,4 @@
 ───────────────────────────────────────────────────────────────  enter sends · shift+enter new line · ↑ ctrl+r history ─
  what is going on with checkout▏                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- ▐ Extensions ▌ ▐ Settings ▌ ▐ Mute ▌               claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 
+   Extensions     Settings     Mute                 claude-opus-5 ▾ · openrouter · signed in │ 1.9M tok │ $2.66 today ▾ 

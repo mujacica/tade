@@ -94,7 +94,7 @@ describe('the setup screen', () => {
       width: 40,
       height: 14,
     }).join('\n')
-    expect(small).toContain('▐ T A D E ▌ Setting up')
+    expect(small).toContain('  T A D E   Setting up')
     expect(small).not.toContain('██')
     expect(small).toContain('✓ A project to work on')
   })
