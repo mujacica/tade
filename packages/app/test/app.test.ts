@@ -26,6 +26,8 @@ class FakeTerminal implements Terminal {
   kittyProtocolActive = false
   /** Everything written, which is the screen as the user would see it. */
   written = ''
+  /** Every title the window has asked the terminal for, in order. */
+  titles: string[] = []
   private onInput: ((data: string) => void) | null = null
 
   start(onInput: (data: string) => void, _onResize: () => void): void {
@@ -49,7 +51,9 @@ class FakeTerminal implements Terminal {
   clearLine(): void {}
   clearFromCursor(): void {}
   clearScreen(): void {}
-  setTitle(): void {}
+  setTitle(title: string): void {
+    this.titles.push(title)
+  }
   setProgress(): void {}
 }
 
@@ -164,6 +168,16 @@ describe('the window, wired up', () => {
     await until('the tasks to be drawn', () => terminal.written.includes('refunds'))
     expect(terminal.written).toContain('search')
     expect(terminal.written).toContain('app')
+  })
+
+  it('names its own window after what is happening', async () => {
+    await start()
+    await until('the window to name itself', () => terminal.titles.length > 0)
+    // Tade owns the title: nothing it starts is left in the terminal's
+    // foreground process group to name the window after itself instead.
+    const title = terminal.titles.at(-1) ?? ''
+    expect(title).toContain('tade')
+    expect(title).toMatch(/idle|working|waiting|nothing running/)
   })
 
   it('always shows the orchestrator', async () => {

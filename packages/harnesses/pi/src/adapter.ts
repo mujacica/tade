@@ -352,6 +352,13 @@ export class PiAdapter implements WorkerAdapter {
       cwd: spec.cwd,
       env: { ...this.runEnv(spec), ...spec.env },
       stdio: ['pipe', 'pipe', 'pipe'],
+      // Its own process group, like every other process Tade starts: a child
+      // in the terminal's foreground group is what Terminal.app names the
+      // window after, and a model process is long-lived, so the window was
+      // called `pi < node /the/whole/path` for as long as one was running.
+      // The window's title is Tade's to write. What this costs is that a
+      // group signal no longer reaches it, so `stop` signals the group.
+      detached: true,
     })
 
     const run: Run = {
@@ -515,7 +522,7 @@ export class PiAdapter implements WorkerAdapter {
     // Null for an agent in a lane: the process is the lane's, and closing the
     // lane is what ends it. Killing it from here would leave the lane holding
     // a corpse.
-    entry.child?.kill()
+    if (entry.child) endProcess(entry.child)
     await entry.channel?.close()
     this.runs.delete(run)
   }
@@ -767,6 +774,24 @@ export class PiAdapter implements WorkerAdapter {
     const entry = this.runs.get(run)
     if (!entry) throw new WorkerNotFoundError(run)
     return entry
+  }
+}
+
+/**
+ * End a model process, and whatever it started.
+ *
+ * It leads its own process group, so the group is what to signal: the pid
+ * alone would leave the tools pi had spawned behind, holding the sandbox and
+ * the worktree. A group that has already gone — or a platform without them —
+ * falls back to the child, which is the outcome either way.
+ */
+function endProcess(child: ChildProcess): void {
+  const pid = child.pid
+  if (pid === undefined) return
+  try {
+    process.kill(-pid, 'SIGTERM')
+  } catch {
+    child.kill()
   }
 }
 

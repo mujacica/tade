@@ -68,6 +68,17 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         return
       }
 
+      // What the machine calls this process, and so what a terminal that names
+      // its window after the program running in it will say: `tade`, not
+      // `node` and the whole path to a file in this repository. The window
+      // writes its own title over the top of that; this is what is left when a
+      // terminal insists on the process name as well, and what `ps` says.
+      //
+      // Only the window. On macOS a title overwrites the argument list a
+      // process shows, so a short-lived command would stop saying which
+      // command it was, which is worth more than a name nobody reads.
+      process.title = 'tade'
+
       // A fresh machine gets led through setup rather than shown an empty
       // window. Same command, so there is only one implementation of it.
       if (!isReady(readiness(await gather()))) {

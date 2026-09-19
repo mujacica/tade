@@ -522,10 +522,11 @@ export class TmuxDriver implements WorkspaceDriver {
   }
 
   private async tmux(args: string[]): Promise<string> {
-    const { stdout } = await run('tmux', ['-L', this.opts.socket, ...args], {
-      env: stringEnv(this.opts.env),
-      maxBuffer: 32 * 1024 * 1024,
-    })
+    const { stdout } = await run(
+      'tmux',
+      ['-L', this.opts.socket, ...args],
+      clientOptions(stringEnv(this.opts.env)),
+    )
     return stdout
   }
 
@@ -535,6 +536,20 @@ export class TmuxDriver implements WorkspaceDriver {
     if (lane.closed) throw new LaneClosedError(id)
     return lane
   }
+}
+
+/**
+ * How a tmux command is run: in its own process group, so the terminal Tade
+ * runs in never names its window after one. Lanes are read by polling this,
+ * so without it every look retitled the window `tmux`. `execFile` hands
+ * `detached` to the spawn beneath it; its types just do not say so.
+ */
+function clientOptions(env: Record<string, string>): {
+  env: Record<string, string>
+  maxBuffer: number
+} {
+  const options = { env, maxBuffer: 32 * 1024 * 1024, detached: true }
+  return options
 }
 
 /** tmux window names cannot hold everything a lane id can. */

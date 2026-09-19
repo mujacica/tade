@@ -98,6 +98,77 @@ const fg = (n: number) => `${ESC}38;5;${n}m`
 const bg = (n: number) => `${ESC}48;5;${n}m`
 const BOLD = `${ESC}1m`
 
+/**
+ * The palette, as xterm-256 numbers.
+ *
+ * Tade's colour is amber, and the rule the others keep is *value*: every tone
+ * that carries meaning is as light as that amber, so no accent shouts over
+ * another and the window reads as one design. In relative luminance — the
+ * WCAG one, 0 to 1 — amber is .56, violet .57, green .56, cyan .56. The violet
+ * was xterm 141 at .35, a third darker than everything it sat beside, which is
+ * what made the extensions button look borrowed from somewhere else.
+ *
+ * Red is the one exception, and deliberately: something that has gone wrong is
+ * allowed to be darker and louder than the rest, because it is not decoration.
+ */
+const TONE = {
+  /** Tade itself, and anything Tade is doing: the brand, work in progress, links. */
+  amber: 214,
+  /** The mark's letters, and the crown of the wordmark. */
+  amberLight: 222,
+  /** The mark's ground: the same amber with the light taken out of it. */
+  amberDark: 94,
+  /** Waiting on you, and the press the window would like next. */
+  violet: 183,
+  /** Done. */
+  green: 114,
+  /** Where you are. The one complement in the palette, at the amber's own value. */
+  cyan: 80,
+  /** Gone wrong, or about to: the exception to the rule above. */
+  red: 203,
+  /** Ink for anything laid on a light ground. */
+  ink: 233,
+  /** Ink for anything laid on a mid ground. */
+  inkLight: 231,
+} as const
+
+/** Greys, darkest first: the window is built from these and lit by the tones. */
+const GREY = {
+  /** A panel's own surface. */
+  surface: 235,
+  /** A ground a step up from the window: a field, a control at rest. */
+  raised: 236,
+  /** The row you are on. */
+  chosen: 237,
+  /** A button at rest. */
+  control: 238,
+  /** Behind a panel: there, but not asking for anything. */
+  faded: 239,
+  /** Rules and borders. */
+  chrome: 240,
+  /** A control under the pointer. */
+  hovered: 241,
+  /** Said quietly: hints, paths, prices. */
+  quiet: 244,
+  /** A panel's edge, a step brighter than the chrome it floats over. */
+  edge: 245,
+  /** A tab you are not on. */
+  tab: 246,
+  /** A section heading. */
+  heading: 248,
+  /** A control held down, and the key caps. */
+  pressed: 250,
+  /** What you are typing, and the names that matter. */
+  bright: 255,
+} as const
+
+/**
+ * The amber the big wordmark is shaded with, light at the crown: the corner
+ * mark and the setup screen's wordmark are the same brand, so they are the
+ * same five steps.
+ */
+export const WORDMARK_SHADES = [223, 221, TONE.amber, 208, 166]
+
 const paint =
   (code: string) =>
   (text: string): string =>
@@ -118,14 +189,14 @@ function pill(label: string, ground: number, ink: number, bold = false): string 
 }
 
 const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
-  rest: [238, 255, false],
-  hover: [241, 231, false],
-  pressed: [250, 233, false],
-  primary: [214, 233, true],
-  attention: [141, 233, true],
-  danger: [167, 233, true],
-  off: [236, 240, false],
-  add: [238, 214, true],
+  rest: [GREY.control, GREY.bright, false],
+  hover: [GREY.hovered, TONE.inkLight, false],
+  pressed: [GREY.pressed, TONE.ink, false],
+  primary: [TONE.amber, TONE.ink, true],
+  attention: [TONE.violet, TONE.ink, true],
+  danger: [TONE.red, TONE.ink, true],
+  off: [GREY.raised, GREY.chrome, false],
+  add: [GREY.control, TONE.amber, true],
 }
 
 const identity = (text: string) => text
@@ -137,13 +208,13 @@ const identity = (text: string) => text
 export const markLabel = (label: string) => [...label].join(' ')
 
 /** The grounds of a lit tab down the side: pointed at, and the one you are on. */
-const TAB_GROUNDS: Record<Band, number> = { selected: 238, hovered: 236 }
+const TAB_GROUNDS: Record<Band, number> = { selected: GREY.control, hovered: GREY.raised }
 
 const ICONS: Record<IconState, [ground: number | null, ink: number, bold: boolean]> = {
-  rest: [null, 246, false],
-  hover: [241, 231, false],
-  danger: [167, 233, true],
-  pressed: [250, 233, false],
+  rest: [null, GREY.tab, false],
+  hover: [GREY.hovered, TONE.inkLight, false],
+  danger: [TONE.red, TONE.ink, true],
+  pressed: [GREY.pressed, TONE.ink, false],
 }
 
 export const PLAIN: Skin = {
@@ -181,52 +252,55 @@ export const PLAIN: Skin = {
 
 export const COLOUR: Skin = {
   colour: true,
-  chrome: paint(fg(240)),
-  edge: paint(fg(245)),
-  brand: paint(`${fg(214)}${BOLD}`),
-  // Amber on dark, where a lit tab is dark on amber: the mark is the one thing
-  // in the top row that is not something you can press.
+  chrome: paint(fg(GREY.chrome)),
+  edge: paint(fg(GREY.edge)),
+  brand: paint(`${fg(TONE.amber)}${BOLD}`),
+  // A badge of the brand's own colour: light amber letters on amber with the
+  // light taken out, capped in the ground so the ends round off. Deliberately
+  // the inverse of a lit tab — which is dark ink on bright amber — because the
+  // mark is the one thing in the top row that is not something you can press,
+  // and the corner should still be the warmest thing on the screen.
   mark: (label) =>
-    `${fg(214)}▐${RESET}${bg(236)}${fg(214)}${BOLD} ${markLabel(label)} ${RESET}${fg(214)}▌${RESET}`,
-  signal: paint(`${fg(214)}${BOLD}`),
-  tab: paint(fg(246)),
-  label: paint(`${fg(248)}${BOLD}`),
-  waiting: paint(fg(141)),
-  busy: paint(fg(214)),
-  bad: paint(fg(203)),
-  done: paint(fg(114)),
-  you: paint(`${fg(255)}${BOLD}`),
-  hint: paint(fg(244)),
-  faded: paint(fg(239)),
-  link: paint(`${fg(214)}${ESC}4m`),
+    `${fg(TONE.amberDark)}▐${RESET}${bg(TONE.amberDark)}${fg(TONE.amberLight)}${BOLD} ${markLabel(label)} ${RESET}${fg(TONE.amberDark)}▌${RESET}`,
+  signal: paint(`${fg(TONE.amber)}${BOLD}`),
+  tab: paint(fg(GREY.tab)),
+  label: paint(`${fg(GREY.heading)}${BOLD}`),
+  waiting: paint(fg(TONE.violet)),
+  busy: paint(fg(TONE.amber)),
+  bad: paint(fg(TONE.red)),
+  done: paint(fg(TONE.green)),
+  you: paint(`${fg(GREY.bright)}${BOLD}`),
+  hint: paint(fg(GREY.quiet)),
+  faded: paint(fg(GREY.faded)),
+  link: paint(`${fg(TONE.amber)}${ESC}4m`),
   button: (label, look) => {
     const [ground, ink, bold] = LOOKS[look]
     return pill(label, ground, ink, bold)
   },
   tabbed: (label, on, hover) => {
-    if (on) return pill(label, 214, 233, true)
-    if (hover) return pill(label, 238, 255)
-    return paint(fg(246))(`  ${label}  `)
+    if (on) return pill(label, TONE.amber, TONE.ink, true)
+    if (hover) return pill(label, GREY.control, GREY.bright)
+    return paint(fg(GREY.tab))(`  ${label}  `)
   },
   keycap: (label) =>
-    `${fg(250)}▐${RESET}${bg(250)}${fg(233)}${BOLD}${label}${RESET}${fg(250)}▌${RESET}`,
-  badge: paint(`${bg(238)}${fg(250)}`),
-  field: (text, hint) => paint(`${bg(236)}${fg(hint ? 244 : 255)}`)(text),
-  transmit: paint(`${bg(203)}${fg(231)}${BOLD}`),
+    `${fg(GREY.pressed)}▐${RESET}${bg(GREY.pressed)}${fg(TONE.ink)}${BOLD}${label}${RESET}${fg(GREY.pressed)}▌${RESET}`,
+  badge: paint(`${bg(GREY.control)}${fg(GREY.pressed)}`),
+  field: (text, hint) => paint(`${bg(GREY.raised)}${fg(hint ? GREY.quiet : GREY.bright)}`)(text),
+  transmit: paint(`${bg(TONE.red)}${fg(TONE.inkLight)}${BOLD}`),
   item: (row, band) => {
     if (!band) return ` ${row} `
     const ground = TAB_GROUNDS[band]
     // Half-width ends, which a terminal draws the full height of the row they are on.
-    const left = band === 'selected' ? fg(80) : fg(ground)
+    const left = band === 'selected' ? fg(TONE.cyan) : fg(ground)
     return `${left}▐${RESET}${under(ground)(row)}${fg(ground)}▌${RESET}`
   },
   icon: (label, state) => {
     const [ground, ink, bold] = ICONS[state]
     return `${ground === null ? '' : bg(ground)}${fg(ink)}${bold ? BOLD : ''} ${label} ${RESET}`
   },
-  selected: under(237),
-  hovered: under(236),
-  surface: under(235),
+  selected: under(GREY.chosen),
+  hovered: under(GREY.raised),
+  surface: under(GREY.surface),
 }
 
 /**

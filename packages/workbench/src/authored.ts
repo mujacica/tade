@@ -28,6 +28,16 @@ export interface AuthoredHistory {
 }
 
 /**
+ * Where git runs, and in its own process group: like every other process Tade
+ * starts, so the terminal it runs in never names its window `git`. `execFile`
+ * hands `detached` to the spawn beneath it; its types just do not say so.
+ */
+function gitOptions(cwd: string): { cwd: string } {
+  const options = { cwd, detached: true }
+  return options
+}
+
+/**
  * Record the current state of a directory Tade writes to.
  *
  * Called after anything changes it — a proposal arriving, a human activating
@@ -37,7 +47,7 @@ export interface AuthoredHistory {
 export async function recordAuthored(root: string, message: string): Promise<AuthoredHistory> {
   try {
     await mkdir(root, { recursive: true })
-    const git = (args: string[]) => run('git', args, { cwd: root })
+    const git = (args: string[]) => run('git', args, gitOptions(root))
     // `rev-parse --git-dir` rather than testing for `.git`: a directory that
     // is already inside a repository must not get a second one nested in it.
     const inside = await git(['rev-parse', '--git-dir']).then(

@@ -99,7 +99,11 @@ export class FfmpegRecorder implements Recorder {
         '-y',
         path,
       ],
-      { stdio: ['pipe', 'ignore', 'pipe'], env: this.env },
+      // Its own process group, like everything else Tade starts in the
+      // background: a child in the terminal's foreground group is what
+      // Terminal.app names the window after, so every push-to-talk renamed
+      // the window `ffmpeg`. It is still ours — stopped and cancelled below.
+      { stdio: ['pipe', 'ignore', 'pipe'], env: this.env, detached: true },
     )
 
     let problem = ''

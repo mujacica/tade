@@ -2680,8 +2680,10 @@ function renderFoot(
 ): Drawn {
   const row = new Row(width, skin, pointer).space()
   for (const button of BUTTONS) {
-    // Amber means something here wants you: an extension to set up, or sound
-    // that is off. Otherwise a button is grey, whatever it does.
+    // Violet means something here wants you: an extension to set up, or sound
+    // that is off. The same violet the sidebar marks an agent waiting on you
+    // with, at the amber's own brightness. Otherwise a button is grey,
+    // whatever it does.
     const muted = button.action === 'mute' && frame.muted === true
     const needed = button.action === 'extensions' && (frame.extensionsNeedYou ?? 0) > 0
     row

@@ -101,6 +101,7 @@ import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
 import {
+  type AgentMark,
   type AppState,
   activeTerminal,
   addTurn,
@@ -239,6 +240,7 @@ import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } fr
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
+import { windowTitle } from './title.ts'
 import {
   fromThinker,
   problem,
@@ -594,6 +596,8 @@ export class App {
   /** The size each lane was last made, so resizing happens once per change. */
   private readonly fitted = new Map<string, string>()
   private titled = ''
+  /** When the title was last written, so a stolen one is taken back. */
+  private titledAt = 0
   /** When this window opened: the start of "This window" in the Spend panel. */
   private readonly openedAt = Date.now()
   /** Agents this window has opened again on its own, so it never does it twice. */
@@ -4072,7 +4076,7 @@ export class App {
         this.draw()
       }
     }
-    this.title(pane ? `${pane.project} › ${shownName(pane)}` : null)
+    this.title(pane ? `${pane.project} › ${shownName(pane)}` : this.state.project)
     const screen = this.scrolledBack(
       await (this.live?.capture(lane, size.rows + this.state.paneScroll, this.skin.colour) ?? ''),
       size.rows,
@@ -4464,11 +4468,35 @@ export class App {
     })
   }
 
-  /** The terminal window's own title says which task you are in. */
+  /**
+   * Say what is happening in the window's own title.
+   *
+   * Tade owns the title outright: everything it starts on a timer or in the
+   * background runs detached, so no child of ours can name the terminal after
+   * itself. Written when it changes — which, while anything works, is every
+   * look, because the indicator turns — and otherwise re-asserted on the same
+   * slow beat as the repaint, so a title something else took is taken back.
+   */
   private title(where: string | null): void {
-    const title = where ? `tade · ${where}` : 'tade'
-    if (title === this.titled) return
+    const now = this.now()
+    const count = (mark: AgentMark) => this.state.panes.filter((p) => markOf(p) === mark).length
+    const title = windowTitle({
+      working: count('working'),
+      waiting: count('needs-you'),
+      failed: count('failed'),
+      agents: this.state.panes.length,
+      orchestrator:
+        this.state.listening && this.state.talkingSince !== null
+          ? 'listening'
+          : this.state.transcript.thinking !== null
+            ? 'thinking'
+            : 'quiet',
+      where,
+      now,
+    })
+    if (title === this.titled && now - this.titledAt < REPAINT_MS) return
     this.titled = title
+    this.titledAt = now
     this.terminal.setTitle(title)
   }
 

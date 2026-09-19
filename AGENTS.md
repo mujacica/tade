@@ -206,8 +206,14 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   replacing them.
 - **A name a person gives an agent is kept** (`title_named` in its task file) and given to its
   session; any other name is only a guess, replaced when a better one comes.
-- **Probes run detached.** Anything Tade runs on a timer — git, ps, lsof, an extension's commands —
-  runs in its own process group, or Terminal.app retitles the window after it every poll.
+- **Everything Tade starts runs detached, and the window's title is Tade's own.** A probe on a
+  timer — git, ps, lsof, tmux, an extension's commands — and anything long-lived that is not a lane
+  — a model process, the recorder — runs in its own process group, or the terminal names its window
+  after it: a window that flickered between `pi < node /the/whole/path` and `osascript`. What it
+  costs is that a group signal no longer reaches them, so whoever started one ends its group. The
+  title left over is written by the window alone (`windowTitle`): an indicator that turns, what the
+  agents and the orchestrator are doing, and where you are — re-asserted on the repaint's beat, so
+  a title something else took is taken back.
 - **A task's id is in its task file, not its branch.** In a worktree, an agent opened from the window
   starts on no branch (a detached worktree) and is given `tade/<its title>` at its first change;
   its lanes and session keep the id it was made with. Status finds a branchless worktree only by that
