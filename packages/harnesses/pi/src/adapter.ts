@@ -1,7 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { sandboxed, type ThinkingLevel, type Unsubscribe } from '@tade/core'
@@ -30,12 +29,6 @@ export const EXTENSION_PATH = fileURLToPath(new URL('./tade.ts', import.meta.url
 /** Rewrites requests a provider in between would refuse; loaded into every pi Tade starts. */
 export const COMPAT_PATH = fileURLToPath(new URL('./compat.ts', import.meta.url))
 
-const SESSION_PREFIX = 'tade-'
-/** What sessions were called before the rename. Tasks older than it still are. */
-const LEGACY_SESSION_PREFIX = 'wilco-'
-
-const sessionSlug = (task: string) => task.replace(/[^a-zA-Z0-9-]+/g, '-')
-
 /**
  * The session a task's agent talks in, for the life of the task.
  *
@@ -44,40 +37,7 @@ const sessionSlug = (task: string) => task.replace(/[^a-zA-Z0-9-]+/g, '-')
  * has to decide whether this is a start or a resume.
  */
 export function sessionIdFor(task: string): string {
-  return `${SESSION_PREFIX}${sessionSlug(task)}`
-}
-
-/** The same session, under the name it was created with before the rename. */
-export function legacySessionIdFor(task: string): string {
-  return `${LEGACY_SESSION_PREFIX}${sessionSlug(task)}`
-}
-
-/**
- * Which session id this task actually talks in.
- *
- * A task started before the rename has its whole conversation in a session
- * named the old way, and a task name is never used twice — so asking pi for
- * the new id would open an empty conversation next to a full one nobody can
- * reach again. If the old session is on disk, that is the session.
- */
-export function resolveSessionId(task: string, root = piSessionsRoot()): string {
-  const legacy = legacySessionIdFor(task)
-  const suffix = `_${legacy}.jsonl`
-  try {
-    for (const dir of readdirSync(root)) {
-      for (const entry of readdirSync(join(root, dir))) {
-        if (entry.endsWith(suffix)) return legacy
-      }
-    }
-  } catch {
-    // No sessions directory, or nothing readable in it: nothing to carry over.
-  }
-  return sessionIdFor(task)
-}
-
-/** Where pi keeps its sessions. Kept here so the launch path need not import upward. */
-function piSessionsRoot(): string {
-  return join(homedir(), '.pi', 'agent', 'sessions')
+  return `tade-${task.replace(/[^a-zA-Z0-9-]+/g, '-')}`
 }
 
 /**
@@ -296,7 +256,7 @@ export class PiAdapter implements WorkerAdapter {
           ...this.modelArgs(spec.model),
           ...(spec.thinking ? ['--thinking', spec.thinking] : []),
           '--session-id',
-          resolveSessionId(spec.task),
+          sessionIdFor(spec.task),
           '-e',
           EXTENSION_PATH,
           '-e',
@@ -336,7 +296,7 @@ export class PiAdapter implements WorkerAdapter {
       handle: {
         run: spec.run,
         task: spec.task,
-        sessionId: resolveSessionId(spec.task),
+        sessionId: sessionIdFor(spec.task),
         startedAt: Date.now(),
         lane: spec.lane ?? null,
       },

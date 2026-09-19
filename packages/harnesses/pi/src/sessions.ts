@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { legacySessionIdFor, sessionIdFor } from './adapter.ts'
+import { sessionIdFor } from './adapter.ts'
 import { modelOfMessage, spentBy } from './usage.ts'
 
 // Reading what an agent did out of pi's own session, rather than out of what
@@ -62,15 +62,13 @@ export async function sessionFileFor(
   opts: { root?: string } = {},
 ): Promise<string | null> {
   const root = opts.root ?? sessionsRoot()
-  // Both names: a task started before the rename talks in a session named the
-  // old way, and its spend is as real as anyone else's.
-  const suffixes = [`_${sessionIdFor(task)}.jsonl`, `_${legacySessionIdFor(task)}.jsonl`]
+  const suffix = `_${sessionIdFor(task)}.jsonl`
   const dirs = await readdir(root).catch(() => [] as string[])
   const found: string[] = []
   for (const dir of dirs) {
     const entries = await readdir(join(root, dir)).catch(() => [] as string[])
     for (const entry of entries) {
-      if (suffixes.some((suffix) => entry.endsWith(suffix))) found.push(join(root, dir, entry))
+      if (entry.endsWith(suffix)) found.push(join(root, dir, entry))
     }
   }
   // The name starts with a timestamp, so the newest sorts last. More than one

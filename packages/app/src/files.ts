@@ -26,11 +26,10 @@ export interface Listed {
  * the file Finder leaves everywhere. Nobody opens these from a sidebar, and
  * `.git` alone would be the longest thing in it.
  */
-const HIDDEN = new Set(['.git', '.tade', '.wilco', '.DS_Store'])
+const HIDDEN = new Set(['.git', '.tade', '.DS_Store'])
 
-/** Our own folder in a checkout, under either name: the new one and the one before the rename. */
-const ours = (path: string) =>
-  path === '.tade' || path.startsWith('.tade/') || path === '.wilco' || path.startsWith('.wilco/')
+/** Our own folder in a checkout. */
+const ours = (path: string) => path === '.tade' || path.startsWith('.tade/')
 
 /** No sidebar is long enough to be worth reading past this. */
 export const TREE_MAX = 2_000

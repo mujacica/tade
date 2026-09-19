@@ -6,8 +6,6 @@ import {
   deriveState,
   expandHome,
   isLive,
-  LEGACY_PROJECT_DIR,
-  LEGACY_SHARED_TASKS_DIR,
   PROJECT_DIR,
   type Project,
   SHARED_TASKS_DIR,
@@ -29,28 +27,6 @@ import { readTests } from './tests.ts'
 // warning and a partial answer.
 
 export const TASK_BRANCH_PREFIX = 'tade/'
-/**
- * What task branches were called before the rename.
- *
- * Branches already made — and pushed — keep the old prefix, and a branch this
- * never recognises is a task that has silently disappeared from `status`. So
- * both are task branches, here, for as long as anyone has one.
- */
-export const LEGACY_TASK_BRANCH_PREFIX = 'wilco/'
-
-/** Is this a branch one of our own agents is working on, old name or new? */
-export function isTaskBranch(branch: string): boolean {
-  return branch.startsWith(TASK_BRANCH_PREFIX) || branch.startsWith(LEGACY_TASK_BRANCH_PREFIX)
-}
-
-/** The task's own part of its branch name, whichever prefix it carries. */
-export function taskPartOf(branch: string): string {
-  const prefix = branch.startsWith(LEGACY_TASK_BRANCH_PREFIX)
-    ? LEGACY_TASK_BRANCH_PREFIX
-    : TASK_BRANCH_PREFIX
-  return branch.slice(prefix.length)
-}
-
 const TRANSCRIPT_WINDOW_MS = 24 * 60 * 60_000
 
 export interface StatusOptions {
@@ -106,7 +82,7 @@ async function collect(opts: StatusOptions, warnings: string[]): Promise<Workspa
     for (const wt of list) {
       // A `tade/*` branch, or a worktree with no branch at all: an agent that
       // has not changed anything yet has nothing to name one after.
-      if (wt.branch ? !isTaskBranch(wt.branch) : wt.bare) continue
+      if (wt.branch ? !wt.branch.startsWith(TASK_BRANCH_PREFIX) : wt.bare) continue
       const task = await buildTask(ref, wt, baseRef, opts, liveness, sessions, claimed, warnings)
       if (task) tasks.push(task)
     }
@@ -149,7 +125,7 @@ async function buildTask(
 
   // The id the task was made with, which never changes: a branch can be given
   // a name after the fact, and an agent's lanes and session are keyed by this.
-  const fromBranch = `${ref.name}/${taskPartOf(branch).replaceAll('/', '-')}`
+  const fromBranch = `${ref.name}/${branch.slice(TASK_BRANCH_PREFIX.length).replaceAll('/', '-')}`
   const id = tf?.id?.startsWith(`${ref.name}/`) ? tf.id : fromBranch
   if (!TaskId.safeParse(id).success) {
     warnings.push(`${ref.name}: branch ${branch} does not make a valid task id`)
@@ -208,44 +184,30 @@ async function sharedTasks(
   liveness: LivenessProbe,
   warnings: string[],
 ): Promise<Task[]> {
-  // Both folder names: a checkout that was used before the rename keeps its
-  // shared tasks under the old one, and a task this cannot see is a task that
-  // has vanished from `status` while its agent is still working.
   let folders: string[]
-  let dir = SHARED_TASKS_DIR
   try {
-    folders = (await readdir(join(ref.root, dir), { withFileTypes: true }))
+    folders = (await readdir(join(ref.root, SHARED_TASKS_DIR), { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
   } catch {
-    folders = []
-  }
-  if (folders.length === 0) {
-    dir = LEGACY_SHARED_TASKS_DIR
-    try {
-      folders = (await readdir(join(ref.root, dir), { withFileTypes: true }))
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name)
-    } catch {
-      return []
-    }
+    return []
   }
   if (folders.length === 0) return []
   const g = await probeGit(ref.root, { baseRef: null, pr: opts.pr })
   warnings.push(...g.warnings)
   const out: Task[] = []
   for (const folder of folders) {
-    const file = await readTaskFile(join(ref.root, dir, folder), 'task.yaml', 'task.yaml')
+    const file = await readTaskFile(join(ref.root, SHARED_TASKS_DIR, folder), 'task.yaml')
     if (file.kind !== 'ok') {
       if (file.kind === 'invalid') {
-        warnings.push(`${ref.name}: ${dir}/${folder}/task.yaml: ${file.error}`)
+        warnings.push(`${ref.name}: ${SHARED_TASKS_DIR}/${folder}/task.yaml: ${file.error}`)
       }
       continue
     }
     const tf = file.value
     const id = tf.id?.startsWith(`${ref.name}/`) ? tf.id : `${ref.name}/${folder}`
     if (!TaskId.safeParse(id).success || sharedTaskDir(id) !== `${SHARED_TASKS_DIR}/${folder}`) {
-      warnings.push(`${ref.name}: ${dir}/${folder} does not name a task`)
+      warnings.push(`${ref.name}: ${SHARED_TASKS_DIR}/${folder} does not name a task`)
       continue
     }
     const agents = await liveness.lanes(id)
@@ -287,18 +249,12 @@ type TaskFileRead =
 async function readTaskFile(
   dir: string,
   file = join(PROJECT_DIR, 'task.yaml'),
-  legacy = join(LEGACY_PROJECT_DIR, 'task.yaml'),
 ): Promise<TaskFileRead> {
   let text: string
   try {
     text = await readFile(join(dir, file), 'utf8')
   } catch {
-    try {
-      // The same file under the name it had before the rename.
-      text = await readFile(join(dir, legacy), 'utf8')
-    } catch {
-      return { kind: 'absent' }
-    }
+    return { kind: 'absent' }
   }
   try {
     const parsed = TaskFile.safeParse(parseYaml(text))

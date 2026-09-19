@@ -189,7 +189,6 @@ export function changesFrom(nameStatus: string, numstat: string, status = ''): C
     // Tade's own record of the task is untracked on purpose, and is not a
     // change anybody made to the work.
     if (path === '.tade' || path.startsWith('.tade/')) continue
-    if (path === '.wilco' || path.startsWith('.wilco/')) continue
     const counted = counts.get(path)
     out.push({ path, mark, added: counted?.added ?? null, removed: counted?.removed ?? null })
   }

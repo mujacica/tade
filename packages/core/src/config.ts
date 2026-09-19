@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -392,29 +392,9 @@ export function runtimeDir(home: string, env: NodeJS.ProcessEnv = process.env): 
   return join(base, `tade-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`)
 }
 
-/** What this was called before the rename, and still is on disk for anyone who ran it. */
-export const LEGACY_HOME_DIR = '.wilco'
-/** Where per-user state lives now. */
-export const HOME_DIR = '.tade'
-
-/**
- * Root of Tade's per-user state. `TADE_HOME` overrides for tests.
- *
- * A machine that ran the old name has its notes, journal and schedules in
- * `~/.wilco`, and nothing can recover them from anywhere else — so when the new
- * home does not exist and the old one does, the old one *is* the home. No
- * migration, no copy, no moment where both are half true: whichever directory
- * is there is the one used, and a new machine gets the new name.
- *
- * `WILCO_HOME` is still read, because scripts and shells that set it exist.
- */
+/** Root of Tade's per-user state. `TADE_HOME` overrides for tests. */
 export function tadeHome(env: NodeJS.ProcessEnv = process.env): string {
-  const told = env.TADE_HOME ?? env.WILCO_HOME
-  if (told) return told
-  const now = join(homedir(), HOME_DIR)
-  if (existsSync(now)) return now
-  const before = join(homedir(), LEGACY_HOME_DIR)
-  return existsSync(before) ? before : now
+  return env.TADE_HOME ?? join(homedir(), '.tade')
 }
 
 export function defaultConfigPath(env: NodeJS.ProcessEnv = process.env): string {

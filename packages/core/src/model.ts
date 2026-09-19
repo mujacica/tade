@@ -150,20 +150,8 @@ export const HARNESS_CHOICES: readonly {
   { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
 ]
 
-/**
- * The folder a project keeps its task files in.
- *
- * `LEGACY_PROJECT_DIR` is what it was called before the rename. A checkout that
- * already has one holds live tasks — their ids, their intent, their context —
- * so both names are read, and `projectDir` says which one a given checkout is
- * using: whichever is there, new name first, and the new name for a checkout
- * that has neither.
- */
+/** The folder a project keeps its task files in. */
 export const PROJECT_DIR = '.tade'
-export const LEGACY_PROJECT_DIR = '.wilco'
-
-/** Both folder names, newest first: for ignore lists and "is this ours" checks. */
-export const PROJECT_DIRS = [PROJECT_DIR, LEGACY_PROJECT_DIR] as const
 
 /** Beside the task file: what whoever started a task wanted the agent to know. */
 export const TASK_CONTEXT_FILE = `${PROJECT_DIR}/context.md`
@@ -173,8 +161,6 @@ export const TASK_CONTEXT_FILE = `${PROJECT_DIR}/context.md`
  * folder each, since they share the directory their work is in.
  */
 export const SHARED_TASKS_DIR = `${PROJECT_DIR}/tasks`
-/** The same folder under the name it had before the rename. */
-export const LEGACY_SHARED_TASKS_DIR = `${LEGACY_PROJECT_DIR}/tasks`
 
 /** The folder, relative to the checkout, holding one shared task's file and context. */
 export function sharedTaskDir(id: string): string {

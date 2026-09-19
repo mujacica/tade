@@ -79,22 +79,6 @@ const DEFAULTS = {
 const LANE_OPTION = '@tade-lane'
 const SPEC_OPTION = '@tade-spec'
 
-/**
- * The names this used before the rename — a different tmux server, holding
- * agents that were running when it was still called something else.
- *
- * A driver that only knows the new names cannot `list` or `adopt` those lanes,
- * and a window that cannot find a running agent reports it as gone. So the
- * old server is looked for as well, and if that is the one with a session on
- * it, this window drives it: one server per window, whichever one is there.
- */
-const LEGACY = {
-  socket: 'wilco',
-  session: 'wilco',
-  laneOption: '@wilco-lane',
-  specOption: '@wilco-spec',
-} as const
-
 export class TmuxDriver implements WorkspaceDriver {
   readonly id = 'tmux'
   readonly capabilities: WorkspaceCapabilities = {
@@ -284,25 +268,7 @@ export class TmuxDriver implements WorkspaceDriver {
 
   /** Pick up lanes already running, after a restart or from another window. */
   async adopt(hint: AdoptHint): Promise<LaneHandle[]> {
-    let laneOption: string = LANE_OPTION
-    let specOption: string = SPEC_OPTION
-    if (!(await this.sessionExists())) {
-      // Nothing under the new name. Anything under the old one is ours too, and
-      // this window moves to that server rather than leaving it undriveable.
-      const onLegacy = await run(
-        'tmux',
-        ['-L', LEGACY.socket, 'has-session', '-t', LEGACY.session],
-        { env: stringEnv(this.opts.env) },
-      ).then(
-        () => true,
-        () => false,
-      )
-      if (!onLegacy) return []
-      this.opts.socket = LEGACY.socket
-      this.opts.session = LEGACY.session
-      laneOption = LEGACY.laneOption
-      specOption = LEGACY.specOption
-    }
+    if (!(await this.sessionExists())) return []
     this.start()
     const rows = await this.tmux([
       'list-panes',
@@ -310,7 +276,7 @@ export class TmuxDriver implements WorkspaceDriver {
       '-t',
       this.opts.session,
       '-F',
-      `#{window_id}\t#{${laneOption}}\t#{${specOption}}\t#{pane_pid}\t#{pane_dead}`,
+      `#{window_id}\t#{${LANE_OPTION}}\t#{${SPEC_OPTION}}\t#{pane_pid}\t#{pane_dead}`,
     ]).catch(() => '')
 
     const found: LaneHandle[] = []

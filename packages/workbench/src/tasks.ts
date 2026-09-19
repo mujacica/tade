@@ -3,8 +3,6 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   type DoneRule,
-  LEGACY_PROJECT_DIR,
-  LEGACY_SHARED_TASKS_DIR,
   PROJECT_DIR,
   type StartCondition,
   sharedTaskDir,
@@ -30,20 +28,8 @@ export function taskFilePath(worktree: string, id?: string): string {
   if (id) {
     const shared = join(worktree, sharedTaskDir(id), 'task.yaml')
     if (existsSync(shared)) return shared
-    const before = join(
-      worktree,
-      LEGACY_SHARED_TASKS_DIR,
-      id.split('/').slice(1).join('-'),
-      'task.yaml',
-    )
-    if (existsSync(before)) return before
   }
-  const own = join(worktree, PROJECT_DIR, 'task.yaml')
-  if (existsSync(own)) return own
-  // A task made before the rename keeps its file where it put it: a task's id
-  // is in that file, so not finding it is the task disappearing.
-  const legacy = join(worktree, LEGACY_PROJECT_DIR, 'task.yaml')
-  return existsSync(legacy) ? legacy : own
+  return join(worktree, PROJECT_DIR, 'task.yaml')
 }
 
 /** Where a task's context is, relative to where its agent works, whether or not it has one. */
