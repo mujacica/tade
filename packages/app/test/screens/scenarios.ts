@@ -340,6 +340,81 @@ const chainTasks: TaskSnapshot[] = [
   },
 ]
 
+/**
+ * A chain too long to draw as columns, with a branch half way down it: what
+ * the reasons have to carry on their own, and the shape a flat list of waits
+ * hides.
+ */
+const longChainTasks: TaskSnapshot[] = [
+  { task: 'checkout/ledger-schema', state: 'working', lane: 'checkout/ledger-schema/agent' },
+  {
+    task: 'checkout/ledger-api',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/ledger-schema'] },
+      after: [{ task: 'checkout/ledger-schema', why: 'the endpoints follow the tables' }],
+      prompt: 'Put the ledger behind an endpoint.',
+      touches: ['src/api/ledger.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/refund-flow',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/ledger-api'] },
+      after: [
+        {
+          task: 'checkout/ledger-api',
+          why: 'a refund is a ledger entry, and it posts it through the endpoint the api adds',
+        },
+      ],
+      prompt: 'Refund through the ledger.',
+      touches: ['src/refunds.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/admin-view',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/refund-flow'] },
+      after: [{ task: 'checkout/refund-flow', why: 'it lists what the flow wrote' }],
+      prompt: 'Show refunds in the admin.',
+      touches: ['src/admin/refunds.tsx'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/refund-emails',
+    state: 'queued',
+    by: 'orchestrator',
+    done: 'said',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/refund-flow'] },
+      after: [{ task: 'checkout/refund-flow', why: 'it emails what refund() returns' }],
+      prompt: 'Email the customer when a refund goes through: say how much came back, and when.',
+      touches: ['src/mail/refund.ts'],
+      at: null,
+    },
+  },
+  {
+    task: 'checkout/release-guide',
+    state: 'queued',
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting', on: ['checkout/refund-emails'] },
+      after: [{ task: 'checkout/refund-emails', why: 'the guide screenshots the email it sends' }],
+      prompt: 'Write refunds up for the guide.',
+      touches: ['docs/refunds.md'],
+      at: null,
+    },
+  },
+]
+
 /** Schedules beside the queued work: one on repeat, one that asks the orchestrator, one paused. */
 const queueSchedules: ScheduleView[] = [
   {
@@ -923,6 +998,44 @@ export const SCENARIOS: Scenario[] = [
       folded: ['changes', 'files', 'notes', 'where'],
     },
     frame: frame({ screen: '', width: 150, height: 40, clock: utcClock }),
+  },
+  {
+    name: 'a-plan-too-long-for-columns',
+    about:
+      'A plan five deep with a branch in it, where an agent’s screen would be. Too many steps to draw as columns, so it is said as a list — and WHY THIS ORDER draws the shape instead: the front of the chain first, each piece under what it waits on and shifted right of it, the two that wait on one thing branching under it, and every reason wrapped beneath the wait it belongs to.',
+    state: {
+      ...showPlan(withTasks(withProjects(initialState(), ['checkout']), longChainTasks)),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({ screen: '', height: 42, clock: utcClock }),
+  },
+  {
+    name: 'a-long-chain-of-reasons',
+    about:
+      'Queued work five deep in a chain, open on the piece in the middle. Too long to draw as columns, so WHY IT WAITS carries the shape alone: the front of the chain first, each piece under what it waits on, joined by a line, and every reason wrapped under the wait it belongs to.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), longChainTasks),
+        'checkout/refund-emails',
+      ),
+      folded: ['changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({ screen: '', height: 42, clock: utcClock }),
+  },
+  {
+    name: 'why-it-waits-in-a-narrow-window',
+    about:
+      'The same chain at 80×24: the reasons still read as a tree, names end in an ellipsis rather than being cut mid-word, there is always a gap before after, and nothing runs off the panel.',
+    state: {
+      ...focusTask(
+        withTasks(withProjects(initialState(), ['checkout']), longChainTasks),
+        'checkout/refund-emails',
+      ),
+      folded: ['changes', 'files', 'notes', 'where'],
+      queueFilter: 'next',
+    },
+    frame: frame({ screen: '', width: 80, height: 24, clock: utcClock }),
   },
   {
     name: 'pointing-at-a-note',

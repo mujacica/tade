@@ -1,5 +1,13 @@
+import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { drawPlan, layoutPlan, type PlanBox } from '../src/plan-graph.ts'
+import {
+  drawPlan,
+  drawWhy,
+  layoutPlan,
+  type PlanBox,
+  type PlanRun,
+  treeStems,
+} from '../src/plan-graph.ts'
 
 const box = (task: string, note = ''): PlanBox => ({
   task,
@@ -10,13 +18,15 @@ const box = (task: string, note = ''): PlanBox => ({
   tone: 'hint',
 })
 
-const plain = (drawing: ReturnType<typeof drawPlan>) =>
-  drawing.rows.map((runs) =>
+const lines = (rows: readonly PlanRun[][]) =>
+  rows.map((runs) =>
     runs
       .map((run) => run.text)
       .join('')
       .trimEnd(),
   )
+
+const plain = (drawing: ReturnType<typeof drawPlan>) => lines(drawing.rows)
 
 describe('a plan, laid out', () => {
   it('puts each task in the column after the last thing it waits on', () => {
@@ -111,5 +121,139 @@ describe('a plan, laid out', () => {
       () => '',
     )
     expect(drawing).toEqual({ rows: [], tooWide: true })
+  })
+})
+
+describe('the lines that make a list a tree', () => {
+  it('hangs each row off the one it waits on, and carries the line past it', () => {
+    // a ─ b ─ d
+    //     └── c
+    const stems = treeStems([-1, 0, 1, 1], 4)
+    expect(stems.map((one) => one.stem)).toEqual(['', '╰─', '  ├─', '  ╰─'])
+    // b's own line carries on down to c, and stops after it.
+    expect(stems[1]?.bars).toBe('  │')
+    expect(stems[3]?.bars).toBe('')
+  })
+
+  it('stops shifting right at the levels it was given room for', () => {
+    const stems = treeStems([-1, 0, 1, 2, 3], 2)
+    expect(stems.map((one) => visibleWidth(one.stem))).toEqual([0, 2, 4, 4, 4])
+  })
+})
+
+describe('why each piece waits, drawn', () => {
+  const chain = ['schema', 'api', 'client', 'docs']
+  const boxes = chain.map((task) => box(task))
+  const waits = [
+    { from: 'schema', to: 'api', why: 'the endpoints follow the tables' },
+    { from: 'api', to: 'client', why: 'it calls what the endpoints return' },
+    { from: 'client', to: 'docs', why: 'it screenshots the dashboard' },
+  ]
+
+  it('reads down the chain in the order it runs, not by name', () => {
+    const drawn = lines(drawWhy(boxes, waits, 80))
+    expect(drawn).toEqual([
+      '◌ schema',
+      '╰─◌ api  after schema',
+      '  │ the endpoints follow the tables',
+      '  ╰─◌ client  after api',
+      '    │ it calls what the endpoints return',
+      '    ╰─◌ docs  after client',
+      '        it screenshots the dashboard',
+    ])
+  })
+
+  it('branches what waits on one thing under it, joined by a line', () => {
+    const drawn = lines(
+      drawWhy(
+        [...boxes, box('keys')],
+        [...waits, { from: 'api', to: 'keys', why: 'the sheet lists the endpoints' }],
+        80,
+      ),
+    )
+    // Both hang off api, and the line down to the second passes the first.
+    expect(drawn).toContain('  ├─◌ client  after api')
+    expect(drawn).toContain('  ╰─◌ keys  after api')
+    expect(drawn).toContain('  │ │ it calls what the endpoints return')
+  })
+
+  it('says every wait, including the ones it does not hang from', () => {
+    const drawn = lines(
+      drawWhy(
+        [box('fix'), box('mailer'), box('emails')],
+        [
+          { from: 'fix', to: 'emails', why: 'it emails what refund() returns' },
+          { from: 'mailer', to: 'emails', why: 'the mailer’s send() changes in v4' },
+        ],
+        80,
+      ),
+    )
+    expect(drawn).toContain('╰─◌ emails  after fix')
+    expect(drawn).toContain('    also after mailer')
+    expect(drawn).toContain('    the mailer’s send() changes in v4')
+    // A piece at the front with nothing hanging off it says nothing twice.
+    expect(drawn).not.toContain('◌ mailer')
+  })
+
+  it('wraps a reason rather than running it off the panel, however narrow', () => {
+    const long = [
+      { from: 'schema', to: 'api', why: 'the endpoints follow the tables, all of them' },
+      ...waits.slice(1),
+    ]
+    for (const width of [72, 48, 30, 20, 12]) {
+      const rows = drawWhy(boxes, long, width)
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        expect(visibleWidth(row.map((run) => run.text).join(''))).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
+  it('keeps the gap before after, and ends a name it had to cut in …', () => {
+    const drawn = lines(
+      drawWhy(
+        [box('one-that-is-rather-long'), box('another-that-is-long')],
+        [{ from: 'one-that-is-rather-long', to: 'another-that-is-long', why: 'they share a file' }],
+        40,
+      ),
+    )
+    const row = drawn.find((one) => one.includes('after')) ?? ''
+    // Two spaces at least between the name and the word: they never collide.
+    expect(row).toMatch(/\S {2,}after \S/)
+    // Both names had to give way at this width, and both say so.
+    expect(row).toBe('╰─◌ another-that-is…  after one-that-is…')
+  })
+
+  it('draws nothing where nothing waits on anything', () => {
+    expect(drawWhy([box('a'), box('b')], [], 80)).toEqual([])
+  })
+
+  it('says a ring of waits rather than walking it for ever', () => {
+    const drawn = lines(
+      drawWhy(
+        [box('a'), box('b')],
+        [
+          { from: 'a', to: 'b', why: 'one' },
+          { from: 'b', to: 'a', why: 'the other' },
+        ],
+        60,
+      ),
+    )
+    expect(drawn.join('\n')).toContain('one')
+    expect(drawn.join('\n')).toContain('the other')
+  })
+
+  it('names the piece in front of you even when nothing hangs off it', () => {
+    const drawn = lines(
+      drawWhy(
+        [{ ...box('mailer'), here: true }, box('fix'), box('emails')],
+        [
+          { from: 'fix', to: 'emails', why: 'it emails what refund() returns' },
+          { from: 'mailer', to: 'emails', why: 'the mailer’s send() changes in v4' },
+        ],
+        80,
+      ),
+    )
+    expect(drawn).toContain('◌ mailer')
   })
 })

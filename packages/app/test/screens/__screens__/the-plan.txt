@@ -16,13 +16,13 @@
    │                         ▕│                                                                                         
    ╰─◌ refund-emails         ▕│                                                                                         
        ◆ after add-refund…   ▕│  WHY THIS ORDER                                                                         
-                             ▕│  add-refunds    after fix-charge          both change src/charge.ts                     
-   ◌ docs-typos       next   ▕│  refund-emails  after add-refunds         it emails what refund() returns               
-     ◆ waiting for room      ▕│                 after bump-mailer         the mailer’s send() changes in v4             
-                             ▕│                                                                                         
-   ◷ release-notes   18:00   ▕│                                                                                         
-     ❯ waits for its time    ▕│                                                                                         
-                             ▕│                                                                                         
+                             ▕│  ✕ fix-charge                                                                           
+   ◌ docs-typos       next   ▕│  ╰─! add-refunds  after fix-charge                                                      
+     ◆ waiting for room      ▕│    │ both change src/charge.ts                                                          
+                             ▕│    ╰─◌ refund-emails  after add-refunds                                                 
+   ◷ release-notes   18:00   ▕│        it emails what refund() returns                                                  
+     ❯ waits for its time    ▕│        also after bump-mailer                                                           
+                             ▕│        the mailer’s send() changes in v4                                                
    ‖ perf-check     paused   ▕│                                                                                         
      ❯ paused                ▕│                                                                                         
                              ▕│                                                                                         

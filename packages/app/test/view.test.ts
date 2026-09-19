@@ -746,4 +746,43 @@ describe('the smart queue', () => {
     )
     expect(clicks.length).toBeGreaterThan(0)
   })
+
+  it('says why it waits as the chain it is, in the order it runs', () => {
+    const drawn = draw(focusTask(queued(), 'checkout/refund-emails'), {
+      ...frame({ width: 140, height: 44 }),
+    })
+    // What the middle of the window holds, without the sidebar beside it.
+    const rows = drawn.rows.map((row) => plain(row).replace(/^.*?[▕█]│/, ''))
+    const from = rows.findIndex((row) => row.includes('WHY IT WAITS'))
+    const why = rows.slice(from + 1, from + 6).map((row) => row.slice(2).trimEnd())
+    // The front of the chain first, then what waits on it, shifted right of it
+    // and joined to it — never a flat list in whatever order the names fell in.
+    expect(why.slice(0, 5)).toEqual([
+      '✕ fix-charge',
+      '╰─! add-refunds  after fix-charge',
+      '  │ both change charge.ts',
+      '  ╰─◌ refund-emails  after add-refunds',
+      '      it emails what refund() returns',
+    ])
+    // Each name in it goes to the work it names.
+    const at = drawn.hits.filter(
+      (hit) =>
+        hit.row === from + 2 &&
+        hit.target.kind === 'task' &&
+        hit.target.task === 'checkout/add-refunds',
+    )
+    expect(at.length).toBeGreaterThan(0)
+  })
+
+  it('wraps a wait’s reason into a narrow panel rather than off the edge', () => {
+    const drawn = draw(focusTask(queued(), 'checkout/refund-emails'), {
+      ...frame({ width: 74, height: 30 }),
+    })
+    const rows = drawn.rows.map(plain)
+    const from = rows.findIndex((row) => row.includes('WHY IT WAITS'))
+    expect(from).toBeGreaterThan(0)
+    // It is still the tree, and every row of it still fits the window.
+    expect(rows.slice(from).some((row) => row.includes('╰─◌ refund-emails'))).toBe(true)
+    for (const row of drawn.rows) expect(visibleWidth(row)).toBe(74)
+  })
 })

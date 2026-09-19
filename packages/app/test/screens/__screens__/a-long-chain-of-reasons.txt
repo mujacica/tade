@@ -1,0 +1,42 @@
+   T A D E      checkout      +                     ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  1            +    ▕│ checkout › refund-emails  ◌ waiting                       Start now     ‖ Pause     ×   
+                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
+   ⠋ ledger-schema           ▕│                                                                                         
+     working                 ▕│  ◌ Waits on refund-flow, then starts by itself.                                         
+                             ▕│                                                                                         
+ ▾ SMART QUEUE  5            ▕│  WHY IT WAITS                                                                           
+   all  next  timed          ▕│  ⠋ ledger-schema                                                                        
+                             ▕│  ╰─◌ ledger-api  after ledger-schema                                                    
+   ◌ ledger-api              ▕│    │ the endpoints follow the tables                                                    
+   │ ◆ after ledger-schema   ▕│    ╰─◌ refund-flow  after ledger-api                                                    
+   │                         ▕│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
+   ╰─◌ refund-flow           ▕│      ╰─◌ refund-emails  after refund-flow                                               
+     │ ◆ after ledger-api    ▕│        │ it emails what refund() returns                                                
+     │                       ▕│        ╰─◌ release-guide  after refund-emails                                           
+     ├─◌ admin-view          ▕│            the guide screenshots the email it sends                                     
+     │   ◆ after refund-f…   ▕│                                                                                         
+     │                       ▕│  WILL BE TOLD                                                                           
+ ▌   ╰─◌ refund-emails       ▕│  │ Email the customer when a refund goes through: say how much came back, and when.     
+ ▌     │ ◆ after refund-f…   ▕│                                                                                         
+       │                     ▕│  TOUCHES    src/mail/refund.ts                                                          
+       ╰─◌ release-guide     ▕│  FINISHES   when its agent says it has finished — the usual choice                      
+           ◆ after refund…   ▕│  FROM       the orchestrator                                                            
+                             ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▸ FILES                     ▕│                                                                                         
+ ▸ NOTES  4             +    ▕│                                                                                         
+ ▸ GIT                       ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

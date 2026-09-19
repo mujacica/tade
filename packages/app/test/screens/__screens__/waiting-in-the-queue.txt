@@ -19,17 +19,17 @@
                              ▕│                                                                                         
    ◌ docs-typos       next   ▕│                                                                                         
      ◆ waiting for room      ▕│  WHY IT WAITS                                                                           
-                             ▕│  add-refunds    after fix-charge          both change src/charge.ts                     
-   ‖ perf-check     paused   ▕│  refund-emails  after add-refunds         it emails what refund() returns               
-     ❯ paused                ▕│                 after bump-mailer         the mailer’s send() changes in v4             
-                             ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│  WILL BE TOLD                                                                           
- ▸ FILES                     ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
- ▸ NOTES  4             +    ▕│  │ came back and when.                                                                  
+                             ▕│  ✕ fix-charge                                                                           
+   ‖ perf-check     paused   ▕│  ╰─! add-refunds  after fix-charge                                                      
+     ❯ paused                ▕│    │ both change src/charge.ts                                                          
+                             ▕│    ╰─◌ refund-emails  after add-refunds                                                 
+ ▸ CHANGES  3        vs main ▕│        it emails what refund() returns                                                  
+ ▸ FILES                     ▕│        also after bump-mailer                                                           
+ ▸ NOTES  4             +    ▕│        the mailer’s send() changes in v4                                                
  ▸ GIT                       ▕│                                                                                         
-                             ▕│  TOUCHES    src/mail/refund.ts                                                          
-                             ▕│  FINISHES   when its agent says it has finished — the usual choice                      
-                             ▕│  FROM       the orchestrator                                                            
+                             ▕│  WILL BE TOLD                                                                           
+                             ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
+                             ▕│  │ came back and when.                                                                  
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

@@ -52,10 +52,12 @@ import {
 import { drawPanel, type PanelContext } from './panel-view.ts'
 import {
   drawPlan,
+  drawWhy,
   layoutPlan,
   type PlanBox,
-  type PlanDrawing,
+  type PlanRun,
   type PlanTone,
+  treeStems,
 } from './plan-graph.ts'
 import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
@@ -1677,32 +1679,14 @@ const QUEUE_LEVELS = 3
  *
  * `stem` goes before its mark; `bars` is what carries on under it, drawn both
  * on its second row and in the room beneath, so a two-row tab never breaks a
- * line in half.
+ * line in half. The lines themselves are `treeStems`', the same ones every
+ * wait's reason is drawn with.
  */
 function queueStems(rows: readonly QueueRow[]): { stem: string; bars: string }[] {
   const index = new Map(rows.map((row, i) => [row.pane.task, i]))
   // Only work that is shown can be hung from: a filter may leave a parent out.
   const parent = rows.map((row) => (row.parent === null ? -1 : (index.get(row.parent) ?? -1)))
-  const level = rows.map(() => 0)
-  rows.forEach((_, i) => {
-    const up = parent[i] ?? -1
-    level[i] = up < 0 ? 0 : (level[up] ?? 0) + 1
-  })
-  const more = (of: number, after: number) => rows.some((_, j) => j > after && parent[j] === of)
-  return rows.map((_, i) => {
-    const chain: number[] = []
-    for (let up = parent[i] ?? -1; up >= 0; up = parent[up] ?? -1) chain.unshift(up)
-    // Deeper than there is room for: the levels nearest it are the ones drawn.
-    const shown = chain.slice(-QUEUE_LEVELS)
-    const lines = shown.map((up) => (more(up, i) ? '│ ' : '  '))
-    const stem =
-      shown.length === 0
-        ? ''
-        : `${lines.slice(0, -1).join('')}${more(shown.at(-1) ?? -1, i) ? '├─' : '╰─'}`
-    // Its own line, under its mark, carries whatever waits on it.
-    const bars = `${lines.join('')}${more(i, i) ? '│' : ' '}`.trimEnd()
-    return { stem, bars }
-  })
+  return treeStems(parent, QUEUE_LEVELS)
 }
 
 /**
@@ -1806,7 +1790,7 @@ function renderPlan(
     column === 0 ? 'FIRST' : 'THEN',
   )
   const paint = planPaint(skin)
-  if (!drawing.tooWide) planLines(drawing, skin, line)
+  if (!drawing.tooWide) planLines(drawing.rows, skin, line)
   else {
     // Too many steps to draw side by side: each task under what it waits on.
     for (const box of boxes) {
@@ -1826,7 +1810,7 @@ function renderPlan(
   if (waits.length > 0) {
     rows.push(blank(width))
     line((r) => r.text('WHY THIS ORDER', skin.label))
-    whyLines(waits, state.project ?? '', width, skin, line)
+    planLines(drawWhy(boxes, waits, Math.max(8, width - 4)), skin, line)
   }
 
   const shown = stack(rows.slice(0, height))
@@ -1911,12 +1895,12 @@ function planBoxes(
 
 /** A drawn plan as rows, each box a thing you can click to go to it. */
 function planLines(
-  drawing: PlanDrawing,
+  drawn: readonly PlanRun[][],
   skin: Skin,
   line: (build: (r: Row) => void) => void,
 ): void {
   const paint = planPaint(skin)
-  for (const runs of drawing.rows) {
+  for (const runs of drawn) {
     line((r) => {
       for (const run of runs) {
         r.text(
@@ -1926,29 +1910,6 @@ function planLines(
         )
       }
     })
-  }
-}
-
-/** Every wait and the reason given for it, a line each: what put the work in this order. */
-function whyLines(
-  waits: readonly { from: string; to: string; why: string }[],
-  project: string,
-  width: number,
-  skin: Skin,
-  line: (build: (r: Row) => void) => void,
-): void {
-  const name = (task: string) => inProject(project, task)
-  const first = Math.min(18, Math.max(...waits.map((wait) => visibleWidth(name(wait.to)))) + 2)
-  let previous = ''
-  for (const wait of waits) {
-    const to = name(wait.to)
-    line((r) =>
-      r
-        .text(shortened(to === previous ? '' : to, first - 1).padEnd(first))
-        .text(shortened(`after ${name(wait.from)}`, 24).padEnd(26), skin.busy)
-        .text(shortened(wait.why || '—', Math.max(1, width - first - 30)), skin.hint),
-    )
-    previous = to
   }
 }
 
@@ -2302,8 +2263,10 @@ function renderQueued(
 
   // The whole path it is on, drawn: everything it waits on however far back,
   // everything that waits on it, a box each, and an arrow for every wait. Its
-  // own box is the heavy one. Too wide to draw, and it is said as a list.
+  // own box is the heavy one. Too wide for boxes, and the chain is still read
+  // down the reasons, which are the same chain drawn as a tree.
   const chain = chainOf(state, pane.task)
+  const boxes = planBoxes(chain.tasks, frame, skin, pane.task)
   const laid = layoutPlan(
     chain.tasks.map((one) => one.task),
     chain.waits,
@@ -2311,23 +2274,19 @@ function renderQueued(
   const at = laid.columns.findIndex((column) => column.includes(pane.task))
   const drawing =
     chain.waits.length > 0
-      ? drawPlan(
-          planBoxes(chain.tasks, frame, skin, pane.task),
-          chain.waits,
-          Math.max(0, width - 4),
-          (column) =>
-            column === at ? 'THIS ONE' : column > at ? 'AFTER IT' : column === 0 ? 'FIRST' : 'THEN',
+      ? drawPlan(boxes, chain.waits, Math.max(0, width - 4), (column) =>
+          column === at ? 'THIS ONE' : column > at ? 'AFTER IT' : column === 0 ? 'FIRST' : 'THEN',
         )
       : null
   if (drawing && !drawing.tooWide) {
     rows.push(blank(width))
     line((r) => r.text('THE CHAIN IT IS IN', skin.label))
-    planLines(drawing, skin, line)
-    if (chain.waits.length > 0) {
-      rows.push(blank(width))
-      line((r) => r.text('WHY IT WAITS', skin.label))
-      whyLines(chain.waits, pane.project, width, skin, line)
-    }
+    planLines(drawing.rows, skin, line)
+  }
+  if (chain.waits.length > 0) {
+    rows.push(blank(width))
+    line((r) => r.text('WHY IT WAITS', skin.label))
+    planLines(drawWhy(boxes, chain.waits, Math.max(8, width - 4)), skin, line)
   } else if (queued.after.length > 0) {
     rows.push(blank(width))
     line((r) => r.text('WAITS ON', skin.label))

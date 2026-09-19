@@ -17,18 +17,18 @@
    ╰─◌ refund-e…  ‖  ×  ≡    ▕│                                                                                         
        ◆ after add-refund…   ▕│                                                                                         
                              ▕│  WHY IT WAITS                                                                           
-   ◌ docs-typos       next   ▕│  add-refunds    after fix-charge          both change src/charge.ts                     
-     ◆ waiting for room      ▕│  refund-emails  after add-refunds         it emails what refund() returns               
+   ◌ docs-typos       next   ▕│  ✕ fix-charge                                                                           
+     ◆ waiting for room      ▕│  ╰─! add-refunds  after fix-charge                                                      
+                             ▕│    │ both change src/charge.ts                                                          
+   ◷ release-notes   18:00   ▕│    ╰─◌ refund-emails  after add-refunds                                                 
+     ❯ waits for its time    ▕│        it emails what refund() returns                                                  
                              ▕│                                                                                         
-   ◷ release-notes   18:00   ▕│  WILL BE TOLD                                                                           
-     ❯ waits for its time    ▕│  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
+   ‖ perf-check     paused   ▕│  WILL BE TOLD                                                                           
+     ❯ paused                ▕│  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
                              ▕│                                                                                         
-   ‖ perf-check     paused   ▕│  TOUCHES    src/refunds.ts, src/charge.ts                                               
-     ❯ paused                ▕│  FINISHES   when its agent says it has finished — the usual choice                      
+   ↻ morning brief   08:45   ▕│  TOUCHES    src/refunds.ts, src/charge.ts                                               
+     ◆ every weekday at 0…   ▕│  FINISHES   when its agent says it has finished — the usual choice                      
                              ▕│  FROM       the orchestrator                                                            
-   ↻ morning brief   08:45   ▕│                                                                                         
-     ◆ every weekday at 0…   ▕│                                                                                         
-                             ▕│                                                                                         
    ↻ deps weekly     09:00   ▕│                                                                                         
      ❯ every Monday at 09…   ▕│                                                                                         
                              ▕│                                                                                         

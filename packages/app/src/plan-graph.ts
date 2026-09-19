@@ -30,6 +30,11 @@ export interface PlanWait {
   to: string
 }
 
+/** A wait, and the reason somebody gave for it. */
+export interface PlanWhy extends PlanWait {
+  why: string
+}
+
 /** How a part of the drawing is painted, named by what it is rather than its colour. */
 export type PlanTone =
   | 'busy'
@@ -42,12 +47,19 @@ export type PlanTone =
   | 'label'
   | 'here'
 
+/** A piece of a drawn row: text in one tone, and whose box it is part of. */
+export interface PlanRun {
+  text: string
+  tone: PlanTone | null
+  task?: string
+}
+
 export interface PlanDrawing {
   /**
    * One entry per row: its text, cut into runs that share a tone and a box.
    * A run inside a box says whose it is, so a box can be clicked.
    */
-  rows: { text: string; tone: PlanTone | null; task?: string }[][]
+  rows: PlanRun[][]
   /** How many columns the plan needed, when it was too wide to draw as columns. */
   tooWide: boolean
 }
@@ -212,9 +224,9 @@ class Grid {
     if (tones && tones[x] === null) tones[x] = 'line'
   }
 
-  rows(): { text: string; tone: PlanTone | null; task?: string }[][] {
+  rows(): PlanRun[][] {
     return this.chars.map((row, y) => {
-      const runs: { text: string; tone: PlanTone | null; task?: string }[] = []
+      const runs: PlanRun[] = []
       row.forEach((char, x) => {
         const drawn = char ?? JOINS[this.joins[y]?.[x] ?? 0] ?? ' '
         const tone = drawn === ' ' ? null : (this.tones[y]?.[x] ?? null)
@@ -333,4 +345,233 @@ export function drawPlan(
     else grid.join(end, ty, LEFT | RIGHT)
   }
   return { rows: grid.rows(), tooWide: false }
+}
+
+/**
+ * The lines that join a list of rows into a tree: for each row, the stem
+ * drawn before it, and the lines that carry on under it — so whatever waits
+ * on a row hangs off it, shifted right and joined to it.
+ *
+ * `parents` is the row each row hangs from, by index, and -1 at the front of a
+ * path; `levels` is how deep the indent may grow. Deeper than that and the
+ * levels nearest a row are the ones drawn, because a chain ten long must still
+ * read in a narrow panel.
+ *
+ * The queue down the side and every wait's reason are drawn from this one
+ * function: two drawings of one relationship would drift apart.
+ */
+export function treeStems(
+  parents: readonly number[],
+  levels: number,
+): { stem: string; bars: string }[] {
+  const more = (of: number, after: number) => parents.some((up, j) => j > after && up === of)
+  return parents.map((_, i) => {
+    const chain: number[] = []
+    for (let up = parents[i] ?? -1; up >= 0; up = parents[up] ?? -1) chain.unshift(up)
+    const shown = chain.slice(-Math.max(1, levels))
+    const lines = shown.map((up) => (more(up, i) ? '│ ' : '  '))
+    const stem =
+      shown.length === 0
+        ? ''
+        : `${lines.slice(0, -1).join('')}${more(shown.at(-1) ?? -1, i) ? '├─' : '╰─'}`
+    // Its own line, under its mark, carries whatever waits on it.
+    const bars = `${lines.join('')}${more(i, i) ? '│' : ' '}`.trimEnd()
+    return { stem, bars }
+  })
+}
+
+/** How deep the reasons' indent grows before it stops walking right. */
+const WHY_LEVELS = 4
+/** The room a reason is wrapped to at the deepest indent, when the width allows. */
+const WHY_ROOM = 12
+/** The most of a name kept when `after …` has to share the line with it. */
+const WHY_NAME = 16
+/** `after ` and enough of a name to recognise: less than this and it goes on its own line. */
+const WHY_AFTER = 12
+
+/**
+ * Why each piece of work waits, drawn as the chain it is: the front of the
+ * chain first, and under it whatever waits on it, shifted right and joined by
+ * a line, with the reason given for each wait wrapped under the wait itself.
+ *
+ * The order is the layout's own — the same layering `drawPlan` puts in
+ * columns — so the reasons read in the order the work runs, and the two
+ * drawings can never disagree about what comes first. Nothing is cut without
+ * an `…`, and nothing reaches past `width`.
+ */
+export function drawWhy(
+  boxes: readonly PlanBox[],
+  waits: readonly PlanWhy[],
+  width: number,
+): PlanRun[][] {
+  const byTask = new Map(boxes.map((box) => [box.task, box]))
+  const inside = waits.filter(
+    (wait) => byTask.has(wait.from) && byTask.has(wait.to) && wait.from !== wait.to,
+  )
+  if (inside.length === 0 || width < 8) return []
+  const { columns } = layoutPlan(
+    boxes.map((box) => box.task),
+    inside,
+  )
+  // Where the layout put each piece: which step it is in, and the order down it.
+  const step = new Map<string, number>()
+  const rank = new Map<string, number>()
+  columns.forEach((column, c) => {
+    for (const id of column) {
+      if (!byTask.has(id) || rank.has(id)) continue
+      step.set(id, c)
+      rank.set(id, rank.size)
+    }
+  })
+  const order = (task: string) => rank.get(task) ?? 0
+  // What it hangs from is the last of its waits — the deepest step it is
+  // behind; the rest are said under it, so no reason is lost.
+  const into = (task: string) =>
+    inside
+      .filter((wait) => wait.to === task)
+      .sort(
+        (a, b) =>
+          (step.get(b.from) ?? 0) - (step.get(a.from) ?? 0) || order(a.from) - order(b.from),
+      )
+  const hangs = new Map<string, PlanWhy>()
+  const touched = new Set(inside.flatMap((wait) => [wait.from, wait.to]))
+  for (const task of rank.keys()) {
+    if (!touched.has(task)) continue
+    const first = into(task)[0]
+    if (first) hangs.set(task, first)
+  }
+  const under = new Map<string | null, string[]>()
+  for (const task of rank.keys()) {
+    if (!touched.has(task)) continue
+    const parent = hangs.get(task)?.from ?? null
+    under.set(parent, [...(under.get(parent) ?? []), task])
+  }
+
+  const walked: { task: string; parent: number }[] = []
+  const listed = new Set<string>()
+  const walk = (task: string, parent: number) => {
+    if (listed.has(task) || !byTask.has(task)) return
+    listed.add(task)
+    const at = walked.length
+    walked.push({ task, parent })
+    for (const child of under.get(task) ?? []) walk(child, at)
+  }
+  for (const task of under.get(null) ?? []) walk(task, -1)
+  // Work a ring of waits kept out of the walk is still work: it is said too.
+  for (const task of rank.keys()) if (touched.has(task)) walk(task, -1)
+
+  // A piece at the front of a path that nothing hangs from has no reason of
+  // its own and nothing under it: whatever waits on it says so itself, under
+  // the wait it hangs from. Leaving it in is a line that says nothing — unless
+  // it is the one you are looking at, which is never left out.
+  const kept: { task: string; parent: number }[] = []
+  const place = new Map<number, number>()
+  walked.forEach((entry, i) => {
+    const says =
+      entry.parent >= 0 ||
+      walked.some((other) => other.parent === i) ||
+      byTask.get(entry.task)?.here === true
+    if (!says) return
+    place.set(i, kept.length)
+    kept.push(entry)
+  })
+  const entries = kept.map((entry) => ({
+    task: entry.task,
+    parent: place.get(entry.parent) ?? -1,
+  }))
+
+  const levels = Math.max(1, Math.min(WHY_LEVELS, Math.floor((width - WHY_ROOM - 2) / 2)))
+  const stems = treeStems(
+    entries.map((entry) => entry.parent),
+    levels,
+  )
+  const rows: PlanRun[][] = []
+  entries.forEach((entry, i) => {
+    const box = byTask.get(entry.task)
+    const stem = stems[i]?.stem ?? ''
+    const bars = stems[i]?.bars ?? ''
+    const indent = visibleWidth(stem)
+    const room = Math.max(1, width - indent - 2)
+    if (!box) return
+    const wait = hangs.get(entry.task)
+    const said = wait ? `after ${byTask.get(wait.from)?.name ?? wait.from}` : ''
+    // `after …` sits beside the name with a gap before it, and drops to its
+    // own line only where the two cannot both be read.
+    const whole = visibleWidth(said) > 0 && visibleWidth(box.name) + 2 + visibleWidth(said) <= room
+    const forSaid = Math.max(0, room - Math.min(visibleWidth(box.name), WHY_NAME) - 2)
+    const beside = whole || (said !== '' && forSaid >= WHY_AFTER)
+    const saidRoom = whole ? visibleWidth(said) : forSaid
+    const runs: PlanRun[] = []
+    if (stem) runs.push({ text: stem, tone: 'line' })
+    runs.push({ text: box.mark, tone: box.tone, task: box.task })
+    runs.push({ text: ' ', tone: null })
+    runs.push({
+      text: cut(box.name, beside ? room - 2 - saidRoom : room),
+      tone: box.here === true ? 'here' : null,
+      task: box.task,
+    })
+    if (beside) {
+      runs.push({ text: '  ', tone: null })
+      runs.push({ text: cut(said, saidRoom), tone: 'waiting' })
+    }
+    rows.push(runs)
+
+    // Under it, and inside the line that carries on to whatever waits on it:
+    // the wait it hangs from, and every other wait it is on, each with its
+    // reason. A wait is one line, cut with an `…`; a reason wraps, because a
+    // reason cut short is a reason nobody can act on.
+    const notes: { text: string; tone: PlanTone; whole?: boolean }[] = []
+    if (said !== '' && !beside) notes.push({ text: said, tone: 'waiting', whole: true })
+    if (wait) notes.push({ text: wait.why.trim() || '—', tone: 'hint' })
+    for (const other of into(entry.task).slice(1)) {
+      notes.push({
+        text: `also after ${byTask.get(other.from)?.name ?? other.from}`,
+        tone: 'waiting',
+        whole: true,
+      })
+      notes.push({ text: other.why.trim() || '—', tone: 'hint' })
+    }
+    const carry = bars.padEnd(indent + 1)
+    for (const note of notes) {
+      const lines = note.whole === true ? [cut(note.text, room)] : wrapTo(note.text, room)
+      for (const text of lines) {
+        rows.push([
+          { text: carry, tone: carry.trim() === '' ? null : 'line' },
+          { text: ' ', tone: null },
+          { text, tone: note.tone },
+        ])
+      }
+    }
+  })
+  return rows
+}
+
+/**
+ * Words to a width, broken between words where it can be and through a word
+ * only where one word is wider than the whole room. Nothing comes back wider
+ * than `width`: a reason that ran off the panel is a reason nobody read.
+ */
+function wrapTo(text: string, width: number): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && visibleWidth(`${line} ${word}`) <= width) {
+      line = `${line} ${word}`
+      continue
+    }
+    if (line) lines.push(line)
+    line = word
+    while (visibleWidth(line) > width) {
+      let take = ''
+      for (const char of line) {
+        if (visibleWidth(take + char) > width) break
+        take += char
+      }
+      if (take === '') break
+      lines.push(take)
+      line = line.slice(take.length)
+    }
+  }
+  if (line) lines.push(line)
+  return lines
 }
