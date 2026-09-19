@@ -594,6 +594,29 @@ describe('the bar down the right of what scrolls', () => {
     expect(plain(rows.join('\n'))).toContain('\u2588')
   })
 
+  it('leaves a row of room under the sidebar, and only where it scrolls', () => {
+    const scrolled = draw(state({ scroll: 500 }), tall())
+    const sidebar = scrolled.hits.find((hit) => hit.target.kind === 'scroll')
+    const width = sidebar ? sidebar.to + 1 : 0
+    // Read to the end, the last section has a blank row under it rather than
+    // sitting against the strip below.
+    const drawnRows = scrolled.hits
+      .filter((hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'sidebar')
+      .map((hit) => plain(scrolled.rows[hit.row] ?? ''))
+    const text = drawnRows.map((row) => row.slice(0, width - 1))
+    expect(text.at(-1)?.trim()).toBe('')
+    expect(text.at(-2)?.trim()).not.toBe('')
+    // The thumb is at the foot of its track: the room is part of what scrolls.
+    expect(drawnRows.at(-1)?.[width - 1]).toBe('█')
+    // Nothing to scroll, nothing to add: a bar that says "there is more" when
+    // the more is a blank row is worse than no room at all.
+    const roomy = draw(state({ folded: ['changes', 'files', 'notes', 'where'] }), {
+      ...frame({ width: 100, height: 40 }),
+      skin: COLOUR,
+    })
+    expect(plain(roomy.rows.join('\n'))).not.toContain('█')
+  })
+
   it('says how far back a terminal goes, and marks where typing lands in it', () => {
     const terminals = {
       ...withTerminals(state(), [{ id: 'checkout/terminals/1', project: 'checkout', name: 'x' }]),

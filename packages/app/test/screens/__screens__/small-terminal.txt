@@ -4,7 +4,7 @@
                          █│─────────────────────────────────────────────────────
  ▐ ! stripe-v15  $1.26 ▌ █│    so src/webhooks.ts needs the new constructEvent s
  ▐   wants you to app… ▌ █│                                                     
-                         █│  ▸ Read src/webhooks.ts                             
+                         ▕│  ▸ Read src/webhooks.ts                             
    ⠋ refunds     $0.62   ▕│  ▸ Edit src/webhooks.ts  +12 −4                     
      working             ▕│  ▸ bash npm i stripe@15                             
                          ▕│  ╭─ wants approval ──────────────────────────────╮  

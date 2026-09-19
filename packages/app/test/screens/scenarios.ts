@@ -1089,6 +1089,13 @@ export const SCENARIOS: Scenario[] = [
     frame: frame(),
   },
   {
+    name: 'a-scrolled-sidebar',
+    about:
+      'The sidebar read part-way down its list: the bar on its right is one solid thumb over a quiet track — as long as the share of the list in view, as far down as you have read, and the same cell every row of the way, so it reads as one object rather than a box per row.',
+    state: { ...toggleSection(base(), 'notes'), scroll: 8 },
+    frame: frame(),
+  },
+  {
     name: 'an-agent-not-running',
     about: 'An agent that is not running: one button opens it again.',
     state: focusTask(base(), 'search/pagination'),

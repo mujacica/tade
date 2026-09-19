@@ -26,7 +26,7 @@
    repo     ~/src/checkout   █│  ▸ bash npm i stripe@15                                                                 
    branch   …de/stripe-v15   █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    from     main             █│  │ bash  npm i stripe@15                                        │                       
-   worktree …kout-stripe-v15 █│  │   Allow once     Deny                                        │                       
+   worktree …kout-stripe-v15 ▕│  │   Allow once     Deny                                        │                       
    path     /Users/me/.tade/ ▕│  ╰──────────────────────────────────────────────────────────────╯                       
             worktrees/       ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▴   ━

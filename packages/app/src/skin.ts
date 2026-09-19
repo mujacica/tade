@@ -129,6 +129,20 @@ export interface Skin {
   /** A glyph as a button that takes no room of a block: ` × `, exactly label + 2 columns. */
   icon(label: string, state: IconState): string
 
+  /**
+   * One cell of a scrollbar's track, and one of its thumb — `lit` while the
+   * thumb is held or pointed at. Exactly one column each.
+   *
+   * A bar is one object down the side of a pane, so its cells have to tile:
+   * a glyph on the window's own ground is at the mercy of the font, and the
+   * fonts that draw `█` or `▕` short of the cell leave a hairline between
+   * every row — which reads as a stack of little boxes rather than as a
+   * thumb. So the cell itself is painted, with the block laid on its own
+   * colour: filled where colour exists, still a block where it does not.
+   */
+  scrollTrack(): string
+  scrollThumb(lit: boolean): string
+
   /** A whole row laid on the selection colour, resets and all. */
   selected(row: string): string
   /** A whole row under the pointer: a shade lighter than the ground, and less than selected. */
@@ -232,6 +246,14 @@ const under =
   (row: string): string =>
     `${bg(n)}${row.replaceAll(RESET, `${RESET}${bg(n)}`)}${RESET}`
 
+/**
+ * One cell filled: a glyph laid on its own colour, so the cell is that colour
+ * edge to edge whatever the font does with the glyph. The glyph still matters
+ * — it is what the screen says when the colour is stripped off it, which is
+ * how the golden screens read a bar — but nothing of it is seen.
+ */
+const solid = (tone: number, glyph: string) => `${bg(tone)}${fg(tone)}${glyph}${RESET}`
+
 /** A block in the control's own colour, label centred on its ground. */
 function block(label: string, ground: number, ink: number, bold = false, pad = '  '): string {
   return `${bg(ground)}${fg(ink)}${bold ? BOLD : ''}${pad}${label}${pad}${RESET}`
@@ -320,6 +342,11 @@ export const PLAIN: Skin = {
   // A match is left as it was, for the same reason: the bar says how many
   // there are and which one you are on, and the line it is on is marked.
   found: (text) => text,
+  // Nothing can be filled without colour, so the bar is the two glyphs that
+  // come closest: the thinnest rule there is for the track, the fullest block
+  // for the thumb.
+  scrollTrack: () => '▕',
+  scrollThumb: () => '█',
   button: (label) => `[ ${label} ]`,
   chip: (label) => `[${label}]`,
   tabbed: (label, on) => (on ? `[ ${label} ]` : `  ${label}  `),
@@ -364,6 +391,12 @@ export const COLOUR: Skin = {
   cursor: paint(`${bg(GREY.bright)}${fg(TONE.ink)}`),
   found: (text, on) =>
     paint(on ? `${bg(TONE.amber)}${fg(TONE.ink)}` : `${bg(GREY.control)}${fg(GREY.bright)}`)(text),
+  // The track is the ground a step up from the window, quiet enough to sit
+  // beside a divider without competing with it; the thumb is the grey the
+  // window's rules are drawn in, and while you hold it the grey of anything
+  // said out loud — a handle you have taken hold of should say so.
+  scrollTrack: () => solid(GREY.raised, '▕'),
+  scrollThumb: (lit) => solid(lit ? GREY.quiet : GREY.chrome, '█'),
   button: (label, look, lit) => {
     const [ground, ink, bold] = (lit === true ? LIT[look] : undefined) ?? LOOKS[look]
     return block(label, ground, ink, bold)

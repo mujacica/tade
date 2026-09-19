@@ -17,7 +17,7 @@
                              █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
    we pin major              █│  ▸ bash npm i stripe@15                                                                 
    versions                  █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-                             █│  │ bash  npm i stripe@15                                        │                       
+                             ▕│  │ bash  npm i stripe@15                                        │                       
  ▐ refunds go        ×  ≡  ▌ ▕│  │   Allow once     Deny                                        │                       
  ▐ through the ledger ser… ▌ ▕│  ╰──────────────────────────────────────────────────────────────╯                       
                              ▕│                                                                                         

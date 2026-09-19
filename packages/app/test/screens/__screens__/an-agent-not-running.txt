@@ -16,7 +16,7 @@
      package.json            █│                                                                                         
      README.md               █│                                                                                         
                              █│                                                                                         
- ▸ NOTES  4             +    █│                                                                                         
+ ▸ NOTES  4             +    ▕│                                                                                         
  ▾ GIT                       ▕│                                                                                         
    repo     ~/src/checkout   ▕│                                                                                         
    branch   …de/stripe-v15   ▕│                                                                                         

@@ -69,16 +69,21 @@ export function offsetAt(view: Scrolled, row: number): number {
  * The rows of the bar itself, top to bottom. `lit` while it is being dragged or
  * pointed at.
  *
- * The track is a thin rule rather than a full one: the bar sits beside the
- * window's own dividers, and two `│` next to each other read as a mistake.
+ * Every row of the thumb is the very same cell and every row of the track is
+ * the very same cell, both of them filled by the skin rather than drawn as a
+ * glyph on the window's ground: a thumb is one object, and a bar whose rows
+ * are each their own little box says the opposite of what it is for. Which
+ * two tones they are is the skin's to say — a scrollbar that picked its own
+ * greys would be the one part of the window outside the palette.
+ *
  * Drawn even where nothing scrolls, because a column that comes and goes
  * reflows everything beside it every time output arrives.
  */
 export function barRows(view: Scrolled, skin: Skin, lit: boolean): string[] {
   const thumb = thumbOf(view)
-  const track = skin.faded('▕')
-  const paint = lit ? skin.you : skin.hint
+  const track = skin.scrollTrack()
+  const held = skin.scrollThumb(lit)
   return Array.from({ length: Math.max(0, view.rows) }, (_, row) =>
-    thumb && row >= thumb.from && row < thumb.from + thumb.size ? paint('█') : track,
+    thumb && row >= thumb.from && row < thumb.from + thumb.size ? held : track,
   )
 }

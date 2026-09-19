@@ -872,6 +872,12 @@ function renderSidebar(
     out.push(head.build())
     if (open) out.push(...section.rows(make))
   })
+  // A row of room under the last one, where there is scrolling to do: read to
+  // the end, the bottom section otherwise sits hard against the strip below
+  // it, which looks like a list cut off rather than a list that has ended.
+  // Only where it scrolls, because a bar that appears to say "there is more"
+  // when the more is a blank row is worse than no margin at all.
+  if (out.length > height) out.push(blank(width))
   // Tailing is for screens that grow at the bottom; a sidebar is read from the
   // top, so it scrolls, and never past its last row.
   const scroll = Math.max(0, Math.min(state.scroll, out.length - height))

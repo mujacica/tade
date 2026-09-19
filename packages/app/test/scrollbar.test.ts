@@ -1,6 +1,7 @@
+import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { barRows, offsetAt, type Scrolled, thumbOf } from '../src/scrollbar.ts'
-import { PLAIN } from '../src/skin.ts'
+import { COLOUR, PLAIN } from '../src/skin.ts'
 
 // The bar has one job a person checks by eye and one they check by hand: that
 // where the thumb is says where you are, and that dragging it there takes you
@@ -70,5 +71,44 @@ describe('the bar itself', () => {
     const rows = barRows(view({ total: 100, shown: 10, offset: 45, rows: 10 }), PLAIN, false)
     expect(rows.filter((row) => row === '█')).toHaveLength(1)
     expect(rows.indexOf('█')).toBe(5)
+  })
+
+  // The bug this guards: a thumb drawn as a glyph on the window's own ground
+  // is a separate little box on every row, and in a font that draws the block
+  // short of the cell there is a hairline between each of them. One object,
+  // one cell repeated — so every row of it has to be the same painted cell.
+  it('is the very same painted cell all the way down the thumb, and down the track', () => {
+    const rows = barRows(view({ total: 100, shown: 40, offset: 30, rows: 10 }), COLOUR, false)
+    const thumb = rows.filter((row) => stripTerminalSequences(row) === '█')
+    const track = rows.filter((row) => stripTerminalSequences(row) !== '█')
+    expect(thumb.length).toBeGreaterThan(1)
+    expect(track.length).toBeGreaterThan(1)
+    expect(new Set(thumb).size).toBe(1)
+    expect(new Set(track).size).toBe(1)
+    // Painted cells, not ink on the window: a filled cell has no gap in it
+    // whatever the font does with the glyph.
+    const ground = new RegExp(`${String.fromCharCode(27)}\\[48;5;\\d+m`)
+    for (const row of rows) expect(row).toMatch(ground)
+    // And the two are told apart by their tone, not by one of them being blank.
+    expect(thumb[0]).not.toBe(track[0])
+  })
+
+  it('is one run of thumb, never two, wherever you are in what it stands for', () => {
+    for (const offset of [0, 1, 17, 44, 80]) {
+      const rows = barRows(view({ total: 100, shown: 20, offset, rows: 12 }), COLOUR, false)
+      const cells = rows.map((row) => stripTerminalSequences(row)).join('')
+      // Track, thumb, track: the thumb is a single span with nothing in it.
+      expect(cells).toMatch(/^▕*█+▕*$/)
+    }
+  })
+
+  it('lights without coming apart: still one cell, still filled', () => {
+    const held = barRows(view({ total: 100, shown: 40, offset: 30, rows: 10 }), COLOUR, true)
+    const rest = barRows(view({ total: 100, shown: 40, offset: 30, rows: 10 }), COLOUR, false)
+    const thumbOfBar = (rows: string[]) => rows.filter((row) => stripTerminalSequences(row) === '█')
+    expect(new Set(thumbOfBar(held)).size).toBe(1)
+    // The same rows, a brighter cell: taking hold of it must not move it.
+    expect(thumbOfBar(held)).not.toEqual(thumbOfBar(rest))
+    expect(thumbOfBar(held)).toHaveLength(thumbOfBar(rest).length)
   })
 })
