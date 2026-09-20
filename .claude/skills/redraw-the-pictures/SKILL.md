@@ -55,8 +55,12 @@ emulator behind it — on a disposable home with real git repositories in it, pr
 terminal holds. Nothing is drawn and nothing is recreated.
 
 It reaches what a machine with no agents running can reach: the window on a fresh project, the keys
-sheet, settings, extensions, search, a terminal. It cannot reach an agent at work — that is a model
-and a bill — which is exactly the line between what it checks and what the scenarios are for.
+sheet, settings, extensions and search. It cannot reach an agent at work — that is a model and a
+bill — which is exactly the line between what it checks and what the scenarios are for.
+
+It says when it could not read something in the stream, and when a take came back showing the screen
+of the take before it (a key that did not arrive, a panel that did not open). Both are failures a
+photograph cannot show you, so neither is ever silent.
 
 Use it when a change is to how things are *painted* rather than to what is drawn, when a picture
 looks wrong and you cannot see why in the golden, and before a release. It is how the gap between

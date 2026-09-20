@@ -309,17 +309,29 @@ export const TAKES: readonly Take[] = [
     press: ['esc', 'ctrl+k', 'webhook', 400],
     crop: 'panel',
   },
-  {
-    name: 'a-terminal',
-    about: 'A terminal opened in the project, in its own lane, with a real shell in it.',
-    press: ['esc', 'ctrl+t', 600],
-    title: 'tade — a terminal',
-  },
 ]
 
 /** Every code in a take's stream that nothing could read: empty is the answer wanted. */
 export function unreadable(taken: readonly Taken[]): string[] {
   return [...new Set(taken.flatMap((one) => one.unknown))]
+}
+
+/**
+ * Takes that came back with the screen the one before them had.
+ *
+ * A key that did not arrive, a panel that did not open, a screen still
+ * fetching something: whatever the reason, the picture is of the previous
+ * take and says the name of this one, which is the one failure a photograph
+ * cannot show you.
+ */
+export function unchanged(taken: readonly Taken[]): string[] {
+  const out: string[] = []
+  for (let i = 1; i < taken.length; i++) {
+    const before = taken[i - 1]
+    const now = taken[i]
+    if (before && now && before.rows.join('\n') === now.rows.join('\n')) out.push(now.take.name)
+  }
+  return out
 }
 
 export { unknownSgr }

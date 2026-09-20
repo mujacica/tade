@@ -5,7 +5,7 @@ import { draw } from '../src/view.ts'
 import { SCENARIOS } from '../test/screens/scenarios.ts'
 import { ansiToHtml } from './ansi-html.ts'
 import { cropGrid, shot } from './ansi-svg.ts'
-import { capture, TAKES, unreadable } from './capture.ts'
+import { capture, TAKES, unchanged, unreadable } from './capture.ts'
 import { panelBox, writePictures } from './pictures.ts'
 
 // A page of every protected screen, in colour, for a person to look at, the
@@ -57,8 +57,11 @@ if (live >= 0) {
   }
   const missed = unreadable(taken)
   // Said, never swallowed: a picture drawn from a stream nobody could read
-  // looks exactly like one that was read.
+  // looks exactly like one that was read, and so does one of the screen
+  // before it.
   if (missed.length > 0) process.stdout.write(`could not read: ${missed.join(', ')}\n`)
+  const same = unchanged(taken)
+  if (same.length > 0) process.stdout.write(`showed the screen before it: ${same.join(', ')}\n`)
   process.stdout.write(`${dir} · ${taken.length} photographed\n`)
   process.exit(0)
 }
