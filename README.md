@@ -1,13 +1,3 @@
-```
- ████████╗  █████╗  ██████╗  ███████╗
- ╚══██╔══╝ ██╔══██╗ ██╔══██╗ ██╔════╝
-    ██║    ███████║ ██║  ██║ █████╗
-    ██║    ██╔══██║ ██║  ██║ ██╔══╝
-    ██║    ██║  ██║ ██████╔╝ ███████╗
-    ╚═╝    ╚═╝  ╚═╝ ╚═════╝  ╚══════╝
-      ·  ·  ·   said, and done   ·  ·  ·
-```
-
 # Tade — **T**erminal **A**gentic **D**evelopment **E**nvironment
 
 ### Say what you want done. Watch a team of coding agents do it — in one terminal window.
