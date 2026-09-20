@@ -2637,9 +2637,7 @@ function renderMain(
             // The agent's half ends above its approval card, exactly as the
             // whole pane does when there is no split: a screen drawn under
             // one is a sentence the card is sitting on.
-            pane.approval && kindOf(shown) === 'agent'
-              ? Math.max(1, h - APPROVAL_ROWS - 1)
-              : h,
+            pane.approval && kindOf(shown) === 'agent' ? Math.max(1, h - APPROVAL_ROWS - 1) : h,
             skin,
             pointer,
             frame.linkers,

@@ -75,6 +75,9 @@ const escapeXml = (text: string) =>
  */
 const round = (n: number) => `${Math.round(n * 100) / 100}`
 
+/** The middle of the nearest pixel, for a line a pixel wide. */
+const crisp = (n: number) => Math.round(n - 0.5) + 0.5
+
 /**
  * A cell with its colours worked out: ink that is never nothing, and a ground
  * that is nothing only where the terminal's own shows through.
@@ -190,8 +193,14 @@ function rules(paper: Paper, originX: number, originY: number): string[] {
       const fill = here.ink
       const left = originX + x * CW
       const top = originY + y * CH
-      const cx = left + CW / 2
-      const cy = top + CH / 2
+      // A rule runs down the middle of its cells, and a cell is 8.4 wide, so
+      // that middle lands wherever it lands — half over one pixel and half
+      // over the next, which a renderer draws as two grey ones. Pulled to the
+      // middle of a pixel it is one clean line instead, and moving it by less
+      // than half a pixel cannot put it in the wrong column. The corners are
+      // pulled with it, or they would meet the line a hair off.
+      const cx = crisp(left + CW / 2)
+      const cy = crisp(top + CH / 2)
       // A straight run — the rules the window is mostly made of — is one line
       // however long it is.
       const straight = (along: 'x' | 'y') => {
