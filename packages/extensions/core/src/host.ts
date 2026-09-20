@@ -7,6 +7,8 @@ import type {
   Audience,
   BriefItem,
   Caller,
+  CautionAnswer,
+  CautionRequest,
   ExecResult,
   ExtensionAction,
   ExtensionContext,
@@ -18,6 +20,7 @@ import type {
   Link,
   Linker,
   ListRow,
+  MeantRequest,
   ProjectRef,
   StatusItem,
   TadeExtension,
@@ -146,6 +149,8 @@ export interface WatchOffer {
   every: string
   /** What it can be turned on with; null when nothing. */
   input: JsonSchema | null
+  /** What it is for when nobody says: work started on each finding, or somebody told. */
+  offers: 'ask' | 'agent'
   /** Why it cannot look now — its extension needs setting up, is off, is broken — or null. */
   problem: string | null
 }
@@ -172,6 +177,14 @@ function notReady(entry: Entry): string | null {
   return state === 'needs setup'
     ? `${title} needs setting up${because}`
     : `${title} is broken${because}`
+}
+
+/** One asker's own stop, which also stops when whoever asked has stopped waiting. */
+function stopAt(signal: AbortSignal | undefined): AbortController {
+  const controller = new AbortController()
+  if (signal?.aborted) controller.abort()
+  else signal?.addEventListener('abort', () => controller.abort(), { once: true })
+  return controller
 }
 
 /** A promise that settles in time, or is given up on — its work told to stop — with why. */
@@ -222,6 +235,18 @@ const TOOL_TIMEOUT_MS = 10 * 60_000
 /** A watch's look is meant to be cheap: a minute is already a slow one. */
 const WATCH_TIMEOUT_MS = 60_000
 const BRIEF_TIMEOUT_MS = 10_000
+/**
+ * An agent is held at a tool call while this is asked, so it is the shortest
+ * deadline there is: past it, the call is answered the way it would have been
+ * answered with nobody reading it at all.
+ */
+const CAUTION_TIMEOUT_MS = 4_000
+/**
+ * Somebody is looking at the box while this is asked, and what they typed is
+ * still being matched the way it always was: past this, they have their
+ * answer already and a later one would move the list under their hands.
+ */
+const MEANT_TIMEOUT_MS = 2_500
 
 export class ExtensionHost {
   private readonly entries: Entry[]
@@ -660,6 +685,7 @@ export class ExtensionHost {
         means: watch.means,
         every: watch.every,
         input: watch.input ?? null,
+        offers: watch.offers ?? 'agent',
         problem: notReady(entry),
       })),
     )
@@ -690,6 +716,8 @@ export class ExtensionHost {
       since: string | null
       turnedOn: string
       timeoutMs?: number
+      /** The window, for a watch that looks at what Tade is running. */
+      tade?: ExtensionWorkbench | null
     },
   ): Promise<{
     found: Finding[]
@@ -708,6 +736,7 @@ export class ExtensionHost {
       input: request.input,
       since: request.since,
       turnedOn: request.turnedOn,
+      tade: request.tade ?? null,
       signal: controller.signal,
     }
     const limit = request.timeoutMs ?? WATCH_TIMEOUT_MS
@@ -729,8 +758,16 @@ export class ExtensionHost {
       found,
       since: looked.since ?? request.since,
       agent: async (finding) => {
+        // A watch with nothing to start is not a broken one: it is told to
+        // somebody, which is what it said it was for.
+        const ask = watch.agent
+        if (!ask) {
+          throw new Error(
+            `${id} has nothing to start work on: what it finds is told to the orchestrator`,
+          )
+        }
         const agent = await inTime(
-          Promise.resolve().then(() => watch.agent(finding, ctx)),
+          Promise.resolve().then(() => ask(finding, ctx)),
           limit,
           `${id} took longer than ${Math.round(limit / 1000)}s to say what to tell an agent about ${finding.key}`,
           controller,
@@ -913,6 +950,87 @@ export class ExtensionHost {
     return { items, problems }
   }
 
+  /**
+   * What the extensions make of a tool call the rules let through, with the
+   * agent waiting: the strictest thing any of them says, or nothing.
+   *
+   * It can only ever come back stricter — `withCaution` is what applies it,
+   * and there is no answer here that allows anything. One that fails or runs
+   * late is left out and said in `problems`, because a gate that quietly
+   * stopped reading is the silence this whole path exists to avoid.
+   */
+  async caution(
+    request: CautionRequest,
+    timeoutMs = CAUTION_TIMEOUT_MS,
+  ): Promise<{ caution: (CautionAnswer & { by: string }) | null; problems: string[] }> {
+    const answers: (CautionAnswer & { by: string })[] = []
+    const problems: string[] = []
+    await Promise.all(
+      this.ready().map(async (entry) => {
+        const read = entry.extension.caution
+        if (!read) return
+        // Its own, so the deadline actually stops the work rather than only
+        // stopping the waiting: what is late is money nobody is going to use.
+        const controller = stopAt(request.signal)
+        try {
+          const said = await inTime(
+            Promise.resolve().then(() =>
+              read(entry.ctx, { ...request, signal: controller.signal }),
+            ),
+            timeoutMs,
+            `it did not answer within ${timeoutMs}ms`,
+            controller,
+          )
+          if (said) answers.push({ ...said, by: entry.extension.name })
+        } catch (err) {
+          problems.push(`${entry.extension.title}: ${why(err)}`)
+        }
+      }),
+    )
+    const hard = answers.find((answer) => answer.tier === 'hard')
+    return { caution: hard ?? answers[0] ?? null, problems }
+  }
+
+  /**
+   * Which of the things in front of somebody they meant, asked of whoever
+   * offers to read a sentence. Only ids that were offered come back, in the
+   * order they were answered, and one extension failing never hides another's
+   * answer: what is in the box is already matched the ordinary way, and this
+   * can only add to it.
+   */
+  async meant(
+    request: MeantRequest,
+    timeoutMs = MEANT_TIMEOUT_MS,
+  ): Promise<{ ids: string[]; problems: string[] }> {
+    const offered = new Set(request.choices.map((choice) => choice.id))
+    const ids: string[] = []
+    const problems: string[] = []
+    await Promise.all(
+      this.ready().map(async (entry) => {
+        const read = entry.extension.meant
+        if (!read) return
+        const controller = stopAt(request.signal)
+        try {
+          const said = await inTime(
+            Promise.resolve().then(() =>
+              read(entry.ctx, { ...request, signal: controller.signal }),
+            ),
+            timeoutMs,
+            `it did not answer within ${timeoutMs}ms`,
+            controller,
+          )
+          // Only what was offered: an id nobody put in front of it is not an
+          // answer to this question, and the window would not know what to do
+          // with one anyway.
+          for (const id of said) if (offered.has(id) && !ids.includes(id)) ids.push(id)
+        } catch (err) {
+          problems.push(`${entry.extension.title}: ${why(err)}`)
+        }
+      }),
+    )
+    return { ids, problems }
+  }
+
   /** What the orchestrator is told: each extension it can use, and those it cannot yet. */
   orchestratorPrompt(): string {
     const lines: string[] = []
@@ -1042,6 +1160,7 @@ function asExtension(tade: ExtensionWorkbench, name: string): ExtensionWorkbench
   return {
     pid: tade.pid,
     lanes: () => tade.lanes(),
+    agents: () => tade.agents(),
     startAgent: (request) => tade.startAgent({ ...request, by: `extension:${name}` }),
   }
 }
@@ -1125,8 +1244,14 @@ export function shapeProblem(extension: TadeExtension): string | null {
     if (watch.input && watch.input.type !== 'object') {
       return `its watch ${watch.id} takes input that is not an object`
     }
-    if (typeof watch.check !== 'function' || typeof watch.agent !== 'function') {
-      return `its watch ${watch.id} needs a check and an agent`
+    if (typeof watch.check !== 'function') {
+      return `its watch ${watch.id} needs a check`
+    }
+    // A watch may have nothing to start — what it finds is already going, and
+    // badly — but only one that says so, because everything else is turned on
+    // to start work by default and would fail at the first finding.
+    if (typeof watch.agent !== 'function' && watch.offers !== 'ask') {
+      return `its watch ${watch.id} has no agent, so it must say offers: 'ask'`
     }
   }
   const lists = new Set<string>()

@@ -21,6 +21,7 @@ import { type Linker, linkedRow } from './links.ts'
 import {
   type AgentPane,
   type AppState,
+  agentsHere,
   chainOf,
   conversing,
   doneTasks,
@@ -732,6 +733,13 @@ interface Section {
   id: string
   label: string
   count: number | null
+  /**
+   * What the count is out of, where the list is showing fewer rows than the
+   * section holds — hiding the finished agents says `1/14`, not `1`, because a
+   * badge that shrinks as things are hidden reads as agents having gone away.
+   * Equal to `count` when nothing is hidden, and then only the count is drawn.
+   */
+  of?: number
   /** Rows when unfolded. At least one, so an open section never looks broken. */
   rows: (row: () => Row) => { text: string; hits: Hit[] }[]
   /** Its heading's controls, the main one last: the `+` sits against the edge. */
@@ -763,12 +771,14 @@ function renderSidebar(
   // closes. Neither control is drawn while there is nothing finished to act
   // on — except the eye while it is hiding, which has to stay reachable.
   const done = doneTasks(state).length
+  const all = agentsHere(state).length
 
   const sections: Section[] = [
     {
       id: 'agents',
       label: 'AGENTS',
       count: tasks.length,
+      of: all,
       actions: [
         ...(done > 0 || state.hidingDone
           ? [
@@ -797,7 +807,15 @@ function renderSidebar(
         tasks.length === 0
           ? [
               blank(width),
-              row().space(3).text('none yet — + starts one', skin.hint).build(),
+              row()
+                .space(3)
+                // Hiding every agent there is leaves an empty list that would
+                // otherwise say nobody has ever started one.
+                .text(
+                  all === 0 ? 'none yet — + starts one' : `${all} finished — ◉ shows them`,
+                  skin.hint,
+                )
+                .build(),
               blank(width),
             ]
           : tabList(
@@ -886,7 +904,8 @@ function renderSidebar(
         section: section.id,
       })
     const shown = headingFit(head.used, width, section, skin)
-    if (shown.count) head.space().badge(section.count ?? 0)
+    const badge = shown.count === false ? null : badgeText(section, shown.count)
+    if (badge !== null) head.space().badge(badge)
     if (shown.actions.length > 0) {
       head.right((r) => {
         headingControls(r, shown.actions, pointer)
@@ -926,32 +945,63 @@ function renderSidebar(
   return { rows: stacked.rows, hits: [...under, ...stacked.hits] }
 }
 
+/** How much of a section's badge is drawn: the fraction, the count alone, or none. */
+type Badge = 'full' | 'short' | false
+
+/**
+ * What a section's badge says, or nothing where there is nothing to say: how
+ * many rows it lists, and — `full`, where it is listing fewer than it holds —
+ * what that is out of. `0/14` is worth drawing where a plain `0` is not: it is
+ * the difference between no agents and fourteen agents out of sight.
+ */
+function badgeText(section: Section, how: Exclude<Badge, false>): string | null {
+  if (section.count === null) return null
+  if (how === 'full' && section.of !== undefined && section.of !== section.count)
+    return `${section.count}/${section.of}`
+  return section.count > 0 ? String(section.count) : null
+}
+
+/** The columns a badge would take, or none where there is no badge to draw. */
+function badgeWidth(section: Section, how: Exclude<Badge, false>): number {
+  const text = badgeText(section, how)
+  return text === null ? 0 : 1 + text.length + 2
+}
+
 /**
  * What a heading has room for, beside its own label.
  *
- * Short of columns it gives up its count first — the list under it is the
- * count — then its small controls, the one nearest the button first, because
- * a heading that keeps the button it is there for is worth more than one that
- * keeps everything and draws none of it.
+ * Short of columns it gives up what its count is out of first, then the count
+ * itself — the list under it is the count — then its small controls, the one
+ * nearest the button first, because a heading that keeps the button it is
+ * there for is worth more than one that keeps everything and draws none of it.
+ * The two steps of badge matter: hiding the finished agents must never be what
+ * takes the count off the heading, or shutting the eye would read as the
+ * agents having gone rather than as the list being narrowed.
  */
 function headingFit(
   label: number,
   width: number,
   section: Section,
   skin: Skin,
-): { count: boolean; actions: SectionAction[] } {
+): { count: Badge; actions: SectionAction[] } {
   const all = section.actions ?? []
   const small = all.filter((action) => action.small)
   const main = all.filter((action) => !action.small)
-  const counted = section.count !== null && section.count > 0
-  const badge = counted ? 1 + String(section.count).length + 2 : 0
+  const sizes: Array<Exclude<Badge, false>> = ['full', 'short']
   for (let kept = small.length; kept >= 0; kept--) {
     const actions = [...small.slice(0, kept), ...main]
     const room = label + (actions.length > 0 ? 1 + headingWidth(actions, width, skin) : 0)
-    if (counted && room + badge <= width) return { count: true, actions }
+    for (const how of sizes) {
+      const badge = badgeWidth(section, how)
+      if (badge > 0 && room + badge <= width) return { count: how, actions }
+    }
     if (room <= width) return { count: false, actions }
   }
-  return { count: counted && label + badge <= width, actions: [] }
+  for (const how of sizes) {
+    const badge = badgeWidth(section, how)
+    if (badge > 0 && label + badge <= width) return { count: how, actions: [] }
+  }
+  return { count: false, actions: [] }
 }
 
 /**

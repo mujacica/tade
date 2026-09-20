@@ -252,6 +252,7 @@ describe('running a tool', () => {
     const window = {
       pid: 1,
       lanes: () => [],
+      agents: () => [],
       startAgent: async (request: { title: string; by?: string }) => {
         asked.push(request)
         return { task: 'shop/umbrella', worktree: '/src/shop' }
@@ -343,6 +344,8 @@ describe('watching', () => {
         means: 'Looks for rain over a project, and starts an agent to bring the washing in.',
         every: '30m',
         input: expect.objectContaining({ type: 'object' }),
+        // What it is for when nobody says: this one starts work on what it finds.
+        offers: 'agent',
         problem: null,
       },
     ])
@@ -534,6 +537,7 @@ describe('changing extensions while the window is open', () => {
     const tade = {
       pid: 1,
       lanes: () => [],
+      agents: () => [],
       startAgent: async () => ({ task: 'x/y', worktree: '/tmp' }),
     }
     const [section] = await loaded.lists(tade)
@@ -564,6 +568,7 @@ describe('changing extensions while the window is open', () => {
     const [section] = await loaded.lists({
       pid: 1,
       lanes: () => [],
+      agents: () => [],
       startAgent: async () => ({ task: 'x/y', worktree: '/tmp' }),
     })
     expect(section?.rows).toEqual([])
@@ -664,5 +669,147 @@ describe('a key an extension asks for', () => {
       ready: (ctx) => (ctx.secret('key') ? null : 'no key'),
     } as Partial<TadeExtension>)
     expect(loaded.list()[0]?.problem).toContain('does not declare')
+  })
+})
+
+describe('a second reading of a command', () => {
+  const asking = {
+    project: 'checkout',
+    task: 'checkout/refunds',
+    worktree: '/work/wt/checkout-refunds',
+    tool: 'bash',
+    command: 'terraform destroy -auto-approve',
+    input: { command: 'terraform destroy -auto-approve' },
+    decided: { tier: 'soft' as const, rule: 'command', reason: 'runs a command' },
+    signal: new AbortController().signal,
+  }
+
+  it('asks whoever offered to read one, and says who said it', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        caution: async () => ({
+          tier: 'hard',
+          reason: 'changes something other people share',
+          version: 'w-1',
+        }),
+      },
+    )
+    expect(await loaded.caution(asking)).toEqual({
+      caution: {
+        tier: 'hard',
+        reason: 'changes something other people share',
+        version: 'w-1',
+        by: 'weather',
+      },
+      problems: [],
+    })
+  })
+
+  it('asks nobody when nobody offered, and nothing is added', async () => {
+    expect(await (await host()).caution(asking)).toEqual({ caution: null, problems: [] })
+  })
+
+  it('is never asked of an extension that is off', async () => {
+    let asked = false
+    const loaded = await host(
+      { city: 'Vienna', enabled: false },
+      {
+        caution: async () => {
+          asked = true
+          return { tier: 'hard' as const, reason: 'no' }
+        },
+      },
+    )
+    expect(await loaded.caution(asking)).toEqual({ caution: null, problems: [] })
+    expect(asked).toBe(false)
+  })
+
+  it('gives up on one that answers too late, and says so', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        caution: () => new Promise(() => {}),
+      },
+    )
+    const read = await loaded.caution(asking, 20)
+    // An agent is waiting: late is today's answer, arriving on time.
+    expect(read.caution).toBeNull()
+    expect(read.problems[0]).toMatch(/did not answer within 20ms/)
+  })
+
+  it('takes the strictest of them, and one that fails never hides another', async () => {
+    const reader = (name: string, caution: TadeExtension['caution']): TadeExtension => ({
+      name,
+      title: name,
+      description: `Reads a command, as ${name}.`,
+      ...(caution ? { caution } : {}),
+    })
+    const loaded = await ExtensionHost.load({
+      builtin: [
+        reader('quiet', async () => ({
+          tier: 'soft',
+          reason: 'does more than its first word suggests',
+        })),
+        reader('broken', async () => {
+          throw new Error('no key')
+        }),
+        reader('loud', async () => ({
+          tier: 'hard',
+          reason: 'could destroy something that cannot be got back',
+        })),
+      ],
+      config: { extensions: {}, projects },
+      home: '/home',
+    })
+    const read = await loaded.caution(asking)
+    expect(read.caution).toMatchObject({ tier: 'hard', by: 'loud' })
+    expect(read.problems).toEqual(['broken: no key'])
+  })
+
+  it('a reading that throws holds nothing up, and is not silent about it', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        caution: async () => {
+          throw new Error('no key')
+        },
+      },
+    )
+    const read = await loaded.caution(asking)
+    expect(read.caution).toBeNull()
+    expect(read.problems).toEqual(['Weather: no key'])
+  })
+})
+
+describe('a sentence somebody typed into search', () => {
+  const asking = {
+    said: 'stop whoever is on the refunds thing',
+    choices: [
+      { id: 'stop:checkout/refunds', label: 'Stop refunds', detail: 'in checkout' },
+      { id: 'run:new-agent', label: 'New agent' },
+    ],
+    signal: new AbortController().signal,
+  }
+
+  it('asks whoever reads sentences, and keeps only what was offered', async () => {
+    const loaded = await host(
+      { city: 'Vienna' },
+      {
+        // An id nobody put in front of it is not an answer to this question.
+        meant: async () => ['run:new-agent', 'run:quit'],
+      },
+    )
+    expect(await loaded.meant(asking)).toEqual({ ids: ['run:new-agent'], problems: [] })
+  })
+
+  it('shows nothing when nobody reads them, or when one is late', async () => {
+    expect(await (await host()).meant(asking)).toEqual({ ids: [], problems: [] })
+    const slow = await host({ city: 'Vienna' }, { meant: () => new Promise(() => {}) })
+    const answer = await slow.meant(asking, 20)
+    // Somebody is watching the box: a late answer would move the list under
+    // their hands, so it is never shown.
+    expect(answer.ids).toEqual([])
+    expect(answer.problems[0]).toMatch(/did not answer within 20ms/)
   })
 })

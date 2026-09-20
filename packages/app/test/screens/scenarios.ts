@@ -648,6 +648,57 @@ const runEvent = (type: 'run_started' | 'run_exited', task: string, ts: string):
   detail: type === 'run_started' ? { model: 'anthropic/claude-opus-5' } : {},
 })
 
+const commitSeen = (
+  task: string | null,
+  added: number,
+  removed: number,
+  files: number,
+): TadeEvent => ({
+  seq: ++seq,
+  ts: '2026-09-13T13:30:00.000Z',
+  type: 'commit_seen',
+  urgency: 'routine',
+  task,
+  lane: null,
+  run: null,
+  detail: {
+    sha: `c${String(seq).padStart(7, '0')}`,
+    project: (task ?? 'checkout/x').split('/')[0],
+    attributed: task !== null,
+    added,
+    removed,
+    files,
+  },
+})
+
+const checkRan = (check: string, state: string, ms: number): TadeEvent => ({
+  seq: ++seq,
+  ts: '2026-09-13T13:31:00.000Z',
+  type: 'check_ran',
+  urgency: 'routine',
+  task: 'checkout/stripe-v15',
+  lane: null,
+  run: null,
+  detail: { run: `r${seq}`, check, state, required: true, where: 'here', runner: 'local', ms },
+})
+
+/**
+ * What the same morning produced: what the money bought. One commit belongs to
+ * nobody, which is what a person committing by hand in the shared checkout
+ * looks like, and is always an allowed answer.
+ */
+const made = [
+  commitSeen('checkout/stripe-v15', 214, 38, 9),
+  commitSeen('checkout/refunds', 96, 12, 4),
+  commitSeen('search/pagination', 41, 7, 2),
+  commitSeen(null, 6, 1, 1),
+  checkRan('types', 'passed', 21_400),
+  checkRan('types', 'passed', 19_900),
+  checkRan('tests', 'failed', 46_200),
+  checkRan('tests', 'passed', 44_800),
+  checkRan('format', 'passed', 1_900),
+]
+
 /** The same morning's runs: two agents still going, one that finished. */
 const ran = [
   runEvent('run_started', 'checkout/stripe-v15', '2026-09-13T13:05:00.000Z'),
@@ -1784,6 +1835,7 @@ export const SCENARIOS: Scenario[] = [
         projects: ['checkout', 'search', 'infra'],
         budgets: { checkout: { usd_per_day: 5 } },
         runs: ran,
+        made,
       }),
     }),
   },

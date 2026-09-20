@@ -290,7 +290,15 @@ import {
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { BAR } from './scrollbar.ts'
-import { parseOpenId, parseQuery, type SearchEntry, searchResults, TEXT_MIN } from './search.ts'
+import {
+  parseOpenId,
+  parseQuery,
+  type SearchEntry,
+  searchResults,
+  shortlist,
+  TEXT_MIN,
+  worthAsking,
+} from './search.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
@@ -352,6 +360,12 @@ const STATUS_MS = 5_000
 const SLOW_LOOK_MS = 2_000
 /** How often the clipboard is looked at for a picture, while the orchestrator's line is open. */
 const CLIPBOARD_MS = 3_000
+/**
+ * How many of the things Tade can do are put to whoever reads a sentence
+ * typed into search. Enough that the right one is nearly always among them,
+ * few enough that the question stays about this person's sentence.
+ */
+const MEANT_CHOICES = 24
 
 /** A stuck key must not record until the disk is full. */
 const MAX_SPEECH_MS = 120_000
@@ -877,6 +891,15 @@ export class App {
   private grepTimer: NodeJS.Timeout | null = null
   /** Search's results for the last query, so a redraw does not rank every file again. */
   private results: { key: string; entries: SearchEntry[] } | null = null
+  /**
+   * What somebody made of the last sentence typed into search, and which
+   * sentence it was about: shown only while that sentence is still in the box,
+   * because an answer to what was there before moves the list under your hands.
+   */
+  private meant: { said: string; entries: SearchEntry[] } | null = null
+  private askingAbout: string | null = null
+  private askingWith: AbortController | null = null
+  private askTimer: NodeJS.Timeout | null = null
   /** The models an agent can be started on, once they have been read. */
   private models: ModelChoice[] = []
   /**
@@ -1350,6 +1373,7 @@ export class App {
             openedAt: this.openedAt,
             projects: projects(this.state),
             runs: live.runs,
+            made: live.produced,
             budgets: Object.fromEntries(
               Object.entries(this.opts.config.projects).map(([name, project]) => [
                 name,
@@ -2623,7 +2647,10 @@ export class App {
         void this.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
       }
     }
-    if (outcome.panel?.kind === 'search') this.lookInFiles()
+    if (outcome.panel?.kind === 'search') {
+      this.lookInFiles()
+      this.askWhatIsMeant()
+    }
     this.draw()
     if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel, outcome.choice)
   }
@@ -2892,6 +2919,7 @@ export class App {
     const matches = this.grepped.text === text ? this.grepped.matches : []
     const key = [
       panel.query,
+      this.meant?.said === panel.query ? this.meant.entries.length : -1,
       this.searchFiles?.at ?? 0,
       this.grepped.text,
       matches.length,
@@ -2906,6 +2934,7 @@ export class App {
           files: this.searchFiles?.files ?? [],
           matches,
           terminals: this.terminalTexts,
+          ...(this.meant?.said === panel.query ? { meant: this.meant.entries } : {}),
         }),
       }
     }
@@ -2943,6 +2972,67 @@ export class App {
         this.draw()
       })
     }, 150)
+  }
+
+  /**
+   * Put a sentence to whoever reads sentences, a moment after typing stops.
+   *
+   * Only a sentence, and only one whose letters found nothing — search matches
+   * letters, and that is still what answers first and what answers instantly.
+   * This can only ever add rows to what is already there, and if it is late,
+   * or wrong, or nobody answers, search is what it has always been.
+   */
+  private askWhatIsMeant(): void {
+    const panel = this.state.panel
+    if (panel?.kind !== 'search') return
+    const said = panel.query
+    const host = this.opts.extensions
+    if (!host) return
+    if (this.meant?.said === said || this.askingAbout === said) return
+    if (!worthAsking(said, this.searchEntries())) return
+    if (this.askTimer) clearTimeout(this.askTimer)
+    this.askTimer = setTimeout(() => {
+      const choices = shortlist(said, this.searchable(), MEANT_CHOICES)
+      if (choices.length === 0) return
+      this.askingAbout = said
+      // Whatever was being asked about the line before this one is not wanted
+      // now: they have typed since, and are looking at something else.
+      this.askingWith?.abort()
+      const stop = new AbortController()
+      this.askingWith = stop
+      void host
+        .meant({
+          said,
+          choices: choices.map((entry) => ({
+            id: entry.id,
+            label: entry.label,
+            ...(entry.detail ? { detail: entry.detail } : {}),
+          })),
+          signal: stop.signal,
+        })
+        .then((answer) => {
+          if (this.askingAbout !== said) return
+          // What was typed while it was thinking is what they are looking at
+          // now, and this is not about that.
+          const panel = this.state.panel
+          if (panel?.kind !== 'search' || panel.query !== said) return
+          const by = new Map(choices.map((entry) => [entry.id, entry]))
+          const entries = answer.ids
+            .map((id) => by.get(id))
+            .filter((entry): entry is SearchEntry => entry !== undefined)
+          this.meant = { said, entries }
+          this.results = null
+          for (const problem of answer.problems) this.state = notice(this.state, problem)
+          this.draw()
+        })
+        .catch((err: unknown) => {
+          // Never the reason search shows nothing: it shows what it always did.
+          this.state = notice(this.state, why(err))
+        })
+        .finally(() => {
+          if (this.askingAbout === said) this.askingAbout = null
+        })
+    }, 250)
   }
 
   /** Where a search result goes. */
@@ -6297,7 +6387,8 @@ export class App {
             kind: 'watch',
             watch: req.watch,
             input: { ...(req.input ?? {}) },
-            found: req.found ?? 'agent',
+            // What the watch says it is for, unless somebody said otherwise.
+            found: req.found ?? offer.offers,
             most: req.most ?? 2,
           }
           when ??= { every: offer.every }
@@ -6629,6 +6720,9 @@ export class App {
         input: does.input,
         since: watched.since,
         turnedOn: one.created,
+        // A watch that looks at what Tade is running needs the window it is
+        // running in; one that does not never asks for it.
+        tade: this.opts.extensionWorkbench ?? null,
       })
     } catch (err) {
       const reason = why(err)
@@ -7312,6 +7406,10 @@ async function copyText(text: string, write: (data: string) => void): Promise<bo
       })
       child.once('error', () => resolve(false))
       child.once('exit', (code) => resolve(code === 0))
+      // A clipboard tool that exits before it reads leaves us writing to a
+      // closed pipe, and an unhandled 'error' on a stream takes the window
+      // down. Whether it copied is its exit code's to say.
+      child.stdin?.on('error', () => {})
       child.stdin?.end(text)
     })
     if (copied) return true

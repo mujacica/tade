@@ -19,7 +19,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
-| `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion | a disk or git |
+| `search.ts` | Search: reading a query, fuzzy matching, grouping results, tab completion, and the shortlist put to whoever reads a sentence | a disk or git |
 | `finder.ts` | What search looks through: `git ls-files` and `git grep`, and parsing both | — (a real repo) |
 | `highlight.ts` | Code coloured in 256 colours from highlight.js, line by line | a terminal |
 | `viewer.ts` | Reading a file to show (size cap, binary), Markdown laid out, finding in it and typing into it | a terminal (not a disk) |

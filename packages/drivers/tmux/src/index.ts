@@ -80,6 +80,22 @@ const DEFAULTS = {
 const LANE_OPTION = '@tade-lane'
 const SPEC_OPTION = '@tade-spec'
 
+/**
+ * How the fields of a `list-panes -F` row are separated.
+ *
+ * Printable, and deliberately not a tab: tmux sanitises control characters
+ * out of format output, and not the same way twice — 3.3a turns a tab into
+ * `_`, 3.4 into a literal `\037`, and only a newer tmux leaves it alone. A
+ * row that never split read as a window with no lane on it, so a reopened
+ * window adopted nothing and a finished agent was never reaped, on every
+ * machine but the one with the newest tmux on it.
+ *
+ * Nothing is parsed out of the middle of a value either: the fields before
+ * the spec are a window id, a pid and a flag, none of which can hold this,
+ * and the spec is whatever is left of the row.
+ */
+const FIELD = '|'
+
 export class TmuxDriver implements WorkspaceDriver {
   readonly id = 'tmux'
   readonly capabilities: WorkspaceCapabilities = {
@@ -192,6 +208,9 @@ export class TmuxDriver implements WorkspaceDriver {
     this.lanes.set(spec.id, lane)
 
     // Remembered on the window itself, so a later window can pick it back up.
+    // The name is for whoever is looking at the tmux server by hand — `adopt`
+    // reads the spec below, which carries the same id and everything else a
+    // relaunch needs.
     await this.tmux(['set-option', '-w', '-t', window, LANE_OPTION, spec.id]).catch(() => {})
     await this.tmux([
       'set-option',
@@ -201,6 +220,12 @@ export class TmuxDriver implements WorkspaceDriver {
       SPEC_OPTION,
       JSON.stringify(handle.spec),
     ]).catch(() => {})
+    // This is also what pins the window to its own size: `resize-window` sets
+    // the window's `window-size` to manual, so a lane no longer follows the
+    // session. Setting that option globally instead would be the obvious way
+    // and is the wrong one — it crashes the tmux server outright on 3.3a and
+    // 3.4, which is what Ubuntu ships, and only works on the newer tmux a
+    // laptop happens to have.
     await this.tmux(['resize-window', '-t', window, '-x', String(cols), '-y', String(rows)]).catch(
       () => {},
     )
@@ -308,16 +333,23 @@ export class TmuxDriver implements WorkspaceDriver {
       '-t',
       this.opts.session,
       '-F',
-      `#{window_id}\t#{${LANE_OPTION}}\t#{${SPEC_OPTION}}\t#{pane_pid}\t#{pane_dead}`,
+      [`#{window_id}`, `#{pane_pid}`, `#{pane_dead}`, `#{${SPEC_OPTION}}`].join(FIELD),
     ]).catch(() => '')
 
     const found: LaneHandle[] = []
     for (const row of rows.split('\n')) {
-      const [window, id, specJson, pid, dead] = row.split('\t')
-      if (!window || !id || !specJson) continue
-      if (this.lanes.has(id)) continue
+      const fields = row.split(FIELD)
+      const [window, pid, dead] = fields
+      // The spec is JSON and may hold the separator, so it is the rest of the
+      // row rather than one field. Its own `id` is the lane's: two records of
+      // one name is two things to disagree, and the spec is the one a
+      // relaunch has to use anyway.
+      const specJson = fields.slice(3).join(FIELD)
+      if (!window || !specJson) continue
       const spec = parseSpec(specJson)
       if (!spec) continue
+      const id = spec.id
+      if (this.lanes.has(id)) continue
       if (hint.cwd && !under(spec.cwd, hint.cwd)) continue
       if (hint.titlePattern && !new RegExp(hint.titlePattern).test(spec.title ?? id)) continue
 
@@ -451,8 +483,6 @@ export class TmuxDriver implements WorkspaceDriver {
     // A finished command leaves a dead pane holding its exit status, which is
     // the only way tmux will tell us what it was.
     await this.tmux(['set-option', '-wg', 'remain-on-exit', 'on']).catch(() => {})
-    // With no client attached a window otherwise keeps the session's size.
-    await this.tmux(['set-option', '-wg', 'window-size', 'manual']).catch(() => {})
     this.start()
   }
 
@@ -512,12 +542,12 @@ export class TmuxDriver implements WorkspaceDriver {
       '-t',
       this.opts.session,
       '-F',
-      '#{window_id}\t#{pane_dead}\t#{pane_dead_status}',
+      ['#{window_id}', '#{pane_dead}', '#{pane_dead_status}'].join(FIELD),
     ]).catch(() => '')
 
     const dead = new Map<string, number | null>()
     for (const row of rows.split('\n')) {
-      const [window, isDead, status] = row.split('\t')
+      const [window, isDead, status] = row.split(FIELD)
       if (!window || isDead !== '1') continue
       dead.set(window, status === undefined || status === '' ? null : Number(status))
     }
@@ -600,7 +630,13 @@ function shellArg(value: string): string {
 function parseSpec(json: string): LaneSpec | null {
   try {
     const spec = JSON.parse(json) as LaneSpec
-    return spec && typeof spec.cwd === 'string' && typeof spec.command === 'string' ? spec : null
+    return spec &&
+      typeof spec.id === 'string' &&
+      spec.id !== '' &&
+      typeof spec.cwd === 'string' &&
+      typeof spec.command === 'string'
+      ? spec
+      : null
   } catch {
     // Someone else's window, or a spec from a version that wrote it differently.
     return null

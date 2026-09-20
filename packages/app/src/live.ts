@@ -18,6 +18,7 @@ import {
   ruleMet,
   runtimeFrom,
   type SpendReport,
+  STATS_EVENTS,
   spendFrom,
   startOfToday,
   summariseWork,
@@ -339,6 +340,12 @@ export class Live {
   /** Every `usage` event since midnight, which is what today's spend is. */
   private usage: TadeEvent[] = []
   /**
+   * What the agents produced over the same week: commits written down once
+   * each, and check runs. Read the same way spend is, so the panel can say
+   * what the money bought beside what it cost.
+   */
+  private made: TadeEvent[] = []
+  /**
    * What says how long anything has run, from the whole journal rather than a
    * window of it: a run that began last week and is still going is time spent
    * today, and a time filter would drop the start it is measured from.
@@ -377,6 +384,9 @@ export class Live {
     // window the Spend panel offers.
     const since = startOfToday(live.now()) - 6 * 86_400_000
     live.usage = (await opts.client.events({ types: ['usage'] }).catch(() => [])).filter(
+      (event) => Date.parse(event.ts) >= since,
+    )
+    live.made = (await opts.client.events({ types: [...STATS_EVENTS] }).catch(() => [])).filter(
       (event) => Date.parse(event.ts) >= since,
     )
     // Finishing is read the same way: whether a task is done cannot depend on
@@ -842,6 +852,11 @@ export class Live {
     return this.usage
   }
 
+  /** Every commit and check run of the last seven days, for the Spend panel. */
+  get produced(): readonly TadeEvent[] {
+    return this.made
+  }
+
   /** Every event the Spend panel measures runtime from, oldest first. */
   get runs(): readonly TadeEvent[] {
     return this.runEvents
@@ -996,6 +1011,7 @@ export class Live {
   private record(event: TadeEvent): void {
     this.journal.push(event)
     if (event.type === 'usage') this.usage.push(event)
+    if ((STATS_EVENTS as readonly string[]).includes(event.type)) this.made.push(event)
     if ((RUNTIME_READS as readonly string[]).includes(event.type)) this.runEvents.push(event)
     if (event.task && event.type === 'task_done') {
       for (const [task, done] of finishedFrom([event])) this.finished.set(task, done)

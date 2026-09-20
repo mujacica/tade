@@ -16,7 +16,9 @@
     "tade": "node packages/cli/src/bin.ts",
     "link:global": "cd packages/cli && pnpm link --global",
     "unlink:global": "pnpm uninstall -g @tade/cli",
-    "postinstall": "node scripts/fix-pty-permissions.mjs",
+    "postinstall": "node scripts/fix-pty-permissions.mjs && node scripts/install-hooks.mjs",
+    "hooks": "node scripts/install-hooks.mjs --force",
+    "test:smoke": "vitest run packages/core/test test/checks-manifest.test.ts test/lint-rules.test.ts",
     "screens": "node packages/app/scripts/screens.ts",
     "notices": "node scripts/notices.ts"
   },

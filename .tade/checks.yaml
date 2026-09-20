@@ -25,10 +25,18 @@ ci:
   runs_on: [ubuntu-latest, macos-latest]
   node: '22'
   setup:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: pnpm/action-setup@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v5
       with:
         node-version: '22'
         cache: pnpm
     - run: pnpm install --frozen-lockfile
+    # The tmux driver's conformance suite is not one that may be skipped: a
+    # driver nobody proved can drive a lane is a driver nobody should ship.
+    # Ubuntu runners have tmux already; macOS runners have none, and without
+    # this every tmux test went red there and read like a regression.
+    - name: tmux
+      run: |
+        command -v tmux >/dev/null || if command -v brew >/dev/null; then brew install tmux; else sudo apt-get update && sudo apt-get install -y tmux; fi
+        tmux -V

@@ -76,7 +76,11 @@ opens, or skipped, as the schedule says.
 
 ## Watches
 
-A watch is a schedule that looks before it acts: a cheap check, and an agent on each new finding.
+A watch is a schedule that looks before it acts: a cheap check, and an agent on each new finding —
+or, where the work is already going and going badly, a sentence for the orchestrator to bring you.
+**Agents going in circles** is the second kind: it counts what each agent keeps doing, and where the
+same failing call keeps coming round it asks whether that is a loop or a method, and tells you which
+agent and what it keeps trying. It never stops one, steers one or starts one.
 Extensions offer them; nothing is watched until you turn one on.
 
 ![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](images/watches.svg)
@@ -95,6 +99,10 @@ handed to the editor you actually use.
 each result saying which project and which agent it belongs to. `file:42` goes straight to a line.
 
 ![Search: files and matching lines across projects and worktrees, each labelled with its project and agent](images/search.svg)
+
+Type a sentence rather than a name and, with Jev on, what the letters could not place is put to a
+judge — which of the things already in that list you meant, under **MIGHT MEAN**. It appears beside
+the ordinary results, never instead of them, and choosing one does what choosing it always did.
 
 ## Changes, tracked as they happen
 
@@ -127,9 +135,10 @@ exactly that.
 ## Spend, time and tokens
 
 What every agent and the orchestrator cost today, this window or this week — tokens, runtime and
-dollars, each project against the budget you gave it.
+dollars, each project against the budget you gave it — and what that bought: commits, the size of
+them, and how the project's own checks have been going.
 
-![Spend: every agent with its model, tokens, share, runtime and cost, and each project against its budget](images/spend.svg)
+![Spend: every agent with its model, tokens, share, runtime and cost, what that bought in commits and lines, how the project’s own checks have been going, and each project against its budget](images/spend.svg)
 
 ## Resources
 
@@ -216,6 +225,11 @@ be boxed into a sandbox; one that cannot be applied fails the run rather than qu
 without it.
 
 ![An agent at work, stopped at a command it wants to run, with Allow once and Deny beside it](images/approval.svg)
+
+The rules are patterns somebody wrote — `sudo`, a force push, an `rm -rf` aimed outside the
+worktree. With Jev on, what no pattern names is read a second time before you are asked about it, so
+a `terraform destroy` is the command read back rather than one word said to it. It can only ever
+make Tade ask for more, never less, and what you hear is Tade's own sentence, never a probability.
 
 ## License
 

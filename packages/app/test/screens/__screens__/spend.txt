@@ -2,28 +2,28 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ checkout › stri…    agent    shell    work     +     claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ! stripe-v15      $1.26   █│                                                                                         
- ▌   wants you to appro╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
-                       │ $2.66  1.9M tokens  2h 5m             Today    This window    7 days   │                       
-   ⠋ refunds         $0│                                                                        │                       
-     working           │ by   Agent    Project    Model                                         │                       
+ ▌ ! stripe-v15      $1╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
+ ▌   wants you to appro│ $2.66  1.9M tokens  2h 5m             Today    This window    7 days   │                       
                        │                                                                        │                       
- ▾ CHANGES  3        vs│ WHO                 MODEL           TOKENS  SHARE     RUNTIME    COST  │                       
-  M package.json       │ ◆ orchestrator      claude-opus-5     412k  ██░░░░░░░░      —   $0.58  │                       
-  A …/webhooks.test.ts │ ! stripe-v15        claude-opus-5     880k  █████░░░░░    55m   $1.26  │                       
-  M src/webhooks.ts   +│ ⠋ refunds           claude-opus-5     460k  ██░░░░░░░░    40m   $0.62  │                       
-                       │ ✓ search/pagination claude-sonnet-5   148k  █░░░░░░░░░    30m   $0.20  │                       
- ▾ FILES               │                                                                        │                       
-   ▾ src/              │ BUDGETS                                                                │                       
-       webhooks.test.ts│ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
-       webhooks.ts     │ search     $0.20                    no budget — set one                │                       
+   ⠋ refunds         $0│ by   Agent    Project    Model                                         │                       
+     working           │                                                                        │                       
+                       │ WHO                 MODEL           TOKENS  SHARE     RUNTIME    COST  │                       
+ ▾ CHANGES  3        vs│ ◆ orchestrator      claude-opus-5     412k  ██░░░░░░░░      —   $0.58  │                       
+  M package.json       │ ! stripe-v15        claude-opus-5     880k  █████░░░░░    55m   $1.26  │                       
+  A …/webhooks.test.ts │ ⠋ refunds           claude-opus-5     460k  ██░░░░░░░░    40m   $0.62  │                       
+  M src/webhooks.ts   +│ ✓ search/pagination claude-sonnet-5   148k  █░░░░░░░░░    30m   $0.20  │                       
+                       │                                                                        │                       
+ ▾ FILES               │ PRODUCED                                                               │                       
+   ▾ src/              │ 4 commits    +357 −58  16 files  1 unattributed                        │                       
+       webhooks.test.ts│ tests        2 runs   1 failed    45.5s                                │                       
+       webhooks.ts     │ types        2 runs   all green   20.6s                                │                       
    ▸ test/             │                                                                        │                       
-     package.json      │ Prices as pi reports them · runtime from an agent starting to exiting. │                       
-     README.md         ╰────────────────────────────────────────────────────────────────────────╯                       
-                             ▕│                                                                                         
-━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
-                                                                                                                        
-                                                                                                                       ▕
+     package.json      │ BUDGETS                                                                │                       
+     README.md         │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
+                       │ search     $0.20                    no budget — set one                │                       
+━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
+                       │ Prices as pi reports them · runtime from an agent starting to exiting. │                       
+                       ╰────────────────────────────────────────────────────────────────────────╯                      ▕
                                                                                                                        ▕
                                                                                                                        ▕
                                                                                                                        ▕

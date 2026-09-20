@@ -10,11 +10,21 @@ why closing it is harmless. **You may be a Tade worker editing Tade itself.**
 - `pnpm check`: the full gate (biome ci, tsc, vitest). Run it before calling work done.
 - `pnpm test`: vitest (must stay under 30s with zero network calls).
 - `pnpm exec biome check --write .` formats and fixes.
+- `pnpm test:smoke`: the cheap end of the suite — the domain, and the tests that hold this
+  repository to its own word. A second or two, and what the pre-commit hook runs.
 - `pnpm tade <args>` runs the CLI from source.
 - `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` is the only test that uses a
   real model. It costs money and needs credentials, so it is skipped by default and run before a
   release — but it is the only evidence that a model can choose the right tool from the descriptions
   we wrote, because every other test tells the fake model what to call.
+
+**The commit hook is the fast gate, and CI is the real one.** `.githooks/pre-commit` runs biome,
+`tsc` and `pnpm test:smoke` — four or five seconds over the whole repository, because a hook people
+wait on is a hook people pass `--no-verify` to. It deliberately leaves out everything that makes
+the suite take minutes: real git repositories, real PTYs, the tmux driver, the app's frame loop.
+So a green hook is not a green `pnpm check`, and it never stands in for one. `pnpm install` points
+git at it (`core.hooksPath`); `pnpm hooks` does it on demand, and leaves a hooks path you chose
+yourself alone unless you ask.
 
 **Run the suite on its own.** `pnpm check` runs the gate in sequence for a reason: the tests spawn
 real git and PTY processes with short timeouts, so anything CPU-heavy running alongside them —
@@ -156,6 +166,36 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   never the reason given to anybody — whatever reaches a person is a sentence somebody wrote. Its
   questions and thresholds live in one file (`packages/extensions/jev/src/questions.ts`), every finding
   keeps the version that answered, and with no key nothing runs and nothing else changes.
+- **A raised tier is the only thing a reading may do to a command.** The approval rules are
+  patterns somebody wrote and they are what decides; what no pattern names is read a second time
+  (`caution` on the extension port, `withCaution` in `core/src/policy.ts`), with the agent held at
+  the call and a deadline on the answer. It may only ever come back stricter — there is no `auto`
+  to answer with, so a command written to argue with the judge gets exactly what it would have got
+  with nobody reading it at all. It is honest about what it can hold: under `bypass` nothing is
+  held, so what changes there is the record. What a person reads is the clause written beside the
+  question, never the probability that fired it. It is asked of commands only, never of a read or
+  of a write inside an agent's own worktree, and never of an agent — one judged at this gate does
+  not get to answer it. Nothing reading, or reading late, is today's answer arriving on time, and
+  it is said once per run rather than under every command.
+- **Search matches letters; asking is what happens when they match nothing.** `ctrl+k` is a pure
+  ranking of what Tade already has (`searchResults`), and that is what answers instantly and what
+  answers when nobody is set up. A sentence is not letters to match, so when what was typed reads
+  as one (`isSentence`) and nothing it could have meant came back (`worthAsking`), a shortlist
+  drawn in code (`shortlist`) goes to whoever offers to read one (`meant` on the extension port).
+  Code does the recall, a judge does the precision, and what comes back is *rows added under
+  `MIGHT MEAN`*, never a reordering of what is there: the same entries, doing what they always did
+  when chosen. Only ids that were offered come back, nothing invented is shown, nothing is run, and
+  an answer that arrives after the box changed is dropped — somebody is watching it, and a list that
+  moves under their hands is worse than one that says nothing.
+- **A watch may have nothing to start.** What it finds can be work already going, and going badly:
+  such a watch declares `offers: 'ask'`, has no `agent` at all, and what it finds is told to the
+  orchestrator, which asks you. The counted part is code and runs every look — the same call coming
+  round with the same failure, turns ending badly one after another (`circlingIn`) — and only what
+  that finds is read by anybody, because an agent that has been working for two hours is working.
+  What an agent has been doing is a reading, kept in memory by the supervisor (`doingByTask`) and
+  never journalled: the journal keeps what was *decided* about a tool call, and writing down every
+  step of every turn is the log becoming the transcript. Nothing here stops, steers or starts an
+  agent: that is a decision, and a judge answers.
 - **Looking at queued work is never starting it.** Clicking it opens what it is — the chain it is
   in drawn as boxes, every wait's reason, what its agent will be told, where it came from — and
   starting it is its own act (`Start now`, its menu, `tade_queue_change`), which goes through the
@@ -278,6 +318,27 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   credential-shaped is taken out, and the lines around a stack frame are kept only for Tade's own
   files. A reporter never throws and never blocks: a window that crashed while reporting a crash is
   worse than one that reported nothing.
+- **A statistic is derived, except the two that cannot be.** What the agents cost, how long they
+  ran, how many turns and tool calls they took are all folds over the journal (`spendFrom`,
+  `runtimeFrom`, `statsFrom`), because status is a query. Two things are not recoverable by asking
+  again: what a commit changed, since `git log` answers differently after every rebase and a
+  worktree takes its branch's history with it when it goes, and what a check run did, since
+  `.tade/checks.jsonl` rotates and dies with the worktree. So each is written down once at the
+  moment it is true — `commit_seen` keyed by sha, `check_ran` keyed by the run's id — the same way
+  a watch keeps every key it found. Both are *read* rather than written where they happen: `tade
+  check` runs with no window, and a second writer in one journal would interleave with it, so
+  whichever window opens next picks up what it missed. The first look at a project counts nothing
+  behind it, because a chart that spikes on the day you installed Tade is one nobody trusts again.
+- **A metric is split by project, and its dimensions are enums.** A task id is a slug made from a
+  title somebody wrote: unbounded as a series, and not Tade's to send. Anything that can be a
+  sentence — `because`, `reason`, `message` — is never a dimension either, for cardinality rather
+  than privacy: it would make a new series every time somebody worded something differently. What
+  was actually said still goes on the log line beside it. `DIMENSIONS` in `telemetry/shape.ts` is
+  that narrower list, and it is narrower than `KEPT` on purpose.
+- **Money that was priced and money that was guessed are never added up in silence.** A harness
+  declares which it can do (`capabilities.spend.usd`), and that word rides on every `usage` event
+  as `priced`, so a total can say which it is. pi prices each turn against its own catalog; Claude
+  Code estimates.
 - **An agent's turn is the work of a model, and is timed as one.** The supervisor sees a turn start,
   the tools it calls and what it cost, so that is where it is timed (`agentTurns`): a
   `gen_ai.invoke_agent` span per turn with `gen_ai.execute_tool` spans inside it, the model and the

@@ -174,6 +174,12 @@ export interface Finding {
 export interface WatchContext extends ExtensionContext {
   /** The project it watches. */
   watching: ProjectRef
+  /**
+   * What only an open window can do and see. A watch runs in one, so this is
+   * normally there — but a look that cannot happen without it says so rather
+   * than assuming it.
+   */
+  tade: ExtensionWorkbench | null
   /** What it was turned on with. */
   input: Readonly<Record<string, unknown>>
   /** Where its last look left off, as that look said; null the first time. */
@@ -211,6 +217,15 @@ export interface ExtensionWatch {
   /** What it can be turned on with, as a tool's parameters are said. Checked before it is. */
   input?: JsonSchema
   /**
+   * What it is for, when somebody turns it on without saying: work started on
+   * each finding (`agent`, the default), or the orchestrator told about it
+   * (`ask`). A watch whose findings are about work already going — an agent
+   * going in circles — has nothing to start, and says `ask`. Whoever turns it
+   * on may still say otherwise, and a watch that offers no `agent` refuses
+   * that rather than starting something it cannot describe.
+   */
+  offers?: 'ask' | 'agent'
+  /**
    * Look, and say what there is. No model: it runs on a clock, and a look that
    * finds nothing costs nothing. Nothing found is an empty list, never a throw;
    * it throws, with why, only when it cannot look at all. What it returns as
@@ -221,11 +236,87 @@ export interface ExtensionWatch {
   /**
    * What an agent starting on one finding is told. Asked only for what work is
    * started on, so this is where anything slow to fetch about a finding belongs.
+   * Left out by a watch that has nothing to start (`offers: 'ask'`), and then
+   * nothing may be started on what it finds.
    */
-  agent(finding: Finding, ctx: WatchContext): Promise<WatchAgent> | WatchAgent
+  agent?(finding: Finding, ctx: WatchContext): Promise<WatchAgent> | WatchAgent
+}
+
+/**
+ * A tool call an agent is held at, offered for a second reading.
+ *
+ * Tade has already made up its own mind about it — `decided` is what its rules
+ * say, and they are pure, table-tested and the thing that actually answers.
+ * This is asked beside them, about the commands nobody wrote a rule for.
+ */
+export interface CautionRequest {
+  project: string
+  /** The task whose agent asked, where there is one. */
+  task: string | null
+  /** Where that agent works. Everything outside it is somebody else's. */
+  worktree: string
+  /** The tool it called, in its harness's words. */
+  tool: string
+  /** The command, where the call is one; null when it is not. */
+  command: string | null
+  input: Readonly<Record<string, unknown>>
+  /** What Tade made of it on its own, before anybody else read it. */
+  decided: { tier: 'auto' | 'soft' | 'hard'; rule: string; reason: string }
+  /** Dropped when the answer is no longer wanted: an agent is waiting on this. */
+  signal: AbortSignal
+}
+
+/**
+ * What a second reading adds, or null for nothing to add.
+ *
+ * It may only ever be stricter than what Tade decided: there is no `auto` to
+ * answer with, nothing here allows anything, and an answer that is not
+ * stricter changes nothing at all. `reason` is one clause a person reads —
+ * whatever produced it, what reaches them is a sentence somebody wrote.
+ */
+export interface CautionAnswer {
+  tier: 'soft' | 'hard'
+  reason: string
+  /** What answered, and which version of it: kept with the record. */
+  version?: string
+}
+
+/**
+ * A sentence somebody typed into search, and the things it could have meant.
+ *
+ * Every choice is something the window already has in its list: this asks
+ * which of them was meant, never what else could be done. Nothing that comes
+ * back is run — it is shown, and the person still chooses.
+ */
+export interface MeantRequest {
+  /** What they typed, exactly as they typed it. */
+  said: string
+  /** What it could be, each with the words the person would see. */
+  choices: readonly { id: string; label: string; detail?: string }[]
+  /** Dropped when the answer is no longer wanted: somebody is watching the box. */
+  signal: AbortSignal
 }
 
 /** What an open window can do for an extension that nothing else can. */
+/**
+ * What one agent has been doing lately, as the window watched it happen: the
+ * tools it ran and how its turns ended. A reading, not a record — it goes back
+ * as far as the window has been open and no further, and nothing here is in
+ * the journal.
+ */
+export interface AgentDoing {
+  task: string
+  project: string
+  /** When the run started. */
+  startedAt: number
+  /** Whether it is mid-turn, as it last said. */
+  turn: 'running' | 'idle' | 'unknown'
+  /** The last tools it ran, oldest first. */
+  did: readonly { at: number; tool: string; about: string; ok: boolean | null }[]
+  /** How its last turns ended, oldest first. */
+  ends: readonly { at: number; status: 'ok' | 'error' | 'aborted' }[]
+}
+
 export interface ExtensionWorkbench {
   /**
    * Put an agent to work on something — in the project's checkout or a
@@ -248,6 +339,12 @@ export interface ExtensionWorkbench {
   readonly pid: number
   /** What Tade is running: every lane, with the task it belongs to and its process. */
   lanes(): readonly { id: string; task: string; kind: string; pid: number | null; alive: boolean }[]
+  /**
+   * What each agent has been doing lately. For reading whether an agent is
+   * getting anywhere; there is nothing here to act with, and acting on what it
+   * says is somebody else's — a person's, or the orchestrator's.
+   */
+  agents(): readonly AgentDoing[]
 }
 
 /**
@@ -365,6 +462,21 @@ export interface TadeExtension {
   watches?: readonly ExtensionWatch[]
   /** Sections it keeps in the window's sidebar, asked for on their own clock. */
   lists?: readonly ExtensionList[]
+  /**
+   * A second reading of a tool call an agent is held at, for what the approval
+   * rules do not name. It runs with an agent waiting, so it is given a
+   * deadline and missing it is today's answer arriving on time — never an
+   * error, and never a hold of its own.
+   */
+  caution?(ctx: ExtensionContext, request: CautionRequest): Promise<CautionAnswer | null>
+  /**
+   * Which of the things in front of somebody they meant, when the letters they
+   * typed matched none of them. Answered with ids from `choices` and nothing
+   * else — an id that was not offered is dropped — best first, and an empty
+   * list where none of them was meant. Somebody is watching the box, so it is
+   * given a deadline and a late answer is never shown.
+   */
+  meant?(ctx: ExtensionContext, request: MeantRequest): Promise<readonly string[]>
   /** What belongs in the brief, when anything does. */
   brief?(ctx: ExtensionContext): Promise<readonly BriefItem[]>
   /** Told to the orchestrator: when to reach for this, and how. */

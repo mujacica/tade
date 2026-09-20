@@ -122,6 +122,52 @@ export function decideApproval(facts: ToolCallFacts, settings: ApprovalSettings)
   return { ...classified, decision: classified.tier === Tier.auto ? 'allow' : 'ask' }
 }
 
+/**
+ * What a second reading of a command may add.
+ *
+ * Never an approval and never a denial: a tier, and the sentence a person
+ * reads instead of a number. Whatever wrote it is something that can write —
+ * a rule's own words — because "0.91" explains nothing to somebody woken by it.
+ */
+export interface Caution {
+  /** The tier it would have instead. Only ever stricter than Tade's own. */
+  tier: 'soft' | 'hard'
+  /** One clause to say out loud, as somebody wrote it. */
+  reason: string
+  /** What read it, for the ledger: an extension's name. */
+  by: string
+  /** The version that answered, kept so a threshold can be argued with later. */
+  version?: string
+}
+
+/**
+ * The approval as it stands after a second reading of the command.
+ *
+ * It may only ever add caution: a stricter tier than Tade decided on its own,
+ * never a looser one, and never an allow of something that was going to be
+ * asked about. A reading that says nothing, or says something weaker, leaves
+ * the decision exactly as it was — which is also what happens when nobody read
+ * it at all, and is why this is safe on a path that may time out.
+ *
+ * `bypass` still never holds anything up. That is the mode's promise, and a
+ * second reading is not a reason to break it: what changes there is the record,
+ * which is how a command nothing asked about is still found later.
+ */
+export function withCaution(
+  approval: Approval,
+  caution: Caution | null,
+  settings: ApprovalSettings,
+): Approval {
+  if (!caution) return approval
+  if (STRICTNESS[caution.tier] <= STRICTNESS[approval.tier]) return approval
+  return {
+    tier: caution.tier,
+    rule: `${approval.rule}+${caution.by}`,
+    reason: caution.reason,
+    decision: settings.mode === 'bypass' ? 'allow' : 'ask',
+  }
+}
+
 /** pi's tools that only look at things. */
 const READ_ONLY = new Set(['read', 'ls', 'find', 'grep', 'glob'])
 /** pi's tools that change files, checked against the worktree boundary. */

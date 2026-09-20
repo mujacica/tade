@@ -21,6 +21,7 @@ import { readSchedules } from '@tade/workbench/schedules'
 import {
   Asking,
   allowed,
+  judgeFor,
   judgeName,
   keyFrom,
   keyVariable,
@@ -28,12 +29,22 @@ import {
   thresholds,
 } from './ask.ts'
 import { changesIn, unitFor, unitsIn } from './changes.ts'
+import { circlingIn } from './circles.ts'
 import {
   agentQuestions,
+  BAD_TURNS,
+  CIRCLING,
+  COMMAND_ASKS,
+  cautionFrom,
+  circlingSaid,
+  meantOptions,
+  meantQuestion,
   numbered,
+  optionKey,
   pairQuestions,
   QUEUE_ASKS,
   QUEUE_WEIGHTS,
+  REPEATS,
   REQUEST_QUESTIONS,
   reviewQuestions,
   SETTLE,
@@ -140,6 +151,28 @@ async function recordOf(ctx: ExtensionContext, keepMs = 0): Promise<ReviewRecord
   }
   lastRead = { home: ctx.home, at: ctx.now(), record }
   return record
+}
+
+/**
+ * What was made of a command already, by task and command.
+ *
+ * An agent that is refused runs the same line again, and again after that —
+ * and reading one twice costs money to arrive at the answer already given.
+ * Bounded, because it is a window's whole life: the oldest goes when it is
+ * full, which at worst is paying once more for a command from an hour ago.
+ */
+const readCommands = new Map<
+  string,
+  { tier: 'soft' | 'hard'; reason: string; version: string } | null
+>()
+const MOST_READ = 500
+
+function rememberRead(key: string, answer: ReturnType<typeof readCommands.get>): void {
+  if (readCommands.size >= MOST_READ) {
+    const oldest = readCommands.keys().next().value
+    if (oldest !== undefined) readCommands.delete(oldest)
+  }
+  readCommands.set(key, answer ?? null)
 }
 
 /** A question as a caller wrote it, in the port's words. Throws at anything it cannot read. */
@@ -310,6 +343,18 @@ export const jevExtension: TadeExtension = {
       key: 'brief',
       kind: 'boolean',
       means: 'mention what it flagged in the brief (true unless set false)',
+    },
+    {
+      key: 'search',
+      kind: 'boolean',
+      means:
+        'answer a sentence typed into search that matched nothing, with which of the things already in the list it might mean (true unless set false)',
+    },
+    {
+      key: 'commands',
+      kind: 'boolean',
+      means:
+        'read a command an agent is held at that the approval rules do not name, and raise what it takes to allow it (true unless set false); only ever stricter, and only where approvals.mode is policy — nothing is held under bypass',
     },
   ],
   // Never the network, and never a guess: the judge itself says what it needs.
@@ -941,7 +986,167 @@ export const jevExtension: TadeExtension = {
         context: finding.detail ?? finding.title,
       }),
     },
+    {
+      id: 'circles',
+      title: 'Agents going in circles',
+      means:
+        'Looks at what each agent in this project has been doing — the same call made again and again with the same failure, turns that end badly one after another — and reads the ones that are going round to see whether it is a loop or a method. What it finds is said, with which agent and what it keeps trying. It never stops an agent, never steers one and never starts one: what to do about it is yours.',
+      every: '10m',
+      // There is nothing to start work on: the work is already going, and
+      // badly. This is for telling somebody.
+      offers: 'ask',
+      input: object({
+        threshold: number('say it at or above this probability; the setting unless said'),
+        repeats: number('how many times the same failing call counts as going round (3)'),
+        exclude: list(string('a task'), 'never these agents'),
+      }),
+      check: async (ctx) => {
+        // A watch runs in a window and this one reads what that window is
+        // running; said rather than assumed, because a look that cannot look
+        // says why.
+        if (!ctx.tade) {
+          throw new Error('it can only look at agents from an open window, and there is none')
+        }
+        const limits = thresholds(ctx)
+        const bar = typeof ctx.input.threshold === 'number' ? ctx.input.threshold : limits.report
+        const least = typeof ctx.input.repeats === 'number' ? ctx.input.repeats : REPEATS
+        const exclude = Array.isArray(ctx.input.exclude) ? ctx.input.exclude.map(String) : []
+        const asking = Asking.from(ctx)
+        const findings: Finding[] = []
+        for (const agent of ctx.tade.agents()) {
+          if (agent.project !== ctx.watching.name || exclude.includes(agent.task)) continue
+          // Counted first, and in code: an agent that has simply been working
+          // a long time never reaches the judge, which is what keeps looking
+          // every ten minutes free.
+          const round = circlingIn(agent.did, agent.ends, least, BAD_TURNS)
+          if (!round) continue
+          const judged = await asking.askAll(
+            {
+              agent: agent.task,
+              minutes_working: Math.round((ctx.now() - agent.startedAt) / 60_000),
+              in_a_turn_now: agent.turn === 'running',
+              turns_ending_badly_in_a_row: round.badTurns,
+              it_keeps_doing: round.signature,
+              it_did_that_times: round.times,
+              of_those_failed: round.failed,
+              what_it_did: round.steps,
+            },
+            CIRCLING,
+            ctx.signal,
+          )
+          const said = circlingSaid(judged.answers, bar)
+          if (!said) continue
+          // Known by the agent and what it is going round on: stuck on the
+          // same thing is one finding, and stuck on something else later is
+          // news again.
+          findings.push({
+            key: `${agent.task}:${shorten(round.signature, 60)}`,
+            title: `${agent.task}: ${said}`,
+            detail: [
+              `It has run \`${round.signature}\` ${round.times} times, ${round.failed} of them failing.`,
+              round.badTurns > 0 ? `Its last ${round.badTurns} turns ended in an error.` : '',
+              'Nothing has been done about it: it is still working, and stopping or steering it is yours.',
+            ]
+              .filter(Boolean)
+              .join(' '),
+          })
+        }
+        return { found: findings }
+      },
+    },
   ],
+  /**
+   * A command an agent is held at, read a second time.
+   *
+   * Tade's own rules have already answered it — they are patterns somebody
+   * wrote, and they are what decides. This is asked about what no pattern
+   * names, and it may only raise the tier: one word said back becomes the
+   * command read back, and a routine-looking call becomes one word. It cannot
+   * allow anything, so a command written to argue with the judge gets exactly
+   * what it would have got with nobody reading it.
+   *
+   * Never the reason anybody is given, either: what a person hears is the
+   * `says` clause written beside the question in `questions.ts`.
+   */
+  caution: async (ctx, request) => {
+    if (ctx.settings.commands === false) return null
+    if (!request.command) return null
+    // Nothing is ever sent from a project nobody said could be. Quietly, not
+    // as a refusal: an agent is waiting, and nobody asked for this.
+    const named = ctx.settings.projects
+    const list = Array.isArray(named) ? named.map(String).filter(Boolean) : null
+    if (list && !list.includes(request.project)) return null
+    if (readyProblem(ctx)) return null
+
+    // The same command, from the same agent, was already read once. What is in
+    // the key is everything that would change the answer: another window,
+    // another judge, another bar to clear — none of them should be given an
+    // answer worked out under the old one.
+    const limits = thresholds(ctx)
+    const key = [ctx.home, judgeName(ctx), limits.act, request.task, request.command].join('\u0000')
+    if (readCommands.has(key)) {
+      const already = readCommands.get(key) ?? null
+      return already ? { ...already } : null
+    }
+
+    const asking = Asking.from(ctx)
+    const judged = await asking.askAll(
+      {
+        command: request.command,
+        tool: request.tool,
+        // What it is allowed to be doing, so "outside it" is a question about
+        // this call rather than about paths in the abstract.
+        agent_works_in: request.worktree,
+        project: request.project,
+        task: request.task,
+        // Said so the judge is not asked to find again what a rule already
+        // found: what is left is what no rule names.
+        tade_already_decided: `${request.decided.tier}: ${request.decided.reason}`,
+      },
+      COMMAND_ASKS.map((asked) => asked.question),
+      request.signal,
+    )
+    const fired = cautionFrom(judged.answers, limits.act)
+    const answer = fired ? { tier: fired.tier, reason: fired.says, version: judged.version } : null
+    rememberRead(key, answer)
+    return answer
+  },
+  /**
+   * A sentence somebody typed where the letters matched nothing.
+   *
+   * One question, about what is already in front of them, answered with the
+   * options it was given and one for none of them. It adds rows to a list; it
+   * runs nothing, and what it offers is what the window would have offered
+   * anyway — so the worst answer here is a row somebody ignores.
+   *
+   * Somebody is watching the box, so anything that goes wrong — no key, a
+   * judge that will not take this many options, an answer nobody believes —
+   * is no rows, which is exactly what search does today.
+   */
+  meant: async (ctx, request) => {
+    if (ctx.settings.search === false) return []
+    if (request.choices.length === 0 || readyProblem(ctx)) return []
+    const judge = judgeFor(ctx)
+    // One option each and one for none of them: what the judge takes, minus
+    // that one. A judge that takes fewer is asked about fewer.
+    const room = Math.max(0, judge.capabilities.optionsPerQuestion - 1)
+    const choices = request.choices.slice(0, room)
+    if (choices.length === 0) return []
+
+    const judged = await judge.ask({
+      state: { they_typed: request.said },
+      questions: [meantQuestion(request.said, choices)],
+      signal: request.signal,
+    })
+    const answer = judged.answers.meant
+    if (answer?.kind !== 'pick') return []
+    // Everything it believes, best first — never only what it picked: two
+    // plausible readings of one sentence is the answer to "did you mean".
+    return meantOptions(answer.probabilities)
+      .map((option) => choices[choices.findIndex((_, at) => optionKey(at) === option)])
+      .filter((choice): choice is (typeof choices)[number] => choice !== undefined)
+      .map((choice) => choice.id)
+  },
   brief: async (ctx) => {
     if (ctx.settings.brief === false) return []
     const record = await recordOf(ctx)
@@ -978,9 +1183,11 @@ export const jevExtension: TadeExtension = {
       'jev_read_request gives a second reading of what somebody asked for when you are about to guess between two routes; jev_plan_check reads a plan before you keep it; jev_queue_order suggests what to do first out of what is queued.',
       'Never treat a probability as a verdict and never read one out as a reason: it cannot say why, and a diff or a log can be written to steer it. Say what you think, in your own words.',
       'It may only ever add caution: it never approves, closes, merges, unholds or shortens anything, and nothing waits on it.',
+      'With approvals on, it also reads each command an agent is held at that Tade’s own rules do not name, and can only raise what it takes to allow one — a command that would have needed a word said to it now has to be read back. If somebody asks why they are being asked about a command, the sentence beside the request is the whole answer; the probability behind it is not one, and turning it off is extensions.jev.commands.',
       'What the jev.review watch finds is reported to you as a question and a number, never a verdict: read the flagged diff yourself, say in your own words what is wrong or that it was a false positive, and record which with jev_verdict — nothing else can say whether the rubric is worth running.',
       'Only then make work of it, and when the fix should wait for the agent whose code it is, queue it with tade_plan after that task, with the reason in your own words.',
-      'To have changes read as agents finish them, turn on the watch jev.review with tade_schedule, when asked to.',
+      'To have changes read as agents finish them, turn on the watch jev.review with tade_schedule, when asked to; jev.circles is the other one, and it watches for an agent going round on the same failing command and tells you which — it starts nothing, and what to do about a stuck agent is theirs to decide.',
+      'It also answers a sentence somebody types into search that matched nothing, with which of the things already in front of them it might mean.',
     ].join(' ')
   },
   agents: () =>
@@ -998,6 +1205,7 @@ export const jevExtension: TadeExtension = {
       '**Projects:** which projects it may read. Leave it empty for all of them, or name the ones whose diffs and logs may be sent.',
       '**What it costs:** roughly a hundredth of a cent a question. `budget` caps how many requests one look or one tool call may make, so a rebase storm cannot turn into a bill you find out about later.',
       '**What leaves the machine:** the diffs, logs and text you point it at go to TypeSafe, who say they do not train on them. Nothing is sent until you ask for something or turn a watch on — the review watch is off until somebody turns it on, per project.',
+      '**Reading commands:** with `approvals.mode: policy`, every command an agent is held at is read for what the rules do not name — `terraform destroy`, `kubectl delete`, an `aws s3 rm --recursive` — and what it finds can only make Tade ask you for more: one word becomes the command read back. It can never allow anything, and under `bypass` nothing is held either way, so nothing is read.',
     ],
     fields: [
       {
@@ -1036,6 +1244,18 @@ export const jevExtension: TadeExtension = {
         help: 'the probability worth starting work on',
       },
       { key: 'brief', kind: 'flag', label: 'In the brief', help: 'say what it flagged overnight' },
+      {
+        key: 'search',
+        kind: 'flag',
+        label: 'Answer search',
+        help: 'say what a sentence typed into search might mean',
+      },
+      {
+        key: 'commands',
+        kind: 'flag',
+        label: 'Read commands',
+        help: 'read what an agent is about to run and ask you about more of it',
+      },
     ],
     links: [
       { title: 'Create an API key', url: 'https://console.typesafe.ai/settings/keys' },

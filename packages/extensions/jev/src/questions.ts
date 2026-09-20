@@ -130,6 +130,87 @@ export function reviewQuestions(only?: readonly string[] | null): Question[] {
   return [...wanted, SEVERITY_QUESTION]
 }
 
+// ── Reading a command ───────────────────────────────────────────────────────
+//
+// What the approval rules do not name. Those rules are patterns somebody
+// wrote — `sudo`, a force push, `rm -rf` aimed outside the worktree — and they
+// are what actually answers; this is asked beside them, about everything
+// nobody wrote a pattern for: `terraform destroy`, `kubectl delete namespace`,
+// `aws s3 rm --recursive`, a `dd` at a device, a `git clean -xfd` over an hour
+// of somebody else's uncommitted work.
+//
+// Two things make this safe to put in front of an agent. It may only raise a
+// tier, so a command written to argue with the judge gets, at worst, what it
+// would have got with nobody reading at all. And what a person hears is
+// `says` below — a clause written here, in advance, by somebody — never the
+// number that fired it and never a sentence a model wrote about a command it
+// was shown.
+
+export interface CommandAsk {
+  question: Question
+  /** What a person reads, in Tade's own words, when this one fires. */
+  says: string
+  /** What it raises the call to: one word said back, or the command read back. */
+  tier: 'soft' | 'hard'
+}
+
+export const COMMAND_ASKS: readonly CommandAsk[] = [
+  {
+    question: yesNo(
+      'destroys_unrecoverable',
+      'Would running this command destroy something that cannot be made again by running another command — data, the only copy of some work, the contents of a disk?',
+    ),
+    says: 'could destroy something that cannot be got back',
+    tier: 'hard',
+  },
+  {
+    question: yesNo(
+      'wipes_uncommitted',
+      'The directory this agent works in is in the state. Would this command throw away changes in it that have not been committed?',
+    ),
+    says: 'throws away work that is not committed',
+    tier: 'hard',
+  },
+  {
+    question: yesNo(
+      'outside_worktree',
+      'The directory this agent works in is in the state. Would this command change or delete something outside that directory?',
+    ),
+    says: 'changes something outside this agent’s own worktree',
+    tier: 'hard',
+  },
+  {
+    question: yesNo(
+      'reaches_shared',
+      'Would this command change something other people share — a deployed service, a database, a cloud account, a package registry, another machine — rather than only this one?',
+    ),
+    says: 'changes something other people share',
+    tier: 'hard',
+  },
+  {
+    question: yesNo(
+      'more_than_it_looks',
+      'Does this command do something beyond what its first word suggests — another command after a semicolon or a pipe, a downloaded script run as it arrives, a flag that makes it recursive or forced?',
+    ),
+    says: 'does more than its first word suggests',
+    tier: 'soft',
+  },
+]
+
+/** The strictest thing the answers say, above the bar, or nothing. */
+export function cautionFrom(
+  answers: Readonly<Record<string, { kind: string; probability?: number }>>,
+  act: number,
+): CommandAsk | null {
+  const fired = COMMAND_ASKS.filter((asked) => {
+    const answer = answers[asked.question.id]
+    return answer?.kind === 'yes-no' && (answer.probability ?? 0) >= act
+  })
+  // Stricter first, and among equals the order they are written in: the list
+  // is a rubric somebody argued over, not a set.
+  return fired.find((asked) => asked.tier === 'hard') ?? fired[0] ?? null
+}
+
 // ── Reading a request ───────────────────────────────────────────────────────
 //
 // The six judgments `composePrompt`'s rules are written as hopes. Asking them
@@ -172,6 +253,67 @@ export const REQUEST_QUESTIONS: readonly Question[] = [
   yesNo('irreversible', 'Would doing what was said destroy something that cannot be got back?'),
 ]
 
+// ── Reading a sentence somebody typed ───────────────────────────────────────
+//
+// Search matches letters, and a sentence is not letters to match. This is
+// asked only about what is already in front of the person — one option per
+// thing the window would have shown them, and one for none of them — so the
+// worst answer available is a row they ignore. It can never invent something
+// to do and never does anything: they still choose.
+
+/** The letter one choice is offered under: short, so the options cost nothing. */
+export function optionKey(index: number): string {
+  return `c${index + 1}`
+}
+
+/** No option is the right one. Always offered, so "none of these" is sayable. */
+export const NONE = 'none'
+
+export function meantQuestion(
+  said: string,
+  choices: readonly { label: string; detail?: string }[],
+): Question {
+  return {
+    id: 'meant',
+    kind: 'pick',
+    ask: `Somebody typed this into the search box of a tool that runs coding agents: "${said}". Which one of these is what they were asking for?`,
+    options: {
+      ...Object.fromEntries(
+        choices.map((choice, at) => [
+          optionKey(at),
+          choice.detail ? `${choice.label} — ${choice.detail}` : choice.label,
+        ]),
+      ),
+      [NONE]: 'none of these is what they meant',
+    },
+  }
+}
+
+/**
+ * Which of the options were meant, in the order they were believed.
+ *
+ * A pick's probabilities are shares of one answer, so a bar written as a
+ * number would mean something different with three options than with twenty.
+ * This is written relative instead: whatever it believes at least half as much
+ * as its best reading, in order, stopping at "none of these" — which is the
+ * judge's own way of saying the answer is not here, and is therefore the end
+ * of the list rather than a row in it. Three at most: a fourth "did you mean"
+ * is a list nobody reads.
+ */
+export function meantOptions(probabilities: Readonly<Record<string, number>>): string[] {
+  const ranked = Object.entries(probabilities).sort(([, a], [, b]) => b - a)
+  const best = ranked[0]?.[1] ?? 0
+  if (best <= 0) return []
+  const meant: string[] = []
+  for (const [option, share] of ranked) {
+    if (option === NONE) break
+    if (share < best / 2) break
+    meant.push(option)
+    if (meant.length === 3) break
+  }
+  return meant
+}
+
 // ── Reading a plan ──────────────────────────────────────────────────────────
 //
 // One request per pair of agents that could run at the same time, and one per
@@ -212,6 +354,60 @@ export function agentQuestions(name: string): Question[] {
       `Would the work described as "${name}" leave the project's own checks failing until some other change lands?`,
     ),
   ]
+}
+
+// ── Reading what an agent has been doing ────────────────────────────────────
+//
+// What can be counted is counted in code, as ever: how many times the same
+// call was made, how many turns ended badly, how long it has been at it. What
+// is left is the judgment nothing can derive — whether doing the same thing
+// again is a loop or a method — and that is one question about a list of what
+// an agent did, in order.
+//
+// Never asked of an agent that has simply been going a long time: working for
+// two hours is working. What brings it here is a repeat, and what it answers
+// is whether the repeat is going anywhere.
+
+/** How many times the same call has to come round before anybody is asked. */
+export const REPEATS = 3
+/** How many turns in a row may end badly before the same. */
+export const BAD_TURNS = 3
+
+export const CIRCLING: readonly Question[] = [
+  yesNo(
+    'in_circles',
+    'Below is what an agent has done, oldest first, with how many times it did each thing. Is it repeating attempts that have already failed, rather than making progress?',
+  ),
+  yesNo(
+    'needs_a_person',
+    'Is it stuck on something only a person could give it — a credential, an account, a decision about what is wanted, something that is not on this machine?',
+  ),
+  yesNo(
+    'nearly_there',
+    'Is it repeating something because it is close to finishing it — the same test run again after a change, the same file edited again — rather than because it is stuck?',
+  ),
+]
+
+/**
+ * What to say about an agent, from what was answered: the sentence somebody
+ * reads, or nothing. `nearly_there` is the one that takes a finding away
+ * again, which is the only direction this may ever work in — it is the
+ * difference between a loop and a method, and saying nothing is what Tade
+ * does today.
+ */
+export function circlingSaid(
+  answers: Readonly<Record<string, { kind: string; probability?: number }>>,
+  bar: number,
+): string | null {
+  const at = (id: string) => {
+    const answer = answers[id]
+    return answer?.kind === 'yes-no' ? (answer.probability ?? 0) : 0
+  }
+  if (at('nearly_there') >= bar) return null
+  if (at('needs_a_person') >= bar) return 'it looks stuck on something only you can give it'
+  if (at('in_circles') >= bar)
+    return 'it looks like it is trying the same thing that already failed'
+  return null
 }
 
 // ── Reading a queue ─────────────────────────────────────────────────────────

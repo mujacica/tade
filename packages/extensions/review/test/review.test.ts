@@ -57,6 +57,7 @@ function load(
 const tade = {
   pid: process.pid,
   lanes: () => [],
+  agents: () => [],
   startAgent: async (request: { project: string; title: string }) => ({
     task: `${request.project}/${request.title.replace(/\W+/g, '-')}`,
     worktree: '/src/api',

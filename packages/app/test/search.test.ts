@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   completed,
   fuzzy,
+  GROUPS,
+  isSentence,
   openId,
   parseOpenId,
   parseQuery,
   type SearchEntry,
   searchResults,
+  shortlist,
+  worthAsking,
 } from '../src/search.ts'
 
 // What search finds, from made-up sources: no disk, no git.
@@ -140,5 +144,81 @@ describe('lines in terminals', () => {
     ])
     // The id says which match, counting back from the newest, for the find box to open on.
     expect(found[1]?.id.split('\0')).toEqual(['terminal', 'app/terminals/1', 'error', '1'])
+  })
+})
+
+describe('a sentence, when the letters find nothing', () => {
+  // The window's own list, in the order it keeps it: what needs you, what the
+  // extensions can do, the agents, then everything else.
+  const list: SearchEntry[] = [
+    { id: 'task:checkout/refunds', kind: 'agent', label: 'refunds', mark: '○' },
+    { id: 'stop:checkout/refunds', kind: 'action', label: 'Stop refunds', mark: '■' },
+    {
+      id: 'changes:checkout/refunds',
+      kind: 'action',
+      label: 'Show the changes in refunds',
+      mark: '±',
+    },
+    { id: 'run:new-agent', kind: 'action', label: 'New agent', mark: '›' },
+    { id: 'run:spend', kind: 'action', label: 'Spend', mark: '›' },
+    { id: 'setting:voice', kind: 'setting', label: 'Voice › Talk key', mark: '◇' },
+  ]
+
+  it('knows a sentence from the start of a name', () => {
+    expect(isSentence('refund')).toBe(false)
+    expect(isSentence('st')).toBe(false)
+    // Two words and long enough to be meant as words.
+    expect(isSentence('stop whoever is on the refunds thing')).toBe(true)
+    // Looking inside files is looking for text, not asking a question.
+    expect(isSentence('#stop whoever is on refunds')).toBe(false)
+  })
+
+  it('is worth asking about only when nothing it could have meant came back', () => {
+    const said = 'stop whoever is on the refunds thing'
+    expect(worthAsking(said, [])).toBe(true)
+    // A line inside somebody's code is not an answer to what they asked for.
+    expect(worthAsking(said, [{ id: 'x', kind: 'match', label: 'a.ts:2', mark: '≡' }])).toBe(true)
+    expect(worthAsking(said, [{ id: 'y', kind: 'action', label: 'Stop refunds', mark: '■' }])).toBe(
+      false,
+    )
+    expect(worthAsking('stop', [])).toBe(false)
+  })
+
+  it('puts a handful of what there is to do, not everything', () => {
+    const picked = shortlist('stop whoever is on the refunds thing', list, 4)
+    expect(picked).toHaveLength(4)
+    // What its own words found comes first: "stop" and "refunds" are in the
+    // list even though the whole sentence matches none of it.
+    expect(picked.slice(0, 2).map((entry) => entry.id)).toContain('stop:checkout/refunds')
+    expect(
+      searchResults('stop whoever is on the refunds thing', { entries: list, files, matches: [] }),
+    ).toEqual([])
+  })
+
+  it('tops up from what there is to do when no word matches anything', () => {
+    const picked = shortlist('make the thing go please', list, 3)
+    expect(picked).toHaveLength(3)
+    // The window's own order, which starts with what needs you.
+    expect(picked[0]?.id).toBe('task:checkout/refunds')
+  })
+
+  it('shows what came back as its own group, above the rest and never matched again', () => {
+    const said = 'stop whoever is on the refunds thing'
+    const meant = [list[1] as SearchEntry]
+    const found = searchResults(said, { entries: list, files, matches: [], meant })
+    expect(found).toHaveLength(1)
+    expect(found[0]).toMatchObject({ id: 'stop:checkout/refunds', kind: 'meant', hits: [] })
+    // It is the same entry: choosing it does what choosing it always did.
+    expect(GROUPS.find((group) => group.kind === 'meant')?.title).toBe('MIGHT MEAN')
+  })
+
+  it('never shows the same thing twice when the letters did match it', () => {
+    const found = searchResults('stop', {
+      entries: list,
+      files,
+      matches: [],
+      meant: [list[1] as SearchEntry],
+    })
+    expect(found.filter((entry) => entry.id === 'stop:checkout/refunds')).toHaveLength(1)
   })
 })

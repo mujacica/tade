@@ -119,6 +119,7 @@ export function extensionConformance(
       const tade = {
         pid: process.pid,
         lanes: () => [],
+        agents: () => [],
         startAgent: async () => ({ task: 'here/none', worktree: '/nonexistent' }),
       }
       const sections = await host.lists(tade)
@@ -163,6 +164,32 @@ export function extensionConformance(
       }
       // Whatever is listed, none of it is the credential itself.
       expect(JSON.stringify(host.secrets())).not.toContain('from-the-shell')
+    })
+
+    it('reads a command an agent is held at without ever loosening it', async () => {
+      if (!extension.caution) return
+      const asking = {
+        project: 'here',
+        task: 'here/work',
+        worktree: options.project ?? '/nonexistent',
+        tool: 'bash',
+        command: 'rm -rf /',
+        input: { command: 'rm -rf /' },
+        decided: { tier: 'soft' as const, rule: 'command', reason: 'runs a command' },
+        signal: new AbortController().signal,
+      }
+      // An agent is waiting on this, so it is asked of an extension that is
+      // set up and of one that is not, and neither may throw: nothing here is
+      // allowed to be the reason a turn ends.
+      for (const host of [await load(), await load({ settings: {}, env: {} })]) {
+        const read = await host.caution(asking)
+        if (!read.caution) continue
+        // There is no answer here that allows anything, and the tier is one
+        // of the two that ask.
+        expect(['soft', 'hard']).toContain(read.caution.tier)
+        expect(read.caution.reason.trim().length).toBeGreaterThan(0)
+        expect(read.caution.by).toBe(extension.name)
+      }
     })
 
     it('says why a watch cannot look when it is not set up, rather than looking', async () => {

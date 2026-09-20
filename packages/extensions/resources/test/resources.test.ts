@@ -40,6 +40,7 @@ const lanes = [
 const tade = {
   pid: 100,
   lanes: () => lanes,
+  agents: () => [],
   startAgent: async () => ({ task: '', worktree: '' }),
 }
 
@@ -236,7 +237,10 @@ describe('what watching costs', () => {
     const answer = await extensions.call(
       'resources_usage',
       { by: 'kind' },
-      { caller: { kind: 'you' }, tade: { ...tade, pid: process.pid, lanes: () => [] } },
+      {
+        caller: { kind: 'you' },
+        tade: { ...tade, pid: process.pid, lanes: () => [], agents: () => [] },
+      },
     )
     expect(performance.now() - started).toBeLessThan(2_000)
     expect(answer.text).toContain('the window')

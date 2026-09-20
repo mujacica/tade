@@ -15,7 +15,7 @@ import type { Reporter, Span, Work } from '@tade/telemetry'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventLog } from '../src/events.ts'
-import { WorkerSupervisor } from '../src/workers.ts'
+import { WorkerSupervisor, type WorkerSupervisorOptions } from '../src/workers.ts'
 
 // A scripted adapter: no agent, no model, no network. What is under test is
 // the decision and bookkeeping around a worker, so the worker is fake and
@@ -195,7 +195,11 @@ const logged = (
   type: Parameters<EventLog['read']>[0] extends never ? never : string,
 ) => log.read({ types: [type] as never })
 
-async function setup(mode: 'bypass' | 'policy', report?: Reporter) {
+async function setup(
+  mode: 'bypass' | 'policy',
+  report?: Reporter,
+  caution?: WorkerSupervisorOptions['caution'],
+) {
   const log = await EventLog.open({ path: join(tmp('tade-workers-'), 'events.jsonl') })
   const adapter = new FakeAdapter()
   const supervisor = new WorkerSupervisor({
@@ -203,6 +207,7 @@ async function setup(mode: 'bypass' | 'policy', report?: Reporter) {
     log,
     approvals: { mode },
     ...(report ? { report } : {}),
+    ...(caution ? { caution } : {}),
   })
   const handle = await supervisor.start({
     run: 'r1',
@@ -262,6 +267,175 @@ describe('WorkerSupervisor', () => {
       })
       // A destructive command that ran unasked is not filed as routine noise.
       expect(event?.urgency).toBe('notable')
+    })
+  })
+
+  describe('what an agent has been doing', () => {
+    it('keeps the last tools and turns, in memory and out of the journal', async () => {
+      const { log, adapter, supervisor } = await setup('bypass')
+      close = () => log.close()
+      adapter.emit('r1', {
+        type: 'tool_call',
+        callId: 'c1',
+        tool: 'bash',
+        input: { command: 'pnpm migrate --env staging' },
+      })
+      adapter.emit('r1', { type: 'tool_result', callId: 'c1', ok: false, summary: 'bash' })
+      adapter.emit('r1', { type: 'turn_done', status: 'error' })
+      await until(() => (supervisor.doingByTask()[0]?.ends.length ?? 0) > 0)
+
+      const [agent] = supervisor.doingByTask()
+      expect(agent).toMatchObject({ task: 'app/refunds', run: 'r1' })
+      // What it was about, the same every time the same call is made: that is
+      // what makes a repeat countable without anybody reading it.
+      expect(agent?.did).toEqual([
+        { at: expect.any(Number), tool: 'bash', about: 'pnpm migrate --env staging', ok: false },
+      ])
+      expect(agent?.ends).toMatchObject([{ status: 'error' }])
+      // Not in the journal: what an agent did inside a turn is the shape of
+      // the turn, and the log is not the transcript.
+      expect(await logged(log, 'tool_call')).toEqual([])
+    })
+
+    it('forgets an agent that has gone', async () => {
+      const { log, adapter, supervisor } = await setup('bypass')
+      close = () => log.close()
+      adapter.emit('r1', {
+        type: 'tool_call',
+        callId: 'c1',
+        tool: 'bash',
+        input: { command: 'ls' },
+      })
+      await until(() => (supervisor.doingByTask()[0]?.did.length ?? 0) > 0)
+      adapter.emit('r1', { type: 'exited', code: 0 })
+      await until(() => supervisor.doingByTask().length === 0)
+    })
+  })
+
+  describe('a second reading of a command', () => {
+    /** What an extension that reads commands answers, and what it was asked. */
+    const reader = (
+      answer: Awaited<ReturnType<NonNullable<WorkerSupervisorOptions['caution']>>>,
+    ) => {
+      const asked: { command: string; tier: string }[] = []
+      const caution: NonNullable<WorkerSupervisorOptions['caution']> = async (call) => {
+        asked.push({ command: call.command, tier: call.decided.tier })
+        return answer
+      }
+      return { asked, caution }
+    }
+    const raised = {
+      caution: {
+        tier: 'hard' as const,
+        reason: 'could destroy something that cannot be got back',
+        by: 'jev',
+        version: 'jev-1.13.0',
+      },
+      problems: [],
+    }
+
+    it('holds a command the rules only wanted a word about, in the words somebody wrote', async () => {
+      const { asked, caution } = reader(raised)
+      const { log, adapter, supervisor } = await setup('policy', undefined, caution)
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'q1',
+        'bash',
+        { command: 'terraform destroy -auto-approve' },
+        'bash: terraform destroy -auto-approve',
+      )
+      await until(() => supervisor.pending().length > 0)
+
+      // `command` on its own is soft: one word is enough. Read again, it is
+      // the command read back.
+      expect(asked).toEqual([{ command: 'terraform destroy -auto-approve', tier: 'soft' }])
+      expect(supervisor.pending()).toMatchObject([
+        {
+          tier: 'hard',
+          rule: 'command+jev',
+          reason: 'could destroy something that cannot be got back',
+        },
+      ])
+      await until(async () => (await logged(log, 'permission_request')).length > 0)
+      const [event] = await logged(log, 'permission_request')
+      expect(event?.detail).toMatchObject({
+        tier: 'hard',
+        caution: { by: 'jev', version: 'jev-1.13.0' },
+      })
+    })
+
+    it('leaves everything as it was when it says nothing, or cannot answer', async () => {
+      for (const answer of [
+        { caution: null, problems: [] },
+        { caution: null, problems: ['Jev: no key'] },
+      ]) {
+        const { caution } = reader(answer)
+        const { log, adapter, supervisor } = await setup('policy', undefined, caution)
+        adapter.askPermission('r1', 'q1', 'bash', { command: 'npm test' }, 'bash: npm test')
+        await until(() => supervisor.pending().length > 0)
+        expect(supervisor.pending()).toMatchObject([{ tier: 'soft', rule: 'command' }])
+        await log.close()
+      }
+    })
+
+    it('says once that nothing is reading, and not under every command', async () => {
+      const { log, adapter, supervisor } = await setup('policy', undefined, async () => ({
+        caution: null,
+        problems: ['Jev: no key'],
+      }))
+      close = () => log.close()
+      for (const [n, command] of ['npm test', 'npm run build', 'npm test'].entries()) {
+        adapter.askPermission('r1', `q${n}`, 'bash', { command }, `bash: ${command}`)
+        await until(() => supervisor.pending().length === n + 1)
+      }
+      const warnings = await logged(log, 'warning')
+      expect(warnings).toHaveLength(1)
+      expect(warnings[0]?.detail.message).toMatch(/nothing read this agent.s commands.*no key/)
+    })
+
+    it('is never asked about what is already as strict as it gets, or about a read', async () => {
+      const { asked, caution } = reader(raised)
+      const { log, adapter, supervisor } = await setup('policy', undefined, caution)
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'q1',
+        'bash',
+        { command: 'sudo rm -rf /var/lib/thing' },
+        'bash: sudo',
+      )
+      await until(() => supervisor.pending().length > 0)
+      adapter.askPermission('r1', 'q2', 'read', { path: '/etc/hosts' }, 'read /etc/hosts')
+      await until(() => adapter.decisions.length > 0)
+
+      // Nothing to raise a `hard` to, and a call with no command in it is not
+      // what this reads: both are answered by the rules alone.
+      expect(asked).toEqual([])
+    })
+
+    it('cannot make a reading hold anything up under bypass', async () => {
+      const { asked, caution } = reader(raised)
+      const { log, adapter, supervisor } = await setup('bypass', undefined, caution)
+      close = () => log.close()
+      adapter.askPermission(
+        'r1',
+        'q1',
+        'bash',
+        { command: 'kubectl delete namespace prod' },
+        'bash: kubectl delete namespace prod',
+      )
+      await until(() => adapter.decisions.length > 0)
+
+      expect(adapter.decisions).toEqual([{ run: 'r1', requestId: 'q1', decision: { allow: true } }])
+      expect(supervisor.pending()).toEqual([])
+      expect(asked).toHaveLength(1)
+      // The record is what changed: notable rather than routine, with what
+      // read it, so a command nothing asked about is still found later.
+      await until(async () => (await logged(log, 'tool_call')).length > 0)
+      const [event] = await logged(log, 'tool_call')
+      expect(event?.urgency).toBe('notable')
+      expect(event?.detail).toMatchObject({ tier: 'hard', caution: { by: 'jev' } })
     })
   })
 

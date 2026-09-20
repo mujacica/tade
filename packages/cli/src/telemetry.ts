@@ -1,6 +1,14 @@
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { type Config, defaultConfigPath, loadConfig, type Unsubscribe } from '@tade/core'
+import {
+  type Config,
+  defaultConfigPath,
+  loadConfig,
+  RUNTIME_EVENTS,
+  runtimeFrom,
+  startOfToday,
+  type Unsubscribe,
+} from '@tade/core'
 import { openReporter, type Reporter, saw } from '@tade/telemetry'
 import type { Workbench } from '@tade/workbench'
 import { version } from './version.ts'
@@ -54,8 +62,61 @@ export function reportJournal(reporter: Reporter, client: Workbench): Unsubscrib
         kind: 'gauge',
         value: client.runs().length,
       })
+      void reportRuntime(reporter, client)
     }
+    // A harness that watches its own limits has just been told where they
+    // stand, because a turn is what uses them up. Read from what it already
+    // holds, so this asks nobody anything.
+    if (event.type === 'turn_done') reportLimits(reporter, client)
   })
+}
+
+/**
+ * How long the agents have run, as `runtimeFrom` derives it.
+ *
+ * Derived and re-sent rather than counted when a run ends, because the event
+ * that ends a run is the one most often missing: the journal behind
+ * `runtime.ts` had 100 `run_started` and 35 `run_exited`, so a duration
+ * emitted on exit would lose two runs in three. A gauge of the total instead,
+ * recomputed from the same reading the window draws, which is right whether or
+ * not anybody wrote the exit.
+ */
+async function reportRuntime(reporter: Reporter, client: Workbench): Promise<void> {
+  const events = await client.events({ types: [...RUNTIME_EVENTS] }).catch(() => [])
+  if (events.length === 0) return
+  const now = Date.now()
+  const ran = runtimeFrom(events, { since: startOfToday(now), now })
+  for (const [project, runtime] of Object.entries(ran.byProject)) {
+    reporter.measure({
+      at: now,
+      name: 'tade.agent.runtime',
+      kind: 'gauge',
+      value: runtime.ms,
+      unit: 'millisecond',
+      about: { project },
+    })
+  }
+}
+
+/** How much of each plan is used, for the harnesses that can say. */
+function reportLimits(reporter: Reporter, client: Workbench): void {
+  const now = Date.now()
+  for (const { harness, limits } of client.planLimits()) {
+    for (const [window, used] of [
+      ['5h', limits.fiveHour],
+      ['7d', limits.sevenDay],
+    ] as const) {
+      if (!used) continue
+      reporter.measure({
+        at: now,
+        name: 'tade.plan.used',
+        kind: 'gauge',
+        value: used.used,
+        unit: 'percent',
+        about: { harness, window },
+      })
+    }
+  }
 }
 
 /**

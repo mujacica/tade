@@ -60,13 +60,22 @@ export class FfmpegRecorder implements Recorder {
   }
 
   async available(): Promise<Availability> {
-    if (!this.binary()) {
-      return { ok: false, reason: 'ffmpeg is not installed (brew install ffmpeg)' }
-    }
+    // The platform first, because no amount of installing ffmpeg answers it:
+    // where there is no audio input we know how to open, that is the reason,
+    // whatever else is on the machine. Asked the other way round, what a
+    // person is told depends on whether they happen to have ffmpeg.
     if (!this.input()) {
       return { ok: false, reason: `no known audio input for ${this.platform}` }
     }
+    if (!this.binary()) {
+      return { ok: false, reason: `ffmpeg is not installed (${this.howToInstall()})` }
+    }
     return { ok: true }
+  }
+
+  /** Said in the terms of the machine it is said on: `brew` is not an answer on Linux. */
+  private howToInstall(): string {
+    return this.platform === 'darwin' ? 'brew install ffmpeg' : 'apt install ffmpeg'
   }
 
   async start(opts: RecorderOptions = {}): Promise<Recording> {

@@ -8,6 +8,7 @@ import type { Match, SearchRoot } from './finder.ts'
 
 export type SearchKind =
   | 'approval'
+  | 'meant'
   | 'agent'
   | 'file'
   | 'match'
@@ -40,6 +41,7 @@ export interface SearchEntry {
 /** The groups results are shown in, in this order, and what each is called. */
 export const GROUPS: readonly { kind: SearchKind; title: string }[] = [
   { kind: 'approval', title: 'WAITING ON YOU' },
+  { kind: 'meant', title: 'MIGHT MEAN' },
   { kind: 'agent', title: 'AGENTS' },
   { kind: 'file', title: 'FILES' },
   { kind: 'match', title: 'IN FILES' },
@@ -144,11 +146,19 @@ export interface SearchSources {
   matches: readonly Match[]
   /** What each terminal has printed, as plain text, for finding lines in. */
   terminals?: readonly { id: string; name: string; project: string; text: string }[]
+  /**
+   * What somebody made of the sentence in the box, where the letters in it
+   * matched nothing. Already chosen for this query, so they are shown as they
+   * came rather than matched again — and they are the same entries as
+   * everything else here, so choosing one does what choosing it always did.
+   */
+  meant?: readonly SearchEntry[]
 }
 
 /** How many of each kind to show when not narrowed to it. */
 const SHOWN: Record<SearchKind, number> = {
   approval: 5,
+  meant: 4,
   agent: 6,
   file: 12,
   match: 12,
@@ -174,7 +184,7 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
       case 'text':
         return kind === 'match' || kind === 'terminal'
       case 'actions':
-        return kind === 'action' || kind === 'setting' || kind === 'project'
+        return kind === 'action' || kind === 'setting' || kind === 'project' || kind === 'meant'
       default:
         return query.text !== '' || kind !== 'file'
     }
@@ -184,6 +194,15 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
   const out: SearchEntry[] = []
   for (const group of GROUPS) {
     if (!wanted(group.kind)) continue
+    if (group.kind === 'meant') {
+      // Never fuzzy-matched: the letters not matching is why anybody was asked.
+      out.push(
+        ...(sources.meant ?? [])
+          .slice(0, limit('meant'))
+          .map((entry) => ({ ...entry, kind: 'meant' as const, hits: [] })),
+      )
+      continue
+    }
     if (group.kind === 'file') {
       out.push(...fileResults(query, sources.files, limit('file')))
       continue
@@ -213,7 +232,12 @@ export function searchResults(raw: string, sources: SearchSources): SearchEntry[
       .map(({ entry, found }) => ({ ...entry, hits: found?.hits ?? [] }))
     out.push(...ranked)
   }
-  return out
+  // One row per thing: where the letters found what was also put forward as
+  // what they might have meant, it is the same act either way, and the list
+  // says it once.
+  if (!sources.meant?.length) return out
+  const seen = new Set<string>()
+  return out.filter((entry) => !seen.has(entry.id) && seen.add(entry.id) !== undefined)
 }
 
 function fileResults(query: Query, files: SearchSources['files'], limit: number): SearchEntry[] {
@@ -283,6 +307,106 @@ function terminalResults(
     }
   }
   return out.slice(0, limit)
+}
+
+// ── Asking, rather than matching ────────────────────────────────────────────
+//
+// Everything above matches letters. A sentence is not letters to match — "stop
+// whoever is on the refunds thing" shares almost none of its characters with
+// "Stop refunds", and fuzzy is right to find nothing. So when somebody writes
+// a sentence and the letters find nothing, what is already in the list can be
+// put to somebody who reads sentences.
+//
+// The division is deliberate: code does the recall — which handful of the
+// things Tade can do are worth putting to anybody — and whoever answers does
+// the precision. Nothing here invents an entry, and nothing here runs one.
+
+/** Words a sentence carries that say nothing about what is wanted. */
+const NOISE = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'can',
+  'do',
+  'for',
+  'from',
+  'i',
+  'in',
+  'is',
+  'it',
+  'me',
+  'my',
+  'of',
+  'on',
+  'or',
+  'please',
+  'that',
+  'the',
+  'this',
+  'to',
+  'up',
+  'was',
+  'what',
+  'where',
+  'which',
+  'with',
+  'you',
+])
+
+/** Short of this, a sentence is a prefix somebody is still typing. */
+export const SENTENCE_MIN = 8
+
+/** Whether what is in the box is a sentence rather than the start of a name. */
+export function isSentence(raw: string): boolean {
+  const { scope, text } = parseQuery(raw)
+  if (scope === 'text') return false
+  return text.length >= SENTENCE_MIN && text.trim().split(/\s+/).length >= 2
+}
+
+/**
+ * Whether asking anybody is worth it: a sentence, and nothing it could have
+ * meant came back. Lines found inside files do not count — a sentence that
+ * appears in somebody's code is not an answer to what they asked for.
+ */
+export function worthAsking(raw: string, found: readonly SearchEntry[]): boolean {
+  if (!isSentence(raw)) return false
+  return !found.some((entry) => entry.kind !== 'file' && entry.kind !== 'match')
+}
+
+/**
+ * The few things worth putting to somebody, for a sentence the letters could
+ * not place: whatever each word of it finds, and then the things Tade can do,
+ * in the order it already keeps them — which is what needs you, then what you
+ * can do here, then everything else.
+ */
+export function shortlist(
+  raw: string,
+  entries: readonly SearchEntry[],
+  most: number,
+): SearchEntry[] {
+  const words = parseQuery(raw)
+    .text.toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((word) => word.length >= 3 && !NOISE.has(word))
+  const picked = new Map<string, SearchEntry>()
+  for (const word of words) {
+    const ranked = entries
+      .map((entry) => ({ entry, found: fuzzy(word, `${entry.label} ${entry.detail ?? ''}`) }))
+      .filter((one) => one.found !== null)
+      .sort((a, b) => (b.found?.score ?? 0) - (a.found?.score ?? 0))
+      .slice(0, 3)
+    for (const { entry } of ranked) if (!picked.has(entry.id)) picked.set(entry.id, entry)
+  }
+  // Topped up in the order the window keeps them, so a sentence whose words
+  // match nothing at all is still answered with the things there are to do
+  // rather than with nothing.
+  for (const entry of entries) {
+    if (picked.size >= most) break
+    if (entry.kind === 'file' || entry.kind === 'match') continue
+    if (!picked.has(entry.id)) picked.set(entry.id, entry)
+  }
+  return [...picked.values()].slice(0, most)
 }
 
 /** What opening a file at a place is called, for the app to take apart again. */

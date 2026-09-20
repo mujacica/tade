@@ -8,8 +8,10 @@ import {
   type Runtime,
   runtimeFrom,
   type Spend,
+  STATS_EVENTS,
   spendFrom,
   startOfToday,
+  statsFrom,
   tadeHome,
 } from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
@@ -45,11 +47,14 @@ export function registerSpend(program: Command, io: Io): void {
       const events = await readJournal(tadeHome(), { types: ['usage'] })
       const report = spendFrom(events, { since })
       const ran = runtimeFrom(await readJournal(tadeHome(), { types: [...RUNS] }), { since, now })
+      // What the money bought: commits, the size of them, and how the
+      // project's own checks have been going.
+      const made = statsFrom(await readJournal(tadeHome(), { types: [...STATS_EVENTS] }), { since })
 
       if (opts.json) {
         io.out(
           JSON.stringify(
-            { since: new Date(since).toISOString(), ...report, runtime: ran },
+            { since: new Date(since).toISOString(), ...report, runtime: ran, produced: made },
             null,
             2,
           ),
@@ -105,6 +110,34 @@ export function registerSpend(program: Command, io: Io): void {
           io.out(`  ${line(name, width, report.byTask[name], ran.byTask[name])}${running}`)
         }
       }
+      // What it produced. Kept beside what it cost rather than in a command of
+      // its own: the two numbers are only worth anything together.
+      if (made.produced.commits > 0) {
+        io.out('')
+        const it = made.produced
+        const nobody = it.commits - it.attributed
+        io.out(
+          `committed  ${it.commits} commit${it.commits === 1 ? '' : 's'}, +${it.added} −${it.removed} across ${it.files} file${it.files === 1 ? '' : 's'}${
+            // Unattributed is always an allowed answer, and worth saying: it is
+            // usually a person committing by hand, and sometimes an agent that
+            // was never told to write its trailer.
+            nobody > 0 ? `  (${nobody} with no task trailer)` : ''
+          }`,
+        )
+      }
+      if (made.checks.length > 0) {
+        io.out('')
+        io.out('checks')
+        const width = Math.max(...made.checks.map((one) => one.check.length), 7)
+        for (const check of made.checks) {
+          const took = check.medianMs === null ? '' : `  ${howLong(check.medianMs)} typically`
+          io.out(
+            `  ${check.check.padEnd(width)}  ${String(check.runs).padStart(4)} run${
+              check.runs === 1 ? ' ' : 's'
+            }  ${String(check.failed).padStart(4)} failed${took}`,
+          )
+        }
+      }
       if (!report.total.hasCost) {
         io.out('')
         // Zero dollars from a subscription is not the same as free.
@@ -140,4 +173,14 @@ function tokens(spend: Spend): string {
 
 function time(ran: Runtime | undefined): string {
   return (ran && ran.ms > 0 ? duration(ran.ms) : '—').padStart(8)
+}
+
+/**
+ * How long a check took. `duration` is for how long agents ran, where the
+ * interesting range is minutes to days and a second either way is noise; a
+ * check that takes under a second is common, and reporting it as `0s` reads
+ * like something that did not run.
+ */
+function howLong(ms: number): string {
+  return ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : duration(ms)
 }

@@ -18,7 +18,7 @@ only explanation anybody gets.
 | `packages/judges/{jev,scripted}` | the implementations — TypeSafe's vocabulary lives only in `jev` |
 | `packages/workbench/src/judges.ts` | `JUDGES`: the one map a name becomes an implementation in |
 | `packages/extensions/jev/src/questions.ts` | every question and every threshold Tade asks, in one file |
-| `packages/extensions/jev/src/extension.ts` | the tools, the review watch, the window's tier 1 |
+| `packages/extensions/jev/src/extension.ts` | the tools, the two watches, the second reading of a command, the sentence in search |
 | `AGENTS.md` ("A judge answers, it never decides") | the line a judgement may not cross |
 
 ## Adding an implementation
@@ -40,8 +40,11 @@ only explanation anybody gets.
 1. **Write the questions in `questions.ts`**, never at the call site. One judgment per question,
    literally, about the thing in front of it. Compute anything counted, timed or added up in code
    and put the number in the state.
-2. **Add a tool** (`add-extension`), or extend one. A tool is asked for; anything that runs unasked
-   is a watch or an advisory path, and those are `advise`-gated and have a deadline.
+2. **Add a tool** (`add-extension`), or extend one. A tool is asked for. Anything that runs unasked
+   is a watch — turned on by somebody, per project — or an advisory path, and an advisory path has
+   a deadline and a way to be turned off. The advisory paths today are `caution` (a command an
+   agent is held at, 4s) and `meant` (a sentence typed into search, 2.5s); the watches are
+   `jev.review` and `jev.circles`.
 3. **Keep the judgement out of the rule.** `deriveState`, `queueStateOf`, `readyToStart`,
    `checkPlan`, `decideApproval`, `dueNow` and `speakable` are pure and stay pure. A judge runs
    *before* them and changes only which facts they are handed.
@@ -51,16 +54,24 @@ only explanation anybody gets.
 
 ## Rules
 
+- **Count first, and in code.** A judge cannot count, cannot do arithmetic and cannot compare
+  dates, and asking it about everything is only cheap while everything is cheap. So the countable
+  part of a question is a pure function that runs every time (`circlingIn`, `shortlist`), and what
+  it finds is what reaches a judge: the reading is about the one thing nobody can derive.
 - **It may only ever add caution.** Add a finding, raise a tier, add a wait, ask for a person. It
   may never approve, close, merge, unhold, shorten a review or skip a check. What it reads is text
-  somebody else wrote, and a judge does not treat what it reads as hostile.
+  somebody else wrote, and a judge does not treat what it reads as hostile. Where it raises a tier,
+  the raise itself is a pure function (`withCaution`) that cannot express a loosening: the way to
+  keep this true is to leave the rule no way to be told "allow", not to be careful at the call site.
 - **It advises; it never decides.** What starts out of the queue stays the window's rule over
   written facts. A model may propose an order; a person or the orchestrator writes it down, with a
   reason of their own.
 - **Never a reason to anybody.** "Jev said 0.88" is a number, not an explanation. Whatever reaches
   a person is a sentence somebody — or something that can write — wrote.
 - **Nothing a person is waiting for waits for a judge.** On a path with somebody at the other end,
-  it gets a deadline, and missing it is today's behaviour arriving on time, not an error.
+  it gets a deadline, and missing it is today's behaviour arriving on time, not an error. An
+  answer that arrives after the person moved on is dropped rather than shown: `meant` checks the
+  box still holds the sentence it was asked about.
 - **Pin a version, never an alias.** Thresholds are tuned against one version's distributions.
 - **The port speaks nobody's vocabulary.** `yes-no`, not `noul`; `rate`, not `score`; `options`,
   not `criteria`. If a second implementation would have to learn a vendor's word, the port is wrong.

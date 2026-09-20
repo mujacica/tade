@@ -171,6 +171,144 @@ describe('what a journal event is worth', () => {
     expect(failed.note?.level).toBe('error')
     expect(failed.measures?.[0]).toMatchObject({ name: 'tade.failed', kind: 'counter', value: 1 })
   })
+
+  it('splits what it counts by project, and never by task', () => {
+    // A task id is a slug made from the title somebody wrote: unbounded as a
+    // series, and the one thing about the work that is not Tade's to send.
+    const seen = fromEvent(event({ type: 'run_started', detail: { adapter: 'pi' } }), HOME)
+    const about = seen.measures?.[0]?.about ?? {}
+    expect(about.project).toBe('app')
+    expect(about.task).toBeUndefined()
+    expect(Object.values(about)).not.toContain('app/refunds')
+  })
+
+  it('says which harness a run was in, in the word every other metric uses', () => {
+    const seen = fromEvent(
+      event({
+        type: 'run_started',
+        detail: { adapter: 'pi', model: 'opus', cwd: '/Users/someone/w' },
+      }),
+      HOME,
+    )
+    expect(seen.measures?.[0]).toMatchObject({ name: 'tade.agent.runs', kind: 'counter', value: 1 })
+    expect(seen.measures?.[0]?.about).toMatchObject({ harness: 'pi', model: 'opus' })
+    // `cwd` is a path, and paths are nobody's business even scrubbed.
+    expect(seen.measures?.[0]?.about?.cwd).toBeUndefined()
+  })
+
+  it('never makes a dimension of anything somebody wrote', () => {
+    // `because` is a written sentence. As a dimension it would make a new
+    // series every time somebody worded a hold differently.
+    const held = fromEvent(
+      event({ type: 'queue_held', detail: { because: 'the tests it waits on went red' } }),
+      HOME,
+    )
+    expect(held.measures?.[0]?.about?.because).toBeUndefined()
+    // It still reaches the line beside it, which is where prose belongs.
+    expect(held.note?.about?.because).toBe('the tests it waits on went red')
+  })
+
+  it('counts a commit and how big it was, and whether it said whose it was', () => {
+    const seen = fromEvent(
+      event({
+        type: 'commit_seen',
+        detail: { sha: 'abc', attributed: true, added: 40, removed: 7, files: 3 },
+      }),
+      HOME,
+    )
+    expect(seen.measures?.map((one) => [one.name, one.value])).toEqual([
+      ['tade.commits', 1],
+      ['tade.lines.added', 40],
+      ['tade.lines.removed', 7],
+      ['tade.files.changed', 3],
+    ])
+    expect(seen.measures?.[0]?.about).toMatchObject({ attributed: true, project: 'app' })
+    // The sha names a commit in somebody's repository: counted, never sent.
+    expect(seen.measures?.[0]?.about?.sha).toBeUndefined()
+  })
+
+  it('counts a check run per check, and times only one that finished', () => {
+    const ran = fromEvent(
+      event({
+        type: 'check_ran',
+        detail: {
+          run: 'a:types:here:0',
+          check: 'types',
+          state: 'failed',
+          required: true,
+          ms: 4200,
+        },
+      }),
+      HOME,
+    )
+    expect(ran.measures?.map((one) => one.name)).toEqual(['tade.check.runs', 'tade.check.ms'])
+    expect(ran.measures?.[0]?.about).toMatchObject({
+      check: 'types',
+      state: 'failed',
+      required: true,
+    })
+    const unfinished = fromEvent(
+      event({ type: 'check_ran', detail: { run: 'b', check: 'types', state: 'cancelled' } }),
+      HOME,
+    )
+    expect(unfinished.measures?.map((one) => one.name)).toEqual(['tade.check.runs'])
+  })
+
+  it('keeps priced money and estimated money apart', () => {
+    // pi prices each turn against its own catalog; Claude Code estimates. A
+    // chart that sums the two without saying so reports a number nobody can
+    // defend.
+    const exact = fromEvent(
+      event({ type: 'usage', detail: { usd: 1, tokens: 10, by: 'agent', priced: 'exact' } }),
+      HOME,
+    )
+    expect(exact.measures?.[0]?.about).toMatchObject({ priced: 'exact' })
+    const guessed = fromEvent(
+      event({ type: 'usage', detail: { usd: 1, tokens: 10, by: 'agent', priced: 'estimate' } }),
+      HOME,
+    )
+    expect(guessed.measures?.[0]?.about).toMatchObject({ priced: 'estimate' })
+  })
+
+  it('declares no dimension the allow-list would throw away', () => {
+    // A dimension read from a detail key that `KEPT` drops is a dimension that
+    // silently does nothing — the same defect as a config key with no reader,
+    // and invisible because the metric still arrives, just flat.
+    const written: Record<string, Record<string, string | number | boolean>> = {
+      run_started: { adapter: 'pi', model: 'opus', approvals: 'policy' },
+      turn_done: { status: 'ok' },
+      tool_call: { tool: 'Bash', tier: 'hard', approved: 'automatically' },
+      permission_granted: { tool: 'Bash', tier: 'soft' },
+      permission_denied: { tool: 'Bash', tier: 'hard' },
+      task_done: { by: 'agent', rule: 'said' },
+      queue_held: { start: 'failed' },
+      queue_started: { reopened: true },
+      check_ran: {
+        check: 'types',
+        state: 'passed',
+        required: true,
+        where: 'here',
+        runner: 'local',
+      },
+      commit_seen: { attributed: true },
+    }
+    for (const [type, detail] of Object.entries(written)) {
+      const seen = fromEvent(event({ type: type as TadeEvent['type'], detail }), HOME)
+      const about = seen.measures?.[0]?.about ?? {}
+      for (const key of Object.keys(detail)) {
+        // `adapter` is the one that is renamed on the way out.
+        expect(about[key === 'adapter' ? 'harness' : key], `${type}.${key}`).toBeDefined()
+      }
+    }
+  })
+
+  it('counts nothing for a run that ended, because an exit is what goes missing', () => {
+    // The journal behind `runtime.ts` had 100 `run_started` and 35
+    // `run_exited`: a duration counted here would lose two runs in three.
+    expect(
+      fromEvent(event({ type: 'run_exited', detail: { code: 0 } }), HOME).measures,
+    ).toBeUndefined()
+  })
 })
 
 /** Everything the SDK would have sent, as items of `[header, payload]`. */

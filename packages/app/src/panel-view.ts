@@ -2934,6 +2934,44 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     )
   }
 
+  // What the money bought, beside what it cost: the two numbers are only
+  // worth anything together, and a morning that spent forty dollars on three
+  // commits is a different morning from one that spent it on thirty.
+  rows.push(blank(inner))
+  rows.push(row().space().text('PRODUCED', skin.label).build())
+  const made = view?.produced
+  if (!made || made.commits === 0) {
+    rows.push(row().space(3).text('Nothing committed in this window.', skin.hint).build())
+  } else {
+    const nobody = made.commits - made.attributed
+    const line = row().space()
+    line.text(pad(`${made.commits} commit${made.commits === 1 ? '' : 's'}`, 13))
+    line.text(`+${made.added}`, skin.done).space().text(`−${made.removed}`, skin.bad).space(2)
+    line.text(`${made.files} file${made.files === 1 ? '' : 's'}`, skin.hint)
+    // Unattributed is always an allowed answer: usually a person committing by
+    // hand, sometimes an agent that was never told to write its trailer.
+    if (nobody > 0) line.space(2).text(`${nobody} unattributed`, skin.hint)
+    rows.push(line.build())
+  }
+  // Two, not the whole suite: the panel floats over the window and every row
+  // it grows is a row of the work underneath that somebody cannot see. The
+  // busiest two are the ones worth a glance; `tade spend` lists them all.
+  for (const check of (view?.checks ?? []).slice(0, 2)) {
+    const took = check.medianMs === null ? '' : `${(check.medianMs / 1000).toFixed(1)}s`
+    rows.push(
+      row()
+        .space()
+        .text(pad(check.check, 13))
+        .text(pad(`${check.runs} run${check.runs === 1 ? '' : 's'}`, 9), skin.hint)
+        .text(
+          pad(check.failed > 0 ? `${check.failed} failed` : 'all green', 12),
+          check.failed > 0 ? skin.bad : skin.done,
+        )
+        .text(took, skin.hint)
+        .build(),
+    )
+  }
+
   rows.push(blank(inner))
   rows.push(row().space().text('BUDGETS', skin.label).build())
   // Only projects with something to say: a budget, or money spent without one.

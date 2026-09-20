@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
+import { readRuns } from '@tade/checks-core'
 import {
   AccountName,
+  type Caution,
   type Config,
   ConfigSchema,
   checkBudget,
@@ -45,6 +47,7 @@ import {
   noHarnessSpend,
   offer,
   type PermissionDecision,
+  type PlanLimits,
   type RunId,
   type SignIn,
   type Support,
@@ -54,7 +57,7 @@ import {
   type WorkerHandle,
   type WorkerModel,
 } from '@tade/harnesses-core'
-import { git } from '@tade/status'
+import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
 import { type AccountView, harnessAccount, listAccounts } from './accounts.ts'
@@ -144,6 +147,21 @@ export interface WorkbenchExtensions {
   }): WorkerExtras | undefined
   /** Run a tool an agent called. Throws with the reason it could not. */
   call(call: ExtensionCall & { project: string }): Promise<string>
+  /**
+   * What the extensions make of a command an agent is held at, for what the
+   * approval rules do not name. Only ever stricter, never an allow, and given
+   * a deadline by whoever answers: an agent is waiting on it.
+   */
+  caution(request: {
+    project: string
+    task: string
+    worktree: string
+    tool: string
+    command: string
+    input: Readonly<Record<string, unknown>>
+    decided: { tier: 'auto' | 'soft' | 'hard'; rule: string; reason: string }
+    signal: AbortSignal
+  }): Promise<{ caution: Caution | null; problems: readonly string[] }>
 }
 
 export interface WorkbenchInfo {
@@ -180,6 +198,15 @@ export interface CreateTaskRequest {
   /** When it starts: after other tasks, not before a time. Made now, started by the queue. */
   start?: StartCondition
 }
+
+/**
+ * How many commits one look at a project reads, at the most.
+ *
+ * A bound rather than a window: the look is already limited to commits since
+ * the last one written down, and this is what stops a machine that was shut
+ * for a fortnight from reading a year of history to find them.
+ */
+const COMMITS_SEEN = 200
 
 /** What a plan made: its tasks, in the order they were made, and what to watch out for. */
 export interface PlanMade {
@@ -357,6 +384,14 @@ export class Workbench {
           if (!opts.extensions) throw new Error('Tade has no extensions loaded')
           return opts.extensions.call({ ...call, project: call.task.split('/')[0] ?? '' })
         },
+        // And so does a second reading of what it is about to run. Left out
+        // where there are no extensions, which is the gate Tade has on its own.
+        ...(opts.extensions
+          ? {
+              caution: (call: Parameters<WorkbenchExtensions['caution']>[0]) =>
+                opts.extensions!.caution(call),
+            }
+          : {}),
       })
 
       const workbench = new Workbench({
@@ -388,6 +423,8 @@ export class Workbench {
       await recordAuthored(join(opts.home, 'skills'), 'lessons proposed since Tade was last open')
       await workbench.resupervise().catch(() => {})
       await workbench.reconcileSpend().catch(() => {})
+      await workbench.lookAtCommits().catch(() => {})
+      await workbench.lookAtChecks().catch(() => {})
       return workbench
     } catch (err) {
       await lock.release()
@@ -487,11 +524,166 @@ export class Workbench {
           ...missing,
           // What it last ran on, so the spend lands on a model rather than on "unknown".
           ...(session.model ? { model: session.model } : {}),
+          priced: this.adapterFor(harness, lane.account).capabilities.spend.usd,
           source: 'session',
           reason: 'spent while Tade was closed',
         },
       })
     }
+  }
+
+  /**
+   * Write down commits nobody has written down yet, once each.
+   *
+   * How much an agent actually wrote is the one statistic that cannot be
+   * answered by asking again later. `git log` is a query, and every answer it
+   * gives changes: a rebase rewrites the shas, a squash merge collapses ten
+   * commits into one, and removing a worktree takes the whole history of that
+   * branch with it. So the count is kept at the moment it is true, keyed by
+   * sha, which is exactly what `watch_found` does for a watch — the journal is
+   * the record, and nothing here holds one of its own.
+   *
+   * Only commits since the last one written down. On a machine that has never
+   * run Tade that means nothing at all: a project's first open would otherwise
+   * dump years of somebody else's history into today, and a chart that spikes
+   * on the day you installed something is a chart nobody trusts again.
+   *
+   * Best effort throughout. A project whose root has moved, a checkout that is
+   * not a repository and a git that will not run are all the same answer as a
+   * project with no new commits, because counting things may never be why a
+   * window fails to open.
+   */
+  async lookAtCommits(): Promise<void> {
+    const written = await this.log.read({ types: ['commit_seen'] }).catch(() => [])
+    const seen = new Set<string>()
+    let newest = 0
+    for (const event of written) {
+      const sha = event.detail.sha
+      if (typeof sha === 'string') seen.add(sha)
+      newest = Math.max(newest, Date.parse(event.ts) || 0)
+    }
+    // Nothing written yet: start from this window, not from the beginning of
+    // the project. `tade_opened` was appended moments ago by `open`.
+    if (newest === 0) {
+      const opened = await this.log.read({ types: ['tade_opened'] }).catch(() => [])
+      newest = Math.max(0, ...opened.map((event) => Date.parse(event.ts) || 0))
+    }
+    // A second of overlap, because git's `--since` is granular to the second
+    // and a commit made in the same second as the boundary would fall the
+    // wrong side of it. Overlapping costs nothing: the sha decides what is
+    // new, not the window.
+    const since = (newest === 0 ? Date.now() : newest) - 1_000
+    for (const [project, settings] of Object.entries(this.config.projects)) {
+      const root = settings?.root
+      if (!root) continue
+      const commits = await readCommits(root, { limit: COMMITS_SEEN, since }).catch(() => [])
+      // Oldest first, so the journal reads in the order the work happened.
+      for (const commit of [...commits].reverse()) {
+        if (seen.has(commit.sha)) continue
+        seen.add(commit.sha)
+        await this.log
+          .append({
+            type: 'commit_seen',
+            // Whose it is, is the trailer's to say. A commit without one is
+            // nobody's, and is counted as the project's rather than guessed on
+            // to whichever agent happened to be running when it landed.
+            task: commit.task,
+            detail: {
+              sha: commit.sha,
+              project,
+              attributed: commit.task !== null,
+              added: commit.added,
+              removed: commit.removed,
+              files: commit.files,
+            },
+          })
+          .catch(() => {})
+      }
+    }
+  }
+
+  /**
+   * Write down check runs nobody has written down yet, once each.
+   *
+   * A run is already kept where it ran — `.tade/checks.jsonl` in that worktree
+   * — but that file rotates at a couple of hundred runs and goes entirely when
+   * the worktree does, which is the moment the work is merged and cleaned up.
+   * So "how often does `types` fail, and how long does it take" would be
+   * answerable only about work still in progress, which is the opposite of the
+   * question.
+   *
+   * Read rather than written at the moment of running, for the same reason
+   * commits are: `tade check` on the command line runs with no window, and a
+   * second writer in one journal would interleave with the window's. The run
+   * it wrote is picked up by whichever window opens next, keyed by the run's
+   * own id, so nothing is counted twice and nothing is missed because nobody
+   * was watching.
+   */
+  async lookAtChecks(): Promise<void> {
+    const written = await this.log.read({ types: ['check_ran'] }).catch(() => [])
+    const seen = new Set<string>()
+    for (const event of written) {
+      const id = event.detail.run
+      if (typeof id === 'string') seen.add(id)
+    }
+    // Every worktree that could hold runs: a project's own checkout, and each
+    // agent's, which in `worktree` mode is where its checks actually ran.
+    const roots = new Map<string, string | null>()
+    for (const settings of Object.values(this.config.projects)) {
+      if (settings?.root) roots.set(settings.root, null)
+    }
+    for (const lane of this.registry.list()) {
+      if (lane.kind === 'agent') roots.set(lane.spec.cwd, lane.task)
+    }
+    for (const [root, task] of roots) {
+      const runs = await readRuns(root).catch(() => [])
+      for (const run of runs) {
+        if (seen.has(run.id)) continue
+        seen.add(run.id)
+        const started = Date.parse(run.startedAt ?? '')
+        const finished = Date.parse(run.finishedAt ?? '')
+        const ms =
+          Number.isFinite(started) && Number.isFinite(finished) && finished >= started
+            ? finished - started
+            : null
+        await this.log
+          .append({
+            type: 'check_ran',
+            task,
+            detail: {
+              run: run.id,
+              check: run.check,
+              state: run.state,
+              required: run.required,
+              where: run.where.kind,
+              runner: run.where.kind === 'here' ? run.where.runner : run.where.forge,
+              by: run.by ?? 'unknown',
+              ...(ms === null ? {} : { ms }),
+            },
+          })
+          .catch(() => {})
+      }
+    }
+  }
+
+  /**
+   * How much of each harness's plan is used, as that harness last said.
+   *
+   * Never asks anybody: a harness that watches its own limits keeps the last
+   * answer it was given, and this reads it. Anything that reached out here
+   * would be a network call on a beat, which is the thing that must not
+   * happen — and a harness that cannot say at all (`spend.limits` false) is
+   * simply absent rather than reported as zero, because "none used" and
+   * "cannot know" are different answers and only one of them is good news.
+   */
+  planLimits(): { harness: string; limits: PlanLimits }[] {
+    const out: { harness: string; limits: PlanLimits }[] = []
+    for (const [harness, adapter] of Object.entries(this.adapters)) {
+      if (!adapter.capabilities.spend.limits) continue
+      const limits = adapter.limits()
+      if (limits) out.push({ harness, limits })
+    }
+    return out
   }
 
   info(): WorkbenchInfo {

@@ -392,18 +392,26 @@ export function selectProject(state: AppState, project: string): AppState {
   return { ...state, project, focused: first?.task ?? null, chose: true, scroll: 0 }
 }
 
+/**
+ * Every agent in the project in front of you, hidden or not. What the list is
+ * drawn from, and what its count is out of: a list showing three of fourteen
+ * has to know the fourteen to say so.
+ */
+export function agentsHere(state: AppState): AgentPane[] {
+  // Queued work is not an agent yet: it waits in the SMART QUEUE until it starts.
+  return state.panes.filter(
+    (pane) => pane.project === (state.project ?? pane.project) && !pane.queued,
+  )
+}
+
 /** The tasks down the side: the selected project's, in the order they come. */
 export function tasksOf(
   state: AppState,
 ): Array<AgentPane & { focused: boolean; dragging: boolean }> {
-  // Queued work is not an agent yet: it waits in the SMART QUEUE until it starts.
-  const here = state.panes.filter(
-    (pane) =>
-      pane.project === (state.project ?? pane.project) &&
-      !pane.queued &&
-      // Finished and hidden — except the one you are watching, because a list
-      // that leaves out what is on the screen is a list that disagrees with it.
-      !(state.hidingDone && markOf(pane) === 'done' && pane.task !== state.focused),
+  const here = agentsHere(state).filter(
+    // Finished and hidden — except the one you are watching, because a list
+    // that leaves out what is on the screen is a list that disagrees with it.
+    (pane) => !(state.hidingDone && markOf(pane) === 'done' && pane.task !== state.focused),
   )
   const order = state.reordering
     ? { ...state.order, [state.reordering.project]: dragged(state, state.reordering) }
@@ -1171,10 +1179,7 @@ export function scrollBarTo(state: AppState, y: number): AppState {
  * than from the list, so hiding them never changes what cleanup would close.
  */
 export function doneTasks(state: AppState): AgentPane[] {
-  return state.panes.filter(
-    (pane) =>
-      pane.project === (state.project ?? pane.project) && !pane.queued && markOf(pane) === 'done',
-  )
+  return agentsHere(state).filter((pane) => markOf(pane) === 'done')
 }
 
 /** Show or hide the agents that have finished. */

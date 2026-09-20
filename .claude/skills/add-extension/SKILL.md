@@ -12,7 +12,7 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
 
 | Path | What |
 |---|---|
-| `packages/extensions/core/src/port.ts` | `TadeExtension`, tools, actions, watches, brief items, linkers, context |
+| `packages/extensions/core/src/port.ts` | `TadeExtension`, tools, actions, watches, brief items, linkers, caution, meant, context |
 | `packages/extensions/core/src/host.ts` | `ExtensionHost`: loads, checks, runs, briefs, prompts |
 | `packages/extensions/core/src/conformance.ts` | The suite every extension passes |
 | `packages/extensions/<name>/` | A built-in extension: `src/extension.ts`, `skills/`, `test/` |
@@ -86,6 +86,20 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   cannot look, with why. Declare what it takes as `input`, and how often it looks as `every`
   (`30m`, `1h`). Tade does the rest: turning it on, the journal, the queue, telling people.
   Test it through `host.look(...)` with a fake `fetch` (see `extensions/sentry`).
+- **A second reading of a command runs with an agent held at it** (`caution`): Tade's approval rules
+  have already answered the call, and this is asked beside them about what no rule names. It may
+  only return a stricter tier (`soft`, `hard`) or null — there is no answer that allows anything —
+  and the `reason` is a clause written in advance, never a sentence about the command. It is given
+  a short deadline and a late answer is dropped, so never do anything here that must not be
+  abandoned, and let a setting turn it off. The conformance suite holds every one of these to it.
+- **A watch may be for telling rather than starting** (`offers: 'ask'`): then it has no `agent` at
+  all, and Tade tells the orchestrator about each finding instead. Use it when what it finds is
+  work already going — an agent stuck — where there is nothing to start. A watch that reads what
+  Tade is running gets the window as `ctx.tade`, and says it cannot look without one rather than
+  finding nothing.
+- **A sentence typed into search reaches whoever offers to read one** (`meant`): the choices are
+  what the window already has in its list, the answer is ids from that list and nothing else, and
+  it has a deadline of a couple of seconds because somebody is watching the box.
 - **Tests never reach the network.** Pass `fetch` to `ExtensionHost.load`, and `env: {}` — `pnpm run`
   puts its own `npm_config_*` in the environment. Use `mkrepo` for anything reading a project.
 

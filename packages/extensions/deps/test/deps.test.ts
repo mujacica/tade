@@ -271,6 +271,7 @@ describe('checking and updating a project', () => {
         tade: {
           pid: process.pid,
           lanes: () => [],
+          agents: () => [],
           startAgent: async (request) => {
             await request.prepare?.(worktree.root)
             started.push({ ...request, worktree: worktree.root })

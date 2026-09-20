@@ -310,15 +310,20 @@ function git(dir: string, args: string[], input?: string): Promise<string | null
         LC_ALL: 'C',
       },
       detached: true,
-      stdio: ['pipe', 'pipe', 'ignore'],
+      // Only a command we actually feed gets a stdin. A pipe nobody reads is
+      // closed the moment git exits, and the write we never needed comes back
+      // EPIPE — which read as a failed call, so a `git rev-parse` that had
+      // already printed the right answer was thrown away. It only ever lost
+      // the race on a fast machine, which is how it reached CI and not here.
+      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'],
     })
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
       finish(null)
     }, TIMEOUT_MS)
     let out = ''
-    child.stdout.setEncoding('utf8')
-    child.stdout.on('data', (chunk: string) => {
+    child.stdout?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk: string) => {
       out += chunk
       if (out.length > MOST_BYTES) {
         child.kill('SIGKILL')
@@ -327,7 +332,12 @@ function git(dir: string, args: string[], input?: string): Promise<string | null
     })
     child.on('error', () => finish(null))
     child.on('close', (code) => finish(code === 0 ? out : null))
-    child.stdin.on('error', () => finish(null))
-    child.stdin.end(input ?? '')
+    if (input !== undefined) {
+      // Swallowed, not reported: git's exit code is the answer about whether
+      // it read what we sent, and a broken pipe on the way in is how a command
+      // that finished early says it had enough.
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(input)
+    }
   })
 }

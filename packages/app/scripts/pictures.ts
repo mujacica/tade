@@ -203,6 +203,7 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'Spend: every agent and the orchestrator with its model, tokens, share, runtime and cost, ' +
+      'what that bought in commits and lines, how the project’s own checks have been going, ' +
       'and each project against the budget you set it.',
   },
   {

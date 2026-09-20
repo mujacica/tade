@@ -142,6 +142,26 @@ export const COMMIT_TELLS: Record<'when-done' | 'own-files' | 'as-you-go' | 'nev
   never: 'Do not commit. Leave your changes uncommitted: the person reviews and commits them.',
 }
 
+/**
+ * What an agent is told to end its commit messages with, so the work stays
+ * attributable.
+ *
+ * Tade reads this trailer in four places — which queued work a tree collides
+ * with, the commits shown beside a task, which review belongs to whom, and
+ * what a task changed — and never guesses any of them. It was said only by the
+ * review extension's skill, which reaches an agent only when that extension is
+ * on and its skill is handed over; every other agent committed anonymously and
+ * the window drew "0 with this task's trailer" over work that was plainly
+ * theirs.
+ *
+ * git's own mechanism rather than a table Tade keeps: a table is wrong the
+ * moment somebody rebases, and a trailer survives a squash merge onto a
+ * machine that has never heard of Tade.
+ */
+export function trailerTell(task: string): string {
+  return `End every commit message with \`Tade-Task: ${task}\` on a line of its own, after a blank line. It is how Tade knows which commits are yours — without it your work counts as nobody’s.`
+}
+
 export interface AgentPromptInput {
   /** `project/name`. */
   task: string
@@ -210,6 +230,11 @@ export function composeAgentPrompt(input: AgentPromptInput): string {
             : 'You have no branch yet. Tade creates one, named after your work, the first time you change something: do not create, switch or rename branches yourself.',
         ]),
     COMMIT_TELLS[input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')],
+    // Only where there will be commits to carry it: an agent told never to
+    // commit has nothing to put a trailer on, and saying it anyway invites one.
+    (input.commit ?? (input.workspace === 'checkout' ? 'own-files' : 'as-you-go')) === 'never'
+      ? null
+      : trailerTell(input.task),
     checksTold(input.checks?.rule ?? null, input.checks?.ids ?? [], input.checks?.hold ?? false) ??
       (input.testCommand ? `This project checks its work with \`${input.testCommand}\`.` : null),
     input.context

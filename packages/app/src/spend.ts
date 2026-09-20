@@ -1,11 +1,14 @@
 import {
   type Budget,
   type BudgetVerdict,
+  type CheckTally,
   checkBudget,
+  type Produced,
   type Runtime,
   runtimeFrom,
   spendFrom,
   startOfToday,
+  statsFrom,
   type TadeEvent,
 } from '@tade/core'
 
@@ -70,6 +73,10 @@ export interface SpendView {
   runtime: Runtime
   rows: SpendRow[]
   budgets: BudgetRow[]
+  /** What the money bought: commits, and how big they were. */
+  produced: Produced
+  /** How each of the project's checks has been going, busiest first. */
+  checks: CheckTally[]
 }
 
 const DAY = 86_400_000
@@ -92,6 +99,8 @@ export function spendView(
     budgets: Readonly<Record<string, Budget | undefined>>
     /** Where runtime is read from, when the run events are not in `events` themselves. */
     runs?: readonly TadeEvent[]
+    /** Where commits and check runs are read from. The same events, unless said. */
+    made?: readonly TadeEvent[]
   },
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
@@ -177,6 +186,11 @@ export function spendView(
     }
   })
 
+  // What the money bought. Read over the same window, from events written
+  // once each at the moment they were true — a commit that has since been
+  // rebased away still counts, because the work was still done.
+  const made = statsFrom(opts.made ?? events, { since })
+
   return {
     window: opts.window,
     by: opts.by,
@@ -186,6 +200,8 @@ export function spendView(
     runtime: ran.total,
     rows,
     budgets,
+    produced: made.produced,
+    checks: made.checks,
   }
 }
 

@@ -1,0 +1,52 @@
+#!/bin/sh
+# What a commit is held to on this machine, and deliberately not more.
+#
+# Everything here runs over the whole repository in a few seconds, because a
+# hook people wait on is a hook people pass `--no-verify` to, and a gate
+# nobody runs is worse than no gate at all. So this is style, types and the
+# cheap end of the suite. What is not here is what makes `pnpm check` take
+# minutes: real git repositories, real PTYs, the tmux driver, the app's frame
+# loop. Those are CI's, and `pnpm check` is how you run them here.
+#
+# It reads the working tree, not the index. With unstaged edits sitting beside
+# your staged ones, what this passed is not byte-for-byte what you are
+# committing — the trade for never stashing your work out from under you in
+# the middle of a commit.
+#
+# Installed by `pnpm hooks`, which `pnpm install` runs for you. Skip one
+# commit with `git commit --no-verify`.
+
+set -e
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+if [ ! -d node_modules ]; then
+  echo "pre-commit: no node_modules — run pnpm install" >&2
+  exit 1
+fi
+
+step() {
+  label=$1
+  shift
+  if ! "$@"; then
+    echo >&2
+    echo "pre-commit: $label failed. Fix it, or commit with --no-verify." >&2
+    exit 1
+  fi
+}
+
+# Formatting and lint, including the Grit plugin that enforces R3 — the same
+# command CI runs, over the same files, so passing here means the same thing.
+step "style and lint" pnpm exec biome ci .
+
+# The whole project, not the staged files: a one-line change in a port breaks
+# types in packages nobody touched, which is exactly the breakage worth
+# catching before it is pushed.
+step "types" pnpm exec tsc -p tsconfig.json
+
+# The smoke end of the suite: the domain — state, config, prompts, speech,
+# done rules — plus the two tests that hold this repository to its own word,
+# that `.tade/checks.yaml`, `pnpm check` and the generated CI workflow all say
+# the same thing, and that the R3 lint rule still bites.
+step "smoke tests" pnpm run --silent test:smoke

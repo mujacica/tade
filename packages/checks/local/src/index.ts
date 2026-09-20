@@ -30,6 +30,12 @@ import {
 /** How long a stopped check is given to end politely before it is killed. */
 const GRACE_MS = 2_000
 
+/**
+ * And how long its last bytes are waited for after it is gone. A command that
+ * left something behind holding the pipe open would otherwise never let go.
+ */
+const DRAIN_MS = 2_000
+
 export function makeLocalRunner(options: RunnerOptions = {}): Runner {
   const now = options.now ?? Date.now
   const parallel = Math.max(1, options.parallel ?? 2)
@@ -183,6 +189,9 @@ async function one(
   child.stderr?.setEncoding('utf8')
   child.stdout?.on('data', keep)
   child.stderr?.on('data', keep)
+  // Listened for now rather than after the exit: 'close' is emitted once, and
+  // a listener added after it fired waits for an event that already happened.
+  const drained = new Promise<void>((done) => child.once('close', () => done()))
 
   const end = async (why: 'timed out' | 'cancelled'): Promise<void> => {
     // Said before the signal, not after it: the child's exit arrives first, and
@@ -209,12 +218,28 @@ async function one(
   ctx.signal.addEventListener('abort', onAbort, { once: true })
   if (ctx.signal.aborted) onAbort()
 
+  // Exit says the process is gone; it does not say its last bytes have been
+  // read. A check that failed on one line of stderr raced that line against
+  // its own exit and, on a fast machine, was recorded with nothing under it —
+  // a red run nobody can read is barely better than no run at all. So the
+  // pipes are given a moment to finish, bounded because a command that left a
+  // child holding them open would hold this forever.
   const code = await new Promise<number>((done) => {
     child.once('error', () => done(127))
     child.once('exit', (exit) => done(exit ?? 1))
   })
+  // Both let go the moment it is gone, and before the wait below: a check
+  // that finished on time must not be recorded as timed out or cancelled
+  // because its last bytes took a moment to arrive.
   clearTimeout(timer)
   ctx.signal.removeEventListener('abort', onAbort)
+  await Promise.race([
+    drained,
+    new Promise<void>((done) => {
+      const drain = setTimeout(done, DRAIN_MS)
+      drain.unref?.()
+    }),
+  ])
 
   const state: CheckState = outcome ?? (code === 0 ? 'passed' : 'failed')
   const run: CheckLog = {

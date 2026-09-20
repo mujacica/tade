@@ -63,6 +63,21 @@ export const EventType = z.enum([
   'usage',
   /** A finished task was looked back over, so it is never looked at twice. */
   'reflected',
+  // what was verified, and what was written
+  /**
+   * A check finished, against the commit it checked. The run itself is kept in
+   * the worktree it ran in, which goes when the worktree does; this is the
+   * line that outlives it, so "how often does `types` fail, and how long does
+   * it take" stays answerable after the work is merged and cleaned up.
+   */
+  'check_ran',
+  /**
+   * A commit was seen for the first time, and what it changed. Written once
+   * per commit, by sha, so a look that reads the same history twice counts it
+   * once — and so the numbers survive the worktree being removed, which is
+   * what re-reading `git log` every time would not.
+   */
+  'commit_seen',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -109,6 +124,12 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   usage: 'routine',
   // Nobody needs to be told that Tade thought about something.
   reflected: 'trace',
+  // Routine rather than trace, for the same reason `usage` is: both are read
+  // back out of the journal to be added up, and trace is the first thing
+  // dropped when a subscriber falls behind. A statistic with holes in it that
+  // nothing announces is worse than no statistic.
+  check_ran: 'routine',
+  commit_seen: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

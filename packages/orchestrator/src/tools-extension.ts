@@ -356,7 +356,7 @@ export function orchestratorTools(
           type: 'string',
           enum: ['agent', 'ask'],
           description:
-            'what each new thing a watch finds becomes: an agent on it (the default), or a question for you',
+            'what each new thing a watch finds becomes: an agent on it, or a question for you. Left out, it is what the watch says it is for — and one with nothing to start, like an agent going in circles, only ever tells you',
         },
         most: {
           type: 'number',

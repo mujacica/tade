@@ -5,6 +5,7 @@ import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
+import { circlingIn } from '../src/circles.ts'
 import { jevExtension } from '../src/extension.ts'
 import { reviewQuestions } from '../src/questions.ts'
 import { findingsReport, statusLine } from '../src/report.ts'
@@ -72,7 +73,8 @@ function host(options: {
   settings?: Record<string, unknown>
   env?: Record<string, string | undefined>
   fetch?: typeof fetch
-  now?: number
+  /** A fixed instant, or `Date.now` where the fixture's own commits are the clock. */
+  now?: number | (() => number)
   secrets?: Secrets
 }) {
   return ExtensionHost.load({
@@ -84,9 +86,16 @@ function host(options: {
     home: options.home,
     env: options.env ?? {},
     fetch: options.fetch ?? offline,
-    now: () => options.now ?? NOW,
+    now: clock(options.now),
     ...(options.secrets ? { secrets: options.secrets } : {}),
   })
+}
+
+/** A fixed instant, a live clock, or the default — always as something to call. */
+function clock(now: number | (() => number) | undefined): () => number {
+  if (typeof now === 'function') return now
+  const at = now ?? NOW
+  return () => at
 }
 
 const asked = { caller: { kind: 'orchestrator' } as const }
@@ -356,6 +365,12 @@ describe('reading a change', () => {
       projects: { shop: { root: repo.root } },
       env: { TYPESAFE_API_KEY: 'k' },
       fetch: typesafe({ authz_removed: 0.88 }),
+      // The real clock, as in the test below, and read at each look rather
+      // than captured once: the fixture commits again part way through, and
+      // git's own timestamps are whole seconds. A frozen clock is a watch
+      // looking at work from its own future, which settles nothing — pinned,
+      // this passed on the day it was written and went red the next morning.
+      now: Date.now,
     })
     const look = await loaded.look('jev.review', {
       project: 'shop',
@@ -579,6 +594,7 @@ describe('what the window shows', () => {
   const tade = {
     pid: process.pid,
     lanes: () => [],
+    agents: () => [],
     startAgent: async () => ({ task: '', worktree: '' }),
   }
 
@@ -636,5 +652,366 @@ describe('what the window shows', () => {
   it('cuts a title at a word, so a title stays a title', () => {
     expect(shorten('a b c d e f', 5)).toBe('a b…')
     expect(shorten('short', 50)).toBe('short')
+  })
+})
+
+describe('reading a command an agent is held at', () => {
+  const asking = {
+    project: 'checkout',
+    task: 'checkout/refunds',
+    worktree: '/work/wt/checkout-refunds',
+    tool: 'bash',
+    command: 'terraform destroy -auto-approve',
+    input: { command: 'terraform destroy -auto-approve' },
+    decided: { tier: 'soft' as const, rule: 'command', reason: 'runs a command' },
+    signal: new AbortController().signal,
+  }
+
+  it('raises what it takes to allow one, in Tade’s own words and never the number', async () => {
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ reaches_shared: 0.94, more_than_it_looks: 0.7 }, seen),
+    })
+    const read = await loaded.caution(asking)
+
+    expect(read.problems).toEqual([])
+    expect(read.caution).toEqual({
+      tier: 'hard',
+      // Written in questions.ts, in advance, by somebody: what a person hears
+      // is never a sentence a model wrote about a command it was shown.
+      reason: 'changes something other people share',
+      version: 'jev-1.13.0',
+      by: 'jev',
+    })
+    // It is asked about the command, and told where the agent is allowed to
+    // be working — "outside it" is a question about this call, not about paths.
+    const [body] = seen as { state: string }[]
+    expect(JSON.parse(body?.state ?? '{}')).toMatchObject({
+      command: 'terraform destroy -auto-approve',
+      agent_works_in: '/work/wt/checkout-refunds',
+      // What the rules already decided, so it is asked about what no rule names.
+      tade_already_decided: 'soft: runs a command',
+    })
+  })
+
+  it('says nothing about a command that reads as ordinary', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      // Everything well under `act`: a run of the tests is a run of the tests.
+      fetch: typesafe({}),
+    })
+    expect(await loaded.caution({ ...asking, command: 'pnpm test' })).toMatchObject({
+      caution: null,
+    })
+  })
+
+  it('takes the strictest of what fired, not the first one asked', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ more_than_it_looks: 0.99, wipes_uncommitted: 0.9 }),
+    })
+    expect((await loaded.caution(asking)).caution).toMatchObject({
+      tier: 'hard',
+      reason: 'throws away work that is not committed',
+    })
+  })
+
+  it('reads nothing when it is turned off, and nothing from a project nobody named', async () => {
+    const off = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      settings: { commands: false },
+      // Nothing may reach the network: a setting that is read after the ask
+      // would have cost money before anybody noticed.
+      fetch: offline,
+    })
+    expect(await off.caution(asking)).toEqual({ caution: null, problems: [] })
+
+    const elsewhere = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      settings: { projects: ['billing'] },
+      fetch: offline,
+    })
+    expect(await elsewhere.caution(asking)).toEqual({ caution: null, problems: [] })
+  })
+
+  it('reads the same command from the same agent once, not at every retry', async () => {
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ reaches_shared: 0.94 }, seen),
+    })
+    const first = await loaded.caution(asking)
+    // An agent that is refused runs the same line again, and again after that.
+    const again = await loaded.caution(asking)
+
+    expect(again).toEqual(first)
+    expect(seen).toHaveLength(1)
+    // A different command is a different question.
+    await loaded.caution({ ...asking, command: 'pnpm test' })
+    expect(seen).toHaveLength(2)
+  })
+
+  it('with no key, reads nothing and holds nothing up', async () => {
+    const loaded = await host({ home: tmp('tade-jev-'), env: {}, fetch: offline })
+    expect(await loaded.caution(asking)).toEqual({ caution: null, problems: [] })
+  })
+})
+
+describe('a sentence typed into search', () => {
+  const choices = [
+    { id: 'stop:checkout/refunds', label: 'Stop refunds', detail: 'in checkout' },
+    { id: 'run:new-agent', label: 'New agent' },
+    { id: 'run:spend', label: 'Spend' },
+  ]
+  const said = 'stop whoever is on the refunds thing'
+
+  /** A TypeSafe that puts the weight where a test says, over the options asked. */
+  function picks(weights: Record<string, number>, seen?: unknown[]): typeof fetch {
+    return (async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        questions: Record<string, { criteria?: Record<string, string> }>
+      }
+      seen?.push(body)
+      const options = Object.keys(body.questions.meant?.criteria ?? {})
+      const probabilities = Object.fromEntries(
+        options.map((option) => [option, weights[option] ?? 0.01]),
+      )
+      return Response.json({
+        model: 'jev-1.13.0',
+        usage: { input_tokens: 200 },
+        answers: {
+          meant: {
+            type: 'choice',
+            choice: options.reduce((best, one) =>
+              (probabilities[one] ?? 0) > (probabilities[best] ?? 0) ? one : best,
+            ),
+            probabilities,
+            confidence: 0.9,
+          },
+        },
+      })
+    }) as typeof fetch
+  }
+
+  it('answers with what was put in front of it, best first, and nothing else', async () => {
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: picks({ c1: 0.88, c2: 0.65 }, seen),
+    })
+    const answer = await loaded.meant({ said, choices, signal: new AbortController().signal })
+
+    // Two plausible readings of one sentence is the answer to "did you mean".
+    expect(answer).toEqual({ ids: ['stop:checkout/refunds', 'run:new-agent'], problems: [] })
+    // It is asked about what they typed, with one option per thing they can
+    // already see and one for none of them.
+    const [body] = seen as { questions: { meant: { criteria: Record<string, string> } } }[]
+    const options = Object.keys(body?.questions.meant.criteria ?? {})
+    expect(options).toEqual(['c1', 'c2', 'c3', 'none'])
+  })
+
+  it('says nothing where none of them was meant', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: picks({ none: 0.93, c1: 0.4 }),
+    })
+    expect(await loaded.meant({ said, choices, signal: new AbortController().signal })).toEqual({
+      ids: [],
+      problems: [],
+    })
+  })
+
+  it('stops at none, so what it believes less than "none of these" is not offered', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: picks({ c1: 0.8, none: 0.7, c2: 0.65 }),
+    })
+    expect(
+      (await loaded.meant({ said, choices, signal: new AbortController().signal })).ids,
+    ).toEqual(['stop:checkout/refunds'])
+  })
+
+  it('asks nobody when it is turned off, or when there is no key', async () => {
+    const off = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      settings: { search: false },
+      fetch: offline,
+    })
+    expect(await off.meant({ said, choices, signal: new AbortController().signal })).toEqual({
+      ids: [],
+      problems: [],
+    })
+    const none = await host({ home: tmp('tade-jev-'), env: {}, fetch: offline })
+    expect(await none.meant({ said, choices, signal: new AbortController().signal })).toEqual({
+      ids: [],
+      problems: [],
+    })
+  })
+})
+
+describe('what an agent has been doing, counted', () => {
+  const did = (tool: string, about: string, ok: boolean | null = true, at = NOW) => ({
+    at,
+    tool,
+    about,
+    ok,
+  })
+  const ended = (status: 'ok' | 'error' | 'aborted') => ({ at: NOW, status })
+
+  it('says nothing about an agent that is getting on with it', () => {
+    const working = [
+      did('read', 'src/charge.ts'),
+      did('edit', 'src/charge.ts'),
+      did('bash', 'pnpm test'),
+      did('bash', 'git commit -m fix'),
+    ]
+    expect(circlingIn(working, [ended('ok')], 3, 3)).toBeNull()
+  })
+
+  it('does not call running the tests five times a loop when they keep passing', () => {
+    // A repeat where nothing ever fails is a method, not a loop — and nobody
+    // is asked about it, which is what keeps looking every ten minutes free.
+    const method = Array.from({ length: 5 }, () => did('bash', 'pnpm test'))
+    expect(circlingIn(method, [], 3, 3)).toBeNull()
+  })
+
+  it('finds the same failing call coming round, and what else it did', () => {
+    const stuck = [
+      did('bash', 'pnpm test', false),
+      did('edit', 'src/charge.ts'),
+      did('bash', 'pnpm test', false),
+      did('edit', 'src/charge.ts'),
+      did('bash', 'pnpm test', false),
+    ]
+    const round = circlingIn(stuck, [], 3, 3)
+    expect(round).toMatchObject({ signature: 'bash pnpm test', times: 3, failed: 3 })
+    // Everything it did, oldest first, the same thing counted rather than
+    // listed again: a judge cannot count, so nothing is left for it to.
+    expect(round?.steps).toEqual([
+      { tool: 'bash', about: 'pnpm test', times: 3, failed: 3 },
+      { tool: 'edit', about: 'src/charge.ts', times: 2, failed: 0 },
+    ])
+  })
+
+  it('finds an agent that cannot get through a turn at all', () => {
+    const round = circlingIn(
+      [did('bash', 'pnpm build')],
+      [ended('ok'), ended('error'), ended('error'), ended('error')],
+      3,
+      3,
+    )
+    expect(round).toMatchObject({ badTurns: 3, signature: 'bash pnpm build' })
+  })
+})
+
+describe('watching for an agent going in circles', () => {
+  const stuck = {
+    task: 'checkout/refunds',
+    project: 'checkout',
+    startedAt: NOW - 40 * 60_000,
+    turn: 'running' as const,
+    did: Array.from({ length: 4 }, () => ({
+      at: NOW,
+      tool: 'bash',
+      about: 'pnpm migrate --env staging',
+      ok: false,
+    })),
+    ends: [],
+  }
+  const window = {
+    pid: 1,
+    lanes: () => [],
+    agents: () => [stuck],
+    startAgent: async () => ({ task: '', worktree: '' }),
+  }
+  const look = (loaded: Awaited<ReturnType<typeof host>>, tade: typeof window | null = window) =>
+    loaded.look('jev.circles', {
+      project: 'checkout',
+      input: {},
+      since: null,
+      turnedOn: new Date(NOW - 3_600_000).toISOString(),
+      tade,
+    })
+
+  it('says which agent, what it keeps trying, and that nothing was done about it', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      projects: { checkout: { root: tmp('tade-jev-repo-') } },
+      fetch: typesafe({ in_circles: 0.91, needs_a_person: 0.2 }),
+    })
+    const looked = await look(loaded)
+
+    expect(looked.found).toHaveLength(1)
+    expect(looked.found[0]?.title).toBe(
+      'checkout/refunds: it looks like it is trying the same thing that already failed',
+    )
+    // Known by the agent and what it is going round on, so being stuck on the
+    // same thing is said once and on something else later is news again.
+    expect(looked.found[0]?.key).toMatch(/^checkout\/refunds:bash pnpm migrate/)
+    expect(looked.found[0]?.detail).toMatch(/4 times, 4 of them failing/)
+    expect(looked.found[0]?.detail).toMatch(/stopping or steering it is yours/)
+  })
+
+  it('has nothing to start work on, and says so rather than starting something', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      projects: { checkout: { root: tmp('tade-jev-repo-') } },
+      fetch: typesafe({ in_circles: 0.91 }),
+    })
+    expect(loaded.watches().find((one) => one.id === 'jev.circles')?.offers).toBe('ask')
+    const looked = await look(loaded)
+    await expect(looked.agent(looked.found[0] as never)).rejects.toThrow(/told to the orchestrator/)
+  })
+
+  it('says nothing where a repeat is how a job gets finished', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      projects: { checkout: { root: tmp('tade-jev-repo-') } },
+      // The one answer that takes a finding away again.
+      fetch: typesafe({ in_circles: 0.9, nearly_there: 0.88 }),
+    })
+    expect((await look(loaded)).found).toEqual([])
+  })
+
+  it('asks nobody about an agent that is getting on with it', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      projects: { checkout: { root: tmp('tade-jev-repo-') } },
+      fetch: offline,
+    })
+    const working = { ...stuck, did: [{ at: NOW, tool: 'bash', about: 'pnpm test', ok: true }] }
+    const looked = await loaded.look('jev.circles', {
+      project: 'checkout',
+      input: {},
+      since: null,
+      turnedOn: new Date(NOW - 3_600_000).toISOString(),
+      tade: { ...window, agents: () => [working] },
+    })
+    expect(looked.found).toEqual([])
+  })
+
+  it('cannot look without a window, and says why rather than finding nothing', async () => {
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      env: { TYPESAFE_API_KEY: 'k' },
+      projects: { checkout: { root: tmp('tade-jev-repo-') } },
+      fetch: offline,
+    })
+    await expect(look(loaded, null)).rejects.toThrow(/open window/)
   })
 })

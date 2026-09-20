@@ -130,6 +130,20 @@ describe('composeAgentPrompt', () => {
     context: null,
   }
 
+  it('tells every agent that commits to say whose the commit is', () => {
+    // Tade reads this trailer in four places and guesses in none of them. It
+    // used to be said only by the review extension's skill, so every agent
+    // without that extension committed anonymously and the window drew
+    // "0 with this task's trailer" over work that was plainly theirs.
+    const told = composeAgentPrompt({ ...base, workspace: 'checkout', commit: 'own-files' })
+    expect(told).toContain('Tade-Task: shop/refunds')
+  })
+
+  it('does not ask for a trailer from an agent told never to commit', () => {
+    const told = composeAgentPrompt({ ...base, workspace: 'worktree', commit: 'never' })
+    expect(told).not.toContain('Tade-Task:')
+  })
+
   it('tells an agent sharing the checkout to work beside the others, and how to commit', () => {
     const told = composeAgentPrompt({
       ...base,

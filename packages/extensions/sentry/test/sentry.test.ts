@@ -300,6 +300,7 @@ describe('acting on Sentry', () => {
         tade: {
           pid: process.pid,
           lanes: () => [],
+          agents: () => [],
           startAgent: async (request) => {
             started.push(request)
             return { task: 'shop/fix-shop-1a', worktree: '/w' }

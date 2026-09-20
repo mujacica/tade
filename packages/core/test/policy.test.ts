@@ -6,6 +6,7 @@ import {
   inside,
   type Tier,
   type ToolEffect,
+  withCaution,
 } from '../src/policy.ts'
 
 const WORKTREE = '/work/wt/checkout-refunds'
@@ -343,5 +344,54 @@ describe('rules of your own', () => {
       rules: [{ match: '([unclosed', tier: 'hard' as const }],
     })
     expect(decided.tier).toBe('auto')
+  })
+})
+
+describe('a second reading of a command', () => {
+  const settings = { mode: 'policy' as const }
+  const read = (
+    tier: 'soft' | 'hard',
+    reason = 'could destroy something that cannot be got back',
+  ) => ({ tier, reason, by: 'jev', version: 'jev-1.13.0' }) as const
+
+  it('raises what it takes to allow a command nobody wrote a rule for', () => {
+    const decided = decideApproval(bash('terraform destroy -auto-approve'), settings)
+    expect(decided).toMatchObject({ tier: 'soft', rule: 'command', decision: 'ask' })
+
+    const after = withCaution(decided, read('hard'), settings)
+    expect(after).toMatchObject({
+      tier: 'hard',
+      decision: 'ask',
+      reason: 'could destroy something that cannot be got back',
+      // Both are in the ledger: what Tade thought, and what read it again.
+      rule: 'command+jev',
+    })
+  })
+
+  it('cannot lower a tier, allow a call, or say nothing louder than Tade did', () => {
+    const decided = decideApproval(bash('git push --force origin main'), settings)
+    expect(decided.tier).toBe('hard')
+    // There is no `auto` to answer with; `soft` under a `hard` changes nothing.
+    expect(withCaution(decided, read('soft', 'looks routine to me'), settings)).toEqual(decided)
+    expect(withCaution(decided, null, settings)).toEqual(decided)
+  })
+
+  it('leaves the decision exactly as it was when nobody read it', () => {
+    for (const command of ['ls -la', 'npm test', 'rm -rf /']) {
+      const decided = decideApproval(bash(command), settings)
+      expect(withCaution(decided, null, settings)).toEqual(decided)
+    }
+  })
+
+  it('never holds anything up under bypass, which is that mode’s promise', () => {
+    const bypass = { mode: 'bypass' as const }
+    const decided = decideApproval(bash('kubectl delete namespace prod'), bypass)
+    expect(decided.decision).toBe('allow')
+
+    const after = withCaution(decided, read('hard'), bypass)
+    // The agent is not held. What changed is what the journal says about it,
+    // which is the only way a command nothing asked about is found later.
+    expect(after.decision).toBe('allow')
+    expect(after.tier).toBe('hard')
   })
 })

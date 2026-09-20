@@ -283,6 +283,15 @@ export function extensionWorkbench(
         pid: lane.pid,
         alive: lane.alive,
       })),
+    agents: () =>
+      tade.workers.doingByTask().map((agent) => ({
+        task: agent.task,
+        project: agent.task.split('/')[0] ?? '',
+        startedAt: tade.workers.list().find((one) => one.run === agent.run)?.startedAt ?? 0,
+        turn: tade.workers.turnOf(agent.run),
+        did: agent.did,
+        ends: agent.ends,
+      })),
     async startAgent(request) {
       const base = branchSlug(request.title)
       let slug = base
@@ -339,5 +348,9 @@ export function workbenchExtensions(
           tade: window(),
         })
       ).text,
+    // Asked with an agent held at the command, so it goes straight to the
+    // extensions rather than through a tool call: nothing about this is the
+    // agent's, and an agent judged at this gate does not get to answer it.
+    caution: (request) => host.caution(request),
   }
 }

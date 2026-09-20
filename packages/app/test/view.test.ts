@@ -160,6 +160,28 @@ describe('the AGENTS heading', () => {
     expect(control(hits, 'toggle-done')).toBeDefined()
   })
 
+  it('says how many of the agents it is showing while the eye is shut', () => {
+    // Wide enough for the badge: a narrow heading gives up its count first.
+    const wide = (over: Partial<AppState> = {}) => here({ sizes: { sidebarWidth: 36 }, ...over })
+    const heading = (state: AppState) =>
+      plain(draw(state, frame({ height: 40 })).rows.find((row) => row.includes('AGENTS')) ?? '')
+    // Nothing hidden: the count on its own, and no fraction to read.
+    expect(heading(wide())).toContain('(3)')
+    expect(heading(wide())).not.toContain('/')
+    // Shut: two of the three, so the badge says which two, and of what.
+    expect(heading(toggleDone(wide()))).toContain('(2/3)')
+  })
+
+  it('gives up what the count is out of before the count itself', () => {
+    const heading = (state: AppState) =>
+      plain(draw(state, frame({ height: 40 })).rows.find((row) => row.includes('AGENTS')) ?? '')
+    // Too narrow for the fraction, wide enough for the count: shutting the eye
+    // must narrow the list, never look like the agents have gone away.
+    const narrow = heading(toggleDone(here({ sizes: { sidebarWidth: 30 } })))
+    expect(narrow).toContain('(2)')
+    expect(narrow).not.toContain('/')
+  })
+
   it('gives up the small controls before the button, where the sidebar is narrow', () => {
     const narrow = draw(here({ sizes: { sidebarWidth: 23 } }), frame({ height: 40 }))
     expect(control(narrow.hits, 'new-agent')).toBeDefined()
