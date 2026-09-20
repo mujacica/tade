@@ -1,0 +1,39 @@
+id: tade/hide-close-letters
+project: tade
+intent_spoken: These buttons here are horrible. Let's use letters H and X for
+  hide and close for these two.
+created: 2026-09-19T11:09:52.536Z
+base: 9fb08d952719a64f1e6e98e7442b3673eb0d492c
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/work-tab-redesign
+      why: same packages/app chrome in the one shared checkout
+  prompt: >-
+    The two small buttons in the Agents sidebar header — hide done agents, and
+    close done agents — are drawn with glyphs that render as an indistinct blob
+    and a boxed symbol (their screenshot: a pale circle and a crossed circle).
+    Their words: "These buttons here are horrible. Let's use letters H and X for
+    hide and close for these two."
+
+
+    So: draw them as the letters `H` (hide) and `X` (close), in the same
+    small-button style as now — narrower than the `+` button, part of the same
+    set, no decorative side edges. Keep their tooltips/hover text saying what
+    they do in words, keep the hover treatment the rest of the chrome uses, and
+    keep their behaviour exactly as it is. If `H` toggles, make the
+    pressed/active state obvious — it should be clear when done agents are
+    hidden.
+
+
+    They are in packages/app (panels.ts / view.ts / skin.ts). Refresh the golden
+    screens showing the sidebar header. Pull/rebase first — several agents are
+    reworking packages/app. Run `pnpm check` on its own and commit only your
+    files.
+  touches:
+    - packages/app/src/panels.ts
+    - packages/app/src/view.ts
+    - packages/app/src/skin.ts

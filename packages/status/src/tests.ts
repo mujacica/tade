@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { carryOver, readChecks, readRuns, rollup } from '@tade/checks-core'
+import { carryOver, type FromCi, readChecks, readRuns, rollup } from '@tade/checks-core'
 import type { TestSignal } from '@tade/core'
 
 // Whether a task's tests passed, and whether that is still true.
@@ -51,12 +51,13 @@ export async function readTests(worktree: string, head: string | null): Promise<
 export async function verifiedAt(
   worktree: string,
   head: string | null,
-  project?: { name: string; root: string; test?: string | undefined },
+  project?: { name: string; root: string; test?: string | undefined; fromCi?: FromCi | undefined },
 ): Promise<TestSignal> {
   const manifest = await readChecks({
     name: project?.name ?? 'project',
     root: worktree,
     ...(project?.test ? { test: project.test } : {}),
+    ...(project?.fromCi ? { fromCi: project.fromCi } : {}),
   })
   if (manifest.checks.length === 0) return readTests(worktree, head)
   const runs = await readRuns(worktree)

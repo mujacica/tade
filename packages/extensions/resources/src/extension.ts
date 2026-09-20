@@ -71,23 +71,34 @@ export function chart(now: Sample, history: History, period: number): string {
   const lines = [
     `**Tade is using ${percent(now.total.cpu)} CPU and ${megabytes(now.total.rss)} of memory**, across ${now.total.processes} process${now.total.processes === 1 ? '' : 'es'}.`,
   ]
-  const section = (title: string, rows: ReturnType<typeof totals>, limit: number) => {
-    if (rows.length === 0) return
-    const shown = rows.slice(0, limit)
-    const wide = Math.min(28, Math.max(...shown.map((row) => row.label.length)))
-    lines.push('', `### ${title}`, '', '```', `${''.padEnd(wide)}  ${'CPU'.padEnd(18)}memory`)
-    for (const row of shown) {
+  const sections = [
+    { title: 'By project', rows: totals(now, 'project'), limit: 12 },
+    { title: 'By kind', rows: totals(now, 'kind'), limit: 12 },
+    { title: 'By agent and terminal', rows: totals(now, 'agent'), limit: 12 },
+    { title: 'Busiest processes', rows: totals(now, 'process'), limit: 8 },
+  ].filter((one) => one.rows.length > 0)
+  // One column of names for the whole page, not one per section. Four little
+  // tables that each measured their own widest name put their bars in four
+  // different places, and nothing on the page lined up with anything else —
+  // which is the first thing the eye reads and the first thing it gets wrong.
+  const wide = Math.min(
+    NAME,
+    Math.max(
+      MIN_NAME,
+      ...sections.flatMap((one) => one.rows.slice(0, one.limit).map((row) => row.label.length)),
+    ),
+  )
+  const head = `${''.padEnd(wide)}  ${'CPU'.padEnd(BARS + 7)}memory`
+  for (const one of sections) {
+    lines.push('', `### ${one.title}`, '', '```chart', head)
+    for (const row of one.rows.slice(0, one.limit)) {
       lines.push(
         `${row.label.slice(0, wide).padEnd(wide)}  ${bar(row.cpu, now.total.cpu)} ${percent(row.cpu).padStart(5)}  ${bar(row.rss, now.total.rss)} ${megabytes(row.rss).padStart(7)}`,
       )
     }
-    if (rows.length > limit) lines.push(`…and ${rows.length - limit} more`)
+    if (one.rows.length > one.limit) lines.push(`…and ${one.rows.length - one.limit} more`)
     lines.push('```')
   }
-  section('By project', totals(now, 'project'), 12)
-  section('By kind', totals(now, 'kind'), 12)
-  section('By agent and terminal', totals(now, 'agent'), 12)
-  section('Busiest processes', totals(now, 'process'), 8)
   const past = history.within(period)
   const summary = history.summary(period)
   if (past.length > 1) {
@@ -95,9 +106,9 @@ export function chart(now: Sample, history: History, period: number): string {
       '',
       `### The last ${Math.round(period / 60_000)} minutes`,
       '',
-      '```',
-      `CPU     ${sparkline(past.map((one) => one.total.cpu))}  ${percent(summary.cpu.average)} average, ${percent(summary.cpu.peak)} peak`,
-      `memory  ${sparkline(past.map((one) => one.total.rss))}  ${megabytes(summary.rss.average)} average, ${megabytes(summary.rss.peak)} peak`,
+      '```chart',
+      `${'CPU'.padEnd(wide)}  ${sparkline(past.map((one) => one.total.cpu))}  ${percent(summary.cpu.average)} average, ${percent(summary.cpu.peak)} peak`,
+      `${'memory'.padEnd(wide)}  ${sparkline(past.map((one) => one.total.rss))}  ${megabytes(summary.rss.average)} average, ${megabytes(summary.rss.peak)} peak`,
       '```',
     )
   }
@@ -110,8 +121,13 @@ export function chart(now: Sample, history: History, period: number): string {
   return lines.join('\n')
 }
 
+/** How wide a bar is, and how much room a name gets: the chart's own columns. */
+const BARS = 10
+const NAME = 28
+const MIN_NAME = 8
+
 /** A share as ten cells: how much of the whole one row is. */
-function bar(part: number, whole: number, cells = 10): string {
+function bar(part: number, whole: number, cells = BARS): string {
   const filled = whole > 0 ? Math.round((part / whole) * cells) : 0
   return '█'.repeat(filled) + '░'.repeat(cells - filled)
 }

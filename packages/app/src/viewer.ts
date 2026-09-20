@@ -111,10 +111,52 @@ export function formattedLines(file: ViewedFile, width: number, plain: boolean):
   return markdownLines(file.text, width, plain, 1)
 }
 
+/**
+ * The mark a fence is drawn with, so the line it is on can be dropped.
+ *
+ * A fence says where a code block starts and stops; it is not something
+ * anybody wants to read, and three backticks sitting above and below every
+ * table in an extension's view is the markdown showing through the render.
+ * The renderer hands its own border to the theme, so the theme marks it and
+ * the line goes — which is the only place either of us can tell a fence from
+ * a line of text that happens to be backticks.
+ */
+const FENCE = '\u0001tade-fence\u0001'
+
+/**
+ * Headings below the second level, brought up to it.
+ *
+ * The renderer takes the marks off `#` and `##` and prints them for everything
+ * under that, so an extension's `### By project` reached the window with its
+ * hashes still on the front. Nothing in a panel is ever three levels deep, so
+ * they are brought up rather than left to show: a heading is a heading, and
+ * `###` is how somebody typed it, not something to read.
+ *
+ * Never inside a fence, where a line of hashes is a line of somebody's text.
+ */
+function shallowHeadings(markdown: string): string {
+  let fenced = false
+  return markdown
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced
+        return line
+      }
+      return fenced ? line : line.replace(/^(#{3,6})([ \t]+)/, '## ')
+    })
+    .join('\n')
+}
+
 /** Any markdown as it reads, at a width: the viewer's files, the orchestrator's answers. */
 export function markdownLines(text: string, width: number, plain: boolean, padding = 0): string[] {
-  const markdown = new Markdown(text, padding, 0, plain ? PLAIN_THEME : COLOUR_THEME)
-  return markdown.render(Math.max(10, width))
+  const markdown = new Markdown(
+    shallowHeadings(text),
+    padding,
+    0,
+    plain ? PLAIN_THEME : COLOUR_THEME,
+  )
+  return markdown.render(Math.max(10, width)).filter((line) => !line.includes(FENCE))
 }
 
 const paint =
@@ -129,7 +171,7 @@ const COLOUR_THEME: MarkdownTheme = {
   linkUrl: paint('38;5;244'),
   code: paint('38;5;114'),
   codeBlock: paint('38;5;252'),
-  codeBlockBorder: paint('38;5;240'),
+  codeBlockBorder: () => FENCE,
   quote: paint('38;5;248;3'),
   quoteBorder: paint('38;5;240'),
   hr: paint('38;5;240'),
@@ -139,8 +181,36 @@ const COLOUR_THEME: MarkdownTheme = {
   strikethrough: paint('9'),
   underline: paint('4'),
   // A fence's language is whatever was typed after the backticks; highlight.js
-  // knows the usual short names (`ts`, `sh`) and leaves anything else plain.
-  highlightCode: (code, lang) => highlight(code, lang ?? null),
+  // knows the usual short names (`ts`, `sh`) and leaves anything else plain —
+  // except `chart`, which is Tade's own: a little table of bars that has to
+  // keep its columns, so it is written in a fence and painted here.
+  highlightCode: (code, lang) =>
+    lang === 'chart' ? chartLines(code) : highlight(code, lang ?? null),
+}
+
+const FILLED = paint('38;5;214')
+const REST = paint('38;5;240')
+const FIGURE = paint('38;5;255')
+const COLUMN = paint('38;5;248;1')
+
+/**
+ * A little chart: bars, figures and the words over the columns.
+ *
+ * The filled part of a bar is Tade's own amber and the rest the grey its rules
+ * are drawn in, so how far along a row is reads before any of it is; the
+ * figures are bright because they are the answer, and the line with no bar and
+ * no figure on it is what the columns are called. Flat grey — which is what a
+ * fenced block is painted otherwise — turned every one of these into a wall of
+ * text with some blocks in it.
+ */
+function chartLines(code: string): string[] {
+  return code.split('\n').map((line) => {
+    if (!/[█░]/.test(line)) return /\d/.test(line) ? line : COLUMN(line)
+    return line
+      .replace(/\d[\d.]*\s?(%|[KMGT]B)/g, (figure) => FIGURE(figure))
+      .replace(/█+/g, (run) => FILLED(run))
+      .replace(/░+/g, (run) => REST(run))
+  })
 }
 
 const PLAIN_THEME: MarkdownTheme = {
@@ -149,7 +219,7 @@ const PLAIN_THEME: MarkdownTheme = {
   linkUrl: same,
   code: same,
   codeBlock: same,
-  codeBlockBorder: same,
+  codeBlockBorder: () => FENCE,
   quote: same,
   quoteBorder: same,
   hr: same,

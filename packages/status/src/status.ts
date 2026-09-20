@@ -3,6 +3,7 @@ import { basename, dirname, join } from 'node:path'
 import {
   type AgentSignal,
   type Config,
+  checksFor,
   deriveState,
   expandHome,
   isLive,
@@ -141,7 +142,16 @@ async function buildTask(
 
   const mine = sessions.filter((s) => within(s.cwd, wt.path))
   for (const s of mine) claimed.add(s)
-  const agents: AgentSignal[] = [...(await liveness.lanes(id)), ...mine.map(stripCwd)]
+  const held = await liveness.lanes(id)
+  // An agent Tade is running whose harness also writes a transcript is found
+  // twice: once as the run, once as a session. It is one agent.
+  const running = new Set(
+    held.flatMap((signal) => (signal.conversation ? [signal.conversation] : [])),
+  )
+  const agents: AgentSignal[] = [
+    ...held,
+    ...mine.filter((s) => !running.has(s.sessionId)).map(stripCwd),
+  ]
 
   const derived = deriveState({
     now: opts.now,
@@ -153,6 +163,7 @@ async function buildTask(
       name: ref.name,
       root: wt.path,
       test: opts.config.projects[ref.name]?.test_command,
+      fromCi: checksFor(opts.config, ref.name).from_ci,
     }),
   })
 

@@ -67,6 +67,14 @@ export const LaneRecord = z.object({
    * starting it again.
    */
   lost: z.boolean().optional(),
+  /**
+   * The harness an agent lane runs, so a window that finds it again supervises
+   * it with the adapter it was started under. Absent on lanes written before
+   * there was more than one, which ran pi.
+   */
+  harness: z.string().optional(),
+  /** The account it runs as, when not its harness's own sign-in. */
+  account: z.string().optional(),
 })
 export type LaneRecord = z.infer<typeof LaneRecord>
 
@@ -94,6 +102,10 @@ export interface SpawnRequest {
   cols?: number
   rows?: number
   title?: string
+  /** For an agent: the harness it runs in. */
+  harness?: string
+  /** For an agent: the account it runs as, when not its harness's own. */
+  account?: string
 }
 
 export interface LaneRegistryOptions {
@@ -249,6 +261,8 @@ export class LaneRegistry {
       alive: true,
       exitCode: null,
       lastOutputAt: null,
+      ...(req.harness ? { harness: req.harness } : {}),
+      ...(req.account ? { account: req.account } : {}),
     }
     this.lanes.set(req.id, record)
     this.watch(record)
@@ -282,6 +296,8 @@ export class LaneRegistry {
       ...(record.spec.env ? { env: record.spec.env } : {}),
       ...(record.spec.cols ? { cols: record.spec.cols } : {}),
       ...(record.spec.rows ? { rows: record.spec.rows } : {}),
+      ...(record.harness ? { harness: record.harness } : {}),
+      ...(record.account ? { account: record.account } : {}),
       title: record.title,
     })
   }

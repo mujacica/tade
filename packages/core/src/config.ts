@@ -13,7 +13,7 @@ import { z } from 'zod'
 // listed here and validated clean, which reads as a promise.
 const DriverId = z.enum(['pty', 'tmux'])
 /** The harnesses an agent can run in: the registry in the workbench has one adapter for each. */
-export const HARNESS_IDS = ['pi'] as const
+export const HARNESS_IDS = ['pi', 'claude-code'] as const
 export type HarnessId = (typeof HARNESS_IDS)[number]
 const Harness = z.enum(HARNESS_IDS)
 const RouteName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/)
@@ -42,8 +42,42 @@ export const WorkerRoute = z.strictObject({
   // `container` was here and did nothing; a sandbox you can select and not get
   // is worse than one that is not offered.
   sandbox: z.enum(['none', 'bwrap', 'seatbelt']).default('none'),
+  /**
+   * What new agents start on in a harness other than the route's own. A model
+   * chosen for a Claude Code agent is not one for pi's, and each harness names
+   * its models its own way.
+   */
+  harnesses: z
+    .partialRecord(
+      Harness,
+      z.strictObject({
+        provider: z.string().optional(),
+        model: z.string().optional(),
+        thinking: z.enum(THINKING_LEVELS).optional(),
+      }),
+    )
+    .optional(),
 })
 export type WorkerRoute = z.infer<typeof WorkerRoute>
+
+/** What an account is called: a folder name, so nothing that needs quoting. */
+export const AccountName = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]*$/)
+  .refine((name) => name !== 'default', "'default' is each harness's own sign-in")
+
+/**
+ * An account a harness can run as, beside its own default: a second sign-in
+ * kept apart from the first, so agents on both can work at once.
+ */
+export const Account = z.strictObject({
+  harness: Harness,
+  /** Signed in to a plan, in the harness's own sign-in; or paid for with an API key Tade keeps. */
+  kind: z.enum(['subscription', 'api-key']).default('subscription'),
+  /** Start it with your own settings, skills and plugins, rather than bare. */
+  share: z.boolean().default(true),
+})
+export type Account = z.infer<typeof Account>
 
 /** Where agents do their work. */
 export const AGENT_WORKSPACES = ['checkout', 'worktree'] as const
@@ -75,6 +109,19 @@ export const ChecksConfigSchema = z.strictObject({
   keep: z.int().positive().default(200),
   /** Show what CI says about the same commit beside the local run. Inert without a forge. */
   ci: z.boolean().default(true),
+  /**
+   * What to do with the checks read out of a project's CI config when it has
+   * no `.tade/checks.yaml` of its own.
+   *
+   * `show` — the default — reads them so the window can say what this project
+   * checks, and runs none of them: a CI config holds releases and deploys
+   * beside its tests, and the step names those checks are identified by change
+   * whenever somebody retitles a step. `tade checks adopt` turns them into a
+   * manifest, which is the point at which they become ours to run. `run` runs
+   * them here unadopted, which is what Tade did before this key existed;
+   * `off` does not read them at all.
+   */
+  from_ci: z.enum(['run', 'show', 'off']).default('show'),
 })
 export type ChecksConfig = z.infer<typeof ChecksConfigSchema>
 
@@ -173,8 +220,15 @@ export const ConfigSchema = z
         // prefault, not default: the fallback is an input to parse, so the
         // built-in route picks up harness and sandbox defaults like any other.
         routes: z.record(RouteName, WorkerRoute).prefault({ default: {} }),
+        /**
+         * Which account new agents of each harness run as. Absent, the
+         * harness's own sign-in — what you would get running it yourself.
+         */
+        accounts: z.partialRecord(Harness, AccountName).default({}),
       })
       .prefault({}),
+    /** Accounts beyond each harness's own sign-in, by name. */
+    accounts: z.record(AccountName, Account).default({}),
     approvals: z
       .strictObject({
         // Default: never interrupt. Tade still classifies and records every
@@ -394,6 +448,22 @@ export const ConfigSchema = z
         path: ['workers', 'default'],
         message: `unknown route "${config.workers.default}" (have: ${routes.join(', ') || 'none'})`,
       })
+    }
+    for (const [harness, name] of Object.entries(config.workers.accounts)) {
+      const account = name ? config.accounts[name] : undefined
+      if (!account) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['workers', 'accounts', harness],
+          message: `no account called "${name}" (have: ${Object.keys(config.accounts).join(', ') || 'none'})`,
+        })
+      } else if (account.harness !== harness) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['workers', 'accounts', harness],
+          message: `"${name}" is a ${account.harness} account, not ${harness}'s`,
+        })
+      }
     }
     for (const [name, project] of Object.entries(config.projects)) {
       if (project.worker && !routes.includes(project.worker)) {

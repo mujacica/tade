@@ -17,11 +17,21 @@ export const Tier = {
 } as const
 export type Tier = (typeof Tier)[keyof typeof Tier]
 
+/**
+ * What a tool does to the world, as its harness knows it. The harness says,
+ * because only it knows its own tool names: pi's `edit` and Claude Code's
+ * `Edit` are one thing, and a table of names here would know one of them.
+ * `exec` is judged by its command.
+ */
+export type ToolEffect = 'read' | 'write' | 'exec' | 'other'
+
 export interface ToolCallFacts {
   tool: string
   input: unknown
   /** The task's worktree. Everything outside it is someone else's property. */
   worktree: string | null
+  /** What the tool does, from its harness. Absent, it is judged by pi's tool names. */
+  effect?: ToolEffect
 }
 
 export interface PolicyDecision {
@@ -112,10 +122,21 @@ export function decideApproval(facts: ToolCallFacts, settings: ApprovalSettings)
   return { ...classified, decision: classified.tier === Tier.auto ? 'allow' : 'ask' }
 }
 
-/** Tools that only look at things. */
+/** pi's tools that only look at things. */
 const READ_ONLY = new Set(['read', 'ls', 'find', 'grep', 'glob'])
-/** Tools that change files, checked against the worktree boundary. */
+/** pi's tools that change files, checked against the worktree boundary. */
 const FILE_WRITES = new Set(['write', 'edit', 'multiedit', 'apply_patch'])
+
+/**
+ * What a tool does, judged by pi's names: for a call whose harness did not
+ * say. A command tool is found by its input rather than its name, so `exec`
+ * is never needed from here.
+ */
+export function effectByName(tool: string): ToolEffect {
+  if (READ_ONLY.has(tool)) return 'read'
+  if (FILE_WRITES.has(tool)) return 'write'
+  return 'other'
+}
 
 interface Rule {
   rule: string
@@ -181,16 +202,17 @@ export function classifyToolCall(
   }
 
   const input = (facts.input ?? {}) as Record<string, unknown>
-  const path = firstString(input, ['path', 'file_path', 'filePath', 'file'])
+  const path = firstString(input, ['path', 'file_path', 'filePath', 'file', 'notebook_path'])
+  const effect = facts.effect ?? effectByName(facts.tool)
 
-  if (READ_ONLY.has(facts.tool)) {
+  if (effect === 'read') {
     if (path && mentionsCredentials(path)) {
       return { tier: Tier.hard, rule: 'credentials', reason: 'reads credentials' }
     }
     return { tier: Tier.auto, rule: 'read-only', reason: `${facts.tool} only reads` }
   }
 
-  if (FILE_WRITES.has(facts.tool)) {
+  if (effect === 'write') {
     if (path && mentionsCredentials(path)) {
       return { tier: Tier.hard, rule: 'credentials', reason: 'writes credentials' }
     }

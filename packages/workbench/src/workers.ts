@@ -45,8 +45,10 @@ export interface StartRunRequest {
   sandbox?: SandboxKind
   /** What extensions add to it: instructions, tools, harness-native pieces. */
   extras?: WorkerExtras
-  /** The harness it runs in; the default one unless said. */
+  /** The harness it runs in — `harness@account` for an account's — the default one unless said. */
   harness?: string
+  /** The account it runs as, when not its harness's own sign-in. */
+  account?: string
   /** How hard it thinks from its first turn; the harness's default unless said. */
   thinking?: ThinkingLevel
   /** Pictures to send with the opening prompt. */
@@ -128,7 +130,8 @@ export interface RunVitals {
 
 export class WorkerSupervisor {
   private readonly adapter: WorkerAdapter
-  private readonly adapters: Readonly<Record<string, WorkerAdapter>>
+  /** By harness, and by `harness@account` for an account other than a harness's own. */
+  private readonly adapters: Record<string, WorkerAdapter>
   private readonly log: EventLog
   private readonly approvals: ApprovalSettings
   private readonly onTitle: WorkerSupervisorOptions['onTitle']
@@ -250,7 +253,7 @@ export class WorkerSupervisor {
   }
 
   list(): WorkerHandle[] {
-    return [...this.runs.values()].map((r) => ({ ...r.handle }))
+    return [...this.runs.values()].map((r) => ({ ...r.handle, harness: r.adapter.id }))
   }
 
   /** Approvals waiting on a human, newest last. */
@@ -372,6 +375,14 @@ export class WorkerSupervisor {
     for (const adapter of Object.values(this.adapters)) await adapter.shutdown()
   }
 
+  /**
+   * Answer runs of another account too: an adapter made for it once somebody
+   * starts an agent on it, under `harness@account`.
+   */
+  add(key: string, adapter: WorkerAdapter): void {
+    this.adapters[key] = adapter
+  }
+
   /** A harness's adapter by id; the default one when none is named. */
   private harness(id: string | undefined): WorkerAdapter {
     if (!id) return this.adapter
@@ -382,7 +393,7 @@ export class WorkerSupervisor {
   }
 
   /** The adapter a run is in: what it was started with, or the default for one we never saw start. */
-  private adapterOf(run: string): WorkerAdapter {
+  adapterOf(run: string): WorkerAdapter {
     return this.runs.get(run)?.adapter ?? this.adapter
   }
 
@@ -572,7 +583,13 @@ export class WorkerSupervisor {
   ): Promise<void> {
     const task = state?.task ?? null
     const approval = decideApproval(
-      { tool: signal.tool, input: signal.input, worktree: state?.worktree ?? null },
+      {
+        tool: signal.tool,
+        input: signal.input,
+        worktree: state?.worktree ?? null,
+        // What the tool does is its harness's to say: tool names are not ours.
+        effect: (state?.adapter ?? this.adapter).effectOf(signal.tool),
+      },
       this.approvals,
     )
 

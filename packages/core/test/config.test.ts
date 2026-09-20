@@ -2,6 +2,7 @@ import { chmod, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { checksFor } from '../src/checks.ts'
 import { loadConfig, parseConfig, writeSetting } from '../src/config.ts'
 
 describe('parseConfig', () => {
@@ -35,6 +36,52 @@ projects:
     if (!r.ok) return
     expect(r.config.projects.checkout?.max_parallel).toBe(2)
     expect(r.config.workers.routes.subscription?.sandbox).toBe('seatbelt')
+  })
+
+  it('shows what CI runs without running it, unless told otherwise', () => {
+    const none = parseConfig('')
+    // The default is the safe direction: a CI config holds releases beside
+    // its tests, so it is read and not run until somebody adopts it.
+    expect(none.ok && none.config.checks.from_ci).toBe('show')
+    const ran = parseConfig('checks:\n  from_ci: run\n')
+    expect(ran.ok && ran.config.checks.from_ci).toBe('run')
+    const bad = parseConfig('checks:\n  from_ci: sometimes\n')
+    expect(bad.ok).toBe(false)
+    if (bad.ok) return
+    expect(bad.issues[0]?.path).toBe('checks.from_ci')
+  })
+
+  it('lets one project answer the checks rules for itself', () => {
+    const r = parseConfig(
+      [
+        'projects:',
+        '  demo:',
+        '    root: /tmp/demo',
+        '    checks:',
+        '      from_ci: off',
+        '      on_red: tell',
+        '',
+      ].join('\n'),
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(checksFor(r.config, 'demo').from_ci).toBe('off')
+    expect(checksFor(r.config, 'demo').on_red).toBe('tell')
+    // Anything it does not answer still follows the rule above it.
+    expect(checksFor(r.config, 'demo').before).toBe(r.config.checks.before)
+    const bad = parseConfig(
+      [
+        'projects:',
+        '  demo:',
+        '    root: /tmp/demo',
+        '    checks:',
+        '      on_red: shout',
+        '',
+      ].join('\n'),
+    )
+    expect(bad.ok).toBe(false)
+    if (bad.ok) return
+    expect(bad.issues[0]?.path).toBe('projects.demo.checks.on_red')
   })
 
   it('names a bad enum value by its dotted key', () => {
@@ -113,5 +160,53 @@ describe('writing a setting', () => {
     expect((await stat(path)).mode & 0o077).toBe(0)
     // And the file is still the one its owner wrote, comment and all.
     expect(await readFile(path, 'utf8')).toContain('# mine')
+  })
+})
+
+describe('accounts', () => {
+  const accounts = (yaml: string) => parseConfig(yaml, '/x/config.yaml')
+
+  it('have none but each harness’s own sign-in by default', () => {
+    const r = accounts('')
+    expect(r.ok && r.config.accounts).toEqual({})
+    expect(r.ok && r.config.workers.accounts).toEqual({})
+  })
+
+  it('name a second sign-in for a harness, and which one its new agents use', () => {
+    const r = accounts(
+      'accounts:\n  work:\n    harness: claude-code\nworkers:\n  accounts:\n    claude-code: work\n',
+    )
+    expect(r.ok && r.config.accounts.work).toEqual({
+      harness: 'claude-code',
+      kind: 'subscription',
+      share: true,
+    })
+    expect(r.ok && r.config.workers.accounts['claude-code']).toBe('work')
+  })
+
+  it('refuse to have new agents use an account that is not there, or not theirs', () => {
+    const missing = accounts('workers:\n  accounts:\n    claude-code: work\n')
+    expect(!missing.ok && missing.issues[0]?.path).toBe('workers.accounts.claude-code')
+    const wrong = accounts(
+      'accounts:\n  work:\n    harness: claude-code\nworkers:\n  accounts:\n    pi: work\n',
+    )
+    expect(!wrong.ok && wrong.issues[0]?.message).toContain('claude-code account')
+  })
+
+  it("keep 'default' for each harness's own sign-in", () => {
+    const r = accounts('accounts:\n  default:\n    harness: claude-code\n')
+    expect(!r.ok && r.issues[0]?.path).toBe('accounts.default')
+  })
+})
+
+describe('the orchestrator’s harness', () => {
+  it('is any harness that can be run under Tade’s own protocol', () => {
+    const r = parseConfig('orchestrator:\n  harness: claude-code\n')
+    expect(r.ok && r.config.orchestrator.harness).toBe('claude-code')
+  })
+
+  it('is refused as a typo, like any other harness that does not exist', () => {
+    const r = parseConfig('orchestrator:\n  harness: clod\n')
+    expect(!r.ok && r.issues[0]?.path).toBe('orchestrator.harness')
   })
 })

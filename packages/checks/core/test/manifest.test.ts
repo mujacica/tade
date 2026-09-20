@@ -85,11 +85,69 @@ describe('what a project says it checks', () => {
         ].join('\n'),
       }),
     )
-    expect(manifest.source).toBe('workflows')
+    expect(manifest.source).toBe('CI')
     expect(manifest.checks.map((one) => one.id)).toEqual(['types', 'matrixed'])
     // What the runner cannot reproduce is named and skipped, never a tick.
     expect(manifest.checks[1]?.skip).toContain('needs CI')
     expect(manifest.problems.join(' ')).toContain('.tade/checks.yaml')
+  })
+
+  it('shows what CI runs without running it, until somebody adopts it', async () => {
+    const files = {
+      '.github/workflows/ci.yml': [
+        'jobs:',
+        '  check:',
+        '    steps:',
+        '      - name: types',
+        '        run: pnpm typecheck',
+      ].join('\n'),
+    }
+    // The default. A CI config holds releases beside its tests, and the ids
+    // come from step names that change when somebody retitles one — so a
+    // reading is shown and never run.
+    const shown = await readChecks(project(files))
+    expect(shown.source).toBe('CI')
+    expect(shown.checks[0]?.skip).toContain('adopt')
+    expect(shown.problems.join(' ')).toContain('none of them run here')
+
+    // Whoever wants the old behaviour back says so.
+    const ran = await readChecks({ ...project(files), fromCi: 'run' })
+    expect(ran.checks[0]?.skip).toBeUndefined()
+
+    // And off is off: no checks at all, not checks nobody may run.
+    const off = await readChecks({ ...project(files), fromCi: 'off' })
+    expect(off.source).toBe('none')
+    expect(off.checks).toEqual([])
+  })
+
+  it('names the steps only the runner can do, rather than dropping them', async () => {
+    const manifest = await readChecks(
+      project({
+        '.github/workflows/ci.yml': [
+          'jobs:',
+          '  check:',
+          '    steps:',
+          '      - uses: actions/checkout@v4',
+          '      - name: types',
+          '        run: pnpm typecheck',
+        ].join('\n'),
+      }),
+    )
+    // Silently dropping it is how somebody comes to believe Tade checks
+    // something it has never looked at.
+    expect(manifest.problems.join(' ')).toContain('actions/checkout@v4')
+  })
+
+  it('a manifest wins over CI, whatever from_ci says', async () => {
+    const manifest = await readChecks({
+      ...project({
+        '.tade/checks.yaml': 'checks:\n  - id: tests\n    run: pnpm test\n',
+        '.github/workflows/ci.yml': 'jobs:\n  check:\n    steps:\n      - run: other\n',
+      }),
+      fromCi: 'off',
+    })
+    expect(manifest.source).toBe('manifest')
+    expect(manifest.checks.map((one) => one.id)).toEqual(['tests'])
   })
 
   it('falls back to the one test command, and to nothing at all', async () => {

@@ -11,72 +11,9 @@
 // instead of a few hundred; and an animation is a stylesheet rather than a
 // video codec, which is what lets a short demo live in a repository.
 
-import { colour256 } from './ansi-html.ts'
+import { type Cell, EMPTY, type Grid, paintOf, THEME, type Theme } from './terminal.ts'
 
-/** One terminal cell: what is in it, and how it is painted. */
-export interface Cell {
-  ch: string
-  fg: string | null
-  bg: string | null
-  bold: boolean
-  underline: boolean
-}
-
-export type Grid = Cell[][]
-
-const EMPTY: Cell = { ch: ' ', fg: null, bg: null, bold: false, underline: false }
-
-/**
- * Split one drawn row into cells.
- *
- * Only what the window emits is understood — reset, bold, underline and the
- * 256 colours — and anything else is dropped, which is honest for a picture
- * meant to show what the window draws rather than to be a terminal.
- */
-export function toCells(line: string): Cell[] {
-  let fg: string | null = null
-  let bg: string | null = null
-  let bold = false
-  let underline = false
-  const out: Cell[] = []
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: this is a parser of control characters.
-  const parts = line.split(/(\x1b\[[0-9;]*m|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))/)
-  for (const part of parts) {
-    if (part === '' || part.startsWith('\x1b]')) continue
-    if (part.startsWith('\x1b[')) {
-      const codes = part.slice(2, -1).split(';').map(Number)
-      for (let i = 0; i < codes.length; i++) {
-        const code = codes[i]
-        if (code === 0 || Number.isNaN(code)) {
-          fg = null
-          bg = null
-          bold = false
-          underline = false
-        } else if (code === 1) bold = true
-        else if (code === 4) underline = true
-        else if (code === 24) underline = false
-        else if (code === 38 && codes[i + 1] === 5) {
-          fg = colour256(codes[i + 2] ?? 7)
-          i += 2
-        } else if (code === 48 && codes[i + 1] === 5) {
-          bg = colour256(codes[i + 2] ?? 0)
-          i += 2
-        }
-      }
-      continue
-    }
-    for (const ch of part) out.push({ ch, fg, bg, bold, underline })
-  }
-  return out
-}
-
-/** Every drawn row as cells, padded to the widest so the grid is rectangular. */
-export function toGrid(rows: readonly string[]): Grid {
-  const grid = rows.map(toCells)
-  const width = grid.reduce((most, row) => Math.max(most, row.length), 0)
-  for (const row of grid) while (row.length < width) row.push({ ...EMPTY })
-  return grid
-}
+export type { Cell, Grid } from './terminal.ts'
 
 export interface Box {
   top?: number
@@ -116,23 +53,54 @@ const FONT_STACK =
 export interface ShotOptions {
   /** The caption in the title bar. Left out, the frame has no title bar. */
   title?: string
-  /** The screen's own ground, where a cell paints none. */
-  background?: string
-  /** What is around the screen: the window's frame. */
-  frame?: string
+  /**
+   * The terminal these are pictures of: its ink, its ground, its sixteen
+   * named colours and the window around it. One theme for the whole picture,
+   * because a cell that paints nothing is painted from it.
+   */
+  theme?: Theme
 }
-
-const SCREEN = '#1c1c1c'
-const FRAME = '#111111'
-const CAPTION = '#8a8a8a'
 
 const escapeXml = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-const round = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(2).replace(/0+$/, ''))
+/**
+ * A coordinate, short enough to repeat ten thousand times.
+ *
+ * Rounded rather than trimmed: `12 + 72 * 8.4` is `621.0000000000001`, which
+ * is not an integer, and trimming the zeros off `"621.00"` leaves `"621."` —
+ * a number no renderer accepts, so the line it was on is silently not drawn.
+ * That is how the right-hand border of a card went missing from a picture
+ * while every test passed.
+ */
+const round = (n: number) => `${Math.round(n * 100) / 100}`
 
-function sameStyle(a: Cell, b: Cell): boolean {
-  return a.fg === b.fg && a.bold === b.bold && a.underline === b.underline
+/**
+ * A cell with its colours worked out: ink that is never nothing, and a ground
+ * that is nothing only where the terminal's own shows through.
+ *
+ * Worked out once, here, rather than at each of the four places that draw:
+ * dim and reverse change both ends of a cell, so a run merged on what the
+ * codes said and painted with what they mean would come apart.
+ */
+interface Painted {
+  cell: Cell
+  ink: string
+  ground: string | null
+}
+
+type Paper = Painted[][]
+
+const paper = (grid: Grid, theme: Theme): Paper =>
+  grid.map((row) => row.map((cell) => ({ cell, ...paintOf(cell, theme) })))
+
+function sameStyle(a: Painted, b: Painted): boolean {
+  return (
+    a.ink === b.ink &&
+    a.cell.bold === b.cell.bold &&
+    a.cell.italic === b.cell.italic &&
+    a.cell.underline === b.cell.underline
+  )
 }
 
 /**
@@ -201,25 +169,25 @@ const RULES: Record<string, { u?: number; r?: number; d?: number; l?: number; ro
 const WEIGHT = [0, 1.1, 2]
 
 /** Every rule in the grid: runs merged along their own direction, corners drawn where they turn. */
-function rules(grid: Grid, originX: number, originY: number): string[] {
+function rules(paper: Paper, originX: number, originY: number): string[] {
   const out: string[] = []
   const done = new Set<string>()
   const at = (x: number, y: number) => {
-    const cell = grid[y]?.[x]
-    const rule = cell ? RULES[cell.ch] : undefined
-    return cell && rule ? { cell, rule } : null
+    const here = paper[y]?.[x]
+    const rule = here ? RULES[here.cell.ch] : undefined
+    return here && rule ? { here, rule } : null
   }
   const line = (x1: number, y1: number, x2: number, y2: number, width: number, fill: string) =>
     out.push(
       `<line x1="${round(x1)}" y1="${round(y1)}" x2="${round(x2)}" y2="${round(y2)}" stroke="${fill}" stroke-width="${width}"/>`,
     )
-  for (let y = 0; y < grid.length; y++) {
-    const row = grid[y] ?? []
+  for (let y = 0; y < paper.length; y++) {
+    const row = paper[y] ?? []
     for (let x = 0; x < row.length; x++) {
-      const here = at(x, y)
-      if (!here || done.has(`${x},${y}`)) continue
-      const { cell, rule } = here
-      const fill = cell.fg ?? '#dadada'
+      const found = at(x, y)
+      if (!found || done.has(`${x},${y}`)) continue
+      const { here, rule } = found
+      const fill = here.ink
       const left = originX + x * CW
       const top = originY + y * CH
       const cx = left + CW / 2
@@ -230,7 +198,7 @@ function rules(grid: Grid, originX: number, originY: number): string[] {
         let end = along === 'x' ? x : y
         for (;;) {
           const next = along === 'x' ? at(end + 1, y) : at(x, end + 1)
-          if (!next || next.cell.ch !== cell.ch || next.cell.fg !== cell.fg) break
+          if (!next || next.here.cell.ch !== here.cell.ch || next.here.ink !== here.ink) break
           end++
           done.add(along === 'x' ? `${end},${y}` : `${x},${end}`)
         }
@@ -281,27 +249,27 @@ function rules(grid: Grid, originX: number, originY: number): string[] {
  * are all correct and all wrong — the seam between two rectangles that touch
  * shows as a hairline, which turns a meter into a picket fence.
  */
-function blocks(grid: Grid, originX: number, originY: number): string[] {
+function blocks(paper: Paper, originX: number, originY: number): string[] {
   const out: string[] = []
-  const cols = grid[0]?.length ?? 0
+  const cols = paper[0]?.length ?? 0
   const done = new Set<string>()
-  const same = (x: number, y: number, ch: string, fg: string | null) => {
-    const cell = grid[y]?.[x]
-    return !!cell && cell.ch === ch && cell.fg === fg && !done.has(`${x},${y}`)
+  const same = (x: number, y: number, ch: string, ink: string) => {
+    const here = paper[y]?.[x]
+    return !!here && here.cell.ch === ch && here.ink === ink && !done.has(`${x},${y}`)
   }
-  for (let y = 0; y < grid.length; y++) {
+  for (let y = 0; y < paper.length; y++) {
     for (let x = 0; x < cols; x++) {
-      const cell = grid[y]?.[x]
-      const box = cell ? BLOCKS[cell.ch] : undefined
-      if (!cell || !box || done.has(`${x},${y}`)) continue
+      const here = paper[y]?.[x]
+      const box = here ? BLOCKS[here.cell.ch] : undefined
+      if (!here || !box || done.has(`${x},${y}`)) continue
       const [x0, y0, x1, y1, alpha] = box
       let lastX = x
-      if (x1 - x0 === 1) while (same(lastX + 1, y, cell.ch, cell.fg)) lastX++
+      if (x1 - x0 === 1) while (same(lastX + 1, y, here.cell.ch, here.ink)) lastX++
       let lastY = y
       if (y1 - y0 === 1) {
         for (;;) {
           let whole = true
-          for (let at = x; at <= lastX; at++) whole &&= same(at, lastY + 1, cell.ch, cell.fg)
+          for (let at = x; at <= lastX; at++) whole &&= same(at, lastY + 1, here.cell.ch, here.ink)
           if (!whole) break
           lastY++
         }
@@ -311,7 +279,7 @@ function blocks(grid: Grid, originX: number, originY: number): string[] {
       const left = originX + (x + x0) * CW
       const top = originY + (y + y0) * CH
       out.push(
-        `<rect x="${round(left)}" y="${round(top)}" width="${round((lastX - x + (x1 - x0)) * CW)}" height="${round((lastY - y + (y1 - y0)) * CH)}" fill="${cell.fg ?? '#dadada'}"${alpha ? ` opacity="${alpha}"` : ''}/>`,
+        `<rect x="${round(left)}" y="${round(top)}" width="${round((lastX - x + (x1 - x0)) * CW)}" height="${round((lastY - y + (y1 - y0)) * CH)}" fill="${here.ink}"${alpha ? ` opacity="${alpha}"` : ''}/>`,
       )
     }
   }
@@ -319,21 +287,21 @@ function blocks(grid: Grid, originX: number, originY: number): string[] {
 }
 
 /** The painted grounds of one row, merged into as few rectangles as it takes. */
-function grounds(row: readonly Cell[], y: number, originX: number, originY: number): string[] {
+function grounds(row: readonly Painted[], y: number, originX: number, originY: number): string[] {
   const out: string[] = []
   let x = 0
   while (x < row.length) {
-    const bg = row[x]?.bg ?? null
-    if (bg === null) {
+    const ground = row[x]?.ground ?? null
+    if (ground === null) {
       x++
       continue
     }
     let end = x
-    while (end + 1 < row.length && row[end + 1]?.bg === bg) end++
+    while (end + 1 < row.length && row[end + 1]?.ground === ground) end++
     const left = originX + x * CW
     const top = originY + y * CH
     out.push(
-      `<rect x="${round(left)}" y="${round(top)}" width="${round((end - x + 1) * CW)}" height="${CH}" fill="${bg}"/>`,
+      `<rect x="${round(left)}" y="${round(top)}" width="${round((end - x + 1) * CW)}" height="${CH}" fill="${ground}"/>`,
     )
     x = end + 1
   }
@@ -341,43 +309,58 @@ function grounds(row: readonly Cell[], y: number, originX: number, originY: numb
 }
 
 /** The letters of one row, merged into as few runs as it takes. */
-function letters(row: readonly Cell[], y: number, originX: number, originY: number): string[] {
+function letters(row: readonly Painted[], y: number, originX: number, originY: number): string[] {
   const out: string[] = []
   const baseline = originY + y * CH + BASELINE
   let x = 0
   while (x < row.length) {
-    const cell = row[x]
-    if (!cell || cell.ch === ' ') {
+    const here = row[x]
+    if (!here || here.cell.ch === ' ' || here.cell.ch === '') {
       x++
       continue
     }
-    if (BLOCKS[cell.ch] || RULES[cell.ch]) {
+    if (BLOCKS[here.cell.ch] || RULES[here.cell.ch]) {
       x++
       continue
     }
     let end = x
+    let columns = here.cell.width
     while (end + 1 < row.length) {
       const next = row[end + 1]
-      if (!next || next.ch === ' ' || BLOCKS[next.ch] || RULES[next.ch] || !sameStyle(cell, next))
-        break
+      if (!next) break
+      const ch = next.cell.ch
+      // The second column of a wide glyph carries nothing and belongs to the
+      // run the glyph started, so the columns keep counting and the letters
+      // do not.
+      if (next.cell.width === 0) {
+        end++
+        continue
+      }
+      if (ch === ' ' || ch === '' || BLOCKS[ch] || RULES[ch] || !sameStyle(here, next)) break
       end++
+      columns += next.cell.width
     }
     const text = row
       .slice(x, end + 1)
-      .map((one) => one.ch)
+      .map((one) => one.cell.ch)
       .join('')
     const attrs = [
       `x="${round(originX + x * CW)}"`,
       `y="${round(baseline)}"`,
-      `textLength="${round(text.length * CW)}"`,
+      `textLength="${round(columns * CW)}"`,
       // Glyphs as well as gaps, so a box-drawing character that a renderer's
       // fallback font makes wider than a cell is squeezed back into its column
       // instead of pushing the rest of the line sideways.
       'lengthAdjust="spacingAndGlyphs"',
+      // Always, and never inherited: text that paints no colour of its own is
+      // the terminal's default ink, and a picture with no default paints it
+      // black — which is how a whole agent transcript went invisible on the
+      // window's own ground.
+      `fill="${here.ink}"`,
     ]
-    if (cell.fg) attrs.push(`fill="${cell.fg}"`)
-    if (cell.bold) attrs.push('font-weight="700"')
-    if (cell.underline) attrs.push('text-decoration="underline"')
+    if (here.cell.bold) attrs.push('font-weight="700"')
+    if (here.cell.italic) attrs.push('font-style="italic"')
+    if (here.cell.underline) attrs.push('text-decoration="underline"')
     out.push(`<text ${attrs.join(' ')}>${escapeXml(text)}</text>`)
     x = end + 1
   }
@@ -385,11 +368,12 @@ function letters(row: readonly Cell[], y: number, originX: number, originY: numb
 }
 
 /** One picture of a screen: the grounds, then the letters, in a window frame. */
-function body(grid: Grid, originX: number, originY: number): string {
+function body(grid: Grid, originX: number, originY: number, theme: Theme): string {
+  const sheet = paper(grid, theme)
   const parts: string[] = []
-  for (let y = 0; y < grid.length; y++) parts.push(...grounds(grid[y] ?? [], y, originX, originY))
-  parts.push(...blocks(grid, originX, originY), ...rules(grid, originX, originY))
-  for (let y = 0; y < grid.length; y++) parts.push(...letters(grid[y] ?? [], y, originX, originY))
+  for (let y = 0; y < sheet.length; y++) parts.push(...grounds(sheet[y] ?? [], y, originX, originY))
+  parts.push(...blocks(sheet, originX, originY), ...rules(sheet, originX, originY))
+  for (let y = 0; y < sheet.length; y++) parts.push(...letters(sheet[y] ?? [], y, originX, originY))
   return parts.join('')
 }
 
@@ -402,6 +386,7 @@ interface Chrome {
 }
 
 function chrome(grid: Grid, opts: ShotOptions): Chrome {
+  const theme = opts.theme ?? THEME
   const cols = grid[0]?.length ?? 0
   const rows = grid.length
   const bar = opts.title === undefined ? 0 : BAR
@@ -413,10 +398,10 @@ function chrome(grid: Grid, opts: ShotOptions): Chrome {
   const caption =
     opts.title === undefined
       ? ''
-      : `${dots}<text x="${round(width / 2)}" y="${BAR / 2 + 4}" fill="${CAPTION}" font-size="12" text-anchor="middle">${escapeXml(opts.title)}</text>`
+      : `${dots}<text x="${round(width / 2)}" y="${BAR / 2 + 4}" fill="${theme.caption}" font-size="12" text-anchor="middle">${escapeXml(opts.title)}</text>`
   const head =
-    `<rect width="${round(width)}" height="${round(height)}" rx="8" fill="${opts.frame ?? FRAME}"/>` +
-    `<rect x="${PAD / 2}" y="${round(bar)}" width="${round(width - PAD)}" height="${round(height - bar - PAD / 2)}" rx="5" fill="${opts.background ?? SCREEN}"/>` +
+    `<rect width="${round(width)}" height="${round(height)}" rx="8" fill="${theme.frame}"/>` +
+    `<rect x="${PAD / 2}" y="${round(bar)}" width="${round(width - PAD)}" height="${round(height - bar - PAD / 2)}" rx="5" fill="${theme.background}"/>` +
     caption
   return { width, height, originX: PAD, originY: bar + PAD / 2, head }
 }
@@ -427,7 +412,8 @@ const open = (width: number, height: number, label: string) =>
 /** A still of one screen. */
 export function shot(grid: Grid, opts: ShotOptions = {}): string {
   const { width, height, originX, originY, head } = chrome(grid, opts)
-  return `${open(width, height, opts.title ?? 'Tade')}${head}${body(grid, originX, originY)}</svg>\n`
+  const theme = opts.theme ?? THEME
+  return `${open(width, height, opts.title ?? 'Tade')}${head}${body(grid, originX, originY, theme)}</svg>\n`
 }
 
 export interface Shot {
@@ -449,6 +435,7 @@ export function reel(shots: readonly Shot[], opts: ShotOptions = {}): string {
   const first = shots[0]
   if (!first) throw new Error('a reel needs at least one frame')
   const { width, height, originX, originY, head } = chrome(first.grid, opts)
+  const theme = opts.theme ?? THEME
   const total = shots.reduce((sum, one) => sum + one.hold, 0)
   // Frames are stacked and shown one at a time by opacity: a cut rather than a
   // fade, so the stops either side of one are a hundredth of a percent apart.
@@ -479,7 +466,7 @@ export function reel(shots: readonly Shot[], opts: ShotOptions = {}): string {
     // at all — a thumbnailer, a PDF — shows the first frame rather than every
     // frame at once. An animation overrides both.
     frames.push(
-      `${comment}<g id="f${i}" class="f"${i === 0 ? ' style="opacity:1"' : ' opacity="0"'}>${body(one.grid, originX, originY)}</g>`,
+      `${comment}<g id="f${i}" class="f"${i === 0 ? ' style="opacity:1"' : ' opacity="0"'}>${body(one.grid, originX, originY, theme)}</g>`,
     )
   })
   // Somebody who has asked for less movement gets the first frame and no

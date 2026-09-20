@@ -1,0 +1,69 @@
+id: tade/paste-your-keys
+project: tade
+intent_spoken: Setting up Jev requires setting env vars since we don't want to
+  save config in our config? That makes no sense. There is an agent redesigning
+  the view of extensions page. Let's make sure we allow users to paste in their
+  Jev keys in the config there as well.
+created: 2026-09-19T11:57:37.975Z
+base: 25a0c8203e72168787a4b4ebf72962ce82964c5f
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/telemetry-settings-category
+      why: both change the settings model and the Sentry extension's settings in one
+        checkout
+  prompt: >-
+    The person wants to be able to paste API keys into Tade instead of exporting
+    environment variables. Their words: "Setting up Jev requires setting env
+    vars since we don't want to save config in our config? That makes no sense.
+    There is an agent redesigning the view of extensions page. Let's make sure
+    we allow users to paste in their Jev keys in the config there as well."
+
+
+    Today the Jev extension refuses on principle: its setup text says "Tade
+    never stores it, and never asks you to type it in here — a key typed into a
+    wizard is a key in a file", and it only reads `TYPESAFE_API_KEY` (or
+    whatever `key_env` names). That was a deliberate call and the person has now
+    overruled it — so implement pasting, and implement it so the original worry
+    stops being true rather than being ignored.
+
+
+    What to build:
+
+    1. A key can be **pasted in Tade** — from the extension's setup, and from
+    Settings — for Jev, and for any other extension that needs a credential
+    (Sentry's token, the forge's, whatever else). Make it the one mechanism
+    rather than a special case per extension: a declared `secret` kind of
+    setting that extensions can ask for, so every one of them gets entry,
+    masking and storage for free.
+
+    2. **Store it properly.** Prefer the OS keychain where there is one (macOS
+    Keychain here) and fall back to a file in `<TADE_HOME>` written `0600` — not
+    into the project's `config.yaml`, which people commit. An environment
+    variable still wins if it is set, so nothing that works today breaks.
+
+    3. **Never echo it.** Masked in the field, masked in what the panel draws,
+    never in the journal, never in logs, and taken out of anything the telemetry
+    reporter would send — anything credential-shaped is already scrubbed there;
+    make sure this path is covered by a test.
+
+    4. Update the setup text everywhere it still says Tade will not take a key —
+    the Jev extension's own words, the setup wizard, and any `means` — so the
+    explanation matches the behaviour.
+
+
+    An agent on tade/extensions-page-redesign is rebuilding that page and has
+    been told to include key entry — it will use whatever mechanism you land
+    here, so make the shape clean and say plainly in your final message how an
+    extension declares a secret. Add tests for storage, masking and env-var
+    precedence. Run `pnpm check` on its own and commit only your files.
+  touches:
+    - packages/extensions/core
+    - packages/extensions/jev
+    - packages/extensions/sentry
+    - packages/core/src/settings.ts
+    - packages/core/src/config.ts
+title: Allow Jev keys in extension config

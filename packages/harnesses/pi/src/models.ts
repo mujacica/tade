@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { ModelPrice } from '@tade/harnesses-core'
 
 // Which models this machine can actually reach.
 //
@@ -25,14 +26,7 @@ export interface AvailableModel {
   contextWindow?: number
 }
 
-/** US dollars per million tokens, as the harness's catalog prices a model. */
-export interface ModelPrice {
-  input: number
-  output: number
-  /** Reading back what was cached, which is most of what a long session reads. */
-  cacheRead: number
-  cacheWrite: number
-}
+export type { ModelPrice }
 
 function piHome(home = homedir()): string {
   return join(home, '.pi', 'agent')

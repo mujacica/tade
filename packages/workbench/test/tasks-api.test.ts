@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { until } from '@tade/drivers-core/conformance'
 import { sessionIdFor } from '@tade/harnesses-pi'
@@ -189,6 +190,8 @@ describe('task and run RPC', () => {
 
     // The lane, the run and the task are one thing under one name.
     expect(lane).toMatchObject({ id: 'app/refunds/agent', task: 'app/refunds', alive: true })
+    // Kept, so a window that finds it again supervises it in the same harness.
+    expect(lane.harness).toBe('pi')
     expect((await client.runs()).map((r) => r.run)).toEqual(['app/refunds/agent'])
     expect((await client.info()).runs).toBe(1)
 
@@ -200,6 +203,29 @@ describe('task and run RPC', () => {
     expect(await client.runs()).toEqual([])
     expect(client.lane('app/refunds/agent' as never)?.alive).toBe(false)
   }, 60_000)
+
+  it.runIf(process.platform === 'darwin')(
+    'lets a contained agent write where its harness keeps the conversation',
+    async () => {
+      const task = await client.createTask({
+        project: 'app',
+        slug: 'refunds',
+        intent: INTENT,
+        workspace: 'worktree',
+      })
+      // Without it the agent runs and quietly keeps nothing: no session to
+      // come back to, and no ledger of what it spent.
+      const lane = await client.startAgent({
+        task: task.id,
+        cwd: task.worktree,
+        prompt: '',
+        sandbox: 'seatbelt',
+      })
+      expect(lane.spec.command).toBe('sandbox-exec')
+      expect(lane.spec.args.join('\n')).toContain(`(subpath "${join(homedir(), '.pi', 'agent')}")`)
+    },
+    60_000,
+  )
 
   it('says the opening instruction once: reopening an agent says nothing to it', async () => {
     const task = await client.createTask({

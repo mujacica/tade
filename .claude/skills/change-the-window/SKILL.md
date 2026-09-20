@@ -226,7 +226,7 @@ file and cannot be tested.
 - **What you type to Tade is journaled** (`said` events) and comes back with ↑/↓ (the editor's
   history) and ctrl+r, only while the line is open — anywhere else those keys are the agent's.
 - **Keys the window keeps are config** (`surfaces.window.keys`, listed once in `KEY_BINDINGS`):
-  `appKey` names them, `keyAction` gives them meaning, the keys sheet and Keys settings read the
+  `appKey` names them, `keyAction` gives them meaning, the shortcuts sheet and Shortcuts settings read the
   same list. A new shortcut is a binding there, never a literal key in `app.ts`.
 - **Splits are one helper** (`splitView`): an agent's pane (`state.splits`, a shell beside or below
   it) and the bottom panel (`state.terminalSplit`) both draw through it, and the app sizes both
@@ -271,6 +271,11 @@ The window is drawn from state by a pure function, so how it looks is tested lik
 4. **Real input.** `test/app.test.ts` runs the whole window against a real workbench and presses
    keys and clicks as a terminal sends them (`\x1b[<0;col;rowM`), finding labels on the rebuilt
    screen the way a person would.
+5. **Redraw the README.** `images/` is generated from those same scenarios, so a change to how the
+   window looks is a change to the README: `pnpm screens --assets`, and commit what it rewrites with
+   the change that caused it. The **redraw-the-pictures** skill has the whole of it, including
+   `pnpm screens --live`, which runs the real binary in a real terminal and photographs it — the one
+   check the goldens cannot make, because they never go through a terminal.
 
 ## Steps
 
@@ -289,7 +294,9 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    the real machine's agent transcripts.
 7. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
    Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
-8. `pnpm check`.
+8. `pnpm screens --assets`, so the README shows the window you just changed — see
+   **redraw-the-pictures**.
+9. `pnpm check`.
 
 ## Gotchas
 

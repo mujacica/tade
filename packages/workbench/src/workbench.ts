@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs'
-import { mkdir, readFile } from 'node:fs/promises'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  AccountName,
   type Config,
   ConfigSchema,
   checkBudget,
@@ -12,17 +13,21 @@ import {
   type EventFilter,
   expandHome,
   HARNESS_CHOICES,
+  type HarnessId,
   type LaneId,
   loadConfig,
   type Note,
   noSpend,
   type Plan,
   type PlanBusy,
+  parseConfig,
   type QueueChange,
   resolveRoute,
+  routeIn,
   runtimeDir,
   type SandboxKind,
   type Schedule,
+  Secrets,
   type StartCondition,
   spendFrom,
   startOfToday,
@@ -34,28 +39,29 @@ import {
   writeSetting,
 } from '@tade/core'
 import type { LaneScreen, WorkspaceCapabilities, WorkspaceDriver } from '@tade/drivers-core'
-import type {
-  PermissionDecision,
-  RunId,
-  WorkerExtras,
-  WorkerHandle,
-  WorkerModel,
-} from '@tade/harnesses-core'
 import {
-  findModel,
-  noUsage,
-  sessionFileFor,
-  sessionIdFor,
-  usableModels,
-  usageOfTask,
-} from '@tade/harnesses-pi'
+  type HarnessAccount,
+  type HarnessModel,
+  noHarnessSpend,
+  offer,
+  type PermissionDecision,
+  type RunId,
+  type SignIn,
+  type Support,
+  type WorkerAdapter,
+  type WorkerCapabilities,
+  type WorkerExtras,
+  type WorkerHandle,
+  type WorkerModel,
+} from '@tade/harnesses-core'
 import { git } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
+import { type AccountView, harnessAccount, listAccounts } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate } from './checks.ts'
 import { EventLog, readJournal } from './events.ts'
-import { HARNESS_ADAPTERS, type LaneHarness } from './harnesses.ts'
+import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
@@ -69,6 +75,7 @@ import {
   readTaskFile,
   removeTask,
   setParked,
+  setTaskAccount,
   setTaskHarness,
   setTitle,
   type TaskWorktree,
@@ -109,6 +116,8 @@ export interface WorkbenchOptions {
    * is where agents write because Tade deliberately does not move them.
    */
   sessionsRoot?: string
+  /** Whose home harnesses find their own sign-ins in: for tests, so none reads yours. */
+  harnessHome?: string
   /**
    * What extensions give agents: extras at launch, and a way to run the tools
    * they call. Passed in, so the workbench never has to know what an extension
@@ -238,7 +247,10 @@ export class Workbench {
   private readonly kept: Schedules
   private readonly lock: HomeLock
   private readonly version: string
-  private readonly sessionsRoot: string | undefined
+  /** One adapter per harness there is, the same ones the supervisor answers runs with. */
+  private readonly adapters: Record<string, WorkerAdapter>
+  /** How an adapter is made, for an account's, which is made the first time it is needed. */
+  private readonly harnessOptions: HarnessOptions
   private readonly openedAt = Date.now()
   private closing: Promise<void> | null = null
   private readonly extensions: WorkbenchExtensions | null
@@ -252,11 +264,13 @@ export class Workbench {
     workers: WorkerSupervisor
     config: Config
     lock: HomeLock
-    sessionsRoot?: string
+    adapters: Record<string, WorkerAdapter>
+    harnessOptions: HarnessOptions
     extensions?: WorkbenchExtensions
   }) {
     this.home = opts.home
-    this.sessionsRoot = opts.sessionsRoot
+    this.adapters = opts.adapters
+    this.harnessOptions = opts.harnessOptions
     this.version = opts.version
     this.driver = opts.driver
     this.log = opts.log
@@ -294,17 +308,27 @@ export class Workbench {
         })
       }
       // One adapter per harness there is; the route's is the default.
-      const harnessOptions = {
+      const harnessOptions: HarnessOptions = {
         runDir: join(opts.home, 'runs'),
         socketDir: runtimeDir(opts.home),
         approvals: config.approvals.mode,
+        ...(opts.sessionsRoot ? { sessionsRoot: opts.sessionsRoot } : {}),
+        ...(opts.harnessHome ? { home: opts.harnessHome } : {}),
+        // Into the agent's own lane, through its driver: nothing else reaches it.
+        type: (run: RunId, text: string) =>
+          registry.write(run as unknown as LaneId, Buffer.from(text, 'utf8')),
+        onWarning: (message: string) => {
+          void log.append({ type: 'warning', detail: { message } }).catch(() => {})
+        },
       }
-      const adapters = Object.fromEntries(
+      const adapters: Record<string, WorkerAdapter> = Object.fromEntries(
         Object.entries(HARNESS_ADAPTERS).map(([id, make]) => [id, make(harnessOptions)]),
       )
       const defaultHarness = config.workers.routes[config.workers.default]?.harness ?? 'pi'
+      const fallback = adapters[defaultHarness] ?? adapters.pi
+      if (!fallback) throw new Error(`no harness called ${defaultHarness}`)
       const workers = new WorkerSupervisor({
-        adapter: adapters[defaultHarness] ?? HARNESS_ADAPTERS.pi!(harnessOptions),
+        adapter: fallback,
         adapters,
         log,
         approvals: {
@@ -344,7 +368,8 @@ export class Workbench {
         workers,
         config,
         lock,
-        ...(opts.sessionsRoot ? { sessionsRoot: opts.sessionsRoot } : {}),
+        adapters,
+        harnessOptions,
         ...(opts.extensions ? { extensions: opts.extensions } : {}),
       })
       await log.append({
@@ -382,8 +407,21 @@ export class Workbench {
   private async resupervise(): Promise<void> {
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent' || !lane.alive) continue
-      const resumed = await this.workers
-        .resume({ task: lane.task as never, run: lane.id as RunId, cwd: lane.spec.cwd, prompt: '' })
+      // By the harness it was started in: another adapter would listen on a
+      // channel its agent never dials.
+      const harness = lane.harness ?? (await this.harnessOf(lane.task, lane.spec.cwd))
+      // And the account it was started on, whose adapter is made again here.
+      const resumed = await Promise.resolve()
+        .then(() => this.adapterFor(harness, lane.account))
+        .then(() =>
+          this.workers.resume({
+            task: lane.task as never,
+            run: lane.id as RunId,
+            cwd: lane.spec.cwd,
+            prompt: '',
+            harness: adapterKey(harness, lane.account),
+          }),
+        )
         .catch(() => null)
       if (resumed) this.followExit(lane.id as LaneId)
     }
@@ -406,10 +444,10 @@ export class Workbench {
    *
    * The supervision extension reports each turn as it happens, but only while
    * Tade is there to be told — and under a driver whose lanes outlive the
-   * window, it often is not. pi writes every priced message to its own session
+   * window, it often is not. A harness writes every message to its own record
    * regardless, so on opening we compare what that says against what the
-   * journal already knows and record the difference. The session file is the
-   * ledger; the journal is a copy of it that can fall behind.
+   * journal already knows and record the difference. The harness's record is
+   * the ledger; the journal is a copy of it that can fall behind.
    *
    * Best effort by design: a session we cannot read leaves the accounting
    * short, which is a worse answer than the truth and a far better one than
@@ -419,18 +457,24 @@ export class Workbench {
     const journalled = spendFrom(await this.log.read({ types: ['usage'] }).catch(() => []))
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent') continue
-      const session = await usageOfTask(lane.task, {
-        ...(this.sessionsRoot ? { root: this.sessionsRoot } : {}),
-      }).catch(() => noUsage())
+      const harness = lane.harness ?? (await this.harnessOf(lane.task, lane.spec.cwd))
+      const session = await Promise.resolve()
+        .then(() =>
+          this.adapterFor(harness, lane.account).spent(lane.task as TaskId, lane.spec.cwd),
+        )
+        .catch(() => noHarnessSpend())
       if (session.messages === 0) continue
       const known = journalled.byTask[lane.task] ?? noSpend()
+      // Each measure on its own, never below nothing: a harness whose record
+      // keeps tokens and no prices (Claude Code's) knows less money than the
+      // journal was told live, and that is not a refund.
       const missing = {
-        input: session.input - known.input,
-        output: session.output - known.output,
-        cacheRead: session.cacheRead - known.cacheRead,
-        cacheWrite: session.cacheWrite - known.cacheWrite,
-        tokens: session.tokens - known.tokens,
-        usd: session.usd - known.usd,
+        input: Math.max(0, session.input - known.input),
+        output: Math.max(0, session.output - known.output),
+        cacheRead: Math.max(0, session.cacheRead - known.cacheRead),
+        cacheWrite: Math.max(0, session.cacheWrite - known.cacheWrite),
+        tokens: Math.max(0, session.tokens - known.tokens),
+        usd: Math.max(0, session.usd - known.usd),
       }
       // Only ever forward. The journal knowing more than the session means the
       // session was trimmed or replaced, and inventing a negative charge to
@@ -785,7 +829,7 @@ export class Workbench {
       await beginFrom(req.worktree, req.task, req.from)
     }
     const { start } = file
-    const told = await this.hasConversation(req.task)
+    const told = await this.hasConversation(req.task, req.worktree)
     const lane = told
       ? await this.reopenAgent({ task: req.task as TaskId, cwd: req.worktree })
       : await this.startAgent({
@@ -1077,16 +1121,21 @@ export class Workbench {
   }
 
   /**
-   * Refuse a name any task has had. pi keeps a conversation by the task's name,
-   * so a new agent under a removed one's name would carry on its conversation —
-   * and two names that make the same session id, `a.b` and `a-b`, share one.
-   * The journal is what remembers a name after its task is gone.
+   * Refuse a name any task has had. A harness keeps a conversation by the
+   * task's name, so a new agent under a removed one's name would carry on its
+   * conversation — and two names that make the same conversation in any
+   * harness, `a.b` and `a-b` in pi, share one. The journal is what remembers a
+   * name after its task is gone.
    */
   private async guardName(id: string): Promise<void> {
-    const session = sessionIdFor(id)
+    const adapters = Object.values(this.adapters)
+    const keys = adapters.map((adapter) => adapter.conversationKey(id as TaskId))
     const created = await this.log.read({ types: ['task_created'] }).catch(() => [])
     const clash = created.find(
-      (event) => event.task && (event.task === id || sessionIdFor(event.task) === session),
+      (event) =>
+        event.task &&
+        (event.task === id ||
+          adapters.some((adapter, n) => adapter.conversationKey(event.task as TaskId) === keys[n])),
     )?.task
     if (!clash) return
     throw new Error(
@@ -1204,6 +1253,8 @@ export class Workbench {
       throw new Error(`${req.task} already has an agent running: steer it or stop it first`)
     }
     const harness = req.harness ?? (await this.harnessOf(req.task, req.cwd))
+    const account = req.account ?? (await this.accountOf(req.task, req.cwd, harness))
+    const adapter = this.adapterFor(harness, account)
     const extras = withTade(
       req.extras ??
         this.extensions?.extras({
@@ -1212,14 +1263,23 @@ export class Workbench {
           cwd: req.cwd,
           harness,
         }),
-      await this.agentPrompt(req.task, req.cwd, this.adapterFor(harness).capabilities.done),
+      await this.agentPrompt(req.task, req.cwd, adapter.capabilities.done),
     )
     const { chosen } = await this.taskFile(req.cwd, req.task)
     // The model new agents start on is for new agents. One coming back to its
     // conversation keeps the model that conversation was on, which its session
     // remembers — told the default instead, it would quietly change models.
-    const resuming = await this.hasConversation(req.task)
-    const thinking = req.thinking ?? (resuming ? undefined : this.thinkingFor(req.task))
+    const resuming = await adapter.hasConversation(req.task, req.cwd)
+    // Coming back, a harness that keeps its model is left on it; one that does
+    // not is told again what it last ran on, as the journal heard it.
+    const keeps = resuming && adapter.capabilities.resumeKeeps
+    const thinking = req.thinking ?? (keeps ? undefined : this.thinkingFor(req.task, harness))
+    const model =
+      req.model ??
+      (keeps
+        ? undefined
+        : ((resuming ? await this.lastModelOf(req.task) : undefined) ??
+          this.modelFor(req.task, harness)))
     const spec = {
       run: lane as RunId,
       task: req.task,
@@ -1227,12 +1287,16 @@ export class Workbench {
       prompt: req.prompt,
       ...(chosen ? { title: chosen } : {}),
       ...(extras ? { extras } : {}),
-      model: req.model ?? (resuming ? undefined : this.modelFor(req.task)),
+      ...(model ? { model } : {}),
       ...(thinking ? { thinking } : {}),
       lane,
       sandbox: {
         kind: req.sandbox ?? this.sandboxFor(req.task),
         worktree: req.worktree ?? req.cwd,
+        // Where the harness keeps the conversation: contained without it, an
+        // agent runs and quietly keeps nothing.
+        writable: [...adapter.sandboxWrites().paths],
+        writablePrefixes: [...adapter.sandboxWrites().prefixes],
       },
     }
     // Listen before launching: the channel has to exist for the agent's very
@@ -1243,10 +1307,10 @@ export class Workbench {
       run: lane as RunId,
       model: spec.model,
       ...(spec.thinking ? { thinking: spec.thinking } : {}),
-      harness,
+      harness: adapterKey(harness, account),
       ...(extras ? { extras } : {}),
     })
-    const launch = this.adapterFor(harness).launchSpec(spec)
+    const launch = adapter.launchSpec(spec)
     try {
       const record = await this.registry.spawn({
         id: lane,
@@ -1260,6 +1324,8 @@ export class Workbench {
         ...(launch.opening ? { opening: launch.opening } : {}),
         env: launch.env,
         title: req.task,
+        harness,
+        ...(account ? { account } : {}),
       })
       this.followExit(lane)
       return record
@@ -1275,12 +1341,12 @@ export class Workbench {
    * harness keeps rather than Tade. A task that has one has been told what it
    * is for at least once.
    */
-  private async hasConversation(task: string): Promise<boolean> {
-    const file = await sessionFileFor(
-      task,
-      this.sessionsRoot ? { root: this.sessionsRoot } : {},
-    ).catch(() => null)
-    return file !== null
+  private async hasConversation(task: string, cwd: string): Promise<boolean> {
+    const harness = await this.harnessOf(task, cwd)
+    const account = await this.accountOf(task, cwd, harness)
+    return Promise.resolve()
+      .then(() => this.adapterFor(harness, account).hasConversation(task as TaskId, cwd))
+      .catch(() => false)
   }
 
   /** What a task's file says: what was asked, and the name a person chose, if any. */
@@ -1359,19 +1425,102 @@ export class Workbench {
     })
   }
 
-  /** A harness's adapter, from the registry: the route's harness unless one is named. */
-  private adapterFor(harness?: string): LaneHarness {
+  /**
+   * A harness's adapter: the route's harness unless one is named. The very
+   * one the supervisor answers its runs with, never a second made to ask.
+   */
+  private adapterFor(harness?: string, account?: string): WorkerAdapter {
     const id = harness ?? this.config.workers.routes[this.config.workers.default]?.harness ?? 'pi'
-    const make = HARNESS_ADAPTERS[id]
-    if (!make)
+    const own = this.adapters[id]
+    if (!own)
       throw new Error(
         `no harness called ${id}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
       )
-    return make({
-      runDir: join(this.home, 'runs'),
-      socketDir: runtimeDir(this.home),
-      approvals: this.config.approvals.mode,
+    if (!account) return own
+    const key = adapterKey(id, account)
+    const known = this.adapters[key]
+    if (known) return known
+    // An account's own adapter, made the first time an agent needs it and
+    // answering its runs from then on.
+    const made = HARNESS_ADAPTERS[id]?.({
+      ...this.harnessOptions,
+      account: this.accountFor(account),
     })
+    if (!made) throw new Error(`no harness called ${id}`)
+    this.adapters[key] = made
+    this.workers.add(key, made)
+    return made
+  }
+
+  /**
+   * An account as its harness is given it: its folder under Tade's home, and
+   * for one paid by API key, the command that reads that key from where Tade
+   * keeps it — never the key.
+   */
+  private accountFor(name: string): HarnessAccount {
+    return harnessAccount(this.config, this.home, name)
+  }
+
+  /**
+   * The account a task's agent runs as: its own choice, else the one its
+   * harness's new agents use, else the harness's own sign-in. One that is not
+   * this harness's is not used: an account belongs to one harness.
+   */
+  private async accountOf(task: string, cwd: string, harness: string): Promise<string | undefined> {
+    const own = await this.taskAccount(cwd, task)
+    const chosen = own ?? this.config.workers.accounts[harness as HarnessId]
+    if (!chosen) return undefined
+    return this.config.accounts[chosen]?.harness === harness ? chosen : undefined
+  }
+
+  private async taskAccount(cwd: string, task: string): Promise<string | null> {
+    try {
+      const file = parseYaml(await readFile(taskFilePath(cwd, task), 'utf8')) as {
+        account?: unknown
+      } | null
+      return typeof file?.account === 'string' ? file.account : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The harness a task's agent runs in and what it can be asked to do there,
+   * as the harness declares it: what the window shows and hides for it.
+   */
+  async agentHarness(
+    task: string,
+    cwd: string,
+  ): Promise<{ harness: string; account: string | null; capabilities: WorkerCapabilities }> {
+    const harness = await this.harnessOf(task, cwd)
+    const account = await this.accountOf(task, cwd, harness)
+    return {
+      harness,
+      account: account ?? null,
+      capabilities: this.adapterFor(harness).capabilities,
+    }
+  }
+
+  private canQuietly(task: string, feature: 'model' | 'thinking' | 'rename'): boolean {
+    try {
+      this.can(task, feature)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Refuse what a running agent's harness cannot do, with the harness's own
+   * reason: the same sentence the window shows beside the control it hides.
+   */
+  private can(task: string, feature: 'model' | 'thinking' | 'rename'): Support {
+    const run = this.workers.list().find((handle) => handle.task === task)
+    const adapter = run ? this.workers.adapterOf(run.run) : this.adapterFor()
+    const support = adapter.capabilities[feature]
+    const said = offer(adapter.capabilities, feature, support)
+    if (!said.shown) throw new Error(`${adapter.id} ${said.note}`)
+    return support
   }
 
   /** The harness a task's agent runs in: its own choice, else its project's route. */
@@ -1393,6 +1542,177 @@ export class Workbench {
     }
   }
 
+  // --- accounts ------------------------------------------------------------------
+
+  /**
+   * Every account there is to run agents as: each harness's own sign-in, and
+   * the ones added beside it, with who each is signed in as — as the harness
+   * says, asked now — how much of its plan is used, and how many agents are on
+   * it. Never throws: a harness that cannot answer says so in `status.problem`.
+   */
+  async accounts(): Promise<AccountView[]> {
+    const running = this.workers.list()
+    return listAccounts(this.config, {
+      adapterFor: (harness, name) => this.adapterFor(harness, name ?? undefined),
+      agentsOn: (adapter) =>
+        running.filter((run) => this.workers.adapterOf(run.run) === adapter).length,
+    })
+  }
+
+  /**
+   * Add an account to run a harness's agents as, beside its own sign-in: its
+   * folder made and made ready, and its name written down. Signing in to it is
+   * the next step, and the harness's own.
+   */
+  async addAccount(req: {
+    name: string
+    harness: string
+    kind?: 'subscription' | 'api-key'
+    share?: boolean
+  }): Promise<void> {
+    const name = req.name.trim().toLowerCase()
+    const parsed = AccountName.safeParse(name)
+    if (!parsed.success) {
+      throw new Error(`"${req.name}" cannot name an account: ${parsed.error.issues[0]?.message}`)
+    }
+    if (this.config.accounts[name]) throw new Error(`there is already an account called ${name}`)
+    const own = this.adapterFor(req.harness)
+    if (!own.capabilities.accounts) {
+      throw new Error(`${req.harness} ${own.capabilities.why.accounts ?? 'has one account'}`)
+    }
+    const kind = req.kind ?? 'subscription'
+    const share = req.share ?? true
+    this.writeConfig(`accounts.${name}`, { harness: req.harness, kind, share })
+    await this.adapterFor(req.harness, name).prepareAccount(share)
+    await this.log.append({
+      type: 'state_change',
+      detail: { account: name, harness: req.harness, kind, added: true, by: 'you' },
+    })
+  }
+
+  /**
+   * Take an account away: signed out, its folder removed, its name gone —
+   * and nothing left pointing at it. Refused while an agent runs as it.
+   */
+  async removeAccount(name: string): Promise<void> {
+    const account = this.config.accounts[name]
+    if (!account) throw new Error(`no account called ${name}`)
+    const adapter = this.adapterFor(account.harness, name)
+    const busy = this.workers.list().filter((run) => this.workers.adapterOf(run.run) === adapter)
+    if (busy.length > 0) {
+      throw new Error(
+        `${busy.map((run) => run.task).join(', ')} ${busy.length === 1 ? 'runs' : 'run'} as ${name}: stop ${busy.length === 1 ? 'it' : 'them'} first`,
+      )
+    }
+    if (account.kind === 'subscription') await adapter.signOut().catch(() => {})
+    else Secrets.open({ home: this.home }).clear(accountKey(name))
+    await rm(join(this.home, 'accounts', name), { recursive: true, force: true })
+    if (this.config.workers.accounts[account.harness] === name) {
+      this.writeConfig(`workers.accounts.${account.harness}`, undefined)
+    }
+    this.writeConfig(`accounts.${name}`, undefined)
+    delete this.adapters[adapterKey(account.harness, name)]
+    await this.log.append({
+      type: 'state_change',
+      detail: { account: name, harness: account.harness, removed: true, by: 'you' },
+    })
+  }
+
+  /** Which account a harness's new agents run as: `null` for its own sign-in. */
+  async useAccount(harness: string, name: string | null): Promise<void> {
+    if (name && this.config.accounts[name]?.harness !== harness) {
+      throw new Error(`${name} is not a ${harness} account`)
+    }
+    this.writeConfig(`workers.accounts.${harness}`, name ?? undefined)
+    await this.log.append({
+      type: 'state_change',
+      detail: { harness, account: name ?? 'default', forNewAgents: true, by: 'you' },
+    })
+  }
+
+  /**
+   * Run one task's agent as another account — the one to move to when an
+   * account has run out of its plan. Its conversation goes with it, where the
+   * harness can carry it, so it goes on rather than starting over; a running
+   * agent is started again there.
+   */
+  async setAgentAccount(req: {
+    task: string
+    worktree: string
+    account: string | null
+  }): Promise<{ account: string | null; restarted: boolean; carried: boolean }> {
+    const harness = await this.harnessOf(req.task, req.worktree)
+    if (req.account && this.config.accounts[req.account]?.harness !== harness) {
+      throw new Error(`${req.account} is not a ${harness} account`)
+    }
+    const from = this.adapterFor(harness, await this.accountOf(req.task, req.worktree, harness))
+    const to = this.adapterFor(harness, req.account ?? undefined)
+    const lane = `${req.task}/agent` as LaneId
+    const running = this.registry.get(lane)?.alive === true
+    if (running) await this.stopAgent(req.task)
+    const carried =
+      from !== to
+        ? await from.carryConversation(req.task as TaskId, req.worktree, to).catch(() => false)
+        : false
+    await setTaskAccount(req.worktree, req.task, req.account)
+    if (running) {
+      await this.startAgent({
+        task: req.task as TaskId,
+        cwd: req.worktree,
+        prompt: '',
+        ...(req.account ? { account: req.account } : {}),
+      })
+    }
+    await this.log.append({
+      type: 'state_change',
+      task: req.task,
+      detail: { account: req.account ?? 'default', carried, by: 'you' },
+    })
+    return { account: req.account, restarted: running, carried }
+  }
+
+  /**
+   * What to run, in a terminal you can see, to sign an account in: the
+   * harness's own sign-in, so what you give it goes where it keeps it.
+   */
+  signInFor(harness: string, name: string | null): SignIn {
+    const spec = this.adapterFor(harness, name ?? undefined).signIn()
+    if (!spec)
+      throw new Error(`${name ?? harness} has nothing to sign in to: it is paid for with a key`)
+    return spec
+  }
+
+  async signOut(harness: string, name: string | null): Promise<void> {
+    await this.adapterFor(harness, name ?? undefined).signOut()
+    await this.log.append({
+      type: 'state_change',
+      detail: { harness, account: name ?? 'default', signedOut: true, by: 'you' },
+    })
+  }
+
+  /** Keep an API-key account's key where Tade keeps keys, and say where it went. */
+  saveAccountKey(name: string, key: string): string {
+    if (this.config.accounts[name]?.kind !== 'api-key') {
+      throw new Error(`${name} is not an account paid for with an API key`)
+    }
+    return Secrets.open({ home: this.home }).set(accountKey(name), key)
+  }
+
+  /** Write one setting and read the config back, so what was written is what runs. */
+  private writeConfig(key: string, value: Parameters<typeof writeSetting>[2]): void {
+    const path = join(this.home, 'config.yaml')
+    const before = existsSync(path) ? readFileSync(path, 'utf8') : null
+    writeSetting(path, key, value)
+    const parsed = parseConfig(readFileSync(path, 'utf8'), path)
+    if (!parsed.ok) {
+      // Never leave behind a file the next window would refuse.
+      if (before === null) rmSync(path, { force: true })
+      else writeFileSync(path, before, { mode: 0o600 })
+      throw new Error(`that would make config.yaml invalid: ${parsed.issues[0]?.message ?? ''}`)
+    }
+    this.config = parsed.config
+  }
+
   /**
    * Run a task's agent in another harness. Kept in its task, so it starts there
    * every time after; a running agent is stopped and started again in the new
@@ -1409,9 +1729,9 @@ export class Workbench {
         `no harness called ${req.harness}: there are ${HARNESS_CHOICES.map((one) => one.id).join(', ')}`,
       )
     }
-    if (!choice.ready || !HARNESS_ADAPTERS[req.harness]) {
+    if (!choice.ready || !this.adapters[req.harness]) {
       throw new Error(
-        `${choice.title} is ${choice.about}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+        `${choice.title} is ${choice.about}: Tade runs ${Object.keys(this.adapters).join(', ')}`,
       )
     }
     await setTaskHarness(req.worktree, req.task, req.harness)
@@ -1458,7 +1778,8 @@ export class Workbench {
     if (!title) throw new Error('what should it be called?')
     await setTitle(req.worktree, title, true, req.task)
     const run = `${req.task}/agent` as RunId
-    if (this.registry.get(run as unknown as LaneId)?.alive) {
+    // Kept in the task either way; told to a session whose harness can take it.
+    if (this.registry.get(run as unknown as LaneId)?.alive && this.canQuietly(req.task, 'rename')) {
       await this.workers.name(run, title).catch(() => {})
     }
     await this.log.append({ type: 'task_named', task: req.task, detail: { title, by: 'you' } })
@@ -1474,11 +1795,64 @@ export class Workbench {
     if (!this.registry.get(run as unknown as LaneId)?.alive) {
       throw new Error(`${task} has no agent running: open it first`)
     }
-    const found = await this.resolveModel(said)
+    const support = this.can(task, 'model')
+    const adapter = this.workers.adapterOf(run)
+    // Named among what its own harness offers: another harness's model is no
+    // model at all to this one.
+    const found = await adapter.resolveModel(said)
+    if (!found.ok) throw new Error(found.reason)
+    const model = { provider: found.provider, id: found.id }
     // What it switched to is journalled by the agent itself, as the model its usage is priced at.
-    await this.workers.setModel(run, found)
-    this.keepAgentModel(task, found)
-    return found
+    if (support === 'restart') await this.restartAgent(task, { model })
+    else await this.workers.setModel(run, model)
+    this.keepAgentModel(task, model, adapter.id)
+    return model
+  }
+
+  /** The models a task's agent could run on, as its harness offers them. */
+  async agentModels(task: string, cwd: string): Promise<HarnessModel[]> {
+    return this.adapterFor(await this.harnessOf(task, cwd))
+      .models()
+      .catch(() => [])
+  }
+
+  /** A model said for a task's agent, among what its harness offers. Throws what to ask. */
+  async resolveModelFor(
+    task: string,
+    cwd: string,
+    said: string,
+  ): Promise<{ provider: string; id: string }> {
+    const found = await this.adapterFor(await this.harnessOf(task, cwd)).resolveModel(said)
+    if (!found.ok) throw new Error(found.reason)
+    return { provider: found.provider, id: found.id }
+  }
+
+  /**
+   * Start a running agent again on the same conversation, with what changed:
+   * how a harness that takes a model or a thinking level only at launch is
+   * given one. Never in the middle of a turn, which it would cut short.
+   */
+  private async restartAgent(
+    task: string,
+    change: { model?: WorkerModel; thinking?: ThinkingLevel },
+  ): Promise<void> {
+    const lane = `${task}/agent` as LaneId
+    const record = this.registry.get(lane)
+    if (!record?.alive) throw new Error(`${task} has no agent running: open it first`)
+    if (this.workers.turnOf(lane) === 'running') {
+      throw new Error(
+        `${task} is in the middle of a turn, and changing that means starting it again: ask once the turn ends`,
+      )
+    }
+    await this.stopAgent(task)
+    await this.startAgent({
+      task: task as TaskId,
+      cwd: record.spec.cwd,
+      prompt: '',
+      ...(record.harness ? { harness: record.harness } : {}),
+      ...(record.account ? { account: record.account } : {}),
+      ...change,
+    })
   }
 
   /**
@@ -1488,33 +1862,50 @@ export class Workbench {
    * picks by what you are signed in to, which is how every agent ended up on
    * the same model whatever anyone chose.
    */
-  keepAgentModel(task: string, model: { provider: string; id: string }): void {
-    this.keepAgentRoute(task, { provider: model.provider, model: model.id })
+  keepAgentModel(task: string, model: { provider: string; id: string }, harness?: string): void {
+    this.keepAgentRoute(task, { provider: model.provider, model: model.id }, harness)
   }
 
-  /** Change the route new agents in a task's project start on: in the file, and here. */
+  /**
+   * Change what new agents in a task's project start on: in the file, and
+   * here. Kept for the harness the agent runs in — the route's own when it is
+   * that one, and beside it for any other — so no harness is handed another's
+   * model.
+   */
   private keepAgentRoute(
     task: string,
     change: { provider?: string; model?: string; thinking?: ThinkingLevel },
+    harness?: string,
   ): void {
     const project = task.split('/')[0]
     const route = resolveRoute(this.config, project ? { project } : {})
+    const own = !harness || harness === route.harness
+    const at = own
+      ? `workers.routes.${route.name}`
+      : `workers.routes.${route.name}.harnesses.${harness}`
     const path = join(this.home, 'config.yaml')
     try {
-      for (const [key, value] of Object.entries(change)) {
-        writeSetting(path, `workers.routes.${route.name}.${key}`, value)
-      }
+      for (const [key, value] of Object.entries(change)) writeSetting(path, `${at}.${key}`, value)
     } catch {
       // A config that cannot be written: this agent changed, and new ones
       // start where they did before.
       return
     }
     const { name: _name, ...kept } = route
+    const next = own
+      ? { ...kept, ...change }
+      : {
+          ...kept,
+          harnesses: {
+            ...kept.harnesses,
+            [harness]: { ...kept.harnesses?.[harness as HarnessId], ...change },
+          },
+        }
     this.config = {
       ...this.config,
       workers: {
         ...this.config.workers,
-        routes: { ...this.config.workers.routes, [route.name]: { ...kept, ...change } },
+        routes: { ...this.config.workers.routes, [route.name]: next },
       },
     }
   }
@@ -1532,9 +1923,18 @@ export class Workbench {
     if (!this.registry.get(run as unknown as LaneId)?.alive) {
       throw new Error(`${task} has no agent running: open it first`)
     }
+    const support = this.can(task, 'thinking')
+    const thinker = this.workers.adapterOf(run)
+    const levels = thinker.capabilities.thinkingLevels
+    if (!levels.includes(chosen)) {
+      throw new Error(
+        `${this.workers.adapterOf(run).id} thinks at ${levels.join(', ')}, not ${chosen}`,
+      )
+    }
     // What it settled on is said back by the agent: a model that cannot think that hard takes less.
-    await this.workers.setThinking(run, chosen)
-    this.keepAgentRoute(task, { thinking: chosen })
+    if (support === 'restart') await this.restartAgent(task, { thinking: chosen })
+    else await this.workers.setThinking(run, chosen)
+    this.keepAgentRoute(task, { thinking: chosen }, thinker.id)
     return chosen
   }
 
@@ -1543,7 +1943,7 @@ export class Workbench {
    * to ask them when it is not one model: before anything is started on it.
    */
   async resolveModel(said: string): Promise<{ provider: string; id: string }> {
-    const found = findModel(said, await usableModels())
+    const found = await this.adapterFor().resolveModel(said)
     if (!found.ok) throw new Error(found.reason)
     return { provider: found.provider, id: found.id }
   }
@@ -1660,16 +2060,25 @@ export class Workbench {
    * changed the sandbox and nothing else.
    */
   /** How hard new agents in a task's project think, when a level was chosen. */
-  private thinkingFor(task: string): ThinkingLevel | undefined {
+  private thinkingFor(task: string, harness: string): ThinkingLevel | undefined {
     const project = task.split('/')[0]
-    return resolveRoute(this.config, project ? { project } : {}).thinking
+    return routeIn(resolveRoute(this.config, project ? { project } : {}), harness).thinking
   }
 
-  private modelFor(task: string): WorkerModel | undefined {
+  private modelFor(task: string, harness: string): WorkerModel | undefined {
     const project = task.split('/')[0]
-    const route = resolveRoute(this.config, project ? { project } : {})
+    const route = routeIn(resolveRoute(this.config, project ? { project } : {}), harness)
     if (!route.model) return undefined
     return { id: route.model, ...(route.provider ? { provider: route.provider } : {}) }
+  }
+
+  /** The model a task's agent last ran on, as it reported what it spent. */
+  private async lastModelOf(task: string): Promise<WorkerModel | undefined> {
+    const spent = await this.log.read({ types: ['usage'] }).catch(() => [])
+    const model = spent.findLast(
+      (event) => event.task === task && typeof event.detail?.model === 'string',
+    )?.detail?.model
+    return typeof model === 'string' && model ? { id: model } : undefined
   }
 
   /**

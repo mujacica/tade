@@ -373,6 +373,25 @@ function styledLine(row: BufferLine, cols: number): string {
   let out = ''
   let paint = ''
   let pending = ''
+  /**
+   * The blank cells held back, now that something follows them — and the run
+   * before them closed first.
+   *
+   * A blank cell with no paint of its own is still a cell with no paint on
+   * it. Written while the run before it is open, it takes that run's ground:
+   * the gap between two buttons comes back as one band of colour with the
+   * labels sitting in it, and so does every window drawn from a capture of
+   * one. So the reset goes before the spaces, not after them.
+   */
+  const gap = () => {
+    if (pending === '') return
+    if (paint !== '') {
+      out += '\x1b[0m'
+      paint = ''
+    }
+    out += pending
+    pending = ''
+  }
   for (let x = 0; x < cols; x++) {
     const cell = row.getCell(x)
     if (!cell || cell.getWidth() === 0) continue
@@ -383,13 +402,12 @@ function styledLine(row: BufferLine, cols: number): string {
       pending += ' '
       continue
     }
+    gap()
     if (next !== paint) {
-      out += `${pending}\x1b[0${next}m`
-      pending = ''
+      out += `\x1b[0${next}m`
       paint = next
     }
-    out += pending + chars
-    pending = ''
+    out += chars
   }
   return paint === '' ? out : `${out}\x1b[0m`
 }

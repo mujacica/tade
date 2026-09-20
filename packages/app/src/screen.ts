@@ -488,7 +488,12 @@ export interface Ui {
    * keystroke goes to it while it runs, because Tade is the only thing
    * reading the keyboard.
    */
-  run(title: string, command: string, args: string[]): Promise<number>
+  run(
+    title: string,
+    command: string,
+    args: string[],
+    env?: Readonly<Record<string, string>>,
+  ): Promise<number>
 }
 
 export interface ScreenOptions {
@@ -707,7 +712,7 @@ export async function runScreen(
       draw()
       return Number.isInteger(picked) ? picked : 0
     },
-    async run(title, command, args) {
+    async run(title, command, args, env) {
       const id = `screen/${++running}` as LaneId
       const rows = Math.max(8, terminal.rows - state.context.length - 14)
       await driver.open({
@@ -717,7 +722,7 @@ export async function runScreen(
         args,
         cols: Math.max(40, terminal.columns - 4),
         rows,
-        ...(opts.env ? { env: stringly(opts.env) } : {}),
+        ...(opts.env || env ? { env: { ...(opts.env ? stringly(opts.env) : {}), ...env } } : {}),
       })
       lane = id
       state = { ...state, running: { title, screen: '' } }

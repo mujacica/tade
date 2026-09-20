@@ -2,7 +2,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { draw } from '../src/view.ts'
 import { SCENARIOS, type Scenario } from '../test/screens/scenarios.ts'
-import { type Box, cropGrid, reel, type Shot, shot, toGrid } from './ansi-svg.ts'
+import { type Box, cropGrid, reel, type Shot, shot } from './ansi-svg.ts'
+import { type Grid, toGrid } from './terminal.ts'
 
 // The pictures the README is made of.
 //
@@ -237,6 +238,14 @@ export const PICTURES: readonly Picture[] = [
       'cached, filtered as you type.',
   },
   {
+    file: 'accounts.svg',
+    scenario: 'settings-accounts',
+    crop: 'panel',
+    about:
+      "Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of " +
+      'the plan is used, and what can be done to each.',
+  },
+  {
     file: 'projects.svg',
     scenario: 'another-project-needs-you',
     crop: { top: 0, height: 9 },
@@ -288,7 +297,7 @@ function scenarioNamed(name: string): Scenario {
  * Where the panel over the window is: its top-left corner, the corner closing
  * its own top row, and the corner under the first one.
  */
-function panelBox(grid: ReturnType<typeof toGrid>): Box {
+export function panelBox(grid: Grid): Box {
   for (let y = 0; y < grid.length; y++) {
     const row = grid[y] ?? []
     const left = row.findIndex((cell) => cell.ch === '\u256d' || cell.ch === '\u250f')

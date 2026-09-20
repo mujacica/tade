@@ -1,0 +1,12 @@
+id: tade/settings-redesign
+project: tade
+intent_spoken: Design of toggles in settings is horrible, can we please rework
+  settings, make sure there are no overlaps, make sure the hovers are
+  implemented etc etc etc
+created: 2026-09-19T10:45:42.399Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+title: Fix clipped labels and toggle styling in Settings

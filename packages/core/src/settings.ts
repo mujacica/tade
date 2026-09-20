@@ -245,6 +245,17 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
       about: 'The one you talk to.',
       settings: [
         {
+          path: 'orchestrator.harness',
+          title: 'Harness',
+          means:
+            'the program you talk through: pi, or Claude Code on the account it is signed in to. The conversation is the harness’s own, so each keeps its own',
+          value: config.orchestrator.harness,
+          fallback: 'pi',
+          type: { kind: 'choice', options: [...HARNESS_IDS] },
+          keywords: ['claude', 'code', 'pi', 'agent'],
+          live: false,
+        },
+        {
           path: 'orchestrator.model',
           title: 'Model',
           means: 'what you talk to. Omit to use whatever the harness is logged in to',
@@ -328,6 +339,17 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
           fallback: '2',
           type: { kind: 'number' },
           live: true,
+        },
+        {
+          path: 'checks.from_ci',
+          title: 'Checks read from CI',
+          means:
+            'what to do with the commands a project runs in CI when it has no .tade/checks.yaml: show them without running them, run them here too, or ignore them. `tade checks adopt` turns them into a manifest, which is what makes them ours to run',
+          value: config.checks.from_ci,
+          fallback: 'show',
+          type: { kind: 'choice', options: ['show', 'run', 'off'] },
+          live: true,
+          keywords: ['github', 'actions', 'workflow', 'ci', 'adopt', 'import'],
         },
         {
           path: 'checks.ci',
@@ -494,6 +516,57 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
           fallback: 'none',
           type: { kind: 'text', placeholder: 'Payments. Stripe, Postgres, Node.' } as const,
           live: false,
+        },
+      ]),
+    },
+    {
+      // The schema has always allowed `projects.<name>.checks`, and `checksFor`
+      // has always read it; until this group there was no way to set one, which
+      // made it a key that read like a promise Tade did not keep.
+      id: 'project-checks',
+      title: 'Checks per project',
+      about:
+        "One project's own answer to the Checks rules. Left empty it follows the rule above; what a project actually checks is its own `.tade/checks.yaml`, which Settings does not hold because it lives in the repository.",
+      settings: projects.flatMap(([name, project]) => [
+        {
+          path: `projects.${name}.checks.before`,
+          title: `${name} — needed before`,
+          means: `when Tade runs ${name}'s checks unasked, whatever the rule above says`,
+          value: project.checks?.before ?? '',
+          fallback: config.checks.before,
+          type: { kind: 'choice', options: ['', 'off', 'commit', 'push', 'commit and push'] },
+          live: true,
+          keywords: [name, 'checks', 'gate', 'push'],
+        },
+        {
+          path: `projects.${name}.checks.on_red`,
+          title: `${name} — when one is red`,
+          means: `what a failed required check does in ${name}`,
+          value: project.checks?.on_red ?? '',
+          fallback: config.checks.on_red,
+          type: { kind: 'choice', options: ['', 'hold', 'tell', 'note'] },
+          live: true,
+          keywords: [name, 'checks', 'red', 'fail'],
+        },
+        {
+          path: `projects.${name}.checks.from_ci`,
+          title: `${name} — checks read from CI`,
+          means: `what ${name}'s CI config is good for when it has no .tade/checks.yaml`,
+          value: project.checks?.from_ci ?? '',
+          fallback: config.checks.from_ci,
+          type: { kind: 'choice', options: ['', 'show', 'run', 'off'] },
+          live: true,
+          keywords: [name, 'github', 'actions', 'workflow', 'adopt'],
+        },
+        {
+          path: `projects.${name}.checks.parallel`,
+          title: `${name} — at once`,
+          means: `how many of ${name}'s checks may run at once here`,
+          value: project.checks?.parallel === undefined ? '' : String(project.checks.parallel),
+          fallback: String(config.checks.parallel),
+          type: { kind: 'number' } as const,
+          live: true,
+          keywords: [name, 'checks', 'parallel'],
         },
       ]),
     },
@@ -738,10 +811,13 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
         ]
       : []),
     {
-      id: 'keys',
-      title: 'Keys',
+      id: 'shortcuts',
+      title: 'Shortcuts',
       about:
         'The keys Tade keeps for itself; everything else goes to your agent. Keys with shift, and ctrl with a number or m, need a terminal with the Kitty keyboard protocol.',
+      // “Keys” is what a person types to find this, and what the panel used to
+      // be called — but it is also what an API key is, one group above.
+      keywords: ['key', 'keys', 'keyboard', 'shortcut', 'binding', 'hotkey', 'sheet'],
       settings: [
         {
           path: 'surfaces.voice.talk.key',
@@ -786,7 +862,7 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
   ]
 }
 
-/** Every key the window keeps, by what it does: the Keys settings and the keys sheet both read this. */
+/** Every key the window keeps, by what it does: Shortcuts settings and the sheet both read this. */
 export const KEY_BINDINGS: readonly {
   key: Exclude<keyof Config['surfaces']['window']['keys'], 'agent_by_number' | 'project_by_number'>
   title: string
@@ -857,7 +933,7 @@ export const KEY_BINDINGS: readonly {
     means: 'the conversation or terminal takes the window',
     fallback: 'ctrl+shift+f',
   },
-  { key: 'keys_sheet', title: 'Keys', means: 'the sheet of every key', fallback: 'f1' },
+  { key: 'keys_sheet', title: 'Shortcuts', means: 'the sheet of every shortcut', fallback: 'f1' },
   {
     key: 'reload',
     title: 'Reload',

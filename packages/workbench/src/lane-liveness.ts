@@ -11,7 +11,7 @@ import type { PendingApproval } from './workers.ts'
 export function laneSignal(lane: LaneRecord, turn: TurnState = 'unknown'): AgentSignal {
   return {
     source: 'lane',
-    provider: basename(lane.spec.command),
+    provider: lane.harness ?? basename(lane.spec.command),
     sessionId: lane.id,
     alive: lane.alive,
     lastActivityAt: lane.lastOutputAt ?? lane.startedAt,
@@ -36,8 +36,9 @@ export function runSignal(
   const waiting = pending.filter((p) => p.run === handle.run)
   return {
     source: 'run',
-    provider: 'pi',
+    provider: handle.harness ?? 'pi',
     sessionId: handle.run,
+    ...(handle.sessionId ? { conversation: handle.sessionId } : {}),
     alive: true,
     lastActivityAt: waiting[0]?.at ?? handle.startedAt,
     turn,

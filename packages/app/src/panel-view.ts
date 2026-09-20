@@ -8,6 +8,7 @@ import {
 } from '@earendil-works/pi-tui'
 import {
   duration,
+  HARNESS_CHOICES,
   KEY_BINDINGS,
   masked,
   type Setting,
@@ -21,6 +22,8 @@ import { linkedRow } from './links.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
 import {
   ACCOUNTS,
+  type AccountShown,
+  accountActions,
   type BranchPanel,
   type BranchRow,
   branchChoices,
@@ -116,8 +119,8 @@ export interface PanelContext {
   choices: readonly Choice[]
   /** Every setting, grouped, as it is now. */
   settings: readonly SettingGroup[]
-  /** Providers pi is signed in to. */
-  accounts: readonly string[]
+  /** Every account agents can run as, each harness's own sign-in first. */
+  accounts: readonly AccountShown[]
   /** The config file, as you would type its path. */
   configPath: string
   /** Whether this terminal reports key releases, which holding to talk needs. */
@@ -378,22 +381,33 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const lines: { text: string; hits: Hit[]; chosen?: boolean }[] = []
   const control = (id: string) => ({ kind: 'control' as const, id })
   /** Buttons in rows that wrap, each row knowing whether the chosen control is on it. */
+  // A set of buttons, over as many rows as they need — with a blank row
+  // between them. A button is a label on its own painted ground, so two rows
+  // of them with nothing in between are one block of colour, and which one
+  // you are pointing at stops being obvious: the gap is the same column that
+  // separates them sideways, going down instead.
   const buttons = (
     items: readonly { id: string; label: string; look?: 'attention' | 'danger' | 'primary' }[],
     indent = 3,
   ) => {
     let current = row().text(' '.repeat(indent))
     let here = false
+    let first = true
+    const put = () => {
+      if (!first) lines.push(blank(inner))
+      lines.push({ ...current.build(), chosen: here })
+      first = false
+      here = false
+    }
     for (const item of items) {
       if (current.used + visibleWidth(item.label) + 5 > inner) {
-        lines.push({ ...current.build(), chosen: here })
+        put()
         current = row().text(' '.repeat(indent))
-        here = false
       }
       current.button(item.label, control(item.id), item.look).space()
       if (item.id === chosen) here = true
     }
-    if (items.length > 0) lines.push({ ...current.build(), chosen: here })
+    if (items.length > 0) put()
   }
 
   for (const view of ctx.extensions) {
@@ -1288,10 +1302,10 @@ function keysSheet(ctx: PanelContext): Drawn {
       .text("Everything else goes to the agent or terminal you're typing at.", skin.hint)
       .build(),
     new Row(inner, skin, ctx.pointer)
-      .right((r) => r.button('Change keys…', { kind: 'control', id: 'change-keys' }).space())
+      .right((r) => r.button('Change shortcuts…', { kind: 'control', id: 'change-keys' }).space())
       .build(),
   )
-  return box('Keys', rows, width, skin, { corner: 'esc' })
+  return box('Shortcuts', rows, width, skin, { corner: 'esc' })
 }
 
 function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
@@ -1756,7 +1770,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   const about = panel.search
     ? 'Every setting whose name or meaning has those words.'
     : panel.category === ACCOUNTS
-      ? 'The providers pi can think with. Signing in happens in pi, inside this window.'
+      ? "Who each harness's agents run as. Signing in is each harness's own, inside this window: what you give it goes where it keeps it, never through Tade. ▸ marks the account new agents use; an agent's own menu moves it to another."
       : (group?.about ?? '')
   const head: { text: string; hits: Hit[] }[] = [
     new Row(form, skin)
@@ -1782,34 +1796,103 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   let anchor: { line: number; col: number } | null = null
 
   if (panel.category === ACCOUNTS && !panel.search) {
-    const named = Math.min(20, Math.max(4, form - 14))
-    for (const provider of ctx.accounts) {
+    const actions = accountActions(ctx.accounts)
+    const focused = panel.focus === 'form' ? (actions[panel.row]?.id ?? null) : null
+    const named = Math.min(22, Math.max(6, form - 30))
+    /** The last line that was a row of buttons, so two never end up touching. */
+    let lastButtons = -2
+    // Buttons for one account, or for its harness when `account` is undefined,
+    // laid out on as many rows as they need — with a blank line between two
+    // rows of them, wherever they come from. A button is a label on its own
+    // painted ground, so two rows with nothing between are one block of
+    // colour: the gap is the same column that separates them sideways, going
+    // down instead.
+    const buttons = (harness: string, account: string | null | undefined) => {
+      const mine = actions.filter(
+        (action) =>
+          action.harness === harness &&
+          (account === undefined ? action.account === undefined : action.account === account),
+      )
+      if (mine.length === 0) return
+      let row = new Row(form, skin, withFocus(pointer, focused)).space(3)
+      let holds: string[] = []
+      const put = () => {
+        if (lastButtons === body.length - 1) body.push(blank(form))
+        // Where the focused button ended up, read after the gap rather than
+        // before it: a line counted before one is inserted is the line above.
+        if (focused !== null && holds.includes(focused)) {
+          focusFrom = body.length
+          focusTo = body.length
+        }
+        body.push(row.build())
+        lastButtons = body.length - 1
+        holds = []
+      }
+      for (const action of mine) {
+        const label = panel.confirm === action.id ? 'Press again to remove' : action.label
+        const width = visibleWidth(label) + 3
+        if (row.used + width > form - 1 && row.used > 3) {
+          put()
+          row = new Row(form, skin, withFocus(pointer, focused)).space(3)
+        }
+        holds.push(action.id)
+        row.button(
+          label,
+          { kind: 'control', id: action.id },
+          action.danger ? 'danger' : account === undefined ? 'add' : undefined,
+        )
+        row.space()
+      }
+      put()
+    }
+    const harnesses = [...new Set(ctx.accounts.map((one) => one.harness))]
+    for (const harness of harnesses) {
+      const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
       body.push(
         new Row(form, skin)
           .space()
-          .text(padTo(provider, named))
-          .text(cap('● signed in', form - named - 2), skin.done)
+          .text(cap(title, form - 2), skin.brand)
           .build(),
       )
+      const mine = ctx.accounts.filter((one) => one.harness === harness)
+      for (const one of mine) {
+        const status = one.status.signedIn
+          ? [
+              one.kind === 'api-key'
+                ? '● paid with an API key'
+                : `● ${one.status.who ?? 'signed in'}${one.status.plan ? ` · ${one.status.plan}` : ''}`,
+              one.limits?.fiveHour ? `${Math.round(one.limits.fiveHour.used)}% of 5h` : null,
+              one.agents > 0 ? `${one.agents} agent${one.agents === 1 ? '' : 's'}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : `○ ${one.status.problem ?? 'not signed in'}`
+        body.push(
+          new Row(form, skin)
+            .space()
+            .text(one.forNewAgents ? '▸ ' : '  ', skin.you)
+            .text(padTo(cap(one.name ?? 'its own sign-in', named), named))
+            .text(cap(status, form - named - 5), one.status.signedIn ? skin.done : skin.hint)
+            .build(),
+        )
+        buttons(harness, one.name)
+      }
+      buttons(harness, undefined)
+      const why = mine.find((one) => !one.canAdd)?.why
+      if (why) {
+        for (const line of wrapTo(`${title} ${why}.`, form - 4, 2)) {
+          body.push(new Row(form, skin).space(3).text(line, skin.hint).build())
+        }
+      }
+      body.push(blank(form))
     }
     if (ctx.accounts.length === 0)
       body.push(
         new Row(form, skin)
           .space()
-          .text(cap('Not signed in to anything yet.', form - 2), skin.hint)
+          .text(cap('Asking each harness who it is signed in as…', form - 2), skin.hint)
           .build(),
       )
-    body.push(blank(form))
-    body.push(
-      new Row(form, skin, withFocus(pointer, panel.focus === 'form' ? 'sign-in' : null))
-        .space()
-        .button(
-          cap('Sign in to a provider…', form - 6),
-          { kind: 'control', id: 'sign-in' },
-          'primary',
-        )
-        .build(),
-    )
   } else if (rows.length === 0) {
     body.push(
       new Row(form, skin)
@@ -2173,8 +2256,8 @@ function badgeFor(id: string, ctx: PanelContext): ((row: Row) => void) | null {
   }
   if (id === 'budgets' && ctx.budgetWarnings > 0)
     return (row) => row.text(`● ${ctx.budgetWarnings}`, skin.waiting)
-  if (id === ACCOUNTS && ctx.accounts.length > 0)
-    return (row) => row.text(`● ${ctx.accounts.length}`, skin.done)
+  const signedIn = ctx.accounts.filter((one) => one.status.signedIn).length
+  if (id === ACCOUNTS && signedIn > 0) return (row) => row.text(`● ${signedIn}`, skin.done)
   return null
 }
 
@@ -2401,7 +2484,10 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     row().space().text(panel.label, skin.label).build(),
     row()
       .space()
-      .field(panel.text, inner - 2, { caret: true })
+      // A key is never drawn as typed: only that something was.
+      .field(panel.purpose === 'account-key' ? masked(panel.text) : panel.text, inner - 2, {
+        caret: true,
+      })
       .build(),
   ]
   // A field shows the end of what is typed; a note is read whole, under it.

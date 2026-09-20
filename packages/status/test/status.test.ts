@@ -93,6 +93,48 @@ describe('collectStatus', () => {
     expect(ws.elsewhere).toEqual([])
   })
 
+  it('counts an agent Tade runs once, though its harness writes a transcript too', async () => {
+    const r = mkrepo()
+    const wt = r.addTask('both', { project: 'app' })
+    const home = tmp('tade-home-')
+    const dir = join(home, '.claude/projects/x')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, 'conv-1.jsonl')
+    writeFileSync(
+      file,
+      `${JSON.stringify({
+        type: 'user',
+        sessionId: 'conv-1',
+        cwd: wt,
+        timestamp: new Date(NOW - 10_000).toISOString(),
+        message: {},
+      })}\n`,
+    )
+    utimesSync(file, NOW / 1000, NOW / 1000)
+    const run = {
+      source: 'run' as const,
+      provider: 'claude-code',
+      sessionId: 'app/both/agent',
+      conversation: 'conv-1',
+      alive: true,
+      lastActivityAt: NOW,
+      turn: 'running' as const,
+      pendingPermissions: [],
+      consecutiveFailures: 0,
+      exitCode: null,
+    }
+    const ws = await collectStatus(
+      opts({
+        config: config({ app: r.root }),
+        home,
+        liveness: { lanes: async () => [run], records: async () => [] },
+      }),
+    )
+    expect(task(ws, 'app/both')?.agents.map((a) => a.sessionId)).toEqual(['app/both/agent'])
+    // Nor is it something working in the project that no task has.
+    expect(ws.projects[0]?.untracked).toEqual([])
+  })
+
   it('a running provider process proves liveness even when the transcript is quiet', async () => {
     const r = mkrepo()
     const wt = r.addTask('quiet', { project: 'app' })

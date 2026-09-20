@@ -677,5 +677,9 @@ export const sentryExtension: TadeExtension = {
       ],
     }
   },
-  harness: { pi: { skills: ['skills/fix-sentry-issue'] } },
+  harness: {
+    pi: { skills: ['skills/fix-sentry-issue'] },
+    // The same SKILL.md: both read the Agent Skills format.
+    'claude-code': { skills: ['skills/fix-sentry-issue'] },
+  },
 }

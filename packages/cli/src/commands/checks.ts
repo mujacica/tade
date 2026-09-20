@@ -2,10 +2,13 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
+  adoptable,
   carriedNote,
   carryOver,
+  type FromCi,
   glyphOf,
   latestAt,
+  MANIFEST_PATH,
   planFor,
   RunnerError,
   readChecks,
@@ -15,6 +18,7 @@ import {
   whereOf,
   workflowFor,
   workflowMatches,
+  writeChecks,
 } from '@tade/checks-core'
 import { checksFor, defaultConfigPath, expandHome, loadConfig } from '@tade/core'
 import { git } from '@tade/status'
@@ -30,6 +34,8 @@ interface Where {
   project: string
   root: string
   test: string | undefined
+  /** This project's answer to `checks.from_ci`, so the CLI reads what the window reads. */
+  fromCi: FromCi
 }
 
 export function registerChecks(program: Command, io: Io, setExit: (code: number) => void): void {
@@ -46,7 +52,12 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
     .action(async (opts: { project?: string; json?: boolean; config: string }) => {
       const where = await locate(opts, io, setExit)
       if (!where) return
-      const manifest = await readChecks({ name: where.project, root: where.root, test: where.test })
+      const manifest = await readChecks({
+        name: where.project,
+        root: where.root,
+        test: where.test,
+        fromCi: where.fromCi,
+      })
       const head = await headOf(where.root)
       const plan = planFor(manifest.checks)
       const runs = await readRuns(where.root)
@@ -141,6 +152,50 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
     })
 
   checks
+    .command('adopt')
+    .description('Write .tade/checks.yaml from what this project already runs in CI')
+    .option('-p, --project <name>', 'project name, as configured')
+    .option('--write', 'write the file; without it, print what it would write')
+    .option('-c, --config <path>', 'config file path', defaultConfigPath())
+    .action(async (opts: { project?: string; write?: boolean; config: string }) => {
+      const where = await locate(opts, io, setExit)
+      if (!where) return
+      const already = await readChecks({
+        name: where.project,
+        root: where.root,
+        test: where.test,
+        fromCi: where.fromCi,
+      })
+      if (already.source === 'manifest') {
+        io.err(
+          `${where.project} already has ${MANIFEST_PATH} — edit it rather than adopting over it`,
+        )
+        setExit(Exit.invalidInput)
+        return
+      }
+      const found = await adoptable(where.root)
+      if (!found || found.checks.length === 0) {
+        io.err(`${where.project} runs no commands in CI that could be adopted`)
+        for (const why of found?.couldNotTake ?? []) io.err(`  ${why}`)
+        setExit(Exit.invalidInput)
+        return
+      }
+      // Named before the file is written, not after: what CI does and Tade
+      // cannot is the whole reason adoption is a person's decision.
+      for (const why of found.couldNotTake) io.err(`  not taken — ${why}`)
+      if (!opts.write) {
+        io.out(found.text.trimEnd())
+        io.out('')
+        io.out(`# ${found.checks.length} checks from ${found.from}. Write them with --write.`)
+        return
+      }
+      const written = await writeChecks(where.root, found.checks)
+      io.out(`wrote ${written.path}: ${written.ids.join(', ')}`)
+      io.out('  Read it before you trust it — CI runs deploys beside its tests.')
+      io.out('  Then `tade checks workflow --write` generates CI back from it.')
+    })
+
+  checks
     .command('workflow')
     .description(`Print, write or verify ${WORKFLOW_PATH} from the checks manifest`)
     .option('-p, --project <name>', 'project name, as configured')
@@ -155,6 +210,7 @@ export function registerChecks(program: Command, io: Io, setExit: (code: number)
           name: where.project,
           root: where.root,
           test: where.test,
+          fromCi: where.fromCi,
         })
         if (manifest.source !== 'manifest') {
           io.err(`${where.project} has no .tade/checks.yaml to generate a workflow from`)
@@ -206,15 +262,32 @@ async function locate(
       setExit(Exit.invalidInput)
       return null
     }
-    return { project: found[0], root: expandHome(found[1].root), test: found[1].test_command }
+    return {
+      project: found[0],
+      root: expandHome(found[1].root),
+      test: found[1].test_command,
+      fromCi: checksFor(loaded.config, found[0]).from_ci,
+    }
   }
   const here = process.cwd()
   const inside = projects.find(([, project]) => here.startsWith(expandHome(project.root)))
   if (inside) {
-    return { project: inside[0], root: expandHome(inside[1].root), test: inside[1].test_command }
+    return {
+      project: inside[0],
+      root: expandHome(inside[1].root),
+      test: inside[1].test_command,
+      fromCi: checksFor(loaded.config, inside[0]).from_ci,
+    }
   }
   const only = projects.length === 1 ? projects[0] : undefined
-  if (only) return { project: only[0], root: expandHome(only[1].root), test: only[1].test_command }
+  if (only) {
+    return {
+      project: only[0],
+      root: expandHome(only[1].root),
+      test: only[1].test_command,
+      fromCi: checksFor(loaded.config, only[0]).from_ci,
+    }
+  }
   // Not in a configured project: the directory you are in is what you meant.
   const root = await git(here, ['rev-parse', '--show-toplevel'])
   if (!root.ok) {
@@ -223,7 +296,12 @@ async function locate(
     return null
   }
   const path = root.stdout.trim()
-  return { project: path.split('/').at(-1) ?? 'project', root: path, test: undefined }
+  return {
+    project: path.split('/').at(-1) ?? 'project',
+    root: path,
+    test: undefined,
+    fromCi: loaded.config.checks.from_ci,
+  }
 }
 
 async function headOf(root: string): Promise<string | null> {

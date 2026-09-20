@@ -1,6 +1,9 @@
 import type { TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
+  accountActions,
+  accountMenuItems,
+  agentOffers,
   branchChoices,
   branchMenuItems,
   branchPanel,
@@ -17,6 +20,7 @@ import {
   findPanel,
   harnessMenuItems,
   laneMenuItems,
+  menuItems,
   type Panel,
   panelClick,
   panelKey,
@@ -28,6 +32,7 @@ import {
   savedFile,
   scrollFile,
   searchPanel,
+  settingsPanel,
   setupControls,
   spendPanel,
   terminalMenuItems,
@@ -516,6 +521,10 @@ describe('finding in a terminal', () => {
       'xhigh',
       'max',
     ])
+    // Only the levels its harness can be told, least to most.
+    expect(
+      thinkingMenuItems('high', ['low', 'high', 'max']).map((item) => item.label.trim()),
+    ).toEqual(['low', '● high', 'max'])
     // A harness not runnable yet is offered, and said to be not yet.
     const harnesses = harnessMenuItems(
       [
@@ -763,5 +772,92 @@ describe('what a model costs', () => {
     expect(priceCells(model('openrouter/auto', 0, 0, 0))[0]).toBe('varies')
     // Not in the catalog: nothing is said rather than a guess.
     expect(priceSaid({ id: 'x/y', provider: 'x', name: 'y' })).toBeNull()
+  })
+})
+
+describe("an agent's menu, as its harness offers it", () => {
+  const running = { lane: 'app/t/agent', state: 'working' }
+  const caps = (model: 'live' | 'restart' | 'none') => ({
+    model,
+    thinking: 'live' as const,
+    rename: 'live' as const,
+    thinkingLevels: ['low' as const, 'high' as const],
+    why: { model: 'Claude Code takes a model only when it starts' },
+  })
+  const modelItem = (offers: ReturnType<typeof agentOffers> | null) =>
+    menuItems(running, 0, offers).find((item) => item.id === 'model')
+
+  it('keeps an item its harness cannot do, off, saying where', () => {
+    expect(modelItem(agentOffers('claude-code', caps('none') as never))).toMatchObject({
+      off: 'not in claude-code',
+    })
+  })
+
+  it('says in a word that changing it starts the agent again', () => {
+    expect(modelItem(agentOffers('claude-code', caps('restart') as never))).toMatchObject({
+      note: 'restarts it',
+    })
+    expect(modelItem(agentOffers('pi', caps('live') as never))?.off).toBeUndefined()
+    expect(modelItem(null)?.off).toBeUndefined()
+  })
+})
+
+describe('the Accounts page', () => {
+  const account = (over: Record<string, unknown>) => ({
+    harness: 'claude-code',
+    name: null,
+    kind: 'subscription' as const,
+    canAdd: true,
+    why: null,
+    status: { signedIn: true, who: 'you@example.com', plan: 'max', problem: null },
+    limits: null,
+    agents: 0,
+    forNewAgents: true,
+    canSignIn: true,
+    ...over,
+  })
+  const accounts = [
+    account({}),
+    account({
+      name: 'work',
+      forNewAgents: false,
+      status: { signedIn: false, who: null, plan: null, problem: 'not signed in yet' },
+    }),
+    account({ harness: 'pi', canAdd: false, why: 'keeps one set of sign-ins' }),
+  ]
+
+  it('offers what can be done to each account, then to its harness, in the order drawn', () => {
+    expect(accountActions(accounts).map((action) => action.id)).toEqual([
+      'account:sign-in:claude-code:',
+      'account:sign-out:claude-code:',
+      'account:sign-in:claude-code:work',
+      'account:use:claude-code:work',
+      'account:remove:claude-code:work',
+      'account:add:claude-code:',
+      'account:add-key:claude-code:',
+      // pi has one account: signing in to it is all there is.
+      'account:sign-in:pi:',
+    ])
+  })
+
+  it('asks twice before taking an account away', () => {
+    const inputs = { accountActions: accountActions(accounts) }
+    const panel = { ...settingsPanel('accounts'), row: 4 }
+    const once = panelKey(panel, 'enter', '\r', inputs)
+    expect(once.submit).toBeFalsy()
+    expect(once.panel).toMatchObject({ confirm: 'account:remove:claude-code:work' })
+    const twice = panelKey(once.panel as typeof panel, 'enter', '\r', inputs)
+    expect(twice).toMatchObject({ submit: true, choice: 'account:remove:claude-code:work' })
+    // Anything else is done at once.
+    const use = panelClick(panel, 'account:use:claude-code:work', inputs)
+    expect(use).toMatchObject({ submit: true, choice: 'account:use:claude-code:work' })
+  })
+
+  it('moves an agent only to an account of its harness that is signed in', () => {
+    const items = accountMenuItems(accounts, 'claude-code', '')
+    expect(items.map((item) => [item.id, item.off ?? item.note ?? ''])).toEqual([
+      ['', 'now'],
+      ['work', 'not signed in'],
+    ])
   })
 })

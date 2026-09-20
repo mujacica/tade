@@ -739,8 +739,11 @@ export class Live {
       checks,
       source:
         stood.plan.length > 0
-          ? `from ${stood.manifest.from ?? stood.manifest.source}`
-          : 'No checks configured — write .tade/checks.yaml, and CI can be generated from it.',
+          ? stood.manifest.source === 'CI'
+            ? `read from ${stood.manifest.from} — not adopted, so none of them run here`
+            : `from ${stood.manifest.from ?? stood.manifest.source}`
+          : 'No checks configured — adopt what CI runs, or write .tade/checks.yaml.',
+      adoptable: stood.manifest.source === 'CI',
       running: false,
       notes,
     }

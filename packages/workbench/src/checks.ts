@@ -64,6 +64,7 @@ export async function checksAt(opts: {
     name: opts.project,
     root: opts.worktree,
     test: opts.config.projects[opts.project]?.test_command,
+    fromCi: rule.from_ci,
   })
   const plan = planFor(manifest.checks, {
     ...(opts.changed ? { changed: opts.changed } : {}),

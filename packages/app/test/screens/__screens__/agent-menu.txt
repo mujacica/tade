@@ -10,13 +10,13 @@
   │  Show changes      3 files │                                                                                        
  ▾│  Rename…                   │                                                                                        
   │  Change model…             │                                                                                        
-  │  Open in editor            │ ● Upgrading stripe to v15. The webhook signature API changed,                          
-  │  Copy branch name          │   so src/webhooks.ts needs the new constructEvent signature.                           
-  │────────────────────────────│                                                                                        
- ▾│  Park                      │ ▸ Read src/webhooks.ts                                                                 
-  │  Remove agent…             │ ▸ Edit src/webhooks.ts  +12 −4                                                         
-  ╰────────────────────────────╯ ▸ bash npm i stripe@15                                                                 
-       webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+  │  Run as account…           │ ● Upgrading stripe to v15. The webhook signature API changed,                          
+  │  Open in editor            │   so src/webhooks.ts needs the new constructEvent signature.                           
+  │  Copy branch name          │                                                                                        
+ ▾│────────────────────────────│ ▸ Read src/webhooks.ts                                                                 
+  │  Park                      │ ▸ Edit src/webhooks.ts  +12 −4                                                         
+  │  Remove agent…             │ ▸ bash npm i stripe@15                                                                 
+  ╰────────────────────────────╯ ╭─ wants approval ─────────────────────────────────────────────╮                       
    ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
      package.json            ▕│  │   Allow once     Deny                                        │                       
      README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       

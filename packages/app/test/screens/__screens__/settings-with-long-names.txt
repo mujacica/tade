@@ -11,11 +11,11 @@
  ▾ CHANG│  Voice                 │                                                                             │        
   M pack│  Window                │▌Crashes and warnings          ● on                             ↻ on restart │        
   A …/we│  Projects           3  │                            Tade’s crashes and warnings as issues, with      │        
-  M src/│  Budgets           ● 1 │                            source lines from its files, never yours         │        
-        │▌ Telemetry             │ What happened around them     ● on                             ↻ on restart │        
- ▾ FILES│  Keys                  │ Numbers                       ● on                             ↻ on restart │        
-   ▾ src│  Accounts          ● 1 │ What agents do                ● on                             ↻ on restart │        
-       w│                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+  M src/│  Checks per project    │                            source lines from its files, never yours         │        
+        │  Budgets           ● 1 │ What happened around them     ● on                             ↻ on restart │        
+ ▾ FILES│▌ Telemetry             │ Numbers                       ● on                             ↻ on restart │        
+   ▾ src│  Shortcuts             │ What agents do                ● on                             ↻ on restart │        
+       w│  Accounts          ● 2 │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
        w│                        │ Which Tade this is          laptop                             ↻ on restart │        
    ▸ tes│                        │ Read Sentry back              ● on                             ↻ on restart │        
      pac│                        │ Sentry organization         $SENTRY_ORG, or sentry-cli’s default            │        

@@ -1,0 +1,34 @@
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
+        │  search settings       │ Accounts                                                                    │────────
+ ▌ ! str│                        │ Who each harness's agents run as. Signing in is each harness's own, inside  │        
+ ▌   wan│  Agents                │ this window: what you give it goes where it keeps it, never through Tade. ▸ │        
+        │  Models                │ marks the account new agents use; an agent's own menu moves it to another.  │        
+   ⠋ ref│  Orchestrator          │                                                                             │        
+     wor│  Approvals      bypass │ pi                                                                          │        
+        │  Checks                │ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                   │        
+ ▾ CHANG│  Voice                 │     Sign in again…                                                          │        
+  M pack│  Window                │   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts,   │        
+  A …/we│  Projects           3  │   and you sign in to them inside pi.                                        │        
+  M src/│  Checks per project    │                                                                             │        
+        │  Budgets           ● 1 │ Claude Code                                                                 │        
+ ▾ FILES│  Telemetry             │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
+   ▾ src│  Shortcuts             │     Sign in again…     Sign out                                             │        
+       w│▌ Accounts          ● 2 │   work                  ○ not signed in yet                                 │        
+       w│                        │     Sign in…     Use for new agents     Remove                              │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │     Add an account…     Add an API-key account…                             │        
+     REA│                        │                                                                             │        
+        │                        │                                                                             │        
+━   orch│                        │                                                                             │   ▾   ━
+        │                        │                                                                             │        
+        │                        │                                                                             │       ▕
+        │                        │                                                                             │       ▕
+        │                        │ ● Saved as you change it.                                                   │       ▕
+        │                        │                                                 Open config.yaml     Done   │       ▕
+ ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

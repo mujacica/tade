@@ -19,9 +19,11 @@
     "@tade/drivers-pty": "workspace:*",
     "yaml": "^2.9.0",
     "@tade/extensions-core": "workspace:*",
-    "@tade/telemetry": "workspace:*"
+    "@tade/telemetry": "workspace:*",
+    "@tade/harnesses-core": "workspace:*"
   },
   "devDependencies": {
+    "@tade/extension-resources": "workspace:*",
     "@tade/voice-stt": "workspace:*",
     "@tade/drivers-core": "workspace:*"
   }

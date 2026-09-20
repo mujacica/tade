@@ -82,7 +82,7 @@ import {
   type VoiceTerminals,
 } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
-import { matchingLines, type Workbench } from '@tade/workbench'
+import { type AccountView, matchingLines, type Workbench } from '@tade/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
@@ -206,6 +206,11 @@ import {
 } from './model.ts'
 import { fileBodySize, fileViewSize, type OpenRowView, type PanelContext } from './panel-view.ts'
 import {
+  ACCOUNTS,
+  type AgentOffers,
+  accountActions,
+  accountMenuItems,
+  agentOffers,
   type BranchRow,
   branchMenuItems,
   branchPanel,
@@ -722,6 +727,8 @@ export interface AppOptions {
    * conversation. Without it, a new model applies when Tade next starts.
    */
   restartThinker?: () => Promise<void>
+  /** What the orchestrator could run on, as its own harness offers them. */
+  orchestratorModels?: () => Promise<ModelChoice[]>
   /**
    * Restart the window with the same arguments so changes can be tried live.
    * The callback should stop the app, release the home lock, and re-exec.
@@ -872,8 +879,18 @@ export class App {
   private results: { key: string; entries: SearchEntry[] } | null = null
   /** The models an agent can be started on, once they have been read. */
   private models: ModelChoice[] = []
+  /**
+   * The models the open picker offers, when it is for one agent: its
+   * harness's, which are not the orchestrator's or another harness's.
+   */
+  private pickerModels: ModelChoice[] | null = null
   /** Providers the harness is signed in to, once read. */
   private accounts: string[] = []
+  /**
+   * Every account agents can run as, as each harness last said: asked in the
+   * background, and again after anything is done to one.
+   */
+  private accountViews: AccountView[] = []
   /** How each provider is paid for, once read. */
   private credentials: Record<string, 'signed-in' | 'api-key' | 'env-key'> = {}
   /** The Open project list for the last folder and query, and the branches found for its rows. */
@@ -889,6 +906,12 @@ export class App {
   private news: News[] = []
   /** The tasks as last seen, so what changed between two looks is news. */
   private seenTasks: readonly TaskSnapshot[] | null = null
+  /**
+   * What each agent's harness lets a person ask of it, by task: learned as the
+   * tasks refresh, so drawing never waits on it. Absent is "not known yet",
+   * which offers everything, as the window always did.
+   */
+  private readonly offersByTask = new Map<string, AgentOffers>()
   /** Tasks whose rule was met and is being written down, so it is written once. */
   private readonly marking = new Set<string>()
   /** Queued work being started now, so a refresh in the middle does not start it twice. */
@@ -1121,7 +1144,13 @@ export class App {
       case 'task': {
         const pane = this.state.panes.find((p) => p.task === subject.task)
         if (pane?.queued) return queueMenuItems(pane.queued)
-        return pane ? menuItems(pane, this.live?.changes(subject.task).length ?? 0) : []
+        return pane
+          ? menuItems(
+              pane,
+              this.live?.changes(subject.task).length ?? 0,
+              this.offersByTask.get(subject.task),
+            )
+          : []
       }
       case 'file': {
         const marks = this.live?.marksAt(this.hereOnDisk()) ?? {}
@@ -1152,6 +1181,8 @@ export class App {
         return terminalMenuItems(terminalSplitShown(this.state) !== null)
       case 'harness':
         return harnessMenuItems(HARNESS_CHOICES, subject.current)
+      case 'account':
+        return accountMenuItems(this.accountViews, this.harnessShown(subject.task), subject.current)
       case 'lane':
         return laneMenuItems(
           this.state.splits[subject.task]?.lane === subject.lane,
@@ -1172,7 +1203,7 @@ export class App {
       case 'note':
         return noteMenuItems()
       case 'thinking':
-        return thinkingMenuItems(subject.current)
+        return thinkingMenuItems(subject.current, this.offersByTask.get(subject.task)?.levels)
     }
   }
 
@@ -1205,7 +1236,7 @@ export class App {
     if (panel.kind === 'model') {
       const pane = this.state.panes.find((one) => one.task === panel.for)
       return {
-        models: this.models,
+        models: this.pickerModels ?? this.models,
         modelTarget:
           panel.for === 'orchestrator' ? 'the orchestrator' : pane ? shownName(pane) : panel.for,
         currentModel:
@@ -1262,7 +1293,7 @@ export class App {
       return {
         choices: this.choices,
         settings: this.settingRows(),
-        accounts: this.accounts,
+        accounts: this.accountViews,
         configPath: tilde(this.configPath),
         releases: kittyActive(this.terminal),
         budgetWarnings: 0,
@@ -1371,13 +1402,14 @@ export class App {
         runtime: ran.total,
       },
       route: {
-        harness: route.harness,
+        harness: this.state.focused ? this.harnessShown(this.state.focused) : route.harness,
         model: route.model ?? null,
         thinking: route.thinking ?? null,
         provider,
         credential: provider ? credentialLabel(this.credentials[provider]) : null,
       },
       vitals: live.vitals(this.state.focused),
+      offers: this.state.focused ? (this.offersByTask.get(this.state.focused) ?? null) : null,
       spendView,
       panel: this.panelFacts(live, width),
       voice: {
@@ -1633,6 +1665,7 @@ export class App {
           }
         }
         this.seenTasks = tasks
+        void this.learnHarnesses(tasks)
         void this.recordRulesMet()
         void this.runSchedules().then(() => this.advanceQueue())
         void this.reflect(tasks)
@@ -2109,6 +2142,10 @@ export class App {
     }
     if (action.startsWith('close-task:')) {
       await this.closeAgent(action.slice('close-task:'.length))
+      return
+    }
+    if (action.startsWith('checks-adopt:')) {
+      await this.adoptChecks(action.slice('checks-adopt:'.length))
       return
     }
     if (action.startsWith('checks-run:')) {
@@ -2649,7 +2686,7 @@ export class App {
         }
         break
       case 'keys':
-        await this.openSettings('keys')
+        await this.openSettings('shortcuts')
         return
       case 'quit':
         if (choice === 'where') {
@@ -2672,7 +2709,7 @@ export class App {
           await this.openPlace({ path: this.configPath })
           return
         }
-        if (choice === 'sign-in') await this.signIn()
+        if (choice?.startsWith('account:')) await this.accountAction(choice)
         if (choice === 'mic-test') await this.testMicrophone()
         return
       }
@@ -2774,7 +2811,7 @@ export class App {
       ['run:extensions', 'Extensions'],
       ['run:brief', 'Brief'],
       ['run:settings', 'Settings'],
-      ['run:keys', 'Keys'],
+      ['run:keys', 'Shortcuts'],
       ['run:quit', 'Quit'],
     ] as const) {
       action(id, label)
@@ -2981,16 +3018,18 @@ export class App {
               ? imagesTitle(subject.paths)
               : subject.kind === 'harness'
                 ? 'Harness'
-                : subject.kind === 'lane'
-                  ? subject.name
-                  : subject.kind === 'thinking'
-                    ? 'Thinking'
-                    : subject.kind === 'note'
-                      ? 'Note'
-                      : subject.kind === 'schedule'
-                        ? (this.scheduleViews().find((one) => one.id === subject.id)?.name ??
-                          'Schedule')
-                        : (subject.path.split('/').at(-1) ?? subject.path)
+                : subject.kind === 'account'
+                  ? 'Account'
+                  : subject.kind === 'lane'
+                    ? subject.name
+                    : subject.kind === 'thinking'
+                      ? 'Thinking'
+                      : subject.kind === 'note'
+                        ? 'Note'
+                        : subject.kind === 'schedule'
+                          ? (this.scheduleViews().find((one) => one.id === subject.id)?.name ??
+                            'Schedule')
+                          : (subject.path.split('/').at(-1) ?? subject.path)
     this.state = {
       ...base,
       panel: menuPanel(subject, title, { row: at.y + 1, col: Math.max(0, at.x - 26) }),
@@ -3017,6 +3056,8 @@ export class App {
         return this.giveImages(subject.paths, item)
       case 'harness':
         return this.chooseHarness(subject.task, item)
+      case 'account':
+        return this.chooseAccount(subject.task, item)
       case 'lane':
         return this.fromLaneMenu(subject.task, subject.lane, subject.name, item)
       case 'note':
@@ -3152,9 +3193,65 @@ export class App {
     this.draw()
   }
 
-  /** The harness a task's agent is shown as running in: its route's, until it says. */
+  /** The harness a task's agent is shown as running in: its own, else its route's. */
   private harnessShown(task: string): string {
-    return resolveRoute(this.opts.config, { project: task.split('/')[0] ?? '' }).harness
+    return (
+      this.offersByTask.get(task)?.harness ??
+      resolveRoute(this.opts.config, { project: task.split('/')[0] ?? '' }).harness
+    )
+  }
+
+  /**
+   * Learn what each task's harness offers, in the background: which harness
+   * it is in and what it can be asked. Redrawn only when something changed.
+   */
+  private async learnHarnesses(tasks: readonly TaskSnapshot[]): Promise<void> {
+    let changed = false
+    for (const task of tasks) {
+      if (await this.learnHarness(task.task)) changed = true
+    }
+    if (changed) this.draw()
+  }
+
+  private async learnHarness(task: string): Promise<boolean> {
+    const worktree = this.live?.worktreeOf(task)
+    if (!worktree) return false
+    const known = await this.opts.client.agentHarness(task, worktree).catch(() => null)
+    if (!known) return false
+    const was = this.offersByTask.get(task)
+    const now = agentOffers(known.harness, known.capabilities)
+    if (was && JSON.stringify(was) === JSON.stringify(now)) return false
+    this.offersByTask.set(task, now)
+    return true
+  }
+
+  /**
+   * Run an agent as another account of its harness, its conversation carried
+   * along, starting it again there if it is running.
+   */
+  private async chooseAccount(task: string, account: string): Promise<void> {
+    const worktree = this.live?.worktreeOf(task)
+    if (!worktree) {
+      this.state = notice(this.state, `I cannot find where ${task} works`)
+      this.draw()
+      return
+    }
+    try {
+      const done = await this.opts.client.setAgentAccount({
+        task,
+        worktree,
+        account: account || null,
+      })
+      const as = done.account ?? 'its own sign-in'
+      this.state = notice(
+        this.state,
+        `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}`,
+      )
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    await this.loadAccountViews()
+    this.draw()
   }
 
   /** Run an agent in another harness, starting it again there if it is running. */
@@ -3167,6 +3264,7 @@ export class App {
     }
     try {
       const done = await this.opts.client.setAgentHarness({ task, worktree, harness })
+      await this.learnHarness(task)
       this.state = notice(
         this.state,
         `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}`,
@@ -3541,6 +3639,39 @@ export class App {
         )
         return
       }
+      if (panel.purpose === 'account-name' && panel.target) {
+        const [harness = '', kind = 'subscription'] = panel.target.split('\u0000')
+        const name = text.trim().toLowerCase()
+        await this.opts.client.addAccount({
+          name,
+          harness,
+          kind: kind === 'api-key' ? 'api-key' : 'subscription',
+        })
+        // Straight on to what makes it usable: its key, or its own sign-in.
+        if (kind === 'api-key') {
+          this.state = {
+            ...this.state,
+            panel: { ...promptPanel('account-key', `${name}'s API key`, 'KEY'), target: name },
+          }
+          return
+        }
+        this.state = { ...this.state, panel: settingsPanel(ACCOUNTS) }
+        await this.signInto(harness, name)
+        await this.loadAccountViews()
+        return
+      }
+      if (panel.purpose === 'account-key' && panel.target) {
+        const where = this.opts.client.saveAccountKey(panel.target, text)
+        this.state = {
+          ...this.state,
+          panel: {
+            ...settingsPanel(ACCOUNTS),
+            saved: `${panel.target}'s key is kept in ${where}.`,
+          },
+        }
+        await this.loadAccountViews()
+        return
+      }
       if (panel.purpose === 'rename-schedule' && panel.target) {
         const kept = await this.opts.client.changeSchedule({
           id: panel.target,
@@ -3731,6 +3862,21 @@ export class App {
       case 'model':
         await this.openModels(task)
         return
+      case 'account': {
+        const known = await this.opts.client
+          .agentHarness(task, this.live?.worktreeOf(task) ?? '')
+          .catch(() => null)
+        await this.loadAccountViews()
+        this.state = {
+          ...this.state,
+          panel: menuPanel({ kind: 'account', task, current: known?.account ?? '' }, 'Account', {
+            row: 3,
+            col: Math.max(0, this.terminal.columns - 40),
+          }),
+        }
+        this.draw()
+        return
+      }
       case 'copy-branch':
         if (facts) {
           const copied = await copyText(facts.branch, (data) => this.terminal.write(data))
@@ -5225,13 +5371,21 @@ export class App {
     if (this.models.length === 0) {
       this.models = (await this.opts.models?.().catch(() => [])) ?? []
     }
+    const worktree = target === 'orchestrator' ? null : this.live?.worktreeOf(target)
+    this.pickerModels =
+      target === 'orchestrator'
+        ? ((await this.opts.orchestratorModels?.().catch(() => null)) ?? null)
+        : worktree
+          ? await this.opts.client.agentModels(target, worktree).catch(() => null)
+          : null
+    const offered = this.pickerModels ?? this.models
     // Starting on the one in use, so enter is a no-op and ↑↓ is "the one next to it".
     const current =
       target === 'orchestrator' ? this.thinkerModel() : (this.live?.vitals(target)?.model ?? null)
     const index = current
       ? Math.max(
           0,
-          this.models.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
+          offered.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
         )
       : 0
     this.state = { ...this.state, panel: { ...modelPanel(target), index } }
@@ -5728,6 +5882,60 @@ export class App {
       )
       // Shown by the run itself: a failure's reason is already on its line.
       .catch(() => {})
+  }
+
+  /**
+   * Write what this project already runs in CI into its `.tade/checks.yaml`,
+   * which is what turns a reading into checks Tade may run.
+   *
+   * It goes through `checks_propose` rather than writing the file here: the
+   * orchestrator, the CLI and this button must all write the same file the
+   * same way, and what the tool says about what it could not take is worth
+   * putting in the conversation, where there is room for it — a notice is one
+   * line and the next notice eats it.
+   */
+  private async adoptChecks(task: string): Promise<void> {
+    const host = this.opts.extensions
+    if (!host) {
+      this.state = notice(this.state, 'no extensions are loaded, so nothing can write them here')
+      this.draw()
+      return
+    }
+    const project = task.split('/')[0] ?? task
+    this.state = {
+      ...this.state,
+      bottom: ORCHESTRATOR_TAB,
+      transcript: ran(
+        this.state.transcript,
+        { id: `you-${this.ranCount + 1}`, tool: 'checks_propose', input: { project, adopt: true } },
+        this.now(),
+      ),
+    }
+    this.draw()
+    try {
+      const answer = await host.call(
+        'checks_propose',
+        { project, adopt: true },
+        // A person pressing a button is not an agent: the tool is the
+        // orchestrator's, and `you` is neither, so no audience gate applies.
+        {
+          caller: { kind: 'you' },
+          id: `you-${++this.ranCount}`,
+          tade: this.opts.extensionWorkbench ?? null,
+        },
+      )
+      this.state = {
+        ...this.state,
+        transcript: said(this.state.transcript, answer.text, this.now()),
+      }
+    } catch (err) {
+      this.state = {
+        ...this.state,
+        transcript: problem(this.state.transcript, why(err), this.now()),
+      }
+    } finally {
+      this.draw()
+    }
   }
 
   /**
@@ -6530,6 +6738,8 @@ export class App {
   private async openSettings(category = 'agents'): Promise<string> {
     this.state = { ...this.state, panel: settingsPanel(category) }
     this.draw()
+    // Asked each time the page opens: a sign-in made in another terminal counts.
+    void this.loadAccountViews()
     return 'Settings are open.'
   }
 
@@ -6664,9 +6874,9 @@ export class App {
         this.state.panel?.kind === 'extension-setup'
           ? (this.setupFacts(this.state.panel)?.fields ?? [])
           : [],
-      models: this.models,
+      models: this.state.panel?.kind === 'model' ? (this.pickerModels ?? this.models) : this.models,
       settings: this.settingRows(),
-      accounts: this.accounts.length,
+      accountActions: accountActions(this.accountViews),
     }
   }
 
@@ -6825,20 +7035,86 @@ export class App {
     this.draw()
   }
 
+  /** Ask every harness who its accounts are signed in as, and draw what they say. */
+  private async loadAccountViews(): Promise<void> {
+    this.accountViews = await this.opts.client.accounts().catch(() => this.accountViews)
+    this.draw()
+  }
+
   /**
-   * Sign in to a provider: pi's own sign-in, in a terminal inside this one, and
-   * the list read again afterwards.
+   * Do something to an account from the Accounts page: sign it in with its
+   * harness's own sign-in, sign it out, have new agents use it, add one, set
+   * a key, or take one away. Whatever happens is said on the page.
    */
-  private async signIn(): Promise<void> {
-    const command = this.opts.signIn?.()
-    if (!command) {
-      this.state = notice(this.state, 'run pi and type /login to sign in')
-      this.draw()
-      return
+  private async accountAction(id: string): Promise<void> {
+    const [, verb = '', harness = '', named = ''] = id.split(':')
+    const name = named || null
+    const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
+    const said = (saved: string | null, error: string | null = null) => {
+      const panel = this.state.panel
+      if (panel?.kind === 'settings') {
+        this.state = { ...this.state, panel: { ...panel, saved, error } }
+      }
     }
+    try {
+      switch (verb) {
+        case 'sign-in':
+          await this.signInto(harness, name)
+          said(`${name ?? title}: signed in, as far as ${title} says below.`)
+          break
+        case 'sign-out':
+          await this.opts.client.signOut(harness, name)
+          said(`${name ?? title} is signed out.`)
+          break
+        case 'use':
+          await this.opts.client.useAccount(harness, name)
+          said(`New ${title} agents run as ${name ?? 'its own sign-in'}.`)
+          break
+        case 'remove':
+          if (name) await this.opts.client.removeAccount(name)
+          said(`${name} is gone, and signed out.`)
+          break
+        case 'add':
+        case 'add-key':
+          this.state = {
+            ...this.state,
+            panel: {
+              ...promptPanel(
+                'account-name',
+                verb === 'add'
+                  ? `Add a ${title} account`
+                  : `Add a ${title} account paid with an API key`,
+                'NAME',
+              ),
+              target: `${harness}\u0000${verb === 'add' ? 'subscription' : 'api-key'}`,
+            },
+          }
+          this.draw()
+          return
+        case 'key':
+          if (!name) return
+          this.state = {
+            ...this.state,
+            panel: {
+              ...promptPanel('account-key', `${name}'s API key`, 'KEY'),
+              target: name,
+            },
+          }
+          this.draw()
+          return
+      }
+    } catch (err) {
+      said(null, why(err))
+    }
+    await this.loadAccountViews()
+  }
+
+  /** An account's own sign-in, in a terminal inside this one, then the accounts read again. */
+  private async signInto(harness: string, name: string | null): Promise<void> {
+    const signing = this.opts.client.signInFor(harness, name)
     await this.onScreenWith(async (ui) => {
-      ui.say('  Type /login, choose a provider, and follow pi. ctrl+] comes back here.')
-      await ui.run('pi', command.command, command.args)
+      ui.say(`  ${signing.how}`)
+      await ui.run(name ?? harness, signing.launch.command, signing.launch.args, signing.launch.env)
     })
     await this.loadAccounts()
   }

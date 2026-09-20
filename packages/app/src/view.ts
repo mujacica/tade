@@ -50,6 +50,7 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
+import type { AgentOffers } from './panels.ts'
 import {
   drawPlan,
   drawWhy,
@@ -149,6 +150,12 @@ export interface WorkView {
   }[]
   /** Where the checks came from, or what to do when there are none. */
   source: string
+  /**
+   * The checks were read from the project's CI config and nobody has adopted
+   * them, so none of them run here. The one thing that changes that is a
+   * button, because it writes a file into the repository.
+   */
+  adoptable: boolean
   /** Something is running here now. */
   running: boolean
   /** What this cannot say: no forge, no network, what a local run does not prove. */
@@ -236,6 +243,11 @@ export interface Frame {
   }
   /** What it says it actually runs on, and how full its context is. */
   vitals?: { model: string | null; thinking?: string | null; contextPercent: number | null } | null
+  /**
+   * What its harness lets a person ask of it. A control it does not offer is
+   * not drawn; absent, everything is, as it always was.
+   */
+  offers?: AgentOffers | null
   /** The Spend panel's view, when it is open. */
   spendView?: SpendView | null
   /** What the open panel needs that the window does not: a menu, a diff, models. */
@@ -295,7 +307,7 @@ export interface Frame {
   splitScreen?: string
   /** The second terminal of a split bottom panel. */
   splitTerminal?: Frame['terminal']
-  /** The window's own keys as set, for the keys sheet. */
+  /** The window's own keys as set, for the shortcuts sheet. */
   bindings?: Readonly<Record<string, string>>
   /** The orchestrator's input, as its editor draws it, rules included, while it is being typed in. */
   input?: { lines: string[] }
@@ -2088,16 +2100,24 @@ function workRows(
 
   rows.push(blank(width))
   const run: Target = { kind: 'action', name: `checks-run:${pane.task}` }
+  const adopt: Target = { kind: 'action', name: `checks-adopt:${pane.task}` }
   line((r) => {
     r.text('CHECKS', skin.label)
       .space()
       .text(work.commit ? `at ${work.commit.slice(0, 7)}` : 'no commit', skin.hint)
     r.right((one) => {
+      // Adoption is the act that makes these runnable, so it sits where the
+      // thing it unlocks is — and `Run all` stays primary, because once a
+      // project has adopted them that is the only button that matters.
+      if (work.adoptable) one.chip('Adopt from CI', adopt).space()
       one.button(work.running ? 'Running…' : 'Run all', run, work.running ? 'rest' : 'primary')
       one.space()
     })
   })
-  if (work.checks.length === 0) {
+  // Where they came from is load-bearing in exactly two cases: there are none,
+  // and there are some that nothing here may run. Anywhere else it is a row
+  // spent saying `.tade/checks.yaml` to somebody who wrote it.
+  if (work.checks.length === 0 || work.adoptable) {
     line((r) => r.text(said(work.source), skin.hint))
   }
   for (const check of work.checks) {
@@ -2507,10 +2527,15 @@ function renderMain(
   const thinking = vitals?.thinking ?? route?.thinking ?? null
   const percent = vitals?.contextPercent ?? null
   type Shown = { context: boolean; thinking: 'long' | 'short' | 'none'; harness: boolean }
+  // A harness that cannot change them has no button for them: the model is
+  // still said, as what it runs on.
+  const offers = frame.offers
   const controls = (show: Shown) => (r: Row) => {
     if (show.harness) r.button(`${route?.harness ?? 'pi'} ▾`, harness).space()
-    r.button(`${model ? shortModel(model) : 'its default model'} ▾`, switcher)
-    if (show.thinking !== 'none') {
+    const named = `${model ? shortModel(model) : 'its default model'}`
+    if (offers?.model.shown === false) r.text(named, skin.hint)
+    else r.button(`${named} ▾`, switcher)
+    if (show.thinking !== 'none' && offers?.thinking.shown !== false) {
       const label =
         show.thinking === 'long' ? `${thinking ?? 'thinking'} ▾` : `${thinking ?? 'think'} ▾`
       r.space().button(label, thinker)
@@ -2605,7 +2630,20 @@ function renderMain(
       pointer,
       first: (w, h) =>
         underTargets(
-          laneLines(frame.screen, kindOf(shown), w, h, skin, pointer, frame.linkers),
+          laneLines(
+            frame.screen,
+            kindOf(shown),
+            w,
+            // The agent's half ends above its approval card, exactly as the
+            // whole pane does when there is no split: a screen drawn under
+            // one is a sentence the card is sitting on.
+            pane.approval && kindOf(shown) === 'agent'
+              ? Math.max(1, h - APPROVAL_ROWS - 1)
+              : h,
+            skin,
+            pointer,
+            frame.linkers,
+          ),
           w,
           { kind: 'pane' },
           'pane',
@@ -2690,9 +2728,19 @@ function renderMain(
   }
   const drawn = stack(rows.slice(0, height))
   // The approval card belongs to the agent's screen: over the work tab it
-  // would cover what somebody opened the tab to read.
-  if (pane.approval && !work)
-    return withApproval(drawn, pane.approval, width, height, skin, pointer)
+  // would cover what somebody opened the tab to read, and in a split it stays
+  // inside the agent's own half rather than laying itself over the shell
+  // beside it — the divider is the edge of the agent's screen, not a line
+  // drawn on top of one wide one.
+  if (pane.approval && !work) {
+    const half =
+      split === null
+        ? { width, height }
+        : split.direction === 'beside'
+          ? { width: width >= 24 ? besideFirst(width, split.ratio) : width, height }
+          : { width, height: rows.length - room + belowFirst(room, split.ratio) }
+    return withApproval(drawn, pane.approval, half, width, height, skin, pointer)
+  }
   return drawn
 }
 
@@ -2789,6 +2837,23 @@ function underTargets(
  * divider you can drag and a bar on the second half: what it is, and buttons
  * to swap the halves, turn the split, and close it.
  */
+/**
+ * Where a split puts its divider: how much the first half gets.
+ *
+ * Written down once, because two of them read it — `splitView`, which draws
+ * the halves, and the approval card, which has to land inside the agent's
+ * own half and not across the shell beside it. A second copy of this
+ * arithmetic is a card that crosses the divider the first time somebody
+ * changes the ratio.
+ */
+export function besideFirst(width: number, ratio: number): number {
+  return Math.max(10, Math.min(width - 11, Math.round((width - 1) * ratio)))
+}
+
+export function belowFirst(height: number, ratio: number): number {
+  return Math.max(1, Math.min(height - 2, Math.round((height - 1) * ratio)))
+}
+
 export function splitView(opts: {
   width: number
   height: number
@@ -2828,7 +2893,7 @@ export function splitView(opts: {
   const rows: string[] = []
   const hits: Hit[] = []
   if (split.direction === 'beside' && width >= 24) {
-    const firstWidth = Math.max(10, Math.min(width - 11, Math.round((width - 1) * split.ratio)))
+    const firstWidth = besideFirst(width, split.ratio)
     const secondWidth = width - 1 - firstWidth
     const first = opts.first(firstWidth, height)
     const top = bar(secondWidth)
@@ -2845,7 +2910,7 @@ export function splitView(opts: {
     hits.push(...shift(second.hits, 1, firstWidth + 1).filter((hit) => hit.row < height))
     return { rows, hits }
   }
-  const firstHeight = Math.max(1, Math.min(height - 2, Math.round((height - 1) * split.ratio)))
+  const firstHeight = belowFirst(height, split.ratio)
   const secondHeight = Math.max(0, height - 1 - firstHeight)
   const first = opts.first(width, firstHeight)
   const second = opts.second(width, secondHeight)
@@ -2869,12 +2934,14 @@ const APPROVAL_ROWS = 4
 function withApproval(
   pane: Drawn,
   approval: { tool: string; summary: string },
+  /** The agent's own screen: where the card has to fit, and sit at the bottom of. */
+  half: { width: number; height: number },
   width: number,
   height: number,
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
-  const cardWidth = Math.min(width - 4, 64)
+  const cardWidth = Math.min(half.width - 4, 64)
   if (cardWidth < 30) return pane
   const inner = cardWidth - 2
   const card = box(
@@ -2901,7 +2968,7 @@ function withApproval(
   return overlay(
     pane,
     card,
-    { row: Math.max(2, height - card.rows.length - 1), col: 2 },
+    { row: Math.max(2, Math.min(half.height, height) - card.rows.length - 1), col: 2 },
     width,
     skin,
     false,

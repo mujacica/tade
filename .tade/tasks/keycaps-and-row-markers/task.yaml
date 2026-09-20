@@ -1,0 +1,52 @@
+id: tade/keycaps-and-row-markers
+project: tade
+intent_spoken: Let's add some more empty space between end of the button (e.g.
+  ctrl) and + and also before the beginning of the button. - And for flaps, I
+  meant row markers generally
+created: 2026-09-19T10:53:05.480Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/purple-too-light
+      why: same packages/app chrome files in the one shared checkout
+  prompt: >-
+    Two bits of chrome polish in packages/app, both from the person:
+
+
+    **1. Key hints need breathing room.** Their words: "Let's add some more
+    empty space between end of the button (e.g. ctrl) and + and also before the
+    beginning of the button." In the key strip at the bottom (`ctrl +
+    k  search   × muted   ctrl + space  talk`) the `+` is jammed against the
+    `ctrl` cap on one side and the `k` cap on the other, and the caps themselves
+    have no padding before their label starts. Add space on both sides of the
+    `+`, and padding inside/before each key cap, so the caps read as separate
+    keys rather than one run of text. Look at where key caps are drawn (`keys()`
+    in ui.ts, used by view.ts and panel-view.ts) and fix it in that one place so
+    every key cap in the window gets it — the settings panel draws them too.
+
+
+    **2. Row markers: remove the flaps.** Earlier they asked to remove the
+    decorative 'flaps' — the small angled/half-block edges on the sides — and
+    have now clarified they meant **row markers generally**: the little
+    left-hand marker drawn beside a selected/focused row (for example `▌` in the
+    settings form, and the equivalent in the sidebar, agent list, queue and file
+    lists). Make each of those a proper full-height solid bar on the left of the
+    row, spanning the row's whole height with no small side edges, in the
+    application's default yellow — the dark amber the rest of the chrome uses,
+    taken from the skin, not hand-picked. It should look like one clean
+    continuous line down the left of the marked row.
+
+
+    Refresh the golden screen scenarios these appear in. Pull/rebase first —
+    several agents are reworking packages/app. Run `pnpm check` on its own and
+    commit only your files.
+  touches:
+    - packages/app/src/ui.ts
+    - packages/app/src/view.ts
+    - packages/app/src/panel-view.ts
+    - packages/app/src/skin.ts
+title: Add spacing around key hint separators

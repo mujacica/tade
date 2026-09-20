@@ -10,11 +10,11 @@
    │  Voice           │   only when there is a DSN; none sends nothing      │╮  
  ▾ │  Window          │                                                     ││  
   M│  Projects     3  │ Crashes and warnings        ● on                  ↻ ││  
-  A│  Budgets     ● 1 │ What happened around t…     ● on                  ↻ │╯  
-  M│▌ Telemetry       │ Numbers                     ● on                  ↻ │   
-━  │  Keys            │ What agents do              ● on                  ↻ │  ━
-   │  Accounts    ● 1 │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
-   │                  │ Which Tade this is        laptop                  ↻ │  ▕
+  A│  Checks per pro… │ What happened around t…     ● on                  ↻ │╯  
+  M│  Budgets     ● 1 │ Numbers                     ● on                  ↻ │   
+━  │▌ Telemetry       │ What agents do              ● on                  ↻ │  ━
+   │  Shortcuts       │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
+   │  Accounts    ● 2 │ Which Tade this is        laptop                  ↻ │  ▕
    │                  │ Read Sentry back            ● on                  ↻ │  ▕
    │                  │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕

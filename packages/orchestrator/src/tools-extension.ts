@@ -108,7 +108,36 @@ const done = {
     'how this task counts as finished, which is what work waiting on it waits for. said: its agent says it has finished (the usual choice); idle: its agent ends a turn with nothing waiting on anyone, for small jobs done in one go; committed: its agent stopped with its work committed (worktree mode only); merged: its branch is merged into the base (worktree mode only); manual: only when someone marks it finished. Anyone can also mark any task finished by hand.',
 }
 
-export default function tadeTools(pi: PiApi): void {
+/** One of Tade's own tools, as any harness is given it. */
+export interface OrchestratorTool {
+  name: string
+  label: string
+  description: string
+  parameters: Record<string, unknown>
+  run(params: Record<string, unknown>, callId: string, ctx: ToolContext): Promise<unknown>
+}
+
+/**
+ * Everything the orchestrator can do, in one list.
+ *
+ * Declared once and given to whatever harness it is running in: pi registers
+ * them as its own tools (below), and a harness that speaks MCP is served the
+ * same list by `tools-mcp.ts`. Two lists would be two tool surfaces, and the
+ * golden file would only ever protect one of them.
+ *
+ * `switchModel` is the one thing a harness does differently: a harness that
+ * can change model mid-session does it here, and one that cannot says the
+ * model is kept and starts again on it.
+ */
+export function orchestratorTools(
+  opts: {
+    switchModel?: (
+      chosen: { provider: string; id: string },
+      ctx: ToolContext,
+    ) => Promise<string | null>
+  } = {},
+): OrchestratorTool[] {
+  const tools: OrchestratorTool[] = []
   const tool = (
     name: string,
     description: string,
@@ -116,19 +145,7 @@ export default function tadeTools(pi: PiApi): void {
     run: (params: Record<string, unknown>, callId: string, ctx: ToolContext) => Promise<unknown>,
     label = name.replace(/^tade_/, 'tade: ').replace(/_/g, ' '),
   ): void => {
-    pi.registerTool({
-      name,
-      label,
-      description,
-      parameters,
-      async execute(id, params, _signal, _update, ctx) {
-        // A failure is thrown, so pi marks the call failed and the model is
-        // told what went wrong in words it can choose another route from.
-        const result = await run(params ?? {}, id, ctx)
-        const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-        return { content: [{ type: 'text', text }], details: {} }
-      },
-    })
+    tools.push({ name, label, description, parameters, run })
   }
 
   tool(
@@ -440,11 +457,11 @@ export default function tadeTools(pi: PiApi): void {
 
   tool(
     'tade_agent_harness',
-    'Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Tade says which harnesses exist and which it can run yet.',
+    'Run an agent in another harness — the program that is the agent: pi, or Claude Code on the account it is signed in to — from its next start on; a running agent is started again in it, and a conversation does not move between harnesses. Only when the human asks. Tade says which harnesses exist and which it can run yet.',
     object(
       {
         task: string('task id, like checkout/refunds'),
-        harness: string('the harness id: pi'),
+        harness: string('the harness id: pi or claude-code'),
       },
       ['task', 'harness'],
     ),
@@ -470,14 +487,11 @@ export default function tadeTools(pi: PiApi): void {
         provider: string
         id: string
       }
-      const found = ctx.modelRegistry?.find?.(chosen.provider, chosen.id)
-      if (!found || !pi.setModel) {
-        throw new Error(
-          `${chosen.provider}/${chosen.id} is saved for the next start, but this session could not switch to it now`,
-        )
-      }
-      await pi.setModel(found)
-      return `The orchestrator is on ${chosen.provider}/${chosen.id} from its next reply, and will start on it next time.`
+      const said = await opts.switchModel?.(chosen, ctx)
+      return (
+        said ??
+        `The orchestrator is kept on ${chosen.provider}/${chosen.id}, and starts again on it: the same conversation, from its next reply.`
+      )
     },
   )
 
@@ -756,6 +770,42 @@ export default function tadeTools(pi: PiApi): void {
         decision: { allow: false, reason: String(p.reason ?? 'denied') },
       }),
   )
+  return tools
+}
+
+/**
+ * pi loads this file: the same tools, registered as pi's own, and its model
+ * switched in the session it is already in.
+ */
+export default function tadeTools(pi: PiApi): void {
+  const switchModel = async (
+    chosen: { provider: string; id: string },
+    ctx: ToolContext,
+  ): Promise<string | null> => {
+    const found = ctx.modelRegistry?.find?.(chosen.provider, chosen.id)
+    if (!found || !pi.setModel) {
+      throw new Error(
+        `${chosen.provider}/${chosen.id} is saved for the next start, but this session could not switch to it now`,
+      )
+    }
+    await pi.setModel(found)
+    return `The orchestrator is on ${chosen.provider}/${chosen.id} from its next reply, and will start on it next time.`
+  }
+  for (const spec of orchestratorTools({ switchModel })) {
+    pi.registerTool({
+      name: spec.name,
+      label: spec.label,
+      description: spec.description,
+      parameters: spec.parameters,
+      async execute(id, params, _signal, _update, ctx) {
+        // A failure is thrown, so pi marks the call failed and the model is
+        // told what went wrong in words it can choose another route from.
+        const result = await spec.run(params ?? {}, id, ctx)
+        const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+        return { content: [{ type: 'text', text }], details: {} }
+      },
+    })
+  }
 }
 
 async function worktreeOf(task: string): Promise<string | null> {

@@ -1,0 +1,59 @@
+id: tade/checks-survive-commit
+project: tade
+intent_spoken: c) Agent ran checks before comitting, then did a commit and for
+  that commit checks say not run, even though they were ran on the same commit
+  but just before comitting. Figure out how to fix that
+created: 2026-09-19T11:09:26.774Z
+base: 9fb08d952719a64f1e6e98e7442b3673eb0d492c
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after: []
+  prompt: >-
+    A real bug in how check runs are attributed. Their words:
+
+
+    "Agent ran checks before comitting, then did a commit and for that commit
+    checks say not run, even though they were ran on the same commit but just
+    before comitting. Figure out how to fix that"
+
+
+    What happens: a run is recorded against the commit that was HEAD when it ran
+    (packages/checks/core — the record, and `deriveState`'s `tests` rollup in
+    packages/core/src/state.ts). The agent then commits, HEAD moves, and the
+    page shows `format / types / tests — not run` at the new commit, even though
+    the working tree those checks actually ran over is byte-for-byte what got
+    committed.
+
+
+    Fix it honestly. The invariant stands — **a check that nobody ran is not a
+    check that passed** — so do not paper over it by showing the previous
+    commit's result. What makes this sound is that a check run is really about
+    *a tree*, not a commit id: if the tree the run covered is identical to the
+    new commit's tree, the same commands over the same bytes must give the same
+    answer, so the run carries over. Anything else — a dirty tree at run time
+    that differs from what was committed, a partial commit of only some files,
+    other agents' files changing in the shared checkout between the run and the
+    commit — must still read as `unknown`, and `unknown` stays a first-class
+    answer.
+
+
+    So: record what the run actually covered (the tree, and whether the worktree
+    was clean or which paths were dirty) alongside the commit, and let the
+    rollup match a commit whose tree the run covered. Note this project's agents
+    share one checkout, so a run's tree can contain another agent's uncommitted
+    work — be exact about when that disqualifies it, and say in a comment why
+    the rule is sound.
+
+
+    Tests: a run then a commit of exactly those files (carries over), a run then
+    a commit with something else changed in between (stays unknown), a partial
+    commit (stays unknown). Run `pnpm check` on its own and commit only your
+    files.
+  touches:
+    - packages/checks/core
+    - packages/core/src/state.ts
+    - packages/extensions/checks
+title: Attribute pre-commit check runs to new commit

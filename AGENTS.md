@@ -124,6 +124,19 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the agent is told the rule and what happened is written down. Overruling it is an act, not a
   setting — `checks_override`, with a reason, read back out of the journal — and a red run that was
   overruled is still recorded red.
+- **Reading what CI runs is not adopting it.** A project with no manifest has its CI config read
+  (`readFromCi`) so the window can say what it checks — and by default (`checks.from_ci: show`) runs
+  none of it: a CI config holds releases and deploys beside its tests and nothing can tell which is
+  which, and the ids come from step names that change whenever somebody retitles one, which would
+  orphan every run recorded under the old name. Every check read that way carries a `skip`, so the
+  rollup stays `unknown` rather than going green off a guess. Adoption is the act that changes it —
+  `tade checks adopt`, `checks_propose`, the button on the work tab, all writing the same file the
+  same way — and what CI does and Tade cannot is named every time rather than dropped. `.tade/checks.yaml`
+  is the one file Tade writes into somebody else's repository: it never commits there (`recordAuthored`
+  is for `<home>`, and `git add -A` over a shared checkout would sweep up four agents' half-written
+  work), it goes through the YAML document so the comments survive, and it refuses a draft rather
+  than leaving a broken file to be found by hand. It is the orchestrator's and a person's, never an
+  agent's: an agent judged by these checks does not get a tool that rewrites its own gate.
 - **A run is about a tree, not a commit id.** It is recorded against the commit that was checked
   out, and an agent's next act is to commit — so what it read is also written down (`coverageOf`):
   that commit's tree, every tracked path whose bytes on disk differed from it, and the untracked
@@ -214,6 +227,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   stops your agents, so the ordinary exit path detaches. Where lanes cannot outlive us and cannot be
   found again (`detach: false`, `adopt: false`), releasing them *is* ending them — leaving processes
   nobody can see, drive or stop is the one outcome worse than both.
+- **What Tade draws itself dies with Tade, however Tade ends.** The orchestrator has no lane to
+  carry on in and nobody could find it again, so a headless run is started through a watcher
+  (`reaped`, beside `sandboxed`) that ends it once Tade's pid is gone. An exit path only runs when
+  there is one: a window killed outright would otherwise leave a model process running that nothing
+  can reach. Agents are the opposite and stay that way — under a driver whose lanes outlive the
+  window they keep working, which is what makes closing Tade harmless.
 - **A lane is alive only if the driver hands it back.** A live pid proves something is running, not
   that this driver can drive it: a fresh driver knows nothing about a window it did not open. Ask
   the driver on open (`list` for what it already holds, `adopt` for what it can find) and take its
@@ -279,6 +298,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the task. That session id never changes, which is what makes reopening ordinary: the same command
   line starts the conversation the first time and continues it every time after — and why **a task
   name is never used twice**: a new agent given an old one's name would carry on its conversation.
+- **A model is chosen per harness.** A route's model is for its own harness; what new agents of
+  another harness start on is kept beside it (`workers.routes.<route>.harnesses.<harness>`), and a
+  model is always resolved by the harness it is for (`resolveModel`) — never handed across.
 - **Agents work where `agents.workspace` says.** `checkout` (the default): every agent in the
   project's own checkout, on its branch, at once, each task a folder under `.tade/tasks/<name>`;
   its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it
@@ -290,6 +312,29 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   on. Left unset, pi picks by what you are signed in to, which is how every agent once ran on the
   same model whatever anyone chose. Nothing may ask pi anything while its extensions load: it
   throws, and a throw there takes the agent down.
+- **A harness says how it does things, and why not.** Its capabilities are `live`, `idle`,
+  `restart` or `none` per thing a person can ask of a running agent, each short of full with a
+  sentence in `why`; every surface reads them through `offer()`, so none offers what another hides.
+  A lane records the harness it was started in, and whatever touches a harness's own records —
+  its conversation, its spend, where it must write when contained — asks the adapter.
+- **An account is the harness's own sign-in, kept apart, and Tade never holds it.** Each harness
+  runs as its own default, or as an account added beside it (`accounts.<name>`, a folder under
+  `<home>/accounts`), chosen for its new agents (`workers.accounts`) or for one agent (`account` in
+  its task file). Signing in runs the harness's own sign-in in a terminal a person can see; a
+  subscription token never passes through Tade and is never stored by it, and an API key Tade keeps
+  is read by the harness through a command at the moment it is needed. An agent moved to another
+  account takes its conversation with it where the harness can carry it.
+- **The orchestrator is a harness choice like any other, and what it needs is declared.** It is
+  the same `Orchestrator` over the same signals whichever harness it runs in
+  (`orchestrator.harness`): what differs is asked of the harness, never branched on its name. It
+  must be one Tade can drive itself rather than one that draws its own terminal
+  (`capabilities.headless`) — pi's `--mode rpc`, Claude Code's stream-json — and it must take
+  Tade's own tools, as modules it loads (`nativeExtensions`) or as an MCP server it starts
+  (`mcp`). Those tools are declared once (`orchestratorTools`) and handed to each harness in its
+  own terms; two lists would be two tool surfaces, and the golden file would only ever protect one
+  of them. Nothing it does is gated — it is Tade's interface, and asking permission to answer
+  "where are we" is not a question anybody wants — so it runs unsupervised, and a harness that
+  cannot switch model in its session is started again on the same conversation instead.
 - **Harnesses come from one registry** (`HARNESS_ADAPTERS` in the workbench, `HARNESS_CHOICES` in
   core for what to offer). A task may name its own (`harness` in its task file); the supervisor
   keeps an adapter per harness and answers each run with the one it started in. Never `new` an
@@ -308,10 +353,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   work whose agent already has a conversation is brought back rather than told again (`reopened` in
   `queue_started`): an agent that hears its first instruction twice does the work twice.
 - **The orchestrator picks its conversation back up, it is never introduced again.** It talks in one
-  pi session whose id never changes (`ORCHESTRATOR_SESSION`, from `ORCHESTRATOR_TASK`), so closing
-  Tade and opening it again continues the same conversation, with everything that was discussed
-  still in it — never `--continue`, which pi refuses beside a session id and which would pick up
-  whatever session was newest. A model chosen for it restarts the process, not the conversation.
+  session of its harness's own, whose id never changes (from `ORCHESTRATOR_TASK`, as every agent's
+  does from its task), so closing Tade and opening it again continues the same conversation, with
+  everything that was discussed still in it — never "continue the newest", which is how it once met
+  someone who had never heard of you. A model chosen for it restarts the process, not the conversation.
   What a session cannot hold is the world, so every open also composes a briefing from the journal
   (`composeBriefing`): when Tade was last open, which agents were still running, what finished, what
   is held, what is queued and scheduled in the queue's own words, and the last things you said, in
@@ -347,16 +392,26 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **`README.md` is the showcase**, and the source a web page will be built from: a hero, a section per
   feature, each a picture and a line or three, then install and setup — which must stay findable,
   because they are the one thing a README may not lose. Explanations belong where they are used —
-  a command's `--help`, a setting's `means`, the keys sheet, a tool's description — so they cannot
+  a command's `--help`, a setting's `means`, the shortcuts sheet, a tool's description — so they cannot
   drift from the behaviour they describe; the README shows rather than tells. **Its pictures are
   generated, never taken by hand**: `pnpm screens --assets` redraws `images/` — which sits beside
   the README because that is what asks for it — from the golden screen scenarios
   (`packages/app/scripts/pictures.ts`), so a change to how the window looks is a change to the
   README. Add a picture by adding a scenario, and never advertise what is not built — what is not
   built goes under Planned, named in a line and pointed at the port it would be built against.
+  **Changing how anything looks means redrawing them in the same commit** — the recipe is the
+  `redraw-the-pictures` skill, and a page showing a window Tade no longer has is a lie every other
+  test passes.
+- **What the pictures cannot prove, a photograph can.** They are the real renderer over made-up
+  state, which is what lets them show an agent at work without an agent — and is why they say
+  nothing about the program a person installs: between the two sit the alt screen, the frame loop
+  and the terminal's own idea of a colour. So `pnpm screens --live` runs the actual binary in a real
+  terminal — Tade's own pty driver — presses real keys at it and keeps what it painted. It reaches
+  only what a machine with no agents can reach, and that is the point of having both: it found the
+  window drawing the gap between two buttons in the colour of the button before it.
 - **There is no `docs/` folder, and adding one is going backwards.** Everything is documented where
   it is used: this file for the invariants, `.claude/skills/` for the recipes, a command's
-  `--help`, a setting's `means`, a tool's description, the keys sheet, the README for the showcase,
+  `--help`, a setting's `means`, a tool's description, the shortcuts sheet, the README for the showcase,
   and a comment beside the code for why that code is the way it is. A design document is a plan,
   and a plan that outlives its build is a second description of the system that nothing keeps
   honest — write it in the task, build it, and let git keep it.

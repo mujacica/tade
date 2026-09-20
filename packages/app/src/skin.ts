@@ -175,8 +175,12 @@ const BOLD = `${ESC}1m`
  * Tade's colour is amber, and what the others keep is its *mood*: full
  * saturation at half lightness — a dark yellow, not a bright one — so every
  * accent is the same colour at another hue and the window reads as one
- * design. The violet is that amber turned round the wheel: xterm 92,
- * `#8700d7`, the same full saturation a shade deeper.
+ * design. The violet that marks something waiting on you is that amber turned
+ * round the wheel: xterm 176, `#d787d7`, light enough to read on the window's
+ * own ground, which is the only place it is ever used.
+ *
+ * Every value here is one of the 256, for the reason at the top of this file,
+ * so a colour picked anywhere else arrives as the nearest one to it.
  *
  * A tone plays two parts, and which part it plays decides what else has to be
  * true of it.
@@ -184,18 +188,25 @@ const BOLD = `${ESC}1m`
  * As *text* on the window's near-black ground it has to be light enough to
  * read, so the text tones sit near the amber's own value — in relative
  * luminance, the WCAG one from 0 to 1: amber .52, green .55, cyan .56, the
- * violet's text shade (177) .39 — none of them under 7:1 against the window's
- * ground or 4:1 against the row you are on. The ground shade would be a
- * smudge there, which is why the violet is the one tone written down twice.
+ * violet that marks something waiting on you (176) .41 — none of them under
+ * 7:1 against the window's ground or 4:1 against the row you are on. A ground
+ * shade would be a smudge there, which is why the two tones that are also
+ * grounds are written down separately.
  *
  * As the *ground* of a button it is the colour itself, and the ink is
- * whatever can be read on it: dark ink on the amber, light ink on the violet
- * (6:1 at rest, 5:1 lit). No purple that is still purple can be as light as a
- * yellow — stretch one until it is and out comes a pale lavender wanting dark
- * letters, which is what this palette had, and what looked borrowed from
- * another design standing next to a dark amber. Dark ground, light label: the
- * way every grey button in the window is built, which is what keeps it
- * reading as a button.
+ * whatever can be read on it: dark ink on the amber, on the red and on the
+ * green, light ink on the greys. A coloured button is a light block with dark
+ * letters and a grey one is a dark block with light letters, and which of the
+ * two something is says what it is for before any of it is read.
+ *
+ * The green plays both parts, and takes a different shade for each. As *text*
+ * it means finished and is the light one (114, `#87d787`). As the *ground* of
+ * the button the window would like you to press it is the muted one (65,
+ * `#5f875f`) with a light label on it: dark enough to sit quietly beside the
+ * amber and the red without competing with them, and the one green in the 256
+ * that is neither a pure green nor a pale one. Under the pointer it lightens
+ * past what white letters can be read on, so the letters go dark — which is
+ * what a grey button does when it is held, for the same reason.
  *
  * Red is the one exception, and deliberately: something that has gone wrong is
  * allowed to be darker and louder than the rest, because it is not decoration.
@@ -207,14 +218,14 @@ const TONE = {
   amberLight: 222,
   /** The same amber with the light taken out of it: a switch held down. */
   amberDark: 94,
-  /** Waiting on you, and the press the window would like next. */
-  violet: 92,
-  /** The same, under the pointer: the same hue with the light turned up. */
-  violetLight: 129,
-  /** The same violet as text, light enough to be read on the window's ground. */
-  violetText: 177,
-  /** Done. */
+  /** Waiting on you, as text: light enough to be read on the window's ground. */
+  violetText: 176,
+  /** Done, as text. */
   green: 114,
+  /** The press the window would like next: a muted green, as a ground. */
+  greenMuted: 65,
+  /** The same under the pointer: lighter, and past what a light label survives. */
+  greenMutedLight: 71,
   /** Where you are. The one complement in the palette, at the amber's own value. */
   cyan: 80,
   /** Gone wrong, or about to: the exception to the rule above. */
@@ -305,9 +316,7 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
   hover: [GREY.hovered, TONE.inkLight, false],
   pressed: [GREY.pressed, TONE.ink, false],
   primary: [TONE.amber, TONE.ink, true],
-  // The one coloured button with light letters on it: a dark ground takes the
-  // same ink a grey button does, and the amber's ink would be lost on it.
-  attention: [TONE.violet, GREY.bright, true],
+  attention: [TONE.greenMuted, TONE.inkLight, true],
   danger: [TONE.red, TONE.ink, true],
   off: [GREY.raised, GREY.chrome, false],
   add: [GREY.control, TONE.amber, true],
@@ -320,7 +329,7 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
  */
 const LIT: Partial<Record<Look, [ground: number, ink: number, bold: boolean]>> = {
   primary: [TONE.amberLight, TONE.ink, true],
-  attention: [TONE.violetLight, TONE.inkLight, true],
+  attention: [TONE.greenMutedLight, TONE.ink, true],
   danger: [TONE.redLight, TONE.ink, true],
 }
 

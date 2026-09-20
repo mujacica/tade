@@ -4,13 +4,23 @@ import { fileURLToPath } from 'node:url'
 import { draw } from '../src/view.ts'
 import { SCENARIOS } from '../test/screens/scenarios.ts'
 import { ansiToHtml } from './ansi-html.ts'
-import { writePictures } from './pictures.ts'
+import { cropGrid, shot } from './ansi-svg.ts'
+import { capture, TAKES, unreadable } from './capture.ts'
+import { panelBox, writePictures } from './pictures.ts'
 
-// A page of every protected screen, in colour, for a person to look at, and
-// the pictures the README is made of.
+// A page of every protected screen, in colour, for a person to look at, the
+// pictures the README is made of, and a photograph of the running window.
 //
 //   pnpm screens [out.html]          the page
 //   pnpm screens --assets [dir]      the README's pictures, as SVG
+//   pnpm screens --live [dir]        the real `tade`, run and photographed
+//
+// `--live` is the check on the other two: it starts the actual binary in a
+// real terminal on a disposable home with real repositories in it, presses
+// real keys, and writes what the program painted. Use it after a change to
+// how the window looks — the pictures come from the scenarios, and this says
+// whether the scenarios still come from the program. `--live <dir> --home
+// ~/.tade` photographs your own window instead of a seeded one.
 //
 // Each screen is drawn from the scenarios the golden tests use. Where the
 // drawing no longer matches its golden file, the page shows both, the golden
@@ -25,6 +35,33 @@ const here = dirname(fileURLToPath(import.meta.url))
 const goldens = join(here, '..', 'test', 'screens', '__screens__')
 const repo = join(here, '..', '..', '..')
 const args = process.argv.slice(2)
+
+const live = args.indexOf('--live')
+if (live >= 0) {
+  const next = args[live + 1]
+  const dir = resolve(next && !next.startsWith('--') ? next : join(process.cwd(), 'tade-live'))
+  const at = args.indexOf('--home')
+  const home = at >= 0 ? args[at + 1] : undefined
+  mkdirSync(dir, { recursive: true })
+  const taken = await capture(TAKES, {
+    ...(home ? { home } : {}),
+    onTake: (take, n, of) => process.stdout.write(`${String(n).padStart(2)}/${of}  ${take.name}\n`),
+  })
+  for (const one of taken) {
+    const grid = one.take.crop
+      ? cropGrid(one.grid, one.take.crop === 'panel' ? panelBox(one.grid) : one.take.crop)
+      : one.grid
+    const svg = shot(grid, one.take.title === undefined ? {} : { title: one.take.title })
+    writeFileSync(join(dir, `${one.take.name}.svg`), svg)
+    writeFileSync(join(dir, `${one.take.name}.ansi`), `${one.rows.join('\n')}\n`)
+  }
+  const missed = unreadable(taken)
+  // Said, never swallowed: a picture drawn from a stream nobody could read
+  // looks exactly like one that was read.
+  if (missed.length > 0) process.stdout.write(`could not read: ${missed.join(', ')}\n`)
+  process.stdout.write(`${dir} · ${taken.length} photographed\n`)
+  process.exit(0)
+}
 
 const assets = args.indexOf('--assets')
 if (assets >= 0) {
@@ -48,7 +85,7 @@ function read(path: string): string | null {
   }
 }
 
-const pre = (rows: string[]) => `<pre>${rows.map(ansiToHtml).join('\n')}</pre>`
+const pre = (rows: string[]) => `<pre>${rows.map((row) => ansiToHtml(row)).join('\n')}</pre>`
 
 const sections = SCENARIOS.map((scenario) => {
   const rows = draw(scenario.state, scenario.frame).rows

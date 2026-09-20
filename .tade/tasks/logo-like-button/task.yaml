@@ -1,0 +1,35 @@
+id: tade/logo-like-button
+project: tade
+intent_spoken: Let's make the design of T A D E to look like the design of the
+  open project, just with empty spaces in between and capital letter
+created: 2026-09-19T10:46:36.859Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/settings-redesign
+      why: both edit packages/app skin/view in the one shared checkout
+  prompt: >-
+    Make the TADE wordmark in the top-left of the window look exactly like the
+    bright amber `tade` project button beside it — the same background colour,
+    text colour, padding and height as that pill. The only differences: capital
+    letters, with a space between each one, so it reads `T A D E`.
+
+
+    Today it is drawn as a dark olive/muted block that clearly doesn't match.
+    Find how the project button is drawn (packages/app: skin.ts, view.ts) and
+    reuse that drawing rather than hand-styling a second thing — then they can
+    never drift apart. Buttons have had their decorative side flaps removed;
+    keep that clean rectangular style.
+
+
+    Refresh the golden screen scenarios that include the header, and if the
+    README pictures show it, regenerate them (`pnpm screens --assets`).
+    Pull/rebase first, run `pnpm check` on its own, and commit only your files.
+  touches:
+    - packages/app/src/skin.ts
+    - packages/app/src/view.ts
+title: Match TADE wordmark styling to project pill

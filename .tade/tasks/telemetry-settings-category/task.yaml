@@ -1,0 +1,71 @@
+id: tade/telemetry-settings-category
+project: tade
+intent_spoken: There is no Telemetry category in Settings. Can you create a task
+  to add it with all configurable options we have to configure Sentry and what
+  we want to send to Sentry. Should be all configurable in Settings menu
+created: 2026-09-19T11:47:55.862Z
+base: 25a0c8203e72168787a4b4ebf72962ce82964c5f
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after: []
+  prompt: >-
+    The person went looking for a Telemetry category in Settings and could not
+    find one. Their words: "There is no Telemetry category in Settings. Can you
+    create a task to add it with all configurable options we have to configure
+    Sentry and what we want to send to Sentry. Should be all configurable in
+    Settings menu".
+
+
+    The group exists — `id: 'telemetry'` in packages/core/src/settings.ts — but
+    it is **titled “Reporting”**, so the word they searched for appears nowhere.
+    That is the first half of the fix, and the cheap half.
+
+
+    What to do:
+
+    1. Name it so it is findable: call it Telemetry (or Telemetry · Reporting),
+    and make sure the settings search matches on “telemetry”, “sentry” and “dsn”
+    whatever the title ends up being — searching for the thing you want should
+    find it.
+
+    2. **Everything about Sentry configurable there.** Today the group carries
+    `telemetry.dsn`, `.errors`, `.logs`, `.metrics`, `.agents`, `.traces`,
+    `.environment` — check that against what the reporter actually reads
+    (packages/telemetry) and the Sentry extension's own settings
+    (packages/extensions/sentry — `extensions.sentry.org` and friends, which
+    today are only reachable from the extension page). Surface the whole set in
+    this one category, including which org/project the extension watches. A
+    setting Tade accepts and ignores is worse than one it does not have — so if
+    a key has no reader, wire it or delete it, and do not add new keys nothing
+    reads.
+
+    3. **Say what is sent, in the settings themselves.** The `means` of each one
+    should tell the truth plainly: that what may be sent is an allow-list
+    (`KEPT` in telemetry/shape.ts) of names, counts and Tade's own words; that
+    what you said, what an agent wrote, task titles, prompts and notes are never
+    in it; that paths are scrubbed to `~` and credential-shaped things removed;
+    that agent turns go as traces. Someone should be able to decide from the
+    panel alone, without reading the source.
+
+    4. Mark correctly which take effect only on restart (the reporter is
+    imported once, at startup, and only when there is a DSN).
+
+    5. The DSN is credential-shaped: make sure it is not echoed anywhere it
+    should not be, and that the file stays `0600`.
+
+
+    A settings-redesign agent just reworked the Settings panel's layout,
+    switches and hovers — pull/rebase and use its controls, do not restyle the
+    panel. Keep your changes to the settings model and the extension's settings
+    rather than the app's drawing code, so you do not collide with the
+    app-chrome agents running beside you. Add tests for the group and its
+    search. Run `pnpm check` on its own and commit only your files.
+  touches:
+    - packages/core/src/settings.ts
+    - packages/core/src/config.ts
+    - packages/extensions/sentry
+    - packages/telemetry
+title: Surface Telemetry settings with Sentry options

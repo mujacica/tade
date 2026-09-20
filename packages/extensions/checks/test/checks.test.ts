@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
@@ -56,6 +56,105 @@ describe('what a project checks', () => {
     const host = await load(where)
     const answer = await host.call('checks_list', {}, { caller: { kind: 'orchestrator' } })
     expect(answer.text).toContain('.tade/checks.yaml')
+  })
+})
+
+describe('writing down what a project checks', () => {
+  /** A repository with CI and no manifest: the state adoption exists for. */
+  function withCi(): { root: string; home: string } {
+    const repo = mkrepo()
+    mkdirSync(join(repo.root, '.github', 'workflows'), { recursive: true })
+    writeFileSync(
+      join(repo.root, '.github', 'workflows', 'ci.yml'),
+      [
+        'jobs:',
+        '  check:',
+        '    steps:',
+        '      - uses: actions/checkout@v4',
+        '      - name: tests',
+        '        run: echo testing',
+      ].join('\n'),
+    )
+    const home = tmp('tade-checks-adopt-')
+    writeFileSync(join(home, 'config.yaml'), `projects:\n  demo:\n    root: ${repo.root}\n`)
+    return { root: repo.root, home }
+  }
+
+  it('says checks read from CI are not a gate, and offers to adopt them', async () => {
+    const where = withCi()
+    const host = await load(where)
+    const answer = await host.call('checks_list', {}, { caller: { kind: 'orchestrator' } })
+    // Read, shown, and explicitly not run: the rollup must not read as green.
+    expect(answer.text).toContain('none of them run here yet')
+    expect(answer.text).toContain('checks_propose')
+    expect(answer.text).toContain('**unknown**')
+  })
+
+  it('adopts what CI runs, and then those checks are the project’s own', async () => {
+    const where = withCi()
+    const host = await load(where)
+    const wrote = await host.call(
+      'checks_propose',
+      { adopt: true },
+      { caller: { kind: 'orchestrator' } },
+    )
+    expect(wrote.text).toContain('Wrote .tade/checks.yaml')
+    // And what it could not take is named every time, not once.
+    expect(wrote.text).toContain('actions/checkout@v4')
+    expect(readFileSync(join(where.root, '.tade', 'checks.yaml'), 'utf8')).toContain('echo testing')
+    const after = await host.call('checks_list', {}, { caller: { kind: 'orchestrator' } })
+    expect(after.text).toContain('from .tade/checks.yaml')
+    expect(after.text).not.toContain('none of them run here yet')
+  })
+
+  it('shows what it would write without writing it', async () => {
+    const where = withCi()
+    const host = await load(where)
+    const answer = await host.call(
+      'checks_propose',
+      { adopt: true, dry_run: true },
+      { caller: { kind: 'orchestrator' } },
+    )
+    expect(answer.text).toContain('Would write')
+    expect(() => readFileSync(join(where.root, '.tade', 'checks.yaml'), 'utf8')).toThrow()
+  })
+
+  it('adds a check to a manifest that is already there', async () => {
+    const where = project()
+    const host = await load(where)
+    const answer = await host.call(
+      'checks_propose',
+      { checks: [{ id: 'types', run: 'echo typing', title: 'Types' }] },
+      { caller: { kind: 'orchestrator' } },
+    )
+    expect(answer.text).toContain('hello, nope, types')
+    const after = await host.call('checks_list', {}, { caller: { kind: 'orchestrator' } })
+    expect(after.text).toContain('3 checks')
+  })
+
+  it('refuses a check it cannot write, rather than writing a broken file', async () => {
+    const where = project()
+    const host = await load(where)
+    await expect(
+      host.call(
+        'checks_propose',
+        { checks: [{ id: 'Not An Id', run: 'x' }] },
+        { caller: { kind: 'orchestrator' } },
+      ),
+    ).rejects.toThrow(/not a usable check id/)
+    expect(readFileSync(join(where.root, '.tade', 'checks.yaml'), 'utf8')).toBe(MANIFEST)
+  })
+
+  it('is not offered to agents, which are judged by these checks', async () => {
+    const where = project()
+    const host = await load(where)
+    await expect(
+      host.call(
+        'checks_propose',
+        { checks: [{ id: 'x', run: 'y' }] },
+        { caller: { kind: 'agent', task: 'demo/a', project: 'demo', cwd: where.root } },
+      ),
+    ).rejects.toThrow(/not offered to agents/)
   })
 })
 

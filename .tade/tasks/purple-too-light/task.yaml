@@ -1,0 +1,43 @@
+id: tade/purple-too-light
+project: tade
+intent_spoken: The purple color we are using makes no sense. Our yellow is dark
+  yellow. This should be dark purple not light
+created: 2026-09-19T10:52:14.199Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/scrollbar-one-thumb
+      why: same packages/app chrome files in the one shared checkout
+  prompt: >-
+    The purple in the window is wrong. Their words: "The purple color we are
+    using makes no sense. Our yellow is dark yellow. This should be dark purple
+    not light".
+
+
+    From the screenshot: the `Extensions` and `Unmute` buttons are a pale
+    lavender with dark text, sitting beside the `Settings` button and the rest
+    of the chrome which is dark amber — a deep, muted, low-brightness yellow.
+    The lavender is far brighter and far less saturated than anything else on
+    screen, so it jumps out and looks like it came from another palette.
+
+
+    Fix it in the palette (packages/app/src/skin.ts): make the purple a *dark*
+    purple whose brightness and saturation sit with the dark amber — same
+    weight, same mood, light text on a dark ground like the rest, not dark text
+    on a pale ground. Then check every place that purple is used, not just those
+    two buttons, and make sure contrast stays readable and the button still
+    reads as a button.
+
+
+    Refresh the golden screen scenarios that show those buttons, and regenerate
+    the README pictures if they include them (`pnpm screens --assets`).
+    Pull/rebase first — several agents are reworking packages/app. Run `pnpm
+    check` on its own and commit only your files.
+  touches:
+    - packages/app/src/skin.ts
+    - packages/app/src/view.ts
+title: Darken lavender buttons to match amber chrome

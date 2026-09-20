@@ -35,6 +35,9 @@ importers:
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
+      '@tade/harnesses-core':
+        specifier: workspace:*
+        version: link:../harnesses/core
       '@tade/status':
         specifier: workspace:*
         version: link:../status
@@ -60,6 +63,9 @@ importers:
       '@tade/drivers-core':
         specifier: workspace:*
         version: link:../drivers/core
+      '@tade/extension-resources':
+        specifier: workspace:*
+        version: link:../extensions/resources
       '@tade/voice-stt':
         specifier: workspace:*
         version: link:../voice/stt
@@ -311,11 +317,33 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/harnesses/claude:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/harnesses-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tade/drivers-core':
+        specifier: workspace:*
+        version: link:../../drivers/core
+      '@tade/drivers-pty':
+        specifier: workspace:*
+        version: link:../../drivers/pty
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/harnesses/core:
     dependencies:
       '@tade/core':
         specifier: workspace:*
         version: link:../../core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       zod:
         specifier: ^4.6.2
         version: 4.6.2
@@ -482,6 +510,9 @@ importers:
       '@tade/drivers-tmux':
         specifier: workspace:*
         version: link:../drivers/tmux
+      '@tade/harnesses-claude':
+        specifier: workspace:*
+        version: link:../harnesses/claude
       '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core

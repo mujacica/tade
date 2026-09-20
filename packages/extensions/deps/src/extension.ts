@@ -368,5 +368,9 @@ export const depsExtension: TadeExtension = {
     ],
     links: [{ title: 'OSV', url: 'https://osv.dev' }],
   }),
-  harness: { pi: { skills: ['skills/update-dependencies'] } },
+  harness: {
+    pi: { skills: ['skills/update-dependencies'] },
+    // The same SKILL.md: both read the Agent Skills format.
+    'claude-code': { skills: ['skills/update-dependencies'] },
+  },
 }

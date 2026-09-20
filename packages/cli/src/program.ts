@@ -4,6 +4,7 @@ import { collectStatus } from '@tade/status'
 // Subpath imports: the CLI must not load the driver stack just to read status.
 import { laneLivenessFromFile } from '@tade/workbench/lane-liveness'
 import { Command, CommanderError } from 'commander'
+import { registerAccounts } from './commands/accounts.ts'
 import { registerApp } from './commands/app.ts'
 import { registerBrief } from './commands/brief.ts'
 import { registerChat } from './commands/chat.ts'
@@ -76,6 +77,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerBrief(program, io, setExit)
   registerChat(program, io, setExit)
   registerCheck(program, io, setExit)
+  registerAccounts(program, io, setExit)
   registerChecks(program, io, setExit)
   registerTasks(program, io, setExit)
   registerLanes(program, io, setExit)

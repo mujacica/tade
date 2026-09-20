@@ -1,9 +1,22 @@
-import { existsSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { existsSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { PiAdapter, piBinary, runSocket, sessionIdFor } from '../src/adapter.ts'
 import { describeToolCall } from '../src/tade.ts'
+
+/** Processes whose command line carries this mark, by pid. */
+function running(mark: string): number[] {
+  const listed = execFileSync('ps', ['-ax', '-o', 'pid=,command='], { encoding: 'utf8' })
+  return listed
+    .split('\n')
+    .filter((line) => line.includes(mark) && !line.includes(' ps -ax'))
+    .map((line) => Number(line.trim().split(/\s+/)[0]))
+    .filter((pid) => Number.isInteger(pid))
+}
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 20_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -25,6 +38,38 @@ describe('PiAdapter', () => {
     await adapter?.shutdown()
     adapter = null
   })
+
+  it('does not outlive Tade, even when Tade is killed outright', async () => {
+    const mark = `tade-orphan-pi-${process.pid}-${Date.now()}`
+    const runDir = tmp('tade-pi-orphan-')
+    const script = join(runDir, 'parent.ts')
+    // A stand-in for Tade: it starts the one Tade draws itself, and then sits
+    // there as a window does. Nothing of its own runs after a SIGKILL.
+    writeFileSync(
+      script,
+      [
+        `import { PiAdapter } from '${fileURLToPath(new URL('../src/adapter.ts', import.meta.url))}'`,
+        `const adapter = new PiAdapter({ runDir: '${runDir}', supervise: false, args: ['--append-system-prompt', '${mark}'] })`,
+        `await adapter.start({ run: 'orchestrator', task: 'tade/${mark}', cwd: '${runDir}', prompt: '' })`,
+        `setInterval(() => {}, 1000)`,
+      ].join('\n'),
+    )
+    const parent = spawn(process.execPath, [script], { stdio: 'ignore' })
+    try {
+      await until(() => running(mark).length > 0)
+      process.kill(parent.pid ?? 0, 'SIGKILL')
+      await until(() => running(mark).length === 0)
+      expect(running(mark)).toEqual([])
+    } finally {
+      for (const pid of running(mark)) {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // already gone
+        }
+      }
+    }
+  }, 60_000)
 
   it('ships a pi binary', () => {
     expect(existsSync(piBinary())).toBe(true)

@@ -1,0 +1,65 @@
+id: tade/extensions-page-redesign
+project: tade
+intent_spoken: Can we redesign extensions page. Have list of extensions in left
+  sidebar with text bar to search filter etc. And then within show options,
+  explain extension workflows etc.
+created: 2026-09-19T11:02:45.456Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/queue-tree-horizontal-scroll
+      why: same packages/app panel drawing in the one shared checkout
+  prompt: >-
+    Redesign the Extensions page. Their words: "Can we redesign extensions page.
+    Have list of extensions in left sidebar with text bar to search filter etc.
+    And then within show options, explain extension workflows etc."
+
+
+    Today it is one long scrolling column: every extension, its tools' buttons
+    and every watch stacked end to end, so by Sentry and Resources you are far
+    past the fold and there is no way to find anything. It should look like the
+    Settings panel does — same two-pane shape, so the window has one way of
+    presenting this kind of thing, not two:
+
+
+    - **Left sidebar**: the list of extensions with a search/filter field above
+    it, each showing its state (ready / needs setup / off / broken) at a glance.
+    Reuse the Settings panel's sidebar + search (packages/app/src/panel-view.ts,
+    `settings()` — another agent has just reworked it for layout and hovers;
+    pull/rebase and build on that rather than copying the old version).
+
+    - **Right pane**, for the selected extension: what it is and **what it is
+    for in workflow terms** — explain how it is actually used, not just a
+    one-line blurb. Its settings/options, its tools with what each does (the
+    header says “8 tools” today and never says which), its watches with their
+    schedule and an on/off, its setup state with what is missing and how to fix
+    it, and whether it is built-in or the person's own.
+
+    - Keep everything reachable that is reachable today: turn on/off, Settings…,
+    running a tool, turning a watch on, and the footer line about
+    `~/.tade/extensions/<name>/extension.ts`.
+
+
+    Use Jev as the test of whether the explanation is good enough: it offers
+    `jev_ask`, `jev_grep`, `jev_review`, `jev_findings`, `jev_verdict`,
+    `jev_read_request`, `jev_plan_check`, `jev_queue_order` — it enriches
+    search, answers bounded questions, checks a plan and advises on queue order
+    — and the page today shows only its one “Review what agents change” watch,
+    so the person reasonably concluded that is all it does. After your redesign,
+    that page must make the full picture obvious.
+
+
+    Hold to the invariants: an extension that is off is listed and never
+    imported, `ready()` never touches the network, state is derived not
+    remembered, and a broken extension is listed as broken without stopping
+    anything else. Add golden screen coverage at a couple of widths. Pull/rebase
+    first — several agents are reworking packages/app. Run `pnpm check` on its
+    own and commit only your files.
+  touches:
+    - packages/app/src/panel-view.ts
+    - packages/app/src/panels.ts
+    - packages/app/src/app.ts

@@ -11,11 +11,11 @@
  ▾ CHANG│▌ Voice             │                                                            │                    │        
   M pack│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │       ↻ on restart │        
   A …/we│  Projects          │   While Tade holds it, your agents never see it.           │                    │        
-  M src/│  Budgets           │                                                            │       ↻ on restart │        
-        │  Telemetry         │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
- ▾ FILES│  Keys              │ Never a key that types a character — you have to be able   │                    │        
-   ▾ src│  Accounts          │ to type a space into your agent.                           │                    │        
-       w│                    │                                                            │       ↻ on restart │        
+  M src/│  Checks per project│                                                            │       ↻ on restart │        
+        │  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
+ ▾ FILES│  Telemetry         │ Never a key that types a character — you have to be able   │                    │        
+   ▾ src│  Shortcuts         │ to type a space into your agent.                           │                    │        
+       w│  Accounts          │                                                            │       ↻ on restart │        
        w│                    │                        Try another     Use ctrl+r anyway   │       ↻ on restart │        
    ▸ tes│                    ╰────────────────────────────────────────────────────────────╯                    │        
      pac│                        │                                                                             │        

@@ -11,11 +11,11 @@
  ▾ CHANG│▌ Voice                 │                                                                             │        
   M pack│  Window                │ Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
   A …/we│  Projects           3  │                                                                             │        
-  M src/│  Budgets           ● 1 │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
-        │  Telemetry             │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
- ▾ FILES│  Keys                  │ Muted           ●    off                                                    │        
-   ▾ src│  Accounts          ● 1 │ Spoken replies     ● on                                                     │        
-       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+  M src/│  Checks per project    │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
+        │  Budgets           ● 1 │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
+ ▾ FILES│  Telemetry             │ Muted           ●    off                                                    │        
+   ▾ src│  Shortcuts             │ Spoken replies     ● on                                                     │        
+       w│  Accounts          ● 2 │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
        w│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │                                                                             │        

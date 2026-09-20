@@ -51,7 +51,20 @@ const context = (over: Partial<PanelContext> = {}): PanelContext =>
       { value: 'openai', label: 'openai · whisper-1', group: 'In the cloud', note: 'needs a key' },
     ],
     settings: GROUPS,
-    accounts: ['anthropic'],
+    accounts: [
+      {
+        harness: 'claude-code',
+        name: null,
+        kind: 'subscription' as const,
+        canAdd: true,
+        why: null,
+        status: { signedIn: true, who: 'you@example.com', plan: 'max', problem: null },
+        limits: { fiveHour: { used: 34, resetsAt: 0 } },
+        agents: 1,
+        forNewAgents: true,
+        canSignIn: true,
+      },
+    ],
     configPath: '~/.tade/config.yaml',
     releases: true,
     budgetWarnings: 1,
@@ -187,12 +200,16 @@ describe('the settings form at any width', () => {
   })
 
   it('follows the row you are on through a group longer than the panel', () => {
-    const keys = GROUPS.find((group) => group.id === 'keys')
-    if (!keys) throw new Error('no keys group')
-    const last = keys.settings.length - 1
-    const drawn = drawnAt('keys', { height: 24 }, panelFor('keys', { row: last, focus: 'form' }))
+    const shortcuts = GROUPS.find((group) => group.id === 'shortcuts')
+    if (!shortcuts) throw new Error('no shortcuts group')
+    const last = shortcuts.settings.length - 1
+    const drawn = drawnAt(
+      'shortcuts',
+      { height: 24 },
+      panelFor('shortcuts', { row: last, focus: 'form' }),
+    )
     const shown = plainRows(drawn).join('\n')
-    expect(shown).toContain(cap(keys.settings[last]?.title ?? '', 40))
+    expect(shown).toContain(cap(shortcuts.settings[last]?.title ?? '', 40))
   })
 })
 

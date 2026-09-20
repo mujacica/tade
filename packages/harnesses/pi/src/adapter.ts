@@ -1,13 +1,30 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { sandboxed, type ThinkingLevel, type Unsubscribe } from '@tade/core'
 import {
+  effectByName,
+  sandboxed,
+  THINKING_LEVELS,
+  type ThinkingLevel,
+  type ToolEffect,
+  type Unsubscribe,
+} from '@tade/core'
+import {
+  type AccountStatus,
+  type HarnessModel,
+  type HarnessProbe,
+  type HarnessSpend,
   type LaunchSpec,
+  type ModelFound,
   type PermissionDecision,
+  type PlanLimits,
   type RunId,
+  reaped,
+  type SandboxWrites,
+  type SignIn,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -20,6 +37,8 @@ import {
   type WorkerSpec,
 } from '@tade/harnesses-core'
 import { SignalChannel } from './channel.ts'
+import { findModel, loggedInProviders, usableModels } from './models.ts'
+import { sessionFileFor, sessionsRoot, usageOfTask } from './sessions.ts'
 import { type Spent, spentBy, spentByMessage } from './usage.ts'
 
 // Drives pi as a Tade worker: pi runs the agent, Tade supervises it through
@@ -106,6 +125,17 @@ export function problemOf(message: Record<string, unknown>): string | null {
   return null
 }
 
+/** The version of the pi a binary belongs to, from the package it ships in. */
+function piVersion(bin: string): string | null {
+  try {
+    const manifest = join(dirname(bin), '..', '..', 'package.json')
+    const version = (JSON.parse(readFileSync(manifest, 'utf8')) as { version?: unknown }).version
+    return typeof version === 'string' ? version : null
+  } catch {
+    return null
+  }
+}
+
 export function piBinary(): string {
   // pi's exports map declares no `require` condition and does not expose
   // package.json, so neither require.resolve nor a subpath resolve works here.
@@ -157,6 +187,8 @@ export interface PiAdapterOptions {
    */
   approvals?: 'bypass' | 'policy'
   env?: NodeJS.ProcessEnv
+  /** Where pi keeps its sessions, when not its own default: for tests. */
+  sessionsRoot?: string
   onWarning?: (message: string) => void
 }
 
@@ -185,17 +217,41 @@ export class PiAdapter implements WorkerAdapter {
   readonly id = 'pi'
   readonly capabilities: WorkerCapabilities = {
     permissionGate: true,
-    steer: true,
-    modelSwitch: true,
-    thinking: true,
+    // All of it through the supervision extension, into the running session.
+    steer: 'live',
+    queue: 'live',
+    abort: 'live',
+    model: 'live',
+    thinking: 'live',
+    thinkingLevels: THINKING_LEVELS,
+    rename: 'live',
     // Workers run as pi in a lane (`launchSpec()` + `supervise()`), which is
     // visible. The headless protocol is for the orchestrator, whose interface
     // Tade draws itself.
     visibleUi: true,
     resume: true,
-    images: true,
+    // pi's session remembers what it was on.
+    resumeKeeps: true,
+    images: 'inline',
     // The supervision extension gives every agent `tade_done`.
     done: true,
+    nativeExtensions: true,
+    skills: true,
+    tools: true,
+    // pi is given Tade's tools as an extension it loads, not as MCP servers.
+    mcp: false,
+    // `--mode rpc`: what the orchestrator runs under, drawn by Tade itself.
+    headless: true,
+    // pi prices every message against its own catalog; a plan's limits are
+    // the provider's to know.
+    spend: { usd: 'exact', tokens: true, limits: false },
+    accounts: false,
+    why: {
+      accounts:
+        'keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and you sign in to them inside pi',
+      mcp: 'is given tools as an extension it loads, which is how Tade hands it its own',
+      spend: "pi prices each turn itself, but does not know how much of a plan's limits is used",
+    },
   }
 
   private readonly runs = new Map<string, Run>()
@@ -203,8 +259,12 @@ export class PiAdapter implements WorkerAdapter {
   // before `start()` returns: the first signals arrive while it is still running.
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()
   private readonly opts: Required<
-    Omit<PiAdapterOptions, 'onWarning' | 'bin' | 'args' | 'env' | 'approvals' | 'socketDir'>
+    Omit<
+      PiAdapterOptions,
+      'onWarning' | 'bin' | 'args' | 'env' | 'approvals' | 'socketDir' | 'sessionsRoot'
+    >
   > & {
+    sessionsRoot: string | undefined
     socketDir: string
     approvals: 'bypass' | 'policy'
     bin: string
@@ -222,8 +282,106 @@ export class PiAdapter implements WorkerAdapter {
       bin: opts.bin ?? piBinary(),
       args: opts.args ?? [],
       env: opts.env ?? process.env,
+      sessionsRoot: opts.sessionsRoot,
       onWarning: opts.onWarning ?? (() => {}),
     }
+  }
+
+  async probe(): Promise<HarnessProbe> {
+    try {
+      const bin = this.opts.bin
+      if (!existsSync(bin)) {
+        return { ok: false, version: null, problems: [`pi is not installed at ${bin}`] }
+      }
+      return { ok: true, version: piVersion(bin), problems: [] }
+    } catch (err) {
+      return { ok: false, version: null, problems: [(err as Error).message] }
+    }
+  }
+
+  /** pi's tools go by their lower-case names, which the policy's own table knows. */
+  effectOf(tool: string): ToolEffect {
+    if (tool === 'bash' || tool === 'powershell') return 'exec'
+    return effectByName(tool)
+  }
+
+  conversationKey(task: string): string {
+    return sessionIdFor(task)
+  }
+
+  async hasConversation(task: string, _cwd: string): Promise<boolean> {
+    const file = await sessionFileFor(task, this.recordsAt()).catch(() => null)
+    return file !== null
+  }
+
+  async spent(task: string, _cwd: string): Promise<HarnessSpend> {
+    return usageOfTask(task, this.recordsAt())
+  }
+
+  /**
+   * pi writes its sessions, and refreshed sign-ins, under its own folder: a
+   * contained pi that cannot is one that runs and quietly keeps nothing.
+   */
+  sandboxWrites(): SandboxWrites {
+    return { paths: [this.opts.sessionsRoot ?? join(homedir(), '.pi', 'agent')], prefixes: [] }
+  }
+
+  async account(): Promise<AccountStatus> {
+    try {
+      const providers = await loggedInProviders()
+      return {
+        signedIn: providers.length > 0,
+        who: providers.length > 0 ? providers.join(', ') : null,
+        plan: null,
+        method: 'pi',
+        problem: providers.length > 0 ? null : 'pi is not signed in to any provider yet',
+      }
+    } catch (err) {
+      return {
+        signedIn: false,
+        who: null,
+        plan: null,
+        method: 'pi',
+        problem: (err as Error).message,
+      }
+    }
+  }
+
+  /** pi's own sign-in: pi itself, where you type /login and choose a provider. */
+  signIn(): SignIn {
+    return {
+      launch: { command: process.execPath, args: [this.opts.bin], env: {} },
+      how: 'Type /login, choose a provider, and follow pi. ctrl+] comes back here.',
+    }
+  }
+
+  async signOut(): Promise<void> {
+    throw new Error('pi signs out inside pi: open it and type /logout')
+  }
+
+  limits(): PlanLimits | null {
+    return null
+  }
+
+  async prepareAccount(_share: boolean): Promise<void> {
+    throw new Error(`pi ${this.capabilities.why.accounts}`)
+  }
+
+  async carryConversation(): Promise<boolean> {
+    return false
+  }
+
+  /** What pi can run on: its catalog, narrowed to what you are signed in to. */
+  async models(): Promise<HarnessModel[]> {
+    return usableModels().catch(() => [])
+  }
+
+  async resolveModel(said: string): Promise<ModelFound> {
+    return findModel(said, await this.models())
+  }
+
+  private recordsAt(): { root?: string } {
+    return this.opts.sessionsRoot ? { root: this.opts.sessionsRoot } : { root: sessionsRoot() }
   }
 
   /**
@@ -340,6 +498,10 @@ export class PiAdapter implements WorkerAdapter {
           this.opts.bin,
           '--mode',
           'rpc',
+          // The same conversation every time, which is the whole of coming
+          // back to it: pi makes it under this id once and continues it after.
+          '--session-id',
+          sessionIdFor(spec.task),
           ...this.modelArgs(spec.model),
           ...(spec.thinking ? ['--thinking', spec.thinking] : []),
           '--session-dir',
@@ -354,7 +516,10 @@ export class PiAdapter implements WorkerAdapter {
       spec.sandbox ?? { kind: 'none', worktree: spec.cwd },
     )
 
-    const child = spawn(launch.command, launch.args, {
+    // It has no lane to carry on in and nobody could find it again, so it
+    // does not outlive Tade — however Tade ends.
+    const watched = reaped(launch)
+    const child = spawn(watched.command, watched.args, {
       cwd: spec.cwd,
       env: { ...this.runEnv(spec), ...spec.env },
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -433,8 +598,8 @@ export class PiAdapter implements WorkerAdapter {
     })
   }
 
-  /** The model a headless run is actually on, which is not always the one asked for. */
-  async model(run: RunId): Promise<WorkerModel | null> {
+  /** The model a run is actually on, which is not always the one asked for. */
+  async modelOf(run: RunId): Promise<WorkerModel | null> {
     const state = await this.rpc(this.require(run), { type: 'get_state' }).catch(() => null)
     const model = state?.data?.model as { provider?: unknown; id?: unknown } | undefined
     if (typeof model?.id !== 'string') return null
@@ -692,13 +857,13 @@ export class PiAdapter implements WorkerAdapter {
     // nobody sees — the orchestrator is exactly that run.
     if (!this.opts.supervise && message.type === 'message_end') {
       const said = message.message as { model?: unknown } | undefined
-      this.spent(run, spentByMessage(said), typeof said?.model === 'string' ? said.model : null)
+      this.sayUsage(run, spentByMessage(said), typeof said?.model === 'string' ? said.model : null)
       return
     }
     if (!this.opts.supervise && message.type === 'compaction_end') {
       // No return: a compaction that failed is also a problem to say, below.
       const result = message.result as { usage?: unknown } | undefined
-      this.spent(run, spentBy({ type: 'compaction', usage: result?.usage }), null)
+      this.sayUsage(run, spentBy({ type: 'compaction', usage: result?.usage }), null)
     }
     // What went wrong on the way, that pi carries on after. Each is said, so
     // whoever is watching can fix the cause rather than wonder at the silence.
@@ -740,7 +905,7 @@ export class PiAdapter implements WorkerAdapter {
   }
 
   /** Say what something cost, when it cost anything. */
-  private spent(run: Run, spent: Spent | null, model: string | null): void {
+  private sayUsage(run: Run, spent: Spent | null, model: string | null): void {
     if (!spent || (spent.tokens <= 0 && spent.usd <= 0)) return
     this.dispatch(run.handle.run, {
       type: 'usage',

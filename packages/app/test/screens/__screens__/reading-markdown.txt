@@ -1,6 +1,6 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
- ▾│ ~/src/checkout/README.md  markdown · 14 lines · 412 B                                      Formatted    Source   │  
+ ▾│ ~/src/checkout/README.md  markdown · 12 lines · 412 B                                      Formatted    Source   │  
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──
  ▌│ checkout                                                                                                        ▕│  
  ▌│                                                                                                                 ▕│  
@@ -11,11 +11,11 @@
  ▾│ - pnpm dev starts it against the Stripe test keys                                                               ▕│  
   │ - pnpm test runs everything, webhooks included                                                                  ▕│  
   │                                                                                                                 ▕│  
-  │ ```ts                                                                                                           ▕│  
   │   const event = await stripe.webhooks.constructEventAsync(body, sig, key)                                       ▕│  
- ▾│ ```                                                                                                             ▕│  
   │                                                                                                                 ▕│  
-  │ │ Never force-push to main.                                                                                     ▕│  
+ ▾│ │ Never force-push to main.                                                                                     ▕│  
+  │                                                                                                                 ▕│  
+  │                                                                                                                 ▕│  
   │                                                                                                                 ▕│  
   │                                                                                                                 ▕│  
   │                                                                                                                 ▕│  
@@ -29,6 +29,6 @@
   │                                                                                                                 ▕│ ▕
  ❯│                                                                                                                 ▕│ ▕
 ──│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│─ 
- A│ rows 1–14 of 14  ↑↓ scroll · space a page · e editor                    Copy path     Open in editor     Close   │  
+ A│ rows 1–12 of 12  ↑↓ scroll · space a page · e editor                    Copy path     Open in editor     Close   │  
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯──
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

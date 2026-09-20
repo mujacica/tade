@@ -1,0 +1,61 @@
+id: tade/why-it-waits-readable
+project: tade
+intent_spoken: Let's find a better way to visualize the "Why it waits", it's
+  very hard to read like this
+created: 2026-09-19T10:54:20.460Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/keycaps-and-row-markers
+      why: same packages/app drawing code in the one shared checkout
+  prompt: >-
+    The "WHY IT WAITS" section in the queue view is hard to read. Their words:
+    "Let's find a better way to visualize the 'Why it waits', it's very hard to
+    read like this."
+
+
+    What it looks like today (their screenshot): four rows, sorted
+    alphabetically, each `<name…> after <name…>  <reason>`, with both names
+    clipped mid-word by ellipsis and the reason text running to the far right
+    edge. The names collide with the `after` word — no gap. Worst of all, what
+    it is actually describing is a single straight chain — settings-redesign →
+    logo-like-button → scrollbar-one-thumb → purple-too-light →
+    keycaps-and-row-markers — and the flat alphabetical list makes that
+    impossible to see: the one fact a person wants (what runs next, and what is
+    behind it) is the one thing the drawing hides.
+
+
+    Redesign it so the shape is visible at a glance:
+
+    - Show the chain as a chain, in resolved order, what runs next first — not
+    sorted by name. Where several things wait on one thing, branch them under
+    it, indented and joined by a line, the way the queue's dependency boxes
+    already do.
+
+    - The reason for each wait stays visible, but subordinate to the structure —
+    under or beside its edge, wrapped rather than clipped, never running off the
+    panel.
+
+    - Never truncate a task name mid-word without a clear ellipsis, and always
+    keep a gap before `after`.
+
+    - There is already a dependency-graph drawing in the queue view
+    (packages/app: queue.ts, plan-graph.ts, panel-view.ts). Prefer reusing or
+    extending it over inventing a second way of drawing the same relationships —
+    two drawings of one thing drift apart.
+
+
+    Hold to the invariant: what is queued, what it waits on and why are all read
+    from the task files — derived, never remembered. Add golden screen coverage
+    including a long chain and a narrow width. Pull/rebase first — several
+    agents are reworking packages/app. Run `pnpm check` on its own and commit
+    only your files.
+  touches:
+    - packages/app/src/queue.ts
+    - packages/app/src/plan-graph.ts
+    - packages/app/src/panel-view.ts
+title: Redesign why it waits readability

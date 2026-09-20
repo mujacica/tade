@@ -210,9 +210,12 @@ export class ToolHost {
       'worker/start': async (p) => {
         // The model is settled before anything starts: one that cannot be
         // found is a question for the human, never a run on some other model.
-        const model = p.model ? await tade.resolveModel(String(p.model)) : undefined
         const prompt = String(p.prompt ?? '')
         const cwd = String(p.cwd)
+        // Among what the task's own harness offers.
+        const model = p.model
+          ? await tade.resolveModelFor(String(p.task), cwd, String(p.model))
+          : undefined
         // Files go with something to say about them. A start that says nothing
         // opens the agent, and must not set it working on a picture alone.
         const handed = prompt.trim() && opts.handOff ? await opts.handOff(cwd) : null

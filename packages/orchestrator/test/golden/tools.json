@@ -1,7 +1,7 @@
 [
   {
     "name": "tade_agent_harness",
-    "description": "Run an agent in another harness — the program that is the agent, such as pi — from its next start on; a running agent is started again in it. Only when the human asks. Tade says which harnesses exist and which it can run yet.",
+    "description": "Run an agent in another harness — the program that is the agent: pi, or Claude Code on the account it is signed in to — from its next start on; a running agent is started again in it, and a conversation does not move between harnesses. Only when the human asks. Tade says which harnesses exist and which it can run yet.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -11,7 +11,7 @@
         },
         "harness": {
           "type": "string",
-          "description": "the harness id: pi"
+          "description": "the harness id: pi or claude-code"
         }
       },
       "required": [

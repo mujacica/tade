@@ -273,7 +273,11 @@ export const reviewExtension: TadeExtension = {
     ].join(' ')
   },
 
-  harness: { pi: { skills: ['skills/open-a-review'] } },
+  harness: {
+    pi: { skills: ['skills/open-a-review'] },
+    // The same SKILL.md: both read the Agent Skills format.
+    'claude-code': { skills: ['skills/open-a-review'] },
+  },
 
   tools: [
     {

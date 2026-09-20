@@ -497,6 +497,18 @@ export async function setTaskHarness(worktree: string, id: string, harness: stri
   })
 }
 
+/** Run a task's agent as an account from its next start on; `null` for its harness's usual one. */
+export async function setTaskAccount(
+  worktree: string,
+  id: string,
+  account: string | null,
+): Promise<void> {
+  await updateTaskFile(taskFilePath(worktree, id), (file) => {
+    if (account) file.account = account
+    else delete file.account
+  })
+}
+
 export interface ParkResult {
   task: string
   parked: boolean

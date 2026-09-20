@@ -1,6 +1,6 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2  ╭─ Keys ───────────────────────────────────────────────────────────────────────────── esc ─╮igh ▾     ×   
+ ▾ AGENTS  2  ╭─ Shortcuts ──────────────────────────────────────────────────────────────────────── esc ─╮igh ▾     ×   
               │                                                                                          │──────────────
  ▌ ! stripe-v1│ Push to talk                 ctrl   +   space    hold                                    │              
  ▌   wants you│ Search                       ctrl   +   k    agents, files, lines, commands              │              
@@ -15,7 +15,7 @@
               │ Extensions                   ctrl   +   shift   +   e    turn them on and off, set them… │              
  ▾ FILES      │ Settings                     ctrl   +   ,    this panel                                  │              
    ▾ src/     │ Bottom panel fills window    ctrl   +   shift   +   f    the conversation or terminal t… │              
-       webhook│ Keys                         F1    the sheet of every key                                │              
+       webhook│ Shortcuts                    F1    the sheet of every shortcut                           │              
        webhook│ Reload                       ctrl   +   shift   +   r    restart the window with your c… │              
    ▸ test/    │ Allow                        a    allow what an agent asks, while one waits              │              
      package.j│ Deny                         d    deny what an agent asks, while one waits               │              
@@ -26,7 +26,7 @@
               │ Quit                         ctrl   +   c                                                │             ▕
               │                                                                                          │             ▕
               │ Everything else goes to the agent or terminal you're typing at.                          │             ▕
-              │                                                                           Change keys…   │             ▕
+              │                                                                      Change shortcuts…   │             ▕
  ❯ what you sa╰──────────────────────────────────────────────────────────────────────────────────────────╯             ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

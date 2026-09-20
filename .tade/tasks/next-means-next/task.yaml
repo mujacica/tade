@@ -1,0 +1,64 @@
+id: tade/next-means-next
+project: tade
+intent_spoken: Clicking on Next says nothing is next, but we have 2 tasks queued
+  that are next? How does this logic work? Also there is no hover animation on
+  these buttons all/next/timed. And let's make selected one yellow in our
+  primary color
+created: 2026-09-19T12:34:55.152Z
+base: b747b99623764f15d5cb13a7f380a3644cb5453b
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/hide-close-letters
+      why: last in the app chrome chain; same view/queue files in one checkout
+  prompt: >-
+    Two things about the Smart Queue's `all / next / timed` tabs.
+
+
+    **1. `next` says nothing is next when things obviously are.** Their words:
+    "Clicking on Next says nothing is next, but we have 2 tasks queued that are
+    next? How does this logic work?"
+
+
+    What happens today: `next` lists what is ready to start *this instant*.
+    Every queued task is waiting on something still running, so the list is
+    empty and the view says "nothing is next: everything queued waits on
+    something" (packages/app/src/view.ts, around the next-tab drawing, and the
+    queue model in queue.ts). Meanwhile the `all` tab plainly shows
+    `queue-start-recheck` and `why-it-waits-readable` at the front of their
+    chains — which is what a person means by next.
+
+
+    Make `next` mean the front of the resolved tree: the work that starts as
+    soon as what it waits on finishes — not everything queued, and not only what
+    could start this second. A task whose only blocker is one running agent is
+    next; a task four deep in a chain is not. Say what each is waiting for and
+    roughly what has to happen first. When the list really is empty, say why in
+    words that fit the actual reason (everything is held, or paused, or there is
+    nothing queued) rather than one sentence for all cases.
+
+
+    Note another agent's task (tade/queue-detail work, and
+    tade/queue-tree-horizontal-scroll) already touches this resolved-tree
+    ordering — pull/rebase and reuse the resolved tree rather than computing a
+    second notion of “next”. One definition, one place.
+
+
+    **2. The tabs look dead.** No hover feedback on `all`, `next` or `timed`,
+    and the selected one is not distinguished the way the rest of the window now
+    does it. Give them the same hover treatment the other chrome uses, and draw
+    the selected one in the primary yellow — taken from the skin, not
+    hand-picked. A palette agent has just repainted the purple and another
+    reworked hovers; match what they landed.
+
+
+    Refresh the golden screens for the queue tabs, including an empty `next`.
+    Pull/rebase first — several agents are reworking packages/app. Run `pnpm
+    check` on its own and commit only your files.
+  touches:
+    - packages/app/src/queue.ts
+    - packages/app/src/view.ts
+    - packages/app/src/panels.ts

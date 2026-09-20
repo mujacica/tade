@@ -1,0 +1,44 @@
+id: tade/scrollbar-one-thumb
+project: tade
+intent_spoken: Why do we have so many boxes in the side-bar scroll pane. It
+  should be only one no?
+created: 2026-09-19T10:47:11.396Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/logo-like-button
+      why: same packages/app drawing code in the one shared checkout
+  prompt: >-
+    The sidebar scrollbar is wrong: instead of one continuous thumb it draws a
+    separate little box on every row, so the gutter looks like a stack of
+    disconnected grey blocks with gaps between them (screenshot from the
+    person). There is also a dashed/broken section at the top, and the thumb
+    doesn't read as a single object at all.
+
+
+    Fix it so the scrollbar is what it should be: one solid continuous thumb
+    over a quiet track, its length proportional to how much is visible and its
+    position to where you are, with no gaps between rows. Use a block glyph that
+    tiles vertically without leaving holes (█ / ▊ in a full-height cell, not a
+    boxed character per row) and make sure the track and thumb tones come from
+    the skin rather than being hand-picked.
+
+
+    This affects every scrollbar the window draws — sidebar, terminal panes, the
+    agent view, the files view — so fix it in the one place they share
+    (packages/app: ui.ts, view.ts, panel-view.ts) and check them all. Dragging
+    the thumb must keep working. Add or refresh golden screen coverage showing a
+    scrolled pane.
+
+
+    Pull/rebase first — other agents are reworking packages/app. Run `pnpm
+    check` on its own and commit only your files.
+  touches:
+    - packages/app/src/ui.ts
+    - packages/app/src/view.ts
+    - packages/app/src/panel-view.ts
+title: Make sidebar scrollbar a single continuous thumb

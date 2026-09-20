@@ -105,6 +105,8 @@ export const TaskFile = z.object({
   workspace: z.enum(['checkout', 'worktree']).optional(),
   /** The harness its agent runs in, when it is not the route's. */
   harness: z.string().optional(),
+  /** The account its agent runs as, when it is not its harness's usual one. */
+  account: z.string().optional(),
   /** Who asked for it (see `TaskOrigin`). Absent on tasks made before this was kept. */
   by: z.string().optional(),
   /** How it counts as finished; `said` unless chosen. */
@@ -146,7 +148,12 @@ export const HARNESS_CHOICES: readonly {
   ready: boolean
 }[] = [
   { id: 'pi', title: 'pi', about: 'the pi coding agent, supervised by Tade', ready: true },
-  { id: 'claude-code', title: 'Claude Code', about: 'not supported yet', ready: false },
+  {
+    id: 'claude-code',
+    title: 'Claude Code',
+    about: 'the official claude, signed in with your own account, supervised by Tade',
+    ready: true,
+  },
   { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
 ]
 
@@ -215,6 +222,12 @@ export const AgentSignal = z.object({
   pendingPermissions: z.array(z.string()).default([]),
   consecutiveFailures: z.number().int().default(0),
   exitCode: z.number().int().nullable().default(null),
+  /**
+   * For an agent Tade is running: the conversation its harness keeps, by the
+   * harness's own id. An adopted session with this id is the same agent, seen
+   * again through its transcript, and is not counted twice.
+   */
+  conversation: z.string().optional(),
 })
 export type AgentSignal = z.infer<typeof AgentSignal>
 

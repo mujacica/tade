@@ -206,10 +206,19 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             liveness: livenessFrom(client),
           }),
         orchestratorModel: async (said) => {
-          const found = findModel(said, await usableModels())
-          if (!found.ok) throw new Error(found.reason)
-          const chosen = { provider: found.provider, id: found.id }
+          // Among what the orchestrator's own harness offers, and kept for
+          // the next start either way.
+          const chosen = orchestrator
+            ? await orchestrator.resolveModel(said)
+            : await (async () => {
+                const found = findModel(said, await usableModels())
+                if (!found.ok) throw new Error(found.reason)
+                return { provider: found.provider, id: found.id }
+              })()
           keepOrchestratorModel(chosen)
+          // A harness that takes a model only when it starts is started again
+          // on it, on the same conversation.
+          if (orchestrator && orchestrator.capabilities.model !== 'live') await restartThinker()
           return chosen
         },
         extensions: async (call) =>
@@ -245,6 +254,8 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
           restartThinker: () => restartThinker(),
+          // The orchestrator's own harness may offer other models than agents'.
+          orchestratorModels: async () => (await orchestrator?.models()) ?? [],
           reloadWindow: async () => {
             shouldReload = true
             await app.stop()

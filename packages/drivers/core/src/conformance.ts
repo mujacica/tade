@@ -157,6 +157,29 @@ export function testWorkspaceDriver(
       expect(styled.replace(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')).not.toContain(ESC)
     })
 
+    it('leaves the gap between two painted blocks unpainted', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('gap'))
+      await waitFor(s.id, 'got:gap')
+      const styled = await driver.capture(s.id, { lines: 50, styled: true })
+      const row = styled.split('\n').find((one) => one.includes('one')) ?? ''
+      // The spaces between the blocks carry no ground of their own, so
+      // whatever a capture says about them must not be the ground before
+      // them: a row of buttons drawn from this would come back as one band of
+      // colour with the labels in it.
+      const between = /one(.*?)two/s.exec(row)?.[1] ?? ''
+      expect(between).toContain('   ')
+      // Built from a character code, as above: an escape in a regex literal is
+      // usually a mistake, and the linter is right to say so.
+      const ESC = String.fromCharCode(27)
+      const paint = new RegExp(`${ESC}\\[[0-9;]*m`, 'g')
+      expect(between.replace(paint, '')).toMatch(/^ +$/)
+      const before = between.slice(0, between.lastIndexOf(' '))
+      expect(new RegExp(`${ESC}\\[[0-9;]*48;5;238`).test(before)).toBe(false)
+    })
+
     it('preserves output ordering under rapid writes', async () => {
       const s = spec()
       await driver.open(s)

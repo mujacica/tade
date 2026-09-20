@@ -29,6 +29,12 @@ export interface SandboxSpec {
   worktree: string
   /** Extra writable paths, for a toolchain with a cache somewhere unusual. */
   writable?: string[]
+  /**
+   * Files that are written by replacing them, whose temporary siblings start
+   * with the same path: a harness's own config file, usually. A directory rule
+   * cannot cover them without opening the whole directory they sit in.
+   */
+  writablePrefixes?: string[]
   platform?: NodeJS.Platform
   home?: string
   tmp?: string
@@ -115,6 +121,13 @@ export function seatbeltProfile(spec: SandboxSpec): string {
     '(allow default)',
     '(deny file-write*)',
     `(allow file-write* ${writable.map((path) => `(subpath ${quote(path)})`).join(' ')})`,
+    ...(spec.writablePrefixes?.length
+      ? [
+          `(allow file-write* ${withPrivate(spec.writablePrefixes)
+            .map((prefix) => `(regex ${quote(`^${escapeRegex(prefix)}`)})`)
+            .join(' ')})`,
+        ]
+      : []),
     `(allow file-write-data ${DEVICES.map((path) => `(literal ${quote(path)})`).join(' ')})`,
     '(allow file-ioctl (literal "/dev/tty") (literal "/dev/dtracehelper"))',
   ].join('\n')
@@ -122,6 +135,16 @@ export function seatbeltProfile(spec: SandboxSpec): string {
 
 /** The Linux arguments. */
 export function bwrapArgs(spec: SandboxSpec): string[] {
+  // bwrap binds paths that exist; a file replaced through a temporary sibling
+  // cannot be let through without its whole directory, and saying yes to a
+  // prefix while binding the directory would be a sandbox that says one thing
+  // and does another.
+  if (spec.writablePrefixes?.length) {
+    throw new SandboxUnavailableError(
+      'bwrap',
+      `it cannot let an agent write ${spec.writablePrefixes.join(', ')} without its whole folder`,
+    )
+  }
   const home = spec.home ?? homedir()
   const args = ['--die-with-parent', '--dev-bind', '/', '/', '--ro-bind', home, home]
   for (const path of writablePaths(spec)) args.push('--bind-try', path, path)
@@ -140,6 +163,10 @@ function withPrivate(paths: string[]): string[] {
     if (path.startsWith('/private/')) out.add(path.slice('/private'.length))
   }
   return [...out]
+}
+
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function quote(path: string): string {

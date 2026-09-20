@@ -1,0 +1,69 @@
+id: tade/runtime-stale-runs
+project: tade
+intent_spoken: 7d 13h is not correct here, please take a look and figure out how
+  do we calculate these since it's wrong. the sessions started today 7d 13h
+  seems impossible?
+created: 2026-09-19T10:49:00.136Z
+base: 56d85f8ec9420035b85966b5846b2370a2415932
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after: []
+  prompt: >-
+    The Spend window's total runtime is wrong: it showed `7d 13h` for Today when
+    every session started this morning. I diagnosed it already — confirm it,
+    then fix it.
+
+
+    **What is wrong.** `runtimeFrom` (packages/core/src/runtime.ts) closes a run
+    left without an exit at a window boundary, on `tade_opened` /
+    `tade_closing`. But this machine's journal (~/.tade/events.jsonl) also
+    contains 22 `wilco_opened` and 22 `wilco_closing` events — the names those
+    events had before the project was renamed — and nothing knows them. So five
+    wilco runs from 13–14 September that never got a `run_exited` are still
+    open, still counting to `now`, and get clipped into whatever window you ask
+    for: ~9.9h each “today”, about 50 of the 182 hours in that total. Reproduce
+    it with a fixture before you change anything.
+
+
+    **What to fix.**
+
+    1. Treat the legacy window events as what they are. Old journals are real —
+    events.jsonl is the truth and it is append-only, so the code has to read
+    what is in it. Whether that is an alias in the event type list or a
+    rename-aware read is your call; say in a comment why.
+
+    2. A run is also over when its lane is gone: the journal has 100
+    `run_started` against 35 `run_exited` and 64 `lane_exited`. Close a run
+    whose lane exited, so a missing `run_exited` cannot make an agent run
+    forever. Check the rule can never *shorten* a run that is genuinely still
+    going.
+
+    3. A safety net for the class of bug, not just this instance: a run that has
+    been open across a boundary we never saw should not be able to count
+    indefinitely. Decide what is honest here and write down the reasoning in the
+    comment at the top of runtime.ts (it is already the place where this is
+    explained).
+
+
+    **Also check, and tell the person rather than silently changing it:**
+    runtime is start-to-exit wall clock, so an agent idle for eight hours
+    waiting for a reply counts eight hours; and the total adds concurrent agents
+    together, so twenty agents over nine hours is legitimately 7 days. If the
+    Spend window should distinguish those, say so in your final message — do not
+    redefine it on your own.
+
+
+    Tests: extend the runtime tests in packages/core with a journal containing
+    the legacy names, a run whose lane exited with no `run_exited`, and a run
+    spanning a close/open pair. Run `pnpm check` on its own and commit only your
+    files.
+  touches:
+    - packages/core/src/runtime.ts
+    - packages/core/src/events.ts
+    - packages/core/test
+    - packages/app/src/spend.ts
+    - packages/cli/src/commands/spend.ts
+title: Close open runs on wilco_opened boundaries

@@ -1,4 +1,12 @@
-import type { LaneId, SandboxSpec, TaskId, ThinkingLevel, Unsubscribe } from '@tade/core'
+import { fileURLToPath } from 'node:url'
+import type {
+  LaneId,
+  SandboxSpec,
+  TaskId,
+  ThinkingLevel,
+  ToolEffect,
+  Unsubscribe,
+} from '@tade/core'
 import { z } from 'zod'
 
 // The WorkerAdapter port: what an agent is telling us, and how we answer it.
@@ -54,6 +62,13 @@ export interface WorkerExtras {
   tools?: string
   /** Native extension modules for this harness. */
   extensions?: readonly string[]
+  /**
+   * MCP servers this agent may call, each a config file in the standard's own
+   * format. Not a harness's private word: it is how most harnesses are given
+   * tools that live outside them, and a harness that does not speak it says so
+   * (`capabilities.mcp`) rather than being handed one.
+   */
+  mcp?: readonly string[]
   /** Skills, in this harness's own format. */
   skills?: readonly string[]
 }
@@ -257,6 +272,28 @@ export const WORKER_ENV = {
   title: 'TADE_TITLE',
 } as const
 
+/** The program that ends a headless harness when Tade is gone. */
+export const REAPER_PATH = fileURLToPath(new URL('./reaper.ts', import.meta.url))
+
+/**
+ * Wrap a launch so it cannot outlive Tade, the way `sandboxed` wraps one so it
+ * cannot write outside its worktree.
+ *
+ * For `start()` only: an agent in a lane is meant to carry on without us —
+ * that is what a driver whose lanes detach is for — but the one Tade draws
+ * itself has no lane to carry on in, and nobody could find it again.
+ */
+export function reaped(
+  launch: LaunchSpec | { command: string; args: string[] },
+  watching = process.pid,
+) {
+  return {
+    ...launch,
+    command: process.execPath,
+    args: [REAPER_PATH, String(watching), launch.command, ...launch.args],
+  }
+}
+
 /** A picture sent with an instruction: a screenshot, usually. */
 export interface WorkerImage {
   /** The bytes, base64. */
@@ -264,26 +301,257 @@ export interface WorkerImage {
   mimeType: string
 }
 
+/**
+ * How a harness does something a person can ask of a running agent.
+ *
+ * - `live`: now, even in the middle of a turn.
+ * - `idle`: only between turns, so Tade holds it until the turn ends.
+ * - `restart`: by starting the agent again on the same conversation, which is
+ *   kept; mid-turn, that waits for the turn to end too.
+ * - `none`: not at all. Whatever would offer it is hidden, and whatever is
+ *   asked for it anyway answers with the harness's `why`.
+ */
+export const SUPPORT = ['live', 'idle', 'restart', 'none'] as const
+export type Support = (typeof SUPPORT)[number]
+
+/**
+ * How something a harness supports is offered to a person: shown or not, and
+ * what to say beside it. One rule for the window, the orchestrator's tools
+ * and voice, so no surface offers what another one hides.
+ */
+export interface Offer {
+  shown: boolean
+  /** How, for a surface with room for a word rather than a sentence. */
+  support: Support
+  /** Said beside it, or as the refusal when it is not shown. Null when there is nothing to add. */
+  note: string | null
+}
+
+export function offer(
+  capabilities: Pick<WorkerCapabilities, 'why'>,
+  feature: HarnessFeature,
+  support: Support,
+): Offer {
+  const why = capabilities.why[feature] ?? null
+  switch (support) {
+    case 'live':
+      return { support: 'live', shown: true, note: null }
+    case 'idle':
+      return { support: 'idle', shown: true, note: why ?? 'waits for its turn to end' }
+    case 'restart':
+      return {
+        support: 'restart',
+        shown: true,
+        note: why ?? 'starts it again, keeping the conversation',
+      }
+    case 'none':
+      return { support: 'none', shown: false, note: why ?? 'this harness cannot do that' }
+  }
+}
+
+/** How a picture reaches the agent: with the instruction, as a file it is told about, or not at all. */
+export type ImageSupport = 'inline' | 'path' | 'none'
+
+/** The things a harness may do only partly, each of which can carry a `why`. */
+export type HarnessFeature =
+  | 'permissionGate'
+  | 'steer'
+  | 'queue'
+  | 'abort'
+  | 'model'
+  | 'thinking'
+  | 'rename'
+  | 'images'
+  | 'done'
+  | 'resume'
+  | 'nativeExtensions'
+  | 'skills'
+  | 'tools'
+  | 'mcp'
+  | 'headless'
+  | 'spend'
+  | 'accounts'
+
 export interface WorkerCapabilities {
   /** Can hold a tool call until a decision arrives. Without this there are no reliable approvals. */
   permissionGate: boolean
-  /** Can deliver a message into a running turn. */
-  steer: boolean
-  /** Can change model without restarting the run. */
-  modelSwitch: boolean
-  /** Can be told how hard to think without restarting the run. */
-  thinking: boolean
+  /** A message delivered into the turn that is running. */
+  steer: Support
+  /** A message delivered once the turn that is running ends. */
+  queue: Support
+  /** Stopping the turn in flight, leaving the agent alive. */
+  abort: Support
+  /** Changing the model this agent runs on. */
+  model: Support
+  /** Changing how hard it thinks. */
+  thinking: Support
+  /** The levels it can be told, least to most: a level outside them is never offered. */
+  thinkingLevels: readonly ThinkingLevel[]
+  /** Giving its session a name a person chose. */
+  rename: Support
+  images: ImageSupport
   /** Renders its own interface in a lane. */
   visibleUi: boolean
-  /** Can resume a previous session. */
+  /** Can come back to a conversation it had, by the same command line. */
   resume: boolean
-  /** Can be sent pictures with an instruction, not only told where they are. */
-  images: boolean
+  /**
+   * A conversation it comes back to is still on the model and thinking level
+   * it was on. Where it is not, Tade says them again at every launch, from
+   * what the journal last heard the agent run on.
+   */
+  resumeKeeps: boolean
   /**
    * Its agent can say its task is finished (the `done` signal). Without it, a
    * task's rule cannot be `said`: nothing would ever say it.
    */
   done: boolean
+  /** Loads an extension's native modules for this harness (`WorkerExtras.extensions`). */
+  nativeExtensions: boolean
+  /** Loads an extension's skills (`WorkerExtras.skills`). */
+  skills: boolean
+  /** Can call Tade's extension tools (`WorkerExtras.tools`). */
+  tools: boolean
+  /** Can be given MCP servers to call (`WorkerExtras.mcp`). */
+  mcp: boolean
+  /**
+   * Can be run as a child of Tade's own process, under Tade's protocol rather
+   * than its own interface (`start`). What the thing you talk to needs: Tade
+   * draws that conversation itself.
+   */
+  headless: boolean
+  /**
+   * What its spend is worth: dollars the harness priced exactly, its own
+   * estimate, or none — and whether it knows how much of a plan's limits are
+   * used, which is the number that matters on a subscription.
+   */
+  spend: { usd: 'exact' | 'estimate' | 'none'; tokens: boolean; limits: boolean }
+  /**
+   * Can be run as more than one account on one machine — each its own
+   * sign-in, kept apart — so agents on two of them can work at once.
+   */
+  accounts: boolean
+  /**
+   * The sentence a person sees beside something this harness does only partly
+   * or not at all, in its own words. Every feature that is not `live` (or
+   * `true`) says why: whatever reaches a person is a sentence somebody wrote.
+   */
+  why: Partial<Record<HarnessFeature, string>>
+}
+
+/** What a tool does to the world, as its harness knows it: the policy judges by this. */
+export type { ToolEffect }
+
+/** What a task's agent has spent, from the harness's own record rather than what it reported. */
+export interface HarnessSpend {
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  tokens: number
+  usd: number
+  /** How many priced entries were counted, so "none yet" is distinguishable. */
+  messages: number
+  /** The model its last reply ran on. */
+  model: string | null
+}
+
+export function noHarnessSpend(): HarnessSpend {
+  return {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    tokens: 0,
+    usd: 0,
+    messages: 0,
+    model: null,
+  }
+}
+
+/**
+ * Where a contained agent of this harness has to be able to write, beyond its
+ * worktree: the harness's own record of the conversation, mostly. Without
+ * them an agent can run and quietly keep nothing.
+ */
+export interface SandboxWrites {
+  /** Directories, and everything under them. */
+  paths: readonly string[]
+  /** Files written by replacing them, whose temporary siblings share this prefix. */
+  prefixes: readonly string[]
+}
+
+/** US dollars per million tokens, as a harness's catalog prices a model. */
+export interface ModelPrice {
+  input: number
+  output: number
+  /** Reading back what was cached, which is most of what a long session reads. */
+  cacheRead: number
+  cacheWrite: number
+}
+
+/** A model a harness offers, as it names it. */
+export interface HarnessModel {
+  /** `provider/id`: what goes in the config. */
+  id: string
+  provider: string
+  /** The human name, where the harness gives one. */
+  name: string
+  price?: ModelPrice
+  /** How many tokens it can hold, where the harness says. */
+  contextWindow?: number
+}
+
+/** A model someone named, found among what a harness offers — or what to ask them. */
+export type ModelFound = { ok: true; provider: string; id: string } | { ok: false; reason: string }
+
+/**
+ * Which account a harness runs as: its own default when absent. Where the
+ * harness keeps that account's sign-in and state, and how it pays. The
+ * adapter is given it and never holds a credential: a key is read at the
+ * moment it is needed by the command in `key`, from wherever it is kept.
+ */
+export interface HarnessAccount {
+  name: string
+  /** The folder the harness keeps this account in. */
+  dir: string
+  /** Signed in to a plan through the harness's own sign-in, or paid for with an API key. */
+  kind: 'subscription' | 'api-key'
+  /** For an API key: a shell command that prints it. Never the key itself. */
+  key?: string
+}
+
+/** Who a harness is signed in as, as it says. Never throws: what went wrong is `problem`. */
+export interface AccountStatus {
+  signedIn: boolean
+  /** The address or name it is signed in as, where it says. */
+  who: string | null
+  /** The plan, where it says: `max`, `pro`, … */
+  plan: string | null
+  /** How: `claude.ai`, `api-key`, a provider's name. */
+  method: string | null
+  problem: string | null
+}
+
+/** A harness's own sign-in: what to run, and what the person is about to be asked, in its words. */
+export interface SignIn {
+  launch: LaunchSpec
+  how: string
+}
+
+/** How much of a plan's limits are used, as the harness last said. */
+export interface PlanLimits {
+  at: number
+  fiveHour: { used: number; resetsAt: number } | null
+  sevenDay: { used: number; resetsAt: number } | null
+}
+
+/** Whether this harness can run here, and why not. Never throws. */
+export interface HarnessProbe {
+  ok: boolean
+  /** The harness's own version, when it could say. */
+  version: string | null
+  /** What is wrong, in words someone can act on. Empty when ok. */
+  problems: readonly string[]
 }
 
 export interface WorkerHandle {
@@ -293,6 +561,8 @@ export interface WorkerHandle {
   startedAt: number
   /** Set when the worker renders into a lane the human can attach to. */
   lane: LaneId | null
+  /** The harness it runs in, as the registry names it. */
+  harness?: string
 }
 
 export type WorkerSignalListener = (signal: WorkerSignal) => void
@@ -322,6 +592,54 @@ export interface LaunchSpec {
 export interface WorkerAdapter {
   readonly id: string
   readonly capabilities: WorkerCapabilities
+
+  /** Whether the harness is installed and can run here, and what to do if not. */
+  probe(): Promise<HarnessProbe>
+  /**
+   * What a tool of this harness does, by the name the agent calls it. The
+   * policy asks this rather than knowing any harness's tool names.
+   */
+  effectOf(tool: string): ToolEffect
+  /**
+   * The conversation a task's agent talks in, as the harness names it. Two
+   * tasks with the same key would share one conversation, which is why a
+   * task's name is never used twice.
+   */
+  conversationKey(task: TaskId): string
+  /** Whether a task's agent has a conversation to come back to, which the harness keeps. */
+  hasConversation(task: TaskId, cwd: string): Promise<boolean>
+  /** What a task's agent has spent, from the harness's own record. Nothing spent when it has none. */
+  spent(task: TaskId, cwd: string): Promise<HarnessSpend>
+  /** Where a contained agent must be able to write, beyond its worktree. */
+  sandboxWrites(): SandboxWrites
+  /** The models an agent of this harness can be started on, as it offers them. */
+  models(): Promise<HarnessModel[]>
+  /** A model said the way people say it — "opus 5" — among this harness's. */
+  resolveModel(said: string): Promise<ModelFound>
+  /** Who this harness is signed in as, for the account it was made for. */
+  account(): Promise<AccountStatus>
+  /**
+   * What to run, in a terminal a person can see, to sign in: the harness's
+   * own sign-in, so credentials go where the harness keeps them and never
+   * pass through Tade. Null when it has none to offer.
+   */
+  signIn(): SignIn | null
+  /** Sign this account out, as the harness does it. */
+  signOut(): Promise<void>
+  /** How much of its plan this account has used, when an agent last said. */
+  limits(): PlanLimits | null
+  /**
+   * Make this account's folder ready to sign in to: made, and — with `share`
+   * — given its owner's own settings, skills and plugins, so the second
+   * account works like the first. Only for a harness with `accounts`.
+   */
+  prepareAccount(share: boolean): Promise<void>
+  /**
+   * Carry a task's conversation to another account of the same harness, so
+   * its agent goes on there rather than starting over. False when there was
+   * none to carry, or the harness cannot.
+   */
+  carryConversation(task: TaskId, cwd: string, to: WorkerAdapter): Promise<boolean>
 
   /**
    * How to run this agent in a lane. Tade places the process — that is the
@@ -366,6 +684,8 @@ export interface WorkerAdapter {
   setModel(run: RunId, model: WorkerModel): Promise<void>
   /** How hard to think from the next turn on, for this session. */
   setThinking(run: RunId, level: ThinkingLevel): Promise<void>
+  /** What a run is actually thinking with, as the harness says. Null until it has said. */
+  modelOf(run: RunId): Promise<WorkerModel | null>
   /** Give the agent's work a name a person chose; the harness's own session takes it too. */
   name(run: RunId, title: string): Promise<void>
   /** Stop the current turn, leaving the run alive. */

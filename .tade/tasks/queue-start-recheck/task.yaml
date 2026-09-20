@@ -1,0 +1,80 @@
+id: tade/queue-start-recheck
+project: tade
+intent_spoken: When deciding if an agent from a queue should be scheduled or
+  not, we do it based on the assumption for the common code etc, but if another
+  agent starts changing things before the scheduling time, orchestrator should
+  be able to re-check the state before scheduling - and potential re-order the
+  schedulling queue based on it. Is that feasible?
+created: 2026-09-19T12:28:48.932Z
+base: b747b99623764f15d5cb13a7f380a3644cb5453b
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after:
+    - task: tade/tell-orchestrator-agents-closed
+      why: both change how the orchestrator is told about queue and agent changes
+  prompt: >-
+    Make a queued task's start check reality, not only the guess written when it
+    was planned.
+
+
+    Their words: "When deciding if an agent from a queue should be scheduled or
+    not, we do it based on the assumption for the common code etc, but if
+    another agent starts changing things before the scheduling time,
+    orchestrator should be able to re-check the state before scheduling - and
+    potential re-order the schedulling queue based on it."
+
+
+    Today `touches` is a reading of the code made when `tade_plan` was called,
+    and `readyToStart` applies a pure rule to it later — by which time running
+    agents may have changed quite different files. The evidence exists at start
+    time and is not consulted: git's dirty set, what each running agent has
+    actually modified and committed in the shared checkout.
+
+
+    What to build:
+
+    1. **Evidence at the moment of starting.** Before a queued task starts,
+    compare what it says it touches against what agents running right now have
+    actually changed. Overlap it did not expect means it is held — `queue_held`,
+    with the reason written down, said once to the orchestrator, which asks the
+    person; their answer (`queue_changed`) is written and read back. This is the
+    existing hold path, not a new one.
+
+    2. **Keep the rule a rule.** `readyToStart` stays pure and stays the thing
+    that starts work — never a model deciding again. Holding is caution added on
+    evidence; it may never start something the rule would not have started,
+    never unhold, never jump a wait, never exceed `max_parallel`, and nothing
+    may starve.
+
+    3. **Re-ordering stays a written preference.** `inWrittenOrder` already
+    sorts what is *ready*; a re-order may be proposed from this evidence but it
+    is written as a line somebody can read, and it still cannot jump a wait or
+    unhold a hold.
+
+    4. **Where a model may speak.** The Jev extension already offers
+    `jev_plan_check` and `jev_queue_order`. Let them advise here — a raised
+    concern, a suggested order — under the judge invariant: it may only ever add
+    caution, it is never inside the pure rule, and it is never the reason given
+    to a person. With no key, nothing runs and everything behaves exactly as it
+    does today.
+
+    5. Workspace matters: under `agents.workspace: checkout` everyone shares one
+    tree, so overlap is real; in worktree mode it is mostly not. Branch on the
+    workspace, not on a guess.
+
+
+    Tests: a queued task whose files a running agent has since touched (held,
+    with the reason), one whose files nobody touched (starts), a held task the
+    person releases (starts, and why is written). Update AGENTS.md's queue
+    paragraph to describe the evidence check. Run `pnpm check` on its own and
+    commit only your files.
+  touches:
+    - packages/core/src/queue.ts
+    - packages/core/src/state.ts
+    - packages/app/src/live.ts
+    - packages/orchestrator
+    - AGENTS.md
+title: Re-check queue state before scheduling agents

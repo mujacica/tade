@@ -19,7 +19,20 @@ export interface ProjectRef {
   root: string
   /** The one command the config has always had, for a project with nothing else written down. */
   test?: string | undefined
+  /**
+   * What to do with checks read out of the project's CI config when it has no
+   * manifest: run them here, only show them, or do not read them at all.
+   * `show` when nobody says, which is `checks.from_ci`'s default.
+   */
+  fromCi?: FromCi | undefined
 }
+
+/** What checks read out of a project's CI config are good for here. */
+export type FromCi = 'run' | 'show' | 'off'
+
+/** Why a check read from CI is not run here, until somebody adopts it. */
+export const UNADOPTED =
+  'read from CI and not adopted: `tade checks adopt` writes it into .tade/checks.yaml, and then it runs here'
 
 /** A named unit of verification a project defines. Ids are stable: CI names its steps after them. */
 export interface Check {

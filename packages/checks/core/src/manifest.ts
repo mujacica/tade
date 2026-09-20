@@ -1,22 +1,30 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
-import type { Check, ProjectRef } from './port.ts'
-import { RunnerError } from './port.ts'
+import type { Check, FromCi, ProjectRef } from './port.ts'
+import { RunnerError, UNADOPTED } from './port.ts'
 
 // What a project checks, and where that is written down.
 //
 // In order: the manifest the project commits (`.tade/checks.yaml`), then its
-// workflows read best-effort, then the one `test_command` Tade has always had.
+// CI config read best-effort, then the one `test_command` Tade has always had.
 // A project with none of them has no checks, and the window says so rather
 // than pretending everything is green.
+//
+// What is read out of CI is a reading, not an adoption. By default it is shown
+// and not run (`checks.from_ci`), because a CI config holds a project's
+// releases and deploys beside its tests and we cannot tell which is which, and
+// because the ids come from step names that change whenever somebody retitles
+// one — which would orphan every run recorded under the old name. `tade checks
+// adopt` writes the reading into `.tade/checks.yaml`, and that is the act that
+// makes them ours to run.
 //
 // This is a parser of an external format, so it never throws on a shape it
 // does not know: what it could not read comes back in `problems`, beside
 // whatever it could.
 
 /** Where a project's checks came from, for the sentence that says so. */
-export type ChecksSource = 'manifest' | 'workflows' | 'test command' | 'none'
+export type ChecksSource = 'manifest' | 'CI' | 'test command' | 'none'
 
 /** What the generated workflow needs that the checks themselves do not say. */
 export interface CiSpec {
@@ -54,8 +62,9 @@ export async function readChecks(
 ): Promise<ChecksManifest> {
   const manifest = await fromManifest(project.root)
   if (manifest) return manifest
-  const workflows = await fromWorkflows(project.root)
-  if (workflows) return workflows
+  const fromCi = project.fromCi ?? 'show'
+  const read = fromCi === 'off' ? null : await readFromCi(project.root, fromCi)
+  if (read) return read
   if (project.test) {
     return {
       checks: [
@@ -168,12 +177,19 @@ function ciFrom(raw: Record<string, unknown> | null): CiSpec {
 }
 
 /**
- * The project's workflows, read for what they run. Best-effort and says so: a
+ * The project's CI config, read for what it runs. Best-effort and says so: a
  * step that is somebody's action rather than a command cannot be reproduced
  * here, and what needs a secret, a service or the matrix is named and skipped
  * rather than quietly dropped — a check nobody ran must never read as passed.
+ *
+ * `mode` is what the reading is for. Under `show` nothing read here may run:
+ * every check carries a `skip` saying so, which is honoured all the way down
+ * to the record, so an unadopted project's rollup stays `unknown` rather than
+ * going green off a step somebody renamed. Under `run` they are runnable,
+ * which is what `tade checks adopt` reads and what `checks.from_ci: run`
+ * restores for anybody who wants the old behaviour back.
  */
-async function fromWorkflows(root: string): Promise<ChecksManifest | null> {
+export async function readFromCi(root: string, mode: FromCi): Promise<ChecksManifest | null> {
   const dir = join(root, '.github', 'workflows')
   let files: string[]
   try {
@@ -205,10 +221,26 @@ async function fromWorkflows(root: string): Promise<ChecksManifest | null> {
       for (const entry of steps) {
         const step = asObject(entry)
         const run = typeof step?.run === 'string' ? step.run.trim() : ''
-        if (!run) continue
         const name = typeof step?.name === 'string' ? step.name : ''
+        if (!run) {
+          // A step that is somebody's action has no command to run here. Say
+          // which one: dropping it silently is how a person comes to believe
+          // Tade checks something it has never looked at.
+          const uses = typeof step?.uses === 'string' ? step.uses : ''
+          if (uses) {
+            problems.push(
+              `${file}: ${jobName}${name ? ` / ${name}` : ''} is the action ${uses}, which only the runner can run`,
+            )
+          }
+          continue
+        }
         const id = uniqueId(name || firstWords(run), taken)
         const needsCi = /\$\{\{/.test(run)
+        const why = needsCi
+          ? 'needs CI: it uses something only the runner knows'
+          : mode === 'show'
+            ? UNADOPTED
+            : null
         checks.push({
           id,
           title: name || run.split('\n')[0] || id,
@@ -216,7 +248,7 @@ async function fromWorkflows(root: string): Promise<ChecksManifest | null> {
           alone: false,
           minutes: DEFAULT_MINUTES,
           required: true,
-          ...(needsCi ? { skip: 'needs CI: it uses something only the runner knows' } : {}),
+          ...(why ? { skip: why } : {}),
         })
         from = `.github/workflows/${file}`
       }
@@ -224,9 +256,11 @@ async function fromWorkflows(root: string): Promise<ChecksManifest | null> {
   }
   if (checks.length === 0) return null
   problems.push(
-    'These were read from the workflows, which is a guess: write .tade/checks.yaml to say exactly what this project checks.',
+    mode === 'show'
+      ? 'These were read from CI, which is a guess, so none of them run here. `tade checks adopt` writes them into .tade/checks.yaml, where you can say which are really checks.'
+      : 'These were read from CI, which is a guess: write .tade/checks.yaml to say exactly what this project checks.',
   )
-  return { checks, ci: EMPTY_CI, source: 'workflows', from, problems }
+  return { checks, ci: EMPTY_CI, source: 'CI', from, problems }
 }
 
 function firstWords(run: string): string {

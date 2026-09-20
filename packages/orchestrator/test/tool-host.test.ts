@@ -43,7 +43,8 @@ describe('starting an agent for the orchestrator', () => {
   let handedOff = 0
 
   const tade = {
-    async resolveModel(said: string) {
+    // Among what the task's own harness offers.
+    async resolveModelFor(_task: string, _cwd: string, said: string) {
       if (said === 'opus') return { provider: 'openrouter', id: 'anthropic/claude-opus-5' }
       throw new Error(`"${said}" could be gpt-4o, gpt-5: say which`)
     },

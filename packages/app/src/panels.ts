@@ -1,4 +1,5 @@
 import { type Setting, type SettingGroup, settingFound, stepped, THINKING_LEVELS } from '@tade/core'
+import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 import {
@@ -68,6 +69,8 @@ export type MenuSubject =
   | { kind: 'images'; paths: string[] }
   /** Which harness an agent runs in. */
   | { kind: 'harness'; task: string; current: string }
+  /** Which account an agent runs as: `current` empty for its harness's own sign-in. */
+  | { kind: 'account'; task: string; current: string }
   /** A shell beside an agent, in its pane. */
   | { kind: 'lane'; task: string; lane: string; name: string }
   /** A note, named by when it was said and what it said. */
@@ -161,6 +164,8 @@ export interface SettingsPanel {
   error: string | null
   /** The microphone is being tried. */
   testing: boolean
+  /** An action that is asked twice, asked once: removing an account. */
+  confirm: string | null
   busy: false
 }
 
@@ -219,6 +224,10 @@ export interface PromptPanel {
     | 'run-command'
     | 'rename-agent'
     | 'rename-schedule'
+    /** An account to add: `target` is its harness and its kind, joined by a NUL. */
+    | 'account-name'
+    /** An API-key account's key: `target` is the account. Never drawn as typed. */
+    | 'account-key'
   /**
    * The terminal or agent it is about, for renaming one or running a command
    * in it; for a note being changed, when it was said and what it said, joined
@@ -270,8 +279,11 @@ export function terminalMenuItems(split = false): MenuItem[] {
  * marked. A model that cannot think that hard takes the most it can, and says
  * which.
  */
-export function thinkingMenuItems(current: string | null): MenuItem[] {
-  return THINKING_LEVELS.map((level) => ({
+export function thinkingMenuItems(
+  current: string | null,
+  levels: readonly string[] = THINKING_LEVELS,
+): MenuItem[] {
+  return levels.map((level) => ({
     id: level,
     label: `${level === current ? '● ' : '  '}${level}`,
     note: level === current ? 'now' : '',
@@ -891,6 +903,7 @@ export function settingsPanel(category = 'agents'): SettingsPanel {
     saved: null,
     error: null,
     testing: false,
+    confirm: null,
     busy: false,
   }
 }
@@ -900,8 +913,8 @@ export interface PanelInputs {
   choices?: readonly Choice[]
   items?: readonly MenuItem[]
   settings?: readonly SettingGroup[]
-  /** Accounts rows, for the Accounts category: how many there are to move through. */
-  accounts?: number
+  /** What can be done on the Accounts page, in the order the keyboard walks it. */
+  accountActions?: readonly AccountAction[]
   /** The Open project list, as it stands for the query. */
   rows?: readonly OpenRow[]
   /** What search shows for the query as it stands. */
@@ -1079,14 +1092,48 @@ export function branchMenuItems(branch: { agent: boolean; name: string }): MenuI
 }
 
 /**
+ * What a person may ask of an agent, as its harness offers it: the one rule
+ * every control that changes a running agent is drawn by.
+ */
+export interface AgentOffers {
+  harness: string
+  /** Whether it can be moved to another account of its harness. */
+  accounts: boolean
+  model: Offer
+  thinking: Offer
+  rename: Offer
+  /** The thinking levels it can be told, least to most. */
+  levels: readonly string[]
+}
+
+export function agentOffers(harness: string, capabilities: WorkerCapabilities): AgentOffers {
+  return {
+    harness,
+    accounts: capabilities.accounts,
+    model: offer(capabilities, 'model', capabilities.model),
+    thinking: offer(capabilities, 'thinking', capabilities.thinking),
+    rename: offer(capabilities, 'rename', capabilities.rename),
+    levels: capabilities.thinkingLevels,
+  }
+}
+
+/**
  * A task's menu, from what is true of it now. Nothing is hidden for being
- * unavailable — a menu that changes shape is one you re-read every time.
+ * unavailable — a menu that changes shape is one you re-read every time — so
+ * what its harness cannot do is there, off, saying why.
  */
 export function menuItems(
   task: { lane: string | null; state: string; finished?: { by: string } | null },
   changed: number,
+  offers?: AgentOffers | null,
 ): MenuItem[] {
   const running = task.lane !== null
+  const model = offers?.model ?? { shown: true, support: 'live', note: null }
+  // A word, where a menu has room for one: the whole reason is what anything
+  // that asks for it anyway is told.
+  const how = { live: null, idle: 'between turns', restart: 'restarts it', none: null }[
+    model.support
+  ]
   return [
     { id: 'open', label: 'Open', note: 'enter' },
     { id: 'start', label: 'Start agent', ...(running ? { off: 'running' } : {}) },
@@ -1105,7 +1152,23 @@ export function menuItems(
         : { off: 'none yet' }),
     },
     { id: 'rename', label: 'Rename…' },
-    { id: 'model', label: 'Change model…', ...(running ? {} : { off: 'not running' }) },
+    {
+      id: 'model',
+      label: 'Change model…',
+      ...(!model.shown
+        ? { off: `not in ${offers?.harness ?? 'this harness'}` }
+        : running
+          ? how
+            ? { note: how }
+            : {}
+          : { off: 'not running' }),
+    },
+    // Where an account has run out of its plan: its agent goes on as another.
+    {
+      id: 'account',
+      label: 'Run as account…',
+      ...(offers && !offers.accounts ? { off: `one account in ${offers.harness}` } : {}),
+    },
     { id: 'editor', label: 'Open in editor' },
     { id: 'copy-branch', label: 'Copy branch name' },
     {
@@ -1115,6 +1178,34 @@ export function menuItems(
     },
     { id: 'remove', label: 'Remove agent…', danger: true },
   ]
+}
+
+/**
+ * The accounts an agent could run as: its harness's, the one it is on marked,
+ * and one not signed in to said so — choosing it would start an agent that
+ * cannot think.
+ */
+export function accountMenuItems(
+  accounts: readonly AccountShown[],
+  harness: string,
+  current: string,
+): MenuItem[] {
+  return accounts
+    .filter((one) => one.harness === harness)
+    .map((one) => {
+      const id = one.name ?? ''
+      return {
+        id,
+        label: `${id === current ? '● ' : '  '}${one.name ?? 'its own sign-in'}`,
+        ...(id === current
+          ? { note: 'now' }
+          : one.status.signedIn
+            ? one.limits?.fiveHour
+              ? { note: `${Math.round(one.limits.fiveHour.used)}% of 5h` }
+              : {}
+            : { off: 'not signed in' }),
+      }
+    })
 }
 
 /** Queued work's menu: start it, pause or resume it, wait past what held it, rename or remove it. */
@@ -1622,7 +1713,9 @@ function settingsKey(
 
   // The form.
   const count =
-    panel.category === ACCOUNTS && !panel.search ? (inputs.accounts ?? 0) + 1 : rows.length
+    panel.category === ACCOUNTS && !panel.search
+      ? (inputs.accountActions ?? []).length
+      : rows.length
   if (key === 'tab' || key === 'shift+tab') return stay({ ...panel, focus: 'categories' })
   if (key === 'down')
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
@@ -1632,10 +1725,106 @@ function settingsKey(
       : stay({ ...panel, row: panel.row - 1 })
   }
   if (panel.category === ACCOUNTS && !panel.search) {
-    return key === 'enter' ? { panel, submit: true, choice: 'sign-in' } : stay(panel)
+    const action = (inputs.accountActions ?? [])[panel.row]
+    return key === 'enter' && action ? accountChoice(panel, action.id) : stay(panel)
   }
   if (!here) return key === 'left' ? stay({ ...panel, focus: 'categories' }) : stay(panel)
   return operate(panel, here, key)
+}
+
+/**
+ * One thing that can be done on the Accounts page: `account:<verb>:<harness>:<name>`,
+ * the name empty for a harness's own sign-in.
+ */
+export interface AccountAction {
+  id: string
+  label: string
+  danger?: boolean
+  /** The harness it is about. */
+  harness: string
+  /** The account it is about, `null` being its harness's own sign-in; absent for adding one. */
+  account?: string | null
+}
+
+/** What an account needs from the page: enough to say how it stands and what can be done. */
+export interface AccountShown {
+  harness: string
+  name: string | null
+  kind: 'subscription' | 'api-key'
+  canAdd: boolean
+  why: string | null
+  status: { signedIn: boolean; who: string | null; plan: string | null; problem: string | null }
+  limits: { fiveHour: { used: number; resetsAt: number } | null } | null
+  agents: number
+  forNewAgents: boolean
+  canSignIn: boolean
+}
+
+/**
+ * Everything that can be done to accounts, account by account and harness by
+ * harness, in the order the page draws them — which is the order the
+ * keyboard walks them, since both come from here.
+ */
+export function accountActions(accounts: readonly AccountShown[]): AccountAction[] {
+  const actions: AccountAction[] = []
+  const id = (verb: string, harness: string, name: string | null) =>
+    `account:${verb}:${harness}:${name ?? ''}`
+  const harnesses = [...new Set(accounts.map((one) => one.harness))]
+  for (const harness of harnesses) {
+    const mine = accounts.filter((one) => one.harness === harness)
+    for (const one of mine) {
+      const at = one.name
+      if (one.kind === 'api-key') {
+        actions.push({
+          id: id('key', harness, at),
+          label: one.status.signedIn ? 'Change its key…' : 'Set its key…',
+          harness,
+          account: at,
+        })
+      } else if (one.canSignIn) {
+        actions.push({
+          id: id('sign-in', harness, at),
+          label: one.status.signedIn ? 'Sign in again…' : 'Sign in…',
+          harness,
+          account: at,
+        })
+        // Signing out is the harness's own, for one that keeps accounts apart.
+        if (one.status.signedIn && one.canAdd) {
+          actions.push({ id: id('sign-out', harness, at), label: 'Sign out', harness, account: at })
+        }
+      }
+      if (!one.forNewAgents && (one.canAdd || mine.length > 1)) {
+        actions.push({
+          id: id('use', harness, at),
+          label: 'Use for new agents',
+          harness,
+          account: at,
+        })
+      }
+      if (at !== null) {
+        actions.push({
+          id: id('remove', harness, at),
+          label: 'Remove',
+          danger: true,
+          harness,
+          account: at,
+        })
+      }
+    }
+    if (mine.some((one) => one.canAdd)) {
+      actions.push({ id: id('add', harness, null), label: 'Add an account…', harness })
+      actions.push({ id: id('add-key', harness, null), label: 'Add an API-key account…', harness })
+    }
+  }
+  return actions
+}
+
+/** Carry out an account action, asking twice for the one that cannot be undone. */
+function accountChoice(panel: SettingsPanel, id: string): PanelOutcome {
+  if (id.startsWith('account:remove:') && panel.confirm !== id) {
+    return stay({ ...panel, confirm: id, saved: null, error: null })
+  }
+  return { panel: { ...panel, confirm: null }, submit: true, choice: id }
 }
 
 /** What a key does to the setting the keyboard is on. */
@@ -1696,8 +1885,8 @@ function settingsClick(panel: SettingsPanel, control: string, inputs: PanelInput
       return close
     case 'open-file':
       return { panel, submit: true, choice: 'open-file' }
-    case 'sign-in':
-      return { panel, submit: true, choice: 'sign-in' }
+    case 'account':
+      return accountChoice(panel, control)
     case 'mic-test':
       return panel.testing
         ? stay(panel)

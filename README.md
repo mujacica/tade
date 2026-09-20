@@ -228,15 +228,24 @@ way — so Tade can be handed its own bug.
 ## Models and harnesses
 
 Pick what the orchestrator runs on, and what every new agent starts on — every model you are signed
-in to, priced per million tokens, filtered as you type — and how hard it should think. Providers
-come from the harness you are signed in to; harnesses come from one registry, pi today and others as
-adapters.
+in to, priced per million tokens, filtered as you type — and how hard it should think.
+
+Agents run in **pi** or in **Claude Code** — the official `claude`, unmodified, signed in with your
+own plan — side by side, one harness per agent, moved from one to the other from its menu. The
+orchestrator you talk to runs in either as well. Each harness says what it can do: what one cannot
+is not offered, and what it can only do by starting again says so.
 
 ![Choosing a model: every model the harness is signed in to, with what it costs in and out, filtered as you type](images/models.svg)
 
+Run Claude Code as more than one account at once. Signing in is Claude Code's own — Tade never sees
+it — and each account shows who it is and how much of its plan is used. An agent that runs out
+moves to another, its conversation with it.
+
+![Accounts: each harness's own sign-in, a second Claude Code account beside it, how much of the plan is used, and what can be done to each](images/accounts.svg)
+
 ---
 
-## Keys
+## Shortcuts
 
 Every key Tade keeps, on `F1`, and every one of them changeable in Settings. Everything else goes
 straight to the agent or terminal you are typing at.
@@ -280,8 +289,8 @@ Named here so nothing above has to hint at it — these are not built:
   name. The judge, its tools, the review watch and the onboarding step are built (see **Jev** under
   Extensions); these three are deliberately not, and a judge may only ever add caution
   (`packages/judges/core`).
-- **More harnesses** — Claude Code and Codex are named in the harness registry and not supported
-  yet.
+- **More harnesses** — Codex is named in the harness registry and not supported yet
+  (`packages/harnesses/core`).
 
 ---
 
@@ -321,10 +330,10 @@ what it means beside it, and what needs a restart marked.
 </tr>
 </table>
 
-### Keys to start with
+### Shortcuts to start with
 
 `ctrl+space` talk · `ctrl+k` search · `tab` next agent · `ctrl+n` new agent · `ctrl+t` terminal ·
-`ctrl+/` orchestrator · `ctrl+m` mute · `F1` every key
+`ctrl+/` orchestrator · `ctrl+m` mute · `F1` every shortcut
 
 Keys with shift, and ctrl with a digit or `m`, need a terminal that speaks the Kitty keyboard
 protocol (Ghostty, kitty, WezTerm, iTerm2).
@@ -446,10 +455,10 @@ extensions:
                                      │ starts, steers, stops  │ starts when what it
                                      ▼                        ▼ waits on has finished
    ┌──────────────────────── agents, one lane each ────────────────────────┐
-   │  pi in your checkout on its branch · or a git worktree of its own     │
+   │  pi or Claude Code, in your checkout · or a git worktree of its own   │
    └───────────────────────────────────┬───────────────────────────────────┘
                                        │
-        tmux or the window owns the processes · pi owns the conversations
+   tmux or the window owns the processes · each harness owns its conversations
                         git owns the work · you own the notes
                                        │
                                        ▼
@@ -457,7 +466,7 @@ extensions:
 ```
 
 Tade keeps no state of its own, so closing it loses nothing. Under `tmux` the agents keep working
-without you; either way every conversation is a pi session that picks up exactly where it left off,
+without you; either way every conversation is its harness's own session, picked up exactly where it left off,
 an agent that was running when you closed is opened again where it was, and what is true now is
 asked again rather than remembered. Everything Tade writes for itself — an extension, a lesson — is
 inert until a person approves it, and is committed as `Tade`, so you can see it and undo it.

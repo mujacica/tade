@@ -1,17 +1,67 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Config, Note, SkillActivity, TadeEvent, ThinkingLevel, Unsubscribe } from '@tade/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
-import type { WorkerExtras, WorkerImage, WorkerModel } from '@tade/harnesses-core'
-import {
-  type AvailableModel,
-  chooseModel,
-  PiAdapter,
-  sessionIdFor,
-  usableModels,
-} from '@tade/harnesses-pi'
+import type {
+  HarnessModel,
+  WorkerAdapter,
+  WorkerCapabilities,
+  WorkerExtras,
+  WorkerImage,
+  WorkerModel,
+} from '@tade/harnesses-core'
+import { sessionIdFor } from '@tade/harnesses-pi'
+import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
 import { composeBriefing } from './briefing.ts'
 import { activeSkills, enabledTools } from './extensions.ts'
+
+/**
+ * What Tade's own tools are told, whichever harness loads them: where to call
+ * back to, where Tade keeps things, and how to run the CLI that answers
+ * "where are we" exactly as a person would see it.
+ */
+function toolEnv(opts: OrchestratorOptions): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(opts.env ?? process.env)) {
+    if (typeof value === 'string') env[key] = value
+  }
+  env.TADE_SOCKET = opts.socket
+  env.TADE_HOME = opts.home
+  // Where extensions live, so the tools do not have to guess at paths the
+  // config may have moved.
+  env.TADE_EXTENSIONS = expandHome(
+    opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
+  )
+  env.TADE_SKILLS = skillsRoot(opts)
+  env.TADE_CLI = process.execPath
+  env.TADE_CLI_ARGS = CLI_BIN
+  return env
+}
+
+/**
+ * An MCP server that serves Tade's own tools, written where the harness that
+ * starts it can find it: the same tools pi loads as an extension, in the
+ * terms a harness that speaks MCP takes them.
+ */
+function writeToolServer(opts: OrchestratorOptions): string {
+  const path = join(opts.runDir, 'tade-tools.mcp.json')
+  mkdirSync(opts.runDir, { recursive: true, mode: 0o700 })
+  writeFileSync(
+    path,
+    `${JSON.stringify(
+      {
+        mcpServers: {
+          tade: { type: 'stdio', command: process.execPath, args: [TOOLS_MCP], env: toolEnv(opts) },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    { mode: 0o600 },
+  )
+  return path
+}
 
 /** Where approved lessons live, beside everything else Tade keeps. */
 function skillsRoot(opts: { home: string }): string {
@@ -22,6 +72,8 @@ function skillsRoot(opts: { home: string }): string {
 // Tade's own and nobody supervises it: it is the interface, not the work.
 
 export const TOOLS_EXTENSION = fileURLToPath(new URL('./tools-extension.ts', import.meta.url))
+/** The same tools, served over MCP to a harness that speaks it. */
+export const TOOLS_MCP = fileURLToPath(new URL('./tools-mcp.ts', import.meta.url))
 /** The `tade` CLI in a source checkout, which the status tool shells out to. */
 const CLI_BIN = fileURLToPath(new URL('../../cli/src/bin.ts', import.meta.url))
 
@@ -64,7 +116,7 @@ export interface OrchestratorOptions {
   now?: number
   model?: WorkerModel
   /** The models you can use, to settle which one a configured name means. Read from the harness unless given. */
-  models?: () => Promise<AvailableModel[]>
+  models?: () => Promise<HarnessModel[]>
   /**
    * What extensions add: the tools it may call (run by the window), what it is
    * told about them, and harness-native pieces they ship.
@@ -95,6 +147,8 @@ export interface OrchestratorOptions {
    * agent, and spend that is not recorded is spend the window cannot show.
    */
   onUsage?: (usage: OrchestratorUsage) => void
+  /** Something that went wrong but did not stop it: never swallowed. */
+  onWarning?: (message: string) => void
 }
 
 export interface OrchestratorUsage {
@@ -119,12 +173,12 @@ export type OrchestratorEvent =
   | { type: 'tool_done'; id: string; ok: boolean; text: string }
   | { type: 'idle' }
   | { type: 'failed'; reason: string }
-  /** A turn the model could not finish — a refused request — while pi itself keeps running. */
+  /** A turn the model could not finish — a refused request — while the harness keeps running. */
   | { type: 'error'; reason: string }
   | { type: 'exited'; code: number | null }
 
 export class Orchestrator {
-  private readonly adapter: PiAdapter
+  private readonly adapter: WorkerAdapter
   private readonly messageListeners = new Set<(text: string) => void>()
   private readonly toolListeners = new Set<(tool: string) => void>()
   private readonly idleListeners = new Set<() => void>()
@@ -133,21 +187,52 @@ export class Orchestrator {
   /** Why it stopped, once it has: asking it anything after that cannot work. */
   private gone: string | null = null
 
-  private constructor(adapter: PiAdapter) {
+  private constructor(adapter: WorkerAdapter) {
     this.adapter = adapter
+  }
+
+  /** What the harness it runs in can be asked to do: what a surface offers for it. */
+  get capabilities(): WorkerCapabilities {
+    return this.adapter.capabilities
   }
 
   static async start(opts: OrchestratorOptions): Promise<Orchestrator> {
     const route = opts.config ? orchestratorRoute(opts.config) : null
-    // The exact model, chosen from what you are signed in to: a bare name the
-    // harness finds under several providers makes it exit before it reads a
+    const harness = route?.harness ?? 'pi'
+    const make = HARNESS_ADAPTERS[harness]
+    if (!make) {
+      throw new Error(
+        `no harness called ${harness}: Tade runs ${Object.keys(HARNESS_ADAPTERS).join(', ')}`,
+      )
+    }
+    const adapter = make({
+      runDir: opts.runDir,
+      socketDir: opts.runDir,
+      approvals: 'bypass',
+      // Tade's own interface: gating its tool calls on an approval would mean
+      // asking permission to answer "where are we".
+      supervised: false,
+      ...(opts.args ? { args: [...opts.args] } : {}),
+    })
+    // Drawn by Tade rather than drawing itself: a harness that cannot be run
+    // that way can run agents, and says so rather than starting something
+    // nobody can see.
+    if (!adapter.capabilities.headless) {
+      throw new Error(
+        `${harness} ${adapter.capabilities.why.headless ?? 'cannot be the one you talk to'}: it runs agents`,
+      )
+    }
+    // The exact model, settled before anything starts and among what this
+    // harness offers: a name it cannot place makes it exit before it reads a
     // word, which looked like an orchestrator that never answered.
-    const choice = opts.model
-      ? null
-      : chooseModel(route ?? {}, route?.model ? await (opts.models ?? usableModels)() : [])
-    if (choice && !choice.ok) throw new Error(choice.reason)
-    const model =
-      opts.model ?? (choice?.ok ? { provider: choice.provider, id: choice.id } : undefined)
+    const named = route?.model
+      ? route.provider
+        ? `${route.provider}/${route.model}`
+        : route.model
+      : null
+    const found = opts.model || !named ? null : await adapter.resolveModel(named)
+    if (found && !found.ok) throw new Error(found.reason)
+    const model = opts.model ?? (found?.ok ? { provider: found.provider, id: found.id } : undefined)
 
     // Tade's own tools always load. The ones it wrote for itself load after
     // them, so a self-written tool can never shadow `status` or `approve` —
@@ -167,58 +252,52 @@ export class Orchestrator {
       ...(opts.queue ? { queue: opts.queue } : {}),
     })
 
-    const adapter = new PiAdapter({
-      runDir: opts.runDir,
-      // Tade's own interface: gating its tool calls on approval would mean
-      // asking permission to answer "where are we".
-      supervise: false,
-      args: [
-        '-e',
-        TOOLS_EXTENSION,
-        ...written.flatMap((path) => ['-e', path]),
-        // Appended rather than replacing pi's own prompt: this says what Tade
-        // is and what is on this machine, not how to be a coding agent.
-        ...(opts.config
-          ? [
-              '--append-system-prompt',
-              composePrompt({
-                config: opts.config,
-                ...(opts.notes ? { notes: opts.notes } : {}),
-                // Only the lessons that still apply: one about a project
-                // nobody has touched in a month is noise in every prompt.
-                skills: livingSkills(
-                  activeSkills(skillsRoot(opts)),
-                  opts.activity ?? { lastSeenAt: {}, known: Object.keys(opts.config.projects) },
-                  opts.now ?? Date.now(),
-                ),
-                ...(opts.extensions?.prompt ? { extensions: opts.extensions.prompt } : {}),
-              }),
-            ]
-          : []),
-        // Where things stood, kept apart from what Tade is: one is a
-        // snapshot with times on it, the other is true whenever it is read.
-        ...(briefing ? ['--append-system-prompt', briefing] : []),
-        // The same conversation every time, which is the whole of remembering
-        // where it left off. Never with --continue, which pi refuses
-        // alongside it and which would pick whatever session was newest.
-        '--session-id',
-        ORCHESTRATOR_SESSION,
-        ...(opts.args ?? []),
-      ],
-      env: {
-        ...(opts.env ?? process.env),
-        TADE_SOCKET: opts.socket,
-        TADE_HOME: opts.home,
-        // Where extensions live, so the tools do not have to guess at paths
-        // the config may have moved.
-        TADE_EXTENSIONS: expandHome(
-          opts.config?.orchestrator.extensions ?? join(opts.home, 'extensions'),
-        ),
-        TADE_SKILLS: skillsRoot(opts),
-        TADE_CLI: process.execPath,
-        TADE_CLI_ARGS: CLI_BIN,
-      },
-    })
+    // What it is, and where things stood: one is true whenever it is read,
+    // the other a snapshot with times on it, so they are said apart. Appended
+    // to the harness's own instructions, never replacing them.
+    const instructions = [
+      opts.config
+        ? composePrompt({
+            config: opts.config,
+            ...(opts.notes ? { notes: opts.notes } : {}),
+            // Only the lessons that still apply: one about a project nobody
+            // has touched in a month is noise in every prompt.
+            skills: livingSkills(
+              activeSkills(skillsRoot(opts)),
+              opts.activity ?? { lastSeenAt: {}, known: Object.keys(opts.config.projects) },
+              opts.now ?? Date.now(),
+            ),
+            ...(opts.extensions?.prompt ? { extensions: opts.extensions.prompt } : {}),
+          })
+        : '',
+      briefing,
+      opts.extensions?.extras.instructions ?? '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    // Tade's own tools, given to this harness the way it takes them: modules
+    // it loads, or an MCP server it starts. Asked of the harness rather than
+    // decided here, so a harness that speaks neither is told about, not
+    // handed something it will ignore.
+    const mine: WorkerExtras = { ...opts.extensions?.extras }
+    if (adapter.capabilities.nativeExtensions) {
+      // Tade's own load first, so a tool it wrote for itself can never shadow
+      // `status` or `approve` — and only the ones somebody turned on load.
+      mine.extensions = [TOOLS_EXTENSION, ...written, ...(mine.extensions ?? [])]
+    } else if (adapter.capabilities.mcp) {
+      mine.mcp = [...(mine.mcp ?? []), writeToolServer(opts)]
+      if (written.length > 0) {
+        opts.onWarning?.(
+          `${harness} loads no extension modules, so the ${written.length} tool${written.length === 1 ? '' : 's'} Tade wrote for itself did not load`,
+        )
+      }
+    } else {
+      throw new Error(
+        `${harness} cannot be given Tade's own tools: it takes neither an extension nor an MCP server`,
+      )
+    }
+    if (instructions) mine.instructions = instructions
 
     const orchestrator = new Orchestrator(adapter)
     const emit = (event: OrchestratorEvent) => {
@@ -270,7 +349,10 @@ export class Orchestrator {
       // How hard it thinks, from its first turn: chosen like an agent's, and
       // the harness's own default when nobody has.
       ...(route?.thinking ? { thinking: route.thinking } : {}),
-      ...(opts.extensions ? { extras: opts.extensions.extras } : {}),
+      extras: mine,
+      // What its tools need to find their way back to Tade, whichever harness
+      // they are loaded into.
+      env: toolEnv(opts),
     })
     // A harness that refused to start — a model it could not resolve, most
     // often — has already said why, and that is the answer to give.
@@ -294,6 +376,18 @@ export class Orchestrator {
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
   }
 
+  /** What it could run on, as its own harness offers them. */
+  models(): Promise<HarnessModel[]> {
+    return this.adapter.models().catch(() => [])
+  }
+
+  /** A model said the way people say it, among its harness's. Throws what to ask. */
+  async resolveModel(said: string): Promise<{ provider: string; id: string }> {
+    const found = await this.adapter.resolveModel(said)
+    if (!found.ok) throw new Error(found.reason)
+    return { provider: found.provider, id: found.id }
+  }
+
   /** Why it is not running, or null while it is. */
   get stopped(): string | null {
     return this.gone
@@ -301,7 +395,7 @@ export class Orchestrator {
 
   /** The model it is actually thinking with, as the harness reports it. */
   model(): Promise<WorkerModel | null> {
-    return this.adapter.model(ORCHESTRATOR_RUN)
+    return this.adapter.modelOf(ORCHESTRATOR_RUN)
   }
 
   /**

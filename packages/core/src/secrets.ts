@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { ownerOnly } from './config.ts'
 
 // Where a key you pasted into Tade goes, and where one is read back from.
@@ -180,6 +181,17 @@ function fileVault(options: VaultOptions): SecretVault {
       save(file)
     },
   }
+}
+
+/**
+ * A shell command that prints a secret Tade keeps, read at the moment it runs:
+ * for a program that asks for its key that way, so the key itself is never
+ * written into what launches it.
+ */
+export function secretCommand(home: string, name: string): string {
+  const script = fileURLToPath(new URL('./print-secret.ts', import.meta.url))
+  const word = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`
+  return [process.execPath, script, home, name].map(word).join(' ')
 }
 
 /** Every place credentials can be kept, by name. Call sites take one from here. */

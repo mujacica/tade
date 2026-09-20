@@ -102,6 +102,25 @@ describe('the macOS profile', () => {
   })
 })
 
+describe('files written by replacing them', () => {
+  it('lets through a prefix, so the temporary sibling is allowed and nothing else beside it', () => {
+    const profile = seatbeltProfile(spec({ writablePrefixes: ['/Users/someone/.claude.json'] }))
+    expect(profile).toContain('(regex "^/Users/someone/\\\\.claude\\\\.json")')
+    expect(profile).not.toContain('(subpath "/Users/someone")')
+  })
+
+  it('refuses under bwrap rather than opening the folder the file sits in', () => {
+    expect(() =>
+      sandboxed(launch, {
+        kind: 'bwrap',
+        worktree: '/wt/refunds',
+        platform: 'linux',
+        writablePrefixes: ['/home/someone/.claude.json'],
+      }),
+    ).toThrow(SandboxUnavailableError)
+  })
+})
+
 // The only test that proves anything. Everything above asserts what we
 // generate; this asserts what the operating system then does with it.
 describe.runIf(process.platform === 'darwin')('actually contains a process', () => {
@@ -126,6 +145,31 @@ describe.runIf(process.platform === 'darwin')('actually contains a process', () 
     } finally {
       rmSync(worktree, { recursive: true, force: true })
       rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('lets a file be replaced through a sibling with its name, and nothing else beside it', async () => {
+    const worktree = mkdtempSync(join(tmpdir(), 'tade-sbx-wt-'))
+    const home = process.env.HOME ?? '/Users'
+    const file = join(home, `.tade-sbx-prefix-${process.pid}`)
+    const beside = join(home, `.tade-sbx-beside-${process.pid}`)
+    try {
+      const sh = (script: string) =>
+        sandboxed(
+          { command: '/bin/sh', args: ['-c', script] },
+          { kind: 'seatbelt', worktree, writablePrefixes: [file] },
+        )
+      const replace = sh(`echo new > ${file}.tmp.1 && mv ${file}.tmp.1 ${file}`)
+      await run(replace.command, replace.args)
+      expect(existsSync(file)).toBe(true)
+
+      const other = sh(`echo bad > ${beside}`)
+      await expect(run(other.command, other.args)).rejects.toThrow()
+      expect(existsSync(beside)).toBe(false)
+    } finally {
+      rmSync(worktree, { recursive: true, force: true })
+      rmSync(file, { force: true })
+      rmSync(beside, { force: true })
     }
   })
 

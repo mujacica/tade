@@ -1,4 +1,5 @@
 import { ConfigSchema, IDLE_REASON, settingsOf, type TadeEvent } from '@tade/core'
+import { chart, type Group, History, type Proc, sampleOf } from '@tade/extension-resources'
 import { parseDiff } from '../../src/diff.ts'
 import {
   type AppState,
@@ -84,6 +85,72 @@ export interface Scenario {
 }
 
 const NOW = Date.parse('2026-09-13T14:00:04Z')
+
+/**
+ * What the Resources panel shows, from the extension's own view.
+ *
+ * Written out by hand once, and it drifted: columns that no longer lined up,
+ * a bar one cell short. So the picture is the extension's own `chart` over a
+ * fixed sample — which is the only way a screen of somebody else's output
+ * stays a screen of their output.
+ */
+function resourceChart(): string {
+  const proc = (pid: number, command: string, cpu: number, mb: number): Proc => ({
+    pid,
+    ppid: 1,
+    cpu,
+    rss: mb * 1024 ** 2,
+    command,
+  })
+  const group = (
+    key: string,
+    kind: Group['kind'],
+    project: string | null,
+    label: string,
+    processes: Proc[],
+  ): Group => ({
+    key,
+    kind,
+    project,
+    task: project === null ? null : key.split('/').slice(0, 2).join('/'),
+    label,
+    cpu: processes.reduce((sum, one) => sum + one.cpu, 0),
+    rss: processes.reduce((sum, one) => sum + one.rss, 0),
+    processes,
+  })
+  const groups: Group[] = [
+    group('checkout/refunds/agent', 'agent', 'checkout', 'refunds', [
+      proc(102, 'node /tade/packages/cli/src/cli.js refunds', 41, 244),
+      proc(104, 'node vitest run', 30, 88),
+      proc(103, 'zsh', 5, 29),
+    ]),
+    group('orchestrator', 'orchestrator', null, 'the orchestrator', [
+      proc(101, 'node /tade/packages/cli/src/cli.js orchestrator', 12, 293),
+    ]),
+    group('window', 'window', null, 'the window', [
+      proc(100, 'node /tade/packages/cli/src/bin.ts app', 2.5, 117),
+    ]),
+    group('checkout/terminals/1', 'terminal', 'checkout', 'terminal 1', [proc(105, 'zsh', 0.5, 8)]),
+    group('helpers', 'helper', null, 'helpers', [proc(106, 'git status --porcelain=v2', 0.1, 4)]),
+  ]
+  const history = new History(720)
+  // Eleven samples, a minute apart: enough for the sparkline the last stretch
+  // is drawn as, and the last of them is the one everything else is read from.
+  const curve = [0.62, 0.68, 0.7, 0.84, 1.54, 1.42, 1.1, 0.95, 0.8, 1.05, 1]
+  curve.forEach((share, at) => {
+    const scaled = groups.map((one) => ({
+      ...one,
+      cpu: one.cpu * share,
+      rss: one.rss * (0.9 + at / 100),
+    }))
+    history.add(
+      sampleOf(scaled, NOW - (curve.length - 1 - at) * 60_000, at === curve.length - 1 ? 21 : 20),
+    )
+  })
+  const now = history.latest()
+  if (!now) throw new Error('a chart needs a sample')
+  return chart(now, history, 900_000)
+}
 
 const tasks: TaskSnapshot[] = [
   {
@@ -590,6 +657,50 @@ const ran = [
 ]
 
 /** What the Settings panel is shown: a machine set up the way the design was drawn. */
+/**
+ * Accounts as the page shows them: pi on its providers, Claude Code on your
+ * own plan with some of it used, and a second account added and not yet
+ * signed in to.
+ */
+const ACCOUNTS_SHOWN = [
+  {
+    harness: 'pi',
+    name: null,
+    kind: 'subscription' as const,
+    canAdd: false,
+    why: 'keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and you sign in to them inside pi',
+    status: { signedIn: true, who: 'anthropic, openrouter', plan: null, problem: null },
+    limits: null,
+    agents: 1,
+    forNewAgents: true,
+    canSignIn: true,
+  },
+  {
+    harness: 'claude-code',
+    name: null,
+    kind: 'subscription' as const,
+    canAdd: true,
+    why: null,
+    status: { signedIn: true, who: 'you@example.com', plan: 'max', problem: null },
+    limits: { fiveHour: { used: 34, resetsAt: 1_789_900_000_000 } },
+    agents: 2,
+    forNewAgents: true,
+    canSignIn: true,
+  },
+  {
+    harness: 'claude-code',
+    name: 'work',
+    kind: 'subscription' as const,
+    canAdd: true,
+    why: null,
+    status: { signedIn: false, who: null, plan: null, problem: 'not signed in yet' },
+    limits: null,
+    agents: 0,
+    forNewAgents: false,
+    canSignIn: true,
+  },
+]
+
 function settingsFacts() {
   const config = ConfigSchema.parse({
     projects: {
@@ -606,7 +717,7 @@ function settingsFacts() {
   })
   return {
     settings: settingsOf(config),
-    accounts: ['anthropic'],
+    accounts: ACCOUNTS_SHOWN,
     configPath: '~/.tade/config.yaml',
     releases: true,
     budgetWarnings: 1,
@@ -793,6 +904,7 @@ export const SCENARIOS: Scenario[] = [
           },
         ],
         source: 'from .tade/checks.yaml',
+        adoptable: false,
         running: false,
         notes: ['Green here is the commands on this machine; the OS matrix is CI’s to say.'],
       },
@@ -827,6 +939,40 @@ export const SCENARIOS: Scenario[] = [
           ],
         },
       ],
+    }),
+  },
+  {
+    name: 'checks-read-from-ci',
+    about:
+      'A project with CI and no manifest of its own. What CI runs is read and shown, and none of it runs here: the row says so, and `Adopt from CI` is the one act that changes it — it writes .tade/checks.yaml, and only then are these checks Tade\u2019s to run.',
+    state: viewWork(base(), 'checkout/stripe-v15'),
+    frame: frame({
+      work: {
+        task: 'checkout/stripe-v15',
+        branch: 'tade/stripe-v15',
+        base: 'main',
+        ahead: 3,
+        behind: 0,
+        dirty: 0,
+        commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+        commits: [],
+        attributed: '',
+        review: null,
+        checks: [
+          { id: 'format', state: 'not run', summary: null, seconds: null },
+          { id: 'tests', state: 'not run', summary: null, seconds: null },
+          {
+            id: 'publish',
+            state: 'not run',
+            summary: 'needs CI: it uses something only the runner knows',
+            seconds: null,
+          },
+        ],
+        source: 'read from .github/workflows/ci.yml \u2014 not adopted, so none of them run here',
+        adoptable: true,
+        running: false,
+        notes: ['Green here is the commands on this machine; the OS matrix is CI\u2019s to say.'],
+      },
     }),
   },
   {
@@ -1066,12 +1212,27 @@ export const SCENARIOS: Scenario[] = [
       ...splitPane(base(), 'checkout/stripe-v15', 'checkout/stripe-v15/shell', 'beside'),
       keyboard: 'pane',
     },
+    // Both halves as a lane that size would really hold. A lane is resized to
+    // the pane it is drawn in (`fitLane`), so a shell beside an agent has
+    // about forty columns and has wrapped its own output to them — canning
+    // the wide screen here would draw a window whose text runs off the edge,
+    // which is a picture of a bug Tade does not have.
     frame: frame({
+      screen: [
+        '',
+        '  ● Upgrading stripe to v15: the webhook',
+        '    signature API changed.',
+        '',
+        '  ▸ Read src/webhooks.ts',
+        '  ▸ Edit src/webhooks.ts  +12 −4',
+        '  ▸ bash npm i stripe@15',
+      ].join('\n'),
       splitScreen: [
-        '~/src/checkout (tade/stripe-v15) $ git diff --stat',
-        ' src/webhooks.ts | 16 ++++++++++------',
-        ' 1 file changed, 12 insertions(+), 4 deletions(-)',
-        '~/src/checkout (tade/stripe-v15) $ ',
+        'checkout $ git diff --stat',
+        ' src/webhooks.ts | 16 ++++++-----',
+        ' 1 file changed, 12 insertions(+),',
+        ' 4 deletions(-)',
+        'checkout $ ',
       ].join('\n'),
     }),
   },
@@ -1561,64 +1722,7 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({
       statuses: [{ extension: 'resources', text: '91% · 783 MB', tone: 'quiet', viewable: true }],
       panel: {
-        extensionView: {
-          title: 'Resources',
-          markdown: [
-            '**Tade is using 91% CPU and 783 MB of memory**, across 7 processes.',
-            '',
-            '### By project',
-            '',
-            '```',
-            '              CPU               memory',
-            'checkout      ████████░░   76%  █████░░░░░  369 MB',
-            'Tade itself  ██░░░░░░░░   15%  █████░░░░░  414 MB',
-            '```',
-            '',
-            '### By kind',
-            '',
-            '```',
-            '                      CPU               memory',
-            'agents                ████████░░   76%  █████░░░░░  361 MB',
-            'the orchestrator      █░░░░░░░░░   12%  ████░░░░░░  293 MB',
-            'the window            ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB',
-            'terminals             ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB',
-            'helpers (git, ps, …)  ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB',
-            '```',
-            '',
-            '### By agent and terminal',
-            '',
-            '```',
-            '                  CPU               memory',
-            'refunds           ████████░░   76%  █████░░░░░  361 MB',
-            'the orchestrator  █░░░░░░░░░   12%  ████░░░░░░  293 MB',
-            'the window        ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB',
-            'terminal 1        ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB',
-            'helpers           ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB',
-            '```',
-            '',
-            '### Busiest processes',
-            '',
-            '```',
-            '                              CPU               memory',
-            '102 node cli.js (refunds)     ████░░░░░░   41%  ███░░░░░░░  244 MB',
-            '104 node vitest (refunds)     ███░░░░░░░   30%  █░░░░░░░░░   88 MB',
-            '101 node cli.js (the orchest  █░░░░░░░░░   12%  ████░░░░░░  293 MB',
-            '103 zsh (refunds)             █░░░░░░░░░  5.0%  ░░░░░░░░░░   29 MB',
-            '100 node bin.ts (the window)  ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB',
-            '105 zsh (terminal 1)          ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB',
-            '106 git (helpers)             ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB',
-            '```',
-            '',
-            '### The last 15 minutes',
-            '',
-            '```',
-            'CPU     ▁▂▂▅█▇▄▃▂▅▅  81% average, 140% peak',
-            'memory  ▁▂▂▃▄▅▅▆▇▇█  724 MB average, 783 MB peak',
-            '```',
-            '',
-            'Watching costs one `ps` every few seconds: this one took 21 ms, 20 ms on average.',
-          ].join('\n'),
-        },
+        extensionView: { title: 'Resources', markdown: resourceChart() },
       },
     }),
   },
@@ -1894,6 +1998,14 @@ export const SCENARIOS: Scenario[] = [
     name: 'settings',
     about: 'Settings over the window: categories down the side, real controls on the right.',
     state: { ...base(), panel: { ...settingsPanel('voice'), row: 0 } },
+    frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-accounts',
+    about:
+      "Who each harness's agents run as: each harness's own sign-in, a second Claude Code " +
+      'account beside it, how much of the plan is used, and what can be done to each.',
+    state: { ...base(), panel: { ...settingsPanel('accounts'), row: 0 } },
     frame: frame({ panel: settingsFacts() }),
   },
   {

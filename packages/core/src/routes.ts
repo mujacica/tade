@@ -1,4 +1,4 @@
-import type { Config, WorkerRoute } from './config.ts'
+import type { Config, ThinkingLevel, WorkerRoute } from './config.ts'
 
 // Which agent, on which model, for this piece of work. Pure and table-tested:
 // the answer must be predictable before anything is spawned.
@@ -39,6 +39,25 @@ export function resolveRoute(config: Config, query: RouteQuery = {}): ResolvedRo
   const route = routes[wanted]
   if (!route) throw new UnknownRouteError(wanted, names)
   return { ...route, name: wanted }
+}
+
+/**
+ * What new agents in one harness start on, by a route: its own model and
+ * thinking level when the harness is the route's, else what was chosen for
+ * that harness under it — never another harness's model.
+ */
+export function routeIn(
+  route: ResolvedRoute,
+  harness: string,
+): { provider?: string; model?: string; thinking?: ThinkingLevel } {
+  if (harness === route.harness) {
+    return {
+      ...(route.provider ? { provider: route.provider } : {}),
+      ...(route.model ? { model: route.model } : {}),
+      ...(route.thinking ? { thinking: route.thinking } : {}),
+    }
+  }
+  return route.harnesses?.[harness as keyof NonNullable<typeof route.harnesses>] ?? {}
 }
 
 /** The route the orchestrator itself runs on. */

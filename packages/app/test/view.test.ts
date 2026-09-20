@@ -221,6 +221,39 @@ describe('what is clickable', () => {
   })
 })
 
+describe("what an agent's harness offers", () => {
+  const route = { harness: 'claude-code', model: 'opus', provider: null }
+  const vitals = { model: 'opus', thinking: 'high', contextPercent: 20 }
+  const controls = (offers: Parameters<typeof draw>[1]['offers']) =>
+    draw(focusTask(state(), 'checkout/refunds'), {
+      ...frame({ width: 140, height: 30 }),
+      route,
+      vitals,
+      offers,
+    }).hits.flatMap((hit) => (hit.target.kind === 'action' ? [hit.target.name] : []))
+
+  it('offers every control while nothing is known of it, as it always did', () => {
+    expect(controls(null)).toContain('model:checkout/refunds')
+    expect(controls(null)).toContain('thinking:checkout/refunds')
+  })
+
+  it('draws no button for what its harness cannot change', () => {
+    const none = { support: 'none' as const, shown: false, note: 'cannot' }
+    const shown = controls({
+      harness: 'claude-code',
+      accounts: true,
+      model: none,
+      thinking: none,
+      rename: { support: 'live', shown: true, note: null },
+      levels: [],
+    })
+    expect(shown).not.toContain('model:checkout/refunds')
+    expect(shown).not.toContain('thinking:checkout/refunds')
+    // The harness is still a control: moving the agent is always possible.
+    expect(shown).toContain('harness:checkout/refunds')
+  })
+})
+
 describe('the focused agent', () => {
   it('shows the newest output, not the oldest', () => {
     const screen = Array.from({ length: 100 }, (_, i) => `line ${i}`).join('\n')

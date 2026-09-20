@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
-import { orchestratorRoute, resolveRoute, UnknownRouteError } from '../src/routes.ts'
+import { orchestratorRoute, resolveRoute, routeIn, UnknownRouteError } from '../src/routes.ts'
 
 const config = (yaml: Record<string, unknown>) => ConfigSchema.parse(yaml)
 
@@ -62,6 +62,46 @@ describe('resolveRoute', () => {
   it('throws a named error for an unknown override', () => {
     expect(() => resolveRoute(routed, { route: 'nope' })).toThrow(UnknownRouteError)
     expect(() => resolveRoute(routed, { route: 'nope' })).toThrow(/cheap, subscription, local/)
+  })
+})
+
+describe('routeIn', () => {
+  const config = ConfigSchema.parse({
+    workers: {
+      routes: {
+        default: {
+          harness: 'pi',
+          provider: 'openrouter',
+          model: 'anthropic/claude-opus-5',
+          thinking: 'high',
+          harnesses: { 'claude-code': { model: 'sonnet', thinking: 'max' } },
+        },
+      },
+    },
+  })
+  const route = resolveRoute(config)
+
+  it("is the route's own model in the route's own harness", () => {
+    expect(routeIn(route, 'pi')).toEqual({
+      provider: 'openrouter',
+      model: 'anthropic/claude-opus-5',
+      thinking: 'high',
+    })
+  })
+
+  it('is what was chosen for another harness, never the route harness’s model', () => {
+    expect(routeIn(route, 'claude-code')).toEqual({ model: 'sonnet', thinking: 'max' })
+  })
+
+  it('is nothing for a harness nobody chose for, so it starts on its own default', () => {
+    const bare = resolveRoute(ConfigSchema.parse({}))
+    expect(routeIn(bare, 'claude-code')).toEqual({})
+  })
+
+  it('refuses a harness that does not exist, as a typo would be', () => {
+    expect(() =>
+      ConfigSchema.parse({ workers: { routes: { default: { harnesses: { nope: {} } } } } }),
+    ).toThrow()
   })
 })
 

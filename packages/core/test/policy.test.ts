@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { classifyToolCall, decideApproval, inside, type Tier } from '../src/policy.ts'
+import {
+  classifyToolCall,
+  decideApproval,
+  effectByName,
+  inside,
+  type Tier,
+  type ToolEffect,
+} from '../src/policy.ts'
 
 const WORKTREE = '/work/wt/checkout-refunds'
 
@@ -198,6 +205,45 @@ describe('classifyToolCall', () => {
   it('is pure: the same call classifies the same way every time', () => {
     const facts = bash('git push --force origin main')
     expect(classifyToolCall(facts)).toEqual(classifyToolCall(facts))
+  })
+})
+
+describe('what a tool does, as its harness says', () => {
+  // Claude Code's names. The policy never learns them: the harness says what
+  // each one does, and the same rules judge it.
+  const claude = (tool: string, input: Record<string, unknown>, effect: ToolEffect) => ({
+    tool,
+    input,
+    worktree: '/wt/refunds',
+    effect,
+  })
+
+  it('lets an edit inside the worktree through, whatever the tool is called', () => {
+    const decision = classifyToolCall(
+      claude('Edit', { file_path: '/wt/refunds/src/a.ts' }, 'write'),
+    )
+    expect(decision).toMatchObject({ tier: 'auto', rule: 'write-in-worktree' })
+  })
+
+  it('stops an edit outside the worktree, whatever the tool is called', () => {
+    const decision = classifyToolCall(claude('Write', { file_path: '/etc/hosts' }, 'write'))
+    expect(decision).toMatchObject({ tier: 'hard', rule: 'write-outside-worktree' })
+  })
+
+  it('reads credentials as credentials, whatever the tool is called', () => {
+    const decision = classifyToolCall(claude('Read', { file_path: '/wt/refunds/.env' }, 'read'))
+    expect(decision).toMatchObject({ tier: 'hard', rule: 'credentials' })
+  })
+
+  it('judges a command by the command', () => {
+    const decision = classifyToolCall(claude('Bash', { command: 'git push --force' }, 'exec'))
+    expect(decision).toMatchObject({ tier: 'hard', rule: 'force-push' })
+  })
+
+  it("falls back to pi's names when the harness did not say", () => {
+    expect(effectByName('edit')).toBe('write')
+    expect(effectByName('read')).toBe('read')
+    expect(effectByName('Edit')).toBe('other')
   })
 })
 

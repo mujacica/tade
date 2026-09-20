@@ -1,0 +1,55 @@
+id: tade/tell-orchestrator-agents-closed
+project: tade
+intent_spoken: Additional thing I saw was that closing agents, we don't notify
+  orchestrator on it, so it first prompts for the missing agents on the next
+  command. Let's fix that as well.
+created: 2026-09-19T12:28:48.870Z
+base: b747b99623764f15d5cb13a7f380a3644cb5453b
+parked: false
+workspace: checkout
+by: orchestrator
+done: said
+start:
+  after: []
+  prompt: >-
+    When agents are closed or removed, the orchestrator is never told. Their
+    words: "closing agents, we don't notify orchestrator on it, so it first
+    prompts for the missing agents on the next command".
+
+
+    So the orchestrator carries on believing those agents exist — it steers
+    them, reports them as running, and only discovers they are gone when a call
+    fails on the next thing the person says. That is exactly the failure the
+    repo cares most about: something went wrong and nothing said so.
+
+
+    Fix it: when an agent is stopped, removed or cleaned up — one, or a batch
+    from the cleanup button — tell the orchestrator, in the ordinary way. Per
+    AGENTS.md, Tade tells the orchestrator and never talks over it: what
+    happened waits and goes with the next thing the person says, under "What
+    they said:"; only what needs it now goes after its current turn (`whenBusy:
+    'queue'`). Closing agents is the former — it should ride along with the next
+    message, not interrupt a turn.
+
+
+    Say it usefully: which tasks, how many, why they ended (stopped by the
+    person, cleaned up, exited on their own, lost), so the orchestrator can
+    answer "where are we" without a failed call teaching it. Cover every path
+    that ends an agent — the window's stop and cleanup, `tade_run_stop`,
+    `tade_run_cleanup`, task removal, and an agent exiting by itself.
+
+
+    Status is still a query — this is a notification, not a second source of
+    truth, and the orchestrator must keep calling tade_status rather than
+    trusting a remembered list. Look in packages/workbench (the registry and the
+    journal), packages/orchestrator (how briefings and messages reach it),
+    packages/app/src/app.ts (where stopping and cleanup happen). Keep your
+    app.ts changes tight: several agents are editing packages/app beside you.
+    Add a test that ending an agent produces the message. Run `pnpm check` on
+    its own and commit only your files.
+  touches:
+    - packages/workbench/src/registry.ts
+    - packages/workbench/src/workbench.ts
+    - packages/orchestrator
+    - packages/app/src/app.ts
+title: Notify orchestrator when agents close

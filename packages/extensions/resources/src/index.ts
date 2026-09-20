@@ -1,2 +1,2 @@
-export { type ResourcesOptions, resourcesExtension } from './extension.ts'
+export { chart, type ResourcesOptions, resourcesExtension } from './extension.ts'
 export * from './usage.ts'

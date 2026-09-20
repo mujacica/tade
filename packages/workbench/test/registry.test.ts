@@ -150,6 +150,25 @@ describe('the lane registry, across a restart', () => {
       expect(back.lost).toBeUndefined()
     })
 
+    it('keeps the harness an agent was started in, through closing and putting it back', async () => {
+      const first = await session(new PtyDriver({ scrollback: 200 }))
+      await first.spawn({
+        id: 'app/claude/agent' as LaneId,
+        task: 'app/claude',
+        kind: 'agent',
+        cwd: home,
+        command: process.execPath,
+        args: [ECHO_CHILD],
+        harness: 'claude-code',
+      })
+      await first.detach()
+
+      const second = await session(new PtyDriver({ scrollback: 200 }))
+      expect(second.get('app/claude/agent' as LaneId)?.harness).toBe('claude-code')
+      const back = await second.relaunch('app/claude/agent' as LaneId)
+      expect(back.harness).toBe('claude-code')
+    })
+
     it('says why it is gone, in terms of what the driver can do', async () => {
       const first = await session(new PtyDriver({ scrollback: 200 }))
       await lane(first, 'app/refunds/agent')

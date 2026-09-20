@@ -1057,7 +1057,11 @@ export const jevExtension: TadeExtension = {
     }
   },
   view: async (ctx) => findingsReport(await recordOf(ctx, 5_000)),
-  harness: { pi: { skills: ['skills/ask-jev'] } },
+  harness: {
+    pi: { skills: ['skills/ask-jev'] },
+    // The same SKILL.md: both read the Agent Skills format.
+    'claude-code': { skills: ['skills/ask-jev'] },
+  },
 }
 
 /**

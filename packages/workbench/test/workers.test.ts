@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { effectByName } from '@tade/core'
 import type {
   PermissionDecision,
   RunId,
@@ -9,7 +10,7 @@ import type {
   WorkerSignalListener,
   WorkerSpec,
 } from '@tade/harnesses-core'
-import { PermissionNotPendingError } from '@tade/harnesses-core'
+import { noHarnessSpend, PermissionNotPendingError } from '@tade/harnesses-core'
 import type { Reporter, Span, Work } from '@tade/telemetry'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -24,13 +25,26 @@ class FakeAdapter implements WorkerAdapter {
   readonly id = 'fake'
   readonly capabilities: WorkerCapabilities = {
     permissionGate: true,
-    steer: true,
-    modelSwitch: true,
-    thinking: true,
+    steer: 'live',
+    queue: 'live',
+    abort: 'live',
+    model: 'live',
+    thinking: 'live',
+    thinkingLevels: ['low', 'high'],
+    rename: 'live',
     visibleUi: false,
     resume: false,
-    images: false,
+    resumeKeeps: true,
+    images: 'none',
     done: true,
+    nativeExtensions: false,
+    skills: false,
+    tools: true,
+    spend: { usd: 'none', tokens: false, limits: false },
+    accounts: false,
+    mcp: false,
+    headless: true,
+    why: {},
   }
   readonly decisions: Array<{ run: string; requestId: string; decision: PermissionDecision }> = []
   readonly steered: Array<{ run: string; message: string }> = []
@@ -41,6 +55,62 @@ class FakeAdapter implements WorkerAdapter {
 
   launchSpec(spec: WorkerSpec) {
     return { command: 'fake', args: [spec.run], env: {} }
+  }
+
+  async probe() {
+    return { ok: true, version: null, problems: [] }
+  }
+
+  effectOf(tool: string) {
+    return tool === 'bash' ? ('exec' as const) : effectByName(tool)
+  }
+
+  conversationKey(task: string) {
+    return task
+  }
+
+  async hasConversation() {
+    return false
+  }
+
+  async spent() {
+    return noHarnessSpend()
+  }
+
+  sandboxWrites() {
+    return { paths: [], prefixes: [] }
+  }
+
+  async models() {
+    return []
+  }
+
+  async resolveModel() {
+    return { ok: false as const, reason: 'the fake has no models' }
+  }
+
+  async modelOf() {
+    return null
+  }
+
+  async account() {
+    return { signedIn: true, who: null, plan: null, method: null, problem: null }
+  }
+
+  signIn() {
+    return null
+  }
+
+  async signOut() {}
+
+  limits() {
+    return null
+  }
+
+  async prepareAccount() {}
+
+  async carryConversation() {
+    return false
   }
 
   async start(spec: WorkerSpec): Promise<WorkerHandle> {
