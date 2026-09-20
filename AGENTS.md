@@ -154,7 +154,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   ever *add* caution: a finding, a wait, a raised tier, a person asked. It may never approve,
   close, merge, unhold, shorten a review or skip a check, it is never inside a pure rule, and it is
   never the reason given to anybody — whatever reaches a person is a sentence somebody wrote. Its
-  questions and thresholds live in one file (`extensions/jev/src/questions.ts`), every finding
+  questions and thresholds live in one file (`packages/extensions/jev/src/questions.ts`), every finding
   keeps the version that answered, and with no key nothing runs and nothing else changes.
 - **Looking at queued work is never starting it.** Clicking it opens what it is — the chain it is
   in drawn as boxes, every wait's reason, what its agent will be told, where it came from — and

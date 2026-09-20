@@ -277,14 +277,6 @@ export const PICTURES: readonly Picture[] = [
       'Settings over the window: categories down the side, and for each one a real control with ' +
       'what it means beside it — here the talk key, the speech engine, the microphone and quiet hours.',
   },
-  {
-    file: 'first-open.svg',
-    scenario: 'first-open',
-    title: 'tade — a new project',
-    about:
-      'Tade opened on a project with nothing running yet: its repository, branch and files, and ' +
-      'what to do next.',
-  },
 ]
 
 function scenarioNamed(name: string): Scenario {
