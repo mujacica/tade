@@ -174,6 +174,23 @@ export const PICTURES: readonly Picture[] = [
       'saying which project and which agent it belongs to.',
   },
   {
+    file: 'asking.svg',
+    scenario: 'asking-in-search',
+    crop: 'panel',
+    about:
+      'A sentence typed into search: its letters match nothing, so under MIGHT MEAN are the two ' +
+      'things already in the list that a judge says were meant — stopping that agent, and the agent itself.',
+  },
+  {
+    file: 'jev.svg',
+    scenario: 'what-jev-flagged',
+    crop: 'panel',
+    about:
+      'What Jev has read this week and what it cost, each question by how often it fired and how ' +
+      'often a person said it was right, whether its probabilities mean what they say, and every ' +
+      'finding with what became of it.',
+  },
+  {
     file: 'terminals.svg',
     scenario: 'a-shell-beside-the-agent',
     crop: { top: 2, height: 21 },

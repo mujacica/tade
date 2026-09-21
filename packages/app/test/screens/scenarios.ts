@@ -1,4 +1,5 @@
 import { ConfigSchema, IDLE_REASON, settingsOf, type TadeEvent } from '@tade/core'
+import { findingsReport } from '@tade/extension-jev'
 import { chart, type Group, History, type Proc, sampleOf } from '@tade/extension-resources'
 import { parseDiff } from '../../src/diff.ts'
 import {
@@ -847,7 +848,7 @@ const stripeTree = {
 }
 
 /** What search shows for a query, from the same function the window uses. */
-function searched(query: string): SearchEntry[] {
+function searched(query: string, meant?: readonly SearchEntry[]): SearchEntry[] {
   const agents: SearchEntry[] = [
     {
       id: 'approve:checkout/stripe-v15',
@@ -868,6 +869,7 @@ function searched(query: string): SearchEntry[] {
       complete: '@stripe-v15',
     },
     { id: 'run:new-agent', kind: 'action', label: 'New agent', mark: '›' },
+    { id: 'stop:checkout/stripe-v15', kind: 'action', label: 'Stop stripe-v15', mark: '■' },
     {
       id: 'setting:approvals',
       kind: 'setting',
@@ -882,22 +884,138 @@ function searched(query: string): SearchEntry[] {
       ...files.map((path) => ({ root: checkout, path })),
       ...files.map((path) => ({ root: stripeTree, path })),
     ],
-    matches: [
-      {
-        root: stripeTree,
-        path: 'src/webhooks.ts',
-        line: 9,
-        text: '  const event = await stripe.webhooks.constructEventAsync(',
-      },
-      {
-        root: checkout,
-        path: 'README.md',
-        line: 7,
-        text: '- `pnpm test` runs everything, webhooks included',
-      },
-    ],
+    // A whole sentence is grepped for like anything else and found nowhere,
+    // which is the other half of why anybody was asked about it.
+    matches: meant
+      ? []
+      : [
+          {
+            root: stripeTree,
+            path: 'src/webhooks.ts',
+            line: 9,
+            text: '  const event = await stripe.webhooks.constructEventAsync(',
+          },
+          {
+            root: checkout,
+            path: 'README.md',
+            line: 7,
+            text: '- `pnpm test` runs everything, webhooks included',
+          },
+        ],
+    ...(meant ? { meant } : {}),
   })
 }
+
+/**
+ * What Jev has read this week, as its own report draws it: the real function
+ * over made-up records, so the page shows the panel a person opens rather than
+ * a picture of one.
+ */
+function jevFindings(): string {
+  const review = (
+    at: number,
+    unit: string,
+    answers: Record<string, number>,
+    raised: string[],
+    verdict: Record<
+      string,
+      { was: 'confirmed' | 'false positive'; by: string; said: string; at: string }
+    > = {},
+  ) => ({
+    at: new Date(NOW - at).toISOString(),
+    project: 'checkout',
+    unit,
+    tasks: [unit],
+    base: 'main',
+    head: 'a1b2c3d',
+    version: 'jev-1.13.0',
+    files: 7,
+    requests: 16,
+    cost_usd: 0.004,
+    answers,
+    raised,
+    verdict,
+  })
+  return findingsReport({
+    reviews: [
+      review(
+        40 * 60_000,
+        'checkout/stripe-v15',
+        { shell_injection: 0.04, test_missing: 0.88, error_swallowed: 0.71, severity: 1.6 },
+        ['test_missing', 'error_swallowed'],
+        {
+          error_swallowed: {
+            was: 'confirmed',
+            by: 'you',
+            said: 'the webhook handler swallows a parse error and returns 200',
+            at: new Date(NOW - 30 * 60_000).toISOString(),
+          },
+        },
+      ),
+      review(
+        6 * 3_600_000,
+        'checkout/refund-window',
+        { secret_committed: 0.02, test_missing: 0.64, kind_fixture: 0.66 },
+        ['test_missing', 'kind_fixture'],
+        {
+          kind_fixture: {
+            was: 'false positive',
+            by: 'you',
+            said: 'the fixture is deliberately small; the real one is built by mkrepo',
+            at: new Date(NOW - 5 * 3_600_000).toISOString(),
+          },
+        },
+      ),
+      review(26 * 3_600_000, 'search/rank-by-recency', { authz_removed: 0.03 }, []),
+    ],
+    looks: [
+      { at: NOW - 9 * 60_000, found: 2, fresh: 0, left: 0, problem: null },
+      { at: NOW - 40 * 60_000, found: 2, fresh: 2, left: 0, problem: null },
+    ],
+    findings: [
+      {
+        at: NOW - 40 * 60_000,
+        key: 'checkout/stripe-v15:error_swallowed',
+        title: 'Does this change catch an error and carry on without reporting it anywhere?',
+        task: 'checkout/fix-swallowed-error',
+        told: null,
+        problem: null,
+      },
+      {
+        at: NOW - 40 * 60_000,
+        key: 'checkout/stripe-v15:test_missing',
+        title:
+          'Does this change alter what the program does without adding or changing a test that covers it?',
+        task: null,
+        told: 'orchestrator',
+        problem: null,
+      },
+      {
+        at: NOW - 6 * 3_600_000,
+        key: 'checkout/refund-window:kind_fixture',
+        title:
+          'Does this change make a test fixture tidier or more forgiving than a real project would be?',
+        task: null,
+        told: 'orchestrator',
+        problem: null,
+      },
+    ],
+    finished: new Set<string>(),
+    now: NOW,
+  })
+}
+
+/** The two of those a judge said the sentence below might have meant. */
+function mightMean(): SearchEntry[] {
+  const all = searched('')
+  return ['stop:checkout/stripe-v15', 'task:checkout/stripe-v15'].flatMap((id) => {
+    const found = all.find((entry) => entry.id === id)
+    return found ? [found] : []
+  })
+}
+
+/** What somebody typed that no letter of matches anything Tade has. */
+const A_SENTENCE = 'stop whoever is doing the stripe upgrade'
 
 export const SCENARIOS: Scenario[] = [
   {
@@ -1778,6 +1896,19 @@ export const SCENARIOS: Scenario[] = [
     }),
   },
   {
+    name: 'what-jev-flagged',
+    about:
+      'What Jev has read: how much it read this week and what it cost, every question by how often it fired and how often a person said it was right, whether a probability means what it says, and each finding with what became of it.',
+    state: { ...base(), panel: extensionViewPanel('jev') },
+    frame: frame({
+      // Tall enough for the whole report: what it found is the half a person
+      // reads, and a picture that stops before it shows a page of tables.
+      height: 58,
+      statuses: [{ extension: 'jev', text: '3 read · 4 flagged', tone: 'quiet', viewable: true }],
+      panel: { extensionView: { title: 'Jev', markdown: jevFindings() } },
+    }),
+  },
+  {
     name: 'a-brief-on-demand',
     about:
       'The brief, asked for: one paragraph, and what extensions found offered as something to ask.',
@@ -2183,6 +2314,15 @@ export const SCENARIOS: Scenario[] = [
       'ctrl+k: agents, files in every worktree and lines inside them, grouped, with what matched lit.',
     state: { ...base(), panel: { ...searchPanel('webhook'), index: 1 } },
     frame: frame({ panel: { entries: searched('webhook'), searching: false } }),
+  },
+  {
+    name: 'asking-in-search',
+    about:
+      'A sentence rather than a name: its letters match nothing, so what is already in the list is put to a judge — which of these did they mean — and comes back as MIGHT MEAN, above the ordinary results and never instead of them.',
+    state: { ...base(), panel: { ...searchPanel(A_SENTENCE), index: 0 } },
+    frame: frame({
+      panel: { entries: searched(A_SENTENCE, mightMean()), searching: false },
+    }),
   },
   {
     name: 'searching-to-a-line',

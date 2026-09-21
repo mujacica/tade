@@ -1,0 +1,58 @@
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━╭─ Jev ──────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
+ ▾ AG│ This week                                                                                                  │ ×   
+     │                                                                                                            │─────
+ ▌ ! │ 2 looks · 3 changes read · 4 flagged · $0.01                                                               │     
+ ▌   │                                                                                                            │     
+     │ By question                                                                                                │     
+   ⠋ │                                                                                                            │     
+     │ ┌─────────────────┬───────┬───────────┬────────────────┐                                                   │     
+     │ │ question        │ fired │ confirmed │ false positive │                                                   │     
+ ▾ CH│ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+  M p│ │ test_missing    │ 2     │ 0         │ 0              │                                                   │     
+  A …│ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+  M s│ │ error_swallowed │ 1     │ 1         │ 0              │                                                   │     
+     │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+ ▾ FI│ │ kind_fixture    │ 1     │ 0         │ 1              │                                                   │     
+   ▾ │ └─────────────────┴───────┴───────────┴────────────────┘                                                   │     
+     │                                                                                                            │     
+     │ A question that never fires should be deleted, and one that is always wrong should be rewritten: both are  │     
+   ▸ │ in questions.ts.                                                                                           │     
+     │                                                                                                            │     
+     │ Calibration                                                                                                │     
+     │                                                                                                            │     
+ ▸ NO│ ┌─────────────┬─────────┬───────────┐                                                                      │     
+ ▾ GI│ │ probability │ flagged │ confirmed │                                                                      │     
+   re│ ├─────────────┼─────────┼───────────┤                                                                      │     
+   br│ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
+   fr│ ├─────────────┼─────────┼───────────┤                                                                      │     
+   wo│ │ 0.7–0.8     │ 1       │ 1         │                                                                      │     
+   pa│ ├─────────────┼─────────┼───────────┤                                                                      │     
+     │ │ 0.8–0.9     │ 1       │ 0         │                                                                      │     
+     │ └─────────────┴─────────┴───────────┘                                                                      │     
+     │                                                                                                            │     
+     │ Whether a number means what it says is ours to measure: nobody has published it.                           │     
+     │                                                                                                            │     
+     │ What it found                                                                                              │     
+     │                                                                                                            │     
+     │ - checkout/stripe-v15:error_swallowed — Does this change catch an error and carry on without reporting it  │     
+     │   anywhere?                                                                                                │     
+     │   checkout/fix-swallowed-error, going · confirmed: the webhook handler swallows a parse error and returns  │     
+     │   200                                                                                                      │     
+     │ - checkout/stripe-v15:test_missing — Does this change alter what the program does without adding or        │     
+     │   changing a test that covers it?                                                                          │     
+     │   told orchestrator                                                                                        │     
+     │ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving than │     
+     │   a real project would be?                                                                                 │     
+     │   told orchestrator · false positive: the fixture is deliberately small; the real one is built by mkrepo   │     
+━   o│                                                                                                            │▾   ━
+     │ 1 finding(s) with nothing recorded about whether they were right. Reading one and saying so with           │     
+     │ jev_verdict is what makes the table above worth anything.                                                  │    ▕
+     │                                                                                                            │    ▕
+     │                                                                                                            │    ▕
+     │ kept current while open                                                                            Close   │    ▕
+ ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯    ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute    3 read · 4 flagged │ claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

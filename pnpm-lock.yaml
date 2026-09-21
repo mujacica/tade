@@ -63,6 +63,9 @@ importers:
       '@tade/drivers-core':
         specifier: workspace:*
         version: link:../drivers/core
+      '@tade/extension-jev':
+        specifier: workspace:*
+        version: link:../extensions/jev
       '@tade/extension-resources':
         specifier: workspace:*
         version: link:../extensions/resources

@@ -104,6 +104,8 @@ Type a sentence rather than a name and, with Jev on, what the letters could not 
 judge — which of the things already in that list you meant, under **MIGHT MEAN**. It appears beside
 the ordinary results, never instead of them, and choosing one does what choosing it always did.
 
+![A sentence typed into search, and the two things already in the list that it might have meant](images/asking.svg)
+
 ## Changes, tracked as they happen
 
 Every file an agent touches, marked the way git marks it, with the diff a click away.
@@ -170,6 +172,26 @@ settings and watches. Being there is not being on: one of yours is listed and of
 on. Keys are pasted in and kept in your keychain, never in a file you might commit.
 
 ![The Extensions panel: what is ready, what needs setting up, what is broken, what is off, the watches on offer](images/extensions.svg)
+
+## Jev, for what nobody has time to read
+
+A judge answers bounded questions — yes or no, one of these, one of these levels — with a
+probability and no paragraph, cheaply enough to ask of every diff and every thousand lines of log.
+Tade asks it where nobody is going to look: a branch that has stopped moving, read for injection,
+secrets, permissions, swallowed errors, missing tests, whether it did what was asked and this
+project's own rules; a command an agent is held at that the approval rules do not name; an agent
+going round on the same failing command; a sentence typed into search; a request before it becomes a
+plan, and a queue that needs an order.
+
+It may only ever add caution — it never approves, merges, closes, unholds or shortens anything — and
+what reaches you is a sentence Tade wrote, never a number. Every question it asks and every threshold
+is one file you can argue with, every finding keeps the version that answered, and what you made of
+a finding is kept beside it, so a question that never fires can be deleted and one that is always
+wrong can be rewritten.
+
+![What Jev has read this week, each question by how often it was right, and every finding with what became of it](images/jev.svg)
+
+Paste a key and it is on. With none, none of it runs and nothing else changes.
 
 ## Sentry, both ways
 

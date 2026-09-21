@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 //
 // grep, ripgrep and every editor's find treat a file holding a control byte as
 // binary and skip it in silence — no error, no warning, just no results. A
-// separator written as `` in the source is fine; the same separator
+// separator written as `\x01` in the source is fine; the same separator
 // written as the byte itself makes the whole file invisible to every search in
 // the repo.
 //
@@ -43,7 +43,7 @@ describe('every source file stays searchable', () => {
         }
       }
     }
-    // Write the separator as an escape — ``, or git's own `%x01` in a
+    // Write the separator as an escape — `\x01`, or git's own `%x01` in a
     // format string — and the file stays text.
     expect(guilty).toEqual([])
   })
