@@ -1,13 +1,17 @@
 # Making Tade modular — a plan
 
-**Status: parked. Do not start it.** It waits on the features in flight finishing — as of writing,
-25 open task folders, several of them editing the same files this plan moves. Picking it up early
-means conflicting with every agent holding an edit to `app.ts`, which was touched in 92 of the last
-200 commits. When the tree is quiet, start at slice 0 in §5.
+**Status: slices 0–9 are done. Only slice 10 is left, and it is independent of everything
+above.** `app.ts` is 794 lines and has no line in the budget table; `view.ts` is 217, `panels.ts`
+203, and the nineteen subjects of `wire/` each own their own fields and answer for their own slice
+of the frame, the actions, the menus and the panels — folded together by `wire/frame.ts` and
+`wire/actions.ts`, which know the `Subject` interface and never a concrete one.
 
-Nothing here has been changed; this is what to do and in what order. Measured on `main` at
-`292e57b`, 2026-09-21 — the counts age, the shape does not. Re-run the measurements in §1 before
-starting, and if a number has moved a lot, read §2 again before trusting §5's ordering.
+What remains is §5's last row — `workbench/reconcile.ts` and `core/settings/` by category — which
+nobody is blocked on and anybody can pick up. **Delete this file when that is done, or when somebody decides it will not be**; §7's
+enforcement is in `test/modularity.test.ts` and is the part that keeps the ground won.
+
+The measurements below are as they were on `main` at `292e57b`, 2026-09-21, and are left as written
+so the reasoning still reads — the counts are history now, and the shape is what mattered.
 
 A note on where this lives: `CLAUDE.md` says there is no `docs/` folder and that adding one is
 going backwards, because a plan that outlives its build becomes a second description of the system

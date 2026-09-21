@@ -32,10 +32,10 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
  * doing that in review is the conversation this test exists to force.
  */
 const BUDGET: Record<string, number> = {
-  'packages/app/src/app.ts': 2_400,
   'packages/app/src/live.ts': 1_300,
   'packages/app/src/model.ts': 2_000,
   'packages/app/src/screen.ts': 900,
+  'packages/app/src/wire/extensions.ts': 900,
   'packages/app/test/model.test.ts': 1_100,
   'packages/app/test/panels.test.ts': 1_400,
   'packages/app/test/view.test.ts': 1_500,
@@ -203,10 +203,10 @@ describe('app.ts is wiring', () => {
   // the skill has always stated in prose, made mechanical, and it is the single
   // check that would have prevented `app.ts` from reaching 8,635 lines.
   //
-  // `wire/` does not exist yet — it arrives in slices 7 and 8 of
-  // `docs/modularity.md`. The rule is installed first on purpose, so that the
-  // first file put there is already held to it. Until then this passes over an
-  // empty list, which is the correct answer and not an absent one.
+  // The rule was installed before `wire/` existed, on purpose, so that the
+  // first file put there was already held to it. Twenty-two subjects later it
+  // still holds, and `app.ts` is inside the default budget with no line in the
+  // table at all — which is what "wiring only" turned out to weigh.
   it('is never imported back by the subjects it wires up', () => {
     const problems: string[] = []
     for (const path of tracked()) {

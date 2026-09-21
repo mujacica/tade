@@ -33,7 +33,10 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `images.ts` | Pictures: recognising a dropped path, reading the clipboard, reading bytes | a terminal |
 | `links.ts` | A row of someone else's text with its links and file references clickable | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
-| `wire/` | One file per subject the window wires up — `notes`, `checks`, `voice`, `images`, `settings`, `machine`, `window`, `search`, `schedules`, `queue` — each a small class over `context.ts`'s `Wiring` (the options, the state, `live`, the clock, the repaint), owning its own fields and taking what it needs of other subjects as named dependencies | a terminal, mostly |
+| `wire/` | One file per subject the window wires up — `agents`, `routes`, `lanes`, `keyboard`, `mouse`, `files`, `orchestrator`, `extensions`, `queue`, `schedules`, `search`, `settings`, `machine`, `projects`, `spend`, `checks`, `voice`, `images`, `notes`, `window` — each a small class over `context.ts`'s `Wiring` (the options, the state, `live`, the clock, the repaint), owning its own fields and taking what it needs of other subjects as named dependencies | a terminal, mostly |
+| `wire/context.ts` | What a subject may reach (`Wiring`), and what it offers back (`Subject`: `facts`, `panel`, `inputs`, `actions`, `menus`, `submits`, `prompts`) | — |
+| `wire/frame.ts` | `frameOf` — the frame, folded out of the subjects that own each piece of it; `panelInputsOf` beside it | — |
+| `wire/actions.ts` | `Router`: a button's name, a menu's kind, a panel's answer and a slash command, each looked up in the table the subjects fill in | a terminal |
 | `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
@@ -118,13 +121,13 @@ regions in a cycle now.
   then its tail — never its width.
 - **Every control has the same width painted and plain.** Add a look to `skin.ts` for both `COLOUR`
   and `PLAIN`; `test/hits.test.ts` compares the hits of the two.
-- **A button names an action; it never types a command.** Add the action to `App.run`. If it needs
-  more than a click, it opens a panel, and **a new panel is a folder in `panels/`**: `state.ts` for
-  what it holds and what a key or a click does to it (tested in `test/panels.test.ts`), `view.ts`
-  for how it is drawn, its arm in the `Panel` union and in `panelKey`/`panelClick`, its entry in
-  `drawPanel`, its slice of `PanelContext`, a scenario, and an app test that opens it through the
-  whole window. Then carry it out in `App.submitPanel`, putting any failure back into the panel
-  rather than behind it. A panel under about 250 lines all told joins `panels/small/` instead of
+- **A button names an action; it never types a command.** Add the action to the `actions()` table of
+  the subject that answers it, never to a hub. If it needs more than a click, it opens a panel, and
+  **a new panel is a folder in `panels/`**: `state.ts` for what it holds and what a key or a click
+  does to it (tested in `test/panels.test.ts`), `view.ts` for how it is drawn, its arm in the `Panel`
+  union and in `panelKey`/`panelClick`, its entry in `drawPanel`, its slice of `PanelContext`, a
+  scenario, and an app test that opens it through the whole window. Then carry it out in that
+  subject's `submits()` table, putting any failure back into the panel rather than behind it. A panel under about 250 lines all told joins `panels/small/` instead of
   taking a folder — and the dispatch stays a dispatch: what a key does to your panel is a function
   in your own file, never a branch written out in `panels.ts`.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
@@ -171,9 +174,11 @@ regions in a cycle now.
   once when pressed: the list redraws in its new order as it is dragged, and measuring against that
   would move the place being aimed at. Tab and the agent numbers follow the same order.
 - **A panel draws only from its `PanelContext`.** Anything it needs that the app state does not hold
-  (menu items, settings, models, a diff) goes through `Frame.panel`, filled in `App.panelFacts`, and
-  anything its keys or clicks need goes through `PanelInputs` from `App.panelInputs`. **Add the fact
-  to both, and add an app test that opens the panel through the whole window.** The screen tests build
+  (settings, models, a diff) goes through `Frame.panel`, answered by the owning subject's `panel()`,
+  and anything its keys or clicks need goes through `PanelInputs` from its `inputs()`. Menu items are
+  the one exception: they belong to no subject, so `frameOf` and `panelInputsOf` fold them out of
+  `menus()` themselves. **Add the fact to both, and add an app test that opens the panel through the
+  whole window.** The screen tests build
   frames by hand, so they will pass while the real window hands the panel nothing — which is how the
   Spend panel, the task menu and Settings all once opened empty.
 - **Something that opens out of a panel and may pass its edge is a popup**: return it from
@@ -321,10 +326,12 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    has written yet is a new file there and one line in `App`'s constructor. What a subject needs
    of another goes in its own `Deps` interface, named for what it does, and `App` answers it with
    a one-line callback; a subject never reaches for the window.
-6. If it puts something in front of you, the subject exposes its slice of `Frame`, `PanelContext`
-   or `PanelInputs` as a method, and the hub in `app.ts` calls it in one line. Never read a
-   subject's field from the hub — that is how `panelFacts` came to touch a dozen subjects, and
-   folding those hubs over the subjects is what is left of `docs/modularity.md`.
+6. If it puts something in front of you, the subject *declares* its slice — `facts(width)` for the
+   frame, `panel(width)` for what the open panel needs to draw, `inputs()` for what a panel needs to
+   answer a key — and `wire/frame.ts` folds it in. **Nothing in `app.ts` changes**, which is the
+   whole point: `panelFacts` came to touch a dozen subjects because a hub had to be edited for every
+   one of them. Guard on the panel kind rather than on the order of the list: a field belongs to
+   exactly one subject, and two answering for one is a bug, not a fallback.
 7. If the wiring changed, cover it in the `test/wire/` file named for the subject it belongs to.
    Those run the window headlessly against a real workbench and a real repository:
    `windowUnderTest()` (`test/wire/harness.ts`) makes the repository, the home, the workbench and a
@@ -333,7 +340,12 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    TUI registers — so the fake terminal presses keys and keeps what was drawn instead of drawing it.
    Poll for what should appear (`until`): rendering is batched, so asserting on the very next line is
    a flake. A subject with no file yet gets one, named after it, rather than a test in a neighbour's.
-8. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
+8. If it can be clicked, give it a `Target` in `hits.ts`; `wire/mouse.ts` turns the click into an
+   action, and the action itself is a line in the owning subject's `actions()` table — a name, or a
+   name ending in `:` which is handed whatever follows it. The same four tables answer everything
+   else somebody can press: `menus()` for what a menu of some kind offers and what choosing one
+   does, `submits()` for carrying a panel out, `prompts()` for a one-line panel by what it is for.
+   Never an `if` in `wire/actions.ts` — that file does not change when a button is added.
    Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
 9. `pnpm screens --assets`, so the README shows the window you just changed — see
    **redraw-the-pictures**.

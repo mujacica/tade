@@ -1,26 +1,38 @@
 import type { LaneId } from '@tade/core'
-import type { VoiceTerminals } from '@tade/voice-core'
 import { matchingLines } from '@tade/workbench'
 import type { Frame, LaneView } from '../frame.ts'
-import { resolveLayout } from '../layout.ts'
+import { halvesOf, resolveLayout } from '../layout.ts'
 import {
   activeTerminal,
   laneShown,
   noteTyping,
   notice,
+  ORCHESTRATOR_TAB,
   setHeld,
   showTerminal,
+  splitPane,
   splitShown,
+  swapSplit,
   terminalSplitShown,
+  turnSplit,
   typingLane,
+  unsplitPane,
 } from '../model.ts'
-import { findPanel } from '../panels/small/state.ts'
+import { laneMenuItems, terminalMenuItems } from '../panels/menu/state.ts'
+import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
 import { cutFrom, type HeldLines } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
-import { type Wiring, why } from './context.ts'
+import {
+  type Actions,
+  type Menus,
+  type Prompts,
+  type Subject,
+  type Wiring,
+  why,
+} from './context.ts'
 
 // The two screens in front of you, and the terminals they are.
 //
@@ -66,10 +78,6 @@ function same(a: LaneView | null, b: LaneView | null): boolean {
   )
 }
 
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
 /** What this subject needs from the rest of the window. */
 export interface LanesDeps {
   /** How big the terminal is: every lane is sized from it. */
@@ -92,7 +100,7 @@ export interface PaneAt {
   rows: number
 }
 
-export class Lanes {
+export class Lanes implements Subject {
   private readonly wire: Wiring
   private readonly deps: LanesDeps
   /**
@@ -119,8 +127,6 @@ export class Lanes {
   private readonly fitted = new Map<string, string>()
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
-  /** A command voice typed into a terminal, waiting for enter or "confirm". */
-  private typed: { id: string; name: string; command: string } | null = null
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -147,6 +153,230 @@ export class Lanes {
     }
   }
 
+  /** What the find box over a terminal has to say: how many lines match, and whose they are. */
+  panel(): Frame['panel'] {
+    const panel = this.wire.state.panel
+    if (panel?.kind !== 'find') return {}
+    return {
+      found: this.findMatches().length,
+      terminalName:
+        this.wire.state.terminals.find((one) => one.id === panel.terminal)?.name ?? 'terminal',
+    }
+  }
+
+  inputs() {
+    return { found: this.findMatches().length }
+  }
+
+  actions(): Actions {
+    return {
+      'new-terminal': async () => {
+        await this.openTerminal()
+      },
+      'find-terminal': async () => {
+        const terminal = activeTerminal(this.wire.state)
+        if (terminal) await this.openFind(terminal.id)
+      },
+      'close-terminal:': (id) => this.closeTerminal(id),
+      'close-lane:': (lane) => this.closeLane(lane),
+      'pane-end': () => {
+        this.wire.put({ ...this.wire.state, paneScroll: 0 })
+        // Back to the newest line, and the text goes there with the bar: the
+        // lines held may already reach it, and the look catches up if not.
+        this.reslice('pane')
+        this.deps.soonTick()
+      },
+      'terminal-end': () => {
+        this.wire.put({ ...this.wire.state, terminalScroll: 0 })
+        this.reslice('terminal')
+        this.deps.soonTick()
+      },
+      // `split:<task>:swap|turn|close`, and the task is what is between.
+      'split:': (rest) => {
+        const verb = rest.slice(rest.lastIndexOf(':') + 1)
+        const task = rest.slice(0, rest.lastIndexOf(':'))
+        this.wire.put(
+          verb === 'swap'
+            ? swapSplit(this.wire.state, task)
+            : verb === 'turn'
+              ? turnSplit(this.wire.state, task)
+              : unsplitPane(this.wire.state, task),
+        )
+        this.deps.soonTick()
+        this.wire.draw()
+      },
+      'terminal-split:': (verb) => {
+        const split = this.wire.state.terminalSplit
+        if (split && verb === 'swap' && this.wire.state.bottom !== ORCHESTRATOR_TAB) {
+          this.wire.put({
+            ...this.wire.state,
+            bottom: split.lane,
+            terminalSplit: { ...split, lane: this.wire.state.bottom },
+            splitFocus: !this.wire.state.splitFocus,
+          })
+        } else if (split && verb === 'turn') {
+          this.wire.put({
+            ...this.wire.state,
+            terminalSplit: {
+              ...split,
+              direction: split.direction === 'beside' ? 'below' : 'beside',
+            },
+          })
+        } else {
+          this.wire.put({ ...this.wire.state, terminalSplit: null, splitFocus: false })
+        }
+        this.deps.soonTick()
+        this.wire.draw()
+      },
+    }
+  }
+
+  menus(): Menus {
+    return {
+      terminal: {
+        title: (subject) =>
+          this.wire.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal',
+        items: () => terminalMenuItems(terminalSplitShown(this.wire.state) !== null),
+        choose: (subject, item) => this.fromTerminalMenu(subject.id, item),
+      },
+      lane: {
+        title: (subject) => subject.name,
+        items: (subject) =>
+          laneMenuItems(
+            this.wire.state.splits[subject.task]?.lane === subject.lane,
+            this.wire.state.panes.find((one) => one.task === subject.task)?.lane != null,
+          ),
+        choose: (subject, item) =>
+          this.fromLaneMenu(subject.task, subject.lane, subject.name, item),
+      },
+    }
+  }
+
+  prompts(): Prompts {
+    return {
+      'rename-lane': async (panel, text) => {
+        if (!panel.target) return
+        await this.wire.opts.client.setTitle(panel.target as LaneId, text)
+        await this.wire.live?.refresh()
+        this.wire.put(notice({ ...this.wire.state, panel: null }, `renamed to ${text}`))
+      },
+      'rename-terminal': async (panel, text) => {
+        if (!panel.target) return
+        await this.wire.opts.client.renameTerminal(panel.target, text)
+        await this.wire.live?.refresh()
+        this.wire.put(notice({ ...this.wire.state, panel: null }, `renamed to ${text}`))
+      },
+      'run-command': async (panel, text) => {
+        if (!panel.target) return
+        await this.wire.opts.client.runInTerminal(panel.target, text)
+        this.wire.put({ ...showTerminal(this.wire.state, panel.target), panel: null })
+      },
+    }
+  }
+
+  /** Close a terminal, and say why not where it would not close. */
+  private async closeTerminal(id: string): Promise<void> {
+    await this.wire.opts.client.closeTerminal(id).catch((err) => this.wire.note(err))
+    await this.wire.live?.refresh()
+    this.wire.draw()
+  }
+
+  /** Close one shell beside an agent. */
+  private async closeLane(lane: string): Promise<void> {
+    await this.wire.opts.client.closeLane(lane as LaneId).catch((err) => this.wire.note(err))
+    await this.wire.live?.refresh()
+    this.wire.draw()
+  }
+
+  /** What a shell's menu does: rename it, show it beside or below the agent, or close it. */
+  private async fromLaneMenu(
+    task: string,
+    lane: string,
+    name: string,
+    item: string,
+  ): Promise<void> {
+    switch (item) {
+      case 'rename':
+        this.wire.put({
+          ...this.wire.state,
+          panel: { ...promptPanel('rename-lane', 'Rename shell', 'NAME', name), target: lane },
+        })
+        break
+      case 'split-beside':
+      case 'split-below':
+        this.wire.put(
+          splitPane(this.wire.state, task, lane, item === 'split-beside' ? 'beside' : 'below'),
+        )
+        this.deps.soonTick()
+        break
+      case 'unsplit':
+        this.wire.put(unsplitPane(this.wire.state, task))
+        break
+      case 'close':
+        await this.closeLane(lane)
+        return
+      default:
+        break
+    }
+    this.wire.draw()
+  }
+
+  /** What a terminal's tab offers: run something in it, find in it, rename it, split it, close it. */
+  private async fromTerminalMenu(id: string, item: string): Promise<void> {
+    const name = this.wire.state.terminals.find((one) => one.id === id)?.name ?? 'terminal'
+    switch (item) {
+      case 'run':
+        this.wire.put({
+          ...showTerminal(this.wire.state, id),
+          panel: { ...promptPanel('run-command', `Run in ${name}`, 'COMMAND'), target: id },
+        })
+        break
+      case 'find':
+        await this.openFind(id)
+        return
+      case 'rename':
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...promptPanel('rename-terminal', 'Rename terminal', 'NAME', name),
+            target: id,
+          },
+        })
+        break
+      case 'clear':
+        await this.wire.opts.client.write(id as LaneId, 'clear\r').catch(() => {})
+        break
+      case 'split-beside':
+      case 'split-below': {
+        // A new terminal, beside or below this one, in the same project.
+        const front = id
+        const opened = await this.openTerminal()
+        const created = this.wire.state.bottom
+        if (opened && created !== front) {
+          this.wire.put({
+            ...showTerminal(this.wire.state, front),
+            terminalSplit: {
+              lane: created,
+              direction: item === 'split-beside' ? 'beside' : 'below',
+              ratio: 0.5,
+            },
+            splitFocus: true,
+          })
+        }
+        break
+      }
+      case 'unsplit':
+        this.wire.put({ ...this.wire.state, terminalSplit: null, splitFocus: false })
+        break
+      case 'close':
+        await this.closeTerminal(id)
+        return
+      default:
+        break
+    }
+    this.wire.draw()
+  }
+
   /** Stop watching both lanes: the window is closing. */
   stopWatching(): void {
     for (const watched of this.watching.values()) watched.stop()
@@ -160,7 +390,7 @@ export class Lanes {
     const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
     const lane = pane ? laneShown(this.wire.state, pane) : null
     const split = pane ? splitShown(this.wire.state, pane) : null
-    const halves = this.halves(this.paneSize(split !== null), split)
+    const halves = halvesOf(this.paneSize(split !== null), split)
     const size = halves.first
     if (lane) await this.fitLane(lane, size)
     this.watch(lane)
@@ -328,7 +558,7 @@ export class Lanes {
     if (area === 'pane') {
       const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
       const split = pane ? splitShown(this.wire.state, pane) : null
-      return this.halves(this.paneSize(split !== null), split).first.rows
+      return halvesOf(this.paneSize(split !== null), split).first.rows
     }
     const layout = resolveLayout(this.deps.layout(), {
       width: this.deps.size().columns,
@@ -338,7 +568,7 @@ export class Lanes {
     // Sized exactly as `captureTerminal` sizes it: two readings of one layout
     // drift, and a screen cut to the wrong number of rows is a screen that
     // jumps when the look catches up with the wheel.
-    return this.halves(
+    return halvesOf(
       {
         cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1 - (split ? 0 : BAR)),
         rows: Math.max(1, layout.stripHeight - 2),
@@ -364,7 +594,7 @@ export class Lanes {
       return false
     }
     const split = terminalSplitShown(this.wire.state)
-    const halves = this.halves(
+    const halves = halvesOf(
       {
         // Less the scrollbar's column, which the window draws and the lane
         // must not: a split has none, and takes the width back.
@@ -399,32 +629,6 @@ export class Lanes {
     return true
   }
 
-  /**
-   * The sizes of the two halves of a split, as `splitView` lays them out — the
-   * divider, and the second half's bar, taking their row or column.
-   */
-  private halves(
-    whole: { cols: number; rows: number },
-    split: { direction: 'beside' | 'below'; ratio: number } | null,
-  ): { first: { cols: number; rows: number }; second: { cols: number; rows: number } } {
-    if (!split) return { first: whole, second: whole }
-    if (split.direction === 'beside' && whole.cols >= 24) {
-      const first = Math.max(
-        10,
-        Math.min(whole.cols - 11, Math.round((whole.cols - 1) * split.ratio)),
-      )
-      return {
-        first: { cols: first, rows: whole.rows },
-        second: { cols: whole.cols - 1 - first, rows: Math.max(1, whole.rows - 1) },
-      }
-    }
-    const first = Math.max(1, Math.min(whole.rows - 2, Math.round((whole.rows - 1) * split.ratio)))
-    return {
-      first: { cols: whole.cols, rows: first },
-      second: { cols: whole.cols, rows: Math.max(1, whole.rows - 1 - first) },
-    }
-  }
-
   /** The scrollback the find box is looking through, and the line it is on. */
   findView(): NonNullable<Frame['terminal']>['find'] {
     const panel = this.wire.state.panel
@@ -450,6 +654,22 @@ export class Lanes {
     this.wire.draw()
   }
 
+  /**
+   * How big a terminal opened here is made: the whole width under the window,
+   * and the strip's height less its own two rows of frame. One answer, because
+   * a terminal made one size and read at another is a screen that jumps.
+   */
+  terminalSize(): { cols: number; rows: number } {
+    const layout = resolveLayout(this.deps.layout(), {
+      width: this.deps.size().columns,
+      height: Math.max(6, this.deps.size().rows),
+    })
+    return {
+      cols: layout.sidebarWidth + layout.mainWidth + 1,
+      rows: Math.max(4, layout.stripHeight - 2),
+    }
+  }
+
   /** Open a terminal in a project — the one you are in unless told — and put it in front. */
   async openTerminal(name: string | null = null, cwd?: string): Promise<string | null> {
     const project = this.wire.state.project
@@ -460,17 +680,12 @@ export class Lanes {
       this.wire.draw()
       return null
     }
-    const layout = resolveLayout(this.deps.layout(), {
-      width: this.deps.size().columns,
-      height: Math.max(6, this.deps.size().rows),
-    })
     try {
       const opened = await this.wire.opts.client.openTerminal({
         project,
         ...(name ? { name } : {}),
         ...(cwd ? { cwd } : {}),
-        cols: layout.sidebarWidth + layout.mainWidth + 1,
-        rows: Math.max(4, layout.stripHeight - 2),
+        ...this.terminalSize(),
       })
       await this.showTerminal(opened.id)
       return opened.name
@@ -497,79 +712,6 @@ export class Lanes {
     return matchingLines(this.findText.lines.join('\n'), panel.query, 10_000)
       .map((match) => match.line - 1)
       .reverse()
-  }
-
-  /** What voice does with terminals: each answers in the sentence it says back. */
-  voiceTerminals(): VoiceTerminals {
-    const project = () => this.wire.state.project ?? undefined
-    // Said with no name, it is the terminal in front, or the only one in the project.
-    const which = (name: string | null) => {
-      const front = activeTerminal(this.wire.state)
-      if (!name && front) return this.wire.opts.client.terminal(front.id)
-      return this.wire.opts.client.terminal(name, project())
-    }
-    const attempt = async (act: () => Promise<string>) => {
-      try {
-        return await act()
-      } catch (err) {
-        return `${capitalise(why(err))}.`
-      }
-    }
-    return {
-      open: (name) =>
-        attempt(async () => {
-          const opened = await this.openTerminal(name)
-          return opened ? `Opened ${opened}.` : 'I could not open a terminal here.'
-        }),
-      show: (name) =>
-        attempt(async () => {
-          const terminal = which(name)
-          await this.showTerminal(terminal.id)
-          return `Showing ${terminal.name}.`
-        }),
-      close: (name) =>
-        attempt(async () => {
-          const closed = await this.wire.opts.client.closeTerminal(which(name).id)
-          await this.wire.live?.refresh()
-          return `Closed ${closed.name}.`
-        }),
-      rename: (name, to) =>
-        attempt(async () => {
-          const renamed = await this.wire.opts.client.renameTerminal(which(name).id, to)
-          await this.wire.live?.refresh()
-          return `Renamed it ${renamed.name}.`
-        }),
-      run: (name, command) =>
-        attempt(async () => {
-          const terminal = await this.wire.opts.client.runInTerminal(which(name).id, command, {
-            submit: false,
-          })
-          this.typed = { id: terminal.id, name: terminal.name, command }
-          await this.showTerminal(terminal.id)
-          return `Typed ${command} into ${terminal.name}. Press enter, or say confirm and the command, to run it.`
-        }),
-      search: (name, text) =>
-        attempt(async () => {
-          const { terminal, matches } = await this.wire.opts.client.searchTerminal(
-            which(name).id,
-            text,
-          )
-          await this.openFind(terminal.id, text)
-          return matches.length === 0
-            ? `Nothing in ${terminal.name} says ${text}.`
-            : `${matches.length} line${matches.length === 1 ? '' : 's'} in ${terminal.name} mention ${text}.`
-        }),
-      confirm: async (phrase) => {
-        const typed = this.typed
-        if (!typed) return null
-        const words = phrase.toLowerCase().split(/\s+/).filter(Boolean)
-        const command = typed.command.toLowerCase()
-        if (words.length === 0 || !words.every((word) => command.includes(word))) return null
-        this.typed = null
-        await this.wire.opts.client.write(typed.id as LaneId, '\r')
-        return `Ran ${typed.command} in ${typed.name}.`
-      },
-    }
   }
 
   /**

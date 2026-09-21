@@ -1,3 +1,5 @@
+// Type-only, so the pure panel model never loads the extension host behind it.
+import type { LoadedExtension } from '@tade/extensions-core'
 import type { PanelInputs } from '../../panels.ts'
 import { close, control, type PanelOutcome, stay } from '../outcome.ts'
 
@@ -635,5 +637,104 @@ export function serverFacts(server: McpServerShown | undefined): McpServerView |
     dropped: server.dropped,
     fetches: server.fetches,
     theirs: Object.fromEntries(server.tools.map((tool) => [tool.name, tool.from])),
+  }
+}
+
+/**
+ * A server nobody has decided about, as the catalogue row offers it.
+ *
+ * Between two of this module's own types, and so here rather than beside the
+ * subject that reads the servers: a mapping is what a row *is*, and the page
+ * that draws one is the thing that has to agree with it.
+ */
+export function serverOffer(server: McpServerShown): McpServerOffer {
+  return {
+    name: server.name,
+    title: server.title,
+    description: server.description,
+    workflow: server.workflow,
+    how: server.how,
+    needs: server.problem,
+    install: server.install,
+    note: server.note,
+    fetches: server.fetches,
+  }
+}
+
+/**
+ * A server somebody has decided about and nothing connected, as a row among
+ * the extensions.
+ *
+ * One that is on and working is already an extension — the broker made one of
+ * it and the host loaded it — so this is the rest: the ones turned off, and
+ * the ones turned on that cannot work yet. It says only what is true of a
+ * server nothing has connected to, which is what it is and what it needs.
+ */
+export function serverView(server: McpServerShown): ExtensionView {
+  return {
+    name: `mcp-${server.name}`,
+    title: server.title,
+    description: server.description,
+    // Its own words about how it is used are the catalogue's, and it was never
+    // imported, so there is nothing else to say.
+    workflow: server.on ? server.workflow : [],
+    source: 'mcp',
+    state: server.on ? 'needs setup' : 'off',
+    // A server that is on and workable is an extension by now, so one that is
+    // on and here was left out — `--safe`, or a name Tade's own took first.
+    // Either way it is said rather than left blank.
+    problem: server.on
+      ? (server.problem ?? `${server.name} is on, but nothing connected it in this window`)
+      : server.problem,
+    tools: [],
+    actions: [],
+    options: [],
+    unknownSettings: [],
+    configurable: false,
+    folder: null,
+    watches: [],
+    server: serverFacts(server),
+  }
+}
+
+/**
+ * An extension the host loaded, as a row on the page.
+ *
+ * What it says about itself is handed over unedited — a page that says only
+ * what something *is* is how an extension with eight tools gets taken for the
+ * one watch it happens to show. What had to be gathered from elsewhere comes
+ * in already gathered: its setup's fields, its watches, and the server it was
+ * made from where it was made from one.
+ */
+export function extensionRow(
+  one: LoadedExtension,
+  about: {
+    options: ExtensionView['options']
+    configurable: boolean
+    watches: ExtensionView['watches']
+    server: McpServerShown | undefined
+  },
+): ExtensionView {
+  return {
+    name: one.name,
+    title: one.title,
+    description: one.description,
+    workflow: one.workflow,
+    source: one.source,
+    state: one.state,
+    problem: one.problem,
+    tools: one.tools.map((tool) => ({
+      name: tool.name,
+      summary: toolSummary(tool.description),
+      for: tool.for,
+    })),
+    actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
+    options: about.options,
+    unknownSettings: one.unknownSettings,
+    configurable: about.configurable,
+    folder: one.source === 'yours' ? one.path : null,
+    watches: about.watches,
+    // What is true of a server and of nothing else, for a row that is one.
+    ...(one.source === 'mcp' ? { server: serverFacts(about.server) } : {}),
   }
 }

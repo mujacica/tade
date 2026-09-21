@@ -1,10 +1,10 @@
 import { checksFor } from '@tade/core'
 import type { ListSection } from '@tade/extensions-core'
-import type { ActionsView } from '../frame.ts'
+import type { ActionsView, Frame } from '../frame.ts'
 import type { Live } from '../live.ts'
 import { notice, ORCHESTRATOR_TAB } from '../model.ts'
 import { problem, ran, said } from '../transcript.ts'
-import { type Wiring, why } from './context.ts'
+import { type Actions, type Subject, type Wiring, why } from './context.ts'
 
 // A check that nobody ran is not a check that passed, and this is the window's
 // end of that: the button that adopts what CI already does, the button that
@@ -23,7 +23,7 @@ export interface ChecksDeps {
   callId(): string
 }
 
-export class Checks {
+export class Checks implements Subject {
   private readonly wire: Wiring
   private readonly deps: ChecksDeps
   /**
@@ -36,6 +36,24 @@ export class Checks {
   constructor(wire: Wiring, deps: ChecksDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** What the agent in front of you has done, for the ACTIONS tab beside its screen. */
+  facts(): Partial<Frame> {
+    const live = this.wire.live
+    const task = this.wire.state.focused
+    return { actions: live && task ? this.actionsFor(live, task) : null }
+  }
+
+  actions(): Actions {
+    return {
+      'checks-adopt:': (task) => this.adopt(task),
+      'checks-run:': (task) => this.run(task),
+      'check-log:': async (rest) => {
+        const [task, check] = rest.split('\u0000')
+        if (task && check) await this.show(task, check)
+      },
+    }
   }
 
   /**

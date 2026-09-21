@@ -1,5 +1,6 @@
 import { basename } from 'node:path'
 import type { LaneId } from '@tade/core'
+import type { Frame } from '../frame.ts'
 import {
   asPaste,
   clipboardImage,
@@ -9,11 +10,23 @@ import {
   readImage,
   shellQuote,
 } from '../images.ts'
-import { activeTerminal, focusTask, notice, ORCHESTRATOR_TAB, shownName } from '../model.ts'
-import type { MenuItem } from '../panels/menu/state.ts'
-import { menuPanel } from '../panels/menu/state.ts'
-import type { Panel } from '../panels.ts'
-import { type Wiring, type WorkerImageFile, why } from './context.ts'
+import {
+  activeTerminal,
+  focusTask,
+  notice,
+  ORCHESTRATOR_TAB,
+  removeAttachment,
+  shownName,
+} from '../model.ts'
+import { imageMenuItems, type MenuItem, menuPanel } from '../panels/menu/state.ts'
+import {
+  type Actions,
+  type Menus,
+  type Subject,
+  type Wiring,
+  type WorkerImageFile,
+  why,
+} from './context.ts'
 
 // Pictures, and the clipboard they usually arrive on. A picture belongs to the
 // message it came with: dropped or pasted, it is asked who it is for, and what
@@ -24,8 +37,6 @@ const CLIPBOARD_MS = 3_000
 
 /** What this subject needs from the rest of the window. */
 export interface ImagesDeps {
-  /** What a menu would offer for this panel: who the pictures could go to. */
-  menuItemsFor(panel: Panel): readonly MenuItem[]
   /** Look at the lanes sooner than the next beat: something was just typed at one. */
   soonTick(): void
   /** The files attached to what the orchestrator is answering right now. */
@@ -39,7 +50,7 @@ export function imagesTitle(paths: readonly string[]): string {
   return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} ${noun}`} to`
 }
 
-export class Images {
+export class Images implements Subject {
   private readonly wire: Wiring
   private readonly deps: ImagesDeps
   /**
@@ -57,6 +68,47 @@ export class Images {
   constructor(wire: Wiring, deps: ImagesDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** A picture is on the clipboard, and has not been taken or turned down. */
+  facts(): Partial<Frame> {
+    return { clipboardImage: this.offered }
+  }
+
+  actions(): Actions {
+    return {
+      'attach-clipboard': () => this.attachFromClipboard(),
+      'dismiss-clipboard': () => this.dismiss(),
+      'detach-image:': (path) => {
+        this.wire.put(removeAttachment(this.wire.state, path))
+        this.wire.draw()
+      },
+    }
+  }
+
+  menus(): Menus {
+    return {
+      images: {
+        title: (subject) => imagesTitle(subject.paths),
+        items: () => this.whoFor(),
+        choose: (subject, item) => this.give(subject.paths, item),
+      },
+    }
+  }
+
+  /** Who a picture could go to: the agents in this project, and the terminal in front. */
+  private whoFor(): readonly MenuItem[] {
+    return imageMenuItems({
+      agents: this.wire.state.panes
+        .filter((pane) => pane.project === this.wire.state.project)
+        .map((pane) => ({
+          task: pane.task,
+          name: shownName(pane),
+          running: pane.lane !== null,
+          focused: pane.task === this.wire.state.focused,
+        })),
+      terminal: activeTerminal(this.wire.state),
+    })
   }
 
   /** Whether there is a picture on the clipboard worth offering. */
@@ -85,7 +137,7 @@ export class Images {
    */
   askWhere(paths: string[]): void {
     const panel = menuPanel({ kind: 'images', paths }, imagesTitle(paths))
-    const items = this.deps.menuItemsFor(panel)
+    const items = this.whoFor()
     const typingTo =
       this.wire.state.dictation !== null || this.wire.state.focused === null
         ? 'orchestrator'

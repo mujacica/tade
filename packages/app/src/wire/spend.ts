@@ -1,0 +1,78 @@
+import { planStandings } from '@tade/core'
+import type { Frame } from '../frame.ts'
+import { projects } from '../model.ts'
+import { spendPanel } from '../panels/spend/state.ts'
+import { spendView } from '../spend.ts'
+import type { Actions, Subject, Wiring } from './context.ts'
+
+// What the agents cost, and what a subscription has used up.
+//
+// The two are never added together. Where a plan pays for the work there is no
+// price per turn, so what is used up is a share of a rolling window, and it
+// lives in its own list rather than in a total that would then mean nothing.
+// Every figure here is what the *service* told the harness; nothing is counted
+// by Tade.
+//
+// All of it is a fold over the journal, read on the window's beat — so nothing
+// here asks anybody anything, and `planUsage` reads what each harness already
+// holds rather than reaching for the network four times a second.
+
+export class Spend implements Subject {
+  private readonly wire: Wiring
+  /** When this window opened: the start of "This window" on the Spend page. */
+  private readonly openedAt: number
+
+  constructor(wire: Wiring) {
+    this.wire = wire
+    this.openedAt = wire.now()
+  }
+
+  /** Today's spend and today's runtime, how full each plan's window is, and the page. */
+  facts(): Partial<Frame> {
+    const live = this.wire.live
+    const spent = live?.spendToday()
+    return {
+      spendView: this.page(),
+      spend: {
+        tokens: spent?.total.tokens ?? 0,
+        usd: spent?.total.usd ?? 0,
+        hasCost: spent?.total.hasCost ?? false,
+        byTask: spent?.byTask ?? {},
+        ...(live ? { runtime: live.runtimeToday().total } : {}),
+      },
+      plan: planStandings(this.wire.opts.client.planUsage(), this.wire.now()),
+    }
+  }
+
+  /** The Spend page, as it is being asked: over which window, split by what. */
+  private page(): Frame['spendView'] {
+    const panel = this.wire.state.panel
+    const live = this.wire.live
+    if (panel?.kind !== 'spend' || !live) return null
+    return spendView(live.spending, {
+      window: panel.window,
+      by: panel.by,
+      now: this.wire.now(),
+      openedAt: this.openedAt,
+      projects: projects(this.wire.state),
+      runs: live.runs,
+      made: live.produced,
+      plan: this.wire.opts.client.planUsage(),
+      budgets: Object.fromEntries(
+        Object.entries(this.wire.opts.config.projects).map(([name, project]) => [
+          name,
+          project.budget,
+        ]),
+      ),
+    })
+  }
+
+  actions(): Actions {
+    return {
+      spend: () => {
+        this.wire.put({ ...this.wire.state, panel: spendPanel() })
+        this.wire.draw()
+      },
+    }
+  }
+}

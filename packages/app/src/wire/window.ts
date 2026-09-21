@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { Frame } from '../frame.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow } from '../layout.ts'
 import {
   type AgentMark,
@@ -8,9 +9,10 @@ import {
   focusTask,
   markOf,
   shownName,
+  toggleDone,
 } from '../model.ts'
 import { windowTitle } from '../title.ts'
-import { clockOf, type Wiring } from './context.ts'
+import { type Actions, clockOf, type Subject, tilde, type Wiring, whenShort } from './context.ts'
 
 // The window as a window: how big its regions are, what it says in the
 // terminal's own title, and where you were last time.
@@ -28,9 +30,11 @@ const RETITLE_MS = 2_000
 export interface WindowDeps {
   /** Write the terminal's own title. */
   setTitle(title: string): void
+  /** Close it. The answer to having asked, or to there being nothing to ask about. */
+  stop(): Promise<void>
 }
 
-export class Window {
+export class Window implements Subject {
   private readonly wire: Wiring
   private readonly deps: WindowDeps
   /** Where you were last time, applied once the tasks are known. */
@@ -43,6 +47,79 @@ export class Window {
   constructor(wire: Wiring, deps: WindowDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /**
+   * The window's own: how it is divided, where Tade's home is, which keys it
+   * was given, and how a moment is said. The clock is here because the window
+   * owns the one there is — a subject that read its own would answer a
+   * different time in the same frame.
+   */
+  facts(): Partial<Frame> {
+    return {
+      layout: this.layout(),
+      home: tilde(this.wire.opts.home),
+      bindings: this.wire.opts.config.surfaces.window.keys,
+      now: this.wire.now(),
+      clock: (at: number) => whenShort(at, this.wire.now()),
+      date: (at: number) => this.dateOf(at),
+    }
+  }
+
+  actions(): Actions {
+    return {
+      'toggle-done': () => {
+        this.wire.put(toggleDone(this.wire.state))
+        // Written here and not only on the way out: the window you press this
+        // in is the window you leave open for days, and one that was killed
+        // rather than closed would forget it every time.
+        this.remember()
+        this.wire.draw()
+      },
+      'bottom-max': () => this.showBottom('max'),
+      'bottom-min': () => this.showBottom('min'),
+    }
+  }
+
+  /**
+   * Close, asking first only when closing would stop something: agents that
+   * live inside this window and cannot be found again once it is gone.
+   */
+  quit(): void {
+    if (this.wouldStop(0)) {
+      this.wire.put({ ...this.wire.state, panel: { kind: 'quit', field: 'cancel', busy: false } })
+      this.wire.draw()
+      return
+    }
+    void this.deps.stop()
+  }
+
+  /**
+   * Reload, asking first for the same reason — and counting the terminals too,
+   * which a close leaves running and a reload does not.
+   */
+  reload(): void {
+    if (this.wouldStop(this.wire.state.terminals.length)) {
+      this.wire.put({ ...this.wire.state, panel: { kind: 'reload', field: 'cancel', busy: false } })
+      this.wire.draw()
+      return
+    }
+    void this.wire.opts.reloadWindow?.()
+  }
+
+  /** Whether going now would end work nobody could find again. */
+  private wouldStop(besides: number): boolean {
+    const running = this.wire.state.panes.reduce((n, pane) => n + pane.lanes.length, 0) + besides
+    return running > 0 && !this.wire.opts.client.driver.capabilities.detach
+  }
+
+  /** The bottom panel at that size, or back to the size it was. */
+  private showBottom(mode: 'max' | 'min'): void {
+    this.wire.put({
+      ...this.wire.state,
+      bottomMode: this.wire.state.bottomMode === mode ? 'open' : mode,
+    })
+    this.wire.draw()
   }
 
   /** Where the window writes down what it wants back next time. */

@@ -11,11 +11,24 @@ import {
   watchedFrom,
 } from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
+import type { Frame } from '../frame.ts'
 import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
+import { scheduleMenuItems } from '../panels/menu/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import { foundMessage, scheduleView } from '../queue.ts'
 import { problem, tadeDid } from '../transcript.ts'
-import { type Wiring, whenShort, why } from './context.ts'
+import {
+  type Actions,
+  type Menus,
+  type Prompts,
+  type Subject,
+  type Wiring,
+  whenShort,
+  why,
+} from './context.ts'
+
+/** What a schedule's row and its menu offer to do to it. */
+const CHANGES = ['open', 'run', 'pause', 'resume', 'remove', 'rename'] as const
 
 // Schedules are told, like notes, and run only while a window is open.
 //
@@ -76,7 +89,7 @@ export interface SchedulesDeps {
   advanceQueue(): void
 }
 
-export class Schedules {
+export class Schedules implements Subject {
   private readonly wire: Wiring
   private readonly deps: SchedulesDeps
   /** The schedules pass under way, if one is. */
@@ -89,6 +102,51 @@ export class Schedules {
   constructor(wire: Wiring, deps: SchedulesDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** Every schedule, as the SMART QUEUE shows it. */
+  facts(): Partial<Frame> {
+    return { schedules: this.views() }
+  }
+
+  /**
+   * One key per change rather than one pattern over them all: a table says
+   * what there is, and a regular expression says only what it happens to match.
+   */
+  actions(): Actions {
+    return Object.fromEntries(
+      CHANGES.map((change) => [`schedule-${change}:`, (id: string) => this.onSchedule(id, change)]),
+    )
+  }
+
+  menus(): Menus {
+    return {
+      schedule: {
+        title: (subject) => this.views().find((one) => one.id === subject.id)?.name ?? 'Schedule',
+        items: (subject) => {
+          const one = this.views().find((view) => view.id === subject.id)
+          return one ? scheduleMenuItems(one) : []
+        },
+        choose: (subject, item) => this.onSchedule(subject.id, item.slice('schedule-'.length)),
+      },
+    }
+  }
+
+  prompts(): Prompts {
+    return {
+      'rename-schedule': async (panel, text) => {
+        if (!panel.target) return
+        const kept = await this.wire.opts.client.changeSchedule({
+          id: panel.target,
+          change: 'rename',
+          name: text,
+          by: 'you',
+        })
+        this.wire.put(
+          notice({ ...this.wire.state, panel: null }, `now called ${kept?.name ?? text}`),
+        )
+      },
+    }
   }
 
   /** Every schedule, as the SMART QUEUE shows it. */

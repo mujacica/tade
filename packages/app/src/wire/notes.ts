@@ -1,6 +1,15 @@
+import type { Frame } from '../frame.ts'
 import { notice } from '../model.ts'
-import { notePanel } from '../panels/small/state.ts'
-import type { Wiring } from './context.ts'
+import { noteMenuItems } from '../panels/menu/state.ts'
+import { noteHeadlinePanel, notePanel, promptPanel } from '../panels/small/state.ts'
+import {
+  type Actions,
+  type Menus,
+  type Prompts,
+  promptFailed,
+  type Subject,
+  type Wiring,
+} from './context.ts'
 
 // Notes are the one thing Tade is told rather than derives, and this is the
 // small subject that opens one, copies it and takes it back. Nothing here
@@ -19,13 +28,108 @@ export interface NotesDeps {
   copy(text: string): Promise<void>
 }
 
-export class Notes {
+export class Notes implements Subject {
   private readonly wire: Wiring
   private readonly deps: NotesDeps
 
   constructor(wire: Wiring, deps: NotesDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** The notes about this project and about everything, as the side draws them. */
+  facts(): Partial<Frame> {
+    return { notes: this.wire.live?.notes(this.wire.state.project) ?? [] }
+  }
+
+  actions(): Actions {
+    return {
+      'add-note': () => {
+        this.wire.put({
+          ...this.wire.state,
+          panel: promptPanel(
+            'note',
+            'New note',
+            `NOTE ABOUT ${(this.wire.state.project ?? 'THIS PROJECT').toUpperCase()}`,
+          ),
+        })
+        this.wire.draw()
+      },
+      'forget-note:': (rest) => {
+        const [at, ...text] = rest.split('\u0000')
+        this.forget({ at: at ?? '', text: text.join('\u0000') })
+      },
+    }
+  }
+
+  menus(): Menus {
+    return {
+      note: {
+        title: () => 'Note',
+        items: () => noteMenuItems(),
+        choose: (subject, item) => this.fromMenu(subject, item),
+      },
+    }
+  }
+
+  /**
+   * A note is kept verbatim, so changing one says it again in its new words
+   * and takes the old line back rather than editing anything: nothing can
+   * recover what somebody said, and a line rewritten in place is a guess at it.
+   */
+  prompts(): Prompts {
+    return {
+      note: (panel, text) => {
+        const scope = panel.everywhere ? null : this.wire.state.project
+        this.wire.opts.client.remember(text, scope, 'window')
+        this.wire.put(notice({ ...this.wire.state, panel: null }, 'noted'))
+      },
+      'note-headline': (panel, text) => {
+        const was = this.noteBehind(panel.target)
+        if (!was) return promptFailed(this.wire, panel, 'That note is not there any more.')
+        // Said again with the headline it is read by, and the old line taken
+        // back: the words are handed over exactly as they were kept.
+        this.wire.opts.client.remember(was.text, was.scope, 'window', text)
+        this.wire.opts.client.forget({ at: was.at, text: was.text }, 'window')
+        this.wire.put(notice({ ...this.wire.state, panel: null }, 'noted'))
+      },
+      'edit-note': async (panel, text, choice) => {
+        // A note's page offers what its menu does, and each does exactly the
+        // same thing from either place.
+        if (panel.note && (choice === 'copy' || choice === 'forget' || choice === 'headline')) {
+          const note = {
+            at: panel.note.at,
+            text: (panel.target ?? '').split('\u0000').slice(1).join('\u0000'),
+          }
+          if (choice === 'copy') return this.deps.copy(note.text)
+          if (choice === 'headline') {
+            this.wire.put({ ...this.wire.state, panel: noteHeadlinePanel(panel.note, note.text) })
+            this.wire.draw()
+            return
+          }
+          this.wire.put({ ...this.wire.state, panel: null })
+          this.forget(note)
+          return
+        }
+        const was = this.noteBehind(panel.target)
+        if (!was) return promptFailed(this.wire, panel, 'That note is not there any more.')
+        if (was.text !== text) {
+          // Said again in its new words, about what it was about, and the old
+          // words taken back. The headline it was given goes with it: it says
+          // what the note is for, which changing its wording does not.
+          this.wire.opts.client.remember(text, was.scope, 'window', was.summary ?? null)
+          this.wire.opts.client.forget({ at: was.at, text: was.text }, 'window')
+        }
+        this.wire.put(notice({ ...this.wire.state, panel: null }, 'noted'))
+      },
+    }
+  }
+
+  /** The note a page is about, as memory still holds it: when it was said, and what. */
+  private noteBehind(target: string | undefined) {
+    const [at = '', ...said] = (target ?? '').split('\u0000')
+    const text = said.join('\u0000')
+    return this.wire.opts.client.recallAll().find((one) => one.at === at && one.text === text)
   }
 
   /**

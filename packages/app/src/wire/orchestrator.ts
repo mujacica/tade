@@ -27,6 +27,7 @@ import {
 } from '../model.ts'
 import { runScreen, ScreenCancelled, type Ui } from '../screen.ts'
 import { addProject, editSettings, writeSetting } from '../settings.ts'
+import { PLAIN } from '../skin.ts'
 import {
   fromThinker,
   interrupted,
@@ -37,7 +38,16 @@ import {
   thinking,
   youSaid,
 } from '../transcript.ts'
-import { clockOf, configPathOf, type Thinker, type Wiring, why } from './context.ts'
+import { transcriptLines } from '../transcript-view.ts'
+import {
+  type Actions,
+  clockOf,
+  configPathOf,
+  type Subject,
+  type Thinker,
+  type Wiring,
+  why,
+} from './context.ts'
 
 // The thing you talk to, seen from the window.
 //
@@ -84,10 +94,9 @@ export interface OrchestratorDeps {
    * Scrolled back, the lines you are reading stay where they are while new
    * ones arrive below.
    */
-  anchored(next: AppState): AppState
 }
 
-export class Orchestrator {
+export class Orchestrator implements Subject {
   private readonly wire: Wiring
   private readonly deps: OrchestratorDeps
   /**
@@ -133,6 +142,48 @@ export class Orchestrator {
   }
 
   /** What its harness can be asked of a turn in flight, or nothing before it has started. */
+  /**
+   * Scrolled back, the lines you are reading stay where they are while new
+   * ones arrive below: the distance from the bottom grows by what was added.
+   */
+  anchored(next: AppState): AppState {
+    const before = this.wire.state
+    if (next.transcriptScroll === 0 || next.transcript === before.transcript) return next
+    const count = (transcript: AppState['transcript']) =>
+      transcriptLines(
+        transcript,
+        this.deps.terminal.columns,
+        PLAIN,
+        { hover: null, pressed: null },
+        0,
+      ).length
+    const grown = count(next.transcript) - count(before.transcript)
+    return { ...next, transcriptScroll: Math.max(0, next.transcriptScroll + grown) }
+  }
+
+  /** Who you are talking to: what it runs on, how hard it thinks, and who pays for it. */
+  facts(): Partial<Frame> {
+    return {
+      orchestratorModel: this.model(),
+      orchestratorThinking: this.wire.opts.config.orchestrator.thinking ?? null,
+      orchestratorAccount: this.account(),
+      orchestratorOffers: this.offers(),
+    }
+  }
+
+  actions(): Actions {
+    return {
+      'ask:': (text) => this.say(text),
+      brief: async () => {
+        await this.brief()
+      },
+      'transcript-end': () => {
+        this.wire.put({ ...this.wire.state, transcriptScroll: 0 })
+        this.wire.draw()
+      },
+    }
+  }
+
   offers(): Thinker['offers'] | null {
     return this.thinker?.offers ?? null
   }
@@ -198,7 +249,7 @@ export class Orchestrator {
         this.deps.voice.speakMessage(event.text)
       }
       this.wire.put(
-        this.deps.anchored(
+        this.anchored(
           withTranscript(
             this.wire.state,
             fromThinker(this.wire.state.transcript, event, this.wire.now()),

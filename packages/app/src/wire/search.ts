@@ -1,5 +1,6 @@
 import { expandHome, type SettingGroup } from '@tade/core'
 import { grep, listFiles, type Match, type SearchRoot } from '../finder.ts'
+import type { Frame } from '../frame.ts'
 import type { Target } from '../hits.ts'
 import { focusTask, glyph, MARK_TONES, markOf, notice, projects } from '../model.ts'
 import { searchPanel } from '../panels/search/state.ts'
@@ -12,7 +13,7 @@ import {
   TEXT_MIN,
   worthAsking,
 } from '../search.ts'
-import { type Wiring, why } from './context.ts'
+import { type Actions, type Subject, type Submits, type Wiring, why } from './context.ts'
 
 // Search matches letters, and asking is what happens when they match nothing.
 //
@@ -61,7 +62,7 @@ export interface SearchDeps {
   run(action: string): Promise<void>
 }
 
-export class Search {
+export class Search implements Subject {
   private readonly wire: Wiring
   private readonly deps: SearchDeps
   /** Search's results for the last query, so a redraw does not rank every file again. */
@@ -87,6 +88,33 @@ export class Search {
   constructor(wire: Wiring, deps: SearchDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** What the box shows for what is typed in it, and whether files are still being read. */
+  panel(): Frame['panel'] {
+    if (this.wire.state.panel?.kind !== 'search') return {}
+    return { entries: this.entries(), searching: this.searching }
+  }
+
+  inputs() {
+    return { entries: this.entries() }
+  }
+
+  actions(): Actions {
+    return { search: () => this.open() }
+  }
+
+  submits(): Submits {
+    return { search: (_panel, choice) => this.from(choice ?? '') }
+  }
+
+  /**
+   * Opened: the slow halves start, a moment after typing stops. Both only ever
+   * add rows to what the letters already matched.
+   */
+  opened(): void {
+    this.lookInFiles()
+    this.askWhatIsMeant()
   }
 
   /** Whether a look inside files is going, for the panel to say so. */

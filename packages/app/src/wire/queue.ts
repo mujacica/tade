@@ -12,10 +12,10 @@ import {
   readyToStart,
   startFrom,
 } from '@tade/core'
-import { notice, type ScheduleView, withTranscript } from '../model.ts'
+import { notice, QUEUE_FILTERS, type ScheduleView, showPlan, withTranscript } from '../model.ts'
 import { describeQueue, describeSchedule, heldMessage, planAnswer, whyStarting } from '../queue.ts'
 import { tadeDid } from '../transcript.ts'
-import { clockOf, type Wiring, whenShort, why } from './context.ts'
+import { type Actions, clockOf, type Subject, type Wiring, whenShort, why } from './context.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: the queue's tools answer for schedules as well, and this is the
 // shape of what `queue_schedule` takes. What it *does* is the schedules'.
@@ -29,6 +29,14 @@ import type { ScheduleRequest } from './schedules.ts'
 // overlap it did not expect holds it, through the one hold path there is.
 // Evidence may only ever hold: it reaches `readyToStart` through `queueStateOf`,
 // so it can never start what the rule would not.
+
+/**
+ * What can be done to one piece of queued work, from its row or its menu.
+ *
+ * Not `QUEUE_CHANGES`, which is what the orchestrator's tool takes: `first` and
+ * `remove` are the window's words for an order written and a piece dropped.
+ */
+const CHANGES = ['start', 'first', 'pause', 'resume', 'wait', 'remove'] as const
 
 /** What this subject needs from the rest of the window. */
 export interface QueueDeps {
@@ -61,7 +69,7 @@ export interface QueueTools {
   schedule(req: ScheduleRequest): Promise<string>
 }
 
-export class Queue {
+export class Queue implements Subject {
   private readonly wire: Wiring
   private readonly deps: QueueDeps
   /** The queue pass under way, if one is. */
@@ -74,6 +82,28 @@ export class Queue {
   constructor(wire: Wiring, deps: QueueDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /**
+   * There is no pause-everything button: pausing is done to one piece of work,
+   * beside its name. The whole queue can still be held from the orchestrator
+   * (`tade_queue_change` with a project and no task).
+   */
+  actions(): Actions {
+    return {
+      ...Object.fromEntries(
+        CHANGES.map((change) => [`queue-${change}:`, (task: string) => this.change(task, change)]),
+      ),
+      'queue-plan': () => {
+        this.wire.put(showPlan(this.wire.state))
+        this.wire.draw()
+      },
+      'queue-filter:': (name) => {
+        const filter = QUEUE_FILTERS.find((one) => one === name)
+        if (filter) this.wire.put({ ...this.wire.state, queueFilter: filter })
+        this.wire.draw()
+      },
+    }
   }
 
   /**

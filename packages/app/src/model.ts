@@ -1416,6 +1416,21 @@ export function doneTasks(state: AppState): AgentPane[] {
   return agentsHere(state).filter((pane) => markOf(pane) === 'done')
 }
 
+/**
+ * Whether anything is working, which is what makes a frame news.
+ *
+ * A spinner turns, so while the orchestrator is thinking, one of its tools is
+ * running or an agent in this project is working, every look is worth drawing
+ * even though no lane printed anything. A rule rather than a reading of the
+ * screen: the window asks it four times a second.
+ */
+export function anythingWorking(state: AppState): boolean {
+  if (state.transcript.thinking !== null) return true
+  if (state.transcript.entries.some((one) => one.kind === 'tool' && one.state === 'running'))
+    return true
+  return state.panes.some((pane) => pane.project === state.project && markOf(pane) === 'working')
+}
+
 /** Show or hide the agents that have finished. */
 export function toggleDone(state: AppState): AppState {
   return { ...state, hidingDone: !state.hidingDone }

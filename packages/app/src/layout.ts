@@ -168,6 +168,37 @@ export function asRemembered(value: unknown): RememberedWindow | null {
   }
 }
 
+/**
+ * The sizes of the two halves of a split, as `splitView` lays them out — the
+ * divider, and the second half's bar, taking their row or column.
+ *
+ * Here rather than beside the lane that asks for it: it is geometry, it is a
+ * pure function of a size and a ratio, and a second reading of it anywhere
+ * would drift — a screen cut to the wrong number of rows is a screen that
+ * jumps when the look catches up with the wheel.
+ */
+export function halvesOf(
+  whole: { cols: number; rows: number },
+  split: { direction: 'beside' | 'below'; ratio: number } | null,
+): { first: { cols: number; rows: number }; second: { cols: number; rows: number } } {
+  if (!split) return { first: whole, second: whole }
+  if (split.direction === 'beside' && whole.cols >= 24) {
+    const first = Math.max(
+      10,
+      Math.min(whole.cols - 11, Math.round((whole.cols - 1) * split.ratio)),
+    )
+    return {
+      first: { cols: first, rows: whole.rows },
+      second: { cols: whole.cols - 1 - first, rows: Math.max(1, whole.rows - 1) },
+    }
+  }
+  const first = Math.max(1, Math.min(whole.rows - 2, Math.round((whole.rows - 1) * split.ratio)))
+  return {
+    first: { cols: whole.cols, rows: first },
+    second: { cols: whole.cols, rows: Math.max(1, whole.rows - 1 - first) },
+  }
+}
+
 function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(Math.round(value), low), Math.max(low, high))
 }

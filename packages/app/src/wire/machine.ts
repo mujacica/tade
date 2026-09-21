@@ -1,11 +1,12 @@
 import { HARNESS_CHOICES } from '@tade/core'
 import type { AccountView } from '@tade/workbench'
 import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
+import type { Frame } from '../frame.ts'
 import { notice } from '../model.ts'
-import { updateActions } from '../panels/settings/state.ts'
+import { ACCOUNTS, accountActions, settingsPanel, updateActions } from '../panels/settings/state.ts'
 import { promptPanel } from '../panels/small/state.ts'
 import type { Ui } from '../screen.ts'
-import { type Wiring, why } from './context.ts'
+import { type Actions, type Prompts, type Subject, type Wiring, why } from './context.ts'
 
 // What Tade needs of the machine, and who it runs as: the programs installed
 // here, what is current, and each harness's own accounts.
@@ -38,7 +39,7 @@ function credentialLabel(kind: 'signed-in' | 'api-key' | 'env-key' | undefined):
   return null
 }
 
-export class Machine {
+export class Machine implements Subject {
   private readonly wire: Wiring
   private readonly deps: MachineDeps
   /**
@@ -60,6 +61,65 @@ export class Machine {
   constructor(wire: Wiring, deps: MachineDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** What the Accounts and Updates pages say, when one of them is open. */
+  panel(): Frame['panel'] {
+    if (this.wire.state.panel?.kind !== 'settings') return {}
+    return { accounts: this.views, updates: this.look, updatesBusy: this.busy }
+  }
+
+  inputs() {
+    return {
+      accountActions: accountActions(this.views),
+      updateActions: updateActions(this.look, this.busy),
+    }
+  }
+
+  actions(): Actions {
+    return { reload: () => this.deps.reload() }
+  }
+
+  /**
+   * An account is added in two steps because the second depends on the first:
+   * an API key account goes straight on to its key, and a subscription goes
+   * straight into the harness's own sign-in, in a terminal you can see.
+   */
+  prompts(): Prompts {
+    return {
+      'account-name': async (panel, text) => {
+        if (!panel.target) return
+        const [harness = '', kind = 'subscription'] = panel.target.split('\u0000')
+        const name = text.trim().toLowerCase()
+        await this.wire.opts.client.addAccount({
+          name,
+          harness,
+          kind: kind === 'api-key' ? 'api-key' : 'subscription',
+        })
+        if (kind === 'api-key') {
+          this.wire.put({
+            ...this.wire.state,
+            panel: { ...promptPanel('account-key', `${name}'s API key`, 'KEY'), target: name },
+          })
+          return
+        }
+        this.wire.put({ ...this.wire.state, panel: settingsPanel(ACCOUNTS) })
+        await this.signInto(harness, name)
+        await this.loadAccountViews()
+      },
+      'account-key': async (panel, text) => {
+        if (!panel.target) return
+        const where = this.wire.opts.client.saveAccountKey(panel.target, text)
+        this.wire.put({
+          ...this.wire.state,
+          panel: {
+            ...settingsPanel(ACCOUNTS),
+            saved: `${panel.target}'s key is kept in ${where}.`,
+          },
+        })
+        await this.loadAccountViews()
+      },
+    }
   }
 
   /** What the Updates page has read, for the page to draw. */

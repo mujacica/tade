@@ -45,7 +45,7 @@ import {
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelKey } from '../panels.ts'
 import type { Skin } from '../skin.ts'
-import type { Wiring } from './context.ts'
+import type { Subject, Wiring } from './context.ts'
 
 // Where a keystroke goes, and what it does when it gets there.
 //
@@ -120,7 +120,7 @@ export interface KeyboardDeps {
   say(said: string): void
 }
 
-export class Keyboard {
+export class Keyboard implements Subject {
   private readonly wire: Wiring
   private readonly deps: KeyboardDeps
   /** pi's own editor, for the orchestrator's line. */
@@ -689,6 +689,10 @@ export class Keyboard {
    * something else put there — a transcript, a command to finish — is taken
    * into the editor first, so there is only ever one line.
    */
+  facts(width: number): Partial<Frame> {
+    return this.input(width)
+  }
+
   input(width: number): Pick<Frame, 'input'> {
     this.sync()
     if (this.wire.state.dictation === null) return {}

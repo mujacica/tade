@@ -1,10 +1,17 @@
 import { rmSync } from 'node:fs'
-import { type Config, speakable } from '@tade/core'
-import type { AudioClip, Recording, VoiceSurface } from '@tade/voice-core'
+import { type Config, type LaneId, speakable } from '@tade/core'
+import type { AudioClip, Recording, VoiceSurface, VoiceTerminals } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
-import { notice, setDictation, setListening } from '../model.ts'
+import type { Frame } from '../frame.ts'
+import { keyCaps } from '../keys.ts'
+import { activeTerminal, notice, setDictation, setListening } from '../model.ts'
 import { writeSetting } from '../settings.ts'
-import { configPathOf, type Wiring, why } from './context.ts'
+import { type Actions, configPathOf, type Subject, type Wiring, why } from './context.ts'
+
+/** A sentence that starts with a capital, because it is read out as one. */
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
 
 // A voice says words, and this is the window's end of that: the key you hold
 // to talk, what is done with what was heard, the mute that is now rather than
@@ -30,6 +37,10 @@ export interface VoiceDeps {
   say(said: string): void
   /** Use a config that has just been written. */
   useConfig(config: Config): void
+  /** The three things a spoken terminal verb asks of the lanes. */
+  openTerminal(name: string | null): Promise<string | null>
+  showTerminal(id: string): Promise<void>
+  openFind(id: string, query: string): Promise<void>
 }
 
 /** The words a general model gets wrong: the task and project names it will hear. */
@@ -52,17 +63,113 @@ export function spokenLine(markdown: string): string {
   return first
 }
 
-export class Voice {
+export class Voice implements Subject {
   private readonly wire: Wiring
   private readonly deps: VoiceDeps
   /** The voice surface, once `begin` has started one. */
   private surface: VoiceSurface | null = null
   private recording: Recording | null = null
+  /** A command voice typed into a terminal, waiting for enter or "confirm". */
+  private typed: { id: string; name: string; command: string } | null = null
   private metering: NodeJS.Timeout | null = null
 
   constructor(wire: Wiring, deps: VoiceDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** The key you hold to talk, whether anything can hear you, and whether it is muted. */
+  facts(): Partial<Frame> {
+    return {
+      voice: {
+        keys: keyCaps(this.wire.opts.config.surfaces.voice.talk.key),
+        available: this.wire.opts.recorder !== undefined,
+      },
+      muted: this.wire.opts.config.surfaces.voice.muted,
+    }
+  }
+
+  actions(): Actions {
+    return { mute: () => this.toggleMute() }
+  }
+
+  /**
+   * What voice does with terminals: each answers in the sentence it says back.
+   *
+   * Here rather than beside the terminals themselves because every one of these
+   * is a *spoken* verb — the grammar's, answered in words — and what it asks of
+   * a terminal is three things the lanes already do.
+   */
+  terminals(): VoiceTerminals {
+    const project = () => this.wire.state.project ?? undefined
+    // Said with no name, it is the terminal in front, or the only one in the project.
+    const which = (name: string | null) => {
+      const front = activeTerminal(this.wire.state)
+      if (!name && front) return this.wire.opts.client.terminal(front.id)
+      return this.wire.opts.client.terminal(name, project())
+    }
+    const attempt = async (act: () => Promise<string>) => {
+      try {
+        return await act()
+      } catch (err) {
+        return `${capitalise(why(err))}.`
+      }
+    }
+    return {
+      open: (name) =>
+        attempt(async () => {
+          const opened = await this.deps.openTerminal(name)
+          return opened ? `Opened ${opened}.` : 'I could not open a terminal here.'
+        }),
+      show: (name) =>
+        attempt(async () => {
+          const terminal = which(name)
+          await this.deps.showTerminal(terminal.id)
+          return `Showing ${terminal.name}.`
+        }),
+      close: (name) =>
+        attempt(async () => {
+          const closed = await this.wire.opts.client.closeTerminal(which(name).id)
+          await this.wire.live?.refresh()
+          return `Closed ${closed.name}.`
+        }),
+      rename: (name, to) =>
+        attempt(async () => {
+          const renamed = await this.wire.opts.client.renameTerminal(which(name).id, to)
+          await this.wire.live?.refresh()
+          return `Renamed it ${renamed.name}.`
+        }),
+      run: (name, command) =>
+        attempt(async () => {
+          const terminal = await this.wire.opts.client.runInTerminal(which(name).id, command, {
+            submit: false,
+          })
+          this.typed = { id: terminal.id, name: terminal.name, command }
+          await this.deps.showTerminal(terminal.id)
+          return `Typed ${command} into ${terminal.name}. Press enter, or say confirm and the command, to run it.`
+        }),
+      search: (name, text) =>
+        attempt(async () => {
+          const { terminal, matches } = await this.wire.opts.client.searchTerminal(
+            which(name).id,
+            text,
+          )
+          await this.deps.openFind(terminal.id, text)
+          return matches.length === 0
+            ? `Nothing in ${terminal.name} says ${text}.`
+            : `${matches.length} line${matches.length === 1 ? '' : 's'} in ${terminal.name} mention ${text}.`
+        }),
+      confirm: async (phrase) => {
+        const typed = this.typed
+        if (!typed) return null
+        const words = phrase.toLowerCase().split(/\s+/).filter(Boolean)
+        const command = typed.command.toLowerCase()
+        if (words.length === 0 || !words.every((word) => command.includes(word))) return null
+        this.typed = null
+        await this.wire.opts.client.write(typed.id as LaneId, '\r')
+        return `Ran ${typed.command} in ${typed.name}.`
+      },
+    }
   }
 
   /** Hand it the surface `begin` started. */

@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import type { Config } from '@tade/core'
@@ -6,12 +7,15 @@ import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
+import type { Frame } from '../frame.ts'
 import type { clipboardImage, clipboardState } from '../images.ts'
 import type { Live } from '../live.ts'
-import type { AppState } from '../model.ts'
+import { type AppState, notice } from '../model.ts'
 import type { McpServerShown } from '../panels/extensions/state.ts'
-import type { ThinkerOffers } from '../panels/menu/state.ts'
+import type { MenuItem, MenuSubject, ThinkerOffers } from '../panels/menu/state.ts'
 import type { ModelChoice } from '../panels/models/state.ts'
+import type { PromptPanel } from '../panels/small/state.ts'
+import type { Panel, PanelInputs } from '../panels.ts'
 import type { ThinkerEvent } from '../transcript.ts'
 
 // What a subject of the window may reach, and nothing more.
@@ -24,9 +28,10 @@ import type { ThinkerEvent } from '../transcript.ts'
 // wants more takes it as its own field or is handed it by `App`.
 //
 // The narrowness is the point: a subject cannot reach another subject's fields
-// through it, which is what stops the file growing back. Slice 9 of
-// `docs/modularity.md` folds `facts()`/`panel()`/`inputs()` over the subjects
-// that this interface makes possible; until then `App` calls them by hand.
+// through it, which is what stops the file growing back. `Subject`, below, is
+// the other half: what a subject offers back up, so the frame, the actions,
+// the menus and the panels are folds over a list rather than five if-chains in
+// one file that every feature had to be threaded through.
 
 /**
  * Where free text goes: the orchestrator, seen from the window. Answers come
@@ -159,6 +164,14 @@ export function whenShort(at: number, now: number): string {
   return `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''} ${clock}`
 }
 
+/**
+ * A one-line panel that could not be carried out: the reason goes in the
+ * panel, with everything typed still in it.
+ */
+export function promptFailed(wire: Wiring, panel: PromptPanel, error: string): void {
+  wire.put({ ...wire.state, panel: { ...panel, busy: false, error } })
+}
+
 /** What went wrong, in words. The one reading of an unknown throw there is. */
 export function why(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -184,4 +197,170 @@ export interface Wiring {
    * end — so a caller that is finished asks for the frame itself.
    */
   note(err: unknown): void
+}
+
+/**
+ * A subject of the window, as the hubs see it.
+ *
+ * Each of these is one flat table — the frame's fields, the panel's, an
+ * action's name, a menu's kind, a panel's answer — and every one of them was
+ * an if-chain in `app.ts` that every new feature added a branch to. Inverted,
+ * the branch arrives in the subject that owns it and the hub never changes:
+ * `frameOf` folds the first three, `Router` looks up the last four.
+ *
+ * All of them are optional, because most subjects answer two or three. A
+ * subject that answers none of them is still a subject — it is simply one
+ * nothing asks anything of from here.
+ */
+export interface Subject {
+  /** Its slice of the frame, folded in by `frameOf`. */
+  facts?(width: number): Partial<Frame>
+  /** Its slice of what the open panel needs to draw. */
+  panel?(width: number): Frame['panel']
+  /** Its slice of what a panel needs to answer a key or a click. */
+  inputs?(): PanelInputs
+  /** The actions it answers, by name. */
+  actions?(): Actions
+  /** The menus it answers, by the kind of thing each is about. */
+  menus?(): Menus
+  /** The panels it carries out, by kind. */
+  submits?(): Submits
+  /** The one-line panels it carries out, by what each is for. */
+  prompts?(): Prompts
+}
+
+/**
+ * What an action does, by the name it is asked for.
+ *
+ * A name ending in `:` is a prefix and is handed whatever follows it —
+ * `close-task:` answers `close-task:search/pagination` with `search/pagination`.
+ * Anything else is the whole name, and is handed the empty string. The longest
+ * matching prefix wins, so `queue-start:` and `queue-filter:` can both be in
+ * the table without either shadowing the other.
+ */
+export type Actions = Record<string, (rest: string) => Promise<void> | void>
+
+/** A menu's own words, its items, and what choosing one does. */
+export type Menus = {
+  [K in MenuSubject['kind']]?: {
+    /** What the menu is called, over the thing it is about. */
+    title(subject: Extract<MenuSubject, { kind: K }>): string
+    /** Its items, from what is true of that thing now — never remembered. */
+    items(subject: Extract<MenuSubject, { kind: K }>): readonly MenuItem[]
+    /** What choosing one does. */
+    choose(subject: Extract<MenuSubject, { kind: K }>, item: string): Promise<void> | void
+  }
+}
+
+/** The same, with the subject as wide as the lookup can know it. */
+export interface MenuKind {
+  title(subject: MenuSubject): string
+  items(subject: MenuSubject): readonly MenuItem[]
+  choose(subject: MenuSubject, item: string): Promise<void> | void
+}
+
+/** Carrying a panel out: what it holds, and which of its buttons was pressed. */
+export type Submits = {
+  [K in Panel['kind']]?: (
+    panel: Extract<Panel, { kind: K }>,
+    choice: string | undefined,
+  ) => Promise<void> | void
+}
+
+/** Carrying out a one-line panel, by what it is for. */
+export type Prompts = Partial<
+  Record<
+    PromptPanel['purpose'],
+    (panel: PromptPanel, text: string, choice: string | undefined) => Promise<void> | void
+  >
+>
+
+/**
+ * The first subject that answers for a kind of menu.
+ *
+ * Widened on the way out: a table keyed by kind cannot prove to the compiler
+ * that the handler it found is the one for the subject in hand, and the key it
+ * was registered under is what says so.
+ */
+export function menuOf(subjects: readonly Subject[], kind: MenuSubject['kind']): MenuKind | null {
+  for (const subject of subjects) {
+    const found = subject.menus?.()[kind]
+    if (found) return found as MenuKind
+  }
+  return null
+}
+
+/** A path the way you would type it. */
+export function tilde(path: string): string {
+  const home = process.env.HOME
+  return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
+}
+
+/**
+ * Put something on the clipboard and say in the strip that it is there.
+ *
+ * Here rather than in a subject because three of them copy — a note, a path,
+ * a selection dragged over the window — and what is said back has to be the
+ * same sentence whichever did it.
+ */
+export async function copySaying(
+  wire: Wiring,
+  text: string,
+  write: (data: string) => void,
+): Promise<void> {
+  const copied = await copyText(text, write)
+  wire.put(notice(wire.state, copied ? `copied ${text}` : text))
+  wire.draw()
+}
+
+/** The same for text dragged over: said as how much of it there was, never as itself. */
+export async function copySpanSaying(
+  wire: Wiring,
+  text: string,
+  write: (data: string) => void,
+): Promise<void> {
+  const copied = await copyText(text, write)
+  const lines = text.split('\n').length
+  wire.put(
+    notice(
+      wire.state,
+      copied
+        ? `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`
+        : 'could not copy',
+    ),
+  )
+  wire.draw()
+}
+
+/**
+ * Put text on the clipboard. The system's own tool where there is one, since
+ * Terminal.app ignores the escape sequence; the sequence everywhere else.
+ */
+export async function copyText(text: string, write: (data: string) => void): Promise<boolean> {
+  const tool =
+    process.platform === 'darwin'
+      ? ['pbcopy']
+      : process.env.WAYLAND_DISPLAY
+        ? ['wl-copy']
+        : process.env.DISPLAY
+          ? ['xclip', '-selection', 'clipboard']
+          : null
+  if (tool) {
+    const copied = await new Promise<boolean>((resolve) => {
+      const child = spawn(tool[0] as string, tool.slice(1), {
+        stdio: ['pipe', 'ignore', 'ignore'],
+        detached: true,
+      })
+      child.once('error', () => resolve(false))
+      child.once('exit', (code) => resolve(code === 0))
+      // A clipboard tool that exits before it reads leaves us writing to a
+      // closed pipe, and an unhandled 'error' on a stream takes the window
+      // down. Whether it copied is its exit code's to say.
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(text)
+    })
+    if (copied) return true
+  }
+  write(`\x1b]52;c;${Buffer.from(text).toString('base64')}\x07`)
+  return true
 }

@@ -9,10 +9,19 @@ import {
   type ThinkingLevel,
   wantedInstead,
 } from '@tade/core'
+import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
 import { type SettingsPanel, settingsPanel, UPDATES } from '../panels/settings/state.ts'
 import { writeSetting } from '../settings.ts'
-import { configPathOf, type Wiring, why } from './context.ts'
+import {
+  type Actions,
+  configPathOf,
+  type Subject,
+  type Submits,
+  tilde,
+  type Wiring,
+  why,
+} from './context.ts'
 
 // The Settings page, and the one path a setting is written by.
 //
@@ -35,15 +44,96 @@ export interface SettingsDeps {
   setupChanged(): void
   /** Muted now: cut off what is being said and drop what was queued behind it. */
   silence(): void
+  /** Add, sign into or forget an account, from the Accounts page. */
+  accountAction(choice: string): Promise<void>
+  /** Install or reload, from the Updates page. */
+  updateAction(choice: string): Promise<void>
+  /** Three seconds that say whether this terminal may use the microphone. */
+  testMicrophone(): Promise<void>
+  /** Open a file in your editor: the config, from the button that says where it is. */
+  openFile(path: string): Promise<void>
+  /**
+   * Whether this terminal reports key releases, which is what holding a key
+   * needs. Both pages here say so rather than promising a key that will not
+   * work.
+   */
+  releases(): boolean
 }
 
-export class Settings {
+export class Settings implements Subject {
   private readonly wire: Wiring
   private readonly deps: SettingsDeps
 
   constructor(wire: Wiring, deps: SettingsDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /**
+   * What the page says about itself. The accounts, the models and whether this
+   * terminal reports key releases are three other subjects' answers, folded in
+   * beside these: the Settings page is the one place in the window that is
+   * genuinely drawn out of four of them.
+   */
+  panel(): Frame['panel'] {
+    const panel = this.wire.state.panel
+    if (panel?.kind === 'keys') {
+      const talk = this.wire.opts.config.surfaces.voice.talk
+      return { talkKey: talk.key, talkMode: talk.mode, releases: this.deps.releases() }
+    }
+    if (panel?.kind !== 'settings') return {}
+    return {
+      settings: this.rows(),
+      lanesSurvive: this.wire.opts.client.driver.capabilities.detach,
+      configPath: tilde(this.path),
+      releases: this.deps.releases(),
+      budgetWarnings: 0,
+    }
+  }
+
+  inputs() {
+    return { settings: this.rows() }
+  }
+
+  actions(): Actions {
+    return {
+      keys: () => {
+        this.wire.put({ ...this.wire.state, panel: { kind: 'keys', busy: false } })
+        this.wire.draw()
+      },
+      settings: async () => {
+        await this.open()
+      },
+      voice: async () => {
+        await this.open('voice')
+      },
+      budgets: async () => {
+        await this.open('budgets')
+      },
+    }
+  }
+
+  submits(): Submits {
+    return {
+      keys: async () => {
+        await this.open('shortcuts')
+      },
+      settings: async (panel, choice) => {
+        if (choice?.startsWith('write:')) {
+          const [path, value] = choice.slice('write:'.length).split('\u0000')
+          if (path !== undefined) await this.save(panel, path, value ?? '')
+          return
+        }
+        if (choice === 'open-file') {
+          this.wire.put({ ...this.wire.state, panel: null })
+          await this.deps.openFile(this.path)
+          return
+        }
+        if (choice?.startsWith('account:')) await this.deps.accountAction(choice)
+        if (choice?.startsWith('updates:')) await this.deps.updateAction(choice)
+        if (choice === 'mic-test') await this.deps.testMicrophone()
+      },
+    }
   }
 
   /**

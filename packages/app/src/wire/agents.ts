@@ -1,27 +1,30 @@
-import { type Config, expandHome, loadConfig, resolveRoute } from '@tade/core'
+import { type Config, expandHome } from '@tade/core'
 import { slugify } from '@tade/voice-core'
 import type { Workbench } from '@tade/workbench'
-import {
-  focusTask,
-  notice,
-  ORCHESTRATOR_TAB,
-  shownName,
-  type TaskSnapshot,
-  whichProject,
-} from '../model.ts'
-import { type AgentOffers, agentOffers, menuPanel } from '../panels/menu/state.ts'
-import { type ModelChoice, type ModelPanel, modelPanel } from '../panels/models/state.ts'
+import type { Frame } from '../frame.ts'
+import { doneTasks, focusTask, nextWaiting, notice, shownName, whichProject } from '../model.ts'
+import { type AgentOffers, menuItems, queueMenuItems } from '../panels/menu/state.ts'
 import {
   type CloseDonePanel,
   type ConfirmRemovePanel,
+  closeDonePanel,
   confirmRemovePanel,
   promptPanel,
 } from '../panels/small/state.ts'
-import { writeSetting } from '../settings.ts'
-import { configPathOf, type Wiring, why } from './context.ts'
+import {
+  type Actions,
+  type Menus,
+  type Prompts,
+  type Subject,
+  type Submits,
+  type Wiring,
+  why,
+} from './context.ts'
 
-// The agents: making one, opening one again, stopping it, taking it away —
-// and the four things you can change about one that is already running.
+// The agents: making one, opening one again, stopping it, answering it, and
+// taking it away. What one *runs on* is `wire/routes.ts`, which its own menu
+// reaches through three deps — the two are one question only where that menu
+// offers both.
 //
 // A name is never used twice. pi keeps a conversation by the task's name, so
 // a new agent given an old one's would carry on its conversation, which is
@@ -35,19 +38,11 @@ import { configPathOf, type Wiring, why } from './context.ts'
 // opened now, and what this window has already opened by itself — are here
 // for that reason, and so is the promise that an agent stopped on purpose is
 // never started again behind your back.
-//
-// What a harness lets you ask of one agent is learned in the background
-// (`offersByTask`) rather than waited on: absent means "not known yet", which
-// offers everything, as the window always did.
 
 /** What this subject needs from the rest of the window. */
 export interface AgentsDeps {
-  /** How big the terminal is, for putting a menu where there is room for it. */
-  size(): { columns: number; rows: number }
   /** The config was written by somebody else's hand: read it back. */
   useConfig(config: Config): void
-  /** Which accounts each harness has, read again after one is chosen. */
-  loadAccounts(): Promise<void>
   /** Put a half-written command back on the line, ready to be finished. */
   prefill(line: string): void
   /** Where an agent's own menu leads. */
@@ -55,14 +50,18 @@ export interface AgentsDeps {
   openPlace(target: { path: string }): Promise<void>
   /** Queued work is changed through the queue, so what did it and why is written down. */
   changeQueue(task: string, change: string): Promise<void>
-  /** The orchestrator is on the same menu, and answers for its own thinking and model. */
-  chooseThinkerThinking(level: string): Promise<void>
-  thinkerModel(): string | null
   /** Put text on the clipboard: true when it got there. */
   copyToClipboard(text: string): Promise<boolean>
+  /**
+   * What an agent runs on is its own subject, and its menu offers three of
+   * those: what its harness lets a person ask of it, and the two pickers.
+   */
+  offersFor(task: string): AgentOffers | null
+  openModels(task: string): Promise<void>
+  openAccount(task: string): Promise<void>
 }
 
-export class Agents {
+export class Agents implements Subject {
   private readonly wire: Wiring
   private readonly deps: AgentsDeps
   /** A new agent is being made. */
@@ -75,149 +74,155 @@ export class Agents {
   private readonly reopened = new Set<string>()
   /** Agents whose branch is being named, so a slow git is not asked twice. */
   private readonly naming = new Set<string>()
-  /**
-   * What each agent's harness lets a person ask of it, by task: learned as the
-   * tasks refresh, so drawing never waits on it. Absent is "not known yet",
-   * which offers everything, as the window always did.
-   */
-  private readonly offersByTask = new Map<string, AgentOffers>()
-  /** The models an agent can be started on, once they have been read. */
-  private modelChoices: ModelChoice[] = []
-  /**
-   * The models the open picker offers, when it is for one agent: its
-   * harness's, which are not the orchestrator's or another harness's.
-   */
-  private pickerModels: ModelChoice[] | null = null
 
   constructor(wire: Wiring, deps: AgentsDeps) {
     this.wire = wire
     this.deps = deps
   }
 
-  /** Every model new agents may start on, as last read. */
-  models(): readonly ModelChoice[] {
-    return this.modelChoices
-  }
-
-  /** What the open picker offers: one agent's harness's models, or all of them. */
-  offeredModels(): readonly ModelChoice[] {
-    return this.pickerModels ?? this.modelChoices
-  }
-
-  /** What this agent's harness lets a person ask of it, or nothing when it is not known yet. */
-  offersFor(task: string): AgentOffers | null {
-    return this.offersByTask.get(task) ?? null
-  }
-
-  /** Read the models again, after something that could have changed them. */
-  async refreshModels(): Promise<void> {
-    this.modelChoices = (await this.wire.opts.models?.().catch(() => [])) ?? this.modelChoices
-  }
-
-  /** How hard an agent thinks from its next turn, and new agents from their first. */
-  async chooseThinking(task: string, level: string): Promise<void> {
-    if (task === ORCHESTRATOR_TAB) return this.deps.chooseThinkerThinking(level)
-    try {
-      const chosen = await this.wire.opts.client.setAgentThinking(task, level)
-      const loaded = await loadConfig(configPathOf(this.wire.opts))
-      if (loaded.ok) this.deps.useConfig(loaded.config)
-      this.wire.put(
-        notice(
-          this.wire.state,
-          `${task} thinks at ${chosen} from its next turn, and new agents start there`,
-        ),
-      )
-    } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
+  /** What removing the agent in front of you would lose. */
+  panel(): Frame['panel'] {
+    const panel = this.wire.state.panel
+    if (panel?.kind !== 'confirm-remove') return {}
+    const facts = this.wire.live?.factsOf(panel.task)
+    return {
+      changes: this.wire.live?.changes(panel.task) ?? [],
+      ahead: facts?.ahead ?? null,
+      branch: facts?.branch ?? null,
+      base: this.wire.live?.baseOf(panel.task) ?? null,
     }
-    this.wire.draw()
   }
-  /** The harness a task's agent is shown as running in: its own, else its route's. */
-  harnessShown(task: string): string {
-    return (
-      this.offersByTask.get(task)?.harness ??
-      resolveRoute(this.wire.opts.config, { project: task.split('/')[0] ?? '' }).harness
-    )
+
+  actions(): Actions {
+    return {
+      'new-agent': () => this.newAgent(''),
+      'open-agent': async () => {
+        // Queued work has no agent yet: starting it goes through the queue, so
+        // what started it and why is written down.
+        const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
+        if (pane?.queued) await this.deps.changeQueue(pane.task, 'start')
+        else await this.openAgent()
+      },
+      'close-task:': (task) => this.closeAgent(task),
+      'close-done': () => {
+        // Nothing finished is nothing to clean up: said, rather than an empty
+        // question nobody can answer.
+        const done = doneTasks(this.wire.state)
+        this.wire.put(
+          done.length === 0
+            ? notice(this.wire.state, 'no agent here has finished yet')
+            : { ...this.wire.state, panel: closeDonePanel(done.map((pane) => pane.task)) },
+        )
+        this.wire.draw()
+      },
+      approve: () => this.decide(true),
+      deny: () => this.decide(false),
+      'next-waiting': () => {
+        const next = nextWaiting(this.wire.state)
+        if (next) this.wire.put(focusTask(this.wire.state, next))
+        this.wire.draw()
+      },
+      ...this.toastActions(),
+      '/new': (rest) => this.newAgent(rest),
+      '/stop': (rest) => this.stopAgent(rest),
+      '/open': (rest) => {
+        const task = this.findTask(rest)
+        if (!task) {
+          this.wire.put(
+            notice(this.wire.state, rest ? `no agent like ${rest}` : 'which agent? /open name'),
+          )
+          this.deps.prefill('/open ')
+          return
+        }
+        this.wire.put(focusTask(this.wire.state, task))
+        this.wire.draw()
+      },
+    }
   }
 
   /**
-   * Learn what each task's harness offers, in the background: which harness
-   * it is in and what it can be asked. Redrawn only when something changed.
+   * A toast is answered from the toast: whichever button was pressed, it goes.
+   * Show also puts the agent in front, and allow and deny answer it.
    */
-  async learnHarnesses(tasks: readonly TaskSnapshot[]): Promise<void> {
-    let changed = false
-    for (const task of tasks) {
-      if (await this.learnHarness(task.task)) changed = true
-    }
-    if (changed) this.wire.draw()
-  }
-
-  private async learnHarness(task: string): Promise<boolean> {
-    const worktree = this.wire.live?.worktreeOf(task)
-    if (!worktree) return false
-    const known = await this.wire.opts.client.agentHarness(task, worktree).catch(() => null)
-    if (!known) return false
-    const was = this.offersByTask.get(task)
-    const now = agentOffers(known.harness, known.capabilities)
-    if (was && JSON.stringify(was) === JSON.stringify(now)) return false
-    this.offersByTask.set(task, now)
-    return true
-  }
-
-  /**
-   * Run an agent as another account of its harness, its conversation carried
-   * along, starting it again there if it is running.
-   */
-  async chooseAccount(task: string, account: string): Promise<void> {
-    const worktree = this.wire.live?.worktreeOf(task)
-    if (!worktree) {
-      this.wire.put(notice(this.wire.state, `I cannot find where ${task} works`))
-      this.wire.draw()
-      return
-    }
-    try {
-      const done = await this.wire.opts.client.setAgentAccount({
-        task,
-        worktree,
-        account: account || null,
+  private toastActions(): Actions {
+    const dismiss = (task: string) => {
+      this.wire.put({
+        ...this.wire.state,
+        toasts: this.wire.state.toasts.filter((one) => one.task !== task),
       })
-      const as = done.account ?? 'its own sign-in'
-      this.wire.put(
-        notice(
-          this.wire.state,
-          `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}`,
-        ),
-      )
-    } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
     }
-    await this.deps.loadAccounts()
-    this.wire.draw()
+    return {
+      'toast-close:': (task) => {
+        dismiss(task)
+        this.wire.draw()
+      },
+      'toast-show:': (task) => {
+        dismiss(task)
+        this.wire.put(focusTask(this.wire.state, task))
+        this.wire.draw()
+      },
+      'toast-allow:': async (task) => {
+        dismiss(task)
+        await this.decideFor(task, true)
+        this.wire.draw()
+      },
+      'toast-deny:': async (task) => {
+        dismiss(task)
+        await this.decideFor(task, false)
+        this.wire.draw()
+      },
+    }
   }
 
-  /** Run an agent in another harness, starting it again there if it is running. */
-  async chooseHarness(task: string, harness: string): Promise<void> {
-    const worktree = this.wire.live?.worktreeOf(task)
-    if (!worktree) {
-      this.wire.put(notice(this.wire.state, `I cannot find where ${task} works`))
-      this.wire.draw()
-      return
+  menus(): Menus {
+    return {
+      task: {
+        title: (subject) => {
+          const pane = this.wire.state.panes.find((one) => one.task === subject.task)
+          return pane ? shownName(pane) : subject.task
+        },
+        items: (subject) => {
+          const pane = this.wire.state.panes.find((one) => one.task === subject.task)
+          if (pane?.queued) return queueMenuItems(pane.queued)
+          return pane
+            ? menuItems(
+                pane,
+                this.wire.live?.changes(subject.task).length ?? 0,
+                this.deps.offersFor(subject.task) ?? undefined,
+              )
+            : []
+        },
+        choose: (subject, item) => this.fromTaskMenu(subject.task, item),
+      },
     }
-    try {
-      const done = await this.wire.opts.client.setAgentHarness({ task, worktree, harness })
-      await this.learnHarness(task)
-      this.wire.put(
-        notice(
-          this.wire.state,
-          `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}`,
-        ),
-      )
-    } catch (err) {
-      this.wire.put(notice(this.wire.state, why(err)))
-    }
-    await this.wire.live?.refresh()
-    this.wire.draw()
   }
+
+  submits(): Submits {
+    return {
+      'confirm-remove': (panel) => this.removeTask(panel),
+      'close-done': (panel) => this.closeDone(panel),
+    }
+  }
+
+  prompts(): Prompts {
+    return {
+      'rename-agent': async (panel, text) => {
+        if (!panel.target) return
+        const worktree = this.wire.live?.worktreeOf(panel.target)
+        if (!worktree) throw new Error(`I do not know where ${panel.target} works`)
+        const title = await this.wire.opts.client.renameAgent({
+          task: panel.target,
+          worktree,
+          title: text,
+        })
+        await this.wire.live?.refresh()
+        this.wire.put(
+          notice({ ...this.wire.state, panel: null }, `${panel.target} is now called ${title}`),
+        )
+      },
+    }
+  }
+
   async fromTaskMenu(task: string, item: string): Promise<void> {
     const facts = this.wire.live?.factsOf(task)
     const worktree = this.wire.live?.worktreeOf(task)
@@ -260,23 +265,11 @@ export class Agents {
         break
       }
       case 'model':
-        await this.openModels(task)
+        await this.deps.openModels(task)
         return
-      case 'account': {
-        const known = await this.wire.opts.client
-          .agentHarness(task, this.wire.live?.worktreeOf(task) ?? '')
-          .catch(() => null)
-        await this.deps.loadAccounts()
-        this.wire.put({
-          ...this.wire.state,
-          panel: menuPanel({ kind: 'account', task, current: known?.account ?? '' }, 'Account', {
-            row: 3,
-            col: Math.max(0, this.deps.size().columns - 40),
-          }),
-        })
-        this.wire.draw()
+      case 'account':
+        await this.deps.openAccount(task)
         return
-      }
       case 'copy-branch':
         if (facts) {
           const copied = await this.deps.copyToClipboard(facts.branch)
@@ -630,68 +623,6 @@ export class Agents {
       this.wire.put(notice(this.wire.state, `${allow ? 'approved' : 'denied'}: ${pending.summary}`))
     } catch (err) {
       this.wire.put(notice(this.wire.state, err instanceof Error ? err.message : String(err)))
-    }
-    this.wire.draw()
-  }
-  /** Choose a model for the orchestrator, or for one agent's session. */
-  async openModels(target: string): Promise<void> {
-    if (this.modelChoices.length === 0) {
-      this.modelChoices = (await this.wire.opts.models?.().catch(() => [])) ?? []
-    }
-    const worktree = target === 'orchestrator' ? null : this.wire.live?.worktreeOf(target)
-    this.pickerModels =
-      target === 'orchestrator'
-        ? ((await this.wire.opts.orchestratorModels?.().catch(() => null)) ?? null)
-        : worktree
-          ? await this.wire.opts.client.agentModels(target, worktree).catch(() => null)
-          : null
-    const offered = this.pickerModels ?? this.modelChoices
-    // Starting on the one in use, so enter is a no-op and ↑↓ is "the one next to it".
-    const current =
-      target === 'orchestrator'
-        ? this.deps.thinkerModel()
-        : (this.wire.live?.vitals(target)?.model ?? null)
-    const index = current
-      ? Math.max(
-          0,
-          offered.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
-        )
-      : 0
-    this.wire.put({ ...this.wire.state, panel: { ...modelPanel(target), index } })
-    this.wire.draw()
-  }
-
-  /**
-   * Switch to a model. An agent switches its own session there and then. The
-   * orchestrator's is written to the config — so it stays — and it is started
-   * again on it, carrying on the same conversation.
-   */
-  async chooseModel(panel: ModelPanel, id: string): Promise<void> {
-    try {
-      if (panel.for === 'orchestrator') {
-        const [provider, ...rest] = id.split('/')
-        writeSetting(configPathOf(this.wire.opts), 'orchestrator.provider', provider)
-        writeSetting(configPathOf(this.wire.opts), 'orchestrator.model', rest.join('/'))
-        const loaded = await loadConfig(configPathOf(this.wire.opts))
-        if (loaded.ok) this.deps.useConfig(loaded.config)
-        this.wire.put({ ...this.wire.state, panel: null })
-        this.wire.put(notice(this.wire.state, `the orchestrator is moving to ${rest.join('/')}`))
-        this.wire.draw()
-        await this.wire.opts.restartThinker?.()
-      } else {
-        const chosen = await this.wire.opts.client.setAgentModel(panel.for, id)
-        // It is new agents' model now too: read back what the workbench wrote.
-        const loaded = await loadConfig(configPathOf(this.wire.opts))
-        if (loaded.ok) this.wire.opts.config = loaded.config
-        this.wire.put(
-          notice(
-            { ...this.wire.state, panel: null },
-            `${panel.for} is switching to ${chosen.id}, and new agents start on it`,
-          ),
-        )
-      }
-    } catch (err) {
-      this.wire.put({ ...this.wire.state, panel: { ...panel, busy: false, error: why(err) } })
     }
     this.wire.draw()
   }

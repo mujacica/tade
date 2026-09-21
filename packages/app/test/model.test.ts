@@ -4,6 +4,7 @@ import {
   type AgentPane,
   type AppState,
   acrossOf,
+  anythingWorking,
   doneTasks,
   dragAgent,
   dropAgent,
@@ -394,6 +395,46 @@ describe('folding a section in the sidebar', () => {
     expect(shut.folded).toContain('queue')
     expect(sectionOpen(shut, 'queue', false)).toBe(false)
     expect(sectionOpen(shut, 'queue', true)).toBe(false)
+  })
+})
+
+describe('whether anything is working', () => {
+  it('is true while an agent in this project works, so its spinner turns', () => {
+    const state = withTasks(initialState(), [
+      { task: 'app/one', state: 'working' },
+      { task: 'app/two', state: 'review' },
+    ])
+    expect(anythingWorking(state)).toBe(true)
+    // An agent in another project turns nothing you are looking at.
+    expect(anythingWorking({ ...state, project: 'elsewhere' })).toBe(false)
+  })
+
+  it('is true while the orchestrator thinks, or one of its tools runs', () => {
+    const quiet = initialState()
+    expect(anythingWorking(quiet)).toBe(false)
+    expect(
+      anythingWorking({ ...quiet, transcript: { ...quiet.transcript, thinking: 1_000 } }),
+    ).toBe(true)
+    expect(
+      anythingWorking({
+        ...quiet,
+        transcript: {
+          ...quiet.transcript,
+          entries: [
+            {
+              kind: 'tool',
+              id: 't1',
+              tool: 'tade_status',
+              detail: '',
+              state: 'running',
+              result: '',
+              progress: null,
+              at: 1_000,
+            },
+          ],
+        },
+      }),
+    ).toBe(true)
   })
 })
 

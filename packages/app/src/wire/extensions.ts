@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { type Config, extensionEnabled, loadConfig } from '@tade/core'
+import { type Config, expandHome, extensionEnabled, loadConfig } from '@tade/core'
 import {
   type SetupFieldView as HostSetupField,
   type ListSection,
@@ -16,14 +16,20 @@ import {
   withTranscript,
 } from '../model.ts'
 import type { PanelContext } from '../panels/context.ts'
-import { type ExtensionSetupPanel, extensionSetupPanel } from '../panels/extensions/setup.ts'
+import {
+  type ExtensionSetupPanel,
+  extensionSetupPanel,
+  extensionViewPanel,
+} from '../panels/extensions/setup.ts'
 import {
   type ExtensionsPanel,
   type ExtensionView,
+  extensionRow,
+  extensionsPanel,
   type McpServerOffer,
   type McpServerShown,
-  serverFacts,
-  toolSummary,
+  serverOffer,
+  serverView,
   type WrittenToolView,
 } from '../panels/extensions/state.ts'
 import { extensionsScrollable } from '../panels/extensions/view.ts'
@@ -31,7 +37,16 @@ import { writeSetting } from '../settings.ts'
 import type { Skin } from '../skin.ts'
 import { fromThinker, ran, said } from '../transcript.ts'
 import { markdownLines } from '../viewer.ts'
-import { configPathOf, type Wiring, whenShort, why } from './context.ts'
+import {
+  type Actions,
+  configPathOf,
+  type Subject,
+  type Submits,
+  tilde,
+  type Wiring,
+  whenShort,
+  why,
+} from './context.ts'
 // Type-only, so it is erased and no module edge exists between the two
 // subjects: this is the shape of what turning a watch on asks for, and what
 // it *does* is the schedules'.
@@ -86,7 +101,7 @@ export interface ExtensionsDeps {
   spoken(text: string): string
 }
 
-export class Extensions {
+export class Extensions implements Subject {
   private readonly wire: Wiring
   private readonly deps: ExtensionsDeps
   /** Text the extensions know how to open, asked once: working it out reads files. */
@@ -118,6 +133,105 @@ export class Extensions {
   constructor(wire: Wiring, deps: ExtensionsDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /** What extensions keep in the window: the status bar, the side, and the text they open. */
+  facts(): Partial<Frame> {
+    return {
+      linkers: this.knownLinks(),
+      statuses: this.strip(),
+      lists: this.lists().map((section) => ({
+        id: section.id,
+        title: section.title,
+        problem: section.problem,
+        rows: section.rows.map((row) => ({
+          section: section.id,
+          id: row.id,
+          title: row.title,
+          ...(row.note ? { note: row.note } : {}),
+          ...(row.marks ? { marks: row.marks } : {}),
+          ...(row.links ? { links: row.links } : {}),
+          ...(row.opens ? { opens: row.opens } : {}),
+          ...(row.task ? { task: row.task } : {}),
+        })),
+      })),
+      extensionsNeedYou: (this.wire.opts.extensions?.list() ?? []).filter(
+        (one) => one.state === 'needs setup' || one.state === 'broken',
+      ).length,
+    }
+  }
+
+  /** The Extensions page, an extension's own setup, or the page one wrote about itself. */
+  panel(): Frame['panel'] {
+    const panel = this.wire.state.panel
+    if (panel?.kind === 'extension-setup') return { setup: this.setupFacts(panel) }
+    if (panel?.kind === 'extension-view') {
+      const shown = this.shown()
+      return {
+        extensionView:
+          shown?.name === panel.extension ? { title: shown.title, markdown: shown.markdown } : null,
+      }
+    }
+    if (panel?.kind !== 'extensions') return {}
+    return {
+      written: this.writtenViews(),
+      extensions: this.extensionViews(),
+      harnessExtensions: this.harnessLoads(),
+      servers: this.serverOffers(),
+      extensionsRoot: tilde(expandHome(this.wire.opts.config.orchestrator.extensions)),
+    }
+  }
+
+  inputs() {
+    const panel = this.wire.state.panel
+    const room = this.extensionRoom()
+    return {
+      extensions: this.extensionViews(),
+      written: panel?.kind === 'extensions' ? this.writtenViews() : [],
+      harnessExtensions: this.harnessLoads(),
+      servers: this.serverOffers(),
+      scrollable: room.body,
+      listRoom: room.listRoom,
+      setupFields: panel?.kind === 'extension-setup' ? (this.setupFacts(panel)?.fields ?? []) : [],
+      ...(panel?.kind === 'extension-view' ? { lines: this.extensionViewLines() } : {}),
+    }
+  }
+
+  actions(): Actions {
+    return {
+      extensions: async () => {
+        await this.reread()
+        // It opens on the one that wants somebody — something to set up,
+        // something broken — and on the first of them when nothing does.
+        const views = this.extensionViews()
+        const wants = views.find((one) => one.state === 'needs setup' || one.state === 'broken')
+        this.wire.put({
+          ...this.wire.state,
+          panel: extensionsPanel(wants?.name ?? views[0]?.name ?? null),
+        })
+        this.wire.draw()
+      },
+      'extension-view:': async (name) => {
+        this.wire.put({ ...this.wire.state, panel: extensionViewPanel(name) })
+        this.wire.draw()
+        await this.refreshExtensionView(name)
+      },
+      'extension:': async (rest) => {
+        const [name, id] = rest.split(':')
+        await this.runExtension(name ?? '', id ?? '')
+      },
+      'list-row:': async (rest) => {
+        const [section, id] = rest.split('\u0000')
+        await this.openListRow(section ?? '', id ?? '')
+      },
+    }
+  }
+
+  submits(): Submits {
+    return {
+      extensions: (panel, choice) => this.fromExtensions(panel, choice ?? ''),
+      'extension-setup': (panel) => this.saveSetup(panel),
+    }
   }
 
   /** The text extensions know how to open, for the frame that draws it. */
@@ -188,63 +302,16 @@ export class Extensions {
     return view
   }
 
-  /**
-   * The MCP servers nobody has decided about: the catalogue row, with what
-   * each one is for and what turning it on would need. A server somebody has
-   * decided about is a row of its own among the extensions instead, because a
-   * live source of tools belongs beside the others.
-   */
+  /** The servers nobody has decided about: the catalogue, as one row. */
   serverOffers(): McpServerOffer[] {
-    return this.servers
-      .filter((server) => !server.decided)
-      .map((server) => ({
-        name: server.name,
-        title: server.title,
-        description: server.description,
-        workflow: server.workflow,
-        how: server.how,
-        needs: server.problem,
-        install: server.install,
-        note: server.note,
-        fetches: server.fetches,
-      }))
+    return this.servers.filter((server) => !server.decided).map(serverOffer)
   }
 
-  /**
-   * A server somebody has decided about, as a row among the extensions.
-   *
-   * One that is on and working is already one — the broker made an extension
-   * of it and the host loaded it — so this is the rest: the ones turned off,
-   * and the ones turned on that cannot work yet. It says only what is true of
-   * a server nothing has connected to, which is what it is and what it needs.
-   */
+  /** The ones somebody decided about that nothing connected, as rows of their own. */
   private serverViews(loaded: readonly string[]): ExtensionView[] {
     return this.servers
       .filter((server) => server.decided && !loaded.includes(`mcp-${server.name}`))
-      .map((server) => ({
-        name: `mcp-${server.name}`,
-        title: server.title,
-        description: server.description,
-        // Its own words about how it is used are the catalogue's, and it was
-        // never imported, so there is nothing else to say.
-        workflow: server.on ? server.workflow : [],
-        source: 'mcp' as const,
-        state: server.on ? ('needs setup' as const) : ('off' as const),
-        // A server that is on and workable is an extension by now, so one
-        // that is on and here was left out — `--safe`, or a name Tade's own
-        // took first. Either way it is said rather than left blank.
-        problem: server.on
-          ? (server.problem ?? `${server.name} is on, but nothing connected it in this window`)
-          : server.problem,
-        tools: [],
-        actions: [],
-        options: [],
-        unknownSettings: [],
-        configurable: false,
-        folder: null,
-        watches: [],
-        server: serverFacts(server),
-      }))
+      .map(serverView)
   }
 
   /**
@@ -286,51 +353,36 @@ export class Extensions {
     const servers = this.servers
     const loaded = this.wire.opts.extensions?.list() ?? []
     return [
-      ...loaded.map((one) => ({
-        name: one.name,
-        title: one.title,
-        description: one.description,
-        workflow: one.workflow,
-        source: one.source,
-        state: one.state,
-        problem: one.problem,
-        tools: one.tools.map((tool) => ({
-          name: tool.name,
-          summary: toolSummary(tool.description),
-          for: tool.for,
-        })),
-        actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
-        options: this.setupView(one.name).fields.map((field) => ({
-          key: field.key,
-          label: field.label,
-          value: field.value,
-          have: field.have,
-          secret: field.kind === 'secret',
-        })),
-        unknownSettings: one.unknownSettings,
-        configurable: this.setupView(one.name).configurable,
-        folder: one.source === 'yours' ? one.path : null,
-        watches: offers
-          .filter((offer) => offer.extension === one.name)
-          .map((offer) => ({
-            id: offer.id.slice(one.name.length + 1),
-            title: offer.title,
-            means: offer.means,
-            every: offer.every,
-            project,
-            on:
-              schedules.find(
-                (each) =>
-                  each.project === project &&
-                  each.does.kind === 'watch' &&
-                  each.does.watch === offer.id,
-              )?.id ?? null,
+      ...loaded.map((one) => {
+        const setup = this.setupView(one.name)
+        return extensionRow(one, {
+          configurable: setup.configurable,
+          options: setup.fields.map((field) => ({
+            key: field.key,
+            label: field.label,
+            value: field.value,
+            have: field.have,
+            secret: field.kind === 'secret',
           })),
-        // What is true of a server and of nothing else, for a row that is one.
-        ...(one.source === 'mcp'
-          ? { server: serverFacts(servers.find((each) => `mcp-${each.name}` === one.name)) }
-          : {}),
-      })),
+          watches: offers
+            .filter((offer) => offer.extension === one.name)
+            .map((offer) => ({
+              id: offer.id.slice(one.name.length + 1),
+              title: offer.title,
+              means: offer.means,
+              every: offer.every,
+              project,
+              on:
+                schedules.find(
+                  (each) =>
+                    each.project === project &&
+                    each.does.kind === 'watch' &&
+                    each.does.watch === offer.id,
+                )?.id ?? null,
+            })),
+          server: servers.find((each) => `mcp-${each.name}` === one.name),
+        })
+      }),
       ...this.serverViews(loaded.map((one) => one.name)),
     ]
   }
