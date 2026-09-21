@@ -235,6 +235,18 @@ and every setting has what it means beside it.
 </tr>
 </table>
 
+## Up to date, and honest about it
+
+Which of the programs Tade runs are here, how each one got here — Homebrew, a global npm package, a
+binary somebody dropped on their PATH — and what is current. Nothing is written down at a call site:
+every driver, harness and forge declares what it needs and how to ask it its version. Checking is the
+one thing here that reaches the network and it happens when you press it, nothing installs anything
+behind your back, the exact command is on the page before it runs, and what nobody can be asked about
+comes back as *cannot tell* rather than a guess. Tade itself is a row like any other, with what
+reloading into the new one would cost said before you choose it.
+
+![Updates: every program Tade runs with how it got here and what is current, the exact command before anything runs it, and what reloading would cost](images/updates.svg)
+
 ## The brief, and where everything stands
 
 One paragraph of what is stopped, what is moving and what the extensions found — in the window, by

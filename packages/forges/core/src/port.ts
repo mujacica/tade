@@ -1,4 +1,5 @@
 import type { CheckRun } from '@tade/checks-core'
+import type { RequiredProgram } from '@tade/core'
 
 // The Forge port: the service a branch is offered to other people on, and
 // everything anybody says about it there.
@@ -188,6 +189,12 @@ export interface Forge {
   /** Registered under this: `github`, `gitlab`, `scripted`. */
   readonly id: string
   readonly capabilities: ForgeCapabilities
+  /**
+   * The programs this forge needs on the machine, and how to ask each its
+   * version — `gh`, where that is how it talks. A forge that speaks HTTP and
+   * nothing else declares nothing.
+   */
+  readonly programs?: readonly RequiredProgram[]
   /** What it calls a review, for anything a person reads. */
   readonly words: {
     one: string

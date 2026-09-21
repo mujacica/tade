@@ -16,7 +16,7 @@
  ▾ FILES│  Telemetry             │ Muted           ●    off                                                    │        
    ▾ src│  Shortcuts             │ Spoken replies     ● on                                                     │        
        w│  Accounts          ● 2 │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
-       w│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+       w│  Updates               │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        

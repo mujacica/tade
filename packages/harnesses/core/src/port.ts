@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type {
   LaneId,
+  RequiredProgram,
   SandboxSpec,
   TaskId,
   ThinkingLevel,
@@ -592,6 +593,13 @@ export interface LaunchSpec {
 export interface WorkerAdapter {
   readonly id: string
   readonly capabilities: WorkerCapabilities
+  /**
+   * The programs this harness needs on the machine, and how to ask each its
+   * version. `probe` says whether the one here can run; this says what it is
+   * and how to see it, so keeping it current never means knowing at a call
+   * site that pi comes from npm.
+   */
+  readonly programs?: readonly RequiredProgram[]
 
   /** Whether the harness is installed and can run here, and what to do if not. */
   probe(): Promise<HarnessProbe>

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tade/checks-core": "workspace:*",
+    "@tade/core": "workspace:*",
     "vitest": "^5.0.0"
   }
 }

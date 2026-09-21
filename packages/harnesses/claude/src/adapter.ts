@@ -6,7 +6,13 @@ import { homedir } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { sandboxed, type ThinkingLevel, type ToolEffect, type Unsubscribe } from '@tade/core'
+import {
+  type RequiredProgram,
+  sandboxed,
+  type ThinkingLevel,
+  type ToolEffect,
+  type Unsubscribe,
+} from '@tade/core'
 import {
   type AccountStatus,
   type HarnessAccount,
@@ -255,6 +261,15 @@ export class ClaudeAdapter implements WorkerAdapter {
         "prices a session only as its own estimate; on a subscription it is the plan's limits that are used up",
     },
   }
+
+  readonly programs: readonly RequiredProgram[] = [
+    {
+      command: 'claude',
+      title: 'Claude Code',
+      why: 'being the agent, for every task set to run in it',
+      versionArgs: ['--version'],
+    },
+  ]
 
   private readonly runs = new Map<string, Run>()
   private readonly listeners = new Map<string, Set<WorkerSignalListener>>()

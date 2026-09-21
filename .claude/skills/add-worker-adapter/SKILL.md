@@ -47,6 +47,12 @@ closes, which is the thing this design exists to avoid.
   orchestrator's tools and voice all read them through `offer()` — `none` is not drawn and is
   refused with that sentence, `restart` is done by `restartAgent`. `permissionGate: false` means
   approvals cannot be trusted for that harness — never fake it.
+- Declare what it needs of the machine (`programs`): the program the harness actually is, what it
+  is needed for, and the arguments that make it print its version. `probe()` says whether the one
+  here can run; this says what it is and how to see it, which is what Settings › Updates and `tade
+  update` read. A harness Tade ships as a dependency of its own says where it is (`at`), so it is
+  read from the copy that will actually run rather than reported missing because nothing on PATH
+  answers to its name — and anything inside Tade's own tree is reported as moving when Tade moves.
 - Say what each tool does (`effectOf`): `read`, `write`, `exec` or `other`. The policy judges by
   that and never learns a harness's tool names; `exec` is judged by its command.
 - Own the harness's own record: `conversationKey` (two tasks with the same key share a
@@ -90,6 +96,48 @@ everything said to it is typed into its lane. Each of these was found the hard w
 - **Subscriptions are the user's own, through the harness's own sign-in.** Tade runs the unmodified
   binary, never reads or stores a subscription token, and an API key it keeps is read by the harness
   through a command, so it is never written into a launch line.
+
+## What Codex taught (`packages/harnesses/codex`)
+
+Codex is the second harness with nothing of ours inside it, and it answered the same questions
+differently enough to be worth writing down:
+
+- **A harness that names its own conversation is still a conversation you come back to.** Codex
+  makes the thread id itself and takes none from us, so there is nothing to put in the launch line
+  — until its first hook says which thread it made. Tade writes that down beside the task
+  (`rememberThread`) and the line reads the file (`codex resume "$thread"`), so it is still one
+  line that both starts and continues, still written down, still silent on reattach. A note
+  pointing at a thread the harness has forgotten is not a conversation: `hasConversation` looks for
+  the record too.
+- **Settings can go on the line when there is no file to hand over.** Codex has no `--settings`; it
+  has `-c <key>=<TOML>`, which is per-launch and touches nobody's `~/.codex`. That is what carries
+  the hooks, the MCP servers, the effort — and what makes a folder trusted for this launch alone
+  (`projects.<cwd>.trust_level`), which is the dialog that would otherwise hold the agent before it
+  started. Write the TOML through one encoder (`toml.ts`): a table the harness refuses is a launch
+  that never happens, and the only way to know is to run the real binary against it.
+- **A flag that belongs to one subcommand is a usage message in the lane.** `--skip-git-repo-check`
+  is `codex exec`'s; on the line that draws a terminal Codex refuses the whole invocation, and what
+  the person sees is a usage message where an agent should be. Every flag has to be checked against
+  the subcommand it is actually on.
+- **Saying nothing can be the only way to approve.** Codex's PreToolUse hook takes a refusal and
+  rejects `permissionDecision: allow` outright, so approving is printing nothing. That makes "Tade
+  said carry on" and "Tade never answered" look identical on standard output: the hook has to tell
+  them apart by whether a *reply* came back, not by what was in it, or an approved call is refused
+  the moment the fail-closed default fires.
+- **Instructions can arrive as a hook's answer.** With no flag that appends to a harness's own
+  prompt, the SessionStart hook's `additionalContext` is what carries `extras.instructions` — said
+  at every launch, appended rather than replacing, and the same place an extension's skills are
+  named when the harness only finds skills in folders Tade must not write to.
+- **Headless can be one process per turn.** Codex runs an instruction to the end and exits, so
+  `start()` spawns `codex exec resume <thread> --json` per turn and maps its event stream
+  (`thread.started`, `turn.started`, `item.*`, `turn.completed`) to the same signals. It is a real
+  conversation — the thread is what makes it one — but there is no mid-turn steering and no
+  `message_delta`, so the reply arrives whole.
+- **Tokens without a price are `spend.usd: 'none'`.** Codex counts every turn in its rollout and
+  prices none of it. Adding an estimate would be money that was guessed sitting beside money that
+  was priced, so the number is simply not given, and `why` says so.
+- **Its own counts are not Tade's.** Codex's `input_tokens` includes what was read from the cache;
+  every other harness reports them apart. Convert once, where the record is read.
 
 ## Being the thing you talk to
 
@@ -143,8 +191,13 @@ name for the one conversation it keeps.
 2. Write the in-agent half if the harness has one, plus the channel that carries its signals.
 3. Test without a model first: prove the agent loads your code, connects, and answers control
    commands. That catches loading, resolution and framing bugs on their own.
-4. Then test the gate with a fake OpenAI-compatible provider so a real agent makes a real tool
-   call, deterministically and offline.
-5. Register the adapter where workers are chosen (`Workbench.adapterFor`), and add it to the
-   `harness` enum in `packages/core/src/config.ts`.
+4. Then test the gate with a fake provider so a real agent makes a real tool call,
+   deterministically and offline. Which fake depends on the wire the harness speaks:
+   `test/fixtures/fake-model.ts` answers OpenAI chat completions, `fake-anthropic.ts` answers
+   Anthropic messages — and a harness that speaks neither (Codex 0.154 dropped chat completions for
+   the Responses API) needs a fixture of its own before it can have a live test at all.
+5. Register the adapter in `HARNESS_ADAPTERS` (`packages/workbench/src/harnesses.ts`), add it to
+   `HARNESS_IDS` in `packages/core/src/config.ts` and to `HARNESS_CHOICES` in
+   `packages/core/src/model.ts` — a name in the choices with no adapter behind it is a promise the
+   code does not keep, and `ready: false` is how one says so until there is.
 6. `pnpm check`.

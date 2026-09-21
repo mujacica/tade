@@ -16,7 +16,7 @@
  ▾ FILES│  Telemetry             │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
    ▾ src│  Shortcuts             │     Sign in again…     Sign out                                             │        
        w│▌ Accounts          ● 2 │   work                  ○ not signed in yet                                 │        
-       w│                        │     Sign in…     Use for new agents     Remove                              │        
+       w│  Updates               │     Sign in…     Use for new agents     Remove                              │        
    ▸ tes│                        │                                                                             │        
      pac│                        │     Add an account…     Add an API-key account…                             │        
      REA│                        │                                                                             │        

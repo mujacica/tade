@@ -15,7 +15,7 @@
    │▌ Telemetry     │                               │   
    │  Shortcuts     │ Crashes and warnings        ↻ │  ▕
    │  Accounts  ● 2 │ ● Saved as you change it.     │  ▕
- ❯ │                │                        Done   │d ▕
+ ❯ │  Updates       │                        Done   │d ▕
 ───╰────────────────────────────────────────────────╯── 
  Ask Tade anything  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────

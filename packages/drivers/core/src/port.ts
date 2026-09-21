@@ -1,4 +1,4 @@
-import type { LaneId, Unsubscribe } from '@tade/core'
+import type { LaneId, RequiredProgram, Unsubscribe } from '@tade/core'
 
 // The WorkspaceDriver port: what decides where a process physically lives.
 // It is deliberately NOT the thing that decides where you look at it.
@@ -95,6 +95,13 @@ export type Availability = { ok: true } | { ok: false; reason: string }
 export interface WorkspaceDriver {
   readonly id: string
   readonly capabilities: WorkspaceCapabilities
+  /**
+   * The programs this driver needs on the machine, and how to ask each its
+   * version. Declared, never sniffed: whoever wants to know whether tmux is
+   * here and current asks the driver, and a driver that needs nothing of the
+   * machine says nothing.
+   */
+  readonly programs?: readonly RequiredProgram[]
 
   /**
    * Whether this machine can run lanes here at all — `tmux` asked for on a

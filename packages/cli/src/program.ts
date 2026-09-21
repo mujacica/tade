@@ -19,6 +19,7 @@ import { registerSetup } from './commands/setup.ts'
 import { registerSpend } from './commands/spend.ts'
 import { registerSummary } from './commands/summary.ts'
 import { registerTasks } from './commands/tasks.ts'
+import { registerUpdate } from './commands/update.ts'
 import { registerVoice } from './commands/voice.ts'
 import { formatStatus } from './format.ts'
 import { defaultIo, Exit, type Io } from './io.ts'
@@ -86,6 +87,7 @@ export function buildProgram(io: Io, setExit: (code: number) => void): Command {
   registerSchedules(program, io)
   registerSummary(program, io, setExit)
   registerVoice(program, io, setExit)
+  registerUpdate(program, io, setExit)
   registerExtensions(program, io, setExit)
   registerSkills(program, io, setExit)
   return program

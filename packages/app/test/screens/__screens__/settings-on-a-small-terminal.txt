@@ -15,7 +15,7 @@
 ━  │▌ Telemetry       │ What agents do              ● on                  ↻ │  ━
    │  Shortcuts       │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
    │  Accounts    ● 2 │ Which Tade this is        laptop                  ↻ │  ▕
-   │                  │ Read Sentry back            ● on                  ↻ │  ▕
+   │  Updates         │ Read Sentry back            ● on                  ↻ │  ▕
    │                  │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕
 ───╰────────────────────────────────────────────────────────────────────────╯── 

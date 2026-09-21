@@ -335,6 +335,9 @@ export interface Frame {
       | 'choices'
       | 'settings'
       | 'accounts'
+      | 'updates'
+      | 'updatesBusy'
+      | 'lanesSurvive'
       | 'configPath'
       | 'releases'
       | 'budgetWarnings'
@@ -523,6 +526,9 @@ export function draw(state: AppState, frame: Frame): Drawn {
     choices: extra.choices ?? [],
     settings: extra.settings ?? [],
     accounts: extra.accounts ?? [],
+    updates: extra.updates ?? null,
+    updatesBusy: extra.updatesBusy ?? false,
+    lanesSurvive: extra.lanesSurvive ?? false,
     configPath: extra.configPath ?? '~/.tade/config.yaml',
     releases: extra.releases ?? false,
     budgetWarnings: extra.budgetWarnings ?? 0,

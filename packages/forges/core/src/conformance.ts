@@ -1,4 +1,5 @@
 import { CHECK_STATES } from '@tade/checks-core'
+import { declarationProblems } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { type Forge, ForgeError, REVIEW_STATES, type ReviewRef } from './port.ts'
 
@@ -61,6 +62,13 @@ export function testForge(
         expect(typeof can[key]).toBe('boolean')
       }
       expect(can.costPerPoll).toBeGreaterThan(0)
+    })
+
+    it('declares the programs it needs in a way anything can look up and ask', async () => {
+      // A forge that speaks HTTP and nothing else declares none, which is an
+      // answer; one declaring a program nobody could find or ask is not.
+      const forge = await make()
+      expect(declarationProblems(forge.programs)).toEqual([])
     })
 
     it('says which remotes are its own, the same way every time and without asking anybody', async () => {

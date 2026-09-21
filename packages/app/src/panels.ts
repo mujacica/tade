@@ -1,5 +1,10 @@
 import { type Setting, type SettingGroup, settingFound, stepped, THINKING_LEVELS } from '@tade/core'
 import { type Offer, offer, type WorkerCapabilities } from '@tade/harnesses-core'
+// Type-only, so the pure panel model never loads the driver stack behind it.
+import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
+
+export type { UpdatesShown }
+
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 import {
@@ -170,6 +175,70 @@ export interface SettingsPanel {
 }
 
 export const ACCOUNTS = 'accounts'
+/**
+ * Keeping what Tade runs current: the programs it shells out to, and Tade
+ * itself. A category like the others to whoever walks the side, and its own
+ * page, because none of it is a value in a config file.
+ */
+export const UPDATES = 'updates'
+
+/**
+ * One row of the Updates page, in the order the page draws them — which is
+ * the order the keyboard walks them, since both come from `updateActions`.
+ *
+ * Not every row is a button. A program Tade cannot offer a command for is
+ * still a row the keyboard stops on, because a page that only stops on
+ * buttons is a page whose last programs cannot be scrolled to.
+ */
+export interface UpdateAction {
+  /** `updates:check`, `updates:reload`, `updates:update:<command>`, `updates:row:<command>`. */
+  id: string
+  /** What the button says. Empty for a row that is not one. */
+  label: string
+  /** The program it is about, `tade` for Tade itself, null for the page. */
+  about: string | null
+  /** The exact command it would run, for the one that runs one. */
+  command?: string
+}
+
+/**
+ * Everything on the Updates page the keyboard can be on, in drawing order.
+ *
+ * Checking is always offered — it is the only thing on the page that touches
+ * the network, and it never happens until it is pressed. Updating is offered
+ * only where Tade knows the exact command, because a button that guesses at
+ * `brew upgrade` is worse than one that is not there; everything else is a
+ * row with nothing to press.
+ */
+export function updateActions(look: UpdatesShown | null, busy: boolean): UpdateAction[] {
+  const actions: UpdateAction[] = [
+    { id: 'updates:check', label: busy ? 'Checking…' : 'Check for updates', about: null },
+  ]
+  if (!look) return actions
+  if ('command' in look.tade.update) {
+    actions.push({
+      id: 'updates:update:tade',
+      label: 'Update Tade…',
+      about: 'tade',
+      command: look.tade.update.command,
+    })
+  }
+  actions.push({ id: 'updates:reload', label: 'Reload Tade…', about: 'tade' })
+  for (const program of look.programs) {
+    const update = program.update
+    actions.push(
+      'command' in update
+        ? {
+            id: `updates:update:${program.need.command}`,
+            label: `Update ${program.need.title}…`,
+            about: program.need.command,
+            command: update.command,
+          }
+        : { id: `updates:row:${program.need.command}`, label: '', about: program.need.command },
+    )
+  }
+  return actions
+}
 
 /**
  * Opening a project: a folder browser that starts in your home folder, with
@@ -1288,6 +1357,8 @@ export interface PanelInputs {
   settings?: readonly SettingGroup[]
   /** What can be done on the Accounts page, in the order the keyboard walks it. */
   accountActions?: readonly AccountAction[]
+  /** What can be done on the Updates page, in the order the keyboard walks it. */
+  updateActions?: readonly UpdateAction[]
   /** The Open project list, as it stands for the query. */
   rows?: readonly OpenRow[]
   /** What search shows for the query as it stands. */
@@ -2063,7 +2134,7 @@ function settingsKey(
   if (key === 'ctrl+f' || data === '/') return stay({ ...panel, focus: 'search' })
 
   if (panel.focus === 'categories') {
-    const ids = [...groups.map((group) => group.id), ACCOUNTS]
+    const ids = [...groups.map((group) => group.id), ACCOUNTS, UPDATES]
     const at = Math.max(0, ids.indexOf(panel.category))
     if (key === 'down' || key === 'up') {
       const next = ids[(at + (key === 'down' ? 1 : -1) + ids.length) % ids.length] ?? panel.category
@@ -2075,10 +2146,13 @@ function settingsKey(
   }
 
   // The form.
-  const count =
-    panel.category === ACCOUNTS && !panel.search
+  const count = panel.search
+    ? rows.length
+    : panel.category === ACCOUNTS
       ? (inputs.accountActions ?? []).length
-      : rows.length
+      : panel.category === UPDATES
+        ? (inputs.updateActions ?? []).length
+        : rows.length
   if (key === 'tab' || key === 'shift+tab') return stay({ ...panel, focus: 'categories' })
   if (key === 'down')
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
@@ -2090,6 +2164,12 @@ function settingsKey(
   if (panel.category === ACCOUNTS && !panel.search) {
     const action = (inputs.accountActions ?? [])[panel.row]
     return key === 'enter' && action ? accountChoice(panel, action.id) : stay(panel)
+  }
+  if (panel.category === UPDATES && !panel.search) {
+    const action = (inputs.updateActions ?? [])[panel.row]
+    return key === 'enter' && action
+      ? { panel: { ...panel, saved: null, error: null }, submit: true, choice: action.id }
+      : stay(panel)
   }
   if (!here) return key === 'left' ? stay({ ...panel, focus: 'categories' }) : stay(panel)
   return operate(panel, here, key)
@@ -2250,6 +2330,19 @@ function settingsClick(panel: SettingsPanel, control: string, inputs: PanelInput
       return { panel, submit: true, choice: 'open-file' }
     case 'account':
       return accountChoice(panel, control)
+    case 'updates': {
+      // Both the row and the button: clicking a button on a page of them
+      // should put the keyboard where the click was, so the next Enter
+      // presses what is under the hand.
+      const at = (inputs.updateActions ?? []).findIndex((action) => action.id === control)
+      const moved = {
+        ...panel,
+        saved: null,
+        error: null,
+        ...(at >= 0 ? { row: at, focus: 'form' as const } : {}),
+      }
+      return { panel: moved, submit: true, choice: control }
+    }
     case 'mic-test':
       return panel.testing
         ? stay(panel)

@@ -898,6 +898,21 @@
     }
   },
   {
+    "name": "tade_updates",
+    "description": "What Tade runs and whether it is current: every program it shells out to — the harnesses, the driver, git, gh — with which version is installed, how it was installed, and what to run to move it forward, plus whether there is a newer Tade. Use it when asked whether anything is out of date. `check` asks the registries, which reaches the network and takes a few seconds; without it this is only what is installed here. It installs nothing: say the command back and let the person run it, or tell them Settings › Updates has a button for it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "type": "boolean",
+          "description": "also ask what is current (reaches the network; a few seconds)"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_write_extension",
     "description": "Write a new tool for yourself. It is saved in the extensions folder turned off, and does nothing until a human reads it and turns it on — in Extensions, or `tade extensions enable` — after which it loads the next time Tade starts. Never assume a tool you wrote is available.",
     "parameters": {

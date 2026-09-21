@@ -3,7 +3,13 @@ import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'no
 import { constants, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
+import {
+  type LaneId,
+  type RequiredProgram,
+  resolveCommand,
+  stringEnv,
+  type Unsubscribe,
+} from '@tade/core'
 import {
   type AdoptHint,
   type Availability,
@@ -120,6 +126,14 @@ export class TmuxDriver implements WorkspaceDriver {
     // The lane id is stored on the window, so they come back exactly.
     adopt: true,
   }
+  readonly programs: readonly RequiredProgram[] = [
+    {
+      command: 'tmux',
+      title: 'tmux',
+      why: 'holding every lane, so agents go on working after Tade closes',
+      versionArgs: ['-V'],
+    },
+  ]
 
   private readonly lanes = new Map<string, Lane>()
   private readonly opts: Required<Omit<TmuxDriverOptions, 'env'>> & { env: NodeJS.ProcessEnv }

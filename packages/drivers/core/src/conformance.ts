@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url'
-import type { LaneId } from '@tade/core'
+import { declarationProblems, type LaneId } from '@tade/core'
 import { spawn as openPty } from 'node-pty'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { LaneClosedError, LaneNotFoundError, type LaneSpec, type WorkspaceDriver } from './port.ts'
@@ -115,6 +115,12 @@ export function testWorkspaceDriver(
       for (const key of ['detach', 'remoteAttach', 'nativeTabs', 'focus', 'setTitle', 'adopt']) {
         expect(typeof driver.capabilities[key as 'focus']).toBe('boolean')
       }
+    })
+
+    it('declares the programs it needs in a way anything can look up and ask', () => {
+      // Declaring none is an answer — a driver that needs nothing of the
+      // machine. Declaring one nobody could find or ask is not.
+      expect(declarationProblems(driver.programs)).toEqual([])
     })
 
     it('open → write → capture round-trip', async () => {

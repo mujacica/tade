@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   effectByName,
+  type RequiredProgram,
   sandboxed,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -136,6 +137,15 @@ function piVersion(bin: string): string | null {
   }
 }
 
+/** The bundled pi, or null where there is none: a declaration must not throw. */
+function installedPi(): string | null {
+  try {
+    return piBinary()
+  } catch {
+    return null
+  }
+}
+
 export function piBinary(): string {
   // pi's exports map declares no `require` condition and does not expose
   // package.json, so neither require.resolve nor a subpath resolve works here.
@@ -253,6 +263,20 @@ export class PiAdapter implements WorkerAdapter {
       spend: "pi prices each turn itself, but does not know how much of a plan's limits is used",
     },
   }
+
+  readonly programs: readonly RequiredProgram[] = [
+    {
+      command: 'pi',
+      title: 'pi',
+      why: 'being the agent: every lane Tade opens for work runs one',
+      versionArgs: ['--version'],
+      // pi is not looked up on PATH: Tade runs the copy in its own
+      // node_modules, so that is the one to read a version from and the one
+      // that moves when Tade does. A machine with no pi installed at all is
+      // what `probe` is for.
+      ...(installedPi() ? { at: installedPi() as string } : {}),
+    },
+  ]
 
   private readonly runs = new Map<string, Run>()
   // Keyed by run rather than held on the run itself, so a caller can subscribe

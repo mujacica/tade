@@ -84,6 +84,7 @@ import {
 } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import { type AccountView, matchingLines, type Workbench } from '@tade/workbench'
+import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
@@ -274,6 +275,8 @@ import {
   terminalMenuItems,
   thinkingMenuItems,
   toolSummary,
+  UPDATES,
+  updateActions,
   type WrittenToolView,
 } from './panels.ts'
 import {
@@ -939,6 +942,14 @@ export class App {
    * background, and again after anything is done to one.
    */
   private accountViews: AccountView[] = []
+  /**
+   * What the Updates page last read: which of the programs Tade runs are
+   * here, and — once somebody pressed the button — what is current. Null
+   * until the page is opened, because none of it is worth reading before.
+   */
+  private updates: UpdateLook | null = null
+  /** A check is going. The only thing on that page that touches the network. */
+  private updatesBusy = false
   /** How each provider is paid for, once read. */
   private credentials: Record<string, 'signed-in' | 'api-key' | 'env-key'> = {}
   /** The Open project list for the last folder and query, and the branches found for its rows. */
@@ -1342,6 +1353,9 @@ export class App {
         choices: this.choices,
         settings: this.settingRows(),
         accounts: this.accountViews,
+        updates: this.updates,
+        updatesBusy: this.updatesBusy,
+        lanesSurvive: this.opts.client.driver.capabilities.detach,
         configPath: tilde(this.configPath),
         releases: kittyActive(this.terminal),
         budgetWarnings: 0,
@@ -2725,6 +2739,11 @@ export class App {
       this.lookInFiles()
       this.askWhatIsMeant()
     }
+    // The Updates page reads the machine when it is opened, and asks the
+    // network only when the button on it is pressed.
+    if (outcome.panel?.kind === 'settings' && outcome.panel.category === UPDATES) {
+      void this.lookAtWhatIsInstalled()
+    }
     this.draw()
     if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel, outcome.choice)
   }
@@ -2811,6 +2830,7 @@ export class App {
           return
         }
         if (choice?.startsWith('account:')) await this.accountAction(choice)
+        if (choice?.startsWith('updates:')) await this.updateAction(choice)
         if (choice === 'mic-test') await this.testMicrophone()
         return
       }
@@ -6954,6 +6974,7 @@ export class App {
     this.draw()
     // Asked each time the page opens: a sign-in made in another terminal counts.
     void this.loadAccountViews()
+    if (category === UPDATES) void this.lookAtWhatIsInstalled()
     return 'Settings are open.'
   }
 
@@ -7094,6 +7115,7 @@ export class App {
       models: this.state.panel?.kind === 'model' ? (this.pickerModels ?? this.models) : this.models,
       settings: this.settingRows(),
       accountActions: accountActions(this.accountViews),
+      updateActions: updateActions(this.updates, this.updatesBusy),
     }
   }
 
@@ -7277,6 +7299,119 @@ export class App {
       this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }
     }
     this.draw()
+  }
+
+  /**
+   * What is installed on this machine, for the Updates page: where each
+   * program Tade runs is, how it got there and what it says its version is.
+   *
+   * Never on a timer and never on the draw path — it runs a `--version` per
+   * program, which belongs to somebody opening the page. It touches nothing
+   * but this machine; what is *current* is asked separately, and only when
+   * the button is pressed.
+   */
+  private async lookAtWhatIsInstalled(): Promise<void> {
+    if (this.updates || this.updatesBusy) return
+    this.updatesBusy = true
+    this.draw()
+    try {
+      this.updates = await lookAtUpdates(this.opts.config, this.opts.home)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    } finally {
+      this.updatesBusy = false
+      this.draw()
+    }
+  }
+
+  /**
+   * Do something about updates: ask what is current, run an update in a
+   * terminal, or reload.
+   *
+   * Nothing installs anything here — the exact command is on the page before
+   * it is pressed, and pressing it types that command into a terminal you are
+   * looking at. Reloading goes the way every reload goes, which asks first
+   * when it would stop agents living inside this window.
+   */
+  private async updateAction(id: string): Promise<void> {
+    const said = (saved: string | null, error: string | null = null) => {
+      const panel = this.state.panel
+      if (panel?.kind === 'settings') {
+        this.state = { ...this.state, panel: { ...panel, saved, error } }
+      }
+      this.draw()
+    }
+    if (id === 'updates:check') {
+      if (this.updatesBusy) return
+      this.updatesBusy = true
+      said('Asking what is current…')
+      try {
+        this.updates = await lookAtUpdates(this.opts.config, this.opts.home, { ask: true })
+        const behind = this.updates.programs.filter((one) => one.behind).length
+        const newer = this.updates.tade.newer ? 1 : 0
+        said(
+          behind + newer === 0
+            ? 'Everything Tade could ask about is current.'
+            : `${behind + newer} could move forward.`,
+        )
+      } catch (err) {
+        said(null, why(err))
+      } finally {
+        this.updatesBusy = false
+        this.draw()
+      }
+      return
+    }
+    if (id === 'updates:reload') {
+      this.state = { ...this.state, panel: null }
+      this.reload()
+      return
+    }
+    const action = updateActions(this.updates, this.updatesBusy).find((one) => one.id === id)
+    if (!action?.command) return
+    await this.watchCommand('updates', action.command)
+  }
+
+  /**
+   * Run a command in a terminal somebody is looking at, rather than behind
+   * their back: the same terminal each time, opened if it is not there, and
+   * put in front before a key of it is typed.
+   */
+  private async watchCommand(name: string, command: string): Promise<void> {
+    const project = this.state.project ?? Object.keys(this.opts.config.projects)[0] ?? null
+    if (!project) {
+      // No project, no folder to open a shell in. The command is the answer.
+      this.state = notice(this.state, `Run it yourself: ${command}`)
+      this.draw()
+      return
+    }
+    try {
+      let id: string | null = null
+      try {
+        id = this.opts.client.terminal(name, project).id
+      } catch {
+        // None open under that name yet.
+      }
+      if (!id) {
+        const layout = resolveLayout(this.layout(), {
+          width: this.terminal.columns,
+          height: Math.max(6, this.terminal.rows),
+        })
+        const opened = await this.opts.client.openTerminal({
+          project,
+          name,
+          cols: layout.sidebarWidth + layout.mainWidth + 1,
+          rows: Math.max(4, layout.stripHeight - 2),
+        })
+        id = opened.id
+      }
+      this.state = { ...this.state, panel: null }
+      await this.showTerminal(id)
+      await this.opts.client.runInTerminal(id, command)
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+      this.draw()
+    }
   }
 
   /** Ask every harness who its accounts are signed in as, and draw what they say. */

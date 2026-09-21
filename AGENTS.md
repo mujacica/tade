@@ -302,6 +302,23 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   it was never imported, and the page says that rather than inventing the rest.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
+- **What Tade needs of the machine is declared by whoever needs it.** Every driver, harness and
+  forge says which programs it shells out to and how to ask each its version (`programs`, a
+  `RequiredProgram[]`, held to shape by all three conformance suites), and Settings › Updates and
+  `tade update` fold those declarations together (`programsNeeded`) — so a new harness arrives with
+  its own requirement and no list anywhere else changes. How one got here is read off where it
+  actually is (`installOf`: a Cellar or a Caskroom, a global package's folder, a version manager's,
+  `/usr/bin`), because that, not its name, is what decides how it moves forward — and a formula is
+  not a cask, since the cask `claude` is a desktop app and the cask `claude-code` is the agent.
+  Something inside Tade's own tree is Tade's (`manager: 'tade'`): `npm install --global` on it
+  would install a second copy nothing would ever run. **Reading the machine is free and asking the
+  world is not**: what is installed is read when somebody opens the page, what is *current*
+  reaches the network and only when they press the button, and where nobody can be asked the
+  answer is `cannot tell` — never a guess, never a version invented out of half a string. Nothing
+  installs anything: the exact command is on the page before it runs, and running it types that
+  command into a terminal you are looking at. Reloading into a new Tade says what it costs in the
+  driver's own words (`capabilities.detach`, never its name) and what survives it — worktrees,
+  branches, the journal, queued work, schedules — before anybody chooses it.
 - **Under the `pty` driver lanes are Tade's own children**, so they die with it; under `tmux` they
   do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
   never report a lane as alive without evidence, and keep its spec so it can be relaunched.
@@ -539,7 +556,7 @@ implementations of it.
 | `packages/drivers/core` | the `WorkspaceDriver` port + the suite every driver passes |
 | `packages/drivers/{pty,tmux}` | where lanes physically live |
 | `packages/harnesses/core` | the `WorkerAdapter` port: what an agent tells us, how we answer |
-| `packages/harnesses/pi` | runs and supervises pi |
+| `packages/harnesses/{pi,claude,codex}` | runs and supervises pi · Claude Code · Codex |
 | `packages/voice/core` | the voice surface + the speech ports |
 | `packages/voice/{stt,tts}` | speech in · speech out |
 | `packages/judges/core` | the `Judge` port + the suite: bounded questions, answered with a number |

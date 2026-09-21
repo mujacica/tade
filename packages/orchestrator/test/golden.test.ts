@@ -84,6 +84,7 @@ describe('the tools the orchestrator has', () => {
       'tade_terminal_rename',
       'tade_terminal_run',
       'tade_terminal_search',
+      'tade_updates',
       'tade_write_extension',
     ])
   })

@@ -1,5 +1,5 @@
 import { isAbsolute } from 'node:path'
-import { type TaskId, THINKING_LEVELS } from '@tade/core'
+import { declarationProblems, type TaskId, THINKING_LEVELS } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type HarnessFeature,
@@ -101,6 +101,13 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
         expect(['inline', 'path', 'none']).toContain(can.images)
         expect(['exact', 'estimate', 'none']).toContain(can.spend.usd)
+      })
+
+      it('declares the programs it needs in a way anything can look up and ask', async () => {
+        // `probe` says whether the one here runs; this says what it is and
+        // how to see its version, so keeping it current never means knowing
+        // at a call site where this harness came from.
+        expect(declarationProblems((await adapter()).programs)).toEqual([])
       })
 
       it('says why, in words, wherever it does something only partly', async () => {

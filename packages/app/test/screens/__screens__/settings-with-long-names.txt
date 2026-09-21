@@ -16,7 +16,7 @@
  ▾ FILES│▌ Telemetry             │ Numbers                       ● on                             ↻ on restart │        
    ▾ src│  Shortcuts             │ What agents do                ● on                             ↻ on restart │        
        w│  Accounts          ● 2 │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
-       w│                        │ Which Tade this is          laptop                             ↻ on restart │        
+       w│  Updates               │ Which Tade this is          laptop                             ↻ on restart │        
    ▸ tes│                        │ Read Sentry back              ● on                             ↻ on restart │        
      pac│                        │ Sentry organization         $SENTRY_ORG, or sentry-cli’s default            │        
      REA│                        │ Sentry projects             each project’s own name                         │        

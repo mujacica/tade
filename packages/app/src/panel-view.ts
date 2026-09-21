@@ -65,6 +65,9 @@ import {
   type SetupFieldView,
   type SpendPanel,
   setupControls,
+  UPDATES,
+  type UpdatesShown,
+  updateActions,
   usesDropdown,
   visibleSettings,
   type WrittenToolView,
@@ -72,7 +75,7 @@ import {
 } from './panels.ts'
 import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
-import type { Skin } from './skin.ts'
+import type { Look, Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
 import {
   blank,
@@ -138,6 +141,19 @@ export interface PanelContext {
   settings: readonly SettingGroup[]
   /** Every account agents can run as, each harness's own sign-in first. */
   accounts: readonly AccountShown[]
+  /**
+   * What the Updates page knows: what is installed here and, once somebody
+   * has asked, what is current. Null until the page has looked.
+   */
+  updates: UpdatesShown | null
+  /** A check is going: the network half, which only ever runs because it was pressed. */
+  updatesBusy: boolean
+  /**
+   * Whether agents outlive this window — `capabilities.detach`, never the
+   * driver's name. It is what decides whether reloading to pick up a new Tade
+   * stops the work or leaves it running.
+   */
+  lanesSurvive: boolean
   /** The config file, as you would type its path. */
   configPath: string
   /** Whether this terminal reports key releases, which holding to talk needs. */
@@ -2160,6 +2176,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   const categories = [
     ...ctx.settings.map((group) => ({ id: group.id, title: group.title })),
     { id: ACCOUNTS, title: 'Accounts' },
+    { id: UPDATES, title: 'Updates' },
   ]
   for (const category of categories) {
     const on = panel.search === '' && panel.category === category.id
@@ -2187,12 +2204,16 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
     ? `Matching “${panel.search}”`
     : panel.category === ACCOUNTS
       ? 'Accounts'
-      : (group?.title ?? '')
+      : panel.category === UPDATES
+        ? 'Updates'
+        : (group?.title ?? '')
   const about = panel.search
     ? 'Every setting whose name or meaning has those words.'
     : panel.category === ACCOUNTS
       ? "Who each harness's agents run as. Signing in is each harness's own, inside this window: what you give it goes where it keeps it, never through Tade. ▸ marks the account new agents use; an agent's own menu moves it to another."
-      : (group?.about ?? '')
+      : panel.category === UPDATES
+        ? 'The programs Tade runs, and Tade itself: what is here, how it got here — which is what decides how it moves forward — and what is current. Asking what is current is the one thing here that reaches the network, and it happens when you press it. Nothing installs anything: the exact command is here to read, and running it opens a terminal you can watch.'
+        : (group?.about ?? '')
   const head: { text: string; hits: Hit[] }[] = [
     new Row(form, skin)
       .space()
@@ -2314,6 +2335,11 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
           .text(cap('Asking each harness who it is signed in as…', form - 2), skin.hint)
           .build(),
       )
+  } else if (panel.category === UPDATES && !panel.search) {
+    drawUpdates(panel, ctx, form, body, (from, to) => {
+      focusFrom = from
+      focusTo = to
+    })
   } else if (rows.length === 0) {
     body.push(
       new Row(form, skin)
@@ -2508,6 +2534,178 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   }
 }
 
+/**
+ * The Updates page: the programs Tade runs, and Tade itself.
+ *
+ * Which programs those are is read off what every driver, harness and forge
+ * declares, so nothing here knows there is such a thing as tmux. Each says
+ * what is here, how it got here — because that is what decides how it moves
+ * forward — and what is current, once somebody has pressed the one button
+ * that touches the network. A version nobody could read is drawn as a version
+ * nobody could read.
+ */
+function drawUpdates(
+  panel: SettingsPanel,
+  ctx: PanelContext,
+  form: number,
+  body: { text: string; hits: Hit[] }[],
+  keepInView: (from: number, to: number) => void,
+): void {
+  const { skin } = ctx
+  const look = ctx.updates ?? null
+  const actions = updateActions(look, ctx.updatesBusy === true)
+  const focused = panel.focus === 'form' ? (actions[panel.row]?.id ?? null) : null
+  const keys = withFocus(ctx.pointer, focused)
+  const plain = (text: string) => text
+
+  const say = (text: string, tone = skin.hint, indent = 3, lines = 3) => {
+    for (const line of wrapTo(text, Math.max(8, form - indent - 1), lines)) {
+      body.push(new Row(form, skin).space(indent).text(line, tone).build())
+    }
+  }
+  const heading = (text: string) =>
+    body.push(
+      new Row(form, skin)
+        .space()
+        .text(cap(text, form - 2), skin.brand)
+        .build(),
+    )
+  /** A row of buttons, with the focused one's line remembered so it stays in view. */
+  const putButtons = (ids: readonly string[], look_: Look = 'rest', indent = 3) => {
+    const mine = actions.filter((action) => ids.includes(action.id))
+    if (mine.length === 0) return
+    const row = new Row(form, skin, keys).space(indent)
+    for (const action of mine) {
+      row.button(action.label, { kind: 'control', id: action.id }, look_).space()
+    }
+    if (focused !== null && mine.some((action) => action.id === focused)) {
+      keepInView(body.length, body.length)
+    }
+    body.push(row.build())
+  }
+  /**
+   * The exact command, drawn where a person reads it before anything runs it —
+   * and where there is none, what is in the way of there being one.
+   */
+  const command = (update: { command: string } | { cannot: string }, indent = 3) =>
+    'command' in update
+      ? say(update.command, skin.busy, indent, 2)
+      : say(`No command: ${update.cannot}.`, skin.hint, indent, 3)
+
+  putButtons(['updates:check'], 'primary')
+  say(
+    look === null
+      ? 'Reading what is installed on this machine…'
+      : look.asked
+        ? 'Checked just now. Nothing was asked of anybody until you pressed it.'
+        : 'Nothing has been asked of the network yet — this is what is installed here.',
+  )
+  body.push(blank(form))
+  if (look === null) return
+
+  // ── Tade itself ──
+  heading('Tade')
+  const tade = look.tade
+  const said = [
+    tade.version,
+    tade.branch,
+    tade.commit,
+    tade.from === 'checkout'
+      ? `a git checkout at ${tade.where}`
+      : (tade.install?.said ?? tade.where),
+  ].filter(Boolean)
+  say(said.join(' · '), plain)
+  // Before anything has been asked, the page has already said so once at the
+  // top; saying it again under every line is noise that reads as a problem.
+  if (tade.newer) say(`● ${tade.newer}`, skin.waiting)
+  else if (!look.asked) say('')
+  else if (tade.cannotTell) say(`· ${tade.cannotTell}`, skin.hint)
+  else say('✓ This is the newest there is.', skin.done)
+  command(tade.update)
+  putButtons(['updates:update:tade', 'updates:reload'], 'attention')
+  // What reloading costs is the driver's answer, never the driver's name:
+  // where lanes outlive the window, restarting it stops nothing.
+  const kept = 'Worktrees, branches, the journal, queued work and schedules all survive.'
+  say(
+    ctx.lanesSurvive
+      ? `Reloading restarts the window; agents run outside it and go on working. ${kept}`
+      : ctx.running > 0
+        ? `Reloading restarts the window, and the ${ctx.running} agent${ctx.running === 1 ? '' : 's'} running inside it stop with it — their conversations are kept, and they open again where they stopped. ${kept}`
+        : `Reloading restarts the window. Agents run inside it here, so any at work would stop; there are none. ${kept}`,
+    skin.hint,
+    3,
+    4,
+  )
+  body.push(blank(form))
+
+  // ── the programs it runs ──
+  heading('Programs it runs')
+  const named = Math.min(16, Math.max(6, form - 40))
+  for (const program of look.programs) {
+    const from = body.length
+    // The row the keyboard stops on for this program: its button where it
+    // has one, and the row itself where it has not.
+    const rowId = actions.find((action) => action.about === program.need.command)?.id ?? ''
+    const version = program.version ?? (program.install ? 'no version' : '—')
+    const mark = !program.install
+      ? {
+          text: program.need.optional ? '○ not installed, and optional' : '▲ not installed',
+          tone: program.need.optional ? skin.hint : skin.waiting,
+        }
+      : !look.asked
+        ? { text: '', tone: skin.hint }
+        : program.behind && program.latest
+          ? { text: `● ${program.latest} is out`, tone: skin.waiting }
+          : program.latest
+            ? { text: '✓ current', tone: skin.done }
+            : { text: '· cannot tell', tone: skin.hint }
+    const target = { kind: 'control' as const, id: rowId }
+    const name = new Row(form, skin, keys)
+      .space(3)
+      .text(padTo(cap(program.need.title, named), named), plain, target)
+      .text(padTo(cap(version, 12), 12), program.install ? plain : skin.hint)
+      .text(cap(mark.text, Math.max(0, form - named - 17)), mark.tone)
+      .build()
+    body.push(focused === rowId ? { text: skin.selected(name.text), hits: name.hits } : name)
+    // Everything about one program sits under its name: how it got here,
+    // which is what decides how it moves forward, then what needs it, then
+    // the exact command and the button that runs it.
+    const under = 3 + named
+    if (program.install) {
+      body.push(
+        new Row(form, skin)
+          .space(under)
+          .text(
+            cap(
+              `${program.install.said} · ${program.install.where}`,
+              Math.max(8, form - under - 1),
+            ),
+            skin.hint,
+          )
+          .build(),
+      )
+    }
+    say(
+      program.need.needed.map((one) => `${one.what}: ${one.why}`).join(' · '),
+      skin.hint,
+      under,
+      2,
+    )
+    if (!program.need.inUse) say('Nothing Tade is set up to use needs it.', skin.hint, under, 1)
+    if (look.asked && program.cannotTell && program.install) {
+      say(program.cannotTell, skin.hint, under, 2)
+    }
+    // The exact command is always on the page, whether or not anything has
+    // been asked: what a button would run is read before it is pressed.
+    command(program.update, under)
+    putButtons([`updates:update:${program.need.command}`], 'rest', under)
+    body.push(blank(form))
+    // Everything about one program is kept in view together, so walking down
+    // the page scrolls past the whole of each rather than its first line.
+    if (focused === rowId) keepInView(from, body.length - 1)
+  }
+}
+
 /** A choice shown as radios rather than a list. */
 function spellsOut(setting: Setting): boolean {
   return setting.type.kind === 'choice' && !usesDropdown(setting)
@@ -2679,6 +2877,13 @@ function badgeFor(id: string, ctx: PanelContext): ((row: Row) => void) | null {
     return (row) => row.text(`● ${ctx.budgetWarnings}`, skin.waiting)
   const signedIn = ctx.accounts.filter((one) => one.status.signedIn).length
   if (id === ACCOUNTS && signedIn > 0) return (row) => row.text(`● ${signedIn}`, skin.done)
+  if (id === UPDATES && ctx.updates) {
+    // Only what was actually asked about counts: a program nobody could ask
+    // after is not a program that is up to date, and neither is it one behind.
+    const behind =
+      ctx.updates.programs.filter((one) => one.behind).length + (ctx.updates.tade.newer ? 1 : 0)
+    if (behind > 0) return (row) => row.text(`● ${behind}`, skin.waiting)
+  }
   return null
 }
 

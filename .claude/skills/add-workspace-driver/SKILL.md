@@ -32,6 +32,12 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
 - **Declare capabilities honestly.** `capabilities` says what the driver can do; call sites branch
   on those flags and never on `driver.id` (a lint plugin enforces it). A capability you declare
   must work; one you don't must throw `UnsupportedCapabilityError`, never fail silently.
+- **Declare what it needs of the machine** (`programs`): each program it shells out to, what it is
+  needed for in a clause, and the arguments that make it print its version — `{ command: 'tmux',
+  versionArgs: ['-V'] }`. That is what Settings › Updates and `tade update` fold together, so a
+  driver that needs something of the machine is the only place that says so. A driver that needs
+  nothing declares nothing, which is an answer; the conformance suite refuses one nobody could look
+  up or ask.
 - **No implementation vocabulary in the port.** If you want to add `sendKeys`, `newWindow` or
   `selectPane` to the interface, the answer is no: find the neutral name, or it belongs in the
   driver's own module.

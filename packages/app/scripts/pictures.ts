@@ -296,6 +296,14 @@ export const PICTURES: readonly Picture[] = [
       'Settings over the window: categories down the side, and for each one a real control with ' +
       'what it means beside it — here the talk key, the speech engine, the microphone and quiet hours.',
   },
+  {
+    file: 'updates.svg',
+    scenario: 'settings-updates',
+    crop: 'panel',
+    about:
+      'Updates: every program Tade runs with how it got here and what is current, the exact ' +
+      'command before anything runs it, and what reloading into a new Tade would cost.',
+  },
 ]
 
 function scenarioNamed(name: string): Scenario {

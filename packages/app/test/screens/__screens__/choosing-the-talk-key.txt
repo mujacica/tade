@@ -16,7 +16,7 @@
  ▾ FILES│  Telemetry         │ Never a key that types a character — you have to be able   │                    │        
    ▾ src│  Shortcuts         │ to type a space into your agent.                           │                    │        
        w│  Accounts          │                                                            │       ↻ on restart │        
-       w│                    │                        Try another     Use ctrl+r anyway   │       ↻ on restart │        
+       w│  Updates           │                        Try another     Use ctrl+r anyway   │       ↻ on restart │        
    ▸ tes│                    ╰────────────────────────────────────────────────────────────╯                    │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        

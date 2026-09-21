@@ -787,6 +787,138 @@ const ACCOUNTS_SHOWN = [
   },
 ]
 
+/**
+ * What the Updates page would have read: a Tade behind its remote, a harness
+ * that ships with Tade, something Homebrew owns that is behind, something the
+ * system owns that nobody can ask about, and a driver's program nothing in
+ * use needs. One of every answer the page has to be able to give.
+ */
+const UPDATES_SHOWN = {
+  at: 0,
+  asked: true,
+  tade: {
+    version: '0.1.0',
+    from: 'checkout' as const,
+    where: '~/src/tade',
+    branch: 'main',
+    commit: 'f8d73e1',
+    install: null,
+    newer: 'origin/main is at 1a2b3c4 and this checkout is on f8d73e1',
+    cannotTell: null,
+    update: { command: 'git -C ~/src/tade pull --ff-only && pnpm install' },
+  },
+  programs: [
+    {
+      need: {
+        command: 'git',
+        title: 'git',
+        versionArgs: ['--version'],
+        optional: false,
+        needed: [
+          {
+            what: 'Tade',
+            why: 'every reading of a project’s state, and every commit an agent makes',
+            inUse: true,
+          },
+        ],
+        inUse: true,
+      },
+      install: {
+        manager: 'system' as const,
+        name: 'git',
+        where: '/usr/bin/git',
+        said: 'the system’s own',
+      },
+      version: '2.39.5',
+      latest: null,
+      cannotTell: 'Tade cannot ask what is current for something installed as the system’s own',
+      update: {
+        cannot:
+          'it came with the system, so the system updates it — on macOS that is `xcode-select --install`',
+      },
+      behind: false,
+    },
+    {
+      need: {
+        command: 'tmux',
+        title: 'tmux',
+        versionArgs: ['-V'],
+        optional: false,
+        needed: [
+          {
+            what: 'the tmux driver',
+            why: 'holding every lane, so agents go on working after Tade closes',
+            inUse: false,
+          },
+        ],
+        inUse: false,
+      },
+      install: null,
+      version: null,
+      latest: null,
+      cannotTell: 'it is not on your PATH, so there is nothing here to read a version from',
+      update: { cannot: 'nothing on your PATH answers to `tmux`' },
+      behind: false,
+    },
+    {
+      need: {
+        command: 'pi',
+        title: 'pi',
+        versionArgs: ['--version'],
+        optional: false,
+        needed: [
+          {
+            what: 'pi',
+            why: 'being the agent: every lane Tade opens for work runs one',
+            inUse: true,
+          },
+        ],
+        inUse: true,
+      },
+      install: {
+        manager: 'tade' as const,
+        name: '@earendil-works/pi-coding-agent',
+        where: '~/src/tade/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js',
+        said: 'shipped with Tade',
+        version: '0.85.1',
+      },
+      version: '0.85.1',
+      latest: null,
+      cannotTell: 'it comes with Tade, and moves when Tade does',
+      update: { cannot: 'it comes with Tade, so updating Tade is what moves it forward' },
+      behind: false,
+    },
+    {
+      need: {
+        command: 'gh',
+        title: 'GitHub CLI',
+        versionArgs: ['--version'],
+        optional: true,
+        needed: [
+          {
+            what: 'github',
+            why: 'finding your GitHub credential, unless a token is in the environment',
+            inUse: true,
+          },
+        ],
+        inUse: true,
+      },
+      install: {
+        manager: 'homebrew' as const,
+        name: 'gh',
+        where: '/opt/homebrew/Cellar/gh/2.62.0/bin/gh',
+        said: 'Homebrew',
+        brew: 'formula' as const,
+      },
+      version: '2.62.0',
+      latest: '2.65.0',
+      cannotTell: null,
+      update: { command: 'brew upgrade gh' },
+      behind: true,
+    },
+  ],
+}
+
 function settingsFacts() {
   const config = ConfigSchema.parse({
     projects: {
@@ -2620,6 +2752,15 @@ export const SCENARIOS: Scenario[] = [
     about: 'Settings over the window: categories down the side, real controls on the right.',
     state: { ...base(), panel: { ...settingsPanel('voice'), row: 0 } },
     frame: frame({ panel: settingsFacts() }),
+  },
+  {
+    name: 'settings-updates',
+    about:
+      'Keeping what Tade runs current: which of the programs it shells out to are here, how each ' +
+      'got here, what is current, and whether there is a newer Tade — with what reloading costs ' +
+      'said before anybody presses it.',
+    state: { ...base(), panel: { ...settingsPanel('updates'), row: 0 } },
+    frame: frame({ panel: { ...settingsFacts(), updates: UPDATES_SHOWN, running: 2 } }),
   },
   {
     name: 'settings-accounts',

@@ -195,6 +195,18 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     id: 'github',
     capabilities,
     words: { one: 'pull request', many: 'pull requests', short: 'PR', number: (n) => `#${n}` },
+    // The calls are HTTP; `gh` is how the credential is found, which is what
+    // makes a review work with nothing set up. A token in the environment is
+    // the way round it, so it is not required.
+    programs: [
+      {
+        command: 'gh',
+        title: 'GitHub CLI',
+        why: 'finding your GitHub credential, unless a token is in the environment',
+        versionArgs: ['--version'],
+        optional: true,
+      },
+    ],
 
     serves(remote) {
       const where = hostOf(remote)

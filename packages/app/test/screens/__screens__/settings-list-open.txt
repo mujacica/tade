@@ -16,7 +16,7 @@
  ▾ FILES│  Telemetry             │ Muted           │▌ whisper · base.en · on this machine     ✓ │              │        
    ▾ src│  Shortcuts             │ Spoken replies  │ IN THE CLOUD                   needs a key │              │        
        w│  Accounts          ● 2 │ Interruptions   │  OpenAI · whisper-1                        │ ↻ on restart │        
-       w│                        │ Quiet hours     │  Groq · whisper-large-v3                   │ ↻ on restart │        
+       w│  Updates               │ Quiet hours     │  Groq · whisper-large-v3                   │ ↻ on restart │        
    ▸ tes│                        │                 ╰────────────────────────────────────────────╯              │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        

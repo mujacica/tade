@@ -27,7 +27,84 @@ const config = ConfigSchema.parse({
 })
 
 const GROUPS: SettingGroup[] = settingsOf(config)
-const CATEGORIES = [...GROUPS.map((group) => group.id), 'accounts']
+const CATEGORIES = [...GROUPS.map((group) => group.id), 'accounts', 'updates']
+
+/** What the Updates page would have read off this machine and the registries. */
+const LOOK = {
+  at: 0,
+  asked: true,
+  tade: {
+    version: '0.1.0',
+    from: 'checkout' as const,
+    where: '/Users/me/tade',
+    branch: 'main',
+    commit: 'f8d73e1',
+    install: null,
+    newer: 'origin/main is at 1a2b3c4 and this checkout is on f8d73e1',
+    cannotTell: null,
+    update: { command: 'git -C /Users/me/tade pull --ff-only && pnpm install' },
+  },
+  programs: [
+    {
+      need: {
+        command: 'git',
+        title: 'git',
+        versionArgs: ['--version'],
+        optional: false,
+        needed: [{ what: 'Tade', why: 'every reading of a project', inUse: true }],
+        inUse: true,
+      },
+      install: {
+        manager: 'system' as const,
+        name: 'git',
+        where: '/usr/bin/git',
+        said: 'the system’s own',
+      },
+      version: '2.39.5',
+      latest: null,
+      cannotTell: 'Tade cannot ask what is current for something installed as the system’s own',
+      update: { cannot: 'it came with the system, so the system updates it' },
+      behind: false,
+    },
+    {
+      need: {
+        command: 'tmux',
+        title: 'tmux',
+        versionArgs: ['-V'],
+        optional: false,
+        needed: [{ what: 'the tmux driver', why: 'holding every lane', inUse: false }],
+        inUse: false,
+      },
+      install: null,
+      version: null,
+      latest: null,
+      cannotTell: 'it is not on your PATH, so there is nothing here to read a version from',
+      update: { cannot: 'nothing on your PATH answers to `tmux`' },
+      behind: false,
+    },
+    {
+      need: {
+        command: 'pi',
+        title: 'pi',
+        versionArgs: ['--version'],
+        optional: false,
+        needed: [{ what: 'pi', why: 'being the agent', inUse: true }],
+        inUse: true,
+      },
+      install: {
+        manager: 'pnpm' as const,
+        name: '@pi/cli',
+        where: '/Users/me/Library/pnpm/global/5/node_modules/@pi/cli/bin/pi.js',
+        said: 'a global pnpm package',
+      },
+      version: '0.9.1',
+      latest: '0.9.2',
+      cannotTell: null,
+      update: { command: 'pnpm add --global @pi/cli@latest' },
+      behind: true,
+    },
+  ],
+}
 
 const context = (over: Partial<PanelContext> = {}): PanelContext =>
   ({
@@ -92,6 +169,9 @@ const context = (over: Partial<PanelContext> = {}): PanelContext =>
     models: [],
     modelTarget: 'the orchestrator',
     currentModel: null,
+    updates: null,
+    updatesBusy: false,
+    lanesSurvive: false,
     ...over,
   }) as PanelContext
 
@@ -279,5 +359,101 @@ describe('what the pointer says in settings', () => {
     expect(drawn.hits.indexOf(over[0] as never)).toBeGreaterThan(
       drawn.hits.indexOf(wide[0] as never),
     )
+  })
+})
+
+describe('the Updates page', () => {
+  /**
+   * The right-hand side, as one flowing string: a sentence that wrapped over
+   * three lines is still the sentence somebody reads, and the categories down
+   * the left are not part of it.
+   */
+  const flow = (drawn: Drawn): string => {
+    const rows = plainRows(drawn)
+    const panelWidth = visibleWidth(rows[0] ?? '')
+    const inner = panelWidth - 2
+    const side = sideWidth(inner)
+    return rows
+      .map((row) => sliceByColumn(row, 1 + side + 1, inner - side - 1))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+  }
+  const shownAt = (over: Partial<PanelContext> = {}, panel = panelFor('updates')) =>
+    flow(drawPanel(panel, context({ updates: LOOK, ...over })).panel)
+
+  it('offers the check before it has asked anybody anything', () => {
+    const shown = flow(drawPanel(panelFor('updates'), context()).panel)
+    expect(shown).toContain('Check for updates')
+    // Nothing has been read yet, and the page says that rather than an empty list.
+    expect(shown).toContain('Reading what is installed')
+  })
+
+  it('says which Tade is running, what is newer, and the command that gets it', () => {
+    const shown = shownAt()
+    expect(shown).toContain('f8d73e1')
+    expect(shown).toContain('origin/main is at 1a2b3c4')
+    expect(shown).toContain('git -C /Users/me/tade pull --ff-only')
+    expect(shown).toContain('Update Tade')
+    expect(shown).toContain('Reload Tade')
+  })
+
+  it('says what reloading costs, in the words of the driver that is running', () => {
+    // Under a driver whose lanes are the window's own children, reloading
+    // stops them, and how many there are is said.
+    const inside = shownAt({ lanesSurvive: false, running: 3 })
+    expect(inside).toContain('3 agents running inside it stop with it')
+    expect(inside).toContain('queued work and schedules all survive')
+    // Where lanes outlive the window, it does not — and it must not say so.
+    const outside = shownAt({ lanesSurvive: true, running: 3 })
+    expect(outside).toContain('go on working')
+    expect(outside).not.toContain('stop with it')
+  })
+
+  it('says how a program got here, because that is what decides how it moves forward', () => {
+    // The keyboard on pi's button, so the page has scrolled down to it.
+    const shown = shownAt({}, panelFor('updates', { focus: 'form', row: 5 }))
+    expect(shown).toContain('a global pnpm package')
+    expect(shown).toContain('pnpm add --global @pi/cli@latest')
+    expect(shown).toContain('0.9.2 is out')
+  })
+
+  it('says cannot tell rather than current, and offers no command it is unsure of', () => {
+    const shown = shownAt()
+    expect(shown).toContain('cannot tell')
+    // git came with the system: nothing here pretends to know how to update it.
+    expect(shown).not.toContain('brew upgrade git')
+    expect(shown).toContain('the system’s own')
+  })
+
+  it('lists a program only unused things need, and says nothing in use needs it', () => {
+    // tmux has nothing to press, and is still a row the keyboard stops on:
+    // otherwise the programs after the last button could not be reached.
+    const shown = shownAt({}, panelFor('updates', { focus: 'form', row: 4 }))
+    expect(shown).toContain('tmux')
+    expect(shown).toContain('Nothing Tade is set up to use needs it')
+    expect(shown).toContain('not installed')
+  })
+
+  it('offers a button only where there is an exact command behind it', () => {
+    const drawn = drawPanel(
+      panelFor('updates', { focus: 'form', row: 5 }),
+      context({ updates: LOOK }),
+    ).panel
+    const ids = drawn.hits
+      .map((hit) => (hit.target.kind === 'control' ? hit.target.id : ''))
+      .filter((id) => id.startsWith('updates:'))
+    expect(ids).toContain('updates:update:pi')
+    // Nothing to run for either of these, so nothing to press.
+    expect(ids).not.toContain('updates:update:git')
+    expect(ids).not.toContain('updates:update:tmux')
+  })
+
+  it('counts what could move forward beside the category, and nothing before it is asked', () => {
+    const asked = plainRows(drawPanel(panelFor('agents'), context({ updates: LOOK })).panel).join(
+      '\n',
+    )
+    expect(asked).toContain('● 2')
+    const unasked = plainRows(drawPanel(panelFor('agents'), context()).panel).join('\n')
+    expect(unasked).not.toContain('● 2')
   })
 })
