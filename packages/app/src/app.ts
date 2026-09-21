@@ -89,18 +89,7 @@ import {
   scrollAt,
   type Target,
 } from './hits.ts'
-import {
-  asPaste,
-  clipboardImage,
-  clipboardState,
-  filePaths,
-  handOffFiles,
-  imagePaths,
-  isImagePath,
-  pasted,
-  readImage,
-  shellQuote,
-} from './images.ts'
+import { filePaths, imagePaths, pasted, readImage } from './images.ts'
 import {
   addEnded,
   addNews,
@@ -347,6 +336,7 @@ import {
   type WorkerImageFile,
   why,
 } from './wire/context.ts'
+import { Images, imagesTitle } from './wire/images.ts'
 import { Notes } from './wire/notes.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 
@@ -400,8 +390,6 @@ const STATUS_MS = 5_000
  * looks every couple of seconds, so one this slow is already late for the next.
  */
 const SLOW_LOOK_MS = 2_000
-/** How often the clipboard is looked at for a picture, while the orchestrator's line is open. */
-const CLIPBOARD_MS = 3_000
 /**
  * How many of the things Tade can do are put to whoever reads a sentence
  * typed into search. Enough that the right one is nearly always among them,
@@ -956,17 +944,6 @@ export class App {
   private statuses: NonNullable<Frame['statuses']> = []
   /** The sections extensions keep in the sidebar, as they last answered. */
   private listSections: ListSection[] = []
-  /**
-   * A picture on the clipboard, noticed while the orchestrator's line is open:
-   * the copy offered, the copy already taken or turned down, and when it was
-   * last looked at.
-   */
-  private clipboard: {
-    offered: string | null
-    seen: string | null
-    askedAt: number
-    asking: boolean
-  } = { offered: null, seen: null, askedAt: Number.NEGATIVE_INFINITY, asking: false }
   /** The second half of a split pane, and of a split bottom panel, as last captured. */
   private splitScreen = ''
   private splitTerminalScreen = ''
@@ -1112,6 +1089,8 @@ export class App {
   private readonly checks: Checks
   /** Push-to-talk, what is said back, and the mute that is now. */
   private readonly voice: Voice
+  /** Pictures, and the clipboard they usually arrive on. */
+  private readonly images: Images
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1139,6 +1118,11 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.images = new Images(this.wire, {
+      menuItemsFor: (panel) => this.menuItemsFor(panel),
+      soonTick: () => this.soonTick(),
+      answering: () => this.answering,
+    })
     this.voice = new Voice(this.wire, {
       submit: () => this.submit(),
       say: (said) => this.say(said),
@@ -1285,7 +1269,7 @@ export class App {
    * answering you: the files you attached, copied where it works.
    */
   handOff(cwd: string): Promise<{ note: string; images: WorkerImageFile[] }> {
-    return handOffFiles(this.answering, cwd)
+    return this.images.handOff(cwd)
   }
 
   async stop(): Promise<void> {
@@ -1639,7 +1623,7 @@ export class App {
         : undefined,
       bindings: this.opts.config.surfaces.window.keys,
       muted: this.opts.config.surfaces.voice.muted,
-      clipboardImage: this.clipboard.offered !== null,
+      clipboardImage: this.images.offered,
       extensionsNeedYou: (this.opts.extensions?.list() ?? []).filter(
         (one) => one.state === 'needs setup' || one.state === 'broken',
       ).length,
@@ -2072,14 +2056,14 @@ export class App {
       if (paste === '' && !(this.state.keyboard === 'terminal' && activeTerminal(this.state))) {
         const pane = this.state.panes.find((one) => one.task === this.state.focused)
         const lane = pane ? typingLane(this.state, pane) : null
-        if (this.state.dictation !== null || !lane) void this.attachClipboard()
+        if (this.state.dictation !== null || !lane) void this.images.attachFromClipboard()
         else void this.opts.client.write(lane as LaneId, '\x16').catch(() => {})
         return { consume: true }
       }
       const paths = imagePaths(paste)
       const files = filePaths(paste)
       if (paths.length > 0 || files.length > 0) {
-        this.askWhereImagesGo(paths.length > 0 ? paths : files)
+        this.images.askWhere(paths.length > 0 ? paths : files)
         return { consume: true }
       }
       // Words pasted at the orchestrator's line are typed into it, on one line.
@@ -2101,7 +2085,7 @@ export class App {
     // ctrl+v at the orchestrator's line takes a screenshot off the clipboard;
     // an agent or a shell reads its own clipboard, so there it passes through.
     if (data === '\x16' && (this.state.dictation !== null || this.state.focused === null)) {
-      void this.attachClipboard()
+      void this.images.attachFromClipboard()
       return { consume: true }
     }
     const kitty = kittyActive(this.terminal)
@@ -2593,12 +2577,10 @@ export class App {
         await this.voice.toggleMute()
         return
       case 'attach-clipboard':
-        await this.attachClipboard()
+        await this.images.attachFromClipboard()
         return
       case 'dismiss-clipboard':
-        this.clipboard.seen = this.clipboard.offered
-        this.clipboard.offered = null
-        this.draw()
+        this.images.dismiss()
         return
       case 'keys':
         this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
@@ -3464,7 +3446,7 @@ export class App {
       case 'terminal':
         return this.fromTerminalMenu(subject.id, item)
       case 'images':
-        return this.giveImages(subject.paths, item)
+        return this.images.give(subject.paths, item)
       case 'harness':
         return this.chooseHarness(subject.task, item)
       case 'account':
@@ -3666,87 +3648,6 @@ export class App {
     this.draw()
   }
 
-  /**
-   * Ask who dropped or pasted pictures are for. The keyboard starts on
-   * whoever you were typing to, so enter is the likely answer.
-   */
-  private askWhereImagesGo(paths: string[]): void {
-    const panel = menuPanel({ kind: 'images', paths }, imagesTitle(paths))
-    const items = this.menuItemsFor(panel)
-    const typingTo =
-      this.state.dictation !== null || this.state.focused === null
-        ? 'orchestrator'
-        : this.state.keyboard === 'terminal' && activeTerminal(this.state)
-          ? `terminal:${activeTerminal(this.state)?.id}`
-          : `agent:${this.state.focused}`
-    const index = Math.max(
-      0,
-      items.findIndex((item) => item.id === typingTo && !item.off),
-    )
-    this.state = { ...this.state, panel: { ...panel, index } }
-    this.draw()
-  }
-
-  /** Give pictures to whoever was picked: attached, pasted as paths, or typed. */
-  private async giveImages(paths: string[], to: string): Promise<void> {
-    if (to === 'orchestrator') {
-      this.attachImages(paths)
-      return
-    }
-    const [kind, ...rest] = to.split(':')
-    const id = rest.join(':')
-    if (kind === 'agent') {
-      const pane = this.state.panes.find((one) => one.task === id)
-      if (!pane?.lane) {
-        this.state = notice(this.state, `open ${pane ? shownName(pane) : id}'s agent first`)
-        this.draw()
-        return
-      }
-      // Pasted the way the terminal would have: the agent reads the picture
-      // from its path, and you finish the sentence at its prompt.
-      this.state = {
-        ...focusTask(this.state, id),
-        keyboard: 'pane',
-        dictation: null,
-        orchestratorDraft: this.state.dictation ?? this.state.orchestratorDraft,
-      }
-      await this.opts.client
-        .write(pane.lane as LaneId, asPaste(paths.join(' ')))
-        .catch((err) => (this.state = notice(this.state, why(err))))
-    } else if (kind === 'terminal') {
-      this.state = {
-        ...this.state,
-        bottom: id,
-        keyboard: 'terminal',
-        dictation: null,
-        orchestratorDraft: this.state.dictation ?? this.state.orchestratorDraft,
-      }
-      await this.opts.client
-        .write(id as LaneId, paths.map(shellQuote).join(' '))
-        .catch((err) => (this.state = notice(this.state, why(err))))
-    }
-    this.soonTick()
-    this.draw()
-  }
-
-  /** Pictures waiting to go to the orchestrator with what you say next. */
-  private attachImages(paths: readonly string[]): void {
-    const readable = paths.filter((path) => readImage(path) !== null)
-    this.state = {
-      ...this.state,
-      attached: [...new Set([...this.state.attached, ...paths])],
-      bottom: ORCHESTRATOR_TAB,
-      dictation: this.state.dictation ?? '',
-      notice:
-        readable.length < paths.length
-          ? `${paths.length - readable.length} could not be read as a picture: over 20 MB, or not an image`
-          : paths.length === 1
-            ? 'say or type what to do with it'
-            : `say or type what to do with them`,
-    }
-    this.draw()
-  }
-
   /** Text selected by dragging over it, put on the clipboard. */
   private async copySelection(text: string): Promise<void> {
     const copied = await copyText(text, (data) => this.terminal.write(data))
@@ -3757,20 +3658,6 @@ export class App {
         ? `copied ${lines > 1 ? `${lines} lines` : `${text.length} characters`}`
         : 'could not copy',
     )
-    this.draw()
-  }
-
-  /** ctrl+v at the orchestrator: the screenshot on the clipboard, attached. */
-  private async attachClipboard(): Promise<void> {
-    const path = await (this.opts.clipboard?.image ?? clipboardImage)()
-    if (path) {
-      // That copy is taken: it is not offered again.
-      if (this.clipboard.offered) this.clipboard.seen = this.clipboard.offered
-      this.clipboard.offered = null
-      this.attachImages([path])
-      return
-    }
-    this.state = notice(this.state, 'no picture on the clipboard — ⌘V pastes text')
     this.draw()
   }
 
@@ -5246,7 +5133,7 @@ export class App {
     if (this.stopped) return
     this.reopenStopped()
     this.askExtensions()
-    this.lookAtClipboard()
+    this.images.look()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
       this.repaint()
@@ -6232,33 +6119,6 @@ export class App {
     ) {
       void this.opts.restartThinker?.()
     }
-  }
-
-  /**
-   * While the orchestrator's line is open, notice a picture on the clipboard
-   * and offer it: pasting one with Cmd+V sends nothing a terminal can pass on.
-   * Asked every few seconds at most, and only then.
-   */
-  private lookAtClipboard(): void {
-    if (this.state.dictation === null) {
-      this.clipboard.offered = null
-      return
-    }
-    if (this.clipboard.asking || this.now() - this.clipboard.askedAt < CLIPBOARD_MS) return
-    this.clipboard.asking = true
-    this.clipboard.askedAt = this.now()
-    void (this.opts.clipboard?.state ?? clipboardState)()
-      .then((found) => {
-        const offer = found?.image && found.copy !== this.clipboard.seen ? found.copy : null
-        if (offer !== this.clipboard.offered) {
-          this.clipboard.offered = offer
-          this.draw()
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        this.clipboard.asking = false
-      })
   }
 
   /**
@@ -8134,12 +7994,6 @@ function capitalise(text: string): string {
 }
 
 /** A menu's title for pictures: who gets this one, or these. */
-function imagesTitle(paths: readonly string[]): string {
-  const allImages = paths.every((p) => isImagePath(p))
-  const noun = paths.length === 1 ? 'file' : allImages ? 'pictures' : 'files'
-  return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} ${noun}`} to`
-}
-
 /**
  * The alternate screen claims page up and down, home and end, ctrl+up and
  * down and ctrl+shift+f to scroll and search a viewport of its own — before
