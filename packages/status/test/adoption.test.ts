@@ -10,6 +10,8 @@ const fx = (p: string) =>
 
 const CODEX_IDLE =
   'codex/0.104/rollout-2026-09-11T09-00-00-aaaaaaaa-0000-7000-8000-000000000001.jsonl'
+const CODEX_NEWER =
+  'codex/0.154/rollout-2026-09-21T09-47-18-01a0c2ef-021a-7c61-9d70-c2025f5a59ec.jsonl'
 const CODEX_APPROVAL =
   'codex/0.104/rollout-2026-09-11T10-00-00-aaaaaaaa-0000-7000-8000-000000000002.jsonl'
 
@@ -78,6 +80,21 @@ describe('codex parser', () => {
     const s = await parseTranscript(codex, fx(CODEX_APPROVAL))
     expect(s?.turn).toBe('running')
     expect(s?.pendingPermissions).toEqual(['bash: rm -r test/old'])
+  })
+
+  it('reads a session written by a newer Codex, whose lines moved', async () => {
+    // 0.154 files `session_id` beside `id`, says the model in `turn_context`
+    // and counts tokens in lines 0.104 never wrote. What the adoption parser
+    // needs is still there, and a fixture of the older shape alone would not
+    // have said so.
+    const s = await parseTranscript(codex, fx(CODEX_NEWER))
+    expect(s).toMatchObject({
+      provider: 'codex',
+      sessionId: '01a0c2ef-021a-7c61-9d70-c2025f5a59ec',
+      cwd: '/work/search',
+      turn: 'idle',
+      pendingPermissions: [],
+    })
   })
 
   it('rejects files without a session uuid in the name', async () => {

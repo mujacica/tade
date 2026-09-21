@@ -77,6 +77,7 @@ const lines: string[] = [
   '|---|---|---|',
   '| [pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-coding-agent`) | an agent harness, and the one the orchestrator runs in | MIT |',
   "| [Claude Code](https://code.claude.com) (`claude`) | an agent harness, run unmodified and signed in with your own account | Anthropic's [Commercial](https://www.anthropic.com/legal/commercial-terms) or [Consumer](https://www.anthropic.com/legal/consumer-terms) Terms, as your plan says |",
+  "| [Codex](https://developers.openai.com/codex) (`codex`) | an agent harness, run unmodified and signed in with your own account | OpenAI's [Services Agreement](https://openai.com/policies/services-agreement/) or [Terms of Use](https://openai.com/policies/terms-of-use/), as your plan says |",
   '| [git](https://git-scm.com) | worktrees, branches, status, search | GPL-2.0 |',
   '| [tmux](https://github.com/tmux/tmux) | lanes that outlive the window | ISC |',
   '| [GitHub CLI](https://cli.github.com) (`gh`) | the credential Tade reads reviews and checks with, per account and host | MIT |',

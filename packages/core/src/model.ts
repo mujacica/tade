@@ -154,7 +154,12 @@ export const HARNESS_CHOICES: readonly {
     about: 'the official claude, signed in with your own account, supervised by Tade',
     ready: true,
   },
-  { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
+  {
+    id: 'codex',
+    title: 'Codex',
+    about: 'the official codex, signed in with your own account, supervised by Tade',
+    ready: true,
+  },
 ]
 
 /** The folder a project keeps its task files in. */

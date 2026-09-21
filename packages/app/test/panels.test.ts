@@ -535,13 +535,13 @@ describe('finding in a terminal', () => {
     const harnesses = harnessMenuItems(
       [
         { id: 'pi', title: 'pi', about: 'pi', ready: true },
-        { id: 'codex', title: 'Codex', about: 'not supported yet', ready: false },
+        { id: 'later', title: 'Later', about: 'not supported yet', ready: false },
       ],
       'pi',
     )
     expect(harnesses).toMatchObject([
       { id: 'pi', label: '● pi', note: 'now' },
-      { id: 'codex', off: 'not supported yet' },
+      { id: 'later', off: 'not supported yet' },
     ])
     expect(laneMenuItems(false).map((item) => item.id)).toEqual([
       'rename',

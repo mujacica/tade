@@ -16,6 +16,8 @@
     "@tade/drivers-core": "workspace:*",
     "@tade/drivers-pty": "workspace:*",
     "@tade/drivers-tmux": "workspace:*",
+    "@tade/harnesses-claude": "workspace:*",
+    "@tade/harnesses-codex": "workspace:*",
     "@tade/harnesses-core": "workspace:*",
     "@tade/harnesses-pi": "workspace:*",
     "@tade/judge-jev": "workspace:*",
@@ -25,8 +27,7 @@
     "@tade/telemetry": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "yaml": "^2.9.0",
-    "zod": "^4.6.2",
-    "@tade/harnesses-claude": "workspace:*"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@tade/drivers-core": "workspace:*"

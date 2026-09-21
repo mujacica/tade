@@ -4,3 +4,8 @@ coverage/
 *.log
 .DS_Store
 .tade-test-*/
+# What is going on right now, written by whoever is running the checks and
+# taken back when they end: this machine's, never a commit's — and while it is
+# there, `pnpm exec biome ci .` would otherwise read it as a file somebody
+# wrote badly, which made `format` fail inside every run that wrote it.
+.tade/checks.running.json

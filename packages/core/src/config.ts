@@ -13,7 +13,7 @@ import { z } from 'zod'
 // listed here and validated clean, which reads as a promise.
 const DriverId = z.enum(['pty', 'tmux'])
 /** The harnesses an agent can run in: the registry in the workbench has one adapter for each. */
-export const HARNESS_IDS = ['pi', 'claude-code'] as const
+export const HARNESS_IDS = ['pi', 'claude-code', 'codex'] as const
 export type HarnessId = (typeof HARNESS_IDS)[number]
 const Harness = z.enum(HARNESS_IDS)
 const RouteName = z.string().regex(/^[a-z0-9][a-z0-9-]*$/)

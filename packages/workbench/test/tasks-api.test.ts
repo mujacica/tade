@@ -113,14 +113,19 @@ describe('task and run RPC', () => {
     expect(created?.detail.by).toBe('extension:sentry')
   })
 
-  it('runs a task in a harness of its own, and refuses one that cannot run yet', async () => {
+  it('runs a task in a harness of its own, and refuses one it has never heard of', async () => {
     const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
-    await expect(
-      client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'codex' }),
-    ).rejects.toThrow(/not supported yet/)
     await expect(
       client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'nope' }),
     ).rejects.toThrow(/no harness called nope/)
+    // Every harness in the choices has an adapter behind it; one that is
+    // coming and cannot run yet is refused by the same rule, in its own words.
+    expect(
+      await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'codex' }),
+    ).toEqual({ harness: 'codex', restarted: false })
+    expect(
+      readFileSync(join(repo.root, '.tade', 'tasks', 'refunds', 'task.yaml'), 'utf8'),
+    ).toContain('harness: codex')
     expect(
       await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'pi' }),
     ).toEqual({ harness: 'pi', restarted: false })

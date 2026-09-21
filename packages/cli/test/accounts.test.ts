@@ -49,6 +49,7 @@ describe('tade accounts', () => {
       ['pi', null, true],
       ['claude-code', null, false],
       ['claude-code', 'work', true],
+      ['codex', null, true],
     ])
     for (const view of views)
       expect(typeof (view.status as { signedIn: unknown }).signedIn).toBe('boolean')

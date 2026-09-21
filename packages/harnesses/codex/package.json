@@ -1,0 +1,18 @@
+{
+  "name": "@tade/harnesses-codex",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@tade/core": "workspace:*",
+    "@tade/harnesses-core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.0"
+  }
+}

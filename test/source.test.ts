@@ -35,7 +35,15 @@ describe('every source file stays searchable', () => {
   it('holds no control byte that would make grep call it binary', () => {
     const guilty: string[] = []
     for (const path of tracked()) {
-      const bytes = readFileSync(new URL(path, new URL(ROOT, 'file:')))
+      // A file git tracks and nobody has on disk is a deletion somebody has
+      // not committed yet — four agents share this checkout — and not a file
+      // that stopped being searchable. What is not there holds no byte.
+      let bytes: Buffer
+      try {
+        bytes = readFileSync(new URL(path, new URL(ROOT, 'file:')))
+      } catch {
+        continue
+      }
       for (const byte of bytes) {
         if (byte < 32 && !ALLOWED.has(byte)) {
           guilty.push(`${path} (byte ${byte})`)

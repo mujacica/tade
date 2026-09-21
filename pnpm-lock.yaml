@@ -310,6 +310,9 @@ importers:
       '@tade/checks-core':
         specifier: workspace:*
         version: link:../../checks/core
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -347,6 +350,19 @@ importers:
       '@tade/drivers-pty':
         specifier: workspace:*
         version: link:../../drivers/pty
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/harnesses/codex:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/harnesses-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -528,6 +544,9 @@ importers:
       '@tade/harnesses-claude':
         specifier: workspace:*
         version: link:../harnesses/claude
+      '@tade/harnesses-codex':
+        specifier: workspace:*
+        version: link:../harnesses/codex
       '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
