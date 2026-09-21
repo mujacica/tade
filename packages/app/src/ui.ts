@@ -91,7 +91,7 @@ export class Row {
 
   /**
    * A button of the same block, two columns narrower: for a small control that
-   * belongs to the set a button is in — a heading's `◉` beside its `+` — and
+   * belongs to the set a button is in — a heading's `H` beside its `+` — and
    * must not read as wide as the button it sits beside.
    */
   chip(label: string, target: Target, look: Look = 'rest'): this {

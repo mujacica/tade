@@ -146,31 +146,59 @@ describe('the AGENTS heading', () => {
     expect(control(hits, 'toggle-done')).toBeUndefined()
   })
 
-  it('offers the eye and the cleanup as smaller controls beside the + , on its row', () => {
+  it('offers H and X as smaller controls beside the + , on its row', () => {
     const { rows, hits } = draw(here(), frame({ height: 40 }))
     const plus = control(hits, 'new-agent')
-    const eye = control(hits, 'toggle-done')
-    const cleanup = control(hits, 'close-done')
+    const hide = control(hits, 'toggle-done')
+    const close = control(hits, 'close-done')
     expect(plus).toBeDefined()
     // Part of the same set: the same row, side by side, with the + last.
-    expect(eye?.row).toBe(plus?.row)
-    expect(cleanup?.row).toBe(plus?.row)
+    expect(hide?.row).toBe(plus?.row)
+    expect(close?.row).toBe(plus?.row)
     expect(plain(rows[plus?.row ?? 0] ?? '')).toContain('AGENTS')
-    expect(eye?.to).toBeLessThan(cleanup?.from ?? 0)
-    expect(cleanup?.to).toBeLessThan(plus?.from ?? 0)
+    expect(hide?.to).toBeLessThan(close?.from ?? 0)
+    expect(close?.to).toBeLessThan(plus?.from ?? 0)
     // Smaller: narrower than the button they sit beside, not as wide as it.
-    expect(columns(eye)).toBeLessThan(columns(plus))
-    expect(columns(cleanup)).toBeLessThan(columns(plus))
+    expect(columns(hide)).toBeLessThan(columns(plus))
+    expect(columns(close)).toBeLessThan(columns(plus))
   })
 
-  it('takes the finished agents out of the list when the eye is shut, and keeps the eye', () => {
+  it('draws them as the letters H and X, and nothing a font can lose', () => {
+    // Glyphs that came out as a blob and a box on the machine of the person
+    // who has to press them: letters are the one thing every font draws.
+    const { rows, hits } = draw(here(), frame({ height: 40 }))
+    const at = (hit: Hit | undefined) =>
+      plain(rows[hit?.row ?? 0] ?? '').slice(hit?.from ?? 0, (hit?.to ?? -1) + 1)
+    expect(at(control(hits, 'toggle-done'))).toContain('H')
+    expect(at(control(hits, 'close-done'))).toContain('X')
+  })
+
+  it('fills H in while the finished agents are hidden, so pressed is plain to see', () => {
+    const coloured = (state: AppState) =>
+      draw(state, { ...frame({ height: 40 }), skin: COLOUR }).rows.find((row) =>
+        row.includes('AGENTS'),
+      ) ?? ''
+    // On is the amber every other switch in the window is on in, and off is
+    // as quiet as the rest of the heading — the same letter either way.
+    expect(coloured(toggleDone(here()))).toContain(COLOUR.chip('H', 'primary'))
+    expect(coloured(here())).toContain(COLOUR.chip('H', 'rest'))
+    // And it still says which it is where there is no colour to say it with,
+    // in the same columns: a terminal with NO_COLOR set is not a terminal
+    // that has to guess whether its agents are hidden.
+    const bare = (state: AppState) =>
+      plain(draw(state, frame({ height: 40 })).rows.find((row) => row.includes('AGENTS')) ?? '')
+    expect(bare(toggleDone(here()))).toContain('<H>')
+    expect(bare(here())).toContain('[H]')
+  })
+
+  it('takes the finished agents out of the list when H is pressed, and keeps H', () => {
     const { rows, hits } = draw(toggleDone(here()), frame({ height: 40 }))
     expect(rows.join('\n')).not.toContain('shipped')
     expect(rows.join('\n')).toContain('refunds')
     expect(control(hits, 'toggle-done')).toBeDefined()
   })
 
-  it('says how many of the agents it is showing while the eye is shut', () => {
+  it('says how many of the agents it is showing while they are hidden', () => {
     // Wide enough for the badge: a narrow heading gives up its count first.
     const wide = (over: Partial<AppState> = {}) => here({ sizes: { sidebarWidth: 36 }, ...over })
     const heading = (state: AppState) =>
@@ -178,14 +206,14 @@ describe('the AGENTS heading', () => {
     // Nothing hidden: the count on its own, and no fraction to read.
     expect(heading(wide())).toContain('(3)')
     expect(heading(wide())).not.toContain('/')
-    // Shut: two of the three, so the badge says which two, and of what.
+    // Hidden: two of the three, so the badge says which two, and of what.
     expect(heading(toggleDone(wide()))).toContain('(2/3)')
   })
 
   it('gives up what the count is out of before the count itself', () => {
     const heading = (state: AppState) =>
       plain(draw(state, frame({ height: 40 })).rows.find((row) => row.includes('AGENTS')) ?? '')
-    // Too narrow for the fraction, wide enough for the count: shutting the eye
+    // Too narrow for the fraction, wide enough for the count: hiding them
     // must narrow the list, never look like the agents have gone away.
     const narrow = heading(toggleDone(here({ sizes: { sidebarWidth: 30 } })))
     expect(narrow).toContain('(2)')

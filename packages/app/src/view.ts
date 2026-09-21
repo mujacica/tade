@@ -848,9 +848,9 @@ function renderSidebar(
   const files = frame.files ?? []
   const spend = frame.spend?.byTask ?? {}
   const where = frame.where ?? null
-  // Agents that have finished: what the eye hides and the cleanup button
-  // closes. Neither control is drawn while there is nothing finished to act
-  // on — except the eye while it is hiding, which has to stay reachable.
+  // Agents that have finished: what `H` hides and `X` closes. Neither control
+  // is drawn while there is nothing finished to act on — except `H` while it
+  // is hiding, which has to stay reachable.
   const done = doneTasks(state).length
   const all = agentsHere(state).length
 
@@ -864,8 +864,15 @@ function renderSidebar(
         ...(done > 0 || state.hidingDone
           ? [
               {
-                // An eye open on the finished ones, and shut over them.
-                label: state.hidingDone ? '○' : '◉',
+                // Letters, not glyphs: two fonts drew the pair as a blob and a
+                // box, and a control nobody can make out is a control nobody
+                // presses. `H` hides, and it is a switch — so while the
+                // finished ones are hidden it is filled in the brand's amber,
+                // what being on looks like everywhere else in the window,
+                // rather than a shade of grey nobody reads as pressed — and
+                // `<H>` rather than `[H]` where there is no colour to fill.
+                label: 'H',
+                look: state.hidingDone ? ('primary' as const) : ('rest' as const),
                 target: { kind: 'action' as const, name: 'toggle-done' },
                 small: true,
               },
@@ -874,7 +881,8 @@ function renderSidebar(
         ...(done > 0
           ? [
               {
-                label: '⌫',
+                // `X` closes them, and is red only under the pointer.
+                label: 'X',
                 target: { kind: 'action' as const, name: 'close-done' },
                 small: true,
                 danger: true,
@@ -893,7 +901,7 @@ function renderSidebar(
                 // Hiding every agent there is leaves an empty list that would
                 // otherwise say nobody has ever started one.
                 .text(
-                  all === 0 ? 'none yet — + starts one' : `${all} finished — ◉ shows them`,
+                  all === 0 ? 'none yet — + starts one' : `${all} finished — H shows them`,
                   skin.hint,
                 )
                 .build(),
@@ -1071,8 +1079,8 @@ function badgeWidth(section: Section, how: Exclude<Badge, false>): number {
  * nearest the button first, because a heading that keeps the button it is
  * there for is worth more than one that keeps everything and draws none of it.
  * The two steps of badge matter: hiding the finished agents must never be what
- * takes the count off the heading, or shutting the eye would read as the
- * agents having gone rather than as the list being narrowed.
+ * takes the count off the heading, or pressing `H` would read as the agents
+ * having gone rather than as the list being narrowed.
  */
 function headingFit(
   label: number,

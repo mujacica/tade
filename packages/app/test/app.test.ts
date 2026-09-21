@@ -922,7 +922,7 @@ describe('the window, wired up', () => {
     expect(created?.task).toBe('app/agent-1')
   }, 30_000)
 
-  it('closes the agents that have finished, from the cleanup beside the +', async () => {
+  it('closes the agents that have finished, from the X beside the +', async () => {
     await start()
     await until('the first frame', () =>
       screenOf(terminal.written).some((row) => row.includes('AGENTS')),
@@ -934,9 +934,10 @@ describe('the window, wired up', () => {
       const row = lines.findIndex((line) => line.includes('AGENTS'))
       return { row, text: lines[row] ?? '' }
     }
-    await until('the cleanup button', () => heading().text.includes('⌫'), 20_000)
+    // The X beside the + : `[X]` without colour, which is the whole chip.
+    await until('the close button', () => heading().text.includes('[X]'), 20_000)
     const bar = heading()
-    click(bar.text.indexOf('⌫'), bar.row)
+    click(bar.text.indexOf('[X]') + 1, bar.row)
     // It asks first, and says how many it would close.
     await until('the question', () => terminal.written.includes('Close 1 finished agent?'))
     const answer = find('Close 1 ')

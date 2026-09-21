@@ -1,6 +1,6 @@
    T A D E      checkout      +        ! 1 waiting  ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  7   ◉  ⌫     +    █│ Update notes panel to…    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
+ ▾ AGENTS  7   H  X     +    █│ Update notes panel to…    agent    actions     +     claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
    ⠋ Agent spend in… $5.73   █│                                                                                         
      working                 █│                                                                                         

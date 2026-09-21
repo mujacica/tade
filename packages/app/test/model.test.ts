@@ -331,14 +331,14 @@ describe('the agents that have finished', () => {
     { task: 'app/said-so', state: 'blocked', finished: { by: 'agent', summary: 'done' } },
   ]
 
-  it('are the ones the cleanup button would close, whether or not they are shown', () => {
+  it('are the ones X would close, whether or not they are shown', () => {
     const state = withTasks(initialState(), finished)
     expect(doneTasks(state).map((pane) => pane.name)).toEqual(['reviewed', 'said-so'])
     // Hiding them is a view, never a decision about them.
     expect(doneTasks(toggleDone(state)).map((pane) => pane.name)).toEqual(['reviewed', 'said-so'])
   })
 
-  it('leave the list when the eye hides them, and come back when it opens', () => {
+  it('leave the list when H hides them, and come back when it is pressed again', () => {
     const state = withTasks(initialState(), finished)
     expect(tasksOf(state).map((pane) => pane.name)).toEqual(['working', 'reviewed', 'said-so'])
     const hidden = toggleDone(state)

@@ -33,14 +33,14 @@ describe('a row of controls', () => {
     // button without reading as one, and the same width with any skin.
     const build = (skin: typeof PLAIN) =>
       new Row(30, skin)
-        .chip('◉', { kind: 'action', name: 'toggle-done' })
+        .chip('H', { kind: 'action', name: 'toggle-done' })
         .button(' + ', { kind: 'action', name: 'new-agent' }, 'add')
         .build()
     const coloured = build(COLOUR)
     const bare = build(PLAIN)
     expect(coloured.hits).toEqual(bare.hits)
     const [chip, button] = bare.hits
-    expect(bare.text.slice(chip?.from, (chip?.to ?? 0) + 1)).toBe('[◉]')
+    expect(bare.text.slice(chip?.from, (chip?.to ?? 0) + 1)).toBe('[H]')
     expect((chip?.to ?? 0) - (chip?.from ?? 0)).toBeLessThan(
       (button?.to ?? 0) - (button?.from ?? 0),
     )

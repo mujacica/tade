@@ -400,7 +400,11 @@ export const PLAIN: Skin = {
   scrollTrack: () => '▕',
   scrollThumb: () => '█',
   button: (label) => `[ ${label} ]`,
-  chip: (label) => `[${label}]`,
+  // A chip that is on has to say so in its shape here, because the colour that
+  // says it elsewhere is gone: `<H>` switched on against `[H]` at rest, the
+  // same label + 2 either way. `primary` is the one look whose whole meaning
+  // is being on — everything else keeps the square brackets every control has.
+  chip: (label, look) => (look === 'primary' ? `<${label}>` : `[${label}]`),
   tabbed: (label, on) => (on ? `[ ${label} ]` : `  ${label}  `),
   keycap: (label) => `[${label}]`,
   badge: (text) => `(${text.trim()})`.padEnd(text.length),

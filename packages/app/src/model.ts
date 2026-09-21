@@ -167,9 +167,9 @@ export interface AppState {
   /** Sidebar sections folded shut. */
   folded: string[]
   /**
-   * Agents that have finished are kept out of the list, until the eye beside
-   * AGENTS puts them back. They are still there, and still the cleanup
-   * button's to close — hiding one is a view, never a decision about it.
+   * Agents that have finished are kept out of the list, until `H` beside
+   * AGENTS puts them back. They are still there, and still `X`'s to close —
+   * hiding one is a view, never a decision about it.
    */
   hidingDone: boolean
   /** Which queued work the SMART QUEUE shows. */
@@ -1278,9 +1278,9 @@ export function scrollBarTo(state: AppState, y: number): AppState {
 }
 
 /**
- * The agents in the project in front of you that have finished: what the
- * cleanup button closes, and what the eye hides. Read from every pane rather
- * than from the list, so hiding them never changes what cleanup would close.
+ * The agents in the project in front of you that have finished: what `X`
+ * closes, and what `H` hides. Read from every pane rather than from the list,
+ * so hiding them never changes what `X` would close.
  */
 export function doneTasks(state: AppState): AgentPane[] {
   return agentsHere(state).filter((pane) => markOf(pane) === 'done')

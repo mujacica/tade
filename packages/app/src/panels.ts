@@ -1591,7 +1591,7 @@ export function scheduleMenuItems(schedule: {
   ]
 }
 
-/** What the cleanup button asks first, with the agents it would close in it. */
+/** What `X` in the AGENTS heading asks first, with the agents it would close in it. */
 export function closeDonePanel(tasks: readonly string[]): CloseDonePanel {
   return { kind: 'close-done', tasks: [...tasks], field: 'keep', busy: false, error: null }
 }

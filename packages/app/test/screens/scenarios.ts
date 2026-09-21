@@ -2489,7 +2489,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'the-finished-agents-hidden',
     about:
-      'The AGENTS heading with two controls beside its +, each narrower than it: an eye, shut here so the agents that have finished are out of the list, and a cleanup that closes them. The pointer is on the eye.',
+      'The AGENTS heading with two letters beside its +, each narrower than it: H, filled in here because the agents that have finished are hidden, and X, which closes them. The pointer is on the H.',
     state: {
       ...toggleDone(finished()),
       hover: { kind: 'action', name: 'toggle-done' },
@@ -2499,7 +2499,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'cleaning-up-finished-agents',
     about:
-      'The cleanup beside the + asks before it closes anything, and names every agent it would close.',
+      'The X beside the + asks before it closes anything, and names every agent it would close.',
     state: {
       ...finished(),
       panel: closeDonePanel(['checkout/refund-emails', 'checkout/webhook-retries']),
