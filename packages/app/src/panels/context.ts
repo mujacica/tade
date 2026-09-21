@@ -11,7 +11,6 @@ import {
   menu,
   models,
   openProject,
-  search,
   settings,
   spend,
 } from '../panel-view.ts'
@@ -33,6 +32,7 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import { search } from './search/view.ts'
 import type { BranchRow } from './small/state.ts'
 import {
   branches,

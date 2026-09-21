@@ -1,6 +1,7 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
+import { searchPanel } from '../src/panels/search/state.ts'
 import {
   branchChoices,
   branchPanel,
@@ -42,7 +43,6 @@ import {
   type SetupFieldView,
   savedFile,
   scrollFile,
-  searchPanel,
   settingsPanel,
   setupControls,
   spendPanel,

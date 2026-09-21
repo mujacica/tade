@@ -213,6 +213,7 @@ import {
 import { extensionsScrollable, fileBodySize, fileViewSize } from './panel-view.ts'
 import type { OpenRowView, PanelContext } from './panels/context.ts'
 import type { PanelOutcome } from './panels/outcome.ts'
+import { searchPanel } from './panels/search/state.ts'
 import {
   type BranchRow,
   branchPanel,
@@ -273,7 +274,6 @@ import {
   savedFile,
   scheduleMenuItems,
   scrollFile,
-  searchPanel,
   settingsPanel,
   spendPanel,
   type ThinkerOffers,

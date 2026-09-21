@@ -1,4 +1,4 @@
-import { searchPanel } from '../../../src/panels.ts'
+import { searchPanel } from '../../../src/panels/search/state.ts'
 import { type SearchEntry, searchResults } from '../../../src/search.ts'
 import { base, checkout, frame, type Scenario } from './fixtures.ts'
 
