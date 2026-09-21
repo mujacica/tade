@@ -211,7 +211,7 @@ import {
   withTranscript,
 } from './model.ts'
 import { extensionsScrollable, fileBodySize, fileViewSize } from './panel-view.ts'
-import type { OpenRowView, PanelContext } from './panels/context.ts'
+import type { PanelContext } from './panels/context.ts'
 import {
   type AgentOffers,
   accountMenuItems,
@@ -234,6 +234,13 @@ import {
 } from './panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelPanel, priceSaid } from './panels/models/state.ts'
 import type { PanelOutcome } from './panels/outcome.ts'
+import {
+  nameFrom,
+  type OpenProjectPanel,
+  type OpenRow,
+  type OpenRowView,
+  openProjectPanel,
+} from './panels/project/state.ts'
 import { searchPanel } from './panels/search/state.ts'
 import {
   type BranchRow,
@@ -265,10 +272,6 @@ import {
   type McpServerOffer,
   type McpServerShown,
   type McpServerView,
-  nameFrom,
-  type OpenProjectPanel,
-  type OpenRow,
-  openProjectPanel,
   type Panel,
   type PanelInputs,
   panelClick,

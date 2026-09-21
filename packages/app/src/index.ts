@@ -36,7 +36,8 @@ export {
   withTasks,
 } from './model.ts'
 export { type ThinkerOffers, thinkerOffers } from './panels/menu/state.ts'
-export { openProjectPanel, type Panel, panelClick, panelKey } from './panels.ts'
+export { openProjectPanel } from './panels/project/state.ts'
+export { type Panel, panelClick, panelKey } from './panels.ts'
 export { initialRouter, PREFIX, pending, type Routed, type RouterState, route } from './router.ts'
 export {
   initialScreen,

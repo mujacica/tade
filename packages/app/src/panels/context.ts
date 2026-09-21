@@ -8,7 +8,6 @@ import {
   extensions,
   extensionView,
   fileView,
-  openProject,
   settings,
   spend,
 } from '../panel-view.ts'
@@ -17,7 +16,6 @@ import type {
   Choice,
   ExtensionView,
   McpServerOffer,
-  OpenRow,
   Panel,
   SetupFieldView,
   UpdatesShown,
@@ -32,6 +30,8 @@ import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
 import type { ModelChoice } from './models/state.ts'
 import { models } from './models/view.ts'
+import type { OpenRowView } from './project/state.ts'
+import { openProject } from './project/view.ts'
 import { search } from './search/view.ts'
 import type { BranchRow } from './small/state.ts'
 import {
@@ -177,14 +177,6 @@ export interface PanelContext {
   modelTarget: string
   /** The model it is on now. */
   currentModel: string | null
-}
-
-export interface OpenRowView {
-  row: OpenRow
-  branch: string | null
-  tasks: number
-  /** When it was last opened, said the way people say it. */
-  when: string | null
 }
 
 /** A panel, and anything that opens out of it and may reach past its edge. */

@@ -8,13 +8,13 @@ import {
   thinkingMenuItems,
 } from '../../../src/panels/menu/state.ts'
 import { modelPanel } from '../../../src/panels/models/state.ts'
+import { openProjectPanel } from '../../../src/panels/project/state.ts'
 import {
   closeDonePanel,
   confirmRemovePanel,
   noteHeadlinePanel,
   promptPanel,
 } from '../../../src/panels/small/state.ts'
-import { openProjectPanel } from '../../../src/panels.ts'
 import { base, finished, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // The panels: menus, and the pages that float over the window.

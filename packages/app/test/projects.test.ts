@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { git } from '@tade/status'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { nameFrom, openProjectPanel, panelClick, panelKey } from '../src/panels.ts'
+import { nameFrom, openProjectPanel } from '../src/panels/project/state.ts'
+import { panelClick, panelKey } from '../src/panels.ts'
 import {
   ago,
   branchOf,
