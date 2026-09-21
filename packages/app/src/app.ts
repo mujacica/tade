@@ -1233,6 +1233,7 @@ export class App {
         // is not, because it is not one.
         ...(this.state.hidingDone ? { hidingDone: true } : {}),
         ...(sameSections(this.state.folded, FOLDED_AT_START) ? {} : { folded: this.state.folded }),
+        ...(this.state.opened.length > 0 ? { opened: this.state.opened } : {}),
         ...(Object.keys(this.state.order).length > 0 ? { order: this.state.order } : {}),
       }
       writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
@@ -1776,7 +1777,7 @@ export class App {
 
   private async begin(): Promise<void> {
     this.remembered = this.recall()
-    const { sidebarWidth, stripHeight, order, hidingDone, folded } = this.remembered ?? {}
+    const { sidebarWidth, stripHeight, order, hidingDone, folded, opened } = this.remembered ?? {}
     this.state = {
       ...this.state,
       sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
@@ -1786,6 +1787,7 @@ export class App {
       // flashes them and then takes them away again.
       hidingDone: hidingDone ?? this.state.hidingDone,
       folded: folded ?? this.state.folded,
+      opened: opened ?? this.state.opened,
     }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.loadAccounts()
@@ -2158,7 +2160,9 @@ export class App {
         break
       }
       case 'section':
-        this.state = toggleSection(this.state, target.section)
+        // What the heading under the pointer said it was, so a section that
+        // folds itself away opens and stays open rather than closing again.
+        this.state = toggleSection(this.state, target.section, target.quiet === true)
         // Written where it was chosen, as a dragged divider is: a window that
         // was killed rather than closed still opens the way you left it.
         this.remember()

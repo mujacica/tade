@@ -8,10 +8,10 @@
    ⠋ refunds     $0.62   ▕│  ▸ Edit src/webhooks.ts  +12 −4                     
      working             ▕│  ▸ bash npm i stripe@15                             
                          ▕│  ╭─ wants approval ──────────────────────────────╮  
- ▾ CHANGES  3    vs main ▕│  │ bash  npm i stripe@15                         │  
-  M package.json   +2 −1 ▕│  │   Allow once     Deny                         │  
-  A …bhooks.test.ts  +48 ▕│  ╰───────────────────────────────────────────────╯  
-  M …webhooks.ts  +12 −4 ▕│                                                     
+ ▸ SMART QUEUE      none ▕│  │ bash  npm i stripe@15                         │  
+ ▾ CHANGES  3    vs main ▕│  │   Allow once     Deny                         │  
+  M package.json   +2 −1 ▕│  ╰───────────────────────────────────────────────╯  
+  A …bhooks.test.ts  +48 ▕│                                                     
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                 
                                                                                ▕

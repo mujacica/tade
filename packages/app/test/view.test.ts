@@ -8,6 +8,7 @@ import {
   focusTask,
   initialState,
   notice,
+  queueEmptySays,
   setDictation,
   setHeld,
   setListening,
@@ -15,6 +16,7 @@ import {
   type TaskSnapshot,
   toggleCheck,
   toggleDone,
+  toggleSection,
   viewActions,
   withProjects,
   withTasks,
@@ -1141,5 +1143,55 @@ describe('the smart queue', () => {
     expect(seen.some((row) => row.includes('refund-emails'))).toBe(true)
     expect(seen.join('\n')).not.toBe(rows.join('\n'))
     for (const row of far.rows) expect(visibleWidth(row)).toBe(74)
+  })
+
+  it('is there with nothing in it, folded, and its heading says why', () => {
+    // Nothing queued and nothing scheduled: the section used to be missing
+    // altogether, which is the thing a person cannot find when they look.
+    const quiet = { ...state(), folded: ['changes', 'files', 'notes', 'where'] }
+    const rows = renderApp(quiet, frame({ width: 160, height: 40 })).map(plain)
+    const heading = rows.find((row) => row.includes('SMART QUEUE')) ?? ''
+    expect(heading).toContain('▸ SMART QUEUE')
+    // In the words of the reason it actually is, not one sentence for every case.
+    expect(heading).toContain(queueEmptySays(quiet))
+    // Folded is one row and no more: nothing of the list under it.
+    expect(rows.filter((row) => row.includes('SMART QUEUE')).length).toBe(1)
+  })
+
+  it('says as much of why as a narrow side has room for, never nothing at all', () => {
+    const quiet = { ...state(), folded: ['changes', 'files', 'notes', 'where'] }
+    const heading = (width: number) =>
+      renderApp(quiet, frame({ width, height: 40 }))
+        .map(plain)
+        .find((row) => row.includes('SMART QUEUE')) ?? ''
+    // A side too narrow for the sentence still says the count in words.
+    expect(heading(100)).toMatch(/SMART QUEUE +none/)
+    expect(heading(160)).toContain('nothing is queued')
+  })
+
+  it('opens where it is pressed, and what it opened stays open with nothing in it', () => {
+    const quiet = { ...state(), folded: ['changes', 'files', 'notes', 'where'] }
+    const drawn = draw(quiet, frame({ width: 160, height: 40 }))
+    const at = drawn.hits.find(
+      (hit) => hit.target.kind === 'section' && hit.target.section === 'queue',
+    )
+    // The heading carries what the drawing found, so the press and the paint
+    // can never read the emptiness differently.
+    expect(at?.target).toEqual({ kind: 'section', section: 'queue', quiet: true })
+    const open = toggleSection(quiet, 'queue', true)
+    expect(open.opened).toContain('queue')
+    const after = renderApp(open, frame({ width: 160, height: 40 })).map(plain)
+    expect(after.some((row) => row.includes('▾ SMART QUEUE'))).toBe(true)
+    // And the reason is the whole of what the open section is for.
+    expect(after.some((row) => row.includes('nothing is queued'))).toBe(true)
+  })
+
+  it('stays folded when you fold it with work waiting in it', () => {
+    const shut = toggleSection(queued(), 'queue', false)
+    expect(shut.folded).toContain('queue')
+    const rows = renderApp(shut, frame({ width: 100, height: 40 })).map(plain)
+    // The count stays on the heading: what was put away is still there.
+    expect(rows.find((row) => row.includes('SMART QUEUE'))).toMatch(/▸ SMART QUEUE +\(?3\)?/)
+    expect(rows.some((row) => row.includes('add-refunds'))).toBe(false)
   })
 })

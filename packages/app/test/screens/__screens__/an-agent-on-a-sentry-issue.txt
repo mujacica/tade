@@ -8,19 +8,19 @@
    ⠋ refunds         $0.62   █│                                                                                         
      working                 █│                                                                                         
                              █│                                                                                         
+ ▸ SMART QUEUE          none █│                                                                                         
  ▸ CHANGES  3        vs main █│                                                                                         
  ▸ FILES                     █│                                                                                         
  ▸ NOTES  4             +    █│                                                                                         
  ▾ GIT                       █│                                                                                         
    repo     ~/src/checkout   █│                                                                                         
    branch   …e/fix-shop-1a   █│                                                                                         
-   from     main             █│                                                                                         
-   about    SHOP-1A ↗        █│Reading .tade/context.md for SHOP-1A before touching src/refunds.ts                      
-   about    trace a1b2c3d4 ↗ █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   worktree …out-fix-shop-1a █│  │ bash  npm i stripe@15                                        │                       
-   path     /Users/me/.tade/ █│  │   Allow once     Deny                                        │                       
-            worktrees/       ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-            checkout-fix-sho ▕│                                                                                         
+   from     main             █│Reading .tade/context.md for SHOP-1A before touching src/refunds.ts                      
+   about    SHOP-1A ↗        █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   about    trace a1b2c3d4 ↗ █│  │ bash  npm i stripe@15                                        │                       
+   worktree …out-fix-shop-1a ▕│  │   Allow once     Deny                                        │                       
+   path     /Users/me/.tade/ ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+            worktrees/       ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

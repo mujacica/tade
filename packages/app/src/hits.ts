@@ -65,7 +65,13 @@ export type Target =
   | { kind: 'link'; url: string }
   /** A file reference on an agent's screen, maybe at a line. */
   | { kind: 'place'; path: string; line?: number; column?: number }
-  | { kind: 'section'; section: string }
+  /**
+   * A section's heading. `quiet` is what the drawing found: nothing in it, so
+   * it is shut unless asked for — carried here so that pressing it does what
+   * the heading under the pointer said, rather than what a second reading of
+   * the state a frame later would say.
+   */
+  | { kind: 'section'; section: string; quiet?: boolean }
   | { kind: 'action'; name: string }
   /** A panel's own control, named by the panel. */
   | { kind: 'control'; id: string }

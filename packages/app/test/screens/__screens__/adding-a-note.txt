@@ -8,19 +8,19 @@
    ⠋ refunds         $0.62   █│                                                                                         
      working            ╭─ New note ───────────────────────────────────────────────────── esc ─╮                        
                         │                                                                      │                        
- ▾ CHANGES  3        vs │ NOTE ABOUT CHECKOUT                                                  │                        
-  M package.json       +│  The staging key rotates on the 1st▏                                 │                        
-  A …/webhooks.test.ts  │                                                                      │                        
-  M src/webhooks.ts   +1│ ◉ About checkout   ○ About everything                                │                        
-                        │ Kept word for word. Saying "remember …" to Tade does the same.       │                        
- ▾ FILES                │                                                                      │                        
-   ▾ src/               │                                             Cancel     Save note ⏎   │                        
-       webhooks.test.ts ╰──────────────────────────────────────────────────────────────────────╯                        
-       webhooks.ts           ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
-     package.json            ▕│  │   Allow once     Deny                                        │                       
-     README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-                             ▕│                                                                                         
+ ▸ SMART QUEUE          │ NOTE ABOUT CHECKOUT                                                  │                        
+ ▾ CHANGES  3        vs │  The staging key rotates on the 1st▏                                 │                        
+  M package.json       +│                                                                      │                        
+  A …/webhooks.test.ts  │ ◉ About checkout   ○ About everything                                │                        
+  M src/webhooks.ts   +1│ Kept word for word. Saying "remember …" to Tade does the same.       │                        
+                        │                                                                      │                        
+ ▾ FILES                │                                             Cancel     Save note ⏎   │                        
+   ▾ src/               ╰──────────────────────────────────────────────────────────────────────╯                        
+       webhooks.test.ts      ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                       
+   ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
+     package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+     README.md               ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

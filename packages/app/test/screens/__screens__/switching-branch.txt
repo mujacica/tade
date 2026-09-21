@@ -4,8 +4,9 @@
                         │ on main now                                                          │                        
    none yet — + starts o│                                                                      │                        
                         │▌ + Create fix                                                        │                        
- ▾ CHANGES           vs │    fix/refund-retries                                     3 days ago │                        
-   open an agent to see │    fix/webhook-signature                                 2 weeks ago │                        
+ ▸ SMART QUEUE          │    fix/refund-retries                                     3 days ago │                        
+ ▾ CHANGES           vs │    fix/webhook-signature                                 2 weeks ago │                        
+   open an agent to see │                                                                      │                        
                         │                                                                      │                        
  ▾ FILES                │                                                                      │                        
    ▾ src/               │                                                                      │                        
@@ -20,7 +21,6 @@
    repo     ~/src/checko│                                                                      │                        
    branch   …de/stripe-v│                                                                      │                        
    from     main        │                                                                      │                        
-   worktree …kout-stripe│                                                                      │                        
 ━   orchestrator     +  │                                                                      │━━━━━━━━━━   ⤢     ▾   ━
                         │                                                                      │                        
                         │                                                                      │                       ▕

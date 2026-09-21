@@ -8,9 +8,10 @@
    ⠋ refun│  □ src/webhooks.ts  checkout › stripe-v15                                                line 42 │          
      worki│  □ src/webhooks.test.ts  checkout                                                        line 42 │          
           │  □ src/webhooks.test.ts  checkout › stripe-v15                                           line 42 │          
- ▾ CHANGES│ IN FILES  2                                                                                      │          
-  M packag│  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventAs│          
-  A …/webh│  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                       │          
+ ▸ SMART Q│ IN FILES  2                                                                                      │          
+ ▾ CHANGES│  ≡ src/webhooks.ts:9  checkout › stripe-v15  const event = await stripe.webhooks.constructEventAs│          
+  M packag│  ≡ README.md:7  checkout  - `pnpm test` runs everything, webhooks included                       │          
+  A …/webh│                                                                                                  │          
   M src/we│                                                                                                  │          
           │                                                                                                  │          
  ▾ FILES  │                                                                                                  │          
@@ -20,7 +21,6 @@
    ▸ test/│                                                                                                  │          
      packa│                                                                                                  │          
      READM│                                                                                                  │          
-          │                                                                                                  │          
 ━   orches│                                                                                                  │     ▾   ━
           │                                                                                                  │          
           │                                                                                                  │         ▕

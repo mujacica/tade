@@ -8,19 +8,19 @@
    ⠋ refunds         $0.62   █│                                                                                        █
      working                 █│  THIS AGENT’S COMMITS ────────────────────────────────────────────────────  2 +172 −66 █
                              █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
- ▾ REVIEWS  3                █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
-  #418  …     draft ✗ checks █│  ◌ 3 files not committed     shared checkout — Tade cannot say which are this agent’s  █
-  #412  retry refun…   ready █│                                                                                        █
-  #77  bump zod          you █│  CHECKS ─────────────────────────────────────────────────  red at a1b2c3d    Run all   █
-                             ▕│  ✓ format   passed     2.1s  13m ago                     493 files checked · 0 errors  █
- ▾ CHANGES  3        vs main ▕│      pnpm exec biome ci .                                                              █
-  M package.json       +2 −1 ▕│  ✓ types    passed     6.4s  13m ago                                                   █
-  A …/webhooks.test.ts   +48 ▕│      pnpm exec tsc --noEmit                                                            █
-  M src/webhooks.ts   +12 −4 ▕│  ✗ tests    failed   1m 04s  12m ago               4 failed · 2072 passed · 3 skipped  █
-                             ▕│      pnpm vitest run  (after types)                                ▾ what it printed   ▕
- ▾ FILES                     ▕│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                    ▕
-   ▾ src/                    ▕│      and 3 more                                                                        ▕
-       webhooks.test.ts      ▕│                                                                                        ▕
+ ▸ SMART QUEUE          none █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
+ ▾ REVIEWS  3                █│  ◌ 3 files not committed     shared checkout — Tade cannot say which are this agent’s  █
+  #418  …     draft ✗ checks █│                                                                                        █
+  #412  retry refun…   ready █│  CHECKS ─────────────────────────────────────────────────  red at a1b2c3d    Run all   █
+  #77  bump zod          you ▕│  ✓ format   passed     2.1s  13m ago                     493 files checked · 0 errors  █
+                             ▕│      pnpm exec biome ci .                                                              █
+ ▾ CHANGES  3        vs main ▕│  ✓ types    passed     6.4s  13m ago                                                   █
+  M package.json       +2 −1 ▕│      pnpm exec tsc --noEmit                                                            █
+  A …/webhooks.test.ts   +48 ▕│  ✗ tests    failed   1m 04s  12m ago               4 failed · 2072 passed · 3 skipped  █
+  M src/webhooks.ts   +12 −4 ▕│      pnpm vitest run  (after types)                                ▾ what it printed   ▕
+                             ▕│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                    ▕
+ ▾ FILES                     ▕│      and 3 more                                                                        ▕
+   ▾ src/                    ▕│                                                                                        ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

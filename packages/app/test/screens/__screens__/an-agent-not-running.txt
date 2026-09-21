@@ -5,7 +5,8 @@
  ▌ ✓ pagination      $0.20   █│                                                                                         
  ▌   finished                █│  Ready for review, and no agent is running.                                             
                              █│                                                                                         
- ▾ CHANGES           vs main █│    Open its agent   picks the conversation up where it stopped                          
+ ▸ SMART QUEUE          none █│    Open its agent   picks the conversation up where it stopped                          
+ ▾ CHANGES           vs main █│                                                                                         
    nothing changed           █│                                                                                         
                              █│                                                                                         
  ▾ FILES                     █│                                                                                         
@@ -15,12 +16,11 @@
    ▸ test/                   █│                                                                                         
      package.json            █│                                                                                         
      README.md               █│                                                                                         
-                             █│                                                                                         
+                             ▕│                                                                                         
  ▸ NOTES  4             +    ▕│                                                                                         
  ▾ GIT                       ▕│                                                                                         
    repo     ~/src/checkout   ▕│                                                                                         
    branch   …de/stripe-v15   ▕│                                                                                         
-   from     main             ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

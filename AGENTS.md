@@ -222,7 +222,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   work that will not start by itself — held, paused — is not next either, it is the reason nothing
   is. So an empty `next` says which of those it is, in the words of the reason it actually is
   (`queueEmptySays`): one sentence for every case reads as a bug the moment one of the cases is
-  untrue, which is what sent somebody looking for this code.
+  untrue, which is what sent somebody looking for this code. The section itself is always in the
+  side, whether or not anything is in it, because a place you look is worth more than a row you
+  save: with nothing queued it folds itself away (`sectionOpen`) and its heading says that same
+  reason — the shorter way of saying it where a narrow side has no room for the sentence. Opening
+  or folding it is a person's, remembered across a close as the rest of the view is, and only what
+  differs from what the section does on its own is written down.
   Why it waits is drawn as that same tree (`drawWhy`), never as a list of edges sorted by name: the
   reasons hang off the waits they explain, wrapped rather than cut, and the lines that join them are
   the queue's own (`treeStems`), because two drawings of one relationship drift apart.

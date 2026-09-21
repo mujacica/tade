@@ -8,19 +8,19 @@
    ⠋ ref│  Orchestrator          │                 ✓ Hold works here: this terminal reports releases.          │        
      wor│  Approvals      bypass │                                                                             │        
         │  Checks                │ Mode            ◉ Hold to talk   ○ Press to start, press to stop            │        
- ▾ CHANG│▌ Voice                 │                                                                             │        
-  M pack│  Window                │▌Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
-  A …/we│  Projects           3  │                 ╭─  ───────────────────────────────────── ▴ ─╮              │        
-  M src/│  Checks per project    │ Microphone      │  ▏                                         │ ↻ on restart │        
-        │  Budgets           ● 1 │                 │ ON THIS MACHINE            private, no key │              │        
- ▾ FILES│  Telemetry             │                 │▌ whisper · base.en · on this machine     ✓ │              │        
-   ▾ src│  Shortcuts             │ Muted           │ IN THE CLOUD                   needs a key │              │        
-       w│  Accounts          ● 2 │                 │  OpenAI · whisper-1                        │              │        
+ ▸ SMART│▌ Voice                 │                                                                             │        
+ ▾ CHANG│  Window                │▌Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
+  M pack│  Projects           3  │                 ╭─  ───────────────────────────────────── ▴ ─╮              │        
+  A …/we│  Checks per project    │ Microphone      │  ▏                                         │ ↻ on restart │        
+  M src/│  Budgets           ● 1 │                 │ ON THIS MACHINE            private, no key │              │        
+        │  Telemetry             │                 │▌ whisper · base.en · on this machine     ✓ │              │        
+ ▾ FILES│  Shortcuts             │ Muted           │ IN THE CLOUD                   needs a key │              │        
+   ▾ src│  Accounts          ● 2 │                 │  OpenAI · whisper-1                        │              │        
        w│  Updates               │ Spoken replies  │  Groq · whisper-large-v3                   │              │        
-   ▸ tes│                        │                 ╰────────────────────────────────────────────╯              │        
-     pac│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
-     REA│                        │                                                                             │        
-        │                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+       w│                        │                 ╰────────────────────────────────────────────╯              │        
+   ▸ tes│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+     pac│                        │                                                                             │        
+     REA│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │                                                                             │        
         │                        │                                                                             │       ▕

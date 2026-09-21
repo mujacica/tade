@@ -8,19 +8,19 @@
    ⠋ refunds╭─ src/webhooks.ts · stripe-v15 ─────────────────────────────────────────────────── +3 −1 esc ─╮            
      working│ @@ -38,5 +38,7 @@ export async function handle(req, res) {                                   │            
             │ 38     const sig = req.headers['stripe-signature']                                           │            
- ▾ CHANGES  │ 39 -   const event = stripe.webhooks.constructEvent(body, sig, key)                          │            
-  M package.│ 39 +   const event = await stripe.webhooks.constructEventAsync(                              │            
-  A …/webhoo│ 40 +     body, sig, key, undefined, cryptoProvider,                                          │            
-  M src/webh│ 41 +   )                                                                                     │            
-            │ 42     if (event.type === 'charge.refunded') {                                               │            
- ▾ FILES    │ 43       await refund(event)                                                                 │            
-   ▾ src/   │                                                                                              │            
-       webho│   Open in editor     Ask the agent about this                   ‹ 2/3 ›  ↑↓ scroll · ←→ file │            
+ ▸ SMART QUE│ 39 -   const event = stripe.webhooks.constructEvent(body, sig, key)                          │            
+ ▾ CHANGES  │ 39 +   const event = await stripe.webhooks.constructEventAsync(                              │            
+  M package.│ 40 +     body, sig, key, undefined, cryptoProvider,                                          │            
+  A …/webhoo│ 41 +   )                                                                                     │            
+  M src/webh│ 42     if (event.type === 'charge.refunded') {                                               │            
+            │ 43       await refund(event)                                                                 │            
+ ▾ FILES    │                                                                                              │            
+   ▾ src/   │   Open in editor     Ask the agent about this                   ‹ 2/3 ›  ↑↓ scroll · ←→ file │            
        webho╰──────────────────────────────────────────────────────────────────────────────────────────────╯            
-   ▸ test/                   ▕│  │ bash  npm i stripe@15                                        │                       
-     package.json            ▕│  │   Allow once     Deny                                        │                       
-     README.md               ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-                             ▕│                                                                                         
+       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                       
+   ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
+     package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+     README.md               ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

@@ -168,6 +168,13 @@ export interface AppState {
   /** Sidebar sections folded shut. */
   folded: string[]
   /**
+   * Sections you opened that would be shut on their own: the SMART QUEUE with
+   * nothing in it, and anything else that comes to fold itself away when it
+   * has nothing to say. The pair is a choice, and a section is in at most one
+   * of them — what is in neither does what it does on its own.
+   */
+  opened: string[]
+  /**
    * Agents that have finished are kept out of the list, until `H` beside
    * AGENTS puts them back. They are still there, and still `X`'s to close —
    * hiding one is a view, never a decision about it.
@@ -304,6 +311,7 @@ export function initialState(): AppState {
     hover: null,
     pressed: null,
     folded: [...FOLDED_AT_START],
+    opened: [],
     hidingDone: false,
     queueFilter: 'all',
     showingPlan: false,
@@ -1398,12 +1406,33 @@ export function toggleDone(state: AppState): AppState {
   return { ...state, hidingDone: !state.hidingDone }
 }
 
-/** Fold or unfold a sidebar section. */
-export function toggleSection(state: AppState, section: string): AppState {
-  const folded = state.folded.includes(section)
-    ? state.folded.filter((name) => name !== section)
-    : [...state.folded, section]
-  return { ...state, folded }
+/**
+ * Whether a sidebar section is drawn open. Most are, unless you folded them;
+ * one with nothing in it (`quiet`) is shut unless you opened it — which is how
+ * the SMART QUEUE is there whether or not there is work waiting, and costs the
+ * side a heading rather than a list of nothing.
+ */
+export function sectionOpen(state: AppState, section: string, quiet: boolean): boolean {
+  if (state.opened.includes(section)) return true
+  if (state.folded.includes(section)) return false
+  return !quiet
+}
+
+/**
+ * Fold or unfold a sidebar section.
+ *
+ * Only what differs from what the section does on its own is written down, so
+ * folding one and opening it again leaves it following its own rule rather
+ * than pinned to what it happened to be doing that minute.
+ */
+export function toggleSection(state: AppState, section: string, quiet = false): AppState {
+  const want = !sectionOpen(state, section, quiet)
+  const folded = state.folded.filter((name) => name !== section)
+  const opened = state.opened.filter((name) => name !== section)
+  if (want === !quiet) return { ...state, folded, opened }
+  return want
+    ? { ...state, folded, opened: [...opened, section] }
+    : { ...state, folded: [...folded, section], opened }
 }
 
 /** The next task waiting on you after the one in front of you, across projects. */

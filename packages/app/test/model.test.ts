@@ -34,6 +34,7 @@ import {
   scrollBarTo,
   scrollBy,
   searchKey,
+  sectionOpen,
   selectProject,
   setDictation,
   setListening,
@@ -49,6 +50,7 @@ import {
   tasksOf,
   terminalsOf,
   toggleDone,
+  toggleSection,
   turnSplit,
   typingLane,
   unsplitPane,
@@ -350,6 +352,43 @@ describe('the smart queue', () => {
     // Next is the front of the tree that will start by itself: the one with
     // room. The held one needs a decision, and what is behind it is behind it.
     expect(queueOf({ ...state, queueFilter: 'next' }).map((task) => task.name)).toEqual(['typos'])
+  })
+})
+
+describe('folding a section in the sidebar', () => {
+  it('opens one that folds itself away, and remembers that you did', () => {
+    // A section with nothing in it is shut on its own. Opening it is a
+    // choice, and a choice outlasts the minute it was made in.
+    const start = initialState()
+    expect(sectionOpen(start, 'queue', true)).toBe(false)
+    const open = toggleSection(start, 'queue', true)
+    expect(open.opened).toEqual(['queue'])
+    expect(open.folded).not.toContain('queue')
+    expect(sectionOpen(open, 'queue', true)).toBe(true)
+    // Still open once there is something in it, and still yours to shut.
+    expect(sectionOpen(open, 'queue', false)).toBe(true)
+  })
+
+  it('writes down only what differs from what the section does on its own', () => {
+    // Shut a section that is open on its own and that is a choice; open it
+    // again and it is back to following its own rule, not pinned to it.
+    const shut = toggleSection(initialState(), 'changes', false)
+    expect(shut.folded).toContain('changes')
+    const again = toggleSection(shut, 'changes', false)
+    expect(again.folded).not.toContain('changes')
+    expect(again.opened).not.toContain('changes')
+    // The same the other way round, for one that starts shut with nothing in it.
+    const opened = toggleSection(initialState(), 'queue', true)
+    const back = toggleSection(opened, 'queue', true)
+    expect(back.opened).not.toContain('queue')
+    expect(back.folded).not.toContain('queue')
+  })
+
+  it('keeps a section shut that you shut while there was something in it', () => {
+    const shut = toggleSection(initialState(), 'queue', false)
+    expect(shut.folded).toContain('queue')
+    expect(sectionOpen(shut, 'queue', false)).toBe(false)
+    expect(sectionOpen(shut, 'queue', true)).toBe(false)
   })
 })
 

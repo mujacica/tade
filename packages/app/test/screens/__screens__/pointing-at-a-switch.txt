@@ -8,19 +8,19 @@
    ⠋ ref│  Orchestrator          │                                                                             │        
      wor│  Approvals      bypass │▌Send to                     nothing is sent                    ↻ on restart │        
         │  Checks                │▌                           a Sentry DSN of yours, from that project’s       │        
- ▾ CHANG│  Voice                 │▌                           Client Keys, or $TADE_TELEMETRY_DSN; empty send… │        
-  M pack│  Window                │                                                                             │        
-  A …/we│  Projects           3  │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
-  M src/│  Checks per project    │                                                                             │        
-        │  Budgets           ● 1 │ Crashes and warnings       ──██ on                             ↻ on restart │        
- ▾ FILES│▌ Telemetry             │                                                                             │        
-   ▾ src│  Shortcuts             │ What happened around them  ──██ on                             ↻ on restart │        
-       w│  Accounts          ● 2 │                                                                             │        
+ ▸ SMART│  Voice                 │▌                           Client Keys, or $TADE_TELEMETRY_DSN; empty send… │        
+ ▾ CHANG│  Window                │                                                                             │        
+  M pack│  Projects           3  │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
+  A …/we│  Checks per project    │                                                                             │        
+  M src/│  Budgets           ● 1 │ Crashes and warnings       ──██ on                             ↻ on restart │        
+        │▌ Telemetry             │                                                                             │        
+ ▾ FILES│  Shortcuts             │ What happened around them  ──██ on                             ↻ on restart │        
+   ▾ src│  Accounts          ● 2 │                                                                             │        
        w│  Updates               │ Numbers                    ──██ on                             ↻ on restart │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │ What agents do             ──██ on                             ↻ on restart │        
-     REA│                        │                                                                             │        
-        │                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │ What agents do             ──██ on                             ↻ on restart │        
+     pac│                        │                                                                             │        
+     REA│                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │ Which Tade this is          laptop                             ↻ on restart │        
         │                        │                                                                             │       ▕

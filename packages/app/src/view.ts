@@ -44,6 +44,7 @@ import {
   queueRows,
   type ScheduleView,
   schedulesShown,
+  sectionOpen,
   showingActions,
   shownName,
   spinner,
@@ -829,6 +830,17 @@ interface Section {
   actions?: SectionAction[]
   /** Said quietly at the right of the heading: what the section is measured against. */
   note?: string
+  /**
+   * The note in the room a narrow side leaves, drawn where the note itself
+   * will not fit. A heading with nothing beside it is exactly what a folded
+   * section has to avoid, so it says less rather than saying nothing.
+   */
+  brief?: string
+  /**
+   * Nothing in it, so it is folded until you open one. Carried on the heading
+   * you press as well, so folding and drawing never read it differently.
+   */
+  quiet?: boolean
   /** Its items are tabs, and its rows carry their own room above and below them. */
   banded?: boolean
 }
@@ -848,8 +860,11 @@ function renderSidebar(
   // whether the side has anywhere to scroll sideways to. Worked out before
   // anything is drawn, because a bar along the bottom costs the list a row.
   const entries = queueRows(state)
-  const folded = state.folded.includes('queue')
-  const spread = folded ? { wide: 0, shown: 0 } : queueSpread(queueStems(entries), width)
+  // With nothing waiting and nothing scheduled the queue is quiet: still
+  // there, still a heading you can open, and folded until you do.
+  const waiting = queuedCount(state) + schedulesHere(state, frame)
+  const queueOpen = sectionOpen(state, 'queue', waiting === 0)
+  const spread = queueOpen ? queueSpread(queueStems(entries), width) : { wide: 0, shown: 0 }
   const sideways = Math.max(0, spread.wide - spread.shown)
   const across = Math.min(Math.max(0, state.across), sideways)
   const tree: QueueTree = { ...spread, across }
@@ -927,11 +942,9 @@ function renderSidebar(
               width,
             ),
     },
-    // Only while there is work waiting to start: an empty section is a row of
-    // nothing between your agents and what they changed.
-    ...(queuedCount(state) + schedulesHere(state, frame) === 0
-      ? []
-      : [queueSection(state, frame, width, skin, pointer, tree)]),
+    // Always, so the queue is somewhere you can look rather than something
+    // that appears: with nothing in it, its heading is all it costs the side.
+    queueSection(state, frame, width, skin, pointer, tree, waiting, queueOpen),
     // What an extension keeps here — reviews, most of all — between the work
     // that is waiting and the work in front of you. A section with no rows
     // and nothing wrong is not drawn at all.
@@ -996,7 +1009,7 @@ function renderSidebar(
   sections.forEach((section, i) => {
     // A section of tabs already ends on the room below its last one.
     if (i > 0 && previousOpen && !previousBanded) out.push(blank(width))
-    const open = !state.folded.includes(section.id)
+    const open = sectionOpen(state, section.id, section.quiet === true)
     previousOpen = open
     previousBanded = section.banded === true
     const head = make()
@@ -1004,6 +1017,7 @@ function renderSidebar(
       .text(`${open ? '▾' : '▸'} ${section.label}`, skin.label, {
         kind: 'section',
         section: section.id,
+        ...(section.quiet ? { quiet: true } : {}),
       })
     const shown = headingFit(head.used, width, section, skin)
     const badge = shown.count === false ? null : badgeText(section, shown.count)
@@ -1013,9 +1027,9 @@ function renderSidebar(
         headingControls(r, shown.actions, pointer)
         r.space()
       })
-    } else if (section.note) {
-      const note = section.note
-      head.right((r) => r.text(note, skin.hint).space())
+    } else {
+      const note = noteFitting(section, width - head.used - 2)
+      if (note !== null) head.right((r) => r.text(note, skin.hint).space())
     }
     out.push(head.build())
     if (open) out.push(...section.rows(make))
@@ -1060,6 +1074,20 @@ function renderSidebar(
     rowHit(i, full, { kind: 'scroll', area: 'sidebar' }),
   )
   return { rows: stacked.rows, hits: [...under, ...stacked.hits] }
+}
+
+/**
+ * What a section says beside its label, in the room its label leaves: its
+ * note, or the shorter way it has of saying the same thing, or nothing at all
+ * where neither fits. The steps are the ladder `headingFit` climbs for the
+ * badge, for the same reason — a heading that keeps what it has room for
+ * reads better than one that keeps everything and draws none of it.
+ */
+function noteFitting(section: Section, room: number): string | null {
+  for (const said of [section.note, section.brief]) {
+    if (said !== undefined && visibleWidth(said) <= room) return said
+  }
+  return null
 }
 
 /** How much of a section's badge is drawn: the fraction, the count alone, or none. */
@@ -1555,6 +1583,11 @@ function queueSays(pane: AgentPane & { queued: QueuedView }): string {
  * In the order the resolved tree gives — what comes next first, and under each
  * piece whatever waits on it — each piece shifted right of what it waits on
  * and joined to it by a line, so the side says the same shape the plan does.
+ *
+ * It is drawn whether or not there is anything in it. With nothing waiting it
+ * folds itself away, and then its heading is what says so — in the words of
+ * the reason there is nothing, because a heading saying only its own name is
+ * the section not being there at all, which is what this stopped being.
  */
 function queueSection(
   state: AppState,
@@ -1563,17 +1596,23 @@ function queueSection(
   skin: Skin,
   pointer: Pointer,
   tree: QueueTree,
+  all: number,
+  open: boolean,
 ): Section {
-  const all = queuedCount(state) + schedulesHere(state, frame)
+  const quiet = all === 0
   return {
     id: 'queue',
     label: 'SMART QUEUE',
     count: all,
     banded: true,
+    quiet,
     // The plan it came from, drawn where an agent's screen would be.
     ...(planOf(state).waits.length > 0
       ? { action: { label: 'plan', target: { kind: 'action', name: 'queue-plan' }, look: 'rest' } }
       : {}),
+    // Folded with nothing in it, the heading is the only place left to say
+    // why there is nothing, so that is what it says.
+    ...(quiet && !open ? { note: queueEmptySays(state), brief: 'none' } : {}),
     rows: (row) => {
       const entries = queueRows(state)
       const schedules = schedulesShown(frame.schedules ?? [], state)

@@ -8,13 +8,13 @@
    │ ● Jev                  ▕│ next time Tade starts, and a lesson it proposes is a file you read before any of it ▕│   
    │ ◐ Sentry             ! ▕│ runs.                                                                               ▕│   
    │ ✗ standup            ! ▕│                                                                                     ▕│   
- ▾ │ ○ release-notes        ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
-  M│▌· Written by Tade    1 ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
-  A│ · pi's own           1 ▕│                                                                                     ▕│   
+ ▸ │ ○ release-notes        ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
+ ▾ │▌· Written by Tade    1 ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
+  M│ · pi's own           1 ▕│                                                                                     ▕│   
+  A│                        ▕│                                                                                     ▕│   
   M│                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
  ▾ │                        ▕│                                                                                     ▕│   
-   │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   

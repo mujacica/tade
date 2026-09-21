@@ -138,6 +138,13 @@ file and cannot be tested.
   small controls, the one nearest the button first (`headingFit`); a destructive one is red only
   under the pointer, as `Row.icon` is. A control with nothing to act on is not drawn: the eye and
   the cleanup appear when an agent has finished, and the eye stays while it is hiding one.
+- **A section with nothing in it folds itself away; it never goes missing.** `Section.quiet` says
+  the section has nothing to list, and `sectionOpen` reads it: quiet is shut unless you opened it,
+  everything else is open unless you folded it. A folded heading still says something — its count,
+  or its `note`, or the `brief` where a narrow side has no room for the note — because a heading
+  that says only its own name is the section not being there, which is what the SMART QUEUE used
+  to do. Folding and opening are a choice (`toggleSection`, remembered in `window.json` as `folded`
+  and `opened`), and only what differs from what the section does on its own is written down.
 - **Agents are dragged into order** (`dragAgent`, `dropAgent`, `inOrder`), by project, and the order
   is remembered in `window.json`. The window takes hold with `heldAgent`, reading every agent's row
   once when pressed: the list redraws in its new order as it is dragged, and measuring against that

@@ -8,8 +8,8 @@
    │ ● changelog            ▕│                                                                 █│   
    │ ● linear               █│   Open folder     Turn off                                      █│   
    │ ● oncall               █│                                                                 █│   
- ▾ │ ● postgres             █│ TOOLS  what the orchestrator and your agents can call           █│   
-  M│▌● screenshots          █│ screenshots_run      Takes a picture of the … orchestrator only █│   
+ ▸ │ ● postgres             █│ TOOLS  what the orchestrator and your agents can call           █│   
+ ▾ │▌● screenshots          █│ screenshots_run      Takes a picture of the … orchestrator only █│   
 ━  │ ● translations         █│                                                                 ▕│  ━
    │ · Written by Tade    1 █│ yours go in ~/.tade/extensions/<name>/extension.ts, off until …  │   
    │ · pi's own           1 █│ tab moves · ↑↓ reads · enter presses · esc closes        Done    │  ▕

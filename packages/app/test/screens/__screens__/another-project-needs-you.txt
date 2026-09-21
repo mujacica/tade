@@ -5,7 +5,8 @@
  ▌ ⠋ refunds         $0.62   █│                                    │ bash  rm -rf node_modules && npm ci              │ 
  ▌   working                 █│                                    │                                                  │ 
                              █│                                    │   Allow once     Deny     Show                   │ 
- ▾ CHANGES  3        vs main █│                                    ╰──────────────────────────────────────────────────╯ 
+ ▸ SMART QUEUE          none █│                                    ╰──────────────────────────────────────────────────╯ 
+ ▾ CHANGES  3        vs main █│                                                                                         
   M package.json       +2 −1 █│                                                                                         
   A …/webhooks.test.ts   +48 █│                                                                                         
   M src/webhooks.ts   +12 −4 █│                                                                                         
@@ -14,13 +15,12 @@
    ▾ src/                    █│                                                                                         
        webhooks.test.ts      █│                                                                                         
        webhooks.ts           █│                                                                                         
-   ▸ test/                   █│                                                                                         
-     package.json            ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                          
-     README.md               ▕│    so src/webhooks.ts needs the new constructEvent signature.                           
-                             ▕│                                                                                         
- ▸ NOTES  4             +    ▕│  ▸ Read src/webhooks.ts                                                                 
- ▾ GIT                       ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   repo     ~/src/checkout   ▕│  ▸ bash npm i stripe@15                                                                 
+   ▸ test/                   ▕│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+     package.json            ▕│    so src/webhooks.ts needs the new constructEvent signature.                           
+     README.md               ▕│                                                                                         
+                             ▕│  ▸ Read src/webhooks.ts                                                                 
+ ▸ NOTES  4             +    ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+ ▾ GIT                       ▕│  ▸ bash npm i stripe@15                                                                 
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

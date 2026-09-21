@@ -1,25 +1,21 @@
-   T A D E      checkout      +                                      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout      +        ! 1 waiting  ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS               +    ▕│                                                                                         
-                             ▕│   Nothing is running in checkout.                                                       
-   none yet — + starts one   ▕│                                                                                         
-                             ▕│     + New agent     Open project                                                        
- ▸ SMART QUEUE          none ▕│                                                                                         
- ▾ CHANGES                   ▕│   Or hold    ctrl   +   space   and say what you want done.                             
-   open an agent to see      ▕│                                                                                         
+ ▾ AGENTS  2            +    ▕│ checkout › fix-charge    agent    actions     +      claude-opus-5 ▾     high ▾     ×   
+                             ▕│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ✕ fix-charge              ▕│                                                                                         
+ ▌   tests failed twice      ▕│  Its last run failed.                                                                   
                              ▕│                                                                                         
- ▾ FILES                     ▕│                                                                                         
-   ▸ src/                    ▕│                                                                                         
-   ▸ test/                   ▕│                                                                                         
-     package.json            ▕│                                                                                         
-     README.md               ▕│                                                                                         
+   ⠋ bump-mailer             ▕│    Open its agent   picks the conversation up where it stopped                          
+     working                 ▕│                                                                                         
                              ▕│                                                                                         
- ▸ NOTES                +    ▕│                                                                                         
- ▾ GIT                       ▕│                                                                                         
-   repo     ~/src/checkout   ▕│                                                                                         
-   branch   main             ▕│                                                                                         
-   path     /Users/me/src/   ▕│                                                                                         
-            checkout         ▕│                                                                                         
+ ▸ SMART QUEUE  5            ▕│                                                                                         
+ ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▸ FILES                     ▕│                                                                                         
+ ▸ NOTES  4             +    ▕│                                                                                         
+ ▸ GIT                       ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
+                             ▕│                                                                                         
                              ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
@@ -31,4 +27,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute           claude-opus-5 ▾ · openrouter · signed in │ high ▾ │ nothing spent today ▾ 
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

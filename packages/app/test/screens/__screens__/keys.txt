@@ -8,19 +8,19 @@
    ⠋ refunds  │ Previous agent               shift   +   tab    back through the same                    │              
      working  │ Talk to Tade                 ctrl   +   /    type to the orchestrator                    │              
               │ Next waiting agent           ctrl   +   q    the agent waiting on you                    │              
- ▾ CHANGES  3 │ New agent                    ctrl   +   n    start one in the project you are in         │              
-  M package.js│ New terminal                 ctrl   +   t    a terminal in the bottom panel              │              
-  A …/webhooks│ Open project                 ctrl   +   o    add or go to a repository                   │              
-  M src/webhoo│ Mute                         ctrl   +   m    quiet now, mid-sentence if need be, and ba… │              
-              │ Extensions                   ctrl   +   shift   +   e    turn them on and off, set them… │              
- ▾ FILES      │ Settings                     ctrl   +   ,    this panel                                  │              
-   ▾ src/     │ Bottom panel fills window    ctrl   +   shift   +   f    the conversation or terminal t… │              
-       webhook│ Shortcuts                    F1    the sheet of every shortcut                           │              
+ ▸ SMART QUEUE│ New agent                    ctrl   +   n    start one in the project you are in         │              
+ ▾ CHANGES  3 │ New terminal                 ctrl   +   t    a terminal in the bottom panel              │              
+  M package.js│ Open project                 ctrl   +   o    add or go to a repository                   │              
+  A …/webhooks│ Mute                         ctrl   +   m    quiet now, mid-sentence if need be, and ba… │              
+  M src/webhoo│ Extensions                   ctrl   +   shift   +   e    turn them on and off, set them… │              
+              │ Settings                     ctrl   +   ,    this panel                                  │              
+ ▾ FILES      │ Bottom panel fills window    ctrl   +   shift   +   f    the conversation or terminal t… │              
+   ▾ src/     │ Shortcuts                    F1    the sheet of every shortcut                           │              
        webhook│ Reload                       ctrl   +   shift   +   r    restart the window with your c… │              
-   ▸ test/    │ Allow                        a    allow what an agent asks, while one waits              │              
-     package.j│ Deny                         d    deny what an agent asks, while one waits               │              
-     README.md│                                                                                          │              
-              │ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before · esc le… │              
+       webhook│ Allow                        a    allow what an agent asks, while one waits              │              
+   ▸ test/    │ Deny                         d    deny what an agent asks, while one waits               │              
+     package.j│                                                                                          │              
+     README.md│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before · esc le… │              
 ━   orchestrat│ In a panel                   enter      esc      ↑     ↓    the wheel scrolls it         │   ⤢     ▾   ━
               │ In a file you are reading    ctrl   +   f     ctrl   +   g     ctrl   +   s    find · l… │              
               │ Quit                         ctrl   +   c                                                │             ▕

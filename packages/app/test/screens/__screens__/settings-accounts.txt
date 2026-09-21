@@ -8,19 +8,19 @@
    ⠋ ref│  Orchestrator          │                                                                             │        
      wor│  Approvals      bypass │ pi                                                                          │        
         │  Checks                │ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                   │        
- ▾ CHANG│  Voice                 │     Sign in again…                                                          │        
-  M pack│  Window                │   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts,   │        
-  A …/we│  Projects           3  │   and you sign in to them inside pi.                                        │        
-  M src/│  Checks per project    │                                                                             │        
-        │  Budgets           ● 1 │ Claude Code                                                                 │        
- ▾ FILES│  Telemetry             │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
-   ▾ src│  Shortcuts             │     Sign in again…     Sign out                                             │        
-       w│▌ Accounts          ● 2 │   work                  ○ not signed in yet                                 │        
+ ▸ SMART│  Voice                 │     Sign in again…                                                          │        
+ ▾ CHANG│  Window                │   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts,   │        
+  M pack│  Projects           3  │   and you sign in to them inside pi.                                        │        
+  A …/we│  Checks per project    │                                                                             │        
+  M src/│  Budgets           ● 1 │ Claude Code                                                                 │        
+        │  Telemetry             │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
+ ▾ FILES│  Shortcuts             │     Sign in again…     Sign out                                             │        
+   ▾ src│▌ Accounts          ● 2 │   work                  ○ not signed in yet                                 │        
        w│  Updates               │     Sign in…     Use for new agents     Remove                              │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │     Add an account…     Add an API-key account…                             │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │     Add an account…     Add an API-key account…                             │        
+     pac│                        │                                                                             │        
      REA│                        │                                                                             │        
-        │                        │                                                                             │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │                                                                             │        
         │                        │                                                                             │       ▕

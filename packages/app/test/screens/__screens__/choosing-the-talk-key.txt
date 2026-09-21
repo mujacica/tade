@@ -8,19 +8,19 @@
    ⠋ ref│  Orchestrator      │            Press the keys you want to hold to talk.        │ releases.          │        
      wor│  Approvals      byp│                                                            │                    │        
         │  Checks            │                        ctrl   +   r                        │ to stop            │        
- ▾ CHANG│▌ Voice             │                                                            │                    │        
-  M pack│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │       ↻ on restart │        
-  A …/we│  Projects          │   While Tade holds it, your agents never see it.           │                    │        
-  M src/│  Checks per project│                                                            │       ↻ on restart │        
-        │  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
- ▾ FILES│  Telemetry         │ Never a key that types a character — you have to be able   │                    │        
-   ▾ src│  Shortcuts         │ to type a space into your agent.                           │                    │        
-       w│  Accounts          │                                                            │                    │        
+ ▸ SMART│▌ Voice             │                                                            │                    │        
+ ▾ CHANG│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │       ↻ on restart │        
+  M pack│  Projects          │   While Tade holds it, your agents never see it.           │                    │        
+  A …/we│  Checks per project│                                                            │       ↻ on restart │        
+  M src/│  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
+        │  Telemetry         │ Never a key that types a character — you have to be able   │                    │        
+ ▾ FILES│  Shortcuts         │ to type a space into your agent.                           │                    │        
+   ▾ src│  Accounts          │                                                            │                    │        
        w│  Updates           │                        Try another     Use ctrl+r anyway   │                    │        
-   ▸ tes│                    ╰────────────────────────────────────────────────────────────╯                    │        
-     pac│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
-     REA│                        │                                                                             │        
-        │                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+       w│                    ╰────────────────────────────────────────────────────────────╯                    │        
+   ▸ tes│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+     pac│                        │                                                                             │        
+     REA│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │                                                                             │        
         │                        │                                                                             │       ▕

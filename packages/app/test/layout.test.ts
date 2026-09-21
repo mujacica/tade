@@ -104,6 +104,12 @@ describe('asRemembered', () => {
       folded: [],
     })
     expect(asRemembered({ focused: null })).toEqual({ focused: null })
+    // And the other half of that choice: the sections you opened that would
+    // fold themselves away, which is the SMART QUEUE with nothing in it.
+    expect(asRemembered({ focused: null, opened: ['queue'] })).toEqual({
+      focused: null,
+      opened: ['queue'],
+    })
   })
 
   it('drops a view choice that is not one, rather than starting the window on it', () => {
@@ -114,6 +120,7 @@ describe('asRemembered', () => {
       focused: null,
       folded: ['notes'],
     })
+    expect(asRemembered({ focused: null, opened: 'queue' })).toEqual({ focused: null })
   })
 
   it('is null on anything it does not recognise', () => {

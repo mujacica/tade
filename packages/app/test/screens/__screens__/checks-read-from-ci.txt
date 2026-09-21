@@ -8,19 +8,19 @@
    ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ───────────────────────────────────────────────────────  none yet 
      working                 █│    No commit carries this task’s trailer yet, so none of these are its own.             
                              █│  ◌ Nothing changed and not committed.                                                   
- ▾ CHANGES  3        vs main █│                                                                                         
-  M package.json       +2 −1 █│  CHECKS ──────────────────────────  no commit to check yet   Adopt from CI    Run all   
-  A …/webhooks.test.ts   +48 █│  read from .github/workflows/ci.yml — not adopted, so none of them run here             
-  M src/webhooks.ts   +12 −4 █│  ◦ format   not run          nobody has run it                                          
-                             █│      biome ci .                                                                         
- ▾ FILES                     █│  ◦ tests    not run          nobody has run it                                          
-   ▾ src/                    ▕│      pnpm vitest run                                                                    
-       webhooks.test.ts      ▕│  ◦ publish  not run          cannot run here                                            
-       webhooks.ts           ▕│      needs CI: it uses something only the runner knows                                  
-   ▸ test/                   ▕│                                                                                         
-     package.json            ▕│  Green here is the commands on this machine; the OS matrix is CI’s to say.              
+ ▸ SMART QUEUE          none █│                                                                                         
+ ▾ CHANGES  3        vs main █│  CHECKS ──────────────────────────  no commit to check yet   Adopt from CI    Run all   
+  M package.json       +2 −1 █│  read from .github/workflows/ci.yml — not adopted, so none of them run here             
+  A …/webhooks.test.ts   +48 █│  ◦ format   not run          nobody has run it                                          
+  M src/webhooks.ts   +12 −4 █│      biome ci .                                                                         
+                             ▕│  ◦ tests    not run          nobody has run it                                          
+ ▾ FILES                     ▕│      pnpm vitest run                                                                    
+   ▾ src/                    ▕│  ◦ publish  not run          cannot run here                                            
+       webhooks.test.ts      ▕│      needs CI: it uses something only the runner knows                                  
+       webhooks.ts           ▕│                                                                                         
+   ▸ test/                   ▕│  Green here is the commands on this machine; the OS matrix is CI’s to say.              
+     package.json            ▕│                                                                                         
      README.md               ▕│                                                                                         
-                             ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

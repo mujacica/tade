@@ -1,0 +1,34 @@
+   T A D E      checkout    search    infra      +                             ! 1 waiting  ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2                  +    █│ checkout › stripe-v15    agent    shell    actions     +       pi ▾     claude-opus-5 ▾     high ▾   ctx ██░░░░ 41%   ×   
+                                   █│───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ! stripe-v15            $1.26   █│                                                                                                                           
+ ▌   wants you to approve npm i…   █│                                                                                                                           
+                                   █│                                                                                                                           
+   ⠋ refunds               $0.62   █│                                                                                                                           
+     working                       █│                                                                                                                           
+                                   █│                                                                                                                           
+ ▸ SMART QUEUE   nothing is queued █│                                                                                                                           
+ ▾ CHANGES  3              vs main █│                                                                                                                           
+  M package.json             +2 −1 █│  ● Upgrading stripe to v15. The webhook signature API changed,                                                            
+  A src/webhooks.test.ts       +48 █│    so src/webhooks.ts needs the new constructEvent signature.                                                             
+  M src/webhooks.ts         +12 −4 █│                                                                                                                           
+                                   █│  ▸ Read src/webhooks.ts                                                                                                   
+ ▾ FILES                           ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                                                           
+   ▾ src/                          ▕│  ▸ bash npm i stripe@15                                                                                                   
+       webhooks.test.ts            ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                                                         
+       webhooks.ts                 ▕│  │ bash  npm i stripe@15                                        │                                                         
+   ▸ test/                         ▕│  │   Allow once     Deny                                        │                                                         
+     package.json                  ▕│  ╰──────────────────────────────────────────────────────────────╯                                                         
+     README.md                     ▕│                                                                                                                           
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                                                                
+                                                                                                                                                               ▕
+                                                                                                                                                               ▕
+                                                                                                                                                               ▕
+                                                                                                                                                               ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                                                          ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                                                          type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                                        claude-opus-5 ▾ · openrouter · signed in │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

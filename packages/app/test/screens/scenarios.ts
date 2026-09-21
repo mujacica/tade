@@ -1805,6 +1805,24 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({ screen: '', height: 30, clock: utcClock }),
   },
   {
+    name: 'an-empty-smart-queue',
+    about:
+      'The SMART QUEUE with nothing in it: there, as it always is, and folded by itself — its heading saying why in the words of the reason it actually is, rather than the section being gone from the side altogether.',
+    state: base(),
+    frame: frame({ width: 160 }),
+  },
+  {
+    name: 'the-smart-queue-collapsed',
+    about:
+      'A queue with eight pieces of work in it, folded shut by the person looking at it: the count stays on the heading, so what was put away is still said to be there. The choice is theirs and outlives the window.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['checkout']), queueTasks),
+      project: 'checkout',
+      folded: ['queue', 'changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({ screen: '', height: 30, clock: utcClock }),
+  },
+  {
     name: 'a-schedule',
     about:
       'A schedule open where an agent’s screen would be: when it runs and what it does, what its agent is told, its next runs, what happens to runs Tade was closed for, who made it, and each time it ran.',

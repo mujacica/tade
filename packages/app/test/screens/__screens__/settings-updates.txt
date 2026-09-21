@@ -8,19 +8,19 @@
    ⠋ ref│  Orchestrator          │                                                                             │        
      wor│  Approvals      bypass │     Check for updates                                                       │        
         │  Checks                │   Checked just now. Nothing was asked of anybody until you pressed it.      │        
- ▾ CHANG│  Voice                 │                                                                             │        
-  M pack│  Window                │ Tade                                                                        │        
-  A …/we│  Projects           3  │   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                     │        
-  M src/│  Checks per project    │   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1               │        
-        │  Budgets           ● 1 │   git -C ~/src/tade pull --ff-only && pnpm install                          │        
- ▾ FILES│  Telemetry             │     Update Tade…     Reload Tade…                                           │        
-   ▾ src│  Shortcuts             │   Reloading restarts the window, and the 2 agents running inside it stop    │        
-       w│  Accounts          ● 2 │   with it — their conversations are kept, and they open again where they    │        
+ ▸ SMART│  Voice                 │                                                                             │        
+ ▾ CHANG│  Window                │ Tade                                                                        │        
+  M pack│  Projects           3  │   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                     │        
+  A …/we│  Checks per project    │   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1               │        
+  M src/│  Budgets           ● 1 │   git -C ~/src/tade pull --ff-only && pnpm install                          │        
+        │  Telemetry             │     Update Tade…     Reload Tade…                                           │        
+ ▾ FILES│  Shortcuts             │   Reloading restarts the window, and the 2 agents running inside it stop    │        
+   ▾ src│  Accounts          ● 2 │   with it — their conversations are kept, and they open again where they    │        
        w│▌ Updates           ● 2 │   stopped. Worktrees, branches, the journal, queued work and schedules all  │        
-   ▸ tes│                        │   survive.                                                                  │        
-     pac│                        │                                                                             │        
-     REA│                        │ Programs it runs                                                            │        
-        │                        │   git             2.39.5      · cannot tell                                 │        
+       w│                        │   survive.                                                                  │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │ Programs it runs                                                            │        
+     REA│                        │   git             2.39.5      · cannot tell                                 │        
 ━   orch│                        │                   the system’s own · /usr/bin/git                           │   ▾   ━
         │                        │                   Tade: every reading of a project’s state, and every       │        
         │                        │                   commit an agent makes                                     │       ▕

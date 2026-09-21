@@ -2301,6 +2301,29 @@ describe('the window, wired up', () => {
     expect(terminal.written).not.toContain('▾ CHANGES')
   }, 30_000)
 
+  it('keeps the SMART QUEUE open once you open it, with nothing in it to open it for', async () => {
+    terminal.columns = 160
+    terminal.rows = 40
+    const first = await start()
+    // There with nothing queued, folded by itself, and saying why rather than
+    // saying only its own name.
+    await until('the queue heading', () => sidebar().includes('SMART QUEUE'))
+    expect(headingRow('SMART QUEUE').text).toContain('▸ SMART QUEUE')
+    expect(headingRow('SMART QUEUE').text).toContain('nothing is queued')
+    const { row, text } = headingRow('SMART QUEUE')
+    click(text.indexOf('SMART QUEUE'), row)
+    await until('it open', () => headingRow('SMART QUEUE').text.includes('▾ SMART QUEUE'))
+    await first.stop()
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.opened).toContain('queue')
+
+    // Opened again with nothing queued still: it stays the way you left it,
+    // rather than folding itself away over your choice.
+    await start()
+    await until('the window again', () => sidebar().includes('refunds'))
+    expect(headingRow('SMART QUEUE').text).toContain('▾ SMART QUEUE')
+  }, 30_000)
+
   it('runs an extension from its panel, and shows it working and what it said', async () => {
     terminal.columns = 120
     terminal.rows = 40

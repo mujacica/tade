@@ -123,6 +123,8 @@ export interface RememberedWindow {
   hidingDone?: boolean
   /** The sidebar sections you folded shut, by id. */
   folded?: string[]
+  /** The ones you opened that fold themselves away — the SMART QUEUE with nothing in it. */
+  opened?: string[]
   /** By project, the agents in the order they were dragged into. */
   order?: Record<string, string[]>
 }
@@ -149,15 +151,19 @@ export function asRemembered(value: unknown): RememberedWindow | null {
   // Absent and empty are different answers: nothing written means the window
   // starts folded where it always did, and an empty list means you opened
   // every one of them and that is how you want it back.
-  const folded = Array.isArray(raw.folded)
-    ? raw.folded.filter((name): name is string => typeof name === 'string')
-    : null
+  const names = (key: string) =>
+    Array.isArray(raw[key])
+      ? (raw[key] as unknown[]).filter((name): name is string => typeof name === 'string')
+      : null
+  const folded = names('folded')
+  const opened = names('opened')
   return {
     focused: typeof raw.focused === 'string' ? raw.focused : null,
     ...size('sidebarWidth'),
     ...size('stripHeight'),
     ...(typeof raw.hidingDone === 'boolean' ? { hidingDone: raw.hidingDone } : {}),
     ...(folded ? { folded } : {}),
+    ...(opened ? { opened } : {}),
     ...(Object.keys(order).length > 0 ? { order } : {}),
   }
 }

@@ -8,6 +8,7 @@
    ⠋ refunds         $0.62   █│                                                                                         
      working                 █│                                                                                         
                              █│                                                                                         
+ ▸ SMART QUEUE          none █│                                                                                         
  ▾ CHANGES  3        vs main █│                                                                                         
   M package.json       +2 −1 █│                                                                                         
   A …/webhooks.test.ts   +48 █│                                                                                         
@@ -17,18 +18,17 @@
    ▾ src/                    █│                                                                                         
        webhooks.test.ts      █│                                                                                         
        webhooks.ts           █│                                                                                         
-   ▸ test/                   █│                                                                                         
-     package.json            █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
-     README.md               █│    so src/webhooks.ts needs the new constructEvent signature.                           
-                             █│                                                                                         
- ▸ NOTES  4             +    █│  ▸ Read src/webhooks.ts                                                                 
- ▾ GIT                       █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
-   repo     ~/src/checkout   █│  ▸ bash npm i stripe@15                                                                 
-   branch   …de/stripe-v15   █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-   from     main             █│  │ bash  npm i stripe@15                                        │                       
-   worktree …kout-stripe-v15 ▕│  │   Allow once     Deny                                        │                       
-   path     /Users/me/.tade/ ▕│  ╰──────────────────────────────────────────────────────────────╯                       
-            worktrees/       ▕│                                                                                         
+   ▸ test/                   █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
+     package.json            █│    so src/webhooks.ts needs the new constructEvent signature.                           
+     README.md               █│                                                                                         
+                             █│  ▸ Read src/webhooks.ts                                                                 
+ ▸ NOTES  4             +    █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+ ▾ GIT                       █│  ▸ bash npm i stripe@15                                                                 
+   repo     ~/src/checkout   █│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   branch   …de/stripe-v15   ▕│  │ bash  npm i stripe@15                                        │                       
+   from     main             ▕│  │   Allow once     Deny                                        │                       
+   worktree …kout-stripe-v15 ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   path     /Users/me/.tade/ ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▴   ━
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

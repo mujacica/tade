@@ -8,19 +8,19 @@
    ⠋ refunds         $0│ by   Agent    Project    Model                                         │                       
      working           │                                                                        │                       
                        │ WHO                 MODEL           TOKENS  SHARE     RUNTIME    COST  │                       
- ▾ CHANGES  3        vs│ ◆ orchestrator      claude-opus-5     412k  ██░░░░░░░░      —   $0.58  │                       
-  M package.json       │ ! stripe-v15        claude-opus-5     880k  █████░░░░░    55m   $1.26  │                       
-  A …/webhooks.test.ts │ ⠋ refunds           claude-opus-5     460k  ██░░░░░░░░    40m   $0.62  │                       
-  M src/webhooks.ts   +│ ✓ search/pagination claude-sonnet-5   148k  █░░░░░░░░░    30m   $0.20  │                       
-                       │                                                                        │                       
- ▾ FILES               │ PRODUCED                                                               │                       
-   ▾ src/              │ 4 commits    +357 −58  16 files  1 unattributed                        │                       
-       webhooks.test.ts│ tests        2 runs   1 failed    45.5s                                │                       
-       webhooks.ts     │ types        2 runs   all green   20.6s                                │                       
-   ▸ test/             │                                                                        │                       
-     package.json      │ BUDGETS                                                                │                       
-     README.md         │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
-                       │ search     $0.20                    no budget — set one                │                       
+ ▸ SMART QUEUE         │ ◆ orchestrator      claude-opus-5     412k  ██░░░░░░░░      —   $0.58  │                       
+ ▾ CHANGES  3        vs│ ! stripe-v15        claude-opus-5     880k  █████░░░░░    55m   $1.26  │                       
+  M package.json       │ ⠋ refunds           claude-opus-5     460k  ██░░░░░░░░    40m   $0.62  │                       
+  A …/webhooks.test.ts │ ✓ search/pagination claude-sonnet-5   148k  █░░░░░░░░░    30m   $0.20  │                       
+  M src/webhooks.ts   +│                                                                        │                       
+                       │ PRODUCED                                                               │                       
+ ▾ FILES               │ 4 commits    +357 −58  16 files  1 unattributed                        │                       
+   ▾ src/              │ tests        2 runs   1 failed    45.5s                                │                       
+       webhooks.test.ts│ types        2 runs   all green   20.6s                                │                       
+       webhooks.ts     │                                                                        │                       
+   ▸ test/             │ BUDGETS                                                                │                       
+     package.json      │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
+     README.md         │ search     $0.20                    no budget — set one                │                       
 ━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
                        │ Prices as pi reports them · runtime from an agent starting to exiting. │                       
                        ╰────────────────────────────────────────────────────────────────────────╯                      ▕
