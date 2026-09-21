@@ -1,8 +1,20 @@
 # Making Tade modular — a plan
 
-Research only. Nothing here was changed; this is what to do and in what order.
+**Status: parked. Do not start it.** It waits on the features in flight finishing — as of writing,
+25 open task folders, several of them editing the same files this plan moves. Picking it up early
+means conflicting with every agent holding an edit to `app.ts`, which was touched in 92 of the last
+200 commits. When the tree is quiet, start at slice 0 in §5.
 
-Measured on `main` at `292e57b`, 2026-09-21.
+Nothing here has been changed; this is what to do and in what order. Measured on `main` at
+`292e57b`, 2026-09-21 — the counts age, the shape does not. Re-run the measurements in §1 before
+starting, and if a number has moved a lot, read §2 again before trusting §5's ordering.
+
+A note on where this lives: `CLAUDE.md` says there is no `docs/` folder and that adding one is
+going backwards, because a plan that outlives its build becomes a second description of the system
+that nothing keeps honest. This file is here by explicit decision, against that rule. It earns the
+exception only while it stays a plan — **delete it when §5 is done**, and put anything worth keeping
+into `.claude/skills/change-the-window` and the tests in §7, which are the things that cannot drift
+from the code.
 
 ## The diagnosis, in one paragraph
 
@@ -54,8 +66,7 @@ The eight biggest files are 30,315 lines — 23% of the repo.
 navigation cost, not a coupling cost, and splitting is mechanical and nearly risk-free.
 
 *Big behaviour* — `App` (7,137 lines of class), `Workbench` (2,057 lines of methods), the two
-harness adapters, `Live`. Only one of these is actually a problem, and it is the one the task
-names.
+harness adapters, `Live`. Only one of these is actually a problem, and it is `app.ts`.
 
 ### What is actually inside `app.ts`
 
