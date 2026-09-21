@@ -23,29 +23,18 @@ import {
   type Config,
   composeBrief,
   DEFAULT_ATTENTION,
-  describeQueueState,
   describeWork,
   expandHome,
   extensionEnabled,
   HARNESS_CHOICES,
-  holdSaid,
-  inWrittenOrder,
-  joined,
   type LaneId,
   loadConfig,
   needsReflection,
   orchestratorRoute,
-  orderFirst,
-  type Plan,
-  type PlanBusy,
   parseQuietHours,
   planStandings,
-  QUEUE_CHANGES,
-  queueStateOf,
-  readyToStart,
   reflectionPrompt,
   resolveRoute,
-  startFrom,
   THINKING_LEVELS,
   type ThinkingLevel,
 } from '@tade/core'
@@ -253,7 +242,6 @@ import {
   readRecents,
   recentProjects,
 } from './projects.ts'
-import { describeQueue, describeSchedule, heldMessage, planAnswer, whyStarting } from './queue.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { cutFrom, type HeldLines, type Reach, reachOf, Wheel } from './scroll.ts'
@@ -298,7 +286,8 @@ import {
 import { Images, imagesTitle } from './wire/images.ts'
 import { Machine } from './wire/machine.ts'
 import { Notes } from './wire/notes.ts'
-import { type ScheduleRequest, Schedules, scheduleIdOf } from './wire/schedules.ts'
+import { Queue, type QueueTools } from './wire/queue.ts'
+import { Schedules, scheduleIdOf } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
 import { Settings } from './wire/settings.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
@@ -974,12 +963,6 @@ export class App {
    * which offers everything, as the window always did.
    */
   private readonly offersByTask = new Map<string, AgentOffers>()
-  /** Tasks whose rule was met and is being written down, so it is written once. */
-  private readonly marking = new Set<string>()
-  /** Queued work being started now, so a refresh in the middle does not start it twice. */
-  private readonly startingQueued = new Set<string>()
-  /** The queue pass under way, if one is. */
-  private advancing: Promise<string[]> | null = null
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private router: RouterState = initialRouter()
@@ -1019,6 +1002,8 @@ export class App {
   private readonly search: Search
   /** What is due, what a watch found, and what one run of either does. */
   private readonly schedules: Schedules
+  /** Queued work: what is ready, what is held, and what starts it. */
+  private readonly queue: Queue
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1046,6 +1031,17 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.queue = new Queue(this.wire, {
+      news: (said) => {
+        this.news = addNews(this.news, said, this.now())
+      },
+      tell: (text) => this.tell(text),
+      schedules: {
+        views: () => this.schedules.views(),
+        set: (req) => this.schedules.set(req),
+        runNow: (id, asked) => this.schedules.runNow(id, asked),
+      },
+    })
     this.schedules = new Schedules(this.wire, {
       news: (said) => {
         this.news = addNews(this.news, said, this.now())
@@ -1868,7 +1864,7 @@ export class App {
         }
         this.seenTasks = tasks
         void this.learnHarnesses(tasks)
-        void this.recordRulesMet()
+        void this.queue.recordRulesMet()
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.reflect(tasks)
         this.draw()
@@ -2409,7 +2405,7 @@ export class App {
     // orchestrator (`tade_queue_change` with a project and no task).
     const queued = /^queue-(start|first|pause|resume|wait|remove):(.+)$/.exec(action)
     if (queued?.[1] && queued[2]) {
-      await this.changeQueue(queued[2], queued[1])
+      await this.queue.change(queued[2], queued[1])
       return
     }
     if (action.startsWith('thinking:')) {
@@ -2591,7 +2587,7 @@ export class App {
         // Queued work has no agent yet: starting it goes through the queue, so
         // what started it and why is written down.
         const pane = this.state.panes.find((one) => one.task === this.state.focused)
-        if (pane?.queued) await this.changeQueue(pane.task, 'start')
+        if (pane?.queued) await this.queue.change(pane.task, 'start')
         else await this.openAgent()
         return
       }
@@ -3715,33 +3711,11 @@ export class App {
     this.state = notice({ ...this.state, panel: null }, `discarded ${path}`)
   }
 
-  /**
-   * A choice about queued work made in the window: written down as yours, and
-   * acted on at once rather than at the next look — pressing Start and waiting
-   * two seconds for anything to happen reads as broken.
-   */
-  private async changeQueue(task: string, change: string): Promise<void> {
-    try {
-      // "Do this one first" is an order written like any other: this task in
-      // front of whatever order the queue is already in.
-      const live = this.live
-      const order =
-        change === 'first' && live ? orderFirst(live.queued, live.queueFacts().events, task) : []
-      const answer = await this.queueTools().change(
-        change === 'first' ? { change: 'order', order, by: 'you' } : { task, change, by: 'you' },
-      )
-      this.state = notice(this.state, answer)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
-  }
-
   private async fromTaskMenu(task: string, item: string): Promise<void> {
     const facts = this.live?.factsOf(task)
     const worktree = this.live?.worktreeOf(task)
     if (item.startsWith('queue-')) {
-      await this.changeQueue(task, item.slice('queue-'.length))
+      await this.queue.change(task, item.slice('queue-'.length))
       return
     }
     switch (item) {
@@ -5588,7 +5562,7 @@ export class App {
       .schedules()
       .some((one) => one.id === scheduleIdOf(offer.title) && one.project !== project)
     const name = elsewhere ? `${offer.title} in ${project}` : offer.title
-    await this.queueTools().schedule({ name, project, said: '', watch, by: 'you' })
+    await this.schedules.set({ name, project, said: '', watch, by: 'you' })
     const view = this.schedules.views().find((one) => one.id === scheduleIdOf(name))
     const first = view?.next[0]
     const when = first === undefined ? '' : `, first at ${whenShort(first, this.now())}`
@@ -6082,264 +6056,14 @@ export class App {
     }
   }
 
-  /**
-   * Start whatever queued work is ready, and say what is held. By rule, on
-   * every look at the tasks: a plan keeps going whether or not the orchestrator
-   * is busy, or there at all. One pass at a time, so nothing starts twice.
-   */
+  /** Start whatever queued work is ready, and say what is held. */
   advanceQueue(): Promise<string[]> {
-    this.advancing ??= this.doAdvanceQueue().finally(() => {
-      this.advancing = null
-    })
-    return this.advancing
-  }
-
-  private async doAdvanceQueue(): Promise<string[]> {
-    const live = this.live
-    if (!live) return []
-    const items = live.queued.filter((item) => !this.startingQueued.has(item.task))
-    // What the tree says now, for whatever is about to start in it: `touches`
-    // was one person's reading of the code when the work was planned, and
-    // agents have been changing files ever since. Looked at here, at the
-    // moment of starting, because that is the moment it is true.
-    await live.lookAtTrees(items).catch(() => {})
-    const facts = live.queueFacts()
-    for (const item of items) {
-      const state = queueStateOf(item, facts)
-      if (state.kind !== 'held') continue
-      // A start that failed wrote its own hold when it failed; what waits on
-      // trouble and what the tree moved under are written here.
-      const how =
-        state.on !== null
-          ? { on: state.on }
-          : state.changed
-            ? { changed: state.changed, by: state.by ?? [] }
-            : null
-      if (!how) continue
-      if (holdSaid(item.task, state, facts.events)) continue
-      await this.opts.client.holdQueued(item.task, state.because, how).catch(() => {})
-      this.state = withTranscript(
-        this.state,
-        tadeDid(this.state.transcript, `${item.task} is held: ${state.because}`, this.now()),
-      )
-      void this.tell(heldMessage(item.task, state.because, state.changed)).catch(() => {})
-    }
-    // Room only where a project says how many may run: the queue waits for a
-    // slot rather than failing the start the way a limit used to.
-    const room = new Map<string, number>()
-    for (const [project, settings] of Object.entries(this.opts.config.projects)) {
-      if (!settings.max_parallel) continue
-      const running = this.opts.client
-        .runs()
-        .filter((run) => run.task.startsWith(`${project}/`)).length
-      room.set(project, settings.max_parallel - running)
-    }
-    const started: string[] = []
-    // In the order last written for it, which is a fact in the journal like
-    // every other choice about the queue. The rule is unchanged: what starts
-    // is what `readyToStart` says is ready, as far as there is room.
-    for (const task of readyToStart(inWrittenOrder(items, facts.events), facts, room)) {
-      const item = items.find((one) => one.task === task)
-      const worktree = live.worktreeOf(task)
-      if (!item || !worktree) continue
-      this.startingQueued.add(task)
-      const because = whyStarting(item, facts)
-      try {
-        await this.opts.client.startQueued({
-          task,
-          worktree,
-          why: because,
-          from: startFrom(item.start.after, live.upstream, live.baseOf(task)),
-        })
-        started.push(task)
-        this.news = addNews(this.news, `started ${task}: ${because}`, this.now())
-        this.state = withTranscript(
-          this.state,
-          tadeDid(this.state.transcript, `started ${task}: ${because}`, this.now()),
-        )
-      } catch (err) {
-        // Held with why, and said: work that silently never starts looks like waiting.
-        this.startingQueued.delete(task)
-        await this.opts.client.holdQueued(task, why(err), { start: 'failed' }).catch(() => {})
-        this.state = withTranscript(
-          this.state,
-          tadeDid(this.state.transcript, `${task} could not start: ${why(err)}`, this.now()),
-        )
-        void this.tell(heldMessage(task, `it could not start: ${why(err)}`)).catch(() => {})
-      }
-    }
-    if (started.length > 0) await live.refresh()
-    this.draw()
-    return started
+    return this.queue.advance()
   }
 
   /** What the orchestrator's queue tools do, answered from this window. */
-  queueTools(): {
-    advance(): Promise<string[]>
-    describe(): Promise<string>
-    change(req: {
-      task?: string
-      schedule?: string
-      project?: string
-      change: string
-      name?: string
-      order?: readonly string[]
-      by?: 'you' | 'orchestrator'
-    }): Promise<string>
-    plan(plan: Plan): Promise<string>
-    schedule(req: ScheduleRequest): Promise<string>
-  } {
-    return {
-      advance: () => this.advanceQueue(),
-      describe: async () => {
-        await this.live?.refresh()
-        const live = this.live
-        if (!live) return 'Tade is still opening.'
-        const now = this.now()
-        const schedules = this.schedules.views()
-        return [
-          describeQueue(live.queued, live.queueFacts(), clockOf),
-          ...(schedules.length > 0
-            ? [
-                '',
-                'Schedules:',
-                ...schedules.map((one) => describeSchedule(one, (at) => whenShort(at, now))),
-              ]
-            : []),
-        ].join('\n')
-      },
-      schedule: (req) => this.schedules.set(req),
-      change: async (req) => {
-        if (req.schedule) {
-          const id = req.schedule
-          const by = req.by ?? 'orchestrator'
-          if (req.change === 'start') {
-            const name = this.opts.client.schedules().find((each) => each.id === id)?.name ?? id
-            const said = await this.schedules.runNow(id, true)
-            return said ? `${said}.` : `${name} ran now.`
-          }
-          if (
-            req.change === 'rename' ||
-            req.change === 'pause' ||
-            req.change === 'resume' ||
-            req.change === 'remove'
-          ) {
-            const kept = await this.opts.client.changeSchedule({
-              id,
-              change: req.change,
-              by,
-              ...(req.name ? { name: req.name } : {}),
-            })
-            this.draw()
-            return req.change === 'remove'
-              ? `${id} is removed.`
-              : `${kept?.name ?? id} is ${req.change === 'rename' ? 'renamed' : req.change === 'pause' ? 'paused' : 'back on'}.`
-          }
-          throw new Error(
-            `${req.change} is not something to do to a schedule: start, pause, resume, rename, remove`,
-          )
-        }
-        const change = QUEUE_CHANGES.find((one) => one === req.change)
-        if (req.change === 'remove') {
-          if (!req.task) throw new Error('remove is for one piece of work: say which')
-          const facts = this.live?.factsOf(req.task)
-          const worktree = this.live?.worktreeOf(req.task)
-          if (!facts || !worktree) throw new Error(`there is no queued work called ${req.task}`)
-          const root = this.opts.config.projects[facts.project]?.root
-          const result = await this.opts.client.removeTask({
-            root: root ? expandHome(root) : worktree,
-            worktree,
-            branch: facts.branch,
-            task: req.task,
-            force: true,
-          })
-          if (!result.removed) throw new Error(result.reason)
-          await this.live?.refresh()
-          return `${req.task} is removed: anything waiting on it is held`
-        }
-        if (!change) {
-          throw new Error(
-            `${req.change} is not something to do to queued work: ${[...QUEUE_CHANGES, 'remove'].join(', ')}`,
-          )
-        }
-        // An order is written down like every other choice about the queue,
-        // and changes only which of what is already ready goes first.
-        const order =
-          change === 'order'
-            ? (req.order ?? []).filter((task) =>
-                (this.live?.queued ?? []).some((one) => one.task === task),
-              )
-            : []
-        if (change === 'order' && order.length === 0) {
-          throw new Error(
-            `nothing in that order is queued work${req.order?.length ? ` (${joined([...req.order])})` : ''}: say which queued tasks come first`,
-          )
-        }
-        await this.opts.client.changeQueued({
-          ...(req.task ? { task: req.task } : {}),
-          ...(req.project ? { project: req.project } : {}),
-          ...(change === 'order' ? { order } : {}),
-          change,
-          by: req.by ?? 'orchestrator',
-        })
-        await this.live?.refresh()
-        const started = await this.advanceQueue()
-        if (started.length > 0) return `Done. Started ${joined(started)}.`
-        if (change === 'order')
-          return `Done: ${joined(order)}, in that order, as each becomes ready.`
-        return `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
-      },
-      plan: async (plan) => {
-        // Checked against what the project is already on, which no plan can see:
-        // agents working now, and work an earlier plan left waiting to start.
-        const busy: PlanBusy[] = []
-        for (const task of this.live?.tasks ?? []) {
-          if (!task.task.startsWith(`${plan.project}/`)) continue
-          const touches = task.queued ? task.queued.touches : (task.touches ?? [])
-          if (touches.length === 0) continue
-          const said = task.queued
-            ? 'queued'
-            : task.state === 'working'
-              ? 'working'
-              : task.state === 'blocked'
-                ? 'waiting on you'
-                : ''
-          if (said) busy.push({ task: task.task, said, touches })
-        }
-        const made = await this.opts.client.planTasks(plan, 'orchestrator', busy)
-        await this.live?.refresh()
-        const started = await this.advanceQueue()
-        const live = this.live
-        const facts = live?.queueFacts()
-        const waiting = made.made
-          .map((task) => task.id)
-          .filter((task) => !started.includes(task))
-          .map((task) => {
-            const item = live?.queued.find((one) => one.task === task)
-            return {
-              task,
-              state:
-                item && facts ? describeQueueState(queueStateOf(item, facts), clockOf) : 'queued',
-            }
-          })
-        return planAnswer({
-          project: plan.project,
-          made: made.made.map((task) => task.id),
-          started,
-          waiting,
-          warnings: made.warnings,
-        })
-      },
-    }
-  }
-
-  /** A task's own rule met — an idle turn, committed work, a merge — written down, once. */
-  private async recordRulesMet(): Promise<void> {
-    for (const { task, rule } of this.live?.rulesMet ?? []) {
-      if (this.marking.has(task)) continue
-      this.marking.add(task)
-      await this.opts.client.markDone(task, { by: 'rule', rule }).catch(() => {})
-    }
+  queueTools(): QueueTools {
+    return this.queue.tools()
   }
 
   /**

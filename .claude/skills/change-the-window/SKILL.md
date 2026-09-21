@@ -33,7 +33,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `images.ts` | Pictures: recognising a dropped path, reading the clipboard, reading bytes | a terminal |
 | `links.ts` | A row of someone else's text with its links and file references clickable | a terminal |
 | `live.ts` | Where the facts come from: status, lanes, approvals, the journal | a workbench (the fold is pure) |
-| `app.ts` | Wiring only: pi-tui, the voice surface, the workbench | — |
+| `wire/` | One file per subject the window wires up — `notes`, `checks`, `voice`, `images`, `settings`, `machine`, `window`, `search`, `schedules`, `queue` — each a small class over `context.ts`'s `Wiring` (the options, the state, `live`, the clock, the repaint), owning its own fields and taking what it needs of other subjects as named dependencies | a terminal, mostly |
+| `app.ts` | Wiring only: pi-tui, the voice surface, the workbench, and the list of subjects | — |
 | `screen.ts` | The screen Tade asks you things on: setup, settings, any command that needs a form | a terminal (rendering is pure) |
 
 **Work happens in the window.** A command that does something — start, stop or open an agent — takes
@@ -315,8 +316,16 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    `parseKey` rather than writing them from memory) and give it meaning in `keyAction`.
 4. If it needs a new fact, add it to `live.ts`; keep the fold from status/lanes/approvals pure and
    test that, not the polling.
-5. Wire it in `app.ts`. No rules here.
-6. If the wiring changed, cover it in the `test/wire/` file named for the subject it belongs to.
+5. Wire it in `app.ts`. No rules here — and **no fields**: if it needs one to remember something
+   between two calls, that field belongs to a subject in `wire/`, not to `App`. A subject nobody
+   has written yet is a new file there and one line in `App`'s constructor. What a subject needs
+   of another goes in its own `Deps` interface, named for what it does, and `App` answers it with
+   a one-line callback; a subject never reaches for the window.
+6. If it puts something in front of you, the subject exposes its slice of `Frame`, `PanelContext`
+   or `PanelInputs` as a method, and the hub in `app.ts` calls it in one line. Never read a
+   subject's field from the hub — that is how `panelFacts` came to touch a dozen subjects, and
+   folding those hubs over the subjects is what is left of `docs/modularity.md`.
+7. If the wiring changed, cover it in the `test/wire/` file named for the subject it belongs to.
    Those run the window headlessly against a real workbench and a real repository:
    `windowUnderTest()` (`test/wire/harness.ts`) makes the repository, the home, the workbench and a
    fake terminal for every test, and `start()` opens the window over them. `App` takes its
@@ -324,11 +333,11 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    TUI registers — so the fake terminal presses keys and keeps what was drawn instead of drawing it.
    Poll for what should appear (`until`): rendering is batched, so asserting on the very next line is
    a flake. A subject with no file yet gets one, named after it, rather than a test in a neighbour's.
-7. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
+8. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
    Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
-8. `pnpm screens --assets`, so the README shows the window you just changed — see
+9. `pnpm screens --assets`, so the README shows the window you just changed — see
    **redraw-the-pictures**.
-9. `pnpm check`.
+10. `pnpm check`.
 
 ## Gotchas
 
