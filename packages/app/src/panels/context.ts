@@ -8,7 +8,6 @@ import {
   extensions,
   extensionView,
   fileView,
-  menu,
   openProject,
   settings,
   spend,
@@ -18,7 +17,6 @@ import type {
   Choice,
   ExtensionView,
   McpServerOffer,
-  MenuItem,
   OpenRow,
   Panel,
   SetupFieldView,
@@ -30,6 +28,8 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import type { MenuItem } from './menu/state.ts'
+import { menu } from './menu/view.ts'
 import type { ModelChoice } from './models/state.ts'
 import { models } from './models/view.ts'
 import { search } from './search/view.ts'

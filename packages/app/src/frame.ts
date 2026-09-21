@@ -5,7 +5,7 @@ import type { LayoutPrefs } from './layout.ts'
 import type { Linker } from './links.ts'
 import type { ScheduleView } from './model.ts'
 import type { PanelContext } from './panels/context.ts'
-import type { AgentOffers, ThinkerOffers } from './panels.ts'
+import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
 import type { Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 

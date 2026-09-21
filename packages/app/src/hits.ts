@@ -1,3 +1,4 @@
+import type { MenuSubject } from './panels/menu/state.ts'
 // What is where on the screen, so a click can mean something.
 //
 // The rows and the map of what they are come out of the same pass: a second
@@ -6,8 +7,6 @@
 // one above it says.
 //
 // Pure, like the drawing it comes from.
-
-import type { MenuSubject } from './panels.ts'
 
 export type Target =
   | { kind: 'task'; task: string }

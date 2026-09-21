@@ -1,4 +1,12 @@
 import { initialState, withProjects } from '../../../src/model.ts'
+import {
+  branchMenuItems,
+  changeMenuItems,
+  fileMenuItems,
+  menuItems,
+  menuPanel,
+  thinkingMenuItems,
+} from '../../../src/panels/menu/state.ts'
 import { modelPanel } from '../../../src/panels/models/state.ts'
 import {
   closeDonePanel,
@@ -6,15 +14,7 @@ import {
   noteHeadlinePanel,
   promptPanel,
 } from '../../../src/panels/small/state.ts'
-import {
-  branchMenuItems,
-  changeMenuItems,
-  fileMenuItems,
-  menuItems,
-  menuPanel,
-  openProjectPanel,
-  thinkingMenuItems,
-} from '../../../src/panels.ts'
+import { openProjectPanel } from '../../../src/panels.ts'
 import { base, finished, frame, type Scenario, utcDate } from './fixtures.ts'
 
 // The panels: menus, and the pages that float over the window.

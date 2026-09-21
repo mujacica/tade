@@ -1,6 +1,18 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
+import {
+  accountMenuItems,
+  agentOffers,
+  branchMenuItems,
+  changeMenuItems,
+  fileMenuItems,
+  harnessMenuItems,
+  laneMenuItems,
+  menuItems,
+  terminalMenuItems,
+  thinkingMenuItems,
+} from '../src/panels/menu/state.ts'
 import { perMillion, priceCells, priceSaid } from '../src/panels/models/state.ts'
 import { searchPanel } from '../src/panels/search/state.ts'
 import {
@@ -15,10 +27,6 @@ import {
 } from '../src/panels/small/state.ts'
 import {
   accountActions,
-  accountMenuItems,
-  agentOffers,
-  branchMenuItems,
-  changeMenuItems,
   chosenEntry,
   type ExtensionView,
   extensionControls,
@@ -27,14 +35,10 @@ import {
   extensionsPanel,
   extensionViewPanel,
   type FilePanel,
-  fileMenuItems,
   filePanel,
   fileSelection,
   HARNESS,
-  harnessMenuItems,
-  laneMenuItems,
   listStart,
-  menuItems,
   type Panel,
   panelClick,
   panelKey,
@@ -44,8 +48,6 @@ import {
   settingsPanel,
   setupControls,
   spendPanel,
-  terminalMenuItems,
-  thinkingMenuItems,
   toolSummary,
   WRITTEN,
   watchControl,

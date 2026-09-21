@@ -14,7 +14,7 @@ import {
   shellQuote,
   shellWords,
 } from '../src/images.ts'
-import { imageMenuItems } from '../src/panels.ts'
+import { imageMenuItems } from '../src/panels/menu/state.ts'
 
 // A terminal never hands a program a picture: a dropped file arrives as its
 // path, pasted. These are the rules for recognising one.

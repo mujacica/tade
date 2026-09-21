@@ -8,8 +8,8 @@ import {
   withTasks,
   withTerminals,
 } from '../../../src/model.ts'
+import { imageMenuItems, menuPanel } from '../../../src/panels/menu/state.ts'
 import { findPanel, notePanel } from '../../../src/panels/small/state.ts'
-import { imageMenuItems, menuPanel } from '../../../src/panels.ts'
 import {
   emptyTranscript,
   fromThinker,
