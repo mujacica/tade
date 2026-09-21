@@ -20,7 +20,7 @@ import { installedServers as claudeServers } from '@tade/harnesses-claude/instal
 import { installedServers as codexServers } from '@tade/harnesses-codex/installed'
 import { piBinary } from '@tade/harnesses-pi/adapter'
 import { installedPieces } from '@tade/harnesses-pi/installed'
-import { credentials, findModel, loggedInProviders, usableModels } from '@tade/harnesses-pi/models'
+import { credentials, findModel, usableModels } from '@tade/harnesses-pi/models'
 import { shownServers } from '@tade/mcp-broker'
 import {
   brokerFor,
@@ -279,7 +279,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           report,
           // What an agent can be started on: the models you are signed in to.
           models: () => usableModels(),
-          accounts: () => loggedInProviders(),
           // Signed in, or a key: which one is paying, said beside the model.
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),

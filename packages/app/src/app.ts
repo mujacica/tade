@@ -68,8 +68,7 @@ import {
 import { git } from '@tade/status'
 import { slugify, VoiceSurface, type VoiceTerminals } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
-import { type AccountView, matchingLines, type Workbench } from '@tade/workbench'
-import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
+import { matchingLines, type Workbench } from '@tade/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
@@ -331,6 +330,7 @@ import {
   why,
 } from './wire/context.ts'
 import { Images, imagesTitle } from './wire/images.ts'
+import { Machine } from './wire/machine.ts'
 import { Notes } from './wire/notes.ts'
 import { Settings } from './wire/settings.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
@@ -1011,22 +1011,6 @@ export class App {
    */
   private pickerModels: ModelChoice[] | null = null
   /** Providers the harness is signed in to, once read. */
-  private accounts: string[] = []
-  /**
-   * Every account agents can run as, as each harness last said: asked in the
-   * background, and again after anything is done to one.
-   */
-  private accountViews: AccountView[] = []
-  /**
-   * What the Updates page last read: which of the programs Tade runs are
-   * here, and — once somebody pressed the button — what is current. Null
-   * until the page is opened, because none of it is worth reading before.
-   */
-  private updates: UpdateLook | null = null
-  /** A check is going. The only thing on that page that touches the network. */
-  private updatesBusy = false
-  /** How each provider is paid for, once read. */
-  private credentials: Record<string, 'signed-in' | 'api-key' | 'env-key'> = {}
   /** The Open project list for the last folder and query, and the branches found for its rows. */
   private openCache: { key: string; rows: OpenRow[]; browsing: string | null } | null = null
   private readonly branches = new Map<string, string | null>()
@@ -1088,6 +1072,8 @@ export class App {
   private readonly images: Images
   /** The Settings page, and the one path a setting is written by. */
   private readonly settings: Settings
+  /** What is installed here, what is current, and who the agents run as. */
+  private readonly machine: Machine
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1115,9 +1101,27 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.machine = new Machine(this.wire, {
+      reload: () => this.reload(),
+      terminalSize: () => {
+        const layout = resolveLayout(this.layout(), {
+          width: this.terminal.columns,
+          height: Math.max(6, this.terminal.rows),
+        })
+        return {
+          cols: layout.sidebarWidth + layout.mainWidth + 1,
+          rows: Math.max(4, layout.stripHeight - 2),
+        }
+      },
+      showTerminal: (id) => this.showTerminal(id),
+      onScreenWith: (flow) => this.onScreenWith(flow),
+      refreshModels: async () => {
+        this.models = (await this.opts.models?.().catch(() => [])) ?? this.models
+      },
+    })
     this.settings = new Settings(this.wire, {
-      loadAccounts: () => void this.loadAccountViews(),
-      lookAtWhatIsInstalled: () => void this.lookAtWhatIsInstalled(),
+      loadAccounts: () => void this.machine.loadAccountViews(),
+      lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
       tellThinking: (level) => this.tellThinkerThinking(level),
       setupChanged: () => this.setupShown.clear(),
       silence: () => {
@@ -1388,7 +1392,11 @@ export class App {
       case 'harness':
         return harnessMenuItems(HARNESS_CHOICES, subject.current)
       case 'account':
-        return accountMenuItems(this.accountViews, this.harnessShown(subject.task), subject.current)
+        return accountMenuItems(
+          this.machine.accounts,
+          this.harnessShown(subject.task),
+          subject.current,
+        )
       case 'lane':
         return laneMenuItems(
           this.state.splits[subject.task]?.lane === subject.lane,
@@ -1425,10 +1433,10 @@ export class App {
     const exact = this.models.find((known) => known.id === model)
     if (exact) return exact.provider
     const named = model.includes('/') ? (model.split('/')[0] ?? null) : null
-    if (named && this.credentials[named]) return named
+    if (named && this.machine.paidBy(named)) return named
     const offering = this.models.filter((known) => known.id.endsWith(`/${model}`))
     return (
-      offering.find((known) => this.credentials[known.provider])?.provider ??
+      offering.find((known) => this.machine.paidBy(known.provider))?.provider ??
       offering[0]?.provider ??
       named
     )
@@ -1500,9 +1508,9 @@ export class App {
       return {
         choices: this.choices,
         settings: this.settings.rows(),
-        accounts: this.accountViews,
-        updates: this.updates,
-        updatesBusy: this.updatesBusy,
+        accounts: this.machine.accounts,
+        updates: this.machine.updates,
+        updatesBusy: this.machine.updatesBusy,
         lanesSurvive: this.opts.client.driver.capabilities.detach,
         configPath: tilde(this.configPath),
         releases: kittyActive(this.terminal),
@@ -1602,7 +1610,7 @@ export class App {
         model: route.model ?? null,
         thinking: route.thinking ?? null,
         provider,
-        credential: provider ? credentialLabel(this.credentials[provider]) : null,
+        credential: this.machine.credential(provider),
       },
       vitals: live.vitals(this.state.focused),
       offers: this.state.focused ? (this.offersByTask.get(this.state.focused) ?? null) : null,
@@ -1920,7 +1928,7 @@ export class App {
       opened: opened ?? this.state.opened,
     }
     // Read once, in the background: nothing waits on the catalog but the list.
-    void this.loadAccounts()
+    void this.machine.loadAccounts()
     // Every project, before any of them has a task: an empty one is still a
     // tab you can be standing in when you start work.
     this.state = withProjects(this.state, Object.keys(this.opts.config.projects))
@@ -2953,7 +2961,7 @@ export class App {
     // The Updates page reads the machine when it is opened, and asks the
     // network only when the button on it is pressed.
     if (outcome.panel?.kind === 'settings' && outcome.panel.category === UPDATES) {
-      void this.lookAtWhatIsInstalled()
+      void this.machine.lookAtWhatIsInstalled()
     }
     this.draw()
     if (outcome.submit && outcome.panel) void this.submitPanel(outcome.panel, outcome.choice)
@@ -3045,8 +3053,8 @@ export class App {
           await this.openPlace({ path: this.configPath })
           return
         }
-        if (choice?.startsWith('account:')) await this.accountAction(choice)
-        if (choice?.startsWith('updates:')) await this.updateAction(choice)
+        if (choice?.startsWith('account:')) await this.machine.accountAction(choice)
+        if (choice?.startsWith('updates:')) await this.machine.updateAction(choice)
         if (choice === 'mic-test') await this.voice.testMicrophone()
         return
       }
@@ -3629,7 +3637,7 @@ export class App {
     } catch (err) {
       this.state = notice(this.state, why(err))
     }
-    await this.loadAccountViews()
+    await this.machine.loadAccountViews()
     this.draw()
   }
 
@@ -3938,8 +3946,8 @@ export class App {
           return
         }
         this.state = { ...this.state, panel: settingsPanel(ACCOUNTS) }
-        await this.signInto(harness, name)
-        await this.loadAccountViews()
+        await this.machine.signInto(harness, name)
+        await this.machine.loadAccountViews()
         return
       }
       if (panel.purpose === 'account-key' && panel.target) {
@@ -3951,7 +3959,7 @@ export class App {
             saved: `${panel.target}'s key is kept in ${where}.`,
           },
         }
-        await this.loadAccountViews()
+        await this.machine.loadAccountViews()
         return
       }
       if (panel.purpose === 'rename-schedule' && panel.target) {
@@ -4163,7 +4171,7 @@ export class App {
         const known = await this.opts.client
           .agentHarness(task, this.live?.worktreeOf(task) ?? '')
           .catch(() => null)
-        await this.loadAccountViews()
+        await this.machine.loadAccountViews()
         this.state = {
           ...this.state,
           panel: menuPanel({ kind: 'account', task, current: known?.account ?? '' }, 'Account', {
@@ -5727,7 +5735,7 @@ export class App {
     const paying = provider ?? (model?.includes('/') ? (model.split('/')[0] ?? null) : null)
     return {
       provider: paying,
-      credential: paying ? credentialLabel(this.credentials[paying]) : null,
+      credential: this.machine.credential(paying),
     }
   }
 
@@ -6047,7 +6055,7 @@ export class App {
           const line = this.serverNamed(name)?.install
           if (!line) return stay(null)
           this.state = { ...this.state, panel: null }
-          await this.watchCommand('install', line)
+          await this.machine.watchCommand('install', line)
           return
         }
         case 'toggle': {
@@ -7230,8 +7238,8 @@ export class App {
           : [],
       models: this.state.panel?.kind === 'model' ? (this.pickerModels ?? this.models) : this.models,
       settings: this.settings.rows(),
-      accountActions: accountActions(this.accountViews),
-      updateActions: updateActions(this.updates, this.updatesBusy),
+      accountActions: accountActions(this.machine.accounts),
+      updateActions: updateActions(this.machine.updates, this.machine.updatesBusy),
     }
   }
 
@@ -7316,210 +7324,6 @@ export class App {
 
   private useConfig(config: Config): void {
     this.settings.use(config)
-  }
-
-  /**
-   * What is installed on this machine, for the Updates page: where each
-   * program Tade runs is, how it got there and what it says its version is.
-   *
-   * Never on a timer and never on the draw path — it runs a `--version` per
-   * program, which belongs to somebody opening the page. It touches nothing
-   * but this machine; what is *current* is asked separately, and only when
-   * the button is pressed.
-   */
-  private async lookAtWhatIsInstalled(): Promise<void> {
-    if (this.updates || this.updatesBusy) return
-    this.updatesBusy = true
-    this.draw()
-    try {
-      this.updates = await lookAtUpdates(this.opts.config, this.opts.home)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    } finally {
-      this.updatesBusy = false
-      this.draw()
-    }
-  }
-
-  /**
-   * Do something about updates: ask what is current, run an update in a
-   * terminal, or reload.
-   *
-   * Nothing installs anything here — the exact command is on the page before
-   * it is pressed, and pressing it types that command into a terminal you are
-   * looking at. Reloading goes the way every reload goes, which asks first
-   * when it would stop agents living inside this window.
-   */
-  private async updateAction(id: string): Promise<void> {
-    const said = (saved: string | null, error: string | null = null) => {
-      const panel = this.state.panel
-      if (panel?.kind === 'settings') {
-        this.state = { ...this.state, panel: { ...panel, saved, error } }
-      }
-      this.draw()
-    }
-    if (id === 'updates:check') {
-      if (this.updatesBusy) return
-      this.updatesBusy = true
-      said('Asking what is current…')
-      try {
-        this.updates = await lookAtUpdates(this.opts.config, this.opts.home, { ask: true })
-        const behind = this.updates.programs.filter((one) => one.behind).length
-        const newer = this.updates.tade.newer ? 1 : 0
-        said(
-          behind + newer === 0
-            ? 'Everything Tade could ask about is current.'
-            : `${behind + newer} could move forward.`,
-        )
-      } catch (err) {
-        said(null, why(err))
-      } finally {
-        this.updatesBusy = false
-        this.draw()
-      }
-      return
-    }
-    if (id === 'updates:reload') {
-      this.state = { ...this.state, panel: null }
-      this.reload()
-      return
-    }
-    const action = updateActions(this.updates, this.updatesBusy).find((one) => one.id === id)
-    if (!action?.command) return
-    await this.watchCommand('updates', action.command)
-  }
-
-  /**
-   * Run a command in a terminal somebody is looking at, rather than behind
-   * their back: the same terminal each time, opened if it is not there, and
-   * put in front before a key of it is typed.
-   */
-  private async watchCommand(name: string, command: string): Promise<void> {
-    const project = this.state.project ?? Object.keys(this.opts.config.projects)[0] ?? null
-    if (!project) {
-      // No project, no folder to open a shell in. The command is the answer.
-      this.state = notice(this.state, `Run it yourself: ${command}`)
-      this.draw()
-      return
-    }
-    try {
-      let id: string | null = null
-      try {
-        id = this.opts.client.terminal(name, project).id
-      } catch {
-        // None open under that name yet.
-      }
-      if (!id) {
-        const layout = resolveLayout(this.layout(), {
-          width: this.terminal.columns,
-          height: Math.max(6, this.terminal.rows),
-        })
-        const opened = await this.opts.client.openTerminal({
-          project,
-          name,
-          cols: layout.sidebarWidth + layout.mainWidth + 1,
-          rows: Math.max(4, layout.stripHeight - 2),
-        })
-        id = opened.id
-      }
-      this.state = { ...this.state, panel: null }
-      await this.showTerminal(id)
-      await this.opts.client.runInTerminal(id, command)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-      this.draw()
-    }
-  }
-
-  /** Ask every harness who its accounts are signed in as, and draw what they say. */
-  private async loadAccountViews(): Promise<void> {
-    this.accountViews = await this.opts.client.accounts().catch(() => this.accountViews)
-    this.draw()
-  }
-
-  /**
-   * Do something to an account from the Accounts page: sign it in with its
-   * harness's own sign-in, sign it out, have new agents use it, add one, set
-   * a key, or take one away. Whatever happens is said on the page.
-   */
-  private async accountAction(id: string): Promise<void> {
-    const [, verb = '', harness = '', named = ''] = id.split(':')
-    const name = named || null
-    const title = HARNESS_CHOICES.find((one) => one.id === harness)?.title ?? harness
-    const said = (saved: string | null, error: string | null = null) => {
-      const panel = this.state.panel
-      if (panel?.kind === 'settings') {
-        this.state = { ...this.state, panel: { ...panel, saved, error } }
-      }
-    }
-    try {
-      switch (verb) {
-        case 'sign-in':
-          await this.signInto(harness, name)
-          said(`${name ?? title}: signed in, as far as ${title} says below.`)
-          break
-        case 'sign-out':
-          await this.opts.client.signOut(harness, name)
-          said(`${name ?? title} is signed out.`)
-          break
-        case 'use':
-          await this.opts.client.useAccount(harness, name)
-          said(`New ${title} agents run as ${name ?? 'its own sign-in'}.`)
-          break
-        case 'remove':
-          if (name) await this.opts.client.removeAccount(name)
-          said(`${name} is gone, and signed out.`)
-          break
-        case 'add':
-        case 'add-key':
-          this.state = {
-            ...this.state,
-            panel: {
-              ...promptPanel(
-                'account-name',
-                verb === 'add'
-                  ? `Add a ${title} account`
-                  : `Add a ${title} account paid with an API key`,
-                'NAME',
-              ),
-              target: `${harness}\u0000${verb === 'add' ? 'subscription' : 'api-key'}`,
-            },
-          }
-          this.draw()
-          return
-        case 'key':
-          if (!name) return
-          this.state = {
-            ...this.state,
-            panel: {
-              ...promptPanel('account-key', `${name}'s API key`, 'KEY'),
-              target: name,
-            },
-          }
-          this.draw()
-          return
-      }
-    } catch (err) {
-      said(null, why(err))
-    }
-    await this.loadAccountViews()
-  }
-
-  /** An account's own sign-in, in a terminal inside this one, then the accounts read again. */
-  private async signInto(harness: string, name: string | null): Promise<void> {
-    const signing = this.opts.client.signInFor(harness, name)
-    await this.onScreenWith(async (ui) => {
-      ui.say(`  ${signing.how}`)
-      await ui.run(name ?? harness, signing.launch.command, signing.launch.args, signing.launch.env)
-    })
-    await this.loadAccounts()
-  }
-
-  private async loadAccounts(): Promise<void> {
-    this.accounts = (await this.opts.accounts?.().catch(() => [])) ?? []
-    this.credentials = (await this.opts.credentials?.().catch(() => ({}))) ?? {}
-    this.models = (await this.opts.models?.().catch(() => [])) ?? this.models
-    this.draw()
   }
 
   /** What each command actually does, once it has a screen to ask on. */
@@ -7817,14 +7621,6 @@ function sameSections(folded: readonly string[], others: readonly string[]): boo
 /** Only some terminals report key releases, which is what holding a key needs. */
 function kittyActive(terminal: Terminal): boolean {
   return (terminal as { kittyProtocolActive?: boolean }).kittyProtocolActive === true
-}
-
-/** How a provider is paid for, the way the status bar says it. */
-function credentialLabel(kind: 'signed-in' | 'api-key' | 'env-key' | undefined): string | null {
-  if (kind === 'signed-in') return 'signed in'
-  if (kind === 'api-key') return 'API key'
-  if (kind === 'env-key') return 'env API key'
-  return null
 }
 
 /** Whose menu a right-click on this would open, if it has one. */

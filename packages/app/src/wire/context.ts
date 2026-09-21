@@ -86,8 +86,6 @@ export interface AppOptions {
    * Passed in, so the window does not have to know which harness it is.
    */
   models?: () => Promise<{ id: string; provider: string; name: string }[]>
-  /** Providers the harness is signed in to. */
-  accounts?: () => Promise<string[]>
   /** How each provider with credentials is paid for: signed in, or a key. */
   credentials?: () => Promise<Record<string, 'signed-in' | 'api-key' | 'env-key'>>
   /** The command that runs the harness interactively, for signing in. */
