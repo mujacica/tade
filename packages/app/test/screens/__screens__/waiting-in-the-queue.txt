@@ -9,24 +9,24 @@
      working                 ▕│  FIRST                         THEN                          THIS ONE                   
                              ▕│  ╭──────────────────────╮      ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓   
  ▾ SMART QUEUE  5            ▕│  │ ✕ fix-charge         │─────▶│ ! add-refunds   held │─┬───▶┃ ◌ refund-emails      ┃   
-   all  next  timed          ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
+   all   next   timed        ▕│  │   tests failed twice │      │   ◆ fix-charge fail… │ │    ┃   ◆ after add-refun… ┃   
                              ▕│  ╰──────────────────────╯      ╰──────────────────────╯ │    ┗━━━━━━━━━━━━━━━━━━━━━━┛   
-   ! add-refunds      held   ▕│                                                         │                               
-   │ ◆ fix-charge failed:…   ▕│  ╭──────────────────────╮                               │                               
-   │                         ▕│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
- ▌ ╰─◌ refund-emails         ▕│  │   working            │                                                               
- ▌     ◆ after add-refund…   ▕│  ╰──────────────────────╯                                                               
+ ▌   ◌ refund-emails         ▕│                                                         │                               
+ ▌     ◆ after add-refund…   ▕│  ╭──────────────────────╮                               │                               
+                             ▕│  │ ⠋ bump-mailer        │───────────────────────────────╯                               
+   ◌ docs-typos       next   ▕│  │   working            │                                                               
+     ◆ waiting for room      ▕│  ╰──────────────────────╯                                                               
                              ▕│                                                                                         
-   ◌ docs-typos       next   ▕│                                                                                         
-     ◆ waiting for room      ▕│  WHY IT WAITS                                                                           
-                             ▕│  ✕ fix-charge                                                                           
-   ‖ perf-check     paused   ▕│  ╰─! add-refunds  after fix-charge                                                      
-     ❯ paused                ▕│    │ both change src/charge.ts                                                          
+ ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▸ FILES                     ▕│  WHY IT WAITS                                                                           
+ ▸ NOTES  4             +    ▕│  ✕ fix-charge                                                                           
+ ▸ GIT                       ▕│  ╰─! add-refunds  after fix-charge                                                      
+                             ▕│    │ both change src/charge.ts                                                          
                              ▕│    ╰─◌ refund-emails  after add-refunds                                                 
- ▸ CHANGES  3        vs main ▕│        it emails what refund() returns                                                  
- ▸ FILES                     ▕│        also after bump-mailer                                                           
- ▸ NOTES  4             +    ▕│        the mailer’s send() changes in v4                                                
- ▸ GIT                       ▕│                                                                                         
+                             ▕│        it emails what refund() returns                                                  
+                             ▕│        also after bump-mailer                                                           
+                             ▕│        the mailer’s send() changes in v4                                                
+                             ▕│                                                                                         
                              ▕│  WILL BE TOLD                                                                           
                              ▕│  │ Email the customer when a refund goes through: use the new mailer, and say how much  
                              ▕│  │ came back and when.                                                                  

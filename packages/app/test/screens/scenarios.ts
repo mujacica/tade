@@ -1606,6 +1606,39 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({ screen: '', height: 56, clock: utcClock, schedules: queueSchedules }),
   },
   {
+    name: 'what-is-next-in-the-queue',
+    about:
+      'The queue under NEXT: the front of the resolved tree — the one only waiting for room, and the one whose single wait is an agent working now, which says how much is ahead of it. The rest of the chain is behind those two and left out. The tab showing is filled in the brand’s amber and the pointer is on another, which lights.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['checkout']), chainTasks),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      queueFilter: 'next',
+      hover: { kind: 'action', name: 'queue-filter:timed' },
+    },
+    frame: frame({ screen: '', height: 30, clock: utcClock }),
+  },
+  {
+    name: 'nothing-is-next',
+    about:
+      'NEXT with nothing in it, and why in the words of the actual reason: the work at the front is held and needs a decision, so what waits behind it is behind that rather than next. Not one sentence for every case — nothing queued, everything paused and everything waiting for a clock each say their own.',
+    state: {
+      ...withTasks(
+        withProjects(initialState(), ['checkout']),
+        queueTasks.filter(
+          (task) =>
+            !['checkout/docs-typos', 'checkout/release-notes', 'checkout/perf-check'].includes(
+              task.task,
+            ),
+        ),
+      ),
+      project: 'checkout',
+      folded: ['changes', 'files', 'notes', 'where'],
+      queueFilter: 'next',
+    },
+    frame: frame({ screen: '', height: 30, clock: utcClock }),
+  },
+  {
     name: 'a-schedule',
     about:
       'A schedule open where an agent’s screen would be: when it runs and what it does, what its agent is told, its next runs, what happens to runs Tade was closed for, who made it, and each time it ran.',
@@ -1720,7 +1753,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'why-it-waits-in-a-narrow-window',
     about:
-      'The same chain at 80×24: the boxes are still drawn rather than given up on, with a bar under them saying how much of the chain is in view, and the piece in front of you stands at the front of the queue — the filter leaves the rest of the chain out, so there is no column of it to stand in.',
+      'The same chain in a narrow window: the boxes are still drawn rather than given up on, with a bar under them saying how much of the chain is in view. Down the side, NEXT is the front of the tree — the piece behind the one agent working, which says how much is ahead of it — and the piece in front of you is listed with it whatever the filter says, in the column its depth gives it.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), longChainTasks),
@@ -1729,7 +1762,7 @@ export const SCENARIOS: Scenario[] = [
       folded: ['changes', 'files', 'notes', 'where'],
       queueFilter: 'next',
     },
-    frame: frame({ screen: '', width: 80, height: 24, clock: utcClock }),
+    frame: frame({ screen: '', width: 80, height: 26, clock: utcClock }),
   },
   {
     name: 'a-deep-chain-in-a-narrow-side',

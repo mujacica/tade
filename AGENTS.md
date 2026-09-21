@@ -217,6 +217,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   queue so what started it and why is written down. It is shown where the resolved tree puts it:
   what comes next first, and under each piece whatever waits on it, shifted right of it and joined
   to it by a line — and `next` is the front of that tree, not everything that happens to be waiting.
+  The front is what starts as soon as what it waits on finishes (`shownBy`): work behind one
+  running agent is next and says how much is ahead of it, the second piece of a chain is not, and
+  work that will not start by itself — held, paused — is not next either, it is the reason nothing
+  is. So an empty `next` says which of those it is, in the words of the reason it actually is
+  (`queueEmptySays`): one sentence for every case reads as a bug the moment one of the cases is
+  untrue, which is what sent somebody looking for this code.
   Why it waits is drawn as that same tree (`drawWhy`), never as a list of edges sorted by name: the
   reasons hang off the waits they explain, wrapped rather than cut, and the lines that join them are
   the queue's own (`treeStems`), because two drawings of one relationship drift apart.

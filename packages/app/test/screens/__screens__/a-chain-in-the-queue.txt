@@ -6,12 +6,12 @@
      working                       ▕│  ◌ Waits on api, then starts by itself.                                                                         
                                    ▕│                                                                                                                 
  ▾ SMART QUEUE  4                  ▕│  THE CHAIN IT IS IN                                                                                             
-   all  next  timed                ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
+   all   next   timed              ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
                                    ▕│  ╭──────────────────╮     ╭──────────────────╮     ┏━━━━━━━━━━━━━━━━━━┓     ╭──────────────────╮                
    ◌ tidy-mailer            next   ▕│  │ ⠋ schema         │────▶│ ◌ api            │────▶┃ ◌ client         ┃────▶│ ◌ docs           │                
      ❯ waiting for room            ▕│  │   working        │     │   ◆ after schema │     ┃   ◆ after api    ┃     │   ◆ after client │                
                                    ▕│  ╰──────────────────╯     ╰──────────────────╯     ┗━━━━━━━━━━━━━━━━━━┛     ╰──────────────────╯                
-     ◌ api                         ▕│                                                                                                                 
+     ◌ api               1 ahead   ▕│                                                                                                                 
      │ ◆ after schema              ▕│                                                                                                                 
      │                             ▕│  WHY IT WAITS                                                                                                   
  ▌   ╰─◌ client                    ▕│  ⠋ schema                                                                                                       

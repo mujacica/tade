@@ -1,0 +1,30 @@
+   T A D E      checkout      +                     ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  1            +    █│ checkout › schema    agent    actions     +          claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ⠋ schema                  █│                                                                                         
+ ▌   working                 █│                                                                                         
+                             █│                                                                                         
+ ▾ SMART QUEUE  4            █│                                                                                         
+   all   next   timed        █│                                                                                         
+                             █│                                                                                         
+   ◌ tidy-mailer      next   █│                                                                                         
+     ❯ waiting for room      █│                                                                                         
+                             █│                                                                                         
+     ◌ api         1 ahead   █│                                                                                         
+       ◆ after schema        █│                                                                                         
+                             █│                                                                                         
+ ▸ CHANGES  3        vs main █│                                                                                         
+ ▸ FILES                     ▕│                                                                                         
+ ▸ NOTES  4             +    ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

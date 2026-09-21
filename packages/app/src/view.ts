@@ -40,6 +40,7 @@ import {
   type QueueFilter,
   type QueueRow,
   queuedCount,
+  queueEmptySays,
   queueRows,
   type ScheduleView,
   schedulesShown,
@@ -1431,11 +1432,21 @@ function taskRow(
 /** Three glyph buttons at the end of a queued tab — pause, remove, menu — and the room after them. */
 const QUEUE_ICONS = 10
 
-/** How queued work is marked: its shape, its colour, and what the right of its tab says. */
+/**
+ * How queued work is marked: its shape, its colour, and what the right of its
+ * tab says.
+ *
+ * Work at the front of the tree says how much has to happen before it, since
+ * that is the whole answer to when it starts: `next` for the one only waiting
+ * for room, `1 ahead` for the one behind a single agent. Deeper in a chain it
+ * says nothing — the column it sits in already says how far back it is, and a
+ * count on every row would cost every name the columns it is read in.
+ */
 function queueLook(
   queued: QueuedView,
   skin: Skin,
   frame: Frame,
+  front = false,
 ): {
   glyph: string
   tone: (text: string) => string
@@ -1447,8 +1458,15 @@ function queueLook(
       return { glyph: '!', tone: skin.waiting, when: 'held', whenTone: skin.waiting }
     case 'ready':
       return { glyph: '◌', tone: skin.busy, when: 'next', whenTone: skin.busy }
-    case 'waiting':
-      return { glyph: '◌', tone: skin.hint, when: '', whenTone: skin.hint }
+    case 'waiting': {
+      const ahead = queued.state.on.length
+      return {
+        glyph: '◌',
+        tone: skin.hint,
+        when: front && ahead > 0 ? `${ahead} ahead` : '',
+        whenTone: skin.hint,
+      }
+    }
     case 'scheduled':
       return {
         glyph: '◷',
@@ -1547,21 +1565,16 @@ function queueSection(
     rows: (row) => {
       const entries = queueRows(state)
       const schedules = schedulesShown(frame.schedules ?? [], state)
-      const filters = all > 1 ? [queueFilters(row(), state.queueFilter, skin)] : []
+      const filters = all > 1 ? [queueFilters(row(), state.queueFilter)] : []
       if (entries.length === 0 && schedules.length === 0) {
-        const none =
-          state.queueFilter === 'timed'
-            ? 'nothing waits for a time'
-            : state.queueFilter === 'next'
-              ? 'nothing is next: everything queued waits on something'
-              : 'nothing is queued'
+        // Why there is nothing, in the words of the reason there is nothing:
+        // wrapped rather than cut, because the reason is the whole of what
+        // this row is for.
+        const none = wrapWords(queueEmptySays(state), Math.max(10, width - 6)).slice(0, 4)
         return [
           ...filters,
           blank(width),
-          row()
-            .space(3)
-            .text(shortened(none, Math.max(1, width - 4)), skin.hint)
-            .build(),
+          ...none.map((text) => row().space(3).text(text, skin.hint).build()),
           blank(width),
         ]
       }
@@ -1826,20 +1839,25 @@ function capitalised(text: string): string {
 }
 
 /**
- * The filters over the SMART QUEUE, as words: the one showing is lit.
+ * The filters over the SMART QUEUE: the set of small controls every other
+ * heading has, and the one showing is filled in the brand's amber — what
+ * being on looks like everywhere else in the window, taken from the skin so
+ * it moves when the palette does. They light under the pointer as chips do,
+ * because a control that never answers the pointer reads as a label.
  *
  * Nothing here pauses anything: pausing is something you do to one piece of
  * work, beside its name — in its tab, its menu, or on the card it opens — so
  * it is never in doubt which one you are pausing.
  */
-function queueFilters(row: Row, current: QueueFilter, skin: Skin): { text: string; hits: Hit[] } {
-  row.space(3)
+function queueFilters(row: Row, current: QueueFilter): { text: string; hits: Hit[] } {
+  row.space(2)
   QUEUE_FILTERS.forEach((filter, i) => {
-    if (i > 0) row.space(2)
-    row.text(filter, filter === current ? skin.you : skin.tab, {
-      kind: 'action',
-      name: `queue-filter:${filter}`,
-    })
+    if (i > 0) row.space()
+    row.chip(
+      filter,
+      { kind: 'action', name: `queue-filter:${filter}` },
+      filter === current ? 'primary' : 'rest',
+    )
   })
   return row.build()
 }
@@ -1951,7 +1969,7 @@ function queueRow(
   const menu: Target = { kind: 'task-menu', task: pane.task }
   const pointed = [target, toggle, remove, menu].some((one) => sameTarget(pointer.hover, one))
   const band: Band | null = pane.focused ? 'selected' : pointed ? 'hovered' : null
-  const look = queueLook(pane.queued, skin, frame)
+  const look = queueLook(pane.queued, skin, frame, row.parent === null)
   const shift = visibleWidth(stems.stem)
   const edge = Math.max(0, width - TAB_EDGES)
   const right = pointed ? QUEUE_ICONS : look.when ? visibleWidth(look.when) + 1 : 0

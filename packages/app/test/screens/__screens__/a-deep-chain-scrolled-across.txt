@@ -6,9 +6,9 @@
  ▌   working             █│                                                                     
                          █│                                                                     
  ▾ SMART QUEUE  5        █│                                                                     
-   all  next  timed      █│                                                                     
+   all   next   timed    █│                                                                     
                          █│                                                                     
-  ps-and-row-marks       █│                                                                     
+  ps-and-row-… 1 ahead   █│                                                                     
   er layout-json         ▕│                                                                     
                          ▕│                                                                     
   gger-and-…  ‖  ×  ≡    ▕│                                                                     

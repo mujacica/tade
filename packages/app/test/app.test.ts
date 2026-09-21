@@ -1269,8 +1269,10 @@ describe('the window, wired up', () => {
         },
       ],
     })
+    // The filters, as the plain skin draws them: the one showing is a chip
+    // that is on, the others chips at rest.
     await until('the queue on screen', () =>
-      screenOf(terminal.written).some((row) => row.includes('all  next  timed')),
+      screenOf(terminal.written).some((row) => row.includes('<all> [next] [timed]')),
     )
     // Nothing over the queue pauses everything at once: the filters, and no more.
     expect(screenOf(terminal.written).some((row) => row.includes('‖ pause'))).toBe(false)

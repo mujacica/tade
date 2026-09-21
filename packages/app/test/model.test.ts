@@ -26,6 +26,7 @@ import {
   projects,
   type QueuedView,
   queuedCount,
+  queueEmptySays,
   queueOf,
   queueTree,
   removeAttachment,
@@ -266,16 +267,45 @@ describe('the smart queue', () => {
     )
   })
 
-  it('shows what waits for a time, or only what is directly next', () => {
+  it('shows what waits for a time, or the front of the resolved tree', () => {
     const state = withTasks(initialState(), plan)
     const shown = (queueFilter: AppState['queueFilter']) =>
       queueOf({ ...state, queueFilter }).map((task) => task.name)
     expect(shown('timed')).toEqual(['soon', 'later'])
-    // `next` is the front of the path: `after` still waits on an agent, so it
-    // is not next, however much it is waiting on one.
-    expect(shown('next')).toEqual(['stuck', 'next', 'stopped'])
+    // `next` is the front of the tree: the one with room, and the one whose
+    // only wait is an agent working now — it starts when that agent finishes.
+    // Held and paused work will not start by itself, so neither is next.
+    expect(shown('next')).toEqual(['next', 'after'])
     // Filtered away is not gone: the count is still all of it.
     expect(queuedCount({ ...state, queueFilter: 'timed' })).toBe(6)
+  })
+
+  it('says why nothing is next in the words of the reason there is nothing', () => {
+    const says = (tasks: TaskSnapshot[], queueFilter: AppState['queueFilter'] = 'next') =>
+      queueEmptySays({ ...withTasks(initialState(), tasks), queueFilter })
+    expect(says([{ task: 'app/working', state: 'working' }])).toBe('nothing is queued')
+    expect(
+      says([
+        { task: 'app/working', state: 'working' },
+        queued('app/stuck', { kind: 'held', on: 'app/working', because: 'it failed' }),
+      ]),
+    ).toBe('nothing is next: stuck is held, and needs a decision')
+    // Behind held work is not next: what is at the front is what is stopping it.
+    expect(
+      says([
+        queued('app/stuck', { kind: 'held', on: 'app/gone', because: 'it failed' }),
+        queued('app/stopped', { kind: 'paused', all: false }),
+      ]),
+    ).toBe('nothing is next: what is at the front is held or paused')
+    expect(says([queued('app/stopped', { kind: 'paused', all: false })])).toBe(
+      'nothing is next: stopped is paused',
+    )
+    expect(says([queued('app/soon', { kind: 'scheduled', at: 1_000 }, 1_000)])).toBe(
+      'nothing is next: soon waits for a time',
+    )
+    // The other two filters answer for themselves.
+    expect(says(plan, 'timed')).toBe('nothing waits for a time')
+    expect(says(plan, 'all')).toBe('nothing is queued')
   })
 
   it('orders the queue by the resolved tree, each piece under what it waits on', () => {
@@ -316,11 +346,9 @@ describe('the smart queue', () => {
     expect(tree.map((row) => row.pane.name)).toEqual(['refunds', 'emails', 'thanks', 'typos'])
     expect(tree.map((row) => row.depth)).toEqual([0, 1, 2, 0])
     expect(tree.map((row) => row.parent)).toEqual([null, 'app/refunds', 'app/emails', null])
-    // Directly next: the held one, which needs deciding, and the one with room.
-    expect(queueOf({ ...state, queueFilter: 'next' }).map((task) => task.name)).toEqual([
-      'refunds',
-      'typos',
-    ])
+    // Next is the front of the tree that will start by itself: the one with
+    // room. The held one needs a decision, and what is behind it is behind it.
+    expect(queueOf({ ...state, queueFilter: 'next' }).map((task) => task.name)).toEqual(['typos'])
   })
 })
 

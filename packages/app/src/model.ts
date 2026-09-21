@@ -107,7 +107,7 @@ export interface ScheduleView {
   }
 }
 
-/** Which queued work the SMART QUEUE shows: all of it, what is directly next, or what waits for a time. */
+/** Which queued work the SMART QUEUE shows: all of it, the front of the tree, or what waits for a time. */
 export type QueueFilter = 'all' | 'next' | 'timed'
 
 export const QUEUE_FILTERS: readonly QueueFilter[] = ['all', 'next', 'timed']
@@ -454,14 +454,27 @@ const QUEUE_RANK: Readonly<Record<QueueState['kind'], number>> = {
   paused: 4,
 }
 
-/** Whether queued work is what a filter shows: `next` is only what is directly next. */
-export function shownBy(filter: QueueFilter, row: { queued: QueuedView; depth: number }): boolean {
+/**
+ * Whether queued work is what a filter shows.
+ *
+ * `next` is the front of the resolved tree: the work that starts as soon as
+ * what it waits on finishes. Nothing queued stands before it — so work behind
+ * one running agent is next, and the second piece of a chain is not — and it
+ * is work that will start by itself when that happens, which held and paused
+ * work will not: each of those needs somebody, and is said in its own words
+ * where the list comes out empty rather than counted as next. Not everything
+ * queued, and not only what could start this second.
+ */
+export function shownBy(
+  filter: QueueFilter,
+  row: { queued: QueuedView; parent: string | null },
+): boolean {
   if (filter === 'all') return true
   const timed = row.queued.at !== null || row.queued.state.kind === 'scheduled'
   if (filter === 'timed') return timed
-  // Directly next: nothing it waits on is still to happen, so it is the front
-  // of its path — not everything that happens to wait on an agent somewhere.
-  return !timed && row.depth === 0
+  if (timed || row.parent !== null) return false
+  const kind = row.queued.state.kind
+  return kind === 'ready' || kind === 'waiting'
 }
 
 /**
@@ -585,8 +598,64 @@ export function queueTree(state: AppState): QueueRow[] {
 export function queueRows(state: AppState): QueueRow[] {
   return queueTree(state).filter(
     (row) =>
-      row.pane.focused || shownBy(state.queueFilter, { queued: row.pane.queued, depth: row.depth }),
+      row.pane.focused ||
+      shownBy(state.queueFilter, { queued: row.pane.queued, parent: row.parent }),
   )
+}
+
+/** Why queued work at the front of the queue is not starting, in a word. */
+type QueueHold = 'held' | 'paused' | 'timed' | 'stuck'
+
+/** What each of those is, said the way it would be said out loud. */
+const HOLD_SAYS: Readonly<Record<QueueHold, string>> = {
+  held: 'is held, and needs a decision',
+  paused: 'is paused',
+  timed: 'waits for a time',
+  stuck: 'cannot start by itself',
+}
+
+/** The same, as one word in a list of them. */
+const HOLD_WORDS: Readonly<Record<QueueHold, string>> = {
+  held: 'held',
+  paused: 'paused',
+  timed: 'waiting for a time',
+  stuck: 'unable to start by itself',
+}
+
+/** Why a piece of queued work is not the front of anything that will start. */
+function holdOf(row: QueueRow): QueueHold {
+  if (row.pane.queued.at !== null || row.pane.queued.state.kind === 'scheduled') return 'timed'
+  const kind = row.pane.queued.state.kind
+  return kind === 'held' || kind === 'paused' ? kind : 'stuck'
+}
+
+/**
+ * Why the SMART QUEUE is showing nothing, in the words of the reason it
+ * actually is — everything held, everything paused, everything waiting for a
+ * time, or nothing queued at all. One sentence for every case reads as a bug
+ * the moment one of the cases is not true: "nothing is next" beside work that
+ * plainly is queued is what sent somebody looking for this code.
+ */
+export function queueEmptySays(state: AppState): string {
+  if (state.queueFilter === 'timed') return 'nothing waits for a time'
+  const rows = queueTree(state)
+  if (rows.length === 0 || state.queueFilter === 'all') return 'nothing is queued'
+  // Nothing shown under `next` means the front of the tree is what is stopping
+  // it: what waits behind held or paused work is not next, it is behind that.
+  const fronts = rows.filter((row) => row.parent === null)
+  const kinds = [...new Set(fronts.map(holdOf))]
+  // One reason is said as that reason, and by name where there is one thing
+  // it is about. No front at all is a plan that waits on itself: there is
+  // nothing to name, but there is still an answer to give.
+  if (kinds.length <= 1) {
+    const who = fronts.length === 1 ? (fronts[0]?.pane.name ?? '') : 'the work at the front'
+    return `nothing is next: ${who} ${HOLD_SAYS[kinds[0] ?? 'stuck']}`
+  }
+  const words = (['held', 'paused', 'timed', 'stuck'] as const)
+    .filter((kind) => kinds.includes(kind))
+    .map((kind) => HOLD_WORDS[kind])
+  const list = `${words.slice(0, -1).join(', ')} or ${words.at(-1) ?? ''}`
+  return `nothing is next: what is at the front is ${list}`
 }
 
 /**
@@ -722,7 +791,8 @@ export function openSchedule(state: AppState, id: string): AppState {
 /**
  * The schedules the SMART QUEUE shows for the project in front of you, as the
  * filter has it: soonest first, then paused ones, then ones with nothing left
- * to run. None under `next`, which is the queued work that could start now.
+ * to run. None under `next`, which is the front of the queued work — a
+ * schedule is not queued work, and is waiting for a clock rather than for us.
  */
 export function schedulesShown(
   schedules: readonly ScheduleView[],

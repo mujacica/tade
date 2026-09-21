@@ -6,9 +6,9 @@
  ▌   working             █│                                                                     
                          █│                                                                     
  ▾ SMART QUEUE  5        █│                                                                     
-   all  next  timed      █│                                                                     
+   all   next   timed    █│                                                                     
                          █│                                                                     
-   ◌ keycaps-and-row-…   █│                                                                     
+   ◌ keycaps-… 1 ahead   █│                                                                     
    │ ◆ after layout-js…  ▕│                                                                     
    │                     ▕│                                                                     
    ╰─◌ stagger-and-sp…   ▕│                                                                     
