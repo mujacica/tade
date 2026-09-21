@@ -1,6 +1,7 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
+import { perMillion, priceCells, priceSaid } from '../src/panels/models/state.ts'
 import { searchPanel } from '../src/panels/search/state.ts'
 import {
   branchChoices,
@@ -37,9 +38,6 @@ import {
   type Panel,
   panelClick,
   panelKey,
-  perMillion,
-  priceCells,
-  priceSaid,
   type SetupFieldView,
   savedFile,
   scrollFile,

@@ -212,6 +212,7 @@ import {
 } from './model.ts'
 import { extensionsScrollable, fileBodySize, fileViewSize } from './panel-view.ts'
 import type { OpenRowView, PanelContext } from './panels/context.ts'
+import { type ModelChoice, type ModelPanel, modelPanel, priceSaid } from './panels/models/state.ts'
 import type { PanelOutcome } from './panels/outcome.ts'
 import { searchPanel } from './panels/search/state.ts'
 import {
@@ -254,11 +255,8 @@ import {
   type McpServerShown,
   type McpServerView,
   type MenuSubject,
-  type ModelChoice,
-  type ModelPanel,
   menuItems,
   menuPanel,
-  modelPanel,
   nameFrom,
   noteMenuItems,
   type OpenProjectPanel,
@@ -268,7 +266,6 @@ import {
   type PanelInputs,
   panelClick,
   panelKey,
-  priceSaid,
   queueMenuItems,
   type SettingsPanel,
   savedFile,

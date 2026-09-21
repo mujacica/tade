@@ -1,4 +1,5 @@
 import { initialState, withProjects } from '../../../src/model.ts'
+import { modelPanel } from '../../../src/panels/models/state.ts'
 import {
   closeDonePanel,
   confirmRemovePanel,
@@ -11,7 +12,6 @@ import {
   fileMenuItems,
   menuItems,
   menuPanel,
-  modelPanel,
   openProjectPanel,
   thinkingMenuItems,
 } from '../../../src/panels.ts'

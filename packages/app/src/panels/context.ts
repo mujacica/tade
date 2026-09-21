@@ -9,7 +9,6 @@ import {
   extensionView,
   fileView,
   menu,
-  models,
   openProject,
   settings,
   spend,
@@ -20,7 +19,6 @@ import type {
   ExtensionView,
   McpServerOffer,
   MenuItem,
-  ModelChoice,
   OpenRow,
   Panel,
   SetupFieldView,
@@ -32,6 +30,8 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import type { ModelChoice } from './models/state.ts'
+import { models } from './models/view.ts'
 import { search } from './search/view.ts'
 import type { BranchRow } from './small/state.ts'
 import {
