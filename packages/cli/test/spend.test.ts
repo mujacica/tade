@@ -49,3 +49,58 @@ it('says what today cost while a window has the home open', async () => {
   expect(report.runtime.total).toMatchObject({ runs: 1, running: true })
   expect(report.runtime.byTask['app/refunds']?.ms).toBeGreaterThanOrEqual(0)
 }, 30_000)
+
+it('groups what it cost by harness, sign-in and provider, and says which money is which', async () => {
+  const home = tmp('tade-cli-spend-by-')
+  window = await Workbench.open({ home })
+  // One model reached two ways, in two harnesses, on two kinds of money.
+  await window.log.append({
+    type: 'usage',
+    task: 'app/refunds',
+    run: 'app/refunds/agent',
+    detail: {
+      model: 'claude-opus-5',
+      tokens: 1_000,
+      usd: 0.4,
+      priced: 'estimate',
+      harness: 'claude-code',
+    },
+  })
+  await window.log.append({
+    type: 'usage',
+    task: 'app/search',
+    run: 'app/search/agent',
+    detail: {
+      model: 'anthropic/claude-opus-5',
+      tokens: 2_000,
+      usd: 1.1,
+      priced: 'exact',
+      harness: 'pi',
+      account: 'work',
+      provider: 'anthropic',
+    },
+  })
+  const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
+    const child = spawn(process.execPath, [bin, 'spend'], {
+      env: { ...process.env, TADE_HOME: home, HOME: home },
+    })
+    let stdout = ''
+    child.stdout.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.on('exit', (code) => resolve({ code, stdout }))
+  })
+  expect(result.code).toBe(0)
+  expect(result.stdout).toContain('by harness')
+  expect(result.stdout).toContain('claude-code')
+  expect(result.stdout).toContain('by sign-in')
+  expect(result.stdout).toContain('pi@work')
+  expect(result.stdout).toContain('by provider')
+  expect(result.stdout).toContain('anthropic')
+  // The provider of the subscription turn was never written down, and nothing
+  // reads one out of a model's name.
+  expect(result.stdout).toContain('not recorded')
+  // Priced and estimated money never added in silence.
+  expect(result.stdout).toContain('$1.10 priced by the harness, $0.40 estimated')
+}, 30_000)

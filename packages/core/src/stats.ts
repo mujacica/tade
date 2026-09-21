@@ -60,7 +60,12 @@ export function statsFrom(
   const checks = new Map<string, { tally: CheckTally; times: number[] }>()
 
   for (const event of events) {
-    const at = Date.parse(event.ts)
+    // When it happened, which a commit knows better than the moment Tade
+    // noticed it: a window catching up on work done while it was shut writes
+    // those events now, and windowing them by now would put yesterday's
+    // commits in today's total.
+    const happened = number(event.detail.at)
+    const at = happened > 0 ? happened : Date.parse(event.ts)
     if (Number.isFinite(at) && at < window.since) continue
 
     if (event.type === 'commit_seen') {
@@ -100,6 +105,31 @@ export function statsFrom(
     .map(({ tally, times }) => ({ ...tally, medianMs: median(times) }))
     .sort((one, other) => other.runs - one.runs || one.check.localeCompare(other.check))
   return report
+}
+
+/**
+ * Where a fresh look at a project's commits starts.
+ *
+ * The last one written down, because what is already recorded is recorded. But
+ * a machine that has never written one has to start somewhere, and both
+ * obvious answers are wrong: the beginning of the project dumps years of
+ * somebody else's history into today, and *this* window's open is always "just
+ * now" — Tade appends `tade_opened` moments before it looks, so a floor taken
+ * from the newest one lets nothing through at all, ever. A journal with a
+ * hundred opens in it had not one `commit_seen` in it.
+ *
+ * So it is the window *before* this one: whatever landed while Tade was shut
+ * is picked up the next time it opens. With no previous window there is
+ * genuinely nothing behind us, and this window's open is the honest floor.
+ */
+export function sinceLastLook(written: readonly TadeEvent[], opens: readonly TadeEvent[]): number {
+  const newest = Math.max(0, ...written.map((event) => Date.parse(event.ts) || 0))
+  if (newest > 0) return newest
+  const at = opens
+    .map((event) => Date.parse(event.ts) || 0)
+    .filter((one) => one > 0)
+    .sort((one, other) => one - other)
+  return at.length >= 2 ? (at[at.length - 2] ?? 0) : (at[at.length - 1] ?? 0)
 }
 
 /**

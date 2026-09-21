@@ -1,4 +1,5 @@
 import { type ReadableEventType, type TadeEvent, typeNow } from './events.ts'
+import { accountBucket, type RunFacts, runFactsOf, UNRECORDED } from './spend.ts'
 
 // How long the agents have been running, which is the other half of what they
 // cost.
@@ -91,6 +92,14 @@ export interface RuntimeWindow {
   since?: number
   /** Now, which is where a run still going is counted to. */
   now: number
+  /**
+   * What each run turned out to be running on, as its own usage reported it
+   * (`modelsSaid`). A route asks for `anthropic/claude-opus-5` and Claude Code
+   * answers `claude-opus-5`, so a run timed by what was *asked for* lands on a
+   * different model row from the money it spent — one agent, drawn as two.
+   * What it said it ran on wins; what was asked for is the fallback.
+   */
+  said?: ReadonlyMap<string, string>
 }
 
 export interface RuntimeReport {
@@ -98,14 +107,22 @@ export interface RuntimeReport {
   total: Runtime
   byProject: Record<string, Runtime>
   byTask: Record<string, Runtime>
-  /** What it ran on, as `run_started` recorded it. */
+  /** What it ran on: what its usage said, or what `run_started` asked for. */
   byModel: Record<string, Runtime>
+  /** The harness it ran in, as `run_started` recorded it. */
+  byHarness: Record<string, Runtime>
+  /** The sign-in it ran as: `claude-code`, `claude-code@work`. */
+  byAccount: Record<string, Runtime>
+  /** The provider its model was reached through, where the run recorded one. */
+  byProvider: Record<string, Runtime>
 }
 
 /** A run that has begun and not yet ended. */
 interface Open {
   task: string | null
   model: string
+  /** Which harness, sign-in and provider it was started on. */
+  facts: RunFacts
   at: number
   /** The lane it lives in, whose going ends it. */
   lane: string | null
@@ -114,7 +131,16 @@ interface Open {
 export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow): RuntimeReport {
   const since = window.since ?? 0
   const now = window.now
-  const report: RuntimeReport = { total: noRuntime(), byProject: {}, byTask: {}, byModel: {} }
+  const report: RuntimeReport = {
+    total: noRuntime(),
+    byProject: {},
+    byTask: {},
+    byModel: {},
+    byHarness: {},
+    byAccount: {},
+    byProvider: {},
+  }
+  const said = window.said
   const open = new Map<string, Open>()
 
   const close = (key: string, end: number, running: boolean): void => {
@@ -127,7 +153,14 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
     if (to <= from) return
     const ms = to - from
     const project = (run.task ?? '').split('/')[0] || 'elsewhere'
-    const buckets = [report.total, into(report.byProject, project), into(report.byModel, run.model)]
+    const buckets = [
+      report.total,
+      into(report.byProject, project),
+      into(report.byModel, run.model),
+      into(report.byHarness, run.facts.harness),
+      into(report.byAccount, accountBucket(run.facts)),
+      into(report.byProvider, run.facts.provider),
+    ]
     if (run.task) buckets.push(into(report.byTask, run.task))
     for (const bucket of buckets) {
       bucket.ms += ms
@@ -150,7 +183,8 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
         if (!open.has(key)) {
           open.set(key, {
             task: event.task,
-            model: modelOf(event),
+            model: (event.run ? said?.get(event.run) : undefined) ?? modelOf(event),
+            facts: runFactsOf(event),
             at,
             lane: event.lane ?? event.run,
           })
@@ -199,9 +233,14 @@ function closeLane(open: Map<string, Open>, lane: string, close: (key: string) =
   for (const [key, run] of [...open]) if (run.lane === lane) close(key)
 }
 
+/**
+ * What the run said it would be on, or the bucket for nothing said — which is
+ * where an agent whose `run_started` recorded no model puts its hours. Drawn
+ * as *not recorded*, never as a model called `unknown`.
+ */
 function modelOf(event: TadeEvent): string {
   const model = event.detail.model
-  return typeof model === 'string' && model !== '' ? model : 'unknown'
+  return typeof model === 'string' && model !== '' ? model : UNRECORDED
 }
 
 function into(buckets: Record<string, Runtime>, key: string): Runtime {

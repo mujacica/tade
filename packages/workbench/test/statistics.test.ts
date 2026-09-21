@@ -69,6 +69,39 @@ describe('writing down what was produced', () => {
     expect(seen[0]?.detail).toMatchObject({ attributed: false, project: 'shop' })
   })
 
+  it('picks up what was committed while Tade was shut, at the next open', async () => {
+    // The floor is the window *before* this one, never this one. `open`
+    // appends `tade_opened` moments before the look, so a floor taken from
+    // the newest one is always "just now" and nothing ever qualifies — a
+    // journal with a hundred opens in it had not one `commit_seen`, and the
+    // Spend page said nothing was committed on a day full of commits.
+    tade = await open()
+    await tade.close()
+    tade = null
+    repo.commit('while nobody was looking\n\nTade-Task: shop/refunds', { 'quiet.ts': 'x\n' })
+
+    tade = await open()
+
+    const seen = await tade.events({ types: ['commit_seen'] })
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.task).toBe('shop/refunds')
+  })
+
+  it('writes down when a commit landed, not when it was noticed', async () => {
+    // A window that opens on Tuesday and catches up Monday's work would
+    // otherwise put Monday's commits in Tuesday's total.
+    tade = await open()
+    repo.commit('retry refunds\n\nTade-Task: shop/refunds', { 'refunds.ts': 'one\n' })
+    await tade.lookAtCommits()
+
+    const [seen] = await tade.events({ types: ['commit_seen'] })
+    const landed = seen?.detail.at
+    expect(typeof landed).toBe('number')
+    // Its own moment, close to now here but never taken from the event's own
+    // timestamp: those are the same second today and days apart on a catch-up.
+    expect(Math.abs((landed as number) - Date.now())).toBeLessThan(60_000)
+  })
+
   it('does not count the history that was there before Tade ever ran', async () => {
     // mkrepo's own first commit predates this window. A project's first open
     // dumping years of somebody else's history into today is a chart that

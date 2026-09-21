@@ -24,6 +24,7 @@ import {
 } from '@tade/harnesses-core'
 import { type AgentTurns, agentTurns, noReporter, type Reporter } from '@tade/telemetry'
 import type { EventLog } from './events.ts'
+import { adapterParts } from './harnesses.ts'
 
 // Runs agents and decides what they may do. Every tool call arrives here held;
 // the approval policy answers it, and the log records what happened either
@@ -136,6 +137,14 @@ interface RunState {
   adapter: WorkerAdapter
   task: TaskId
   worktree: string
+  /**
+   * Which sign-in and provider this run is on. Kept beside the adapter because
+   * an adapter is made per account and does not carry either in its id — and
+   * the Spend page's harness, account and provider facets are folds over what
+   * the journal was told, so a fact not written down at the time is a facet
+   * that can only ever say *not recorded* about the work already done.
+   */
+  facts: { harness: string; account: string | null; provider: string | null }
   stop: () => void
 }
 
@@ -284,7 +293,14 @@ export class WorkerSupervisor {
         cwd: request.cwd,
         prompt: '',
       })
-      this.runs.set(run, { handle, adapter, task: request.task, worktree: request.cwd, stop })
+      this.runs.set(run, {
+        handle,
+        adapter,
+        task: request.task,
+        worktree: request.cwd,
+        facts: factsOf(request, adapter.id),
+        stop,
+      })
       return handle
     } catch {
       // A channel we cannot open means an agent we cannot gate. It carries on
@@ -325,7 +341,8 @@ export class WorkerSupervisor {
       stop()
       throw err
     }
-    this.runs.set(run, { handle, adapter, task: request.task, worktree, stop })
+    const facts = factsOf(request, adapter.id)
+    this.runs.set(run, { handle, adapter, task: request.task, worktree, facts, stop })
     await this.log.append({
       type: 'run_started',
       task: request.task,
@@ -334,6 +351,13 @@ export class WorkerSupervisor {
         cwd: request.cwd,
         adapter: adapter.id,
         model: request.model?.id ?? null,
+        // Which sign-in and which provider, beside which harness: three rows
+        // that are one model reached three ways are only ever told apart by
+        // these, and a model id is not one of them — `anthropic/claude-opus-5`
+        // through OpenRouter is a real route, and reading the provider out of
+        // the name would file it under Anthropic and be sure about it.
+        account: facts.account,
+        provider: facts.provider,
         approvals: this.approvals.mode,
       },
     })
@@ -592,6 +616,10 @@ export class WorkerSupervisor {
             // to an estimated one without saying so is how a total nobody can
             // defend gets onto a dashboard.
             priced: this.adapterOf(run).capabilities.spend.usd,
+            // And which harness, sign-in and provider spent it. The same
+            // reasoning: a fact about the run, written down beside the figure
+            // rather than worked out from a name when somebody reads it.
+            ...factsDetail(this.runs.get(run)?.facts),
           },
         })
         return
@@ -973,4 +1001,29 @@ export function clipped(input: unknown): Record<string, unknown> {
  */
 function signatureOf(tool: string, summary: string): string {
   return `${tool}\u0000${summary}`
+}
+
+/**
+ * Which harness, sign-in and provider a run is on, read off what it was asked
+ * for. `harness` arrives as the key its adapter is filed under — the harness
+ * alone, or `harness@account` — so the two halves are taken back apart rather
+ * than trusted to arrive separately.
+ */
+function factsOf(request: StartRunRequest, fallback: string): RunState['facts'] {
+  const parts = adapterParts(request.harness ?? '')
+  return {
+    harness: parts.harness || fallback,
+    account: request.account ?? parts.account,
+    provider: request.model?.provider ?? null,
+  }
+}
+
+/** The run's facts as journal detail, leaving out what nobody recorded. */
+function factsDetail(facts: RunState['facts'] | undefined): Record<string, unknown> {
+  if (!facts) return {}
+  return {
+    ...(facts.harness ? { harness: facts.harness } : {}),
+    ...(facts.account ? { account: facts.account } : {}),
+    ...(facts.provider ? { provider: facts.provider } : {}),
+  }
 }

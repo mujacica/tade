@@ -174,6 +174,15 @@ export interface OrchestratorUsage {
   cacheWrite: number
   tokens: number
   usd: number
+  /** Which harness it is talking in, so its spend is filed like an agent's. */
+  harness: string
+  /**
+   * Whether that money was priced or guessed, as the harness declares it. The
+   * same word an agent's turn is written down with — the orchestrator spends
+   * real money and belongs in the same total, which may never add an exact
+   * dollar to an estimated one without saying which it did.
+   */
+  priced: 'exact' | 'estimate' | 'none'
 }
 
 /**
@@ -351,7 +360,11 @@ export class Orchestrator {
         for (const listener of orchestrator.idleListeners) listener()
       } else if (signal.type === 'usage') {
         const { type: _type, run: _run, at: _at, ...usage } = signal
-        opts.onUsage?.(usage)
+        opts.onUsage?.({
+          ...usage,
+          harness: adapter.id,
+          priced: adapter.capabilities.spend.usd,
+        })
       }
     })
 

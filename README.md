@@ -148,6 +148,14 @@ sits in the status bar beside the cost.
 
 ![Spend: every agent with its model, tokens, share, runtime and cost, how much of each subscription’s window is used and when it resets, what that bought in commits and lines, and each project against its budget](images/spend.svg)
 
+Ask it by agent, by project, by model — or by the harness it ran in, the sign-in it ran as and the
+provider it was reached through, which is what tells one model's three rows apart: the same weights
+on a subscription, through an API key and through a router are three different bills. Money a
+harness priced against its own catalog is never added to money it could only guess at without
+saying so: a guessed figure is marked where you read it and the split is at the bottom of the page.
+
+![The same morning grouped by model: one model reached three ways is three rows, each name shown whole, with the groupings for harness, sign-in and provider beside it](images/spend-by-model.svg)
+
 ## Resources
 
 Tade has to be light, and proves it: what it and everything it runs is using, in the status bar and

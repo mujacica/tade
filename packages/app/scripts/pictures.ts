@@ -229,8 +229,17 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'Spend: every agent and the orchestrator with its model, tokens, share, runtime and cost, ' +
-      'what that bought in commits and lines, how the project’s own checks have been going, ' +
-      'and each project against the budget you set it.',
+      'estimated money marked apart from priced, what that bought in commits and lines, how the ' +
+      'project’s own checks have been going, and each project against the budget you set it.',
+  },
+  {
+    file: 'spend-by-model.svg',
+    scenario: 'spend-by-model',
+    crop: 'panel',
+    about:
+      'The same morning grouped by model: one model reached three ways is three rows — a Claude ' +
+      'Code subscription, an API key and a router — each name shown whole, and the groupings ' +
+      'beside it for harness, sign-in and provider.',
   },
   {
     file: 'resources.svg',

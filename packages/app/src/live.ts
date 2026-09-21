@@ -55,6 +55,16 @@ import type { ActionsView, Change, CheckView, CommitView, NoteShown } from './vi
 /** How much journal to keep for working out what recently moved. */
 const JOURNAL = 500
 
+/**
+ * How often commits and check runs that have landed since are written down.
+ *
+ * A minute, not the refresh beat: this shells out to `git log` once per
+ * project, and what it is watching for — somebody finishing a commit — does
+ * not move faster than that. The refresh beat is two seconds, and thirty git
+ * invocations a minute to notice one commit is the opposite of light.
+ */
+const LANDED_MS = 60_000
+
 /** What decides where queued work stands, read from the whole journal rather than its tail. */
 const QUEUE_READS = [
   'task_removed',
@@ -392,6 +402,11 @@ export class Live {
    */
   private made: TadeEvent[] = []
   /**
+   * When commits and check runs were last picked up. Opening the workbench
+   * has just done it, so the window's own first look is a minute away.
+   */
+  private lookedAtLanded = 0
+  /**
    * What says how long anything has run, from the whole journal rather than a
    * window of it: a run that began last week and is still going is time spent
    * today, and a time filter would drop the start it is measured from.
@@ -448,6 +463,9 @@ export class Live {
       if (event.type === 'run_started' && event.task) live.started.add(event.task)
     }
     await opts.client.subscribe((event) => live.record(event))
+    // Opening the workbench has just looked at what landed while Tade was
+    // shut, so the window's own beat starts a minute from here.
+    live.lookedAtLanded = live.now()
     await live.refresh()
     live.timer = setInterval(() => void live.refresh(), opts.pollMs ?? 2_000)
     live.timer.unref?.()
@@ -1036,6 +1054,7 @@ export class Live {
   }
 
   private async doRefresh(): Promise<void> {
+    void this.lookAtWhatLanded()
     try {
       const [workspace, pending, lanes] = await Promise.all([
         collectStatus({
@@ -1121,6 +1140,35 @@ export class Live {
     } catch (err) {
       this.opts.onWarning?.(err instanceof Error ? err.message : String(err))
     }
+  }
+
+  /**
+   * Write down commits and check runs that have landed since the last look.
+   *
+   * Opening the window is not the only time work gets committed: agents commit
+   * all morning, and a page that only learns about it at the next open says
+   * "nothing committed in this window" on a window full of commits. `git log`
+   * is a query and both records are keyed — by sha, by run id — so looking
+   * again is idempotent and only ever adds.
+   *
+   * On its own slow beat, because this shells out to git per project and the
+   * refresh beat is two seconds. Nothing waits on it and nothing fails
+   * because of it: counting what was produced may never be why the window
+   * stops drawing.
+   */
+  private async lookAtWhatLanded(): Promise<void> {
+    const now = this.now()
+    if (now - this.lookedAtLanded < LANDED_MS) return
+    this.lookedAtLanded = now
+    // Through a promise rather than straight at it: a client that cannot do
+    // this at all must be a look that found nothing, not an unhandled throw
+    // out of the frame loop.
+    await Promise.resolve()
+      .then(() => this.opts.client.lookAtCommits())
+      .catch(() => {})
+    await Promise.resolve()
+      .then(() => this.opts.client.lookAtChecks())
+      .catch(() => {})
   }
 
   private record(event: TadeEvent): void {

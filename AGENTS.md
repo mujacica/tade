@@ -520,7 +520,28 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Money that was priced and money that was guessed are never added up in silence.** A harness
   declares which it can do (`capabilities.spend.usd`), and that word rides on every `usage` event
   as `priced`, so a total can say which it is. pi prices each turn against its own catalog; Claude
-  Code estimates.
+  Code estimates. A bucket keeps the two apart (`usdExact`, `usdEstimated`) and `pricedOf` is the
+  one word every surface says it with: a guessed figure is marked where it is read (`~`) and the
+  split is at the bottom of the page. Money nobody vouched for counts as guessed, never as priced.
+- **What a run was is written down, never read out of a model's name.** Which harness it ran in,
+  which sign-in it ran as and which provider it was reached through go on `run_started` and on
+  every `usage` event beside `priced`, for the same reason: they are facts about the run, and a
+  fact not recorded when it was true is a question nobody can answer later. So the Spend page can
+  ask by harness, by sign-in and by provider as well as by agent, project and model — which is the
+  only thing that tells `claude-opus-5`, `anthropic/claude-opus-5` and
+  `openrouter/anthropic/claude-opus-5` apart, being one model on a subscription, an API key and a
+  router. The name is never parsed for it: `anthropic/claude-opus-5` reached through OpenRouter is
+  a real route, and a guess would file it under Anthropic and look certain. `UNRECORDED` is always
+  an allowed answer and is drawn as *not recorded*, never as a model called `unknown`.
+- **A run is timed by what it turned out to be on.** A route asks for `anthropic/claude-opus-5` and
+  Claude Code answers `claude-opus-5`, so runtime taken from `run_started` alone lands on a
+  different model row from the money — one agent drawn as two. `modelsSaid` is what its own usage
+  reported, and `runtimeFrom` takes that over what was asked for.
+- **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid
+  out from the room there is (`spendColumns`): the figures take what a figure takes, the share
+  meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`) and
+  only then ellipsises — and everything cut is cut with `cap`, which says so. Two names that stop
+  dead against the next column read as one unreadable row, which is how this was reported.
 - **A subscription is not money, and is never totalled with it.** Where a plan pays for the work
   there is no price per turn, so what is used up is a share of a rolling window — and that lives in
   its own type (`PlanWindow`, `core/src/limits.ts`), in its own list on the Spend page, in its own

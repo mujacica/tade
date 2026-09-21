@@ -3,33 +3,54 @@ import {
   type BudgetVerdict,
   type CheckTally,
   checkBudget,
+  modelsSaid,
+  noSpend,
   type PlanSource,
+  type Priced,
   type Produced,
   planLabel,
   planStandings,
+  pricedOf,
   type Runtime,
+  type RuntimeReport,
   resetsIn,
+  runFactsFrom,
   runtimeFrom,
+  type Spend,
+  type SpendReport,
   spendFrom,
   startOfToday,
   statsFrom,
   type TadeEvent,
+  UNRECORDED,
 } from '@tade/core'
 
 // What the window says about money and time, as data.
 //
 // The journal's `usage` events are the only record of spend, and `spendFrom`
-// already adds them up by task, project and model. Its `run_started` and
-// `run_exited` events are the only record of how long anything ran, and
-// `runtimeFrom` adds those up the same three ways. This decides the rest: what
-// "this window" and "7 days" mean, which row is the orchestrator's, which model
-// each agent ran on, and how every project stands against its daily budget.
+// already adds them up by task, project, model, harness, sign-in and provider.
+// Its `run_started` and `run_exited` events are the only record of how long
+// anything ran, and `runtimeFrom` adds those up the same six ways. This
+// decides the rest: what "this window" and "7 days" mean, which row is the
+// orchestrator's, which model each agent ran on, and how every project stands
+// against its daily budget.
 //
 // An agent that ran and reported no money still gets a row: the question the
 // panel answers is where the effort went, and unpriced effort is still effort.
 
 export type SpendWindow = 'today' | 'window' | 'week'
-export type SpendBy = 'agent' | 'project' | 'model'
+
+/**
+ * The six ways of asking where it went.
+ *
+ * The last three are what tell three rows of one model apart. `claude-opus-5`
+ * on a subscription, `anthropic/claude-opus-5` through an API key and
+ * `openrouter/anthropic/claude-opus-5` through a router are the same weights
+ * reached three ways, and the difference that matters — what it cost, whose
+ * key paid, which plan it ate — is the harness, the sign-in and the provider,
+ * not the string.
+ */
+export type SpendBy = 'agent' | 'project' | 'model' | 'harness' | 'account' | 'provider'
 
 export const SPEND_WINDOWS: readonly { id: SpendWindow; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -41,18 +62,34 @@ export const SPEND_BY: readonly { id: SpendBy; label: string }[] = [
   { id: 'agent', label: 'Agent' },
   { id: 'project', label: 'Project' },
   { id: 'model', label: 'Model' },
+  { id: 'harness', label: 'Harness' },
+  { id: 'account', label: 'Sign-in' },
+  { id: 'provider', label: 'Provider' },
 ]
 
 export interface SpendRow {
   label: string
-  /** The orchestrator, a task, a project or a model. */
-  kind: 'orchestrator' | 'task' | 'project' | 'model'
+  /** The orchestrator, a task, a project, a model, a harness, a sign-in or a provider. */
+  kind: 'orchestrator' | 'task' | 'project' | 'model' | 'harness' | 'account' | 'provider'
   /** What it mostly ran on, where that means anything. */
   model: string | null
   tokens: number
   usd: number
+  /** Of `usd`, what a harness priced against its own catalog. */
+  usdExact: number
+  /** Of `usd`, what a harness could only estimate. */
+  usdEstimated: number
+  /** Which of those this row's money is, so no column adds the two in silence. */
+  priced: Priced
   /** How long it ran in this window. Null for the orchestrator, which has no run of its own. */
   runtime: Runtime | null
+  /**
+   * Why this row is what it is, where the name alone would be read as a thing
+   * that exists. A run whose `run_started` named no model is not an agent on a
+   * model called `unknown`, and saying so is the difference between a row that
+   * reads as a bug and one that reads as a gap.
+   */
+  note: string | null
 }
 
 /**
@@ -87,6 +124,11 @@ export interface SpendView {
   by: SpendBy
   tokens: number
   usd: number
+  /** Of `usd`, what was priced against a catalog and what was only estimated. */
+  usdExact: number
+  usdEstimated: number
+  /** Which of those the total is. Said in the footer, never left for the reader to assume. */
+  priced: Priced
   /** Whether any price was reported. Subscription providers report none. */
   hasCost: boolean
   /** Every agent's time in this window added up: two running at once count as two. */
@@ -136,59 +178,75 @@ export function spendView(
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
   const usage = events.filter((event) => event.type === 'usage' && Date.parse(event.ts) >= since)
-  const report = spendFrom(usage, { since })
+  const runEvents = opts.runs ?? events
+  // Runs are read unwindowed on both sides: what a run *was* does not depend
+  // on which window you are looking at, and a run that began before this one
+  // and is still going is time spent inside it.
+  // Built once and asked three times: the panel redraws four times a second,
+  // and rebuilding it per question is a pass over the whole journal each time.
+  const facts = runFactsFrom(runEvents)
+  const report = spendFrom(usage, { since, runs: facts })
   const models = lastModels(usage)
-  // Runs are read unwindowed and clipped to the window, because a run that
-  // began before it and is still going is time spent inside it.
-  const ran = runtimeFrom(opts.runs ?? events, { since, now: opts.now })
+  // What each run turned out to be on, so the hours and the dollars of one
+  // agent land on one row. A route asks for `anthropic/claude-opus-5` and
+  // Claude Code answers `claude-opus-5`; timed by the ask and priced by the
+  // answer, one agent was drawn as two models that never ran together.
+  const ran = runtimeFrom(runEvents, { since, now: opts.now, said: modelsSaid(events) })
 
   let rows: SpendRow[]
   if (opts.by === 'project') {
-    rows = keysOf(report.byProject, ran.byProject).map((project) => ({
-      label: project === 'elsewhere' ? 'orchestrator' : project,
-      kind: project === 'elsewhere' ? 'orchestrator' : 'project',
-      model: null,
-      tokens: report.byProject[project]?.tokens ?? 0,
-      usd: report.byProject[project]?.usd ?? 0,
-      runtime: ran.byProject[project] ?? null,
-    }))
-  } else if (opts.by === 'model') {
-    rows = keysOf(report.byModel, ran.byModel).map((model) => ({
-      label: model,
-      kind: 'model',
-      model,
-      tokens: report.byModel[model]?.tokens ?? 0,
-      usd: report.byModel[model]?.usd ?? 0,
-      runtime: ran.byModel[model] ?? null,
-    }))
+    rows = keysOf(report.byProject, ran.byProject).map((project) =>
+      rowOf({
+        label: project === 'elsewhere' ? 'orchestrator' : project,
+        kind: project === 'elsewhere' ? 'orchestrator' : 'project',
+        spend: report.byProject[project],
+        runtime: ran.byProject[project] ?? null,
+      }),
+    )
+  } else if (opts.by in HOW) {
+    const facet = HOW[opts.by as keyof typeof HOW]
+    const spent = report[facet.spend]
+    const timed = ran[facet.ran]
+    rows = keysOf(spent, timed).map((key) =>
+      rowOf({
+        label: key === UNRECORDED ? 'not recorded' : facet.name(key),
+        kind: facet.kind,
+        // The name column *is* the thing here, so a second column of the
+        // model says nothing and takes the room the first one needs.
+        model: null,
+        note: key === UNRECORDED ? facet.unrecorded : facet.about(key),
+        spend: spent[key],
+        runtime: timed[key] ?? null,
+      }),
+    )
   } else {
     const orchestrator = spendFrom(
       usage.filter((event) => event.task === null && event.detail.by === 'orchestrator'),
-      { since },
+      { since, runs: facts },
     ).total
     rows = [
       ...(orchestrator.tokens > 0 || orchestrator.usd > 0
         ? [
-            {
+            rowOf({
               label: 'orchestrator',
-              kind: 'orchestrator' as const,
+              kind: 'orchestrator',
               model: models.get(null) ?? null,
-              tokens: orchestrator.tokens,
-              usd: orchestrator.usd,
+              spend: orchestrator,
               // The orchestrator runs for exactly as long as the window is
               // open, which is not agent time and is not measured here.
               runtime: null,
-            },
+            }),
           ]
         : []),
-      ...keysOf(report.byTask, ran.byTask).map((task) => ({
-        label: task,
-        kind: 'task' as const,
-        model: models.get(task) ?? null,
-        tokens: report.byTask[task]?.tokens ?? 0,
-        usd: report.byTask[task]?.usd ?? 0,
-        runtime: ran.byTask[task] ?? null,
-      })),
+      ...keysOf(report.byTask, ran.byTask).map((task) =>
+        rowOf({
+          label: task,
+          kind: 'task',
+          model: models.get(task) ?? null,
+          spend: report.byTask[task],
+          runtime: ran.byTask[task] ?? null,
+        }),
+      ),
     ]
   }
   // Biggest first: the question a spend list answers is where it went.
@@ -202,10 +260,10 @@ export function spendView(
 
   const today = spendFrom(
     events.filter((event) => event.type === 'usage'),
-    { since: startOfToday(opts.now) },
+    { since: startOfToday(opts.now), runs: facts },
   )
   const budgets = opts.projects.map((project): BudgetRow => {
-    const spent = today.byProject[project] ?? { tokens: 0, usd: 0 }
+    const spent = today.byProject[project] ?? noSpend()
     const budget = opts.budgets[project] ?? null
     return {
       project,
@@ -213,7 +271,7 @@ export function spendView(
       tokens: spent.tokens,
       budget,
       share: budget ? shareOf(spent, budget) : null,
-      verdict: budget ? checkBudget({ ...emptySpend(), ...spent }, budget).verdict : 'ok',
+      verdict: budget ? checkBudget(spent, budget).verdict : 'ok',
     }
   })
 
@@ -227,6 +285,9 @@ export function spendView(
     by: opts.by,
     tokens: report.total.tokens,
     usd: report.total.usd,
+    usdExact: report.total.usdExact,
+    usdEstimated: report.total.usdEstimated,
+    priced: pricedOf(report.total),
     hasCost: report.total.hasCost,
     runtime: ran.total,
     rows,
@@ -235,6 +296,96 @@ export function spendView(
     produced: made.produced,
     checks: made.checks,
   }
+}
+
+/**
+ * The facets that are one bucket each: which bucket, what a key is called, and
+ * what to say about one nobody can read at a glance.
+ *
+ * Together rather than as five branches of the same shape, because they *are*
+ * the same shape — and because what a row of nothing recorded says is the
+ * thing most easily left out of the fifth copy.
+ */
+const HOW = {
+  model: {
+    spend: 'byModel',
+    ran: 'byModel',
+    kind: 'model',
+    name: (key: string) => key,
+    about: () => null,
+    unrecorded: 'no model was written down for these runs',
+  },
+  harness: {
+    spend: 'byHarness',
+    ran: 'byHarness',
+    kind: 'harness',
+    name: (key: string) => key,
+    about: () => null,
+    unrecorded: 'ran before Tade wrote the harness down',
+  },
+  account: {
+    spend: 'byAccount',
+    ran: 'byAccount',
+    kind: 'account',
+    // The same spelling the plan list uses, so what the Spend page calls a
+    // sign-in and what Settings calls one are one name.
+    name: (key: string) => signIn(key),
+    about: (key: string) => (key.includes('@') ? null : "the harness's own sign-in"),
+    unrecorded: 'ran before Tade wrote the sign-in down',
+  },
+  provider: {
+    spend: 'byProvider',
+    ran: 'byProvider',
+    kind: 'provider',
+    name: (key: string) => key,
+    about: () => null,
+    // Never read out of the model's name: `anthropic/claude-opus-5` reached
+    // through OpenRouter is a real route on a real machine, and guessing would
+    // file that spend under Anthropic and look certain about it.
+    unrecorded: 'no provider was written down for these runs',
+  },
+} as const satisfies Record<
+  string,
+  {
+    spend: keyof SpendReport
+    ran: keyof RuntimeReport
+    kind: SpendRow['kind']
+    name: (key: string) => string
+    about: (key: string) => string | null
+    unrecorded: string
+  }
+>
+
+/** One row, with the money taken apart the one way it may never be put together in silence. */
+function rowOf(of: {
+  label: string
+  kind: SpendRow['kind']
+  model?: string | null
+  note?: string | null
+  spend: Spend | undefined
+  runtime: Runtime | null
+}): SpendRow {
+  const spend = of.spend ?? noSpend()
+  return {
+    label: of.label,
+    kind: of.kind,
+    model: of.model ?? null,
+    tokens: spend.tokens,
+    usd: spend.usd,
+    usdExact: spend.usdExact,
+    usdEstimated: spend.usdEstimated,
+    priced: pricedOf(spend),
+    runtime: of.runtime,
+    note: of.note ?? null,
+  }
+}
+
+/** A sign-in as a person reads it: the same spelling the plan list uses. */
+function signIn(key: string): string {
+  const at = key.indexOf('@')
+  return at === -1
+    ? planLabel({ harness: key, account: null })
+    : planLabel({ harness: key.slice(0, at), account: key.slice(at + 1) })
 }
 
 /**
@@ -280,8 +431,4 @@ function lastModels(usage: readonly TadeEvent[]): Map<string | null, string> {
     else if (event.detail.by === 'orchestrator') models.set(null, model)
   }
   return models
-}
-
-function emptySpend() {
-  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, tokens: 0, usd: 0, hasCost: false }
 }

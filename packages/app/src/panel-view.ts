@@ -11,6 +11,7 @@ import {
   HARNESS_CHOICES,
   KEY_BINDINGS,
   masked,
+  type Priced,
   type Setting,
   type SettingGroup,
   shownValue,
@@ -78,7 +79,7 @@ import {
 import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Look, Skin } from './skin.ts'
-import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
+import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendView } from './spend.ts'
 import {
   blank,
   box,
@@ -3662,9 +3663,27 @@ function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   return box(`${path} · ${name}`, rows, width, skin, { corner: `${counts}esc` })
 }
 
+/**
+ * The Spend panel: what it cost, what is left of each plan, what it bought.
+ *
+ * The table is laid out from the room there is rather than from numbers
+ * somebody typed once. A name is the widest thing on the page and the only one
+ * that cannot be abbreviated without lying — `openrouter/anthropic/claude-…`
+ * and `anthropic/claude-…` are two different bills — so the name column takes
+ * whatever the fixed columns leave, wraps onto a second line when that is not
+ * enough, and ellipsises only past that. Everything that is cut is cut with
+ * `cap`, which says so, and every column has a clear gap before the next:
+ * text that stops dead reads as text that ran into its neighbour, which is
+ * exactly how two unreadable rows got reported.
+ *
+ * `MODEL` appears in the Agent view alone. Beside a model, a harness, a
+ * sign-in or a provider it either repeats the name column or averages over
+ * rows that ran on many models — and in both cases it is spending the width
+ * the name needs to say nothing.
+ */
 function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(74, ctx.width - 4)
+  const width = Math.min(SPEND_WIDTH, ctx.width - 4)
   const inner = width - 2
   const row = () => new Row(inner, skin, ctx.pointer)
   const view = ctx.spend
@@ -3691,23 +3710,33 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   rows.push(head.build())
   rows.push(blank(inner))
 
-  const by = row().space().text('by ', skin.hint)
+  // Six facets is more than a narrow panel fits on one line, and a tab that
+  // ran off the edge is a grouping nobody can reach. So they wrap, under the
+  // word that introduces them.
+  let by = row().space().text('by ', skin.hint)
   for (const option of SPEND_BY) {
+    if (by.used + visibleWidth(option.label) + 4 > inner) {
+      rows.push(by.build())
+      by = row().space(4)
+    }
     by.tab(option.label, { kind: 'control', id: `by:${option.id}` }, panel.by === option.id)
   }
   rows.push(by.build())
   rows.push(blank(inner))
 
-  const name = 18
-  const model = 15
-  const bar = 10
+  const { name, model, meter } = spendColumns(inner, panel.by)
   rows.push(
     row()
+      .space(LEAD)
+      .text(padTo(SPEND_HEADS[panel.by], name), skin.label)
+      .space(SPEND_GAP)
+      .text(model > 0 ? `${padTo('MODEL', model)}${' '.repeat(SPEND_GAP)}` : '', skin.label)
+      .text('TOKENS'.padStart(TOKENS_W), skin.label)
+      .space(SPEND_GAP)
+      .text(padTo('SHARE', meter), skin.label)
       .space()
-      .text(
-        `${pad('WHO', name + 2)}${pad(panel.by === 'model' ? '' : 'MODEL', model)} ${'TOKENS'.padStart(6)}  ${pad('SHARE', bar)}${'RUNTIME'.padStart(7)}${'COST'.padStart(8)}`,
-        skin.label,
-      )
+      .text('RUNTIME'.padStart(RUNTIME_W), skin.label)
+      .text('COST'.padStart(COST_W), skin.label)
       .build(),
   )
   const total = Math.max(1, view?.tokens ?? 0)
@@ -3719,7 +3748,13 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   if (entries.length === 0) {
     rows.push(row().space(3).text('Nothing spent or run in this window.', skin.hint).build())
   }
-  for (const entry of entries.slice(0, 8)) {
+  // Counted in lines rather than in rows, because a row is one line or three:
+  // the panel floats over the work, and every line it grows is a line of the
+  // work underneath that somebody cannot see. Biggest first, so what stops is
+  // the tail — and what it left out is said, never quietly dropped.
+  let used = 0
+  let unshown = 0
+  for (const entry of entries) {
     const pane = ctx.panes.find((p) => p.task === entry.label)
     const mark =
       entry.kind === 'orchestrator'
@@ -3728,21 +3763,54 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           ? toneOf(pane, skin)(glyph(pane))
           : skin.hint('·')
     const label = pane && pane.project === ctx.project ? pane.name : entry.label
+    const said = nameLines(label, entry.note, name)
+    if (used + said.length > SPEND_LINES) {
+      unshown = entries.length - entries.indexOf(entry)
+      break
+    }
+    const first = said[0] ?? { text: '', note: false }
+    const cost = view?.hasCost ? `${pricedMark(entry.priced)}${money(entry.usd)}` : '—'
     rows.push(
       row()
         .space()
         .text(`${mark} `)
-        .text(pad(label, name))
-        .text(pad(entry.model ? shortModel(entry.model) : '', model), skin.hint)
+        .text(padTo(first.text, name))
+        .space(SPEND_GAP)
+        .text(model > 0 ? padTo(entry.model ? shortModel(entry.model) : '', model) : '', skin.hint)
+        .space(model > 0 ? SPEND_GAP : 0)
+        .text(tokenCount(entry.tokens, false).padStart(TOKENS_W))
+        .space(SPEND_GAP)
+        .meter(entry.tokens / total, meter)
         .space()
-        .text(tokenCount(entry.tokens, false).padStart(6))
-        .space(2)
-        .meter(entry.tokens / total, bar)
         .text(
-          (entry.runtime && entry.runtime.ms > 0 ? duration(entry.runtime.ms) : '—').padStart(7),
+          (entry.runtime && entry.runtime.ms > 0 ? duration(entry.runtime.ms) : '—').padStart(
+            RUNTIME_W,
+          ),
           entry.runtime?.running ? skin.busy : undefined,
         )
-        .text((view?.hasCost ? money(entry.usd) : '—').padStart(8))
+        // Money nobody priced is marked where it is read, not only in the
+        // footer: a column of dollars that quietly mixes the two is the one
+        // thing this page may never draw.
+        .text(cost.padStart(COST_W), entry.priced === 'exact' ? undefined : skin.hint)
+        .build(),
+    )
+    // The rest of a name too long for its column, and what the row is when its
+    // name alone would be read as a thing that exists.
+    for (const rest of said.slice(1)) {
+      rows.push(
+        row()
+          .space(LEAD)
+          .text(padTo(rest.text, name), rest.note ? skin.hint : undefined)
+          .build(),
+      )
+    }
+    used += said.length
+  }
+  if (unshown > 0) {
+    rows.push(
+      row()
+        .space(3)
+        .text(`${unshown} more row${unshown === 1 ? '' : 's'} not shown.`, skin.hint)
         .build(),
     )
   }
@@ -3875,20 +3943,27 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     (budget) => budget.budget || budget.usd > 0 || budget.tokens > 0,
   )
   if (budgets.length === 0) rows.push(row().space(3).text('No budgets set.', skin.hint).build())
+  // Laid out from the room there is, like the table above it: `set one` is a
+  // link, and a link cut in half — `no budget — s` — is one nobody can press
+  // and nobody can read.
+  const bar = inner >= 62 ? 12 : inner >= 50 ? 8 : 6
+  const verdictW = Math.max(bar + 6, visibleWidth('no budget — set one'))
+  const whoseBudget = Math.min(14, Math.max(8, Math.floor(inner / 5)))
+  const spentW = Math.min(28, Math.max(8, inner - 1 - whoseBudget - SPEND_GAP - verdictW))
   for (const budget of budgets.slice(0, 5)) {
-    const line = row().space().text(pad(budget.project, 11))
+    const line = row().space().text(padTo(budget.project, whoseBudget)).space(SPEND_GAP)
     const limit = budget.budget?.usd_per_day
     const spent = limit
       ? `${money(budget.usd)} of ${money(limit)} a day`
       : budget.budget?.tokens_per_day
         ? `${tokenCount(budget.tokens, false)} of ${tokenCount(budget.budget.tokens_per_day, false)} a day`
         : money(budget.usd)
-    line.text(pad(spent, 25))
+    line.text(padTo(spent, spentW))
     if (budget.share !== null) {
       const tone =
         budget.verdict === 'over' ? skin.bad : budget.verdict === 'warn' ? skin.waiting : skin.done
       line
-        .meter(Math.min(1, budget.share), 12, tone)
+        .meter(Math.min(1, budget.share), bar, tone)
         .space()
         .text(`${Math.round(budget.share * 100)}%`, skin.hint)
     } else {
@@ -3899,14 +3974,115 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     rows.push(line.build())
   }
   rows.push(blank(inner))
-  rows.push(
-    row()
-      .space()
-      .text('Prices as the harness reports them · a plan is a share, never money.', skin.hint)
-      .build(),
-  )
+  // What kind of money this page has been adding up. Priced and estimated are
+  // both real dollars and both go in the total, but never in silence: a
+  // harness that can only estimate says so every turn, and this is where that
+  // reaches whoever is reading the total.
+  for (const line of wrapTo(pricedFooter(view), inner - 1, 2)) {
+    rows.push(row().space().text(line, skin.hint).build())
+  }
 
   return box('Spend', rows, width, skin, { corner: 'esc' })
+}
+
+/** As wide as the table wants, and never wider than the window it floats over. */
+const SPEND_WIDTH = 84
+
+/** A space, the state mark, and the space after it: where every name starts. */
+const LEAD = 3
+/** The clear column between one column and the next. Never zero: that was the bug. */
+const SPEND_GAP = 2
+const TOKENS_W = 6
+const RUNTIME_W = 7
+/** Room for the figure and the mark that says whether anybody priced it. */
+const COST_W = 9
+
+/** How many lines the table may take before it starts saying what it left out. */
+const SPEND_LINES = 10
+
+/** What the first column is, in the words of the facet it is grouped by. */
+const SPEND_HEADS: Readonly<Record<SpendBy, string>> = {
+  agent: 'AGENT',
+  project: 'PROJECT',
+  model: 'MODEL',
+  harness: 'HARNESS',
+  account: 'SIGN-IN',
+  provider: 'PROVIDER',
+}
+
+/**
+ * How the table's width is divided, given the room there is.
+ *
+ * The fixed columns are figures and take what a figure takes. Everything left
+ * over is the name's, except the share meter, which is decoration and gives
+ * ground first — it is the one column that says nothing a number beside it
+ * does not already say.
+ */
+export function spendColumns(
+  inner: number,
+  by: SpendBy,
+): { name: number; model: number; meter: number } {
+  const figures = LEAD + SPEND_GAP + TOKENS_W + SPEND_GAP + 1 + RUNTIME_W + COST_W
+  let room = inner - figures
+  // The model column is worth its width in the Agent view — and only while
+  // there is still a name left beside it. A panel narrow enough that both
+  // cannot be read is a panel where the name wins: it is the only column here
+  // whose value is the whole of it.
+  let model = 0
+  if (by === 'agent') {
+    const want = inner >= 82 ? 18 : inner >= 66 ? 14 : 10
+    if (room - want - SPEND_GAP >= MIN_NAME + 6) {
+      model = want
+      room -= want + SPEND_GAP
+    }
+  }
+  // The meter gives ground first and disappears last: it is the one column
+  // that says nothing the number beside it does not already say.
+  const meter = room >= 40 ? 10 : room >= 30 ? 8 : room >= 22 ? 6 : 0
+  return { name: Math.max(4, room - meter), model, meter }
+}
+
+/** Below this a name is not a name, so the column beside it gives way instead. */
+const MIN_NAME = 10
+
+/**
+ * A name over the lines it needs, with what the row is underneath it.
+ *
+ * Two lines for the name, because twice a column holds every model id and task
+ * name there is, and the last of them ellipsised — a name cut without saying
+ * so is a name a person misreads rather than looks up. The note is its own
+ * line in its own tone: `not recorded` is not an agent called that.
+ */
+export function nameLines(
+  label: string,
+  note: string | null,
+  width: number,
+): { text: string; note: boolean }[] {
+  const lines = wrapTo(label, width, 2).map((text) => ({ text, note: false }))
+  if (lines.length === 0) lines.push({ text: cap(label, width), note: false })
+  if (note) lines.push({ text: cap(note, width), note: true })
+  return lines
+}
+
+/** The one character that says this figure holds money nobody priced. */
+function pricedMark(priced: Priced): string {
+  return priced === 'estimate' || priced === 'mixed' ? '~' : ''
+}
+
+/** What the page says, at the bottom, about the kind of money it has been adding. */
+export function pricedFooter(view: SpendView | null): string {
+  const plan = 'a plan is a share, never money'
+  if (!view || view.priced === 'none') {
+    // Zero dollars from a subscription is not the same as free.
+    return `No harness here reported a price — a subscription bills you, not per token · ${plan}.`
+  }
+  const exact = `${money(view.usdExact)} priced by the harness`
+  const guessed = `${money(view.usdEstimated)} estimated (~)`
+  if (view.priced === 'mixed') return `${money(view.usd)}: ${exact}, ${guessed} · ${plan}.`
+  if (view.priced === 'estimate') {
+    return `${guessed} — this harness cannot price a turn, only guess at it · ${plan}.`
+  }
+  return `${exact}, against its own catalog · ${plan}.`
 }
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {

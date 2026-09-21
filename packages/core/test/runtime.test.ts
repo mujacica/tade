@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReadableEventType, TadeEvent } from '../src/events.ts'
 import { duration, noRuntime, runtimeFrom } from '../src/runtime.ts'
-import { startOfToday } from '../src/spend.ts'
+import { startOfToday, UNRECORDED } from '../src/spend.ts'
 
 // Runtime is a query, like every other status: the journal says when an agent
 // started and when it ended, and the clock says the rest. Nothing keeps a
@@ -96,9 +96,12 @@ describe('runtimeFrom', () => {
     expect(report.byModel['deepseek-v3']?.ms).toBe(5 * MINUTE)
   })
 
-  it('counts a run with no recorded model as unknown rather than dropping it', () => {
+  it('counts a run with no recorded model as unrecorded rather than dropping it', () => {
     const report = runtimeFrom([event('run_started', { ts: at(10) }), exited(0)], { now: NOW })
-    expect(report.byModel.unknown?.ms).toBe(10 * MINUTE)
+    // Its own bucket, which no model's name can collide with — and which the
+    // page draws as *not recorded*, never as a model called `unknown`.
+    expect(report.byModel[UNRECORDED]?.ms).toBe(10 * MINUTE)
+    expect(report.byModel.unknown).toBeUndefined()
   })
 
   it('counts only the part of a run inside the window', () => {
@@ -306,5 +309,58 @@ describe('duration', () => {
 
   it('never says a negative span', () => {
     expect(duration(-5)).toBe('0s')
+  })
+})
+
+// The hours go in the same buckets the dollars do, or a page that draws both
+// on one row is drawing two different runs.
+describe('what the hours were spent on', () => {
+  it('counts the time by harness, by sign-in and by provider', () => {
+    const report = runtimeFrom(
+      [
+        event('run_started', {
+          ts: at(30),
+          run: 'r1',
+          detail: { adapter: 'claude-code', account: 'work', provider: 'anthropic' },
+        }),
+        event('run_exited', { ts: at(20), run: 'r1' }),
+        event('run_started', {
+          ts: at(20),
+          run: 'r2',
+          task: 'search/pagination',
+          detail: { adapter: 'pi', provider: 'openrouter' },
+        }),
+        event('run_exited', { ts: at(15), run: 'r2' }),
+      ],
+      { now: NOW },
+    )
+    expect(report.byHarness['claude-code']?.ms).toBe(10 * MINUTE)
+    expect(report.byHarness.pi?.ms).toBe(5 * MINUTE)
+    expect(report.byAccount['claude-code@work']?.ms).toBe(10 * MINUTE)
+    expect(report.byAccount.pi?.ms).toBe(5 * MINUTE)
+    expect(report.byProvider.anthropic?.ms).toBe(10 * MINUTE)
+    expect(report.byProvider.openrouter?.ms).toBe(5 * MINUTE)
+  })
+
+  it('times a run by what it turned out to be on, not by what was asked for', () => {
+    // A route asks for `anthropic/claude-opus-5` and Claude Code answers
+    // `claude-opus-5`. Timed by the ask and priced by the answer, one agent
+    // was two model rows that never ran together — which is what sent somebody
+    // looking at this page in the first place.
+    const runs = [
+      event('run_started', { ts: at(30), run: 'r1', detail: { model: 'anthropic/claude-opus-5' } }),
+      event('run_exited', { ts: at(20), run: 'r1' }),
+    ]
+    const report = runtimeFrom(runs, { now: NOW, said: new Map([['r1', 'claude-opus-5']]) })
+    expect(report.byModel['claude-opus-5']?.ms).toBe(10 * MINUTE)
+    expect(report.byModel['anthropic/claude-opus-5']).toBeUndefined()
+    // And with nothing said, what was asked for is still the honest answer.
+    expect(runtimeFrom(runs, { now: NOW }).byModel['anthropic/claude-opus-5']?.ms).toBe(10 * MINUTE)
+  })
+
+  it('says nothing recorded for a run that named no harness', () => {
+    const report = runtimeFrom([event('run_started', { ts: at(10) }), exited(0)], { now: NOW })
+    expect(report.byHarness[UNRECORDED]?.ms).toBe(10 * MINUTE)
+    expect(report.byProvider[UNRECORDED]?.ms).toBe(10 * MINUTE)
   })
 })

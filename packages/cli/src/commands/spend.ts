@@ -3,9 +3,12 @@ import {
   defaultConfigPath,
   duration,
   loadConfig,
+  modelsSaid,
   noSpend,
+  pricedOf,
   RUNTIME_EVENTS,
   type Runtime,
+  runFactsFrom,
   runtimeFrom,
   type Spend,
   STATS_EVENTS,
@@ -13,6 +16,7 @@ import {
   startOfToday,
   statsFrom,
   tadeHome,
+  UNRECORDED,
 } from '@tade/core'
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
@@ -27,6 +31,11 @@ import type { Io } from '../io.ts'
 // so a subscription that reports no price still says where the hours went.
 // A question, so it reads the journal itself: asking what today cost must work
 // with a window open.
+//
+// The same six groupings the window has, and for the same reason: three rows
+// of `claude-opus-5`, `anthropic/claude-opus-5` and
+// `openrouter/anthropic/claude-opus-5` are one model reached three ways, and
+// the harness, the sign-in and the provider are what tell them apart.
 
 /** Read unwindowed: a run that began before the window is still in it. */
 const RUNS = RUNTIME_EVENTS
@@ -45,8 +54,14 @@ export function registerSpend(program: Command, io: Io): void {
       const cfg = await loadConfig(opts.config)
 
       const events = await readJournal(tadeHome(), { types: ['usage'] })
-      const report = spendFrom(events, { since })
-      const ran = runtimeFrom(await readJournal(tadeHome(), { types: [...RUNS] }), { since, now })
+      const runs = await readJournal(tadeHome(), { types: [...RUNS] })
+      // What each run was — harness, sign-in, provider — read off the
+      // `run_started` that opened it, so usage written before it carried its
+      // own still lands in the right bucket.
+      const report = spendFrom(events, { since, runs: runFactsFrom(runs) })
+      // Timed by what each run turned out to be on rather than by what its
+      // route asked for, so one agent is one model row and not two.
+      const ran = runtimeFrom(runs, { since, now, said: modelsSaid(events) })
       // What the money bought: commits, the size of them, and how the
       // project's own checks have been going.
       const made = statsFrom(await readJournal(tadeHome(), { types: [...STATS_EVENTS] }), { since })
@@ -84,7 +99,13 @@ export function registerSpend(program: Command, io: Io): void {
           (report.byTask[b]?.usd ?? 0) - (report.byTask[a]?.usd ?? 0) ||
           a.localeCompare(b),
       )
-      const width = Math.max(...[...projects, ...models, ...agents].map((n) => n.length), 7)
+      const width = Math.max(
+        ...[...projects, ...models, ...agents].map((n) => shown(n).length),
+        ...names(report.byHarness, ran.byHarness).map((n) => shown(n).length),
+        ...names(report.byAccount, ran.byAccount).map((n) => shown(n).length),
+        ...names(report.byProvider, ran.byProvider).map((n) => shown(n).length),
+        7,
+      )
       for (const name of projects) {
         const spend = report.byProject[name]
         const budget = cfg.ok ? cfg.config.projects[name]?.budget : undefined
@@ -98,7 +119,36 @@ export function registerSpend(program: Command, io: Io): void {
         io.out('')
         io.out('by model')
         for (const name of models) {
-          io.out(`  ${line(name, width, report.byModel[name], ran.byModel[name])}`)
+          io.out(`  ${line(shown(name), width, report.byModel[name], ran.byModel[name])}`)
+        }
+      }
+      // How it was reached, which is what tells one model's three rows apart.
+      // Only where there is more than one of something: a machine with one
+      // harness and one key learns nothing from a list of one.
+      const already: string[] = []
+      for (const facet of [
+        { title: 'by harness', spend: report.byHarness, ran: ran.byHarness },
+        { title: 'by sign-in', spend: report.byAccount, ran: ran.byAccount },
+        { title: 'by provider', spend: report.byProvider, ran: ran.byProvider },
+      ]) {
+        const keys = names(facet.spend, facet.ran).sort(
+          (a, b) =>
+            (facet.spend[b]?.usd ?? 0) - (facet.spend[a]?.usd ?? 0) ||
+            (facet.ran[b]?.ms ?? 0) - (facet.ran[a]?.ms ?? 0) ||
+            a.localeCompare(b),
+        )
+        if (keys.length < 2) continue
+        // And not the same answer twice. Nobody who runs one account per
+        // harness has a sign-in question: their sign-in list is their harness
+        // list with the same figures beside it, and printing it again teaches
+        // them that this page repeats itself.
+        const shape = keys.join('\u0000')
+        if (already.includes(shape)) continue
+        already.push(shape)
+        io.out('')
+        io.out(facet.title)
+        for (const key of keys) {
+          io.out(`  ${line(shown(key), width, facet.spend[key], facet.ran[key])}`)
         }
       }
       // Per agent, longest first: the detail behind the totals above.
@@ -138,17 +188,44 @@ export function registerSpend(program: Command, io: Io): void {
           )
         }
       }
-      if (!report.total.hasCost) {
-        io.out('')
-        // Zero dollars from a subscription is not the same as free.
-        io.out('no prices reported — a subscription plan bills you, not per token')
-      }
+      io.out('')
+      io.out(pricedSays(report.total))
     })
 }
 
 /** Every bucket either side of the question knows about. */
 function names(spend: Record<string, unknown>, ran: Record<string, unknown>): string[] {
   return [...new Set([...Object.keys(spend), ...Object.keys(ran)])]
+}
+
+/**
+ * A bucket key as a person reads it. Nothing recorded is said as that, never
+ * as a model, a harness or a provider called `unknown` — the first sends
+ * somebody looking for a thing that does not exist.
+ */
+function shown(key: string): string {
+  return key === UNRECORDED ? 'not recorded' : key
+}
+
+/**
+ * Which kind of money this was. Priced and estimated both go in the total and
+ * neither goes in silently: a harness that can only guess at what a turn cost
+ * says so every turn, and a total that hid that is a total nobody can defend.
+ */
+export function pricedSays(spend: Spend): string {
+  const exact = `$${spend.usdExact.toFixed(2)} priced by the harness`
+  const guessed = `$${spend.usdEstimated.toFixed(2)} estimated`
+  switch (pricedOf(spend)) {
+    case 'mixed':
+      return `of $${spend.usd.toFixed(2)}: ${exact}, ${guessed}`
+    case 'exact':
+      return `${exact}, against its own catalog`
+    case 'estimate':
+      return `${guessed} — this harness cannot price a turn, only guess at it`
+    default:
+      // Zero dollars from a subscription is not the same as free.
+      return 'no prices reported — a subscription plan bills you, not per token'
+  }
 }
 
 function line(name: string, width: number, spend?: Spend, ran?: Runtime): string {

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { TadeEvent } from '../src/events.ts'
-import { checkBudget, noSpend, spendFrom, startOfToday } from '../src/spend.ts'
+import {
+  checkBudget,
+  modelsSaid,
+  noSpend,
+  pricedOf,
+  runFactsFrom,
+  spendFrom,
+  startOfToday,
+  UNRECORDED,
+} from '../src/spend.ts'
 
 // Money is the one thing here that is not derived from git, so the rule is
 // that nothing is estimated: a budget built on a guess is worse than none,
@@ -118,5 +127,121 @@ describe('startOfToday', () => {
     expect(date.getHours()).toBe(0)
     expect(date.getMinutes()).toBe(0)
     expect(start).toBeLessThanOrEqual(NOW)
+  })
+})
+
+// How it was reached, which is what tells one model's three rows apart.
+//
+// `claude-opus-5` on a subscription, `anthropic/claude-opus-5` through an API
+// key and `openrouter/anthropic/claude-opus-5` through a router are the same
+// weights and three different bills. The harness, the sign-in and the provider
+// are what say which — and every one of them is read off what somebody wrote
+// down, never off the model's name.
+describe('what a run was', () => {
+  const started = (over: Partial<TadeEvent> & { detail?: Record<string, unknown> }): TadeEvent =>
+    ({
+      seq: 1,
+      ts: '2026-09-13T10:00:00.000Z',
+      type: 'run_started',
+      urgency: 'notable',
+      task: 'checkout/refunds',
+      lane: null,
+      run: 'r1',
+      ...over,
+      detail: { ...over.detail },
+    }) as TadeEvent
+
+  it('files spend by the harness, the sign-in and the provider the event carries', () => {
+    const report = spendFrom(
+      [
+        usage({
+          run: 'r1',
+          detail: { harness: 'claude-code', account: 'work', provider: 'anthropic', usd: 1 },
+        }),
+        usage({ run: 'r2', detail: { harness: 'pi', provider: 'openrouter', usd: 2 } }),
+      ],
+      { since: 0 },
+    )
+    expect(report.byHarness['claude-code']?.usd).toBe(1)
+    expect(report.byHarness.pi?.usd).toBe(2)
+    // A sign-in is the harness alone for its own, `harness@account` for an
+    // account's — the same spelling its adapter is filed under.
+    expect(Object.keys(report.byAccount).sort()).toEqual(['claude-code@work', 'pi'])
+    expect(report.byProvider.anthropic?.usd).toBe(1)
+    expect(report.byProvider.openrouter?.usd).toBe(2)
+  })
+
+  it('reads it off the run that opened it, for usage that predates carrying its own', () => {
+    const runs = runFactsFrom([
+      started({ run: 'r1', detail: { adapter: 'claude-code', account: 'work' } }),
+    ])
+    const report = spendFrom([usage({ run: 'r1', detail: { usd: 3 } })], { since: 0, runs })
+    expect(report.byHarness['claude-code']?.usd).toBe(3)
+    expect(report.byAccount['claude-code@work']?.usd).toBe(3)
+  })
+
+  it('never reads the provider out of the model name', () => {
+    // `anthropic/claude-opus-5` reached through OpenRouter is a real route on
+    // a real machine. Guessing from the name would file this under Anthropic
+    // and look certain about it, so the answer is that nobody said.
+    const report = spendFrom(
+      [usage({ run: 'r9', detail: { model: 'anthropic/claude-opus-5', usd: 1 } })],
+      { since: 0 },
+    )
+    expect(Object.keys(report.byProvider)).toEqual([UNRECORDED])
+    expect(report.byProvider.anthropic).toBeUndefined()
+  })
+
+  it('says nothing recorded rather than inventing a harness called unknown', () => {
+    const report = spendFrom([usage({ run: null, detail: { usd: 1 } })], { since: 0 })
+    expect(report.byHarness[UNRECORDED]?.usd).toBe(1)
+    expect(report.byModel['claude-opus-5']?.usd).toBe(1)
+    // And a usage event with no model at all goes in the same kind of bucket,
+    // never under a model called `unknown`.
+    const none = spendFrom([usage({ detail: { model: undefined, usd: 1 } })], { since: 0 })
+    expect(none.byModel[UNRECORDED]?.usd).toBe(1)
+  })
+
+  it('reports which run was on which model, for runtime to be timed by', () => {
+    const said = modelsSaid([
+      usage({ run: 'r1', detail: { model: 'claude-opus-5' } }),
+      usage({ run: 'r2', detail: { model: 'gpt-5' } }),
+    ])
+    expect(said.get('r1')).toBe('claude-opus-5')
+    expect(said.get('r2')).toBe('gpt-5')
+  })
+})
+
+// Priced and estimated money are both real dollars, both go in the total, and
+// neither goes in silently.
+describe('priced or guessed', () => {
+  it('keeps what was priced apart from what was estimated', () => {
+    const report = spendFrom(
+      [
+        usage({ detail: { usd: 1.5, priced: 'exact' } }),
+        usage({ detail: { usd: 0.5, priced: 'estimate' } }),
+      ],
+      { since: 0 },
+    )
+    expect(report.total.usd).toBe(2)
+    expect(report.total.usdExact).toBe(1.5)
+    expect(report.total.usdEstimated).toBe(0.5)
+    expect(pricedOf(report.total)).toBe('mixed')
+  })
+
+  it('counts money nobody vouched for as an estimate', () => {
+    // A harness that never said is not a harness that priced it: money with
+    // no word beside it is money nobody stands behind.
+    const report = spendFrom([usage({ detail: { usd: 2 } })], { since: 0 })
+    expect(pricedOf(report.total)).toBe('estimate')
+    expect(report.total.usdEstimated).toBe(2)
+  })
+
+  it('is no kind of money at all when nothing reported any', () => {
+    // A subscription reports tokens and no price. Zero dollars from one is not
+    // free, and an estimate of nothing is not an estimate.
+    const report = spendFrom([usage({ detail: { usd: 0, priced: 'estimate' } })], { since: 0 })
+    expect(pricedOf(report.total)).toBe('none')
+    expect(report.total.hasCost).toBe(false)
   })
 })

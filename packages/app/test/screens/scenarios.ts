@@ -689,26 +689,73 @@ const sentryWatch: ScheduleView = {
 }
 
 let seq = 0
-const usage = (task: string | null, model: string, tokens: number, usd: number): TadeEvent => ({
+const usage = (
+  task: string | null,
+  model: string,
+  tokens: number,
+  usd: number,
+  on: { harness: string; provider?: string; priced: 'exact' | 'estimate' },
+): TadeEvent => ({
   seq: ++seq,
   ts: '2026-09-13T13:00:00.000Z',
   type: 'usage',
   urgency: 'routine',
   task,
   lane: null,
-  run: null,
-  detail: { model, tokens, usd, ...(task ? {} : { by: 'orchestrator' }) },
+  // An agent's spend belongs to its run, which is how the hours and the
+  // dollars of one agent land on one row. The orchestrator has no run of its
+  // own — it lives as long as the window — so it has none here either.
+  run: task ? `${task}/agent` : null,
+  detail: {
+    model,
+    tokens,
+    usd,
+    // Which harness, through which provider, and whether that dollar was
+    // priced or guessed — a real morning has both, and the page may never add
+    // the two without saying which it did.
+    ...on,
+    ...(task ? {} : { by: 'orchestrator' }),
+  },
 })
 
-/** A morning's spend, the one the design was drawn with. */
+/**
+ * A morning's spend, the one the design was drawn with — and one model reached
+ * three ways, which is what the last three groupings are for.
+ *
+ * `claude-opus-5` on a Claude Code subscription, `anthropic/claude-opus-5`
+ * through an API key and `openrouter/anthropic/claude-opus-5` through a router
+ * are the same weights and three different bills. The name is the only thing
+ * that tells them apart, which is why the name column may never be cut without
+ * saying so.
+ */
 const spent = [
-  usage(null, 'anthropic/claude-opus-5', 412_000, 0.58),
-  usage('checkout/stripe-v15', 'anthropic/claude-opus-5', 880_000, 1.26),
-  usage('checkout/refunds', 'anthropic/claude-opus-5', 460_000, 0.62),
-  usage('search/pagination', 'anthropic/claude-sonnet-5', 148_000, 0.2),
+  usage(null, 'openrouter/anthropic/claude-opus-5', 412_000, 0.58, {
+    harness: 'pi',
+    provider: 'openrouter',
+    priced: 'exact',
+  }),
+  usage('checkout/stripe-v15', 'claude-opus-5', 880_000, 1.26, {
+    harness: 'claude-code',
+    priced: 'estimate',
+  }),
+  usage('checkout/refunds', 'anthropic/claude-opus-5', 460_000, 0.62, {
+    harness: 'pi',
+    provider: 'anthropic',
+    priced: 'exact',
+  }),
+  usage('search/pagination', 'anthropic/claude-sonnet-5', 148_000, 0.2, {
+    harness: 'pi',
+    provider: 'anthropic',
+    priced: 'exact',
+  }),
 ]
 
-const runEvent = (type: 'run_started' | 'run_exited', task: string, ts: string): TadeEvent => ({
+const runEvent = (
+  type: 'run_started' | 'run_exited',
+  task: string,
+  ts: string,
+  on: { harness: string; provider?: string } = { harness: 'pi', provider: 'anthropic' },
+): TadeEvent => ({
   seq: ++seq,
   ts,
   type,
@@ -716,7 +763,11 @@ const runEvent = (type: 'run_started' | 'run_exited', task: string, ts: string):
   task,
   lane: `${task}/agent`,
   run: `${task}/agent`,
-  detail: type === 'run_started' ? { model: 'anthropic/claude-opus-5' } : {},
+  // What the route asked for, which is not always what the harness answers —
+  // Claude Code is told `anthropic/claude-opus-5` and reports `claude-opus-5`.
+  // The hours follow the answer, so an agent is one row and not two.
+  detail:
+    type === 'run_started' ? { model: 'anthropic/claude-opus-5', adapter: on.harness, ...on } : {},
 })
 
 const commitSeen = (
@@ -772,7 +823,9 @@ const made = [
 
 /** The same morning's runs: two agents still going, one that finished. */
 const ran = [
-  runEvent('run_started', 'checkout/stripe-v15', '2026-09-13T13:05:00.000Z'),
+  runEvent('run_started', 'checkout/stripe-v15', '2026-09-13T13:05:00.000Z', {
+    harness: 'claude-code',
+  }),
   runEvent('run_started', 'search/pagination', '2026-09-13T13:02:00.000Z'),
   runEvent('run_started', 'checkout/refunds', '2026-09-13T13:20:00.000Z'),
   runEvent('run_exited', 'search/pagination', '2026-09-13T13:32:00.000Z'),
@@ -2743,6 +2796,27 @@ export const SCENARIOS: Scenario[] = [
       spendView: spendView(spent, {
         window: 'today',
         by: 'agent',
+        now: NOW,
+        openedAt: NOW - 3_600_000,
+        projects: ['checkout', 'search', 'infra'],
+        budgets: { checkout: { usd_per_day: 5 } },
+        runs: ran,
+        made,
+        plan: plans,
+      }),
+    }),
+  },
+  {
+    name: 'spend-by-model',
+    about:
+      'The Spend panel grouped by model, where the same model reached three ways is three rows: ' +
+      'a Claude Code subscription, an API key and a router, each with its own bill.',
+    state: { ...base(), panel: { ...spendPanel(), by: 'model' as const } },
+    frame: frame({
+      plan: planStandings(plans, NOW),
+      spendView: spendView(spent, {
+        window: 'today',
+        by: 'model',
         now: NOW,
         openedAt: NOW - 3_600_000,
         projects: ['checkout', 'search', 'infra'],

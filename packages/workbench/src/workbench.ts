@@ -32,6 +32,7 @@ import {
   type Schedule,
   Secrets,
   type StartCondition,
+  sinceLastLook,
   spendFrom,
   startOfToday,
   type TadeEvent,
@@ -533,9 +534,14 @@ export class Workbench {
         task: lane.task,
         detail: {
           ...missing,
-          // What it last ran on, so the spend lands on a model rather than on "unknown".
+          // What it last ran on, so the spend lands on a model rather than on
+          // the bucket for nothing recorded.
           ...(session.model ? { model: session.model } : {}),
           priced: this.adapterFor(harness, lane.account).capabilities.spend.usd,
+          // And whose it was: the lane says which harness and which sign-in,
+          // so money found later is filed exactly where the live turns were.
+          harness,
+          ...(lane.account ? { account: lane.account } : {}),
           source: 'session',
           reason: 'spent while Tade was closed',
         },
@@ -567,18 +573,16 @@ export class Workbench {
   async lookAtCommits(): Promise<void> {
     const written = await this.log.read({ types: ['commit_seen'] }).catch(() => [])
     const seen = new Set<string>()
-    let newest = 0
     for (const event of written) {
       const sha = event.detail.sha
       if (typeof sha === 'string') seen.add(sha)
-      newest = Math.max(newest, Date.parse(event.ts) || 0)
     }
-    // Nothing written yet: start from this window, not from the beginning of
-    // the project. `tade_opened` was appended moments ago by `open`.
-    if (newest === 0) {
-      const opened = await this.log.read({ types: ['tade_opened'] }).catch(() => [])
-      newest = Math.max(0, ...opened.map((event) => Date.parse(event.ts) || 0))
-    }
+    // Where to start: `sinceLastLook`'s to decide, and the one part of this
+    // worth testing on its own.
+    const newest = sinceLastLook(
+      written,
+      written.length > 0 ? [] : await this.log.read({ types: ['tade_opened'] }).catch(() => []),
+    )
     // A second of overlap, because git's `--since` is granular to the second
     // and a commit made in the same second as the boundary would fall the
     // wrong side of it. Overlapping costs nothing: the sha decides what is
@@ -602,6 +606,10 @@ export class Workbench {
             detail: {
               sha: commit.sha,
               project,
+              // When it actually landed, which is not when we noticed: a
+              // window that opens on Tuesday and catches up Monday's work
+              // would otherwise put Monday's commits in Tuesday's total.
+              at: commit.at,
               attributed: commit.task !== null,
               added: commit.added,
               removed: commit.removed,
@@ -669,6 +677,13 @@ export class Workbench {
               where: run.where.kind,
               runner: run.where.kind === 'here' ? run.where.runner : run.where.forge,
               by: run.by ?? 'unknown',
+              // When it ran, not when this window read it out of the file: a
+              // run from yesterday picked up at today's open is yesterday's.
+              ...(Number.isFinite(finished)
+                ? { at: finished }
+                : Number.isFinite(started)
+                  ? { at: started }
+                  : {}),
               ...(ms === null ? {} : { ms }),
             },
           })
