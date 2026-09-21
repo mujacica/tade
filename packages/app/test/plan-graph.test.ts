@@ -6,6 +6,7 @@ import {
   layoutPlan,
   type PlanBox,
   type PlanRun,
+  planWidth,
   treeStems,
 } from '../src/plan-graph.ts'
 
@@ -71,7 +72,7 @@ describe('a plan, laid out', () => {
       (column) => (column === 0 ? 'FIRST' : 'THEN'),
     )
     const rows = plain(drawing)
-    expect(drawing.tooWide).toBe(false)
+    expect(drawing.width).toBe(60)
     expect(rows[0]).toBe(`FIRST${' '.repeat(25)}THEN`)
     expect(rows[1]).toBe('╭──────────────────────╮      ╭──────────────────────╮')
     // The second wait joins the first on its way in.
@@ -106,13 +107,13 @@ describe('a plan, laid out', () => {
       { from: 'b', to: 'c' },
     ]
     const drawing = drawPlan(chain, waits, 60, () => '')
-    expect(drawing.tooWide).toBe(false)
+    expect(drawing.width).toBe(60)
     const rows = plain(drawing)
     expect(rows[1]).toBe('╭──────────────╮    ╭──────────────╮    ╭──────────────╮')
     for (const row of rows) expect([...row].length).toBeLessThanOrEqual(60)
   })
 
-  it('says a plan is too wide for its columns rather than squeezing it', () => {
+  it('draws a chain too long for the room anyway, and says how wide it came out', () => {
     const tasks = ['a', 'b', 'c', 'd', 'e']
     const drawing = drawPlan(
       tasks.map((task) => box(task)),
@@ -120,7 +121,14 @@ describe('a plan, laid out', () => {
       60,
       () => '',
     )
-    expect(drawing).toEqual({ rows: [], tooWide: true })
+    // Five tight boxes and the room between them, which is more than 60: the
+    // boxes are still drawn, and the panel scrolls to the rest of them.
+    expect(drawing.width).toBe(5 * 16 + 4 * 4)
+    expect(planWidth(drawing.rows)).toBe(drawing.width)
+    const rows = plain(drawing)
+    // Every one of the five is there, and the last is past the room given.
+    for (const task of tasks) expect(rows.join('\n')).toContain(`◌ ${task}`)
+    expect(rows[2]?.indexOf('◌ e')).toBeGreaterThan(60)
   })
 })
 
@@ -128,16 +136,26 @@ describe('the lines that make a list a tree', () => {
   it('hangs each row off the one it waits on, and carries the line past it', () => {
     // a ─ b ─ d
     //     └── c
-    const stems = treeStems([-1, 0, 1, 1], 4)
+    const stems = treeStems([-1, 0, 1, 1])
     expect(stems.map((one) => one.stem)).toEqual(['', '╰─', '  ├─', '  ╰─'])
     // b's own line carries on down to c, and stops after it.
     expect(stems[1]?.bars).toBe('  │')
     expect(stems[3]?.bars).toBe('')
   })
 
-  it('stops shifting right at the levels it was given room for', () => {
-    const stems = treeStems([-1, 0, 1, 2, 3], 2)
-    expect(stems.map((one) => visibleWidth(one.stem))).toEqual([0, 2, 4, 4, 4])
+  it('goes on shifting right however long the chain is', () => {
+    // Folding the indent back would put the fourth and the fifth in one
+    // column, and a column is what says which work can run together.
+    const stems = treeStems([-1, 0, 1, 2, 3])
+    expect(stems.map((one) => visibleWidth(one.stem))).toEqual([0, 2, 4, 6, 8])
+  })
+
+  it('puts a row in the column its depth gives it, not the one the rows above give it', () => {
+    // c waits on b, which is not shown: it still stands two columns in.
+    const stems = treeStems([-1, -1], [0, 2])
+    expect(stems.map((one) => visibleWidth(one.stem))).toEqual([0, 4])
+    // Nothing shown to hang from, so nothing is drawn hanging.
+    expect(stems[1]?.stem).toBe('    ')
   })
 })
 
@@ -195,18 +213,37 @@ describe('why each piece waits, drawn', () => {
     expect(drawn).not.toContain('◌ mailer')
   })
 
-  it('wraps a reason rather than running it off the panel, however narrow', () => {
+  it('wraps a reason between words, never through them, however narrow', () => {
     const long = [
       { from: 'schema', to: 'api', why: 'the endpoints follow the tables, all of them' },
       ...waits.slice(1),
     ]
+    const reason = 'the endpoints follow the tables, all of them'
     for (const width of [72, 48, 30, 20, 12]) {
       const rows = drawWhy(boxes, long, width)
       expect(rows.length).toBeGreaterThan(0)
-      for (const row of rows) {
-        expect(visibleWidth(row.map((run) => run.text).join(''))).toBeLessThanOrEqual(width)
-      }
+      // Every word arrives whole: a reason broken a letter at a time to fit
+      // an indent is a reason nobody can act on.
+      const said = rows
+        .flatMap((row) =>
+          row
+            .map((run) => run.text)
+            .join('')
+            .split(/\s+/),
+        )
+        .filter(Boolean)
+      for (const word of reason.split(' ')) expect(said, `${word} at ${width}`).toContain(word)
     }
+  })
+
+  it('comes back wider than the room rather than squeezing a reason, and never by more', () => {
+    // A chain shallow enough leaves the reasons plenty of room and fits.
+    expect(planWidth(drawWhy(boxes, waits, 80))).toBeLessThanOrEqual(80)
+    // Deep enough and it does not: the panel it is in scrolls to the rest.
+    const deep = drawWhy(boxes, waits, 16)
+    expect(planWidth(deep)).toBeGreaterThan(16)
+    // And no wider than the deepest stem, its gap, and a reason's own room.
+    expect(planWidth(deep)).toBe(6 + 2 + 12)
   })
 
   it('keeps the gap before after, and ends a name it had to cut in …', () => {

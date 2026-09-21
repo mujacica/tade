@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   type AgentPane,
   type AppState,
+  acrossOf,
   doneTasks,
   dragAgent,
   dropAgent,
@@ -37,6 +38,7 @@ import {
   showOrchestrator,
   showTerminal,
   sidebar,
+  slideAcross,
   splitPane,
   splitRatio,
   splitShown,
@@ -702,5 +704,42 @@ describe('dragging a scrollbar', () => {
 
   it('lets go of it, and of nothing else', () => {
     expect(scrollBarTo(state(), 5)).toEqual(state())
+  })
+
+  it('drags the one lying down by its column, and moves the region sideways', () => {
+    const lying = { area: 'sidebar' as const, total: 60, shown: 20, across: true }
+    const held = grabBar(state(), lying, { top: 0, rows: 20 }, 10)
+    expect(held.scrolling).toMatchObject({ area: 'sidebar', across: true })
+    // Sideways only: the rows it was scrolled down to are where they were.
+    expect(held.scroll).toBe(0)
+    expect(held.across).toBeGreaterThan(0)
+    expect(scrollBarTo(held, -5).across).toBe(0)
+    expect(scrollBarTo(held, 500).across).toBe(40)
+    // And the picture of a plan keeps its own place, not the side's.
+    const picture = grabBar(state(), { ...lying, area: 'plan' }, { top: 0, rows: 20 }, 20)
+    expect(picture.planAcross).toBe(40)
+    expect(picture.across).toBe(0)
+  })
+})
+
+describe('moving a region sideways', () => {
+  it('goes right and stops at nothing of it scrolled past', () => {
+    const right = slideAcross(state(), 'sidebar', 6)
+    expect(right.across).toBe(6)
+    expect(slideAcross(right, 'sidebar', -20).across).toBe(0)
+    expect(slideAcross(state(), 'plan', 4).planAcross).toBe(4)
+  })
+
+  it('leaves alone what has nowhere to go sideways', () => {
+    for (const area of ['pane', 'terminal', 'transcript', 'panel'] as const) {
+      expect(slideAcross(state(), area, 4)).toEqual(state())
+    }
+  })
+
+  it('says how far across a region is, never further than there is to go', () => {
+    const moved = slideAcross(state(), 'sidebar', 50)
+    expect(acrossOf(moved, 'sidebar', 60, 20)).toBe(40)
+    expect(acrossOf(moved, 'sidebar', 20, 20)).toBe(0)
+    expect(acrossOf(moved, 'pane', 60, 20)).toBe(0)
   })
 })

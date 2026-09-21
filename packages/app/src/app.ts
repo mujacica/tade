@@ -184,6 +184,7 @@ import {
   showOrchestrator,
   showPlan,
   showTerminal,
+  slideAcross,
   splitPane,
   splitRatio,
   splitShown,
@@ -414,13 +415,15 @@ export type PointerEvent =
    * covers is copied, as a drag anywhere else on the window is.
    */
   | { kind: 'selected' }
-  | { kind: 'wheel'; area: ScrollArea; rows: number }
+  /** The wheel over somewhere that scrolls; `across` where shift turned it sideways. */
+  | { kind: 'wheel'; area: ScrollArea; rows: number; across?: boolean }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
   /** A scrollbar taken hold of: what it was drawn from, where its track is, and where it was pressed. */
   | {
       kind: 'take'
-      bar: { area: ScrollArea; total: number; shown: number }
+      bar: { area: ScrollArea; total: number; shown: number; across?: boolean }
+      /** Rows down the window, or columns across it for the bar lying down. */
       track: { top: number; rows: number }
       y: number
     }
@@ -575,13 +578,16 @@ class Window implements Component {
         // out of the map: the region that drew it no longer knows where it ended up.
         if (event.button === 'left' && target?.kind === 'scrollbar') {
           this.dragging = true
+          // A bar lying down is dragged by its column, and its track is the
+          // columns it covers: the same sums, read the other way.
+          const across = target.across === true
           return {
             capture: true,
             render: this.onPointer({
               kind: 'take',
-              bar: { area: target.area, total: target.total, shown: target.shown },
-              track: extentOf(this.hits, target),
-              y: event.y,
+              bar: { area: target.area, total: target.total, shown: target.shown, across },
+              track: extentOf(this.hits, target, across),
+              y: across ? event.x : event.y,
             }),
           }
         }
@@ -656,9 +662,15 @@ class Window implements Component {
       case 'wheel': {
         const area = scrollAt(this.hits, event.x, event.y)
         if (!area || !event.wheelDelta) return undefined
+        // Shift turns the wheel sideways, as it does everywhere else.
         return {
           handled: true,
-          render: this.onPointer({ kind: 'wheel', area, rows: Math.sign(event.wheelDelta) * 3 }),
+          render: this.onPointer({
+            kind: 'wheel',
+            area,
+            rows: Math.sign(event.wheelDelta) * 3,
+            across: event.shift,
+          }),
         }
       }
       default:
@@ -1512,6 +1524,17 @@ export class App {
     switch (event.kind) {
       case 'wheel': {
         const panel = this.state.panel
+        // The picture of a chain only ever moves sideways, so the wheel over
+        // it does, shift or no shift: there is nothing above or below it.
+        // Somewhere with nowhere to go sideways hands the wheel back rather
+        // than swallowing it, and it scrolls as it would without shift.
+        if (!panel && (event.across === true || event.area === 'plan')) {
+          const moved = slideAcross(this.state, event.area, event.rows)
+          if (moved !== this.state) {
+            this.state = moved
+            return true
+          }
+        }
         if (event.area === 'panel' && panel?.kind === 'file') {
           // Over a file the wheel scrolls it. It cannot be the down key here:
           // with a caret in the text, that key moves the caret.

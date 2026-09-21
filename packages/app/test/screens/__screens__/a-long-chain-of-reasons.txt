@@ -5,30 +5,30 @@
    ⠋ ledger-schema           ▕│                                                                                         
      working                 ▕│  ◌ Waits on refund-flow, then starts by itself.                                         
                              ▕│                                                                                         
- ▾ SMART QUEUE  5            ▕│  WHY IT WAITS                                                                           
-   all  next  timed          ▕│  ⠋ ledger-schema                                                                        
-                             ▕│  ╰─◌ ledger-api  after ledger-schema                                                    
-   ◌ ledger-api              ▕│    │ the endpoints follow the tables                                                    
-   │ ◆ after ledger-schema   ▕│    ╰─◌ refund-flow  after ledger-api                                                    
-   │                         ▕│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
-   ╰─◌ refund-flow           ▕│      ╰─◌ refund-emails  after refund-flow                                               
-     │ ◆ after ledger-api    ▕│        │ it emails what refund() returns                                                
-     │                       ▕│        ╰─◌ release-guide  after refund-emails                                           
-     ├─◌ admin-view          ▕│            the guide screenshots the email it sends                                     
-     │   ◆ after refund-f…   ▕│                                                                                         
-     │                       ▕│  WILL BE TOLD                                                                           
- ▌   ╰─◌ refund-emails       ▕│  │ Email the customer when a refund goes through: say how much came back, and when.     
- ▌     │ ◆ after refund-f…   ▕│                                                                                         
-       │                     ▕│  TOUCHES    src/mail/refund.ts                                                          
-       ╰─◌ release-guide     ▕│  FINISHES   when its agent says it has finished — the usual choice                      
-           ◆ after refund…   ▕│  FROM       the orchestrator                                                            
-                             ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│                                                                                         
+ ▾ SMART QUEUE  5            ▕│  THE CHAIN IT IS IN                                                                     
+   all  next  timed          ▕│  FIRST               THEN                THEN                THIS ONE            AFTER I
+                             ▕│  ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ┏━━━━━━━━━━━━━━┓    ╭──────
+   ◌ ledger-api              ▕│  │ ⠋ ledger-sc… │───▶│ ◌ ledger-api │───▶│ ◌ refund-fl… │───▶┃ ◌ refund-em… ┃───▶│ ◌ rel
+   │ ◆ after ledger-schema   ▕│  │   working    │    │   ◆ after l… │    │   ◆ after l… │    ┃   ◆ after r… ┃    │   ◆ a
+   │                         ▕│  ╰──────────────╯    ╰──────────────╯    ╰──────────────╯    ┗━━━━━━━━━━━━━━┛    ╰──────
+   ╰─◌ refund-flow           ▕│                                                                                         
+     │ ◆ after ledger-api    ▕│  ███████████████████████████████████████████████████████████████████████████▕▕▕▕▕▕▕▕▕▕  
+     │                       ▕│                                                                                         
+     ├─◌ admin-view          ▕│  WHY IT WAITS                                                                           
+     │   ◆ after refund-fl…  ▕│  ⠋ ledger-schema                                                                        
+     │                       ▕│  ╰─◌ ledger-api  after ledger-schema                                                    
+ ▌   ╰─◌ refund-emails       ▕│    │ the endpoints follow the tables                                                    
+ ▌     │ ◆ after refund-fl…  ▕│    ╰─◌ refund-flow  after ledger-api                                                    
+       │                     ▕│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
+       ╰─◌ release-guide     ▕│      ╰─◌ refund-emails  after refund-flow                                               
+           ◆ after refund-…  ▕│        │ it emails what refund() returns                                                
+                             ▕│        ╰─◌ release-guide  after refund-emails                                           
+ ▸ CHANGES  3        vs main ▕│            the guide screenshots the email it sends                                     
  ▸ FILES                     ▕│                                                                                         
- ▸ NOTES  4             +    ▕│                                                                                         
- ▸ GIT                       ▕│                                                                                         
+ ▸ NOTES  4             +    ▕│  WILL BE TOLD                                                                           
+ ▸ GIT                       ▕│  │ Email the customer when a refund goes through: say how much came back, and when.     
                              ▕│                                                                                         
-                             ▕│                                                                                         
+███████████████████████████▕▕ │  TOUCHES    src/mail/refund.ts                                                          
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

@@ -483,6 +483,33 @@ const longChainTasks: TaskSnapshot[] = [
   },
 ]
 
+/**
+ * Six deep, each waiting on the one before it, with names nobody would want
+ * cut in half: what the side has to draw when the indent alone is wider than
+ * a narrow sidebar.
+ */
+const deepChainTasks: TaskSnapshot[] = [
+  { task: 'keys/layout-json', state: 'working', lane: 'keys/layout-json/agent' },
+  ...[
+    ['keycaps-and-row-marks', 'layout-json', 'the caps are drawn from the layout it writes'],
+    ['stagger-and-spacing', 'keycaps-and-row-marks', 'a row is spaced against the caps in it'],
+    ['legends-and-fonts', 'stagger-and-spacing', 'a legend is placed once the cap has a size'],
+    ['switch-preview', 'legends-and-fonts', 'the preview draws the legend over the switch'],
+    ['export-to-svg', 'switch-preview', 'the file is what the preview shows, written out'],
+  ].map(([task, after, why]) => ({
+    task: `keys/${task}`,
+    state: 'queued' as const,
+    by: 'orchestrator',
+    queued: {
+      state: { kind: 'waiting' as const, on: [`keys/${after}`] },
+      after: [{ task: `keys/${after}`, why: why ?? '' }],
+      prompt: `Do ${task}.`,
+      touches: [`src/${task}.ts`],
+      at: null,
+    },
+  })),
+]
+
 /** Schedules beside the queued work: one on repeat, one that asks the orchestrator, one paused. */
 const queueSchedules: ScheduleView[] = [
   {
@@ -1304,7 +1331,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'a-chain-in-the-queue',
     about:
-      'A chain four deep, in the middle of it. Down the side, the queue in the order the tree resolves to: what can start now first, then the chain — each piece shifted right of what it waits on and joined to it by a line that carries through the room between the tabs. In front of you, the whole chain as boxes, left to right, with the one you are on drawn heavier, and every wait’s reason under it.',
+      'A chain four deep, in the middle of it. Down the side, the queue in the order the tree resolves to, each piece in the column its depth gives it: the one that can start now on its own at the front, then the chain, each shifted right of what it waits on and joined to it by a line that carries through the room between the tabs — so the same column always means the same priority. In front of you, the whole chain as boxes, left to right, with the one you are on drawn heavier, and every wait’s reason under it.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), chainTasks),
@@ -1317,7 +1344,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'a-plan-too-long-for-columns',
     about:
-      'A plan five deep with a branch in it, where an agent’s screen would be. Too many steps to draw as columns, so it is said as a list — and WHY THIS ORDER draws the shape instead: the front of the chain first, each piece under what it waits on and shifted right of it, the two that wait on one thing branching under it, and every reason wrapped beneath the wait it belongs to.',
+      'A plan five deep with a branch in it, where an agent’s screen would be. More steps than the pane is wide, so the boxes are drawn in the room they need and the pane is a window onto them, with a bar under them to reach the rest — never a flat list of names, which says nothing about what waits on what. Under it, WHY THIS ORDER draws the same shape again: each piece under what it waits on and shifted right of it, the two that wait on one thing branching under it, and every reason wrapped beneath the wait it belongs to.',
     state: {
       ...showPlan(withTasks(withProjects(initialState(), ['checkout']), longChainTasks)),
       project: 'checkout',
@@ -1328,7 +1355,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'a-long-chain-of-reasons',
     about:
-      'Queued work five deep in a chain, open on the piece in the middle. Too long to draw as columns, so WHY IT WAITS carries the shape alone: the front of the chain first, each piece under what it waits on, joined by a line, and every reason wrapped under the wait it belongs to.',
+      'Queued work five deep in a chain, open on the piece in the middle. Longer than the pane is wide, and it keeps its boxes anyway: the chain is drawn whole with a bar under it saying how much is in view. Under that, WHY IT WAITS says the same shape in words — each piece under what it waits on, joined by a line, and every reason wrapped under the wait it belongs to.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), longChainTasks),
@@ -1341,7 +1368,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'why-it-waits-in-a-narrow-window',
     about:
-      'The same chain at 80×24: the reasons still read as a tree, names end in an ellipsis rather than being cut mid-word, there is always a gap before after, and nothing runs off the panel.',
+      'The same chain at 80×24: the boxes are still drawn rather than given up on, with a bar under them saying how much of the chain is in view, and the piece in front of you stands at the front of the queue — the filter leaves the rest of the chain out, so there is no column of it to stand in.',
     state: {
       ...focusTask(
         withTasks(withProjects(initialState(), ['checkout']), longChainTasks),
@@ -1351,6 +1378,30 @@ export const SCENARIOS: Scenario[] = [
       queueFilter: 'next',
     },
     frame: frame({ screen: '', width: 80, height: 24, clock: utcClock }),
+  },
+  {
+    name: 'a-deep-chain-in-a-narrow-side',
+    about:
+      'Six pieces of work stacked in one chain, down a sidebar too narrow for the indent alone. Each sits in the column its depth in the resolved tree gives it — the same column means the same priority, and two pieces that could run side by side would line up — so the tree reaches further right than the side is wide, and a bar along the bottom of it says how much is in view. Nothing is folded back into a column that is not its own, and nothing is squeezed to nothing: what is past the edge is scrolled to.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['keys']), deepChainTasks),
+      project: 'keys',
+      folded: ['changes', 'files', 'notes', 'where'],
+    },
+    frame: frame({ screen: '', width: 96, height: 30, clock: utcClock }),
+  },
+  {
+    name: 'a-deep-chain-scrolled-across',
+    about:
+      'The same side, dragged sideways: the whole tree has moved together, so the columns still line up and the names the indent had pushed off the edge are readable. What is pinned at the right of a tab has not moved with it — pause, remove and the menu under the pointer belong to the side, not to the tree, so a chain being deep never puts them out of reach.',
+    state: {
+      ...withTasks(withProjects(initialState(), ['keys']), deepChainTasks),
+      project: 'keys',
+      folded: ['changes', 'files', 'notes', 'where'],
+      across: 8,
+      hover: { kind: 'task', task: 'keys/stagger-and-spacing' },
+    },
+    frame: frame({ screen: '', width: 96, height: 30, clock: utcClock }),
   },
   {
     name: 'pointing-at-a-note',

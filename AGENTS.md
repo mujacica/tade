@@ -205,6 +205,19 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   Why it waits is drawn as that same tree (`drawWhy`), never as a list of edges sorted by name: the
   reasons hang off the waits they explain, wrapped rather than cut, and the lines that join them are
   the queue's own (`treeStems`), because two drawings of one relationship drift apart.
+- **A column is a priority, and a pane out of room scrolls rather than folds.** Every drawing of
+  the queue puts a piece in the column its depth in the resolved tree gives it (`treeStems`), so
+  work that can run side by side lines up under work that can run side by side, however long the
+  chain is and whatever a filter leaves out. Folding the indent back at some level is the one thing
+  that may never happen: it puts two pieces that cannot run together in one column, and the column
+  is the whole of what the drawing says. So a deep chain reaches further right than its pane, and
+  that is answered sideways — the side and the picture of a plan are laid out in the room they need
+  and shown through the room there is (`slid`), with the bar from down the side lying along the
+  bottom (`barAcross`), drawn only where there is somewhere to go: one on a pane that fits costs a
+  row to say there is more when there is not. `drawPlan` never gives up and says a chain as a list
+  of names — the boxes and the arrows are what say what waits on what, and a list says none of it.
+  What is pinned at the right of a row stays pinned to the pane and not to what scrolls under it: a
+  button a deep chain put out of reach is a button that is gone.
 - **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
   to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
   it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,

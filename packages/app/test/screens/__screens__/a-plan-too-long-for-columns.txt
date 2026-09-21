@@ -3,32 +3,32 @@
  ▾ AGENTS  1            +    ▕│ checkout › plan  6 tasks · 1 working · 5 waiting to start                               
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
    ⠋ ledger-schema           ▕│                                                                                         
-     working                 ▕│  ⠋ ledger-schema                                                                        
-                             ▕│  ◌ ledger-api  after ledger-schema                                                      
- ▾ SMART QUEUE  5            ▕│  ◌ refund-flow  after ledger-api                                                        
-   all  next  timed          ▕│  ◌ admin-view  after refund-flow                                                        
-                             ▕│  ◌ refund-emails  after refund-flow                                                     
-   ◌ ledger-api              ▕│  ◌ release-guide  after refund-emails                                                   
-   │ ◆ after ledger-schema   ▕│                                                                                         
-   │                         ▕│  WHY THIS ORDER                                                                         
-   ╰─◌ refund-flow           ▕│  ⠋ ledger-schema                                                                        
-     │ ◆ after ledger-api    ▕│  ╰─◌ ledger-api  after ledger-schema                                                    
-     │                       ▕│    │ the endpoints follow the tables                                                    
-     ├─◌ admin-view          ▕│    ╰─◌ refund-flow  after ledger-api                                                    
-     │   ◆ after refund-f…   ▕│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
-     │                       ▕│      ├─◌ admin-view  after refund-flow                                                  
-     ╰─◌ refund-emails       ▕│      │   it lists what the flow wrote                                                   
-       │ ◆ after refund-f…   ▕│      ╰─◌ refund-emails  after refund-flow                                               
-       │                     ▕│        │ it emails what refund() returns                                                
-       ╰─◌ release-guide     ▕│        ╰─◌ release-guide  after refund-emails                                           
-           ◆ after refund…   ▕│            the guide screenshots the email it sends                                     
-                             ▕│                                                                                         
- ▸ CHANGES  3        vs main ▕│                                                                                         
- ▸ FILES                     ▕│                                                                                         
- ▸ NOTES  4             +    ▕│                                                                                         
- ▸ GIT                       ▕│                                                                                         
-                             ▕│                                                                                         
-                             ▕│                                                                                         
+     working                 ▕│  FIRST               THEN                THEN                THEN                THEN   
+                             ▕│  ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────────────╮    ╭──────
+ ▾ SMART QUEUE  5            ▕│  │ ⠋ ledger-sc… │───▶│ ◌ ledger-api │───▶│ ◌ refund-fl… │─┬─▶│ ◌ admin-view │ ╭─▶│ ◌ rel
+   all  next  timed          ▕│  │   working    │    │   ◆ after l… │    │   ◆ after l… │ │  │   ◆ after r… │ │  │   ◆ a
+                             ▕│  ╰──────────────╯    ╰──────────────╯    ╰──────────────╯ │  ╰──────────────╯ │  ╰──────
+   ◌ ledger-api              ▕│                                                           │                   │         
+   │ ◆ after ledger-schema   ▕│                                                           │  ╭──────────────╮ │         
+   │                         ▕│                                                           ╰─▶│ ◌ refund-em… │─╯         
+   ╰─◌ refund-flow           ▕│                                                              │   ◆ after r… │           
+     │ ◆ after ledger-api    ▕│                                                              ╰──────────────╯           
+     │                       ▕│                                                                                         
+     ├─◌ admin-view          ▕│  ███████████████████████████████████████████████████████████████████████████▕▕▕▕▕▕▕▕▕▕  
+     │   ◆ after refund-fl…  ▕│                                                                                         
+     │                       ▕│  WHY THIS ORDER                                                                         
+     ╰─◌ refund-emails       ▕│  ⠋ ledger-schema                                                                        
+       │ ◆ after refund-fl…  ▕│  ╰─◌ ledger-api  after ledger-schema                                                    
+       │                     ▕│    │ the endpoints follow the tables                                                    
+       ╰─◌ release-guide     ▕│    ╰─◌ refund-flow  after ledger-api                                                    
+           ◆ after refund-…  ▕│      │ a refund is a ledger entry, and it posts it through the endpoint the api adds    
+                             ▕│      ├─◌ admin-view  after refund-flow                                                  
+ ▸ CHANGES  3        vs main ▕│      │   it lists what the flow wrote                                                   
+ ▸ FILES                     ▕│      ╰─◌ refund-emails  after refund-flow                                               
+ ▸ NOTES  4             +    ▕│        │ it emails what refund() returns                                                
+ ▸ GIT                       ▕│        ╰─◌ release-guide  after refund-emails                                           
+                             ▕│            the guide screenshots the email it sends                                     
+███████████████████████████▕▕ │                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕

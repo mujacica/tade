@@ -775,6 +775,79 @@ describe('the smart queue', () => {
     ).toBe(true)
   })
 
+  it('puts a piece in the column its priority gives it, however deep the chain', () => {
+    // Six deep, in a side too narrow for the indent alone.
+    const deep: TaskSnapshot[] = [
+      { task: 'keys/one', state: 'working', lane: 'keys/one/agent' },
+      ...['two', 'three', 'four', 'five', 'six'].map((task, i) => ({
+        task: `keys/${task}`,
+        state: 'queued' as const,
+        queued: {
+          state: {
+            kind: 'waiting' as const,
+            on: [`keys/${['one', 'two', 'three', 'four', 'five'][i]}`],
+          },
+          after: [
+            { task: `keys/${['one', 'two', 'three', 'four', 'five'][i]}`, why: 'it follows' },
+          ],
+          prompt: 'do it',
+          touches: [],
+          at: null,
+        },
+      })),
+    ]
+    const state: AppState = {
+      ...withTasks(withProjects(initialState(), ['keys']), deep),
+      project: 'keys',
+      folded: ['changes', 'files', 'notes', 'where'],
+    }
+    const drawn = draw(state, frame({ width: 96, height: 44 }))
+    const rows = drawn.rows.map(plain)
+    const at = (name: string) => {
+      const row = rows.find((one) => one.includes(`◌ ${name}`)) ?? ''
+      return row.indexOf(`◌ ${name}`)
+    }
+    // A column each, all the way down: never two of them folded into one.
+    const columns = ['two', 'three', 'four', 'five', 'six'].map(at)
+    for (const column of columns) expect(column).toBeGreaterThan(0)
+    for (let i = 1; i < columns.length; i++) {
+      expect(columns[i]).toBe((columns[i - 1] ?? 0) + 2)
+    }
+    // Which means the tree reaches past the side, so there is a bar to reach
+    // the rest of it — and it lies along the bottom of the side.
+    const bar = drawn.hits.filter(
+      (hit) =>
+        hit.target.kind === 'scrollbar' && hit.target.area === 'sidebar' && hit.target.across,
+    )
+    expect(bar.length).toBe(1)
+
+    // Dragged sideways, every row moves by the same columns: the tree keeps
+    // its shape, and the names the indent had pushed off the edge arrive.
+    const moved = draw({ ...state, across: 8 }, frame({ width: 96, height: 44 })).rows.map(plain)
+    const rowOf = (name: string) => rows.findIndex((one) => one.includes(`◌ ${name}`))
+    // The deepest one, which the indent had pushed furthest right, is eight
+    // columns further left — mark, stem and all.
+    const last = rowOf('six')
+    expect((rows[last] ?? '').indexOf('◌ six') - (moved[last] ?? '').indexOf('◌ six')).toBe(8)
+    // And nothing went the other way: the whole tree moved together.
+    for (const name of ['two', 'three', 'four', 'five']) {
+      const row = rowOf(name)
+      const before = (rows[row] ?? '').indexOf(name)
+      const after = (moved[row] ?? '').indexOf(name)
+      expect(after).toBeLessThan(before)
+    }
+  })
+
+  it('never puts a bar along the bottom of a side whose tree already fits', () => {
+    const drawn = draw(queued(), frame({ width: 140, height: 44 }))
+    expect(
+      drawn.hits.some(
+        (hit) =>
+          hit.target.kind === 'scrollbar' && hit.target.area === 'sidebar' && hit.target.across,
+      ),
+    ).toBe(false)
+  })
+
   it('draws the chain a piece of queued work is in, and lets you click along it', () => {
     const drawn = draw(focusTask(queued(), 'checkout/refund-emails'), {
       ...frame({ width: 140, height: 44 }),
@@ -831,7 +904,7 @@ describe('the smart queue', () => {
 
   it('wraps a wait’s reason into a narrow panel rather than off the edge', () => {
     const drawn = draw(focusTask(queued(), 'checkout/refund-emails'), {
-      ...frame({ width: 74, height: 30 }),
+      ...frame({ width: 74, height: 44 }),
     })
     const rows = drawn.rows.map(plain)
     const from = rows.findIndex((row) => row.includes('WHY IT WAITS'))
@@ -839,5 +912,29 @@ describe('the smart queue', () => {
     // It is still the tree, and every row of it still fits the window.
     expect(rows.slice(from).some((row) => row.includes('╰─◌ refund-emails'))).toBe(true)
     for (const row of drawn.rows) expect(visibleWidth(row)).toBe(74)
+  })
+
+  it('keeps the boxes when the chain is wider than the pane, and a bar to reach the rest', () => {
+    const state = focusTask(queued(), 'checkout/refund-emails')
+    const drawn = draw(state, { ...frame({ width: 74, height: 44 }) })
+    const rows = drawn.rows.map(plain)
+    // Three tight boxes and the room between them are more than this pane
+    // has — and they are drawn anyway, heading, arrows and all.
+    expect(rows.some((row) => row.includes('THE CHAIN IT IS IN'))).toBe(true)
+    expect(rows.some((row) => row.includes('╭───'))).toBe(true)
+    // Never the flat list of names it used to fall back to.
+    expect(rows.some((row) => row.includes('WAITS ON'))).toBe(false)
+    const bar = drawn.hits.filter(
+      (hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'plan',
+    )
+    expect(bar.length).toBe(1)
+    expect(bar[0]?.target).toMatchObject({ across: true })
+
+    // Dragged sideways, the picture moves and the far end of the chain arrives.
+    const far = draw({ ...state, planAcross: 40 }, { ...frame({ width: 74, height: 44 }) })
+    const seen = far.rows.map(plain)
+    expect(seen.some((row) => row.includes('refund-emails'))).toBe(true)
+    expect(seen.join('\n')).not.toBe(rows.join('\n'))
+    for (const row of far.rows) expect(visibleWidth(row)).toBe(74)
   })
 })

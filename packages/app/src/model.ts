@@ -180,6 +180,14 @@ export interface AppState {
   expanded: string[]
   /** How many rows the sidebar is scrolled down. */
   scroll: number
+  /**
+   * How many columns the sidebar is scrolled across, where a chain of queued
+   * work is drawn deeper than it is wide. Its own number and not a share of
+   * the width, so the tree stays where you put it as the window resizes.
+   */
+  across: number
+  /** How many columns the picture of a plan is scrolled across, where it is wider than its pane. */
+  planAcross: number
   /** When the microphone opened, while it is open. */
   talkingSince: number | null
   /** What was said is being turned into words. */
@@ -225,6 +233,8 @@ export interface AppState {
     shown: number
     /** Rows between the top of the thumb and where it was pressed. */
     grab: number
+    /** The bar lying down: its track is columns, and it is dragged by x. */
+    across?: boolean
   } | null
   /** A second lane shown with an agent's own, by task: a shell beside it, or below. */
   splits: Record<string, Split>
@@ -290,6 +300,8 @@ export function initialState(): AppState {
     schedule: null,
     expanded: [],
     scroll: 0,
+    across: 0,
+    planAcross: 0,
     talkingSince: null,
     hearing: false,
     levels: [],
@@ -672,6 +684,8 @@ export function focusTask(state: AppState, task: string): AppState {
         project: pane.project,
         chose: true,
         paneScroll: 0,
+        // A different chain is a different picture: it is read from its front.
+        planAcross: 0,
         showingPlan: false,
         schedule: null,
       }
@@ -680,7 +694,14 @@ export function focusTask(state: AppState, task: string): AppState {
 
 /** The plan in front of you, where an agent's screen was: which work comes first, and what waits on what. */
 export function showPlan(state: AppState): AppState {
-  return { ...state, focused: null, chose: true, showingPlan: true, schedule: null }
+  return {
+    ...state,
+    focused: null,
+    chose: true,
+    showingPlan: true,
+    schedule: null,
+    planAcross: 0,
+  }
 }
 
 /** A schedule in front of you, where an agent's screen was. */
@@ -1100,6 +1121,33 @@ export function scrollSidebar(state: AppState, rows: number): AppState {
 }
 
 /**
+ * Move a region sideways, by columns. `draw` keeps it from going past the
+ * right-hand end, because only the drawing knows how wide the thing turned
+ * out to be.
+ */
+export function slideAcross(state: AppState, area: ScrollArea, columns: number): AppState {
+  if (area === 'plan') {
+    const planAcross = Math.max(0, state.planAcross + columns)
+    return planAcross === state.planAcross ? state : { ...state, planAcross }
+  }
+  if (area === 'sidebar') {
+    const across = Math.max(0, state.across + columns)
+    return across === state.across ? state : { ...state, across }
+  }
+  // Everywhere else has nowhere to go sideways, and says so by not moving:
+  // the wheel then does what it does without shift, rather than being eaten.
+  return state
+}
+
+/** Columns left of the first one in view, for a region that moves sideways. */
+export function acrossOf(state: AppState, area: ScrollArea, total: number, shown: number): number {
+  const most = Math.max(0, total - shown)
+  if (area === 'plan') return Math.min(state.planAcross, most)
+  if (area === 'sidebar') return Math.min(state.across, most)
+  return 0
+}
+
+/**
  * Lines above the first one in view, for a region that scrolls. Each keeps it
  * its own way — a sidebar counts down from the top, a screen counts back from
  * the newest line — and a scrollbar is drawn from the one number they have in
@@ -1120,17 +1168,21 @@ export function offsetOf(state: AppState, area: ScrollArea, total: number, shown
       return state.panel && 'scroll' in state.panel
         ? Math.max(0, Math.min(state.panel.scroll, Math.max(0, total - shown)))
         : 0
+    // A picture of a chain is as tall as it is; it only ever moves sideways.
+    case 'plan':
+      return 0
   }
 }
 
 /**
- * Take hold of a scrollbar, at a row of the window. Grabbed on the thumb it
- * moves with the pointer from there; grabbed on the track the thumb comes to
- * the pointer, which is what every other scrollbar does.
+ * Take hold of a scrollbar, at a row of the window — or at a column of it,
+ * for the one lying down. Grabbed on the thumb it moves with the pointer from
+ * there; grabbed on the track the thumb comes to the pointer, which is what
+ * every other scrollbar does.
  */
 export function grabBar(
   state: AppState,
-  bar: { area: ScrollArea; total: number; shown: number },
+  bar: { area: ScrollArea; total: number; shown: number; across?: boolean },
   track: { top: number; rows: number },
   y: number,
 ): AppState {
@@ -1138,7 +1190,10 @@ export function grabBar(
     total: bar.total,
     shown: bar.shown,
     rows: track.rows,
-    offset: offsetOf(state, bar.area, bar.total, bar.shown),
+    offset:
+      bar.across === true
+        ? acrossOf(state, bar.area, bar.total, bar.shown)
+        : offsetOf(state, bar.area, bar.total, bar.shown),
   }
   const thumb = thumbOf(view)
   const at = y - track.top
@@ -1150,12 +1205,20 @@ export function grabBar(
   return scrollBarTo({ ...state, scrolling: { ...bar, ...track, grab } }, y)
 }
 
-/** Drag the bar being held to a row of the window, and scroll what it belongs to. */
+/**
+ * Drag the bar being held to a row of the window — or, lying down, to a column
+ * of it — and move what it belongs to.
+ */
 export function scrollBarTo(state: AppState, y: number): AppState {
   const bar = state.scrolling
   if (!bar) return state
   const view = { total: bar.total, shown: bar.shown, rows: bar.rows, offset: 0 }
   const offset = offsetAt(view, y - bar.top - bar.grab)
+  if (bar.across === true) {
+    if (bar.area === 'plan') return { ...state, planAcross: offset }
+    if (bar.area === 'sidebar') return { ...state, across: offset }
+    return state
+  }
   const back = Math.max(0, bar.total - bar.shown - offset)
   switch (bar.area) {
     case 'sidebar':
@@ -1170,6 +1233,8 @@ export function scrollBarTo(state: AppState, y: number): AppState {
       return state.panel && 'scroll' in state.panel
         ? { ...state, panel: { ...state.panel, scroll: offset } }
         : state
+    case 'plan':
+      return state
   }
 }
 

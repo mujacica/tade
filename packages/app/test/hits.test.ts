@@ -1,8 +1,8 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { hitAt, hitBoxAt, rowHit, sameTarget } from '../src/hits.ts'
+import { extentOf, hitAt, hitBoxAt, rowHit, sameTarget } from '../src/hits.ts'
 import { COLOUR, PLAIN } from '../src/skin.ts'
-import { box, overlay, Row, stack } from '../src/ui.ts'
+import { box, overlay, Row, slid, stack } from '../src/ui.ts'
 
 // Where things are, which is the whole of what a click can know.
 //
@@ -162,5 +162,55 @@ describe('hitAt', () => {
     expect(sameTarget({ kind: 'task', task: 'a' }, { kind: 'task', task: 'a' })).toBe(true)
     expect(sameTarget({ kind: 'task', task: 'a' }, { kind: 'task', task: 'b' })).toBe(false)
     expect(sameTarget(null, null)).toBe(true)
+  })
+})
+
+describe('a window onto rows wider than the room', () => {
+  const laid = () => [
+    new Row(40, PLAIN)
+      .space(2)
+      .text('╰─', (t) => t)
+      .text('refund-emails', (t) => t, { kind: 'task', task: 'checkout/refund-emails' })
+      .build(),
+  ]
+
+  it('shows the left of them when nothing is scrolled past, cut to the room', () => {
+    const [row] = slid(laid(), 0, 12)
+    expect(visibleWidth(row?.text ?? '')).toBe(12)
+    expect(plain(row?.text ?? '')).toBe('  ╰─refund-e')
+  })
+
+  it('slides the text and what can be clicked in it by the same columns', () => {
+    const [here] = slid(laid(), 0, 20)
+    const [moved] = slid(laid(), 2, 20)
+    expect(plain(here?.text ?? '').trimEnd()).toBe('  ╰─refund-emails')
+    expect(plain(moved?.text ?? '').trimEnd()).toBe('╰─refund-emails')
+    const before = here?.hits.find((hit) => hit.target.kind === 'task')
+    const after = moved?.hits.find((hit) => hit.target.kind === 'task')
+    expect((before?.from ?? 0) - (after?.from ?? 0)).toBe(2)
+    // A name still goes to its work, wherever the window has been dragged to,
+    // and what has half slid off keeps the half you can still see.
+    const far = slid(laid(), 6, 20)[0]
+    expect(far?.hits.find((hit) => hit.target.kind === 'task')?.from).toBe(0)
+    expect(hitAt(far?.hits ?? [], 0, 0)).toEqual({
+      kind: 'task',
+      task: 'checkout/refund-emails',
+    })
+  })
+
+  it('drops what has slid off the edge rather than offering a click off the pane', () => {
+    const [gone] = slid(laid(), 30, 10)
+    expect(plain(gone?.text ?? '').trim()).toBe('')
+    for (const hit of gone?.hits ?? []) {
+      expect(hit.from).toBeGreaterThanOrEqual(0)
+      expect(hit.to).toBeLessThan(10)
+    }
+  })
+
+  it('reads a bar lying down back out of the map by its columns', () => {
+    const bar = { kind: 'scrollbar' as const, area: 'sidebar' as const, total: 60, shown: 20 }
+    const hits = [{ row: 9, from: 0, to: 19, target: bar }]
+    expect(extentOf(hits, bar)).toEqual({ top: 9, rows: 1 })
+    expect(extentOf(hits, bar, true)).toEqual({ top: 0, rows: 20 })
   })
 })

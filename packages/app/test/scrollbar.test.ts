@@ -1,6 +1,6 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { barRows, offsetAt, type Scrolled, thumbOf } from '../src/scrollbar.ts'
+import { barAcross, barRows, offsetAt, type Scrolled, thumbOf } from '../src/scrollbar.ts'
 import { COLOUR, PLAIN } from '../src/skin.ts'
 
 // The bar has one job a person checks by eye and one they check by hand: that
@@ -110,5 +110,23 @@ describe('the bar itself', () => {
     // The same rows, a brighter cell: taking hold of it must not move it.
     expect(thumbOfBar(held)).not.toEqual(thumbOfBar(rest))
     expect(thumbOfBar(held)).toHaveLength(thumbOfBar(rest).length)
+  })
+})
+
+describe('the same bar, lying down', () => {
+  it('is one row of the cells the standing one is a column of', () => {
+    const one = view({ total: 100, shown: 40, offset: 30, rows: 24 })
+    expect(barAcross(one, PLAIN, false)).toBe(barRows(one, PLAIN, false).join(''))
+    expect(stripTerminalSequences(barAcross(one, COLOUR, false))).toHaveLength(24)
+  })
+
+  it('is one run of thumb across it, and nothing at all where it all fits', () => {
+    const cells = stripTerminalSequences(
+      barAcross(view({ total: 60, shown: 20, offset: 25, rows: 20 }), COLOUR, false),
+    )
+    expect(cells).toMatch(/^▕*█+▕*$/)
+    expect(new Set(barAcross(view({ total: 20, shown: 20, rows: 20 }), PLAIN, false))).toEqual(
+      new Set(['▕']),
+    )
   })
 })

@@ -1,6 +1,7 @@
 import type { Skin } from './skin.ts'
 
-// The bar down the right of anything that scrolls.
+// The bar down the right of anything that scrolls, and the one along the
+// bottom of anything wider than its pane.
 //
 // Two jobs, and the second is the one that is usually missing: it says where
 // you are in something longer than the screen, and it can be taken hold of and
@@ -8,18 +9,21 @@ import type { Skin } from './skin.ts'
 // terminal's own scrollbar is scrolling the terminal, not the pane inside it —
 // so every region that scrolls draws one of these and answers drags on it.
 //
+// The arithmetic does not know which way it is pointing: a bar lying down is
+// the same sums over columns, so there is one of these and not two that drift.
+//
 // Pure: a few numbers in, rows of glyphs out, and the same arithmetic run
 // backwards to turn a row the pointer is on into a place to scroll to.
 
-/** How much of something is in view, and where. */
+/** How much of something is in view, and where. Lines down, or columns across. */
 export interface Scrolled {
-  /** Lines there are altogether. */
+  /** Lines — or columns — there are altogether. */
   total: number
-  /** Lines in view at once. */
+  /** Lines, or columns, in view at once. */
   shown: number
-  /** Lines above the first one in view. */
+  /** Lines above the first one in view, or columns left of it. */
   offset: number
-  /** Rows the bar is drawn in. */
+  /** Cells of track the bar is drawn in: rows down the side, columns along the bottom. */
   rows: number
 }
 
@@ -86,4 +90,14 @@ export function barRows(view: Scrolled, skin: Skin, lit: boolean): string[] {
   return Array.from({ length: Math.max(0, view.rows) }, (_, row) =>
     thumb && row >= thumb.from && row < thumb.from + thumb.size ? held : track,
   )
+}
+
+/**
+ * The same bar lying down: one row, a cell per column of the track, for a pane
+ * whose content is wider than it is. Drawn only where there is something to
+ * scroll to — a bar along the bottom of a pane that fits says there is more to
+ * the right when there is not, and costs a row of the pane to say it.
+ */
+export function barAcross(view: Scrolled, skin: Skin, lit: boolean): string {
+  return barRows(view, skin, lit).join('')
 }

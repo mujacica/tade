@@ -1,5 +1,6 @@
 import {
   compositeTuiLine,
+  sliceByColumn,
   stripTerminalSequences,
   truncateToWidth,
   visibleWidth,
@@ -300,6 +301,43 @@ export function stack(rows: readonly { text: string; hits: Hit[] }[]): Drawn {
 /** A blank row of a width. */
 export function blank(width: number): { text: string; hits: Hit[] } {
   return { text: ' '.repeat(Math.max(0, width)), hits: [] }
+}
+
+/**
+ * A window onto rows laid out wider than the room there is: everything shifted
+ * `across` columns to the left and cut to `width`, with what can be clicked
+ * moved with it and what has slid off the edge dropped.
+ *
+ * This is what a pane scrolling sideways is. The rows were drawn in the room
+ * they needed — a chain of ten is ten boxes wide — and the pane shows the part
+ * of them you have scrolled to, rather than the layout being folded up to fit
+ * and saying something it does not mean.
+ */
+export function slid(
+  rows: readonly { text: string; hits: Hit[] }[],
+  across: number,
+  width: number,
+): { text: string; hits: Hit[] }[] {
+  const from = Math.max(0, Math.round(across))
+  if (from === 0)
+    return rows.map((row) => ({ text: fit(row.text, width), hits: clipped(row.hits, width) }))
+  return rows.map((row) => ({
+    text: fit(sliceByColumn(row.text, from, width), width),
+    hits: clipped(
+      row.hits.map((hit) => ({ ...hit, from: hit.from - from, to: hit.to - from })),
+      width,
+    ),
+  }))
+}
+
+/** What of a row's hits still lands on the pane, cut to its edges. */
+function clipped(hits: readonly Hit[], width: number): Hit[] {
+  const out: Hit[] = []
+  for (const hit of hits) {
+    if (hit.to < 0 || hit.from > width - 1) continue
+    out.push({ ...hit, from: Math.max(0, hit.from), to: Math.min(width - 1, hit.to) })
+  }
+  return out
 }
 
 export interface BoxOptions {

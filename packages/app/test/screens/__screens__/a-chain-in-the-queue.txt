@@ -11,14 +11,14 @@
    ◌ tidy-mailer            next   ▕│  │ ⠋ schema         │────▶│ ◌ api            │────▶┃ ◌ client         ┃────▶│ ◌ docs           │                
      ❯ waiting for room            ▕│  │   working        │     │   ◆ after schema │     ┃   ◆ after api    ┃     │   ◆ after client │                
                                    ▕│  ╰──────────────────╯     ╰──────────────────╯     ┗━━━━━━━━━━━━━━━━━━┛     ╰──────────────────╯                
-   ◌ api                           ▕│                                                                                                                 
-   │ ◆ after schema                ▕│                                                                                                                 
-   │                               ▕│  WHY IT WAITS                                                                                                   
- ▌ ╰─◌ client                      ▕│  ⠋ schema                                                                                                       
- ▌   │ ◆ after api                 ▕│  ╰─◌ api  after schema                                                                                          
-     │                             ▕│    │ the endpoints follow the tables                                                                            
-     ╰─◌ docs                      ▕│    ╰─◌ client  after api                                                                                        
-         ◆ after client            ▕│      │ it calls what the endpoints return                                                                       
+     ◌ api                         ▕│                                                                                                                 
+     │ ◆ after schema              ▕│                                                                                                                 
+     │                             ▕│  WHY IT WAITS                                                                                                   
+ ▌   ╰─◌ client                    ▕│  ⠋ schema                                                                                                       
+ ▌     │ ◆ after api               ▕│  ╰─◌ api  after schema                                                                                          
+       │                           ▕│    │ the endpoints follow the tables                                                                            
+       ╰─◌ docs                    ▕│    ╰─◌ client  after api                                                                                        
+           ◆ after client          ▕│      │ it calls what the endpoints return                                                                       
                                    ▕│      ╰─◌ docs  after client                                                                                     
  ▸ CHANGES  3              vs main ▕│          it screenshots the dashboard                                                                           
  ▸ FILES                           ▕│                                                                                                                 

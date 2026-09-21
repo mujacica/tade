@@ -60,8 +60,14 @@ export interface PlanDrawing {
    * A run inside a box says whose it is, so a box can be clicked.
    */
   rows: PlanRun[][]
-  /** How many columns the plan needed, when it was too wide to draw as columns. */
-  tooWide: boolean
+  /**
+   * Columns the drawing came out at, which may be more than the room it was
+   * given: then the panel it is in scrolls sideways. A chain drawn as a list
+   * of names is not the chain — the boxes and the arrows are what say what
+   * waits on what — so it is always drawn, and what does not fit is scrolled
+   * to rather than lost.
+   */
+  width: number
 }
 
 const UP = 1
@@ -262,13 +268,16 @@ export function drawPlan(
     boxes.map((box) => box.task),
     waits,
   )
-  const fits = SIZES.find(
-    (size) => columns.length * size.box + Math.max(0, columns.length - 1) * size.gap <= width,
-  )
-  if (!fits) return { rows: [], tooWide: true }
+  const takes = (size: { box: number; gap: number }) =>
+    columns.length * size.box + Math.max(0, columns.length - 1) * size.gap
+  // The roomiest boxes that fit; where not even the tight ones do, the tight
+  // ones anyway, and the drawing comes out wider than the room it was given.
+  const fits = SIZES.find((size) => takes(size) <= width) ?? SIZES[SIZES.length - 1]
+  if (!fits) return { rows: [], width }
   const { box: BOX, gap: GAP } = fits
+  const across = Math.max(width, takes(fits))
   const tall = Math.max(1, ...columns.map((column) => column.length)) * SLOT
-  const grid = new Grid(width, tall + 1)
+  const grid = new Grid(across, tall + 1)
   const byTask = new Map(boxes.map((box) => [box.task, box]))
   const where = new Map<string, { x: number; y: number }>()
 
@@ -344,7 +353,19 @@ export function drawPlan(
     if (byTask.has(link.to)) grid.put(end, ty, '▶', 'line')
     else grid.join(end, ty, LEFT | RIGHT)
   }
-  return { rows: grid.rows(), tooWide: false }
+  return { rows: grid.rows(), width: across }
+}
+
+/** How wide a drawing came out: the widest of its rows. */
+export function planWidth(rows: readonly PlanRun[][]): number {
+  return rows.reduce(
+    (widest, runs) =>
+      Math.max(
+        widest,
+        runs.reduce((sum, run) => sum + visibleWidth(run.text), 0),
+      ),
+    0,
+  )
 }
 
 /**
@@ -353,36 +374,55 @@ export function drawPlan(
  * on a row hangs off it, shifted right and joined to it.
  *
  * `parents` is the row each row hangs from, by index, and -1 at the front of a
- * path; `levels` is how deep the indent may grow. Deeper than that and the
- * levels nearest a row are the ones drawn, because a chain ten long must still
- * read in a narrow panel.
+ * path. `depths` is the column each row belongs in — how deep the resolved
+ * tree puts it — so that work which can run side by side lines up under work
+ * which can run side by side, whatever else is listed between them, and a row
+ * whose parent is filtered out still stands where its priority says. Left out,
+ * it is how far down the chain of rows above each row sits, which is the same
+ * number whenever the whole tree is shown.
+ *
+ * Nothing is capped. A chain ten long is drawn ten deep and the panel it is in
+ * scrolls sideways: folding the indent back puts two pieces of work in one
+ * column that cannot run together, and a column is the whole of what this
+ * drawing says.
  *
  * The queue down the side and every wait's reason are drawn from this one
  * function: two drawings of one relationship would drift apart.
  */
 export function treeStems(
   parents: readonly number[],
-  levels: number,
+  depths?: readonly number[],
 ): { stem: string; bars: string }[] {
   const more = (of: number, after: number) => parents.some((up, j) => j > after && up === of)
-  return parents.map((_, i) => {
+  const chainOf = (i: number) => {
     const chain: number[] = []
     for (let up = parents[i] ?? -1; up >= 0; up = parents[up] ?? -1) chain.unshift(up)
-    const shown = chain.slice(-Math.max(1, levels))
-    const lines = shown.map((up) => (more(up, i) ? '│ ' : '  '))
+    return chain
+  }
+  const columnOf = (i: number) => Math.max(0, depths?.[i] ?? chainOf(i).length)
+  return parents.map((_, i) => {
+    const at = columnOf(i)
+    // A cell per column before its own: the line of an ancestor that still has
+    // work under it, and nothing where the tree has already closed.
+    const cells = Array.from({ length: at }, () => '  ')
+    for (const up of chainOf(i)) {
+      const column = Math.min(columnOf(up), at - 1)
+      if (column >= 0 && more(up, i)) cells[column] = '│ '
+    }
+    const parent = parents[i] ?? -1
+    // It hangs off its parent by a turn, or off nothing when its parent is not
+    // shown — and then it stands in its column with no line into it.
     const stem =
-      shown.length === 0
+      at === 0
         ? ''
-        : `${lines.slice(0, -1).join('')}${more(shown.at(-1) ?? -1, i) ? '├─' : '╰─'}`
+        : `${cells.slice(0, -1).join('')}${parent < 0 ? '  ' : more(parent, i) ? '├─' : '╰─'}`
     // Its own line, under its mark, carries whatever waits on it.
-    const bars = `${lines.join('')}${more(i, i) ? '│' : ' '}`.trimEnd()
+    const bars = `${cells.join('')}${more(i, i) ? '│' : ' '}`.trimEnd()
     return { stem, bars }
   })
 }
 
-/** How deep the reasons' indent grows before it stops walking right. */
-const WHY_LEVELS = 4
-/** The room a reason is wrapped to at the deepest indent, when the width allows. */
+/** The room a reason is wrapped to, at whatever indent, before the panel scrolls instead. */
 const WHY_ROOM = 12
 /** The most of a name kept when `after …` has to share the line with it. */
 const WHY_NAME = 16
@@ -396,8 +436,13 @@ const WHY_AFTER = 12
  *
  * The order is the layout's own — the same layering `drawPlan` puts in
  * columns — so the reasons read in the order the work runs, and the two
- * drawings can never disagree about what comes first. Nothing is cut without
- * an `…`, and nothing reaches past `width`.
+ * drawings can never disagree about what comes first, and a column says the
+ * same thing in both: work that can run side by side.
+ *
+ * Nothing is cut without an `…`. A reason is never wrapped narrower than
+ * `WHY_ROOM`, so a chain deep enough to squeeze one comes back wider than
+ * `width` and the panel scrolls: words broken a letter at a time to fit an
+ * indent are a reason nobody can act on.
  */
 export function drawWhy(
   boxes: readonly PlanBox[],
@@ -480,18 +525,14 @@ export function drawWhy(
     parent: place.get(entry.parent) ?? -1,
   }))
 
-  const levels = Math.max(1, Math.min(WHY_LEVELS, Math.floor((width - WHY_ROOM - 2) / 2)))
-  const stems = treeStems(
-    entries.map((entry) => entry.parent),
-    levels,
-  )
+  const stems = treeStems(entries.map((entry) => entry.parent))
   const rows: PlanRun[][] = []
   entries.forEach((entry, i) => {
     const box = byTask.get(entry.task)
     const stem = stems[i]?.stem ?? ''
     const bars = stems[i]?.bars ?? ''
     const indent = visibleWidth(stem)
-    const room = Math.max(1, width - indent - 2)
+    const room = Math.max(WHY_ROOM, width - indent - 2)
     if (!box) return
     const wait = hangs.get(entry.task)
     const said = wait ? `after ${byTask.get(wait.from)?.name ?? wait.from}` : ''

@@ -59,13 +59,25 @@ import {
   type PlanBox,
   type PlanRun,
   type PlanTone,
+  planWidth,
   treeStems,
 } from './plan-graph.ts'
-import { BAR, barRows, type Scrolled } from './scrollbar.ts'
+import { BAR, barAcross, barRows, type Scrolled } from './scrollbar.ts'
 import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
-import { blank, box, type Drawn, fit, NO_POINTER, overlay, type Pointer, Row, stack } from './ui.ts'
+import {
+  blank,
+  box,
+  type Drawn,
+  fit,
+  NO_POINTER,
+  overlay,
+  type Pointer,
+  Row,
+  slid,
+  stack,
+} from './ui.ts'
 
 // Drawing, as one pure function of state.
 //
@@ -761,6 +773,17 @@ function renderSidebar(
   // A column of it belongs to the bar down its right; everything below is laid
   // out in what is left.
   const width = Math.max(1, full - BAR)
+  // How far the queue's tree reaches against the room there is for it, and so
+  // whether the side has anywhere to scroll sideways to. Worked out before
+  // anything is drawn, because a bar along the bottom costs the list a row.
+  const entries = queueRows(state)
+  const folded = state.folded.includes('queue')
+  const spread = folded ? { wide: 0, shown: 0 } : queueSpread(queueStems(entries), width)
+  const sideways = Math.max(0, spread.wide - spread.shown)
+  const across = Math.min(Math.max(0, state.across), sideways)
+  const tree: QueueTree = { ...spread, across }
+  // The bar lies along the bottom row, and the list gets what is left.
+  const body = sideways > 0 ? Math.max(1, height - 1) : height
   const tasks = tasksOf(state)
   const changes = frame.changes ?? []
   const notes = frame.notes ?? []
@@ -829,7 +852,7 @@ function renderSidebar(
     // nothing between your agents and what they changed.
     ...(queuedCount(state) + schedulesHere(state, frame) === 0
       ? []
-      : [queueSection(state, frame, width, skin, pointer)]),
+      : [queueSection(state, frame, width, skin, pointer, tree)]),
     // What an extension keeps here — reviews, most of all — between the work
     // that is waiting and the work in front of you. A section with no rows
     // and nothing wrong is not drawn at all.
@@ -923,22 +946,37 @@ function renderSidebar(
   // it, which looks like a list cut off rather than a list that has ended.
   // Only where it scrolls, because a bar that appears to say "there is more"
   // when the more is a blank row is worse than no margin at all.
-  if (out.length > height) out.push(blank(width))
+  if (out.length > body) out.push(blank(width))
   // Tailing is for screens that grow at the bottom; a sidebar is read from the
   // top, so it scrolls, and never past its last row.
-  const scroll = Math.max(0, Math.min(state.scroll, out.length - height))
-  const shown = out.slice(scroll, scroll + height)
-  while (shown.length < height) shown.push(blank(width))
-  const stacked = stack(
-    barBeside(
-      shown,
-      { total: out.length, shown: height, offset: scroll, rows: height },
-      'sidebar',
-      width,
-      state,
-      skin,
-    ),
+  const scroll = Math.max(0, Math.min(state.scroll, out.length - body))
+  const shown = out.slice(scroll, scroll + body)
+  while (shown.length < body) shown.push(blank(width))
+  const rows = barBeside(
+    shown,
+    { total: out.length, shown: body, offset: scroll, rows: body },
+    'sidebar',
+    width,
+    state,
+    skin,
   )
+  // The tree reaches further right than the side is wide: a bar along the
+  // bottom says how much of it you are looking at, and takes you to the rest.
+  if (sideways > 0) {
+    const view = { total: spread.wide, shown: spread.shown, offset: across, rows: width }
+    const bar: Target = {
+      kind: 'scrollbar',
+      area: 'sidebar',
+      total: spread.wide,
+      shown: spread.shown,
+      across: true,
+    }
+    rows.push({
+      text: `${barAcross(view, skin, isScrolling(state, 'sidebar', true))} `,
+      hits: [{ row: 0, from: 0, to: Math.max(0, width - 1), target: bar }],
+    })
+  }
+  const stacked = stack(rows)
   const under = Array.from({ length: height }, (_, i) =>
     rowHit(i, full, { kind: 'scroll', area: 'sidebar' }),
   )
@@ -1055,10 +1093,18 @@ function barBeside(
   }))
 }
 
-/** Whether the pointer is on this region's bar, or holding it. */
-function isScrolling(state: AppState, area: ScrollArea): boolean {
-  if (state.scrolling?.area === area) return true
-  return state.hover?.kind === 'scrollbar' && state.hover.area === area
+/**
+ * Whether the pointer is on this region's bar, or holding it. A region with
+ * two of them lights the one being used: the bar down its side and the one
+ * along its bottom are two handles, not one.
+ */
+function isScrolling(state: AppState, area: ScrollArea, across = false): boolean {
+  if (state.scrolling?.area === area) return (state.scrolling.across === true) === across
+  return (
+    state.hover?.kind === 'scrollbar' &&
+    state.hover.area === area &&
+    (state.hover.across === true) === across
+  )
 }
 
 /** The repository, the branch in front of you, and the worktree an agent works in. */
@@ -1420,6 +1466,7 @@ function queueSection(
   width: number,
   skin: Skin,
   pointer: Pointer,
+  tree: QueueTree,
 ): Section {
   const all = queuedCount(state) + schedulesHere(state, frame)
   return {
@@ -1459,7 +1506,7 @@ function queueSection(
         ...tabList(
           [
             ...entries.map((one, i) =>
-              queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame),
+              queueRow(width, skin, pointer, one, stems[i] ?? { stem: '', bars: '' }, frame, tree),
             ),
             ...schedules.map((one) =>
               scheduleRow(width, skin, pointer, one, state.schedule === one.id, frame),
@@ -1731,13 +1778,17 @@ function queueFilters(row: Row, current: QueueFilter, skin: Skin): { text: strin
   return row.build()
 }
 
-/** How many levels of the tree the side shifts work by: deeper work hangs from the last. */
-const QUEUE_LEVELS = 3
-
 /**
  * The lines drawn to the left of queued work, so the side says the same tree
  * the plan does: each piece shifted right of what it waits on, hanging from it
  * by a turn, and the lines of whatever is still to come carried down past it.
+ *
+ * A piece sits in the column its depth in the resolved tree gives it — not
+ * in one counted off the rows above it — so work that can run side by side
+ * lines up under work that can run side by side, and a filter that hides a
+ * parent does not pull its children back to the front. The shallowest thing
+ * shown starts at the left: the columns say what waits on what within the
+ * queue, and the queue is what the side is a list of.
  *
  * `stem` goes before its mark; `bars` is what carries on under it, drawn both
  * on its second row and in the room beneath, so a two-row tab never breaks a
@@ -1748,7 +1799,57 @@ function queueStems(rows: readonly QueueRow[]): { stem: string; bars: string }[]
   const index = new Map(rows.map((row, i) => [row.pane.task, i]))
   // Only work that is shown can be hung from: a filter may leave a parent out.
   const parent = rows.map((row) => (row.parent === null ? -1 : (index.get(row.parent) ?? -1)))
-  return treeStems(parent, QUEUE_LEVELS)
+  const front = rows.length === 0 ? 0 : Math.min(...rows.map((row) => row.depth))
+  return treeStems(
+    parent,
+    rows.map((row) => row.depth - front),
+  )
+}
+
+/**
+ * Enough of a queued task's name, and of the reason under it, to be worth
+ * reading. The tree is always laid out with this much room past its deepest
+ * stem — further right than the side is wide, if that is what it takes — and
+ * the side is a window onto it.
+ */
+const QUEUE_ROOM = 16
+
+/** How far the tree of queued work reaches, and how much of it the side shows. */
+interface QueueTree {
+  /** Columns the deepest piece of it needs: what the side is a window onto. */
+  wide: number
+  /** Columns of it in view at once. */
+  shown: number
+  /** Columns of it scrolled past, off the left. */
+  across: number
+}
+
+/**
+ * How wide the queue's tree came out against the room the side has for it:
+ * the deepest stem, its mark, and enough of a name to read.
+ *
+ * `wide` equal to `shown` is a tree that fits, and then nothing is drawn to
+ * scroll it — a bar along the bottom of a side that fits costs a row to say
+ * there is more when there is not — and each tab goes back to being laid out
+ * in its own room, cut with an `…` as it always was.
+ *
+ * `shown` is the room a tab with nothing pinned at its right has. What the
+ * pointer is on, and the couple of columns a `next` or a clock costs the row
+ * it is on, are left out of the sums on purpose: a tree that reflowed as the
+ * mouse moved across it would be worse than one you cannot read, and one
+ * row's badge is no reason to say the whole list is too narrow.
+ */
+function queueSpread(
+  stems: readonly { stem: string; bars: string }[],
+  width: number,
+): { wide: number; shown: number } {
+  const shown = Math.max(1, width - TAB_EDGES - 1)
+  const wide = stems.reduce(
+    // A leading space, the stem, the mark and a space, then room for a name.
+    (widest, one) => Math.max(widest, 4 + visibleWidth(one.stem) + QUEUE_ROOM),
+    shown,
+  )
+  return { wide, shown }
 }
 
 /**
@@ -1756,6 +1857,13 @@ function queueStems(rows: readonly QueueRow[]): { stem: string; bars: string }[]
  * when it starts; under it, what it waits for and who asked. It sits right of
  * what it waits on, hanging from it by a line. Under the pointer, pause (or
  * resume), remove and a menu take the place of when.
+ *
+ * The tree and the name are laid out in the room the tree needs and shown
+ * through the room the side has, scrolled together by `tree.across`, so every
+ * row moves by the same columns and a column goes on meaning what it meant.
+ * What is pinned at the right — when it starts, and the controls under the
+ * pointer — is pinned to the side and not to the tree: a button you cannot
+ * reach because the chain is deep is a button that is gone.
  */
 function queueRow(
   width: number,
@@ -1764,6 +1872,7 @@ function queueRow(
   row: QueueRow,
   stems: { stem: string; bars: string },
   frame: Frame,
+  tree: QueueTree,
 ): ListItem {
   const pane = row.pane
   const target: Target = { kind: 'task', task: pane.task }
@@ -1778,13 +1887,29 @@ function queueRow(
   const band: Band | null = pane.focused ? 'selected' : pointed ? 'hovered' : null
   const look = queueLook(pane.queued, skin, frame)
   const shift = visibleWidth(stems.stem)
-  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
-  if (stems.stem) inner.text(stems.stem, skin.chrome, target)
-  inner.text(look.glyph, look.tone, target).space()
+  const edge = Math.max(0, width - TAB_EDGES)
   const right = pointed ? QUEUE_ICONS : look.when ? visibleWidth(look.when) + 1 : 0
-  const room = Math.max(1, inner.width - inner.used - right - 1)
+  const room = Math.max(1, edge - right - 1)
+  // A tree that fits has no room of its own: every tab is laid out in the
+  // room it has and cut with an `…`, exactly as it was before any of this.
+  const canvas = tree.wide > tree.shown ? tree.wide : 0
+
+  // Laid out in the tree's own room, then shown through the side's.
+  const laid = new Row(Math.max(room, canvas), skin, pointer).space()
+  if (stems.stem) laid.text(stems.stem, skin.chrome, target)
+  laid.text(look.glyph, look.tone, target).space()
   const nameTone = pane.focused ? skin.you : paused ? skin.faded : (text: string) => text
-  inner.text(shortened(shownName(pane), room), nameTone, target)
+  laid.text(shortened(shownName(pane), Math.max(1, laid.width - laid.used)), nameTone, target)
+  const reach = laid.used
+  const seen = edged(
+    slid([laid.build()], tree.across, room)[0] ?? blank(room),
+    room,
+    reach > tree.across + room,
+    skin,
+  )
+
+  const inner = new Row(edge, skin, pointer)
+  inner.text(seen.text)
   inner.right((r) => {
     if (pointed) {
       r.icon(paused ? '▶' : '‖', toggle)
@@ -1795,29 +1920,146 @@ function queueRow(
       r.text(look.when, look.whenTone, target).space()
     }
   })
-  const said = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
-  if (stems.bars) said.text(stems.bars, skin.chrome, target)
+  const first = inner.build()
+  first.hits.push(...seen.hits)
+
+  const laidSaid = new Row(Math.max(edge, canvas), skin, pointer).space()
+  if (stems.bars) laidSaid.text(stems.bars, skin.chrome, target)
   // Level with the name above it, whatever lines pass under the mark.
-  said.space(Math.max(1, shift + 3 - said.used))
-  said.text(shortened(queueSays(pane), Math.max(1, said.width - said.used - 1)), skin.hint, target)
+  laidSaid.space(Math.max(1, shift + 3 - laidSaid.used))
+  laidSaid.text(
+    shortened(queueSays(pane), Math.max(1, laidSaid.width - laidSaid.used - 1)),
+    skin.hint,
+    target,
+  )
+  const said = edged(
+    slid([laidSaid.build()], tree.across, edge)[0] ?? blank(edge),
+    edge,
+    laidSaid.used > tree.across + edge,
+    skin,
+  )
+
   return {
-    rows: [
-      tabbed(width, skin, band, inner.build(), target),
-      tabbed(width, skin, band, said.build(), target),
-    ],
+    rows: [tabbed(width, skin, band, first, target), tabbed(width, skin, band, said, target)],
     band,
     // The lines of what is still to come carry on through the room beneath it.
     ...(stems.bars
-      ? { under: new Row(width, skin).space(3).text(stems.bars, skin.chrome).build() }
+      ? {
+          under:
+            slid(
+              [
+                new Row(Math.max(width, canvas + TAB_EDGES / 2 + 1), skin)
+                  .space(3)
+                  .text(stems.bars, skin.chrome)
+                  .build(),
+              ],
+              tree.across,
+              width,
+            )[0] ?? blank(width),
+        }
       : {}),
   }
 }
 
 /**
+ * A tab's row, cut at the side's edge with an `…` where its name carries on
+ * past it. What is past it is scrolled to and not lost — but a name that
+ * stops mid-letter with nothing to say why reads like the side broke, and
+ * that is the reading this whole thing is here to end.
+ */
+function edged(
+  row: { text: string; hits: Hit[] },
+  width: number,
+  more: boolean,
+  skin: Skin,
+): { text: string; hits: Hit[] } {
+  if (!more || width < 1) return row
+  const kept = fit(sliceByColumn(row.text, 0, width - 1), width - 1)
+  return { ...row, text: `${kept}${skin.hint('…')}` }
+}
+
+/**
+ * The picture of a plan where an agent's screen would be: the boxes and the
+ * arrows, and the same tree again as the reason for every wait. Each part is
+ * laid out in the room it needs and shown through the room there is, all of
+ * them moving together, with a bar along the bottom where that is less than
+ * all of it.
+ *
+ * A chain too wide for the pane is scrolled to, never folded into a list of
+ * names: the columns and the arrows are the whole of what the picture says,
+ * and a list says none of it. Each part keeps its heading where it is, so
+ * what you are looking at is still named once you have moved along it.
+ *
+ * The bar goes under the first part rather than at the foot of the whole
+ * thing: that is where the picture runs off the pane, and it is the part a
+ * short pane still has room to show.
+ */
+function planPicture(
+  state: AppState,
+  skin: Skin,
+  pointer: Pointer,
+  width: number,
+  parts: readonly { label?: string; rows: readonly PlanRun[][] }[],
+): { text: string; hits: Hit[] }[] {
+  const room = Math.max(1, width - 4)
+  const wide = Math.max(room, ...parts.map((part) => planWidth(part.rows)))
+  const across = Math.min(Math.max(0, state.planAcross), Math.max(0, wide - room))
+  const paint = planPaint(skin)
+  const scrolls: Target = { kind: 'scroll', area: 'plan' }
+  const out: { text: string; hits: Hit[] }[] = []
+  let drawn = 0
+  for (const part of parts) {
+    if (part.rows.length === 0) continue
+    if (part.label !== undefined) {
+      const label = part.label
+      out.push(blank(width))
+      out.push(new Row(width, skin, pointer).space(2).text(label, skin.label).build())
+    }
+    const laid = part.rows.map((runs) => {
+      const r = new Row(2 + wide, skin, pointer).space(2)
+      for (const run of runs) {
+        r.text(
+          run.text,
+          run.tone ? paint[run.tone] : (text) => text,
+          run.task ? { kind: 'task', task: run.task } : undefined,
+        )
+      }
+      return r.build()
+    })
+    for (const row of slid(laid, across, width)) {
+      // The wheel over the picture moves it: the hit goes under what is drawn,
+      // so a box on it is still what a click lands on.
+      out.push({ ...row, hits: [rowHit(0, width, scrolls), ...row.hits] })
+    }
+    drawn++
+    if (drawn === 1 && wide > room) {
+      const bar: Target = {
+        kind: 'scrollbar',
+        area: 'plan',
+        total: wide,
+        shown: room,
+        across: true,
+      }
+      // Under the picture and no wider than it: a bar that ran the width of
+      // the pane would be saying it was about the pane.
+      const track = barAcross(
+        { total: wide, shown: room, offset: across, rows: room },
+        skin,
+        isScrolling(state, 'plan', true),
+      )
+      out.push({
+        text: `  ${track}${' '.repeat(Math.max(0, width - room - 2))}`,
+        hits: [{ row: 0, from: 2, to: Math.max(2, room + 1), target: bar }],
+      })
+    }
+  }
+  return out
+}
+
+/**
  * The project's plan where an agent's screen would be: a column per step, a
  * box per task with its mark and what it is doing, an arrow for every wait,
- * and under it every wait's reason. Too many steps for the width, it is said
- * as a list instead of drawn through itself.
+ * and under it every wait's reason. Wider than the pane, it scrolls sideways.
  */
 function renderPlan(
   state: AppState,
@@ -1851,29 +2093,14 @@ function renderPlan(
   const drawing = drawPlan(boxes, waits, Math.max(0, width - 4), (column) =>
     column === 0 ? 'FIRST' : 'THEN',
   )
-  const paint = planPaint(skin)
-  if (!drawing.tooWide) planLines(drawing.rows, skin, line)
-  else {
-    // Too many steps to draw side by side: each task under what it waits on.
-    for (const box of boxes) {
-      const after = waits
-        .filter((wait) => wait.to === box.task)
-        .map((wait) => inProject(state.project ?? '', wait.from))
-      line((r) =>
-        r
-          .text(box.mark, paint[box.tone])
-          .space()
-          .text(box.name, (text) => text, { kind: 'task', task: box.task })
-          .text(after.length > 0 ? `  after ${after.join(', ')}` : '', skin.hint),
-      )
-    }
-  }
-
-  if (waits.length > 0) {
-    rows.push(blank(width))
-    line((r) => r.text('WHY THIS ORDER', skin.label))
-    planLines(drawWhy(boxes, waits, Math.max(8, width - 4)), skin, line)
-  }
+  rows.push(
+    ...planPicture(state, skin, pointer, width, [
+      { rows: drawing.rows },
+      ...(waits.length > 0
+        ? [{ label: 'WHY THIS ORDER', rows: drawWhy(boxes, waits, Math.max(8, width - 4)) }]
+        : []),
+    ]),
+  )
 
   const shown = stack(rows.slice(0, height))
   const filled = [...shown.rows]
@@ -1953,26 +2180,6 @@ function planBoxes(
       ...mine,
     }
   })
-}
-
-/** A drawn plan as rows, each box a thing you can click to go to it. */
-function planLines(
-  drawn: readonly PlanRun[][],
-  skin: Skin,
-  line: (build: (r: Row) => void) => void,
-): void {
-  const paint = planPaint(skin)
-  for (const runs of drawn) {
-    line((r) => {
-      for (const run of runs) {
-        r.text(
-          run.text,
-          run.tone ? paint[run.tone] : (text) => text,
-          run.task ? { kind: 'task', task: run.task } : undefined,
-        )
-      }
-    })
-  }
 }
 
 /** A queued task's state, in a word, for its card. */
@@ -2333,8 +2540,9 @@ function renderQueued(
 
   // The whole path it is on, drawn: everything it waits on however far back,
   // everything that waits on it, a box each, and an arrow for every wait. Its
-  // own box is the heavy one. Too wide for boxes, and the chain is still read
-  // down the reasons, which are the same chain drawn as a tree.
+  // own box is the heavy one. Wider than the pane, it is scrolled along — a
+  // chain that loses its boxes the moment it gets long loses them exactly
+  // when there was something to see.
   const chain = chainOf(state, pane.task)
   const boxes = planBoxes(chain.tasks, frame, skin, pane.task)
   const laid = layoutPlan(
@@ -2348,15 +2556,20 @@ function renderQueued(
           column === at ? 'THIS ONE' : column > at ? 'AFTER IT' : column === 0 ? 'FIRST' : 'THEN',
         )
       : null
-  if (drawing && !drawing.tooWide) {
-    rows.push(blank(width))
-    line((r) => r.text('THE CHAIN IT IS IN', skin.label))
-    planLines(drawing.rows, skin, line)
-  }
-  if (chain.waits.length > 0) {
-    rows.push(blank(width))
-    line((r) => r.text('WHY IT WAITS', skin.label))
-    planLines(drawWhy(boxes, chain.waits, Math.max(8, width - 4)), skin, line)
+  if (drawing || chain.waits.length > 0) {
+    rows.push(
+      ...planPicture(state, skin, pointer, width, [
+        ...(drawing ? [{ label: 'THE CHAIN IT IS IN', rows: drawing.rows }] : []),
+        ...(chain.waits.length > 0
+          ? [
+              {
+                label: 'WHY IT WAITS',
+                rows: drawWhy(boxes, chain.waits, Math.max(8, width - 4)),
+              },
+            ]
+          : []),
+      ]),
+    )
   } else if (queued.after.length > 0) {
     rows.push(blank(width))
     line((r) => r.text('WAITS ON', skin.label))

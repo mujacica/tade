@@ -41,11 +41,13 @@ export type Target =
   /** Somewhere the wheel scrolls, laid under what is drawn there. */
   | { kind: 'scroll'; area: ScrollArea }
   /**
-   * The bar down the right of it: where you are, and a handle to move. It
-   * carries what it was drawn from, because a drag has to be turned back into
-   * a line to scroll to and the drawing is the only thing that knows the sums.
+   * The bar down the right of it, or along the bottom of it: where you are,
+   * and a handle to move. It carries what it was drawn from, because a drag
+   * has to be turned back into a line to scroll to and the drawing is the only
+   * thing that knows the sums. `across` is the one lying down, whose numbers
+   * are columns rather than lines.
    */
-  | { kind: 'scrollbar'; area: ScrollArea; total: number; shown: number }
+  | { kind: 'scrollbar'; area: ScrollArea; total: number; shown: number; across?: true }
   /**
    * A line of the orchestrator's input, by the visual line the editor drew:
    * clicking one puts the caret where the click was, as any text box does.
@@ -72,8 +74,12 @@ export type Target =
   /** Inside a panel but on nothing: swallows the click so it cannot fall through. */
   | { kind: 'inert' }
 
-/** Somewhere the wheel moves what is shown: the sidebar, a panel, the conversation. */
-export type ScrollArea = 'sidebar' | 'panel' | 'transcript' | 'pane' | 'terminal'
+/**
+ * Somewhere the wheel moves what is shown: the sidebar, a panel, the
+ * conversation. `plan` is the picture of a chain where an agent's screen
+ * would be, which only ever moves sideways.
+ */
+export type ScrollArea = 'sidebar' | 'panel' | 'transcript' | 'pane' | 'terminal' | 'plan'
 
 export interface Hit {
   /** Inclusive row, zero-based from the top of the window. */
@@ -144,20 +150,27 @@ export function pressable(target: Target | null): boolean {
 }
 
 /**
- * The rows one thing covers: where it starts and how many rows it is. Read
- * back out of the map rather than remembered while drawing, because a region's
- * rows are moved to where the region ended up long after it drew them — so
- * only the map knows where a scrollbar actually is.
+ * The rows one thing covers: where it starts and how many rows it is — or,
+ * `across`, where it starts along the window and how many columns it is, for
+ * something lying down. Read back out of the map rather than remembered while
+ * drawing, because a region's rows are moved to where the region ended up
+ * long after it drew them — so only the map knows where a scrollbar actually
+ * is. Either way it comes back as a start and a count of cells: the sums that
+ * move a thumb do not care which way it points.
  */
-export function extentOf(hits: readonly Hit[], target: Target): { top: number; rows: number } {
-  let top = Number.POSITIVE_INFINITY
-  let bottom = -1
+export function extentOf(
+  hits: readonly Hit[],
+  target: Target,
+  across = false,
+): { top: number; rows: number } {
+  let first = Number.POSITIVE_INFINITY
+  let last = -1
   for (const hit of hits) {
     if (!sameTarget(hit.target, target)) continue
-    top = Math.min(top, hit.row)
-    bottom = Math.max(bottom, hit.row)
+    first = Math.min(first, across ? hit.from : hit.row)
+    last = Math.max(last, across ? hit.to : hit.row)
   }
-  return bottom < 0 ? { top: 0, rows: 0 } : { top, rows: bottom - top + 1 }
+  return last < 0 ? { top: 0, rows: 0 } : { top: first, rows: last - first + 1 }
 }
 
 /** Move a region's hits to where the region was put. */
