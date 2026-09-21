@@ -71,7 +71,6 @@ import { Speaker } from '@tade/voice-tts'
 import { matchingLines, type Workbench } from '@tade/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
-import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
 import type { Frame, LaneView } from './frame.ts'
 import {
   extentOf,
@@ -125,12 +124,10 @@ import {
   focusBy,
   focusNumber,
   focusTask,
-  glyph,
   grabBar,
   initialState,
   keyAction,
   laneShown,
-  MARK_TONES,
   markOf,
   matchActions,
   nextWaiting,
@@ -232,7 +229,6 @@ import {
   type OpenRowView,
   openProjectPanel,
 } from './panels/project/state.ts'
-import { searchPanel } from './panels/search/state.ts'
 import {
   ACCOUNTS,
   accountActions,
@@ -281,15 +277,6 @@ import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
 import { cutFrom, type HeldLines, type Reach, reachOf, Wheel } from './scroll.ts'
 import { BAR } from './scrollbar.ts'
-import {
-  parseOpenId,
-  parseQuery,
-  type SearchEntry,
-  searchResults,
-  shortlist,
-  TEXT_MIN,
-  worthAsking,
-} from './search.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
@@ -330,6 +317,7 @@ import {
 import { Images, imagesTitle } from './wire/images.ts'
 import { Machine } from './wire/machine.ts'
 import { Notes } from './wire/notes.ts'
+import { Search } from './wire/search.ts'
 import { Settings } from './wire/settings.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 import { Window } from './wire/window.ts'
@@ -384,12 +372,6 @@ const STATUS_MS = 5_000
  * looks every couple of seconds, so one this slow is already late for the next.
  */
 const SLOW_LOOK_MS = 2_000
-/**
- * How many of the things Tade can do are put to whoever reads a sentence
- * typed into search. Enough that the right one is nearly always among them,
- * few enough that the question stays about this person's sentence.
- */
-const MEANT_CHOICES = 24
 
 /** Backspace, and what some terminals send instead. */
 
@@ -971,8 +953,6 @@ export class App {
   private lookAgain = false
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
     null
-  /** What each terminal has printed, read when search opens. */
-  private terminalTexts: { id: string; name: string; project: string; text: string }[] = []
   /** A command voice typed into a terminal, waiting for enter or "confirm". */
   private typed: { id: string; name: string; command: string } | null = null
   private soon: NodeJS.Timeout | null = null
@@ -989,23 +969,6 @@ export class App {
     text: string[]
     formatted: { width: number; lines: string[] } | null
   } | null = null
-  /** Every file in every place search looks, and when they were listed. */
-  private searchFiles: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
-  /** Lines found inside files, for the text they were found for. */
-  private grepped: { text: string; matches: Match[] } = { text: '', matches: [] }
-  private grepping: string | null = null
-  private grepTimer: NodeJS.Timeout | null = null
-  /** Search's results for the last query, so a redraw does not rank every file again. */
-  private results: { key: string; entries: SearchEntry[] } | null = null
-  /**
-   * What somebody made of the last sentence typed into search, and which
-   * sentence it was about: shown only while that sentence is still in the box,
-   * because an answer to what was there before moves the list under your hands.
-   */
-  private meant: { said: string; entries: SearchEntry[] } | null = null
-  private askingAbout: string | null = null
-  private askingWith: AbortController | null = null
-  private askTimer: NodeJS.Timeout | null = null
   /** The models an agent can be started on, once they have been read. */
   private models: ModelChoice[] = []
   /**
@@ -1076,6 +1039,8 @@ export class App {
   private readonly machine: Machine
   /** Where you were, how big it all is, and what the title says. */
   private readonly window: Window
+  /** What `ctrl+k` finds, inside files and out, and where a result goes. */
+  private readonly search: Search
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1103,6 +1068,19 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.search = new Search(this.wire, {
+      settings: () => this.settings.rows(),
+      openFile: (path, line) => this.openFile(path, line),
+      openFind: (id, query, index) => this.openFind(id, query, index),
+      clicked: (target) => this.clicked(target),
+      decide: (allow) => this.decide(allow),
+      stopAgent: (task) => this.stopAgent(task),
+      openDiff: (task, path) => this.openDiff(task, path),
+      openSettings: (category) => this.settings.open(category),
+      showTerminal: (id) => this.showTerminal(id),
+      quit: () => this.quit(),
+      run: (action) => this.run(action),
+    })
     this.window = new Window(this.wire, {
       setTitle: (title) => this.terminal.setTitle(title),
     })
@@ -1463,7 +1441,7 @@ export class App {
     }
     if (panel.kind === 'diff') return { diff: this.diff }
     if (panel.kind === 'search')
-      return { entries: this.searchEntries(), searching: this.grepping !== null }
+      return { entries: this.search.entries(), searching: this.search.searching }
     if (panel.kind === 'file') return { viewing: this.viewingAt(width) }
     if (panel.kind === 'keys') {
       const talk = this.opts.config.surfaces.voice.talk
@@ -2096,7 +2074,7 @@ export class App {
         this.draw()
         return { consume: true }
       case 'search':
-        this.openSearch()
+        this.search.open()
         return { consume: true }
       case 'orchestrator':
         this.state = {
@@ -2536,7 +2514,7 @@ export class App {
         return
       }
       case 'search':
-        this.openSearch()
+        this.search.open()
         return
       case 'mute':
         await this.voice.toggleMute()
@@ -2905,8 +2883,8 @@ export class App {
       }
     }
     if (outcome.panel?.kind === 'search') {
-      this.lookInFiles()
-      this.askWhatIsMeant()
+      this.search.lookInFiles()
+      this.search.askWhatIsMeant()
     }
     // The Updates page reads the machine when it is opened, and asks the
     // network only when the button on it is pressed.
@@ -2953,7 +2931,7 @@ export class App {
         await this.openProject(panel)
         break
       case 'search':
-        await this.fromSearch(choice ?? '')
+        await this.search.from(choice ?? '')
         return
       case 'file':
         if (choice === 'editor') {
@@ -3054,305 +3032,6 @@ export class App {
       return
     }
     void this.opts.reloadWindow?.()
-  }
-
-  /** Everything search knows without looking at the disk, what needs you first. */
-  private searchable(): SearchEntry[] {
-    const entries: SearchEntry[] = []
-    const panes = [...this.state.panes].sort((a, b) => Number(b.waiting) - Number(a.waiting))
-    const toneOf = (pane: (typeof panes)[number]): SearchEntry['tone'] => MARK_TONES[markOf(pane)]
-    for (const pane of panes) {
-      if (pane.approval) {
-        entries.push({
-          id: `approve:${pane.task}`,
-          kind: 'approval',
-          label: `Allow once: ${pane.approval.summary}`,
-          detail: pane.name,
-          mark: '▲',
-          tone: 'waiting',
-        })
-      }
-    }
-    // What the extensions can do, where you are.
-    for (const { extension, action: one } of this.opts.extensions?.actions() ?? []) {
-      entries.push({
-        id: `run:extension:${extension.name}:${one.id}`,
-        kind: 'action',
-        label: one.title,
-        detail: extension.title,
-        mark: '◆',
-        complete: `>${one.title}`,
-      })
-    }
-    for (const pane of panes) {
-      entries.push({
-        id: `task:${pane.task}`,
-        kind: 'agent',
-        label: pane.name,
-        detail: `in ${pane.project}`,
-        mark: glyph(pane),
-        tone: toneOf(pane),
-        complete: `@${pane.name}`,
-        ...(pane.waiting ? { note: 'waiting on you' } : {}),
-      })
-    }
-    const action = (id: string, label: string, mark = '›') =>
-      entries.push({ id, kind: 'action', label, mark, complete: `>${label}` })
-    for (const [id, label] of [
-      ['run:new-agent', 'New agent'],
-      ['run:new-terminal', 'New terminal'],
-      ['run:open-project', 'Open project'],
-      ['run:spend', 'Spend'],
-      ['run:extensions', 'Extensions'],
-      ['run:brief', 'Brief'],
-      ['run:settings', 'Settings'],
-      ['run:keys', 'Shortcuts'],
-      ['run:quit', 'Quit'],
-    ] as const) {
-      action(id, label)
-    }
-    for (const pane of panes) {
-      if (pane.lane) action(`stop:${pane.task}`, `Stop ${pane.name}`, '■')
-      action(`changes:${pane.task}`, `Show the changes in ${pane.name}`, '±')
-    }
-    for (const terminal of this.state.terminals) {
-      action(`show-terminal:${terminal.id}`, `Terminal: ${terminal.name}`, '›')
-    }
-    for (const project of projects(this.state)) {
-      entries.push({ id: `project:${project}`, kind: 'project', label: project, mark: '▣' })
-    }
-    for (const group of this.settings.rows()) {
-      for (const setting of group.settings) {
-        entries.push({
-          id: `setting:${group.id}`,
-          kind: 'setting',
-          label: `${group.title} › ${setting.title}`,
-          mark: '◇',
-        })
-      }
-    }
-    return entries
-  }
-
-  /** Every place an agent works, and every project, for search to look in. */
-  private searchRoots(): SearchRoot[] {
-    const roots: SearchRoot[] = Object.entries(this.opts.config.projects).map(
-      ([name, project]) => ({
-        path: expandHome(project.root),
-        label: name,
-        task: null,
-      }),
-    )
-    for (const pane of this.state.panes) {
-      const worktree = this.live?.worktreeOf(pane.task)
-      if (worktree)
-        roots.push({ path: worktree, label: `${pane.project} › ${pane.name}`, task: pane.task })
-    }
-    return roots
-  }
-
-  /** Open search, listing the files it looks through again when that list is old. */
-  private openSearch(query = ''): void {
-    this.state = { ...this.state, panel: searchPanel(query) }
-    this.draw()
-    // What every terminal has printed, to find lines in.
-    void Promise.all(
-      this.state.terminals.map(async (terminal) => ({
-        ...terminal,
-        text: await this.opts.client.readTerminal(terminal.id, 5_000).catch(() => ''),
-      })),
-    ).then((texts) => {
-      this.terminalTexts = texts
-      this.results = null
-      this.draw()
-    })
-    if (this.searchFiles && this.now() - this.searchFiles.at < 10_000) return
-    const roots = this.searchRoots()
-    void Promise.all(
-      roots.map(async (root) =>
-        (await listFiles(root.path).catch(() => [])).map((path) => ({ root, path })),
-      ),
-    ).then((lists) => {
-      this.searchFiles = { at: this.now(), files: lists.flat() }
-      this.results = null
-      this.draw()
-    })
-  }
-
-  /** What search shows for the query in the box. */
-  private searchEntries(): SearchEntry[] {
-    const panel = this.state.panel
-    if (panel?.kind !== 'search') return []
-    const text = parseQuery(panel.query).text
-    const matches = this.grepped.text === text ? this.grepped.matches : []
-    const key = [
-      panel.query,
-      this.meant?.said === panel.query ? this.meant.entries.length : -1,
-      this.searchFiles?.at ?? 0,
-      this.grepped.text,
-      matches.length,
-      this.state.panes.length,
-      this.state.panes.map((pane) => `${pane.task}${pane.state}${pane.waiting}`).join(),
-    ].join('\0')
-    if (this.results?.key !== key) {
-      this.results = {
-        key,
-        entries: searchResults(panel.query, {
-          entries: this.searchable(),
-          files: this.searchFiles?.files ?? [],
-          matches,
-          terminals: this.terminalTexts,
-          ...(this.meant?.said === panel.query ? { meant: this.meant.entries } : {}),
-        }),
-      }
-    }
-    return this.results.entries
-  }
-
-  /**
-   * Look inside files for what is typed, a moment after typing stops: every
-   * keystroke starting git grep across every worktree would be most of the work
-   * the machine does while you type.
-   */
-  private lookInFiles(): void {
-    const panel = this.state.panel
-    if (panel?.kind !== 'search') return
-    const query = parseQuery(panel.query)
-    const text = query.text
-    if (
-      query.scope === 'agents' ||
-      query.scope === 'actions' ||
-      text.length < TEXT_MIN ||
-      query.line
-    )
-      return
-    if (text === this.grepped.text || text === this.grepping) return
-    if (this.grepTimer) clearTimeout(this.grepTimer)
-    this.grepTimer = setTimeout(() => {
-      this.grepping = text
-      this.draw()
-      const roots = this.searchRoots()
-      void Promise.all(roots.map((root) => grep(root, text, 50).catch(() => []))).then((found) => {
-        if (this.grepping !== text) return
-        this.grepped = { text, matches: found.flat() }
-        this.grepping = null
-        this.results = null
-        this.draw()
-      })
-    }, 150)
-  }
-
-  /**
-   * Put a sentence to whoever reads sentences, a moment after typing stops.
-   *
-   * Only a sentence, and only one whose letters found nothing — search matches
-   * letters, and that is still what answers first and what answers instantly.
-   * This can only ever add rows to what is already there, and if it is late,
-   * or wrong, or nobody answers, search is what it has always been.
-   */
-  private askWhatIsMeant(): void {
-    const panel = this.state.panel
-    if (panel?.kind !== 'search') return
-    const said = panel.query
-    const host = this.opts.extensions
-    if (!host) return
-    if (this.meant?.said === said || this.askingAbout === said) return
-    if (!worthAsking(said, this.searchEntries())) return
-    if (this.askTimer) clearTimeout(this.askTimer)
-    this.askTimer = setTimeout(() => {
-      const choices = shortlist(said, this.searchable(), MEANT_CHOICES)
-      if (choices.length === 0) return
-      this.askingAbout = said
-      // Whatever was being asked about the line before this one is not wanted
-      // now: they have typed since, and are looking at something else.
-      this.askingWith?.abort()
-      const stop = new AbortController()
-      this.askingWith = stop
-      void host
-        .meant({
-          said,
-          choices: choices.map((entry) => ({
-            id: entry.id,
-            label: entry.label,
-            ...(entry.detail ? { detail: entry.detail } : {}),
-          })),
-          signal: stop.signal,
-        })
-        .then((answer) => {
-          if (this.askingAbout !== said) return
-          // What was typed while it was thinking is what they are looking at
-          // now, and this is not about that.
-          const panel = this.state.panel
-          if (panel?.kind !== 'search' || panel.query !== said) return
-          const by = new Map(choices.map((entry) => [entry.id, entry]))
-          const entries = answer.ids
-            .map((id) => by.get(id))
-            .filter((entry): entry is SearchEntry => entry !== undefined)
-          this.meant = { said, entries }
-          this.results = null
-          for (const problem of answer.problems) this.state = notice(this.state, problem)
-          this.draw()
-        })
-        .catch((err: unknown) => {
-          // Never the reason search shows nothing: it shows what it always did.
-          this.state = notice(this.state, why(err))
-        })
-        .finally(() => {
-          if (this.askingAbout === said) this.askingAbout = null
-        })
-    }, 250)
-  }
-
-  /** Where a search result goes. */
-  private async fromSearch(id: string): Promise<void> {
-    const place = parseOpenId(id)
-    if (place) {
-      this.openFile(place.path, place.line)
-      return
-    }
-    if (id.startsWith('terminal\0')) {
-      const [, terminal, query, back] = id.split('\0')
-      if (terminal) await this.openFind(terminal, query ?? '', Number(back) || 0)
-      return
-    }
-    const [verb, ...rest] = id.split(':')
-    const arg = rest.join(':')
-    this.state = { ...this.state, panel: null }
-    switch (verb) {
-      case 'task':
-        this.clicked({ kind: 'task', task: arg })
-        return
-      case 'approve':
-        this.state = focusTask(this.state, arg)
-        await this.decide(true)
-        return
-      case 'stop':
-        await this.stopAgent(arg)
-        return
-      case 'changes': {
-        const first = this.live?.changes(arg)[0]
-        if (first) await this.openDiff(arg, first.path)
-        else this.state = notice(this.state, `${arg} has not changed anything yet`)
-        break
-      }
-      case 'project':
-        this.clicked({ kind: 'project', project: arg })
-        return
-      case 'setting':
-        await this.openSettings(arg)
-        return
-      case 'show-terminal':
-        await this.showTerminal(arg)
-        return
-      case 'run':
-        if (arg === 'keys') this.state = { ...this.state, panel: { kind: 'keys', busy: false } }
-        else if (arg === 'quit') this.quit()
-        else await this.run(arg)
-        break
-      default:
-        break
-    }
-    this.draw()
   }
 
   /** Something's menu, opened where you clicked, just below and to the left. */
@@ -3643,7 +3322,7 @@ export class App {
         this.state = toggleFolder(this.state, path)
         break
       case 'search':
-        this.openSearch(`${path}/`)
+        this.search.open(`${path}/`)
         return
       case 'editor':
         await this.openPlace({ path: full })
@@ -7131,7 +6810,7 @@ export class App {
     const viewed = panel?.kind === 'file' && this.viewed?.file.path === panel.path
     const file = panel?.kind === 'file' ? this.fileBody(panel) : null
     return {
-      entries: this.searchEntries(),
+      entries: this.search.entries(),
       lines:
         this.state.panel?.kind === 'extension-view' ? this.extensionViewLines() : this.fileLines(),
       text: viewed ? (this.viewed?.text ?? []) : [],
