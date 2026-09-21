@@ -77,7 +77,7 @@ button (`queueMenuItems`, the `queue-*` actions in `App.run`).
 **A kind of schedule.** Add it to `ScheduleDoes`, do it in `fireSchedule` (workbench) and `fire`
 (window), word it in `scheduleView`, take it in `tade_schedule` and `queue/schedule`, draw it on
 the card (`renderSchedule`) and in `tade schedules`. Test it in `workbench/test/schedules.test.ts`
-and through the window in `app.test.ts`.
+and through the window in `test/wire/schedules.test.ts`.
 
 **A watch.** It belongs to an extension: follow `add-extension`. Tade's side — turning it on,
 looking, the journal, the queue, telling people — needs nothing new.

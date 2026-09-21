@@ -296,9 +296,10 @@ The window is drawn from state by a pure function, so how it looks is tested lik
    a drawing no longer matches its golden file shows both, golden first. Look before accepting.
 3. **Accept on purpose.** `pnpm vitest run packages/app -u` rewrites the goldens. Commit them with
    the change that made them, so the diff in review is the change in how Tade looks.
-4. **Real input.** `test/app.test.ts` runs the whole window against a real workbench and presses
-   keys and clicks as a terminal sends them (`\x1b[<0;col;rowM`), finding labels on the rebuilt
-   screen the way a person would.
+4. **Real input.** `test/wire/` runs the whole window against a real workbench and presses keys and
+   clicks as a terminal sends them (`\x1b[<0;col;rowM`), finding labels on the rebuilt screen the
+   way a person would. One file per subject — `keyboard`, `mouse`, `agents`, `queue`, … — over the
+   fake terminal in `test/wire/harness.ts`.
 5. **Redraw the README.** `images/` is generated from those same scenarios, so a change to how the
    window looks is a change to the README: `pnpm screens --assets`, and commit what it rewrites with
    the change that caused it. The **redraw-the-pictures** skill has the whole of it, including
@@ -315,12 +316,14 @@ The window is drawn from state by a pure function, so how it looks is tested lik
 4. If it needs a new fact, add it to `live.ts`; keep the fold from status/lanes/approvals pure and
    test that, not the polling.
 5. Wire it in `app.ts`. No rules here.
-6. If the wiring changed, cover it in `test/app.test.ts`, which runs the window headlessly against a
-   real workbench and a real repository. `App` takes its `terminal` and `speaker` as options, and
-   `Terminal.start(onInput)` hands back the callback the TUI registers — so a fake terminal can press
-   keys and keep what was drawn instead of drawing it. Poll for what should appear: rendering is
-   batched, so asserting on the very next line is a flake. Point `home` at a tmp dir, or status reads
-   the real machine's agent transcripts.
+6. If the wiring changed, cover it in the `test/wire/` file named for the subject it belongs to.
+   Those run the window headlessly against a real workbench and a real repository:
+   `windowUnderTest()` (`test/wire/harness.ts`) makes the repository, the home, the workbench and a
+   fake terminal for every test, and `start()` opens the window over them. `App` takes its
+   `terminal` and `speaker` as options, and `Terminal.start(onInput)` hands back the callback the
+   TUI registers — so the fake terminal presses keys and keeps what was drawn instead of drawing it.
+   Poll for what should appear (`until`): rendering is batched, so asserting on the very next line is
+   a flake. A subject with no file yet gets one, named after it, rather than a test in a neighbour's.
 7. If it can be clicked, give it a `Target` in `hits.ts` and handle it in `App.clicked` / `App.run`.
    Add or update a scenario, run `pnpm screens`, look, then accept the goldens.
 8. `pnpm screens --assets`, so the README shows the window you just changed — see
