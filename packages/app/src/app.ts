@@ -35,12 +35,12 @@ import {
   settingFrom,
 } from '@tade/extensions-core'
 import { git } from '@tade/status'
-import { slugify, VoiceSurface, type VoiceTerminals } from '@tade/voice-core'
+import { slugify, VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
-import { matchingLines, type Workbench } from '@tade/workbench'
+import type { Workbench } from '@tade/workbench'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
-import type { Frame, LaneView } from './frame.ts'
+import type { Frame } from './frame.ts'
 import { readImage } from './images.ts'
 import {
   addEnded,
@@ -64,11 +64,9 @@ import {
   doneTasks,
   focusTask,
   initialState,
-  laneShown,
   markOf,
   matchActions,
   nextWaiting,
-  noteTyping,
   notice,
   ORCHESTRATOR_TAB,
   onEvent,
@@ -78,19 +76,16 @@ import {
   QUEUE_FILTERS,
   removeAttachment,
   selectProject,
-  setHeld,
   setQuestion,
   shownName,
   showPlan,
   showTerminal,
   splitPane,
-  splitShown,
   swapSplit,
   terminalSplitShown,
   toggleDone,
   toggleFolder,
   turnSplit,
-  typingLane,
   unsplitPane,
   viewLane,
   whichProject,
@@ -162,14 +157,12 @@ import {
   closeDonePanel,
   confirmRemovePanel,
   diffPanel,
-  findPanel,
   noteHeadlinePanel,
   type PromptPanel,
   promptPanel,
 } from './panels/small/state.ts'
 import { spendPanel } from './panels/spend/state.ts'
 import type { Panel, PanelInputs } from './panels.ts'
-import type { PointerEvent } from './pointer.ts'
 import {
   ago,
   branchOf,
@@ -182,10 +175,7 @@ import {
   readRecents,
   recentProjects,
 } from './projects.ts'
-import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
-import { cutFrom, type HeldLines } from './scroll.ts'
-import { BAR } from './scrollbar.ts'
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
@@ -224,6 +214,7 @@ import {
 } from './wire/context.ts'
 import { Images, imagesTitle } from './wire/images.ts'
 import { Keyboard } from './wire/keyboard.ts'
+import { Lanes } from './wire/lanes.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
@@ -247,20 +238,6 @@ const FRAME_MS = 250
 /** How soon after a lane prints something it is looked at again. */
 const LOOK_SOON_MS = 8
 
-/**
- * How many lines past what is on screen a lane is read back, once it is being
- * scrolled: room for the wheel to move in before the driver has to be asked
- * again.
- *
- * A capture costs what it asks for — a tenth of a millisecond a line, so
- * twelve of them two thousand lines back — and it used to be paid again on
- * every look and again on every notch, for the same lines that had not
- * changed since the agent printed them. Scrollback above the live screen
- * never changes; only the bottom does. So the lines are kept, and the screen
- * the window draws is cut out of them.
- */
-const HELD_LINES = 200
-
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
 /** How often extensions are asked what they keep in the status bar. */
@@ -275,17 +252,6 @@ const SLOW_LOOK_MS = 2_000
 
 const HELP =
   'tab moves · / lists commands · ctrl+space talks · esc stops · ctrl+c clears, then quits'
-
-/** Two readings of a lane's screen that say the same thing, and so redraw nothing. */
-function same(a: LaneView | null, b: LaneView | null): boolean {
-  if (!a || !b) return a === b
-  return (
-    a.lines === b.lines &&
-    a.cursor.back === b.cursor.back &&
-    a.cursor.column === b.cursor.column &&
-    a.scrolling === b.scrolling
-  )
-}
 
 // `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts`,
 // with the `Wiring` the subjects are handed: what the window was opened with
@@ -346,8 +312,6 @@ export class App {
   private harnessPieces: { name: string; where: string }[] = []
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
-  /** The size each lane was last made, so resizing happens once per change. */
-  private readonly fitted = new Map<string, string>()
   /** When this window opened: the start of "This window" in the Spend panel. */
   private readonly openedAt = Date.now()
   /** Agents this window has opened again on its own, so it never does it twice. */
@@ -362,30 +326,9 @@ export class App {
   private readonly naming = new Set<string>()
   /** The project checkout's branches, for the Switch branch panel. */
   private branchRows: BranchRow[] = []
-  /** The lanes in front — the agent's, and the terminal's — watched so they redraw as they print. */
-  private readonly watching = new Map<'pane' | 'terminal', { lane: string; stop: () => void }>()
-  /** The terminal in front, as last captured. */
-  private terminalScreen = ''
-  /**
-   * What the driver says about the two screens in front — how far back each
-   * goes, and where typing lands in it. Read beside the capture, because a
-   * scrollbar drawn from one frame's text and another frame's depth jumps.
-   */
-  private paneView: LaneView | null = null
-  private terminalView: LaneView | null = null
-  /**
-   * The lines each of those two screens was last read as, and how deep the
-   * read went — what the wheel cuts a new screen out of, through `cutFrom`.
-   */
-  private readonly held = new Map<'pane' | 'terminal', HeldLines>()
-  /** A terminal's scrollback, read for finding in it. */
-  private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
   /** The sections extensions keep in the sidebar, as they last answered. */
   private listSections: ListSection[] = []
-  /** The second half of a split pane, and of a split bottom panel, as last captured. */
-  private splitScreen = ''
-  private splitTerminalScreen = ''
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
   private speakingTurn = false
@@ -394,10 +337,7 @@ export class App {
   private lookAgain = false
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
     null
-  /** A command voice typed into a terminal, waiting for enter or "confirm". */
-  private typed: { id: string; name: string; command: string } | null = null
   private soon: NodeJS.Timeout | null = null
-  private screen = ''
   /** The diff the diff panel is showing, once git has answered. */
   private diff: ParsedDiff | null = null
   /** The file the viewer is showing, its coloured source, and its Markdown laid out at a width. */
@@ -433,9 +373,6 @@ export class App {
   private readonly offersByTask = new Map<string, AgentOffers>()
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
-  private router: RouterState = initialRouter()
-  /** Which agent the router's half-typed line belongs to. */
-  private routerFor: string | null = null
   private live: Live | null = null
   private timer: NodeJS.Timeout | null = null
   /** When the whole screen was last written over itself. */
@@ -476,6 +413,8 @@ export class App {
   private readonly keyboard: Keyboard
   /** What the pointer did, and what it landed on. */
   private readonly mouse: Mouse
+  /** The two screens in front of you, the terminals they are, and what is typed into them. */
+  private readonly lanes: Lanes
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -524,13 +463,13 @@ export class App {
     this.search = new Search(this.wire, {
       settings: () => this.settings.rows(),
       openFile: (path, line) => this.openFile(path, line),
-      openFind: (id, query, index) => this.openFind(id, query, index),
+      openFind: (id, query, index) => this.lanes.openFind(id, query, index),
       clicked: (target) => this.mouse.clicked(target),
       decide: (allow) => this.decide(allow),
       stopAgent: (task) => this.stopAgent(task),
       openDiff: (task, path) => this.openDiff(task, path),
       openSettings: (category) => this.settings.open(category),
-      showTerminal: (id) => this.showTerminal(id),
+      showTerminal: (id) => this.lanes.showTerminal(id),
       quit: () => this.quit(),
       run: (action) => this.run(action),
     })
@@ -549,7 +488,7 @@ export class App {
           rows: Math.max(4, layout.stripHeight - 2),
         }
       },
-      showTerminal: (id) => this.showTerminal(id),
+      showTerminal: (id) => this.lanes.showTerminal(id),
       onScreenWith: (flow) => this.onScreenWith(flow),
       refreshModels: async () => {
         this.models = (await this.opts.models?.().catch(() => [])) ?? this.models
@@ -604,8 +543,15 @@ export class App {
       interrupt: () => void this.interruptThinker(),
       quit: () => this.quit(),
       soonTick: () => this.soonTick(),
-      toLane: (data) => this.toLane(data),
+      toLane: (data) => this.lanes.toLane(data),
       act: (said) => void this.act(said),
+      say: (said) => this.say(said),
+    })
+    this.lanes = new Lanes(this.wire, {
+      size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
+      layout: () => this.window.layout(),
+      skin: this.skin,
+      soonTick: () => this.soonTick(),
       say: (said) => this.say(said),
     })
     this.mouse = new Mouse(this.wire, {
@@ -620,9 +566,9 @@ export class App {
       applyPanel: (outcome) => this.applyPanel(outcome),
       openMenu: (subject, at) => this.openMenu(subject, at),
       run: (action) => void this.run(action),
-      reslice: (area) => this.reslice(area),
+      reslice: (area) => this.lanes.reslice(area),
       soonTick: () => this.soonTick(),
-      turnedInLane: (event) => this.turnedInLane(event),
+      turnedInLane: (event) => this.lanes.turnedInLane(event),
       selectTo: (line, x, extend, drag) => this.keyboard.selectTo(line, x, extend, drag),
       selectedOnLine: () => this.keyboard.selectedText(),
       clickedOn: (line, x, clicks) => this.keyboard.clickedOn(line, x, clicks),
@@ -681,6 +627,11 @@ export class App {
   /** What extensions may ask of this window, once it exists to be asked. */
   useExtensionWorkbench(workbench: ExtensionWorkbench): void {
     this.opts.extensionWorkbench = workbench
+  }
+
+  /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
+  showTerminal(id: string): Promise<void> {
+    return this.lanes.showTerminal(id)
   }
 
   /** Put an agent in front of you: one an extension just started, say. */
@@ -761,7 +712,7 @@ export class App {
     if (this.timer) clearInterval(this.timer)
     if (this.soon) clearTimeout(this.soon)
     this.mouse.stopDraggingFile()
-    for (const watched of this.watching.values()) watched.stop()
+    this.lanes.stopWatching()
     this.window.remember()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
@@ -914,7 +865,7 @@ export class App {
     if (panel.kind === 'branch') return { branches: this.branchRows }
     if (panel.kind === 'find') {
       return {
-        found: this.findMatches().length,
+        found: this.lanes.findMatches().length,
         terminalName:
           this.state.terminals.find((one) => one.id === panel.terminal)?.name ?? 'terminal',
       }
@@ -1011,7 +962,7 @@ export class App {
     return {
       width,
       height: Math.max(6, this.terminal.rows),
-      screen: this.screen,
+      ...this.lanes.facts(),
       layout: this.window.layout(),
       skin: this.skin,
       files: live.files(worktree ?? repo, this.state.expanded),
@@ -1055,22 +1006,12 @@ export class App {
         keys: keyCaps(this.opts.config.surfaces.voice.talk.key),
         available: this.opts.recorder !== undefined,
       },
-      terminal: {
-        screen: this.terminalScreen,
-        find: this.findView(),
-        view: this.terminalView,
-      },
-      paneScreen: this.paneView,
       home: tilde(this.opts.home),
       linkers: this.linkers,
       orchestratorModel: this.thinkerModel(),
       orchestratorThinking: this.opts.config.orchestrator.thinking ?? null,
       orchestratorAccount: this.thinkerAccount(),
       orchestratorOffers: this.thinker?.offers ?? null,
-      splitScreen: this.splitScreen,
-      splitTerminal: this.state.terminalSplit
-        ? { screen: this.splitTerminalScreen, find: null }
-        : undefined,
       bindings: this.opts.config.surfaces.window.keys,
       muted: this.opts.config.surfaces.voice.muted,
       clipboardImage: this.images.offered,
@@ -1196,7 +1137,7 @@ export class App {
         tasks: async () => knownTasks(live.tasks),
         history: async () => live.history,
         ask: (text: string) => this.ask(text),
-        terminals: this.voiceTerminals(),
+        terminals: this.lanes.voiceTerminals(),
         ...(this.opts.now ? { now: this.opts.now } : {}),
         // Typing at an agent is what mutes speech for that task.
         focusedTask: () => ({ task: this.state.focused, lastInputAt: this.state.lastInputAt }),
@@ -1446,12 +1387,12 @@ export class App {
         this.state = { ...this.state, paneScroll: 0 }
         // Back to the newest line, and the text goes there with the bar: the
         // lines held may already reach it, and the look catches up if not.
-        this.reslice('pane')
+        this.lanes.reslice('pane')
         this.soonTick()
         return
       case 'terminal-end':
         this.state = { ...this.state, terminalScroll: 0 }
-        this.reslice('terminal')
+        this.lanes.reslice('terminal')
         this.soonTick()
         return
       case 'transcript-end':
@@ -1521,11 +1462,11 @@ export class App {
         return
       }
       case 'new-terminal':
-        await this.openTerminal()
+        await this.lanes.openTerminal()
         return
       case 'find-terminal': {
         const terminal = activeTerminal(this.state)
-        if (terminal) await this.openFind(terminal.id)
+        if (terminal) await this.lanes.openFind(terminal.id)
         return
       }
       case 'bottom-max':
@@ -1734,7 +1675,7 @@ export class App {
     const taken = new Set(pane.lanes.map((lane) => lane.id))
     let id = `${pane.task}/shell`
     for (let n = 2; taken.has(id); n++) id = `${pane.task}/shell-${n}`
-    const size = this.paneSize()
+    const size = this.lanes.paneSize()
     try {
       await this.opts.client.spawn({
         id: id as LaneId,
@@ -2336,7 +2277,7 @@ export class App {
         }
         break
       case 'find':
-        await this.openFind(id)
+        await this.lanes.openFind(id)
         return
       case 'rename':
         this.state = {
@@ -2351,7 +2292,7 @@ export class App {
       case 'split-below': {
         // A new terminal, beside or below this one, in the same project.
         const front = id
-        const opened = await this.openTerminal()
+        const opened = await this.lanes.openTerminal()
         const created = this.state.bottom
         if (opened && created !== front) {
           this.state = {
@@ -3229,32 +3170,6 @@ export class App {
       })
   }
 
-  /** Type into the agent you are watching, and hold focus while you do. */
-  private toLane(data: string): void {
-    const pane = this.state.panes.find((p) => p.task === this.state.focused)
-    // Typing at an agent is looking at its newest line.
-    this.state = { ...noteTyping(this.state, this.now()), paneScroll: 0 }
-
-    // A half-typed line belongs to the prompt it was started at, so switching
-    // agents abandons it rather than carrying it across.
-    if (this.routerFor !== this.state.focused) {
-      this.router = initialRouter()
-      this.routerFor = this.state.focused
-    }
-
-    // A line beginning "tade " is addressed to Tade, not to the agent.
-    const routed = route(this.router, data)
-    this.router = routed.state
-    this.state = setHeld(this.state, pending(this.router))
-
-    const lane = pane ? typingLane(this.state, pane) : null
-    if (routed.toLane !== '' && lane) {
-      void this.opts.client.write(lane as LaneId, routed.toLane).catch(() => {})
-    }
-    if (routed.toTade !== null) this.say(routed.toTade)
-    this.draw()
-  }
-
   /** Answer what the focused agent is waiting on. */
   private async decide(allow: boolean): Promise<void> {
     const task = this.state.focused
@@ -3333,35 +3248,10 @@ export class App {
       this.repaintedAt = this.now()
       this.repaint()
     }
-    const pane = this.state.panes.find((p) => p.task === this.state.focused)
-    const lane = pane ? laneShown(this.state, pane) : null
-    const split = pane ? splitShown(this.state, pane) : null
-    const halves = this.halves(this.paneSize(split !== null), split)
-    const size = halves.first
-    if (lane) await this.fitLane(lane, size)
-    this.watch(lane)
-    if (split) {
-      await this.fitLane(split.lane, halves.second)
-      const second =
-        (await this.live?.capture(split.lane, halves.second.rows, this.skin.colour)) ?? ''
-      if (second !== this.splitScreen) {
-        this.splitScreen = second
-        this.draw()
-      }
-    }
+    const at = await this.lanes.fitPane()
     this.window.titleHere()
-    // How deep the lane is, read before its text: which lines are held is
-    // counted from the depth, so a screen cut against a depth from the frame
-    // before it is a screen cut in the wrong place.
-    // Only for the one screen the bar and the cursor are drawn on: a split is
-    // two lanes and gets neither.
-    const view = split ? null : ((await this.live?.screen(lane)) ?? null)
-    if (!same(view, this.paneView)) {
-      this.paneView = view
-      this.draw()
-    }
-    const screen = await this.laneScreen('pane', lane, size.rows)
-    const terminal = await this.captureTerminal()
+    const paneScreen = await this.lanes.readPane(at)
+    const terminal = await this.lanes.captureTerminal()
     // While the orchestrator or an agent down the side works, its spinner is news every frame.
     const working =
       this.state.transcript.thinking !== null ||
@@ -3371,10 +3261,7 @@ export class App {
       this.state.panes.some(
         (pane) => pane.project === this.state.project && markOf(pane) === 'working',
       )
-    if (screen !== this.screen || terminal || this.state.talkingSince !== null || working) {
-      this.screen = screen
-      this.draw()
-    }
+    if (paneScreen || terminal || this.state.talkingSince !== null || working) this.draw()
   }
 
   /**
@@ -3391,376 +3278,6 @@ export class App {
     return { ...next, transcriptScroll: Math.max(0, next.transcriptScroll + grown) }
   }
 
-  /** Which of the two screens an area is, and where each keeps how far back it is. */
-  private static readonly SCROLL_OF = {
-    pane: 'paneScroll',
-    terminal: 'terminalScroll',
-  } as const
-
-  /**
-   * A lane's screen, cut to where it is scrolled to — read back from the
-   * driver only when what is already held does not reach that far.
-   *
-   * Scrollback is the one thing about a lane that cannot change: the agent
-   * appends, it never rewrites what it printed an hour ago. So a screen read
-   * two thousand lines back is read once, and the wheel moving through it is
-   * an array slice. What still has to be asked every look is the bottom,
-   * where the agent is typing, and that is the cheap end.
-   */
-  private async laneScreen(
-    area: 'pane' | 'terminal',
-    lane: string | null,
-    rows: number,
-  ): Promise<string> {
-    if (!lane) {
-      this.held.delete(area)
-      return ''
-    }
-    const which = App.SCROLL_OF[area]
-    const at = (area === 'pane' ? this.paneView : this.terminalView)?.lines ?? 0
-    // Never further back than there is to read: the wheel is clamped against
-    // what the last frame drew, and this is the same clamp against what the
-    // driver says now, for a lane that shrank or was relaunched under us.
-    const most = Math.max(0, at - rows)
-    if (at > 0 && this.state[which] > most) this.state = { ...this.state, [which]: most }
-    const back = this.state[which]
-    const held = this.held.get(area)
-    if (held?.lane === lane && at >= held.at) {
-      const cut = cutFrom(held, rows, back, at)
-      if (cut !== null) return cut
-    }
-    // Room to move in before the driver has to be asked again — only once
-    // there is scrollback in play, so a lane at its newest line costs what it
-    // always did.
-    const asked = rows + back + (back > 0 ? HELD_LINES : 0)
-    const captured = (await this.live?.capture(lane, asked, this.skin.colour)) ?? ''
-    const lines = captured.split('\n')
-    // A capture ends at the newest line, so how many lines came back is what
-    // says which lines they are. A lane with no depth of its own — half of a
-    // split — has only its capture to count from.
-    const read = { lane, lines, at: Math.max(at, lines.length), asked }
-    this.held.set(area, read)
-    return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
-  }
-
-  /**
-   * A wheel that is the lane's to answer rather than the window's: turned in
-   * it, and true when it was.
-   *
-   * Which it is comes from the lane, never from which harness is in it: a
-   * shell with an editor open in it is the same situation as an agent that
-   * draws its own conversation, and only the lane's own screen knows. The
-   * driver was asked on the last look (`scrolling`), so this costs nothing.
-   *
-   * `nobody` — a program that took the screen and does not want the mouse —
-   * is still the lane's, and still true: there is nothing to scroll and
-   * moving something else instead would be worse than doing nothing.
-   */
-  private turnedInLane(event: Extract<PointerEvent, { kind: 'wheel' }>): boolean {
-    if (event.area !== 'pane' && event.area !== 'terminal') return false
-    const view = event.area === 'pane' ? this.paneView : this.terminalView
-    if (!view || view.scrolling === undefined || view.scrolling === 'window') return false
-    const lane = event.area === 'pane' ? this.paneLane() : (activeTerminal(this.state)?.id ?? null)
-    if (view.scrolling === 'lane' && lane) {
-      void this.live?.wheel(lane, { rows: event.rows, ...event.at })
-      // What it drew in answer is a change to its screen, which the next look
-      // reads as it reads every other: sooner, because somebody is watching.
-      this.soonTick()
-    }
-    return true
-  }
-
-  /** The lane the agent's pane is showing, if it is showing one. */
-  private paneLane(): string | null {
-    const pane = this.state.panes.find((one) => one.task === this.state.focused)
-    return pane ? laneShown(this.state, pane) : null
-  }
-
-  /**
-   * Cut the lines already held to where the wheel has just put them, so the
-   * text moves on the same frame as the bar beside it. What it cannot reach
-   * waits for the look the wheel asked for, a few milliseconds behind.
-   */
-  private reslice(area: 'pane' | 'terminal'): void {
-    const held = this.held.get(area)
-    if (!held) return
-    const view = area === 'pane' ? this.paneView : this.terminalView
-    const cut = cutFrom(
-      held,
-      this.laneRows(area),
-      this.state[App.SCROLL_OF[area]],
-      view?.lines ?? held.at,
-    )
-    if (cut === null) return
-    if (area === 'pane') this.screen = cut
-    else this.terminalScreen = cut
-  }
-
-  /** How many rows of a lane are on screen: what a capture is cut to. */
-  private laneRows(area: 'pane' | 'terminal'): number {
-    if (area === 'pane') {
-      const pane = this.state.panes.find((p) => p.task === this.state.focused)
-      const split = pane ? splitShown(this.state, pane) : null
-      return this.halves(this.paneSize(split !== null), split).first.rows
-    }
-    const layout = resolveLayout(this.window.layout(), {
-      width: this.terminal.columns,
-      height: Math.max(6, this.terminal.rows),
-    })
-    const split = terminalSplitShown(this.state)
-    // Sized exactly as `captureTerminal` sizes it: two readings of one layout
-    // drift, and a screen cut to the wrong number of rows is a screen that
-    // jumps when the look catches up with the wheel.
-    return this.halves(
-      {
-        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1 - (split ? 0 : BAR)),
-        rows: Math.max(1, layout.stripHeight - 2),
-      },
-      split,
-    ).first.rows
-  }
-
-  /**
-   * Read the terminal in front of the bottom panel, sized to the panel. Says
-   * whether what it shows has changed. Nothing is read while the panel is
-   * folded or showing the orchestrator.
-   */
-  private async captureTerminal(): Promise<boolean> {
-    const terminal = activeTerminal(this.state)
-    const layout = resolveLayout(this.window.layout(), {
-      width: this.terminal.columns,
-      height: Math.max(6, this.terminal.rows),
-    })
-    if (!terminal || this.state.bottomMode === 'min') {
-      this.watch(null, 'terminal')
-      this.terminalView = null
-      return false
-    }
-    const split = terminalSplitShown(this.state)
-    const halves = this.halves(
-      {
-        // Less the scrollbar's column, which the window draws and the lane
-        // must not: a split has none, and takes the width back.
-        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1 - (split ? 0 : BAR)),
-        rows: Math.max(1, layout.stripHeight - 2),
-      },
-      split,
-    )
-    const size = halves.first
-    await this.fitLane(terminal.id, size)
-    this.watch(terminal.id, 'terminal')
-    let changed = false
-    if (split) {
-      await this.fitLane(split.lane, halves.second)
-      const second =
-        (await this.live?.capture(split.lane, halves.second.rows, this.skin.colour)) ?? ''
-      if (second !== this.splitTerminalScreen) {
-        this.splitTerminalScreen = second
-        changed = true
-      }
-    }
-    // The depth before the text, as an agent's pane reads them: what is held
-    // is kept by which lines they are, and that is counted from the depth.
-    const view = split ? null : ((await this.live?.screen(terminal.id)) ?? null)
-    if (!same(view, this.terminalView)) {
-      this.terminalView = view
-      changed = true
-    }
-    const screen = await this.laneScreen('terminal', terminal.id, size.rows)
-    if (screen === this.terminalScreen) return changed
-    this.terminalScreen = screen
-    return true
-  }
-
-  /**
-   * The sizes of the two halves of a split, as `splitView` lays them out — the
-   * divider, and the second half's bar, taking their row or column.
-   */
-  private halves(
-    whole: { cols: number; rows: number },
-    split: { direction: 'beside' | 'below'; ratio: number } | null,
-  ): { first: { cols: number; rows: number }; second: { cols: number; rows: number } } {
-    if (!split) return { first: whole, second: whole }
-    if (split.direction === 'beside' && whole.cols >= 24) {
-      const first = Math.max(
-        10,
-        Math.min(whole.cols - 11, Math.round((whole.cols - 1) * split.ratio)),
-      )
-      return {
-        first: { cols: first, rows: whole.rows },
-        second: { cols: whole.cols - 1 - first, rows: Math.max(1, whole.rows - 1) },
-      }
-    }
-    const first = Math.max(1, Math.min(whole.rows - 2, Math.round((whole.rows - 1) * split.ratio)))
-    return {
-      first: { cols: whole.cols, rows: first },
-      second: { cols: whole.cols, rows: Math.max(1, whole.rows - 1 - first) },
-    }
-  }
-
-  /** The scrollback the find box is looking through, and the line it is on. */
-  private findView(): NonNullable<Frame['terminal']>['find'] {
-    const panel = this.state.panel
-    if (panel?.kind !== 'find' || this.findText?.id !== panel.terminal) return null
-    const matches = this.findMatches()
-    return {
-      lines: this.findText.lines,
-      line: matches.length > 0 ? (matches[panel.index % matches.length] ?? null) : null,
-      query: panel.query,
-    }
-  }
-
-  /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
-  async showTerminal(id: string): Promise<void> {
-    // Just opened, it may take a refresh or two to be listed: it still comes to the front.
-    for (let tries = 0; tries < 10; tries++) {
-      if (this.state.terminals.some((terminal) => terminal.id === id)) break
-      await this.live?.refresh()
-      if (this.state.terminals.some((terminal) => terminal.id === id)) break
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-    this.state = showTerminal(this.state, id)
-    this.draw()
-  }
-
-  /** Open a terminal in a project — the one you are in unless told — and put it in front. */
-  private async openTerminal(name: string | null = null, cwd?: string): Promise<string | null> {
-    const project = this.state.project
-    if (!project) {
-      this.state = notice(this.state, 'open a project first: a terminal starts in its folder')
-      this.draw()
-      return null
-    }
-    const layout = resolveLayout(this.window.layout(), {
-      width: this.terminal.columns,
-      height: Math.max(6, this.terminal.rows),
-    })
-    try {
-      const opened = await this.opts.client.openTerminal({
-        project,
-        ...(name ? { name } : {}),
-        ...(cwd ? { cwd } : {}),
-        cols: layout.sidebarWidth + layout.mainWidth + 1,
-        rows: Math.max(4, layout.stripHeight - 2),
-      })
-      await this.showTerminal(opened.id)
-      return opened.name
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-      this.draw()
-      return null
-    }
-  }
-
-  /** Look for text in a terminal's scrollback, with the find box over it. */
-  private async openFind(id: string, query = '', index = 0): Promise<void> {
-    this.state = { ...showTerminal(this.state, id), panel: findPanel(id, query, index) }
-    const text = await this.opts.client.readTerminal(id, 5_000).catch(() => '')
-    this.findText = { id, lines: text.split('\n') }
-    this.draw()
-  }
-
-  /** The lines the find box matches, newest first, as line numbers into the scrollback read. */
-  private findMatches(): number[] {
-    const panel = this.state.panel
-    if (panel?.kind !== 'find' || this.findText?.id !== panel.terminal || panel.query === '')
-      return []
-    return matchingLines(this.findText.lines.join('\n'), panel.query, 10_000)
-      .map((match) => match.line - 1)
-      .reverse()
-  }
-
-  /** What voice does with terminals: each answers in the sentence it says back. */
-  private voiceTerminals(): VoiceTerminals {
-    const project = () => this.state.project ?? undefined
-    // Said with no name, it is the terminal in front, or the only one in the project.
-    const which = (name: string | null) => {
-      const front = activeTerminal(this.state)
-      if (!name && front) return this.opts.client.terminal(front.id)
-      return this.opts.client.terminal(name, project())
-    }
-    const attempt = async (act: () => Promise<string>) => {
-      try {
-        return await act()
-      } catch (err) {
-        return `${capitalise(why(err))}.`
-      }
-    }
-    return {
-      open: (name) =>
-        attempt(async () => {
-          const opened = await this.openTerminal(name)
-          return opened ? `Opened ${opened}.` : 'I could not open a terminal here.'
-        }),
-      show: (name) =>
-        attempt(async () => {
-          const terminal = which(name)
-          await this.showTerminal(terminal.id)
-          return `Showing ${terminal.name}.`
-        }),
-      close: (name) =>
-        attempt(async () => {
-          const closed = await this.opts.client.closeTerminal(which(name).id)
-          await this.live?.refresh()
-          return `Closed ${closed.name}.`
-        }),
-      rename: (name, to) =>
-        attempt(async () => {
-          const renamed = await this.opts.client.renameTerminal(which(name).id, to)
-          await this.live?.refresh()
-          return `Renamed it ${renamed.name}.`
-        }),
-      run: (name, command) =>
-        attempt(async () => {
-          const terminal = await this.opts.client.runInTerminal(which(name).id, command, {
-            submit: false,
-          })
-          this.typed = { id: terminal.id, name: terminal.name, command }
-          await this.showTerminal(terminal.id)
-          return `Typed ${command} into ${terminal.name}. Press enter, or say confirm and the command, to run it.`
-        }),
-      search: (name, text) =>
-        attempt(async () => {
-          const { terminal, matches } = await this.opts.client.searchTerminal(which(name).id, text)
-          await this.openFind(terminal.id, text)
-          return matches.length === 0
-            ? `Nothing in ${terminal.name} says ${text}.`
-            : `${matches.length} line${matches.length === 1 ? '' : 's'} in ${terminal.name} mention ${text}.`
-        }),
-      confirm: async (phrase) => {
-        const typed = this.typed
-        if (!typed) return null
-        const words = phrase.toLowerCase().split(/\s+/).filter(Boolean)
-        const command = typed.command.toLowerCase()
-        if (words.length === 0 || !words.every((word) => command.includes(word))) return null
-        this.typed = null
-        await this.opts.client.write(typed.id as LaneId, '\r')
-        return `Ran ${typed.command} in ${typed.name}.`
-      },
-    }
-  }
-
-  /**
-   * Watch the lane in front of you, so what it prints is on screen at once
-   * rather than at the next quarter-second look. Typing waited for that look,
-   * which is what made an agent feel slow to type into.
-   */
-  private watch(lane: string | null, slot: 'pane' | 'terminal' = 'pane'): void {
-    if (this.watching.get(slot)?.lane === lane) return
-    this.watching.get(slot)?.stop()
-    this.watching.delete(slot)
-    if (!lane) return
-    const watching = { lane, stop: () => {} }
-    this.watching.set(slot, watching)
-    void this.opts.client
-      .watch(lane as LaneId, () => this.soonTick(), { lines: 1 })
-      .then((watched) => {
-        if (this.watching.get(slot) === watching) watching.stop = watched.stop
-        else watched.stop()
-      })
-      .catch(() => {})
-  }
-
   /**
    * Look at the lane again in a moment: long enough to take a burst of output
    * in one look, short enough that what you typed is on screen before you
@@ -3773,36 +3290,6 @@ export class App {
       this.soon = null
       void this.tick()
     }, LOOK_SOON_MS)
-  }
-
-  /** The agent's part of the window: the pane, less its title and rule. */
-  private paneSize(split = false): { cols: number; rows: number } {
-    const layout = resolveLayout(this.window.layout(), {
-      width: this.terminal.columns,
-      height: Math.max(6, this.terminal.rows),
-    })
-    // The scrollbar's column is the window's, not the lane's: a lane sized to
-    // the whole pane would draw its last column under the bar.
-    return {
-      cols: Math.max(20, layout.mainWidth - (split ? 0 : BAR)),
-      rows: Math.max(4, layout.bodyHeight - 2),
-    }
-  }
-
-  /**
-   * Make the lane the size of the pane it is drawn in.
-   *
-   * An agent draws for the terminal it thinks it has. Drawn into a pane of a
-   * different size, its own layout wraps and clips in all the wrong places —
-   * so the pane decides, once per size, not every frame.
-   */
-  private async fitLane(lane: string, size: { cols: number; rows: number }): Promise<void> {
-    const want = `${size.cols}x${size.rows}`
-    if (this.fitted.get(lane) === want) return
-    this.fitted.set(lane, want)
-    await this.opts.client.resize(lane as LaneId, size.cols, size.rows).catch(() => {
-      // A lane that just ended cannot be resized; the next tick will not ask.
-    })
   }
 
   private thinkerAccount(): NonNullable<Frame['orchestratorAccount']> {
@@ -4730,7 +4217,7 @@ export class App {
       text: viewed ? (this.viewed?.text ?? []) : [],
       ...(file ? { body: file.rows, columns: file.columns } : {}),
       branches: this.branchRows,
-      found: this.findMatches().length,
+      found: this.lanes.findMatches().length,
       rows:
         this.state.panel?.kind === 'open-project'
           ? this.openRowsFor(this.state.panel).map((view) => view.row)
@@ -4933,10 +4420,6 @@ async function copyText(text: string, write: (data: string) => void): Promise<bo
 /** Only some terminals report key releases, which is what holding a key needs. */
 function kittyActive(terminal: Terminal): boolean {
   return (terminal as { kittyProtocolActive?: boolean }).kittyProtocolActive === true
-}
-
-function capitalise(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 /** A menu's title for pictures: who gets this one, or these. */
