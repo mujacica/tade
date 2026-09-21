@@ -17,10 +17,10 @@ import { App, type AppOptions } from '../../src/app.ts'
 // the screen tests draw each panel from a frame they build themselves, and
 // these are what notice when the window stops handing a panel what it needs.
 //
-// One file per subject, beside this one, named for the subject that will answer
-// it once `src/wire/` exists — `docs/modularity.md` §3.5. So a change to one
-// subject fails the file named after it, and so sixteen files run sixteen ways
-// under `pool: 'forks'`, where one file of eighty-seven tests ran one way.
+// One file per subject, beside this one, named for the subject in `src/wire/`
+// that answers it. So a change to one subject fails the file named after it,
+// and so sixteen files run sixteen ways under `pool: 'forks'`, where one file
+// of eighty-seven tests ran one way.
 
 /**
  * A terminal that keeps what was drawn instead of drawing it, and hands back

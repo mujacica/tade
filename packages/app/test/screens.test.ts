@@ -1,3 +1,5 @@
+import { readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { sliceByColumn, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { pressable } from '../src/hits.ts'
@@ -26,6 +28,32 @@ describe('what drawing costs', () => {
     }
     const each = (performance.now() - started) / (rounds * SCENARIOS.length)
     expect(each).toBeLessThan(15)
+  })
+})
+
+// Every scenario has two goldens, and every golden belongs to a scenario.
+//
+// The per-scenario tests below cannot notice a file no scenario names, so a
+// renamed scenario leaves its old pair behind and nothing ever says so:
+// `go-to-anything` sat here for months that way. A golden with no scenario is
+// a screen nobody is checking and nobody will dare delete later; a scenario
+// with no golden is a screen nobody is checking at all.
+describe('the goldens and the scenarios', () => {
+  it('are the same set', () => {
+    const named = new Set(SCENARIOS.map((scenario) => scenario.name))
+    const goldens = new Set(
+      readdirSync(fileURLToPath(new URL('screens/__screens__', import.meta.url))).map((file) =>
+        file.replace(/\.(txt|ansi)$/, ''),
+      ),
+    )
+    expect(
+      [...goldens].filter((name) => !named.has(name)),
+      'goldens with no scenario',
+    ).toEqual([])
+    expect(
+      [...named].filter((name) => !goldens.has(name)),
+      'scenarios with no golden',
+    ).toEqual([])
   })
 })
 

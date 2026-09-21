@@ -20,9 +20,11 @@ import { describe, it } from 'vitest'
 // It runs in `test:smoke`, which is what the commit hook runs: the answer
 // arrives while the change is still being made, not an hour later in CI.
 //
-// The plan the numbers came from is `docs/modularity.md` §7. This test was
-// installed before the files moved, deliberately — a ratchet installed after
-// the refactor protects nothing that happened before it.
+// It went in before a single file moved, deliberately: a ratchet installed
+// after a refactor protects nothing that happened before it.
+//
+// Where a budget carries a note, the note is work that file is still waiting
+// for — whoever lowers that number is the person who reads it.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -39,6 +41,11 @@ const BUDGET: Record<string, number> = {
   'packages/app/test/model.test.ts': 1_100,
   'packages/app/test/panels.test.ts': 1_400,
   'packages/app/test/view.test.ts': 1_500,
+  // `settingsOf` is one long table. Split by category into
+  // `settings/{agents,window,voice,queue,checks,telemetry,keys}.ts`, each
+  // exporting one `SettingGroup` and `settingsOf` composing them — mechanical,
+  // and the payoff is that `.claude/skills/add-config-key` gets to say "add a
+  // row to *this* file" instead of naming a line number in a thousand.
   'packages/core/src/settings.ts': 1_200,
   'packages/drivers/tmux/src/index.ts': 900,
   'packages/extensions/core/src/host.ts': 1_500,
@@ -50,6 +57,14 @@ const BUDGET: Record<string, number> = {
   'packages/harnesses/codex/src/adapter.ts': 1_700,
   'packages/harnesses/pi/src/adapter.ts': 1_100,
   'packages/orchestrator/src/tools-extension.ts': 1_000,
+  // The facade is the point and stays: ~1,700 lines of it are the one object
+  // the CLI, the window and the orchestrator all call, average method 19 lines,
+  // already delegating to eight split collaborators — splitting a facade
+  // produces a facade plus files. What can leave is the world-reading folds,
+  // `reconcileSpend`, `lookAtCommits` and `lookAtChecks` with the keyed
+  // reconciliation in each (~300 lines), to `workbench/src/reconcile.ts`, where
+  // they can be tested as folds over a journal instead of through an open
+  // workbench.
   'packages/workbench/src/workbench.ts': 2_500,
   'packages/workbench/src/workers.ts': 1_100,
   'packages/workbench/test/workers.test.ts': 1_000,

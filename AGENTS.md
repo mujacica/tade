@@ -754,15 +754,30 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `--help`, a setting's `means`, a tool's description, the shortcuts sheet, the README for the showcase,
   and a comment beside the code for why that code is the way it is. A design document is a plan,
   and a plan that outlives its build is a second description of the system that nothing keeps
-  honest — write it in the task and build it.
-  **A task folder is not where a document is kept**, and since `.tade/` became ignored it is not
-  kept anywhere: it lives on the disk of whoever was building it and goes when the task does,
-  which is right for the thing it is. So a plan that is finished with has nothing to do, and a
-  plan whose *reasoning* is worth keeping puts it where the thing it describes is — a skill, a
-  comment beside the code, a test that cannot drift from it — before the folder goes. The one
-  case that earns a file of its own is a plan parked mid-build, and it goes in `docs/` with the
-  thing that ends it written inside it (`docs/modularity.md`: delete it when its §5 is done).
-  Moved there, never copied: two copies of one plan is the drift this rule is about.
+  honest.
+- **A plan lives in the work, and what outlives the work lives in the thing that fails when it
+  stops being true.** The folder has now been removed twice — both times because the rule above
+  said where a plan may not go and never once said where it does, so the next long plan had
+  nowhere to be and invented `docs/` again. So, plainly, in the three places a plan is ever in:
+  **while it is being built**, the task — its prompt, its `.tade/context.md`, the agent's own
+  conversation. That is local and ignored and goes when the task goes, which is right for a thing
+  whose whole purpose ends at the last commit.
+  **Across sittings and across agents**, the commit and the review: a plan too long for a prompt
+  is the body of the review the work is opened under (`review_open`) or the message of the commit
+  that starts it. Both reach everybody, both are kept by git and the forge rather than by the
+  tree, so neither can be read by somebody who does not also see what became of it, and both stop
+  being in the way the moment the work merges — which is the whole of what a parked `docs/` file
+  was being asked for.
+  **After it is built**, wherever the thing it describes already is, in the same commit that makes
+  it true: an invariant here, a recipe in `.claude/skills/`, a why beside the code it explains, a
+  constraint as a test with a number in it. Work a plan named and did not do goes beside the thing
+  that will nag whoever next touches it — the budget line a split would lower, the comment at the
+  top of the file that would move — never in a list of intentions nobody is reading.
+  What has no home here is the fourth thing, and it is the only one that ever gets written: a file
+  that only describes, in a folder that only holds descriptions. Nothing reads it at the moment of
+  the change, nothing fails when it goes stale, and so it rots in place and is believed anyway.
+  **A plan that seems to need a file of its own is a plan whose reasoning has nowhere to be true
+  yet** — build the smallest piece that makes it true, and put the reasoning there.
 - **`.claude/skills/` holds step-by-step recipes** for recurring changes (a CLI command, a config
   key, an extension, the window, ...). Use the matching skill, and add or update one when you create
   a new extension point or a change teaches you something a recipe should have said. Do not confuse
