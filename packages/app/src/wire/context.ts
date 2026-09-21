@@ -140,6 +140,25 @@ export function configPathOf(opts: AppOptions): string {
   return join(opts.home, 'config.yaml')
 }
 
+/** The time of day something happened, the way news is said: `14:02`. */
+export function clockOf(at: number): string {
+  const time = new Date(at)
+  return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+}
+
+/** A moment as short as it can be said: the time today, or the day and time otherwise. */
+export function whenShort(at: number, now: number): string {
+  const time = new Date(at)
+  const today = new Date(now)
+  const clock = clockOf(at)
+  const sameDay =
+    time.getFullYear() === today.getFullYear() &&
+    time.getMonth() === today.getMonth() &&
+    time.getDate() === today.getDate()
+  if (sameDay) return clock
+  return `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''} ${clock}`
+}
+
 /** What went wrong, in words. The one reading of an unknown throw there is. */
 export function why(err: unknown): string {
   return err instanceof Error ? err.message : String(err)

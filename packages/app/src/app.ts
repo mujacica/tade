@@ -111,20 +111,17 @@ import {
   withSelection,
 } from './input.ts'
 import { appKey, keyCaps, normalKey } from './keys.ts'
-import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
+import { resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
 import type { TaskSnapshot } from './model.ts'
 import {
-  type AgentMark,
   type AppState,
   activeTerminal,
   addTurn,
-  conversing,
   doneTasks,
   dragAgent,
   dropAgent,
-  FOLDED_AT_START,
   focusBy,
   focusNumber,
   focusTask,
@@ -296,7 +293,6 @@ import {
 import { addProject, editSettings, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
-import { windowTitle } from './title.ts'
 import {
   fromThinker,
   interrupted,
@@ -324,9 +320,11 @@ import {
 import { Checks } from './wire/checks.ts'
 import {
   type AppOptions,
+  clockOf,
   type Thinker,
   type Wiring,
   type WorkerImageFile,
+  whenShort,
   why,
 } from './wire/context.ts'
 import { Images, imagesTitle } from './wire/images.ts'
@@ -334,6 +332,7 @@ import { Machine } from './wire/machine.ts'
 import { Notes } from './wire/notes.ts'
 import { Settings } from './wire/settings.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
+import { Window } from './wire/window.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -549,7 +548,14 @@ export function placeAt(held: HeldAgent, y: number): number {
   return best
 }
 
-class Window implements Component {
+/**
+ * The one component the TUI holds: it paints a frame and answers the mouse.
+ *
+ * Named for what it does rather than for the window, because `wire/window.ts`
+ * is the window's own business — where you were, how big it all is, what the
+ * title says — and two things called `Window` in one package is one too many.
+ */
+class Painted implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
   private readonly onPointer: (event: PointerEvent) => boolean
   private readonly onCopy: (text: string) => void
@@ -592,7 +598,7 @@ class Window implements Component {
   private selectingFile: { dragged: boolean } | null = null
 
   constructor(
-    frame: Window['frame'],
+    frame: Painted['frame'],
     onPointer: (event: PointerEvent) => boolean,
     onCopy: (text: string) => void,
     clock: () => number,
@@ -901,9 +907,6 @@ export class App {
   private readonly pointerShapes = pointerShapes(process.env)
   /** The size each lane was last made, so resizing happens once per change. */
   private readonly fitted = new Map<string, string>()
-  private titled = ''
-  /** When the title was last written, so a stolen one is taken back. */
-  private titledAt = 0
   /** When this window opened: the start of "This window" in the Spend panel. */
   private readonly openedAt = Date.now()
   /** Agents this window has opened again on its own, so it never does it twice. */
@@ -1014,9 +1017,6 @@ export class App {
   /** The Open project list for the last folder and query, and the branches found for its rows. */
   private openCache: { key: string; rows: OpenRow[]; browsing: string | null } | null = null
   private readonly branches = new Map<string, string | null>()
-  /** Where you were last time, applied once the tasks are known. */
-  private remembered: RememberedWindow | null = null
-  private restored = false
   /** Tasks being looked back at right now, so two polls cannot double up. */
   private readonly reflecting = new Set<string>()
   /** What happened that the orchestrator has not heard yet: it goes with the next thing said to it. */
@@ -1074,6 +1074,8 @@ export class App {
   private readonly settings: Settings
   /** What is installed here, what is current, and who the agents run as. */
   private readonly machine: Machine
+  /** Where you were, how big it all is, and what the title says. */
+  private readonly window: Window
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1101,10 +1103,13 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.window = new Window(this.wire, {
+      setTitle: (title) => this.terminal.setTitle(title),
+    })
     this.machine = new Machine(this.wire, {
       reload: () => this.reload(),
       terminalSize: () => {
-        const layout = resolveLayout(this.layout(), {
+        const layout = resolveLayout(this.window.layout(), {
           width: this.terminal.columns,
           height: Math.max(6, this.terminal.rows),
         })
@@ -1290,7 +1295,7 @@ export class App {
     if (this.soon) clearTimeout(this.soon)
     this.stopDraggingFile()
     for (const watched of this.watching.values()) watched.stop()
-    this.remember()
+    this.window.remember()
     this.release?.()
     if (this.pointerShapes) this.terminal.write(pointerSequence('default'))
     this.tui.stop()
@@ -1301,43 +1306,6 @@ export class App {
     await this.voice.stop()
     await this.live?.stop()
     this.settle()
-  }
-
-  /** Where the window writes down what it wants back next time. */
-  private get memoryFile(): string {
-    return join(this.opts.home, 'window.json')
-  }
-
-  private recall(): RememberedWindow | null {
-    try {
-      return asRemembered(JSON.parse(readFileSync(this.memoryFile, 'utf8')))
-    } catch {
-      // Never opened before, or a file we cannot read. Neither is a problem.
-      return null
-    }
-  }
-
-  private remember(): void {
-    try {
-      const kept: RememberedWindow = {
-        focused: this.state.focused,
-        ...this.state.sizes,
-        // Only what is not what a window starts at, exactly as a dragged size
-        // is: a file that wrote down today's defaults would freeze them, and
-        // the day `FOLDED_AT_START` changes nobody who had ever moved a
-        // divider would see it. So `[]` is written down — you opened the one
-        // section that starts folded, and that is a choice — while `['notes']`
-        // is not, because it is not one.
-        ...(this.state.hidingDone ? { hidingDone: true } : {}),
-        ...(sameSections(this.state.folded, FOLDED_AT_START) ? {} : { folded: this.state.folded }),
-        ...(this.state.opened.length > 0 ? { opened: this.state.opened } : {}),
-        ...(Object.keys(this.state.order).length > 0 ? { order: this.state.order } : {}),
-      }
-      writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
-    } catch {
-      // Coming back to the same pane is a convenience, not a reason to fail
-      // on the way out.
-    }
   }
 
   /** The items of an open menu, from what is true of its subject now. */
@@ -1577,7 +1545,7 @@ export class App {
       width,
       height: Math.max(6, this.terminal.rows),
       screen: this.screen,
-      layout: this.layout(),
+      layout: this.window.layout(),
       skin: this.skin,
       files: live.files(worktree ?? repo, this.state.expanded),
       fileMarks: live.marksAt(worktree ?? repo),
@@ -1661,7 +1629,7 @@ export class App {
       })),
       schedules: this.scheduleViews(),
       clock: (at: number) => whenShort(at, this.now()),
-      date: (at: number) => this.dateOf(at),
+      date: (at: number) => this.window.dateOf(at),
       now: this.now(),
     }
   }
@@ -1794,13 +1762,13 @@ export class App {
         if (this.state.resizing) {
           // Where you let go is where it stays, this time and next.
           this.state = { ...this.state, resizing: null }
-          this.remember()
+          this.window.remember()
           return true
         }
         if (this.state.reordering) {
           // So does an agent let go of in the list.
           this.state = { ...dropAgent(this.state), pressed: null }
-          this.remember()
+          this.window.remember()
           return true
         }
         if (this.state.pressed === null) return false
@@ -1898,24 +1866,9 @@ export class App {
     return selected ? textOf(panel.edit.lines, selected) : null
   }
 
-  /** Sizes from the config. The terminal has the last word on all of them. */
-  /** The config's sizes, then the ones you dragged the dividers to, then how the bottom is shown. */
-  private layout(): LayoutPrefs {
-    const window = this.opts.config.surfaces.window
-    const sizes = this.state.sizes
-    const sidebarWidth = sizes.sidebarWidth ?? window.sidebar_width
-    const stripHeight = sizes.stripHeight ?? window.strip_height
-    return {
-      ...(sidebarWidth ? { sidebarWidth } : {}),
-      ...(stripHeight ? { stripHeight } : {}),
-      bottom: this.state.bottomMode,
-      grow: conversing(this.state),
-    }
-  }
-
   private async begin(): Promise<void> {
-    this.remembered = this.recall()
-    const { sidebarWidth, stripHeight, order, hidingDone, folded, opened } = this.remembered ?? {}
+    const { sidebarWidth, stripHeight, order, hidingDone, folded, opened } =
+      this.window.recall() ?? {}
     this.state = {
       ...this.state,
       sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
@@ -1944,10 +1897,7 @@ export class App {
         this.state = withTasks(this.state, tasks)
         // Focus can only be restored once there are panes to restore it to,
         // and only the first time: after that it is wherever you moved to.
-        if (!this.restored && this.remembered?.focused) {
-          this.state = focusTask(this.state, this.remembered.focused)
-          this.restored = this.state.panes.length > 0
-        }
+        this.window.restoreFocus()
         if (this.seenTasks) {
           for (const text of taskNews(this.seenTasks, tasks)) {
             this.news = addNews(this.news, text, this.now())
@@ -2024,7 +1974,7 @@ export class App {
     )
 
     this.tui.addChild(
-      new Window(
+      new Painted(
         (width) => ({ state: this.state, frame: this.frameFor(live, width) }),
         (event) => this.pointer(event),
         (text) => void this.copySelection(text),
@@ -2319,7 +2269,7 @@ export class App {
         this.state = toggleSection(this.state, target.section, target.quiet === true)
         // Written where it was chosen, as a dragged divider is: a window that
         // was killed rather than closed still opens the way you left it.
-        this.remember()
+        this.window.remember()
         break
       case 'bottom-tab':
         this.state =
@@ -2571,7 +2521,7 @@ export class App {
         // Written here and not only on the way out: the window you press this
         // in is the window you leave open for days, and one that was killed
         // rather than closed would forget it every time.
-        this.remember()
+        this.window.remember()
         this.draw()
         return
       case 'close-done': {
@@ -5169,7 +5119,7 @@ export class App {
         this.draw()
       }
     }
-    this.title(pane ? `${pane.project} › ${shownName(pane)}` : this.state.project)
+    this.window.titleHere()
     // How deep the lane is, read before its text: which lines are held is
     // counted from the depth, so a screen cut against a depth from the frame
     // before it is a screen cut in the wrong place.
@@ -5323,7 +5273,7 @@ export class App {
       const split = pane ? splitShown(this.state, pane) : null
       return this.halves(this.paneSize(split !== null), split).first.rows
     }
-    const layout = resolveLayout(this.layout(), {
+    const layout = resolveLayout(this.window.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
@@ -5347,7 +5297,7 @@ export class App {
    */
   private async captureTerminal(): Promise<boolean> {
     const terminal = activeTerminal(this.state)
-    const layout = resolveLayout(this.layout(), {
+    const layout = resolveLayout(this.window.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
@@ -5420,7 +5370,7 @@ export class App {
 
   /** A split's divider dragged to a cell: the first half takes up to there. */
   private dragSplit(which: 'split' | 'terminal-split', at: { x: number; y: number }): AppState {
-    const layout = resolveLayout(this.layout(), {
+    const layout = resolveLayout(this.window.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
@@ -5482,7 +5432,7 @@ export class App {
       this.draw()
       return null
     }
-    const layout = resolveLayout(this.layout(), {
+    const layout = resolveLayout(this.window.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
@@ -5628,7 +5578,7 @@ export class App {
 
   /** The agent's part of the window: the pane, less its title and rule. */
   private paneSize(split = false): { cols: number; rows: number } {
-    const layout = resolveLayout(this.layout(), {
+    const layout = resolveLayout(this.window.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
@@ -5654,38 +5604,6 @@ export class App {
     await this.opts.client.resize(lane as LaneId, size.cols, size.rows).catch(() => {
       // A lane that just ended cannot be resized; the next tick will not ask.
     })
-  }
-
-  /**
-   * Say what is happening in the window's own title.
-   *
-   * Tade owns the title outright: everything it starts on a timer or in the
-   * background runs detached, so no child of ours can name the terminal after
-   * itself. Written when it changes — which, while anything works, is every
-   * look, because the indicator turns — and otherwise re-asserted on the same
-   * slow beat as the repaint, so a title something else took is taken back.
-   */
-  private title(where: string | null): void {
-    const now = this.now()
-    const count = (mark: AgentMark) => this.state.panes.filter((p) => markOf(p) === mark).length
-    const title = windowTitle({
-      working: count('working'),
-      waiting: count('needs-you'),
-      failed: count('failed'),
-      agents: this.state.panes.length,
-      orchestrator:
-        this.state.listening && this.state.talkingSince !== null
-          ? 'listening'
-          : this.state.transcript.thinking !== null
-            ? 'thinking'
-            : 'quiet',
-      where,
-      now,
-    })
-    if (title === this.titled && now - this.titledAt < REPAINT_MS) return
-    this.titled = title
-    this.titledAt = now
-    this.terminal.setTitle(title)
   }
 
   /**
@@ -7243,27 +7161,6 @@ export class App {
     }
   }
 
-  /** A time as a person reads one: the day, the date and the clock. */
-  private dateOf(at: number): string {
-    const time = new Date(at)
-    const month = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ]
-    const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''
-    return `${day} ${time.getDate()} ${month[time.getMonth()] ?? ''} ${clockOf(at)}`
-  }
-
   /**
    * How much further each side of the Extensions panel could be scrolled, and
    * how many rows its list shows, laid out exactly as it is drawn. The panel
@@ -7282,7 +7179,7 @@ export class App {
         harnessExtensions: this.harnessPieces,
         servers: this.serverOffers(),
         project: this.state.project,
-        date: (at: number) => this.dateOf(at),
+        date: (at: number) => this.window.dateOf(at),
       },
       this.terminal.columns,
       this.terminal.rows,
@@ -7588,34 +7485,6 @@ function scheduleIdOf(name: string): string {
 function askedByWords(by: string): string {
   const origin = taskOrigin(by)
   return origin.kind === 'you' ? 'the person' : origin.kind === 'orchestrator' ? 'you' : origin.name
-}
-
-/** A moment as short as it can be said: the time today, or the day and time otherwise. */
-function whenShort(at: number, now: number): string {
-  const time = new Date(at)
-  const today = new Date(now)
-  const clock = clockOf(at)
-  const sameDay =
-    time.getFullYear() === today.getFullYear() &&
-    time.getMonth() === today.getMonth() &&
-    time.getDate() === today.getDate()
-  if (sameDay) return clock
-  return `${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''} ${clock}`
-}
-
-/** The time of day something happened, the way news is said: `14:02`. */
-function clockOf(at: number): string {
-  const time = new Date(at)
-  return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
-}
-
-/**
- * The same set of sections, whatever order they were folded in: what is
- * written down is a set, and folding two and unfolding one of them is not a
- * different answer from having folded the other first.
- */
-function sameSections(folded: readonly string[], others: readonly string[]): boolean {
-  return folded.length === others.length && folded.every((name) => others.includes(name))
 }
 
 /** Only some terminals report key releases, which is what holding a key needs. */
