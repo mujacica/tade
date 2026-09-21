@@ -56,6 +56,13 @@ export const checksExtension: TadeExtension = {
   title: 'Checks',
   description:
     "A project's own checks — formatting, types, tests — run here before anybody else has to look at them, and recorded against the commit they ran on.",
+  workflow: [
+    'Answers “is this green” without running anything (checks_list): how each check stands at the commit that is checked out — including that it has never run, which is not the same as passing.',
+    'Runs them here, one suite at a time (checks_run): an agent about to push calls this rather than the shell, so four agents in one checkout never start four suites, and the run is recorded against the commit.',
+    'Gives a project a gate it has not got (checks_propose): writes `.tade/checks.yaml`, adopted from what CI already runs, and `tade checks workflow` generates the CI from that same file.',
+    'Overrules the rule as an act, not a setting (checks_override): who asked and why is written down, the check stays red, and the person is told what was said.',
+    'What it reads from CI it does not adopt: those carry a skip and leave the rollup unknown, because a CI config holds deploys beside its tests.',
+  ],
   root: ROOT,
 
   ready() {

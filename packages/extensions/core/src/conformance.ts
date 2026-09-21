@@ -69,6 +69,16 @@ export function extensionConformance(
       expect(host.list()[0]).toMatchObject({ state: 'ready', problem: null })
     })
 
+    it('says how it is used, in whole lines, and hands them on as it wrote them', async () => {
+      // The Extensions page is where somebody finds out what an extension is
+      // for, and a page that has only the one-line blurb is how people come to
+      // believe an extension does whatever its one watch does. What it says
+      // here is what is shown, unedited.
+      const host = await load()
+      expect(host.list()[0]?.workflow).toEqual(extension.workflow ?? [])
+      for (const line of extension.workflow ?? []) expect(line.trim()).not.toBe('')
+    })
+
     it('tells the orchestrator and agents about itself without throwing', async () => {
       const host = await load()
       expect(host.orchestratorPrompt()).toContain(extension.title)

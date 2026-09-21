@@ -8,9 +8,11 @@ import {
   branchMenuItems,
   branchPanel,
   changeMenuItems,
+  chosenEntry,
   closeDonePanel,
   type ExtensionView,
   extensionControls,
+  extensionEntries,
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
@@ -18,6 +20,7 @@ import {
   fileMenuItems,
   filePanel,
   findPanel,
+  HARNESS,
   harnessMenuItems,
   laneMenuItems,
   menuItems,
@@ -37,6 +40,8 @@ import {
   spendPanel,
   terminalMenuItems,
   thinkingMenuItems,
+  toolSummary,
+  WRITTEN,
   watchControl,
 } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
@@ -551,12 +556,16 @@ describe('the Extensions panel', () => {
     {
       name: 'deps',
       title: 'Dependencies',
-      description: '',
+      description: 'Finds what a project depends on that is out of date.',
+      workflow: ['Looking before you touch anything.'],
       source: 'built-in',
       state: 'ready',
       problem: null,
-      tools: [],
+      tools: [
+        { name: 'deps_check', summary: "Check a project's dependencies", for: ['orchestrator'] },
+      ],
       actions: [{ id: 'check', title: 'Check dependencies' }],
+      options: [],
       unknownSettings: [],
       configurable: true,
       folder: null,
@@ -565,12 +574,16 @@ describe('the Extensions panel', () => {
     {
       name: 'sentry',
       title: 'Sentry',
-      description: '',
+      description: 'Reads the errors your projects send to Sentry.',
+      workflow: ['Turning an error into work.'],
       source: 'built-in',
       state: 'needs setup',
       problem: 'which organization?',
       tools: [],
       actions: [{ id: 'new', title: 'New issues' }],
+      options: [
+        { key: 'token', label: 'API key', value: '', have: '$SENTRY_AUTH_TOKEN', secret: true },
+      ],
       unknownSettings: [],
       configurable: true,
       folder: null,
@@ -596,32 +609,125 @@ describe('the Extensions panel', () => {
     },
   ]
   const written = [{ name: 'notes', why: 'x', path: '/p/notes.ts', on: false }]
+  const harness = [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }]
+  const inputs = { extensions: views, written, harnessExtensions: harness }
 
-  it('moves through turning on and off, setting up, actions and what Tade wrote, and presses with enter', () => {
-    expect(extensionControls(views, written)).toEqual([
-      'toggle:deps',
-      'setup:deps',
-      'action:deps:check',
-      'toggle:sentry',
+  it('lists every extension, then what Tade wrote and what the harness loads itself', () => {
+    expect(extensionEntries(views, written, harness).map((entry) => entry.id)).toEqual([
+      'deps',
+      'sentry',
+      WRITTEN,
+      HARNESS,
+    ])
+    // What wants somebody is marked, so a list of twelve says where to look.
+    expect(extensionEntries(views, written, harness).map((entry) => entry.wants)).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ])
+  })
+
+  it('narrows the list by anything the page would say, not only the name', () => {
+    const matching = (search: string) =>
+      extensionEntries(views, written, harness, search).map((entry) => entry.id)
+    expect(matching('sentry')).toEqual(['sentry'])
+    // The word is in a tool's name, and in nothing else.
+    expect(matching('deps_check')).toEqual(['deps'])
+    // And in what it is for, which is how somebody who forgot the name finds it.
+    expect(matching('error into work')).toEqual(['sentry'])
+    expect(matching('every word must match sentry')).toEqual([])
+  })
+
+  it('has only the controls of the one you are on, in the order the keyboard walks them', () => {
+    expect(extensionControls('sentry', views, written)).toEqual([
       'setup:sentry',
+      'toggle:sentry',
       'watch:sentry:new-errors',
       'watching:regressions',
-      'read:notes',
-      'toggle:notes',
     ])
-    let panel = extensionsPanel()
-    for (let i = 0; i < 4; i++)
-      panel = panelKey(panel, 'tab', '\t', { extensions: views, written }).panel as typeof panel
-    expect(panelKey(panel, 'enter', '\r', { extensions: views, written })).toMatchObject({
+    // Turning it off is last: enter into the right-hand side lands on the
+    // first control, and that must never be the switch.
+    expect(extensionControls('deps', views, written)).toEqual([
+      'setup:deps',
+      'action:deps:check',
+      'toggle:deps',
+    ])
+    expect(extensionControls(WRITTEN, views, written)).toEqual(['read:notes', 'toggle:notes'])
+    // Tade only lists what pi loads: there is nothing here to press.
+    expect(extensionControls(HARNESS, views, written)).toEqual([])
+  })
+
+  it('walks the list with the arrows and the right-hand side with tab, and presses with enter', () => {
+    let panel = extensionsPanel('deps')
+    panel = panelKey(panel, 'down', '', inputs).panel as typeof panel
+    expect(panel.chosen).toBe('sentry')
+    panel = panelKey(panel, 'tab', '\t', inputs).panel as typeof panel
+    expect(panel.focus).toBe('body')
+    expect(panelKey(panel, 'enter', '\r', inputs)).toMatchObject({
       submit: true,
       choice: 'setup:sentry',
     })
-    expect(
-      panelClick(extensionsPanel(), 'toggle:notes', { extensions: views, written }),
-    ).toMatchObject({
+    // And back out of it to the list, which is where the arrows work again.
+    expect((panelKey(panel, 'left', '', inputs).panel as typeof panel).focus).toBe('list')
+  })
+
+  it('types into the search, and shows the first thing that matches', () => {
+    let panel = extensionsPanel('deps')
+    panel = panelClick(panel, 'search', inputs).panel as typeof panel
+    expect(panel.focus).toBe('search')
+    for (const letter of 'sent')
+      panel = panelKey(panel, undefined, letter, inputs).panel as typeof panel
+    expect(panel.search).toBe('sent')
+    // What was chosen is not in the list any more, so the first match is.
+    expect(panel.chosen).toBeNull()
+    expect(chosenEntry(panel, extensionEntries(views, written, harness, panel.search))?.id).toBe(
+      'sentry',
+    )
+    // Escape in the field clears it rather than closing the panel.
+    panel = panelKey(panel, 'escape', '', inputs).panel as typeof panel
+    expect(panel).toMatchObject({ search: '', focus: 'list' })
+    expect(panelKey(panel, 'escape', '', inputs).panel).toBeNull()
+  })
+
+  it('scrolls the right-hand side as far as it has, and stops following the buttons', () => {
+    let panel = { ...extensionsPanel('sentry'), focus: 'body' as const }
+    panel = panelKey(panel, 'down', '', { ...inputs, scrollable: 4 }).panel as typeof panel
+    expect(panel).toMatchObject({ scroll: 1, following: false })
+    panel = panelKey(panel, 'end', '', { ...inputs, scrollable: 4 }).panel as typeof panel
+    expect(panel.scroll).toBe(4)
+    // Never past what there is to read.
+    panel = panelKey(panel, 'pageDown', '', { ...inputs, scrollable: 4 }).panel as typeof panel
+    expect(panel.scroll).toBe(4)
+    // Tab is for the buttons, and puts the page back to wherever they are.
+    panel = panelKey(panel, 'tab', '\t', { ...inputs, scrollable: 4 }).panel as typeof panel
+    expect(panel.following).toBe(true)
+  })
+
+  it('clicks a name in the list, and a control on the right', () => {
+    const picked = panelClick(extensionsPanel('deps'), 'pick:sentry', inputs).panel as {
+      chosen: string
+    }
+    expect(picked.chosen).toBe('sentry')
+    expect(panelClick(extensionsPanel(WRITTEN), 'toggle:notes', inputs)).toMatchObject({
       submit: true,
       choice: 'toggle:notes',
     })
+    // A control of an extension you are not on is not there to be pressed.
+    expect(panelClick(extensionsPanel('deps'), 'toggle:notes', inputs)).toMatchObject({
+      submit: false,
+    })
+  })
+
+  it('says what a tool does in a line, from what its model is told', () => {
+    expect(
+      toolSummary(
+        'Grep that reads: give it a question in plain words and it says which lines answer it. Use it over text.',
+      ),
+    ).toBe('Grep that reads')
+    expect(toolSummary('Judge anything against questions you write')).toBe(
+      'Judge anything against questions you write',
+    )
   })
 
   it('offers a watch only where there is a project to watch', () => {

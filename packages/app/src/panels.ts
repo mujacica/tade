@@ -551,11 +551,36 @@ function modelKey(
   return stay(panel)
 }
 
-/** The extensions this window runs with, and what each can do for you. */
+/**
+ * The extensions this window runs with: the list down the side, and one of
+ * them in full beside it.
+ *
+ * It was one long column once — every extension, its buttons and its watches
+ * end to end — which meant the last of them was two screens past the fold and
+ * nothing could be found. It is the shape Settings has instead: search, a
+ * list, and the one you chose, said properly.
+ */
 export interface ExtensionsPanel {
   kind: 'extensions'
-  /** Which control the keyboard is on, of `extensionControls`. */
+  /**
+   * What the right-hand side is showing: an extension's name, `written` or
+   * `harness`. Null until something is chosen, which is the first of the list.
+   */
+  chosen: string | null
+  /** Which control of the right-hand side the keyboard is on, of `extensionControls`. */
   index: number
+  /** Lines of the right-hand side scrolled past. */
+  scroll: number
+  /**
+   * Whether the right-hand side follows the control the keyboard is on. It
+   * does while you tab between them, and stops the moment you scroll it
+   * yourself: a page that jumps back to a button every time you read past it
+   * is a page nobody can read.
+   */
+  following: boolean
+  focus: 'search' | 'list' | 'body'
+  /** Narrows the list: a name, what it is for, or one of its tools. */
+  search: string
   busy: boolean
   /** What the last thing done here came to: turned on, approved. */
   said: string | null
@@ -566,13 +591,20 @@ export interface ExtensionView {
   name: string
   title: string
   description: string
+  /**
+   * How it is used, in its own words, a line at a time. Empty for one that is
+   * off or broken: it was never imported, so there is nothing to ask.
+   */
+  workflow: readonly string[]
   source: 'built-in' | 'yours'
   state: 'ready' | 'needs setup' | 'off' | 'broken'
   /** What is wrong, or what to do before it can work. */
   problem: string | null
-  tools: string[]
+  tools: readonly ExtensionToolView[]
   /** What it can do from here, when it is ready. */
   actions: { id: string; title: string }[]
+  /** What it can be given, and what each is set to now. */
+  options: readonly ExtensionOptionView[]
   /** Settings it was given and does not read. */
   unknownSettings: string[]
   /** It says how to set it up, or what can be changed about it. */
@@ -581,6 +613,27 @@ export interface ExtensionView {
   folder: string | null
   /** What it offers to watch, and whether each is on in the project you are in. */
   watches: readonly WatchOfferView[]
+}
+
+/** One of an extension's tools, as the panel says it. */
+export interface ExtensionToolView {
+  name: string
+  /** What it does, in a line: the front of what the model is told about it. */
+  summary: string
+  /** Who may call it. */
+  for: readonly ('orchestrator' | 'agent')[]
+}
+
+/** Something an extension can be given, and where its value stands. */
+export interface ExtensionOptionView {
+  key: string
+  label: string
+  /** What is in it now, as somebody would read it; empty where nothing is. */
+  value: string
+  /** For a credential: where the one it has is (`$TYPESAFE_API_KEY`); empty where there is none. */
+  have: string
+  /** A credential: never drawn back, only ever said as a place. */
+  secret: boolean
 }
 
 /** A watch an extension offers, as the Extensions panel shows it. */
@@ -618,39 +671,170 @@ export interface WrittenToolView {
   on: boolean
 }
 
-export function extensionsPanel(): ExtensionsPanel {
-  return { kind: 'extensions', index: 0, busy: false, said: null }
+export function extensionsPanel(chosen: string | null = null): ExtensionsPanel {
+  return {
+    kind: 'extensions',
+    chosen,
+    index: 0,
+    scroll: 0,
+    following: true,
+    focus: 'list',
+    search: '',
+    busy: false,
+    said: null,
+  }
+}
+
+/** The two groups that are not extensions, and always come last. */
+export const WRITTEN = 'written'
+export const HARNESS = 'harness'
+
+/** A row in the list down the side of the Extensions panel. */
+export interface ExtensionEntry {
+  /** An extension's name, or `written` / `harness`. */
+  id: string
+  title: string
+  kind: 'extension' | 'written' | 'harness'
+  /** How the extension stands; null for the two groups that are not one. */
+  state: ExtensionView['state'] | null
+  /** How many tools it has, or how many pieces are in the group. */
+  count: number
+  /** Something here wants you: it needs setting up, or it is broken. */
+  wants: boolean
 }
 
 /**
- * Every control in the panel, in the order the keyboard moves through them:
- * for each extension, turning it on or off, setting it up, its actions, its
- * folder, and watching what it offers to watch — or showing the watch, once it
- * is on; then, for each tool Tade wrote for itself, reading it and turning it
- * on or off.
+ * The list down the side: every extension the search matches, then the tools
+ * Tade wrote for itself and what the harness loads by itself, where there are
+ * any. Searching looks at everything the right-hand side would say — what it
+ * is called, what it is for, how it is used, its tools and its watches —
+ * because somebody looking for “the one that reads Sentry” has not
+ * necessarily remembered that it is called Sentry.
+ */
+export function extensionEntries(
+  views: readonly ExtensionView[],
+  written: readonly WrittenToolView[] = [],
+  harness: readonly { name: string; where: string }[] = [],
+  search = '',
+): ExtensionEntry[] {
+  const entries: ExtensionEntry[] = views
+    .filter((view) => matchesSearch(extensionWords(view), search))
+    .map((view) => ({
+      id: view.name,
+      title: view.title,
+      kind: 'extension' as const,
+      state: view.state,
+      count: view.tools.length,
+      wants: view.state === 'needs setup' || view.state === 'broken',
+    }))
+  if (written.length > 0) {
+    const words = ['written by tade', ...written.map((tool) => `${tool.name} ${tool.why}`)]
+    if (matchesSearch(words.join(' '), search)) {
+      entries.push({
+        id: WRITTEN,
+        title: 'Written by Tade',
+        kind: 'written',
+        state: null,
+        count: written.length,
+        wants: false,
+      })
+    }
+  }
+  if (harness.length > 0) {
+    const words = ['pi’s own', ...harness.map((one) => `${one.name} ${one.where}`)]
+    if (matchesSearch(words.join(' '), search)) {
+      entries.push({
+        id: HARNESS,
+        title: "pi's own",
+        kind: 'harness',
+        state: null,
+        count: harness.length,
+        wants: false,
+      })
+    }
+  }
+  return entries
+}
+
+/** Everything about an extension that searching it should find. */
+function extensionWords(view: ExtensionView): string {
+  return [
+    view.name,
+    view.title,
+    view.description,
+    view.source,
+    view.state,
+    ...view.workflow,
+    ...view.tools.map((tool) => `${tool.name} ${tool.summary}`),
+    ...view.actions.map((action) => action.title),
+    ...view.watches.map((watch) => `${watch.title} ${watch.means}`),
+    ...view.options.map((option) => option.label),
+  ].join(' ')
+}
+
+/** Every word typed is in it, in any order: the same rule the rest of the window searches by. */
+function matchesSearch(text: string, search: string): boolean {
+  const words = search.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return true
+  const haystack = text.toLowerCase()
+  return words.every((word) => haystack.includes(word))
+}
+
+/** Which entry the panel is on: what was chosen, or the first one there is. */
+export function chosenEntry(
+  panel: ExtensionsPanel,
+  entries: readonly ExtensionEntry[],
+): ExtensionEntry | null {
+  return entries.find((entry) => entry.id === panel.chosen) ?? entries[0] ?? null
+}
+
+/**
+ * The controls on the right-hand side, in the order the keyboard moves through
+ * them and in the order they are drawn: for the extension shown, setting it
+ * up, what it can do from here, its folder, turning it off, and watching what
+ * it offers to watch — or showing the watch, once it is on. For the tools Tade
+ * wrote for itself, reading each and turning it on or off. What the harness
+ * loads by itself has none: Tade only lists those.
+ *
+ * Turning it off comes last on purpose. Enter into the right-hand side lands
+ * on the first control, and the first control being the one that switches the
+ * thing off is how a look becomes a change.
  */
 export function extensionControls(
+  chosen: string | null,
   views: readonly ExtensionView[],
   written: readonly WrittenToolView[] = [],
 ): string[] {
-  const controls: string[] = []
-  for (const view of views) {
-    if (view.state !== 'broken') controls.push(`toggle:${view.name}`)
-    if (view.configurable && view.state !== 'broken' && view.state !== 'off')
-      controls.push(`setup:${view.name}`)
-    if (view.state === 'ready')
-      controls.push(...view.actions.map((action) => `action:${view.name}:${action.id}`))
-    if (view.folder) controls.push(`folder:${view.name}`)
-    if (view.state === 'broken') continue
-    for (const watch of view.watches) {
-      const control = watchControl(view.name, watch)
-      if (control) controls.push(control)
-    }
+  if (chosen === HARNESS) return []
+  if (chosen === WRITTEN) {
+    return written.flatMap((tool) => [`read:${tool.name}`, `toggle:${tool.name}`])
   }
-  for (const tool of written) {
-    controls.push(`read:${tool.name}`, `toggle:${tool.name}`)
+  const view = views.find((one) => one.name === chosen)
+  if (!view) return []
+  const controls: string[] = []
+  if (view.configurable && view.state !== 'broken' && view.state !== 'off')
+    controls.push(`setup:${view.name}`)
+  if (view.state === 'ready')
+    controls.push(...view.actions.map((action) => `action:${view.name}:${action.id}`))
+  if (view.folder) controls.push(`folder:${view.name}`)
+  if (view.state !== 'broken') controls.push(`toggle:${view.name}`)
+  if (view.state === 'broken') return controls
+  for (const watch of view.watches) {
+    const control = watchControl(view.name, watch)
+    if (control) controls.push(control)
   }
   return controls
+}
+
+/**
+ * What a tool does, in a line: the first sentence of what its model is told.
+ * The whole description is written for whoever is choosing the tool and runs
+ * to a paragraph; a person scanning eight of them wants the first clause.
+ */
+export function toolSummary(description: string): string {
+  const said = description.trim().replace(/\s+/g, ' ')
+  const stop = said.search(/(?<![A-Z])[.:](?:\s|$)/)
+  return stop > 0 ? said.slice(0, stop) : said
 }
 
 /**
@@ -660,6 +844,157 @@ export function extensionControls(
 export function watchControl(extension: string, watch: WatchOfferView): string | null {
   if (watch.on) return `watching:${watch.on}`
   return watch.project ? `watch:${extension}:${watch.id}` : null
+}
+
+/**
+ * Moving around the Extensions panel: typing narrows the list, the arrows walk
+ * it, and the right-hand side is a page — tab steps between the things that
+ * can be pressed, the arrows scroll what there is to read.
+ */
+function extensionsKey(
+  panel: ExtensionsPanel,
+  key: string | undefined,
+  data: string,
+  inputs: PanelInputs,
+): PanelOutcome {
+  const entries = extensionEntries(
+    inputs.extensions ?? [],
+    inputs.written ?? [],
+    inputs.harnessExtensions ?? [],
+    panel.search,
+  )
+  const here = chosenEntry(panel, entries)
+  const controls = extensionControls(
+    here?.id ?? null,
+    inputs.extensions ?? [],
+    inputs.written ?? [],
+  )
+  /** Moving anywhere in the list starts the right-hand side at its top again. */
+  const at = (id: string | null): PanelOutcome =>
+    stay({ ...panel, chosen: id, index: 0, scroll: 0, following: true, focus: 'list' })
+
+  if (panel.focus === 'search') {
+    if (key === 'escape') return stay({ ...panel, search: '', focus: 'list' })
+    if (key === 'enter' || key === 'down' || key === 'tab') return stay({ ...panel, focus: 'list' })
+    if (key === 'backspace')
+      return stay({
+        ...panel,
+        search: [...panel.search].slice(0, -1).join(''),
+        chosen: null,
+        index: 0,
+        scroll: 0,
+        following: true,
+      })
+    const typed = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
+    if (typed && ![...typed].some(control))
+      // What was chosen may not be in the list any more, so the first match is.
+      return stay({
+        ...panel,
+        search: panel.search + typed,
+        chosen: null,
+        index: 0,
+        scroll: 0,
+        following: true,
+      })
+    return stay(panel)
+  }
+
+  if (key === 'escape') return close
+  if (panel.busy) return stay(panel)
+  if (key === 'ctrl+f' || data === '/') return stay({ ...panel, focus: 'search' })
+
+  if (panel.focus === 'list') {
+    const index = Math.max(
+      0,
+      entries.findIndex((entry) => entry.id === here?.id),
+    )
+    if (key === 'down' || key === 'up') {
+      const step = key === 'down' ? 1 : -1
+      const next = entries[index + step]
+      if (!next)
+        return key === 'up' && index === 0 ? stay({ ...panel, focus: 'search' }) : stay(panel)
+      return at(next.id)
+    }
+    if (key === 'home') return entries[0] ? at(entries[0].id) : stay(panel)
+    if (key === 'end') {
+      const last = entries[entries.length - 1]
+      return last ? at(last.id) : stay(panel)
+    }
+    if (key === 'right' || key === 'tab' || key === 'enter')
+      return stay({ ...panel, chosen: here?.id ?? null, focus: 'body', index: 0, following: true })
+    return stay(panel)
+  }
+
+  // The right-hand side: tab steps between what can be pressed, the arrows
+  // read through what there is to read.
+  const most = Math.max(0, inputs.scrollable ?? 0)
+  const scrolled = (by: number) =>
+    stay({
+      ...panel,
+      scroll: Math.max(0, Math.min(most, panel.scroll + by)),
+      following: false,
+    })
+  if (key === 'left' || (key === 'shift+tab' && panel.index === 0))
+    return stay({ ...panel, focus: 'list' })
+  if (key === 'shift+tab')
+    return stay({ ...panel, index: Math.max(0, panel.index - 1), following: true })
+  if (key === 'tab')
+    return stay({
+      ...panel,
+      index: Math.min(Math.max(0, controls.length - 1), panel.index + 1),
+      following: true,
+    })
+  if (key === 'up') return scrolled(-1)
+  if (key === 'down') return scrolled(1)
+  if (key === 'pageUp') return scrolled(-10)
+  if (key === 'pageDown') return scrolled(10)
+  if (key === 'home') return stay({ ...panel, scroll: 0, following: false })
+  if (key === 'end') return stay({ ...panel, scroll: most, following: false })
+  const pressed = controls[panel.index]
+  if ((key === 'enter' || key === 'space') && pressed)
+    return { panel: { ...panel, said: null }, submit: true, choice: pressed }
+  return stay(panel)
+}
+
+/** A click in the Extensions panel: on the list, the search field, or a control. */
+function extensionsClick(
+  panel: ExtensionsPanel,
+  control: string,
+  inputs: PanelInputs,
+): PanelOutcome {
+  if (control === 'close') return close
+  if (control === 'search') return stay({ ...panel, focus: 'search' })
+  if (control.startsWith('pick:')) {
+    const id = control.slice(5)
+    return stay({
+      ...panel,
+      chosen: id,
+      index: 0,
+      scroll: 0,
+      following: true,
+      focus: 'list',
+      said: null,
+    })
+  }
+  const entries = extensionEntries(
+    inputs.extensions ?? [],
+    inputs.written ?? [],
+    inputs.harnessExtensions ?? [],
+    panel.search,
+  )
+  const here = chosenEntry(panel, entries)
+  const index = extensionControls(
+    here?.id ?? null,
+    inputs.extensions ?? [],
+    inputs.written ?? [],
+  ).indexOf(control)
+  return index < 0
+    ? stay(panel)
+    : {
+        panel: { ...panel, index, focus: 'body', following: true, said: null },
+        submit: true,
+        choice: control,
+      }
 }
 
 /** Setting an extension up, or changing its settings: a guide, and fields. */
@@ -932,6 +1267,13 @@ export interface PanelInputs {
   found?: number
   /** The extensions, for moving through their actions. */
   extensions?: readonly ExtensionView[]
+  /** What the harness loads by itself, which Tade only lists. */
+  harnessExtensions?: readonly { name: string; where: string }[]
+  /**
+   * The furthest the Extensions panel's right-hand side can be scrolled: how
+   * much it has to say, less the room it is drawn in. Nought where it all fits.
+   */
+  scrollable?: number
   /** Models there are to choose from. */
   models?: readonly ModelChoice[]
   /** The tools Tade wrote for itself, on or off. */
@@ -1309,20 +1651,7 @@ export function panelKey(
       ? stay(panel)
       : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
   }
-  if (panel.kind === 'extensions') {
-    const controls = extensionControls(inputs.extensions ?? [], inputs.written ?? [])
-    if (key === 'escape') return close
-    if (panel.busy) return stay(panel)
-    if (key === 'up' || key === 'shift+tab' || key === 'left')
-      return stay({ ...panel, index: Math.max(0, panel.index - 1) })
-    if (key === 'down' || key === 'tab' || key === 'right')
-      return stay({ ...panel, index: Math.min(Math.max(0, controls.length - 1), panel.index + 1) })
-    const chosen = controls[panel.index]
-    if ((key === 'enter' || key === 'space') && chosen) {
-      return { panel: { ...panel, said: null }, submit: true, choice: chosen }
-    }
-    return stay(panel)
-  }
+  if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
   if (panel.kind === 'quit') {
     if (key === 'escape') return close
     if (key === 'tab' || key === 'left' || key === 'right') {
@@ -1378,13 +1707,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
       ? stay({ ...panel, index })
       : setupPress({ ...panel, index }, control, fields)
   }
-  if (panel.kind === 'extensions') {
-    if (control === 'close') return close
-    const index = extensionControls(inputs.extensions ?? [], inputs.written ?? []).indexOf(control)
-    return index < 0
-      ? stay(panel)
-      : { panel: { ...panel, index, said: null }, submit: true, choice: control }
-  }
+  if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
   if (panel.kind === 'quit') {
     if (control === 'cancel') return close
     if (control === 'quit') return { panel, submit: true, choice: 'quit' }

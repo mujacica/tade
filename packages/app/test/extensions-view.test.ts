@@ -1,0 +1,365 @@
+import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import { describe, expect, it } from 'vitest'
+import { pressable, type Target } from '../src/hits.ts'
+import {
+  drawPanel,
+  extensionsScrollable,
+  extensionsSize,
+  type PanelContext,
+} from '../src/panel-view.ts'
+import {
+  type ExtensionsPanel,
+  type ExtensionView,
+  extensionControls,
+  extensionsPanel,
+  HARNESS,
+  WRITTEN,
+} from '../src/panels.ts'
+import { COLOUR } from '../src/skin.ts'
+import type { Drawn } from '../src/ui.ts'
+
+// What the Extensions panel has to be true at every width.
+//
+// The goldens say what it looks like on the two terminals they were drawn on;
+// these say what holds on all the others — that the page says the whole of
+// what an extension offers rather than a count of it, that everything it says
+// can be reached, and that a credential is never on it.
+
+const jev: ExtensionView = {
+  name: 'jev',
+  title: 'Jev',
+  description: 'Asks a judge bounded questions about diffs, logs, requests, plans and queues.',
+  workflow: [
+    'Reviews what agents wrote, when nobody has time to: turn the review watch on and every branch that goes quiet is read against the review pack.',
+    'Judges anything else in front of you (jev_ask): a diff, an issue list, a failing log.',
+  ],
+  source: 'built-in',
+  state: 'ready',
+  problem: null,
+  tools: [
+    {
+      name: 'jev_ask',
+      summary: 'Judge anything against questions you write',
+      for: ['orchestrator', 'agent'],
+    },
+    { name: 'jev_grep', summary: 'Grep that reads', for: ['orchestrator', 'agent'] },
+    {
+      name: 'jev_review',
+      summary: 'Read a change against the review pack',
+      for: ['orchestrator', 'agent'],
+    },
+    {
+      name: 'jev_findings',
+      summary: 'What the review watch has looked at',
+      for: ['orchestrator', 'agent'],
+    },
+    {
+      name: 'jev_verdict',
+      summary: 'Write down what a finding turned out to be',
+      for: ['orchestrator'],
+    },
+    {
+      name: 'jev_read_request',
+      summary: 'A second, independent reading of what was asked for',
+      for: ['orchestrator'],
+    },
+    { name: 'jev_plan_check', summary: 'Read a plan before you keep it', for: ['orchestrator'] },
+    { name: 'jev_queue_order', summary: 'Suggest what should come first', for: ['orchestrator'] },
+  ],
+  actions: [
+    { id: 'flagged', title: 'What Jev flagged' },
+    { id: 'review', title: 'Review the latest commits' },
+  ],
+  options: [
+    { key: 'key', label: 'API key', value: '', have: 'the macOS keychain', secret: true },
+    { key: 'model', label: 'Version', value: 'jev-1.13.0', have: '', secret: false },
+  ],
+  unknownSettings: [],
+  configurable: true,
+  folder: null,
+  watches: [
+    {
+      id: 'review',
+      title: 'Review what agents change',
+      means:
+        'When an agent’s branch stops moving, reads its whole diff against what it branched from.',
+      every: '10m',
+      project: 'checkout',
+      on: null,
+    },
+    {
+      id: 'circles',
+      title: 'Agents going in circles',
+      means: 'Looks at what each agent has been doing, and reads the ones going round.',
+      every: '10m',
+      project: 'checkout',
+      on: 'agents-going-in-circles',
+    },
+  ],
+}
+
+const sentry: ExtensionView = {
+  name: 'sentry',
+  title: 'Sentry',
+  description: 'Reads the errors your projects send to Sentry.',
+  workflow: ['Turns an error into work (sentry_fix): an agent in its own worktree.'],
+  source: 'built-in',
+  state: 'needs setup',
+  problem: 'no Sentry token: paste one in, or set $SENTRY_AUTH_TOKEN',
+  tools: [
+    {
+      name: 'sentry_issues',
+      summary: "List a project's Sentry issues",
+      for: ['orchestrator', 'agent'],
+    },
+  ],
+  actions: [],
+  options: [{ key: 'token', label: 'API key', value: '', have: '', secret: true }],
+  unknownSettings: ['orgg'],
+  configurable: true,
+  folder: null,
+  watches: [],
+}
+
+const broken: ExtensionView = {
+  name: 'standup',
+  title: 'standup',
+  description: 'Reads out what each agent did yesterday.',
+  workflow: [],
+  source: 'yours',
+  state: 'broken',
+  problem: "SyntaxError: Unexpected token '!'",
+  tools: [],
+  actions: [],
+  options: [],
+  unknownSettings: [],
+  configurable: false,
+  folder: '/Users/me/.tade/extensions/standup',
+  watches: [],
+}
+
+const off: ExtensionView = {
+  name: 'release-notes',
+  title: 'release-notes',
+  description: 'Drafts release notes from merged work.',
+  workflow: [],
+  source: 'yours',
+  state: 'off',
+  problem: 'not turned on',
+  tools: [],
+  actions: [],
+  options: [],
+  unknownSettings: [],
+  configurable: false,
+  folder: '/Users/me/.tade/extensions/release-notes',
+  watches: [],
+}
+
+const EXTENSIONS = [jev, sentry, broken, off]
+const WRITTEN_TOOLS = [
+  {
+    name: 'standup-notes',
+    why: 'Reads out what each agent did yesterday.',
+    path: '/p/s.ts',
+    on: false,
+  },
+]
+const HARNESS_PIECES = [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }]
+
+const context = (over: Partial<PanelContext> = {}): PanelContext =>
+  ({
+    width: 120,
+    height: 34,
+    skin: COLOUR,
+    pointer: { hover: null, pressed: null },
+    home: '~/.tade',
+    route: null,
+    spend: null,
+    panes: [],
+    project: 'checkout',
+    items: [],
+    changes: [],
+    ahead: null,
+    branch: null,
+    base: null,
+    diff: null,
+    choices: [],
+    settings: [],
+    accounts: [],
+    configPath: '~/.tade/config.yaml',
+    releases: true,
+    budgetWarnings: 0,
+    levels: [],
+    openRows: [],
+    browsing: null,
+    homeDir: '/Users/me',
+    entries: [],
+    searching: false,
+    viewing: null,
+    talkKey: 'ctrl+space',
+    talkMode: 'hold',
+    bindings: {},
+    running: 0,
+    branches: [],
+    checkout: null,
+    found: 0,
+    terminalName: 'terminal',
+    extensions: EXTENSIONS,
+    harnessExtensions: HARNESS_PIECES,
+    written: WRITTEN_TOOLS,
+    extensionView: null,
+    setup: null,
+    extensionsRoot: '~/.tade/extensions',
+    models: [],
+    modelTarget: 'the orchestrator',
+    currentModel: null,
+    ...over,
+  }) as PanelContext
+
+const facts = {
+  skin: COLOUR,
+  extensions: EXTENSIONS,
+  written: WRITTEN_TOOLS,
+  harnessExtensions: HARNESS_PIECES,
+  project: 'checkout',
+}
+
+const drawnAt = (panel: ExtensionsPanel, over: Partial<PanelContext> = {}): Drawn =>
+  drawPanel(panel, context(over)).panel
+
+const plainRows = (drawn: Drawn) => drawn.rows.map((row) => stripTerminalSequences(row))
+
+/** Everything the panel says about one extension, read by scrolling to the end of it. */
+function wholePage(panel: ExtensionsPanel, over: Partial<PanelContext> = {}): string {
+  const ctx = { width: 120, height: 34, ...over }
+  const most = extensionsScrollable(panel, facts, ctx.width, ctx.height)
+  const { room } = extensionsSize(ctx.width, ctx.height)
+  const said: string[] = []
+  for (let scroll = 0; ; scroll = Math.min(most, scroll + room)) {
+    said.push(...plainRows(drawnAt({ ...panel, scroll, following: false }, over)))
+    if (scroll >= most) break
+  }
+  return said.join('\n')
+}
+
+/** The widths worth trying: from a terminal nobody should use to a wide one. */
+const WIDTHS = [40, 48, 56, 64, 72, 80, 96, 104, 120, 160]
+
+describe('the extensions page at any width', () => {
+  it('draws a box of one width, whatever the terminal is', () => {
+    for (const width of WIDTHS) {
+      for (const chosen of ['jev', 'sentry', 'standup', 'release-notes', WRITTEN, HARNESS]) {
+        const drawn = drawnAt(extensionsPanel(chosen), { width, height: 26 })
+        const widths = new Set(plainRows(drawn).map((row) => visibleWidth(row)))
+        expect([...widths], `${chosen} at ${width}`).toHaveLength(1)
+        expect([...widths][0], `${chosen} at ${width}`).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
+  it('never puts a click where the panel is not', () => {
+    for (const width of WIDTHS) {
+      const drawn = drawnAt({ ...extensionsPanel('jev'), focus: 'body' }, { width, height: 26 })
+      const panelWidth = visibleWidth(plainRows(drawn)[0] ?? '')
+      for (const hit of drawn.hits) {
+        expect(hit.from, `at ${width}`).toBeGreaterThanOrEqual(0)
+        expect(hit.to, `at ${width}`).toBeLessThan(panelWidth)
+        expect(hit.row, `at ${width}`).toBeLessThan(drawn.rows.length)
+      }
+    }
+  })
+
+  it('says every tool it has, with what each is for, rather than counting them', () => {
+    // The whole reason the page was rebuilt: a heading saying "8 tools" and
+    // never which is how an extension that does eight things is read as doing
+    // the one thing its watch does.
+    for (const width of [80, 120, 160]) {
+      const said = wholePage(extensionsPanel('jev'), { width })
+      for (const tool of jev.tools) expect(said, `${tool.name} at ${width}`).toContain(tool.name)
+      for (const watch of jev.watches) {
+        // A long name gives up its end to the button that turns the watch on,
+        // and says it did with an ellipsis.
+        const name = width >= 96 ? watch.title : watch.title.slice(0, 12)
+        expect(said, `${watch.title} at ${width}`).toContain(name)
+      }
+      expect(said, `at ${width}`).toContain('HOW IT IS USED')
+      expect(said, `at ${width}`).toContain('Version')
+    }
+  })
+
+  it('says where a key is, and never what it is', () => {
+    const said = wholePage(extensionsPanel('jev'))
+    expect(said).toContain('the macOS keychain')
+    // And where there is none, where to put one — not a shell profile.
+    const missing = wholePage(extensionsPanel('sentry'))
+    expect(missing).toContain('not set — paste one in Set up…')
+    expect(missing).toContain('Set up…')
+  })
+
+  it('says of one that is off that nothing in it has run, rather than inventing the rest', () => {
+    const said = wholePage(extensionsPanel('release-notes'))
+    expect(said).toContain('never imports it')
+    expect(said).toContain('Turn on')
+    // Broken is listed as broken, with the reason, and stops nothing else.
+    const bad = wholePage(extensionsPanel('standup'))
+    expect(bad).toContain("SyntaxError: Unexpected token '!'")
+    expect(bad).toContain('Open folder')
+    expect(plainRows(drawnAt(extensionsPanel('standup'))).join('\n')).toContain('Jev')
+  })
+
+  it('reaches everything it says by scrolling, and stops at the end of it', () => {
+    for (const width of WIDTHS) {
+      const panel = extensionsPanel('jev')
+      const most = extensionsScrollable(panel, facts, width, 26)
+      const { room } = extensionsSize(width, 26)
+      // What is left after the last scroll is exactly the room there is: a
+      // page that could be scrolled past its own end has rows nobody can read.
+      const last = plainRows(
+        drawnAt({ ...panel, scroll: most, following: false }, { width, height: 26 }),
+      )
+      const beyond = plainRows(
+        drawnAt({ ...panel, scroll: most + 5, following: false }, { width, height: 26 }),
+      )
+      expect(beyond.join('\n'), `at ${width}`).toBe(last.join('\n'))
+      expect(room, `at ${width}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps the control the keyboard is on in view while you tab through them', () => {
+    const controls = extensionControls('jev', EXTENSIONS, WRITTEN_TOOLS)
+    expect(controls.length).toBeGreaterThan(3)
+    controls.forEach((control, index) => {
+      const drawn = drawnAt({ ...extensionsPanel('jev'), focus: 'body', index })
+      const lit = drawn.hits.some(
+        (hit) => hit.target.kind === 'control' && hit.target.id === control,
+      )
+      expect(lit, control).toBe(true)
+    })
+  })
+
+  it('lights everything that can be clicked', () => {
+    const panel = { ...extensionsPanel('jev'), focus: 'list' as const }
+    const rest = drawnAt(panel)
+    const targets: Target[] = []
+    for (const hit of rest.hits) {
+      if (!pressable(hit.target) || hit.target.kind !== 'control') continue
+      // The one you are on is already lit, by being the one you are on.
+      if (hit.target.id === 'pick:jev') continue
+      if (!targets.some((one) => JSON.stringify(one) === JSON.stringify(hit.target)))
+        targets.push(hit.target)
+    }
+    expect(targets.length).toBeGreaterThan(3)
+    for (const target of targets) {
+      const lit = drawnAt(panel, { pointer: { hover: target, pressed: null } })
+      expect(lit.rows.join('\n'), JSON.stringify(target)).not.toBe(rest.rows.join('\n'))
+    }
+  })
+
+  it('says so when the search matches nothing, rather than showing an empty page', () => {
+    const said = plainRows(drawnAt({ ...extensionsPanel(), search: 'nothing like this' })).join(
+      '\n',
+    )
+    expect(said).toContain('Nothing matches')
+    expect(said).toContain('Clear the search')
+  })
+})

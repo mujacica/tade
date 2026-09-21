@@ -1,32 +1,32 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
-━━━━━━━━╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━━━━
- ▾ AGENT│ ● Dependencies  built-in · ready                                                             2 tools │    ×   
-        │   Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in   │────────
- ▌ ! str│   an agent’s worktree.                                                                               │        
- ▌   wan│     Turn off     Settings…     Check dependencies     Update dependencies (minor)                    │        
-        │                                                                                                      │        
-   ⠋ ref│     Update dependencies (major)                                                                      │        
-     wor│                                                                                                      │        
-        │ ◐ Sentry  built-in · needs setup                                                             2 tools │        
- ▾ CHANG│   no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read,  │        
-  M pack│   event:write), or log in with sentry-cli                                                            │        
-  A …/we│   not read: extensions.sentry.orgg                                                                   │        
-  M src/│     Turn off     Set up…                                                                             │        
-        │   ◎ New Sentry errors  every 1h                                                     Watch checkout   │        
- ▾ FILES│     Looks for issues first seen in Sentry since its last look, and starts an agent on each with      │        
-   ▾ src│     everything Sentry knows, to find the cause, fix it and test it.                                  │        
-       w│                                                                                                      │        
-       w│ ✗ standup  yours · broken                                                                            │        
-   ▸ tes│   SyntaxError: Unexpected token '!'                                                                  │        
-     pac│     Open folder                                                                                      │        
-     REA│                                                                                                      │        
-        │ ○ release-notes  yours · off                                                                         │        
-━   orch│   Drafts release notes from merged work, because you asked for them every Friday.                    │   ▾   ━
-        │     Turn on     Open folder                                                                          │        
-        │                                                                                                      │       ▕
-        │ WRITTEN BY TADE  tools for the orchestrator: one you turn on loads next start                        │       ▕
-        │   ○ standup-notes  off                                                            Read     Turn on   │       ▕
-        │ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                                │       ▕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENT╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮    ×   
+        │  search extensions     │ Jev  built-in                                                         ready │────────
+ ▌ ! str│                        │ 8 tools · 2 watches · 5 settings                                            │        
+ ▌   wan│ ● Checks               │                                                                             │        
+        │ ● Dependencies         │ Asks a judge bounded questions about diffs, logs, requests, plans and       │        
+   ⠋ ref│▌● Jev                  │ queues: probabilities to act on, never verdicts and never prose.            │        
+     wor│ ◐ Sentry             ! │                                                                             │        
+        │ ✗ standup            ! │   Settings…     What Jev flagged     Review the latest commits              │        
+ ▾ CHANG│ ○ release-notes        │                                                                             │        
+  M pack│ · Written by Tade    1 │   Turn off                                                                  │        
+  A …/we│ · pi's own           1 │                                                                             │        
+  M src/│                        │ HOW IT IS USED                                                              │        
+        │                        │ · Reviews what agents wrote, when nobody has time to: turn the review       │        
+ ▾ FILES│                        │   watch on and every branch that goes quiet is read against the review      │        
+   ▾ src│                        │   pack — injection, secrets, swallowed errors, missing tests, whether it    │        
+       w│                        │   did what was asked.                                                       │        
+       w│                        │ · Judges anything else in front of you (jev_ask): a diff, an issue list, a  │        
+   ▸ tes│                        │   failing log, something somebody pasted. A few dozen literal questions at  │        
+     pac│                        │   once, each answered with a probability and no prose.                      │        
+     REA│                        │ · Finds the lines that answer a question, in a log, the journal or a file   │        
+        │                        │   (jev_grep) — a filter to read, not an answer.                             │        
+━   orch│                        │ · Says what it has already flagged (jev_findings), and takes your word for  │   ▾   ━
+        │                        │   whether it was right (jev_verdict): nothing else says whether a question  │        
+        │                        │   is worth asking again.                                                    │       ▕
+        │                        │ · Reads things back before somebody guesses: what was actually asked for    │       ▕
+        │                        │ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say       │       ▕
+        │                        │ 1–21 of 62 · tab moves · enter presses                               Done   │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

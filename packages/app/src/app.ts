@@ -67,6 +67,7 @@ import {
 import {
   type ExtensionHost,
   type ExtensionWorkbench,
+  type SetupFieldView as HostSetupField,
   type ListSection,
   settingFrom,
 } from '@tade/extensions-core'
@@ -205,7 +206,13 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
-import { fileBodySize, fileViewSize, type OpenRowView, type PanelContext } from './panel-view.ts'
+import {
+  extensionsScrollable,
+  fileBodySize,
+  fileViewSize,
+  type OpenRowView,
+  type PanelContext,
+} from './panel-view.ts'
 import {
   ACCOUNTS,
   type AgentOffers,
@@ -225,7 +232,6 @@ import {
   type ExtensionSetupPanel,
   type ExtensionsPanel,
   type ExtensionView,
-  extensionControls,
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
@@ -265,6 +271,7 @@ import {
   spendPanel,
   terminalMenuItems,
   thinkingMenuItems,
+  toolSummary,
   type WrittenToolView,
 } from './panels.ts'
 import {
@@ -2345,13 +2352,17 @@ export class App {
         return
       case 'extensions':
         this.harnessPieces = (await this.opts.harnessExtensions?.().catch(() => [])) ?? []
+        // What each one can be given is asked once, on the way in, rather
+        // than on every frame it is drawn.
+        this.setupShown.clear()
         {
-          // The keyboard starts on the first thing to run, not on turning it off.
-          const controls = extensionControls(this.extensionViews(), this.writtenViews())
-          const first = controls.findIndex((control) => control.startsWith('action:'))
+          // It opens on the one that wants somebody — something to set up,
+          // something broken — and on the first of them when nothing does.
+          const views = this.extensionViews()
+          const wants = views.find((one) => one.state === 'needs setup' || one.state === 'broken')
           this.state = {
             ...this.state,
-            panel: { ...extensionsPanel(), index: Math.max(0, first) },
+            panel: extensionsPanel(wants?.name ?? views[0]?.name ?? null),
           }
         }
         this.draw()
@@ -5549,6 +5560,27 @@ export class App {
     }))
   }
 
+  /**
+   * What an extension can be given and where each value stands, as its own
+   * setup says it — kept until the extensions are read again.
+   *
+   * Asking costs something: where a credential is kept is answered by the
+   * keychain, which is a program started. Doing that for every extension on
+   * every frame is how a window that redraws on each keystroke ends up
+   * running `security` a hundred times a minute, and the answer only ever
+   * changes when Tade reloads the extensions — which is where it is dropped.
+   */
+  private setupShown = new Map<string, { configurable: boolean; fields: HostSetupField[] }>()
+
+  private setupView(name: string): { configurable: boolean; fields: HostSetupField[] } {
+    const had = this.setupShown.get(name)
+    if (had) return had
+    const setup = this.opts.extensions?.setupOf(name) ?? null
+    const view = { configurable: setup !== null, fields: setup?.fields ?? [] }
+    this.setupShown.set(name, view)
+    return view
+  }
+
   /** The extensions, as the panel shows them. */
   private extensionViews(): ExtensionView[] {
     const offers = this.opts.extensions?.watches() ?? []
@@ -5558,13 +5590,25 @@ export class App {
       name: one.name,
       title: one.title,
       description: one.description,
+      workflow: one.workflow,
       source: one.source,
       state: one.state,
       problem: one.problem,
-      tools: one.tools.map((tool) => tool.name),
+      tools: one.tools.map((tool) => ({
+        name: tool.name,
+        summary: toolSummary(tool.description),
+        for: tool.for,
+      })),
       actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
+      options: this.setupView(one.name).fields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        value: field.value,
+        have: field.have,
+        secret: field.kind === 'secret',
+      })),
       unknownSettings: one.unknownSettings,
-      configurable: this.opts.extensions?.setupOf(one.name) !== null,
+      configurable: this.setupView(one.name).configurable,
       folder: one.source === 'yours' ? one.path : null,
       watches: offers
         .filter((offer) => offer.extension === one.name)
@@ -5695,6 +5739,9 @@ export class App {
     if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
     this.useConfig(loaded.config)
     await host.reconfigure(loaded.config.extensions)
+    // What each one can be given, and where its key is, is asked again: this
+    // is the one thing that changes it.
+    this.setupShown.clear()
     this.linkers = host.linkers()
     if (
       host
@@ -6987,6 +7034,8 @@ export class App {
       items: this.menuItemsFor(this.state.panel),
       extensions: this.extensionViews(),
       written: this.state.panel?.kind === 'extensions' ? this.writtenViews() : [],
+      harnessExtensions: this.harnessPieces,
+      scrollable: this.extensionsScrollable(),
       setupFields:
         this.state.panel?.kind === 'extension-setup'
           ? (this.setupFacts(this.state.panel)?.fields ?? [])
@@ -6995,6 +7044,28 @@ export class App {
       settings: this.settingRows(),
       accountActions: accountActions(this.accountViews),
     }
+  }
+
+  /**
+   * How much further the Extensions panel could be scrolled, laid out exactly
+   * as it is drawn. The panel is what holds the scroll, so what its keys and
+   * the wheel may do to it has to be measured against the same layout.
+   */
+  private extensionsScrollable(): number {
+    const panel = this.state.panel
+    if (panel?.kind !== 'extensions') return 0
+    return extensionsScrollable(
+      panel,
+      {
+        skin: this.skin,
+        extensions: this.extensionViews(),
+        written: this.writtenViews(),
+        harnessExtensions: this.harnessPieces,
+        project: this.state.project,
+      },
+      this.terminal.columns,
+      this.terminal.rows,
+    )
   }
 
   /** How many lines an extension's view has, as wide as its panel draws it. */
@@ -7103,8 +7174,10 @@ export class App {
       // An extension's own setting means nothing until the extension has it:
       // Settings can change one (which Sentry the Sentry extension reads), so
       // the host is handed the config here as it is from the Extensions panel.
-      if (path.startsWith('extensions.'))
+      if (path.startsWith('extensions.')) {
         await this.opts.extensions?.reconfigure(loaded.config.extensions)
+        this.setupShown.clear()
+      }
       // How hard the orchestrator thinks is live only if the one running is
       // told: a setting that looks applied and is not is worse than one that
       // waits honestly, so where it could not be told, it says so.
@@ -7137,8 +7210,10 @@ export class App {
       const host = this.opts.extensions
       if (!host || !extension || rest.length === 0) throw new Error(`nowhere to keep ${kept}`)
       const saved = host.saveSecret(extension, rest.join('.'), value)
-      // Its extension may have been waiting on exactly this to be ready.
+      // Its extension may have been waiting on exactly this to be ready, and
+      // where its key is is what the Extensions page says about it.
       await host.reconfigure(this.opts.config.extensions)
+      this.setupShown.clear()
       const said =
         value.trim() === ''
           ? `${setting.title} is cleared.`

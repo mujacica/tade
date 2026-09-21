@@ -46,6 +46,11 @@ export interface LoadedExtension {
   name: string
   title: string
   description: string
+  /**
+   * How it is used, as it says itself: empty for one that is off or broken,
+   * which is never imported and so has nothing to say beyond its name.
+   */
+  workflow: readonly string[]
   source: 'built-in' | 'yours'
   /** Its folder, where it has one. */
   path: string | null
@@ -353,6 +358,7 @@ export class ExtensionHost {
         name: extension?.name ?? one.name,
         title: extension?.title ?? one.name,
         description: extension?.description ?? one.about,
+        workflow: extension?.workflow ?? [],
         source: one.source,
         path: one.path,
         state: 'ready',
@@ -1212,6 +1218,11 @@ export function shapeProblem(extension: TadeExtension): string | null {
     return `"${String(extension.name)}" is not a usable name: lowercase letters, digits and dashes`
   }
   if (!extension.title || !extension.description) return 'it needs a title and a description'
+  // What it says about how it is used is read by a person, so a blank line in
+  // it is a gap on the page rather than something nobody notices.
+  for (const line of extension.workflow ?? []) {
+    if (!line.trim()) return 'one of the lines it says it is used in is empty'
+  }
   const prefix = `${extension.name.replace(/-/g, '_')}_`
   const seen = new Set<string>()
   for (const tool of extension.tools ?? []) {

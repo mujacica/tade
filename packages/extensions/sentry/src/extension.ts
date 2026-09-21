@@ -187,6 +187,13 @@ export const sentryExtension: TadeExtension = {
   title: 'Sentry',
   description:
     'Reads the errors, traces, logs and metrics your projects send to Sentry, and hands fixes to agents.',
+  workflow: [
+    'Says what is breaking in production: what is unresolved or new (sentry_issues), one issue with its stack and events (sentry_issue), a request across services (sentry_trace), how often and since when (sentry_stats).',
+    'Turns an error into work (sentry_fix): an agent in its own worktree with the issue, the stack and the trace already written into its context — not a link somebody has to go and open.',
+    'Lets new errors find you: the new-errors watch looks every hour for issues first seen since its last look and starts an agent on each. What was already there when you turned it on is not new.',
+    'Says something back to Sentry — resolving, ignoring, assigning — only when somebody asked for exactly that: it changes something outside the project, so it is the orchestrator’s alone.',
+    'The token is pasted in and kept in your keychain, never in `config.yaml`; `$SENTRY_AUTH_TOKEN` still wins where it is set.',
+  ],
   root: ROOT,
   settings: [
     {

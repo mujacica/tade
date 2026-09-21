@@ -1,6 +1,10 @@
 import { ConfigSchema, IDLE_REASON, settingsOf, type TadeEvent } from '@tade/core'
-import { findingsReport } from '@tade/extension-jev'
+import { checksExtension } from '@tade/extension-checks'
+import { depsExtension } from '@tade/extension-deps'
+import { findingsReport, jevExtension } from '@tade/extension-jev'
 import { chart, type Group, History, type Proc, sampleOf } from '@tade/extension-resources'
+import { sentryExtension } from '@tade/extension-sentry'
+import type { TadeExtension } from '@tade/extensions-core'
 import { parseDiff } from '../../src/diff.ts'
 import {
   type AppState,
@@ -27,6 +31,7 @@ import {
   closeDonePanel,
   confirmRemovePanel,
   diffPanel,
+  type ExtensionView,
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
@@ -43,6 +48,7 @@ import {
   settingsPanel,
   spendPanel,
   thinkingMenuItems,
+  toolSummary,
 } from '../../src/panels.ts'
 import { type SearchEntry, searchResults } from '../../src/search.ts'
 import { COLOUR } from '../../src/skin.ts'
@@ -800,6 +806,130 @@ function settingsFacts() {
     configPath: '~/.tade/config.yaml',
     releases: true,
     budgetWarnings: 1,
+  }
+}
+
+/**
+ * The extensions the panel is drawn from.
+ *
+ * The built-in ones are taken from the extensions themselves rather than
+ * copied here, for the same reason the resources chart is the extension's own:
+ * this page is a claim about what an extension offers, and a hand-written copy
+ * of that claim goes stale without anything failing. What cannot be read off
+ * the extension — whether it is set up on this machine, where its key is — is
+ * fixed here, because that is the part that differs by machine.
+ */
+function extensionShown(
+  extension: TadeExtension,
+  over: Partial<ExtensionView> & Pick<ExtensionView, 'state'>,
+): ExtensionView {
+  return {
+    name: extension.name,
+    title: extension.title,
+    description: extension.description,
+    workflow: extension.workflow ?? [],
+    source: 'built-in',
+    problem: null,
+    tools: (extension.tools ?? []).map((tool) => ({
+      name: tool.name,
+      summary: toolSummary(tool.description),
+      for: tool.for,
+    })),
+    actions: (extension.actions ?? []).map((action) => ({
+      id: action.id,
+      title: action.title,
+    })),
+    options: [],
+    unknownSettings: [],
+    configurable: true,
+    folder: null,
+    watches: (extension.watches ?? []).map((watch) => ({
+      id: watch.id,
+      title: watch.title,
+      means: watch.means,
+      every: watch.every,
+      project: 'checkout',
+      on: null,
+    })),
+    ...over,
+  }
+}
+
+function extensionFacts() {
+  return {
+    extensions: [
+      extensionShown(checksExtension, { state: 'ready' }),
+      extensionShown(depsExtension, {
+        state: 'ready',
+        options: [
+          { key: 'registry', label: 'Registry', value: '', have: '', secret: false },
+          { key: 'ignore', label: 'Never touch', value: 'typescript', have: '', secret: false },
+        ],
+      }),
+      extensionShown(jevExtension, {
+        state: 'ready',
+        options: [
+          { key: 'key', label: 'API key', value: '', have: 'the macOS keychain', secret: true },
+          { key: 'model', label: 'Version', value: 'jev-1.13.0', have: '', secret: false },
+          { key: 'projects', label: 'Projects', value: '', have: '', secret: false },
+          { key: 'report', label: 'Report at', value: '0.6', have: '', secret: false },
+          { key: 'act', label: 'Act at', value: '0.85', have: '', secret: false },
+        ],
+      }),
+      extensionShown(sentryExtension, {
+        state: 'needs setup',
+        problem:
+          'no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read, event:write), or log in with sentry-cli',
+        unknownSettings: ['orgg'],
+        options: [
+          { key: 'token', label: 'API key', value: '', have: '', secret: true },
+          { key: 'org', label: 'Organization', value: '', have: '', secret: false },
+        ],
+      }),
+      {
+        name: 'standup',
+        title: 'standup',
+        description: 'Reads out what each agent did yesterday.',
+        workflow: [],
+        source: 'yours' as const,
+        state: 'broken' as const,
+        problem: "SyntaxError: Unexpected token '!'",
+        tools: [],
+        actions: [],
+        options: [],
+        unknownSettings: [],
+        configurable: false,
+        folder: '/Users/me/.tade/extensions/standup',
+        watches: [],
+      },
+      {
+        name: 'release-notes',
+        title: 'release-notes',
+        description:
+          'Drafts release notes from merged work, because you asked for them every Friday.',
+        workflow: [],
+        source: 'yours' as const,
+        state: 'off' as const,
+        problem: 'not turned on',
+        tools: [],
+        actions: [],
+        options: [],
+        unknownSettings: [],
+        configurable: false,
+        folder: '/Users/me/.tade/extensions/release-notes',
+        watches: [],
+      },
+    ],
+    written: [
+      {
+        name: 'standup-notes',
+        why: 'Reads out what each agent did yesterday, because you ask every morning.',
+        path: '/Users/me/.tade/extensions/standup-notes.ts',
+        on: false,
+      },
+    ],
+    harnessExtensions: [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }],
+    extensionsRoot: '~/.tade/extensions',
   }
 }
 
@@ -1737,97 +1867,54 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'extensions',
     about:
-      'The Extensions panel: what works, what needs setting up and how, what is broken, what is sitting there turned off, the actions of each, the tools Tade wrote for itself, and what pi loads by itself.',
-    state: { ...base(), panel: extensionsPanel() },
-    frame: frame({
-      panel: {
-        extensions: [
-          {
-            name: 'deps',
-            title: 'Dependencies',
-            description:
-              'Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in an agent’s worktree.',
-            source: 'built-in',
-            state: 'ready',
-            problem: null,
-            tools: ['deps_check', 'deps_update'],
-            actions: [
-              { id: 'check', title: 'Check dependencies' },
-              { id: 'update', title: 'Update dependencies (minor)' },
-              { id: 'update-major', title: 'Update dependencies (major)' },
-            ],
-            unknownSettings: [],
-            configurable: true,
-            folder: null,
-            watches: [],
-          },
-          {
-            name: 'sentry',
-            title: 'Sentry',
-            description: 'Reads the errors, traces, logs and metrics your projects send to Sentry.',
-            source: 'built-in',
-            state: 'needs setup',
-            problem:
-              'no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read, project:read, event:read, event:write), or log in with sentry-cli',
-            tools: ['sentry_issues', 'sentry_issue'],
-            actions: [{ id: 'new', title: 'New Sentry issues' }],
-            unknownSettings: ['orgg'],
-            configurable: true,
-            folder: null,
-            watches: [
-              {
-                id: 'new-errors',
-                title: 'New Sentry errors',
-                means:
-                  'Looks for issues first seen in Sentry since its last look, and starts an agent on each with everything Sentry knows, to find the cause, fix it and test it.',
-                every: '1h',
-                project: 'checkout',
-                on: null,
-              },
-            ],
-          },
-          {
-            name: 'standup',
-            title: 'standup',
-            description: '',
-            source: 'yours',
-            state: 'broken',
-            problem: "SyntaxError: Unexpected token '!'",
-            tools: [],
-            actions: [],
-            unknownSettings: [],
-            configurable: false,
-            folder: '/Users/me/.tade/extensions/standup',
-            watches: [],
-          },
-          {
-            name: 'release-notes',
-            title: 'release-notes',
-            description:
-              'Drafts release notes from merged work, because you asked for them every Friday.',
-            source: 'yours',
-            state: 'off',
-            problem: 'not turned on',
-            tools: [],
-            actions: [],
-            unknownSettings: [],
-            configurable: false,
-            folder: '/Users/me/.tade/extensions/release-notes',
-            watches: [],
-          },
-        ],
-        written: [
-          {
-            name: 'standup-notes',
-            why: 'Reads out what each agent did yesterday, because you ask every morning.',
-            path: '/Users/me/.tade/extensions/standup-notes.ts',
-            on: false,
-          },
-        ],
-        harnessExtensions: [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }],
-        extensionsRoot: '~/.tade/extensions',
-      },
-    }),
+      'The Extensions panel: every extension down the side with what it is doing at a glance, and ' +
+      'the one you are on beside it \u2014 what it is for in the work you do, what you can press, what ' +
+      'it can be given, every tool it brings with what each is for, and what it offers to watch.',
+    state: { ...base(), panel: extensionsPanel('jev') },
+    frame: frame({ panel: extensionFacts() }),
+  },
+  {
+    name: 'what-an-extension-brings',
+    about:
+      'The same extension, read further down: every tool it brings with what each is for, what it ' +
+      'offers to watch, and what it can be given \u2014 the page saying what eight tools are, where a ' +
+      'count of them said nothing.',
+    state: {
+      ...base(),
+      panel: { ...extensionsPanel('jev'), focus: 'body', following: false, scroll: 22 },
+    },
+    frame: frame({ panel: extensionFacts() }),
+  },
+  {
+    name: 'an-extension-that-needs-setting-up',
+    about:
+      'One that cannot work yet: what is missing said where you are looking, the button that takes ' +
+      'the key, the settings it was given and does not read, and the key said as a place rather ' +
+      'than a value.',
+    state: {
+      ...base(),
+      panel: { ...extensionsPanel('sentry'), focus: 'body', index: 1 },
+    },
+    frame: frame({ panel: extensionFacts() }),
+  },
+  {
+    name: 'searching-the-extensions',
+    about:
+      'Searching them on a small terminal: the list narrowed by anything the page would say \u2014 ' +
+      'here a tool nobody remembers the name of the extension for.',
+    state: {
+      ...base(),
+      panel: { ...extensionsPanel(), focus: 'search', search: 'vulnerab' },
+    },
+    frame: frame({ width: 80, height: 24, panel: extensionFacts() }),
+  },
+  {
+    name: 'extensions-written-by-tade',
+    about:
+      'The tools Tade wrote for itself, listed with everything else: one you turn on loads the ' +
+      'next time Tade starts, and reading it first is the point.',
+    state: { ...base(), panel: extensionsPanel('written') },
+    frame: frame({ panel: extensionFacts() }),
   },
   {
     name: 'setting-up-sentry',

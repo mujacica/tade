@@ -289,6 +289,16 @@ export const jevExtension: TadeExtension = {
   title: 'Jev',
   description:
     'Asks a judge bounded questions about diffs, logs, requests, plans and queues: probabilities to act on, never verdicts and never prose.',
+  workflow: [
+    'Reviews what agents wrote, when nobody has time to: turn the review watch on and every branch that goes quiet is read against the review pack — injection, secrets, swallowed errors, missing tests, whether it did what was asked.',
+    'Judges anything else in front of you (jev_ask): a diff, an issue list, a failing log, something somebody pasted. A few dozen literal questions at once, each answered with a probability and no prose.',
+    'Finds the lines that answer a question, in a log, the journal or a file (jev_grep) — a filter to read, not an answer.',
+    'Says what it has already flagged (jev_findings), and takes your word for whether it was right (jev_verdict): nothing else says whether a question is worth asking again.',
+    'Reads things back before somebody guesses: what was actually asked for (jev_read_request), a plan before Tade keeps it (jev_plan_check), what to do first of what is queued (jev_queue_order).',
+    'Answers a sentence typed into search that matched no letters, with which of the things already listed it might mean.',
+    'Reads a command an agent is held at that the approval rules do not name — only ever making Tade ask you for more, never less, and nothing at all under bypass.',
+    'It may only add caution: it never approves, merges, unholds or shortens a review, and it is never the reason anybody is given.',
+  ],
   root: ROOT,
   settings: [
     {

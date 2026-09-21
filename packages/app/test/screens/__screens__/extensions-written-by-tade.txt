@@ -1,0 +1,34 @@
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENT╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮    ×   
+        │  search extensions     │ Written by Tade                                                             │────────
+ ▌ ! str│                        │ 1 tool Tade wrote for itself                                                │        
+ ▌   wan│ ● Checks               │                                                                             │        
+        │ ● Dependencies         │ Tools Tade wrote for itself, for the orchestrator to use. One you turn on   │        
+   ⠋ ref│ ● Jev                  │ loads the next time Tade starts, and a lesson it proposes is a file you     │        
+     wor│ ◐ Sentry             ! │ read before any of it runs.                                                 │        
+        │ ✗ standup            ! │                                                                             │        
+ ▾ CHANG│ ○ release-notes        │ ○ standup-notes  off                                     Read     Turn on   │        
+  M pack│▌· Written by Tade    1 │   Reads out what each agent did yesterday, because you ask every morning.   │        
+  A …/we│ · pi's own           1 │                                                                             │        
+  M src/│                        │                                                                             │        
+        │                        │                                                                             │        
+ ▾ FILES│                        │                                                                             │        
+   ▾ src│                        │                                                                             │        
+       w│                        │                                                                             │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │                                                                             │        
+     REA│                        │                                                                             │        
+        │                        │                                                                             │        
+━   orch│                        │                                                                             │   ▾   ━
+        │                        │                                                                             │        
+        │                        │                                                                             │       ▕
+        │                        │                                                                             │       ▕
+        │                        │ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say       │       ▕
+        │                        │ tab moves · enter presses · esc closes                               Done   │       ▕
+ ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

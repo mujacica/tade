@@ -171,7 +171,11 @@ Checks, Dependencies, Jev, Reviews, Sentry and Resources ship with Tade; yours g
 settings and watches. Being there is not being on: one of yours is listed and off until you turn it
 on. Keys are pasted in and kept in your keychain, never in a file you might commit.
 
-![The Extensions panel: what is ready, what needs setting up, what is broken, what is off, the watches on offer](images/extensions.svg)
+Every one of them is down the side, searchable by anything it would say — and the one you pick says
+what it is for in the work you actually do, every tool it brings with what each is for, what it
+offers to watch, and what it can be given.
+
+![The Extensions panel: the list down the side, and one of them in full — how it is used, its buttons, its tools, its watches and its settings](images/extensions.svg)
 
 ## Jev, for what nobody has time to read
 

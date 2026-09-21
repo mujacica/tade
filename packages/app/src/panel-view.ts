@@ -32,12 +32,15 @@ import {
   type ConfirmPanel,
   type ConfirmRemovePanel,
   choicesFor,
+  chosenEntry,
   type DiffPanel,
+  type ExtensionEntry,
   type ExtensionSetupPanel,
   type ExtensionsPanel,
   type ExtensionView,
   type ExtensionViewPanel,
   extensionControls,
+  extensionEntries,
   type FileAsk,
   type FilePanel,
   type FindPanel,
@@ -70,7 +73,16 @@ import { BAR, barRows } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
-import { blank, box, type Drawn, fit as fitRow, keysWidth, type Pointer, Row } from './ui.ts'
+import {
+  blank,
+  box,
+  type Drawn,
+  fit as fitRow,
+  keysWidth,
+  NO_POINTER,
+  type Pointer,
+  Row,
+} from './ui.ts'
 import type { Change } from './view.ts'
 import {
   bytes,
@@ -360,178 +372,351 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   return box(`Model for ${ctx.modelTarget}`, rows, width, skin, { corner: 'esc' })
 }
 
+/** How big the Extensions panel is, and how its two sides divide the room. */
+export function extensionsSize(
+  width: number,
+  height: number,
+): { width: number; height: number; inner: number; side: number; body: number; room: number } {
+  // The same block Settings takes, because they are the same shape and a
+  // window with two sizes of the same panel looks like an accident.
+  const w = Math.min(104, Math.max(32, width - 6))
+  const h = Math.max(14, Math.min(28, height - 4))
+  const inner = w - 2
+  const side = sideWidth(inner)
+  return {
+    width: w,
+    height: h,
+    inner,
+    side,
+    body: inner - side - 1,
+    // What is left after the border, the head that stays put and the two
+    // rows at the foot.
+    room: Math.max(1, h - 2 - HEAD - 2),
+  }
+}
+
+/** Rows of the right-hand side that never scroll: which extension this is, and its shape. */
+const HEAD = 3
+
+/** What the Extensions panel draws from, and nothing more: the app counts lines with it too. */
+export type ExtensionFacts = Pick<
+  PanelContext,
+  'skin' | 'extensions' | 'written' | 'harnessExtensions' | 'project'
+>
+
 /**
- * The extensions: each with whether it works and, when it does not, what to
- * do about it; turning it on or off, setting it up, its actions; then the
- * tools Tade wrote for itself, to read and turn on. A fixed height, scrolled
- * to the control the keyboard is on, so nothing jumps while you move.
+ * The extensions: the list of them down the side with a search field over it,
+ * and the one you are on said properly beside it — what it is for in the work
+ * you actually do, what you can change about it, every tool it brings with
+ * what each is for, what it offers to watch, and what it still needs.
+ *
+ * It used to be one column of all of them end to end, which is how somebody
+ * could look at the page and conclude that Jev reviews diffs and does nothing
+ * else: its other seven tools were never on it. So the shape is Settings' —
+ * one way of showing a list and a thing in the window, not two.
  */
 function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(104, ctx.width - 4)
-  const inner = width - 2
-  const controls = extensionControls(ctx.extensions, ctx.written)
-  const chosen = controls[panel.index] ?? null
-  // The keyboard's control is lit as the pointer's would be, when the pointer is not on one.
+  const { width, height, side, body, room } = extensionsSize(ctx.width, ctx.height)
+  const entries = extensionEntries(ctx.extensions, ctx.written, ctx.harnessExtensions, panel.search)
+  const here = chosenEntry(panel, entries)
+  const controls = extensionControls(here?.id ?? null, ctx.extensions, ctx.written)
+  const focused = panel.focus === 'body' ? (controls[panel.index] ?? null) : null
+  // The control the keyboard is on is lit as the pointer's would be, so both
+  // say the same thing; the pointer's own light always wins.
   const pointer =
-    ctx.pointer.hover?.kind === 'control'
-      ? ctx.pointer
-      : { ...ctx.pointer, hover: chosen ? { kind: 'control' as const, id: chosen } : null }
-  const row = () => new Row(inner, skin, pointer)
-  const lines: { text: string; hits: Hit[]; chosen?: boolean }[] = []
+    ctx.pointer.hover?.kind === 'control' ? ctx.pointer : withFocus(ctx.pointer, focused)
+
+  // ── the side: search, then every extension the search leaves ──
+  const aside: { text: string; hits: Hit[] }[] = []
+  const asking = panel.search === '' && panel.focus !== 'search'
+  aside.push(
+    new Row(side, skin, pointer)
+      .space()
+      .field(asking ? 'search extensions' : panel.search, side - 2, {
+        caret: panel.focus === 'search',
+        hint: asking,
+        target: { kind: 'control', id: 'search' },
+      })
+      .build(),
+  )
+  aside.push(blank(side))
+  const at = Math.max(
+    0,
+    entries.findIndex((entry) => entry.id === here?.id),
+  )
+  const listRoom = Math.max(1, height - 2 - 2)
+  const from = scrolledTo(entries.length, listRoom, at, at)
+  for (const entry of entries.slice(from, from + listRoom)) {
+    const on = entry.id === here?.id
+    const target = { kind: 'control' as const, id: `pick:${entry.id}` }
+    const pointed = sameTarget(ctx.pointer.hover, target)
+    const mark =
+      entry.kind !== 'extension'
+        ? skin.hint('·')
+        : entry.state === 'ready'
+          ? skin.done('●')
+          : entry.state === 'broken'
+            ? skin.bad('✗')
+            : entry.state === 'off'
+              ? skin.hint('○')
+              : skin.waiting('◐')
+    const row = new Row(side, skin, ctx.pointer)
+      .marker(on && panel.focus === 'list', target)
+      .text(mark, undefined, target)
+      .space()
+      .text(
+        cap(entry.title, side - 7),
+        entry.state === 'off' ? skin.hint : on || pointed ? skin.you : (text) => text,
+        target,
+      )
+    row.right((r) => {
+      // What wants you is the one thing shown here: a count beside every row
+      // is noise, and the state is already the mark.
+      if (entry.wants) r.text('!', skin.waiting)
+      else if (entry.kind !== 'extension') r.text(String(entry.count), skin.hint)
+      else r.text(' ')
+      r.space()
+    })
+    const built = row.build()
+    aside.push({
+      text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
+      hits: [{ row: 0, from: 0, to: side - 1, target }],
+    })
+  }
+
+  // ── the head, which stays put: which one this is, and the shape of it ──
+  const view =
+    here?.kind === 'extension' ? ctx.extensions.find((one) => one.name === here.id) : null
+  const head: { text: string; hits: Hit[] }[] = []
+  const heading = new Row(body, skin, pointer).space()
+  if (view) {
+    heading.text(cap(view.title, body - 24), skin.brand).text(`  ${view.source}`, skin.hint)
+    heading.right((r) =>
+      r
+        .text(
+          view.state,
+          view.state === 'ready'
+            ? skin.done
+            : view.state === 'broken'
+              ? skin.bad
+              : view.state === 'off'
+                ? skin.hint
+                : skin.waiting,
+        )
+        .space(),
+    )
+  } else if (here) {
+    heading.text(cap(here.title, body - 2), skin.brand)
+  } else {
+    heading.text(
+      cap(panel.search ? `Nothing matches “${panel.search}”` : 'Extensions', body - 2),
+      skin.brand,
+    )
+  }
+  head.push(heading.build())
+  // What it comes to, where nobody has to scroll for it: an extension whose
+  // shape you can only find out by reading to the bottom of the page is how
+  // one that brings eight tools gets taken for one that brings a watch.
+  const counts = view
+    ? [
+        view.tools.length > 0 ? count(view.tools.length, 'tool') : '',
+        view.watches.length > 0 ? count(view.watches.length, 'watch', 'watches') : '',
+        view.options.length > 0 ? count(view.options.length, 'setting') : '',
+      ].filter(Boolean)
+    : here?.kind === 'written'
+      ? [count(ctx.written.length, 'tool Tade wrote for itself', 'tools Tade wrote for itself')]
+      : here?.kind === 'harness'
+        ? [count(ctx.harnessExtensions.length, 'piece')]
+        : []
+  head.push(
+    counts.length > 0
+      ? new Row(body, skin)
+          .space()
+          .text(cap(counts.join(' · '), body - 2), skin.hint)
+          .build()
+      : blank(body),
+  )
+  head.push(blank(body))
+
+  // ── the body, which scrolls ──
+  const lines = extensionBody(ctx, here, body, pointer, focused)
+  /** Where the control the keyboard is on ended up, so tabbing keeps it in view. */
+  let focusFrom = 0
+  let focusTo = 0
+  lines.forEach((line, index) => {
+    if (line.on !== true) return
+    if (focusTo === 0 && focusFrom === 0) focusFrom = index
+    focusTo = index
+  })
+  const most = Math.max(0, lines.length - room)
+  let start = Math.max(0, Math.min(panel.scroll, most))
+  if (panel.following && focused) {
+    if (focusTo >= start + room) start = Math.min(most, focusTo - room + 1)
+    if (focusFrom < start) start = focusFrom
+  }
+  const shown = lines.slice(start, start + room)
+
+  // ── the foot ──
+  const said = panel.said
+    ? new Row(body, skin)
+        .space()
+        .text(cap(panel.said, body - 2), skin.busy)
+        .build()
+    : new Row(body, skin)
+        .space()
+        .text(
+          cap(`yours go in ${ctx.extensionsRoot}/<name>/extension.ts, off until you say`, body - 2),
+          skin.hint,
+        )
+        .build()
+  const keys = new Row(body, skin, ctx.pointer)
+    .space()
+    .text(
+      cap(
+        lines.length > room
+          ? `${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · tab moves · enter presses`
+          : 'tab moves · enter presses · esc closes',
+        body - 12,
+      ),
+      skin.hint,
+    )
+    .right((r) => r.button('Done', { kind: 'control', id: 'close' }, 'primary').space())
+
+  const main = [...head, ...shown]
+  const rowsOfBody = height - 2
+  const rows: { text: string; hits: Hit[] }[] = []
+  for (let i = 0; i < rowsOfBody; i++) {
+    const left = aside[i] ?? blank(side)
+    let right = main[i] ?? blank(body)
+    if (i === rowsOfBody - 2) right = said
+    if (i === rowsOfBody - 1) right = keys.build()
+    rows.push({
+      text: `${fitTo(left.text, side)}${skin.chrome('│')}${fitTo(right.text, body)}`,
+      hits: [
+        ...left.hits,
+        ...right.hits.map((hit) => ({ ...hit, from: hit.from + side + 1, to: hit.to + side + 1 })),
+      ],
+    })
+  }
+  return box('Extensions', rows, width, skin, { corner: 'esc' })
+}
+
+/** `8 tools`, `1 watch`: a count said the way somebody would say it. */
+function count(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+/** A line of the right-hand side, and whether the control the keyboard is on is on it. */
+interface Told {
+  text: string
+  hits: Hit[]
+  on?: boolean
+}
+
+/**
+ * How many lines further the right-hand side could be scrolled, for the keys
+ * and the wheel. Laid out exactly as it is drawn — one layout, asked twice —
+ * because a second reading of how long the page is drifts from the first.
+ */
+export function extensionsScrollable(
+  panel: ExtensionsPanel,
+  facts: ExtensionFacts,
+  width: number,
+  height: number,
+): number {
+  const size = extensionsSize(width, height)
+  const entries = extensionEntries(
+    facts.extensions,
+    facts.written,
+    facts.harnessExtensions,
+    panel.search,
+  )
+  const here = chosenEntry(panel, entries)
+  const lines = extensionBody(facts, here, size.body, NO_POINTER, null)
+  return Math.max(0, lines.length - size.room)
+}
+
+/**
+ * Everything the right-hand side says about what you are on: what it is for in
+ * the work you do, what it needs, what you can press, what it can be given,
+ * every tool with what each is for, and what it offers to watch.
+ */
+function extensionBody(
+  facts: ExtensionFacts,
+  here: ExtensionEntry | null,
+  form: number,
+  pointer: Pointer,
+  focused: string | null,
+): Told[] {
+  const { skin } = facts
+  const lines: Told[] = []
+  const row = () => new Row(form, skin, pointer)
   const control = (id: string) => ({ kind: 'control' as const, id })
-  /** Buttons in rows that wrap, each row knowing whether the chosen control is on it. */
-  // A set of buttons, over as many rows as they need — with a blank row
-  // between them. A button is a label on its own painted ground, so two rows
-  // of them with nothing in between are one block of colour, and which one
-  // you are pointing at stops being obvious: the gap is the same column that
-  // separates them sideways, going down instead.
+  const plain = (text: string) => text
+  const wrap = (text: string, indent: number, tone: (text: string) => string = skin.hint) => {
+    for (const piece of wrapTextWithAnsi(text, Math.max(10, form - indent - 1))) {
+      lines.push(row().space(indent).text(piece, tone).build())
+    }
+  }
+  const heading = (title: string, note = '') => {
+    const room = Math.max(0, form - visibleWidth(title) - 4)
+    lines.push(
+      row()
+        .space()
+        .text(title, skin.label)
+        .text(note ? `  ${cap(note, room)}` : '', skin.hint)
+        .build(),
+    )
+  }
+  /** Buttons over as many rows as they need, with a blank row between two of them. */
   const buttons = (
     items: readonly { id: string; label: string; look?: 'attention' | 'danger' | 'primary' }[],
-    indent = 3,
   ) => {
-    let current = row().text(' '.repeat(indent))
-    let here = false
+    let current = row().space()
+    let holds: string[] = []
     let first = true
     const put = () => {
-      if (!first) lines.push(blank(inner))
-      lines.push({ ...current.build(), chosen: here })
+      if (!first) lines.push(blank(form))
+      lines.push({ ...current.build(), on: focused !== null && holds.includes(focused) })
       first = false
-      here = false
+      holds = []
     }
     for (const item of items) {
-      if (current.used + visibleWidth(item.label) + 5 > inner) {
+      if (current.used + visibleWidth(item.label) + 5 > form && current.used > 1) {
         put()
-        current = row().text(' '.repeat(indent))
+        current = row().space()
       }
       current.button(item.label, control(item.id), item.look).space()
-      if (item.id === chosen) here = true
+      holds.push(item.id)
     }
     if (items.length > 0) put()
   }
 
-  for (const view of ctx.extensions) {
-    const mark =
-      view.state === 'ready'
-        ? skin.done('●')
-        : view.state === 'broken'
-          ? skin.bad('✗')
-          : view.state === 'off'
-            ? skin.hint('○')
-            : skin.waiting('◐')
+  if (!here) {
     lines.push(
       row()
         .space()
-        .text(mark)
-        .space()
-        // The name is a way in too: to setting it up, where it can be.
         .text(
-          view.title,
-          view.state === 'off' ? skin.hint : skin.you,
-          view.configurable && view.state !== 'broken' && view.state !== 'off'
-            ? control(`setup:${view.name}`)
-            : undefined,
-        )
-        .text(`  ${view.source} · ${view.state}`, skin.hint)
-        .right((r) =>
-          r
-            .text(
-              view.tools.length > 0
-                ? `${view.tools.length} tool${view.tools.length === 1 ? '' : 's'}`
-                : '',
-              skin.hint,
-            )
-            .space(),
+          facts.extensions.length === 0
+            ? 'No extensions are loaded.'
+            : 'Nothing here matches. Clear the search to see them all.',
+          skin.hint,
         )
         .build(),
     )
-    const problem = view.state === 'needs setup' || view.state === 'broken'
-    for (const piece of wrapTextWithAnsi(
-      problem && view.problem ? view.problem : view.description,
-      Math.max(10, inner - 4),
-    )) {
-      lines.push(
-        row()
-          .text('   ')
-          .text(piece, problem ? skin.waiting : skin.hint)
-          .build(),
-      )
-    }
-    if (view.unknownSettings.length > 0) {
-      lines.push(
-        row()
-          .text('   ')
-          .text(`not read: extensions.${view.name}.${view.unknownSettings.join(', ')}`, skin.bad)
-          .build(),
-      )
-    }
-    const items: { id: string; label: string; look?: 'attention' | 'danger' | 'primary' }[] = []
-    if (view.state !== 'broken') {
-      items.push({
-        id: `toggle:${view.name}`,
-        label: view.state === 'off' ? 'Turn on' : 'Turn off',
-      })
-    }
-    if (view.configurable && view.state !== 'broken' && view.state !== 'off') {
-      items.push({
-        id: `setup:${view.name}`,
-        label: view.state === 'needs setup' ? 'Set up…' : 'Settings…',
-        ...(view.state === 'needs setup' ? { look: 'attention' as const } : {}),
-      })
-    }
-    if (view.state === 'ready') {
-      items.push(
-        ...view.actions.map((action) => ({
-          id: `action:${view.name}:${action.id}`,
-          label: action.title,
-        })),
-      )
-    }
-    if (view.folder) items.push({ id: `folder:${view.name}`, label: 'Open folder' })
-    buttons(items)
-    // What it offers to watch: a schedule like any other once it is on.
-    for (const watch of view.state === 'broken' ? [] : view.watches) {
-      const control = watchControl(view.name, watch)
-      const title = row()
-        .text('   ')
-        .text('◎', watch.on ? skin.done : skin.hint)
-        .space()
-        .text(watch.title, skin.you)
-        .text(`  every ${watch.every}`, skin.hint)
-      title.right((r) => {
-        if (watch.on) r.text(`on in ${watch.project ?? ''}  `, skin.done)
-        if (control) {
-          r.button(watch.on ? 'Show' : `Watch ${watch.project ?? ''}`, {
-            kind: 'control',
-            id: control,
-          })
-        } else {
-          r.text('open a project to watch it', skin.hint)
-        }
-        r.space()
-      })
-      lines.push({ ...title.build(), chosen: control !== null && control === chosen })
-      for (const piece of wrapTextWithAnsi(watch.means, Math.max(10, inner - 6))) {
-        lines.push(row().text('     ').text(piece, skin.hint).build())
-      }
-    }
-    lines.push(blank(inner))
-  }
-  if (ctx.extensions.length === 0) {
-    lines.push(row().space().text('No extensions are loaded.', skin.hint).build(), blank(inner))
+    return lines
   }
 
-  if (ctx.written.length > 0) {
-    lines.push(
-      row()
-        .space()
-        .text('WRITTEN BY TADE', skin.label)
-        .text('  tools for the orchestrator: one you turn on loads next start', skin.hint)
-        .build(),
+  if (here.kind === 'written') {
+    wrap(
+      'Tools Tade wrote for itself, for the orchestrator to use. One you turn on loads the next time Tade starts, and a lesson it proposes is a file you read before any of it runs.',
+      1,
     )
-    for (const tool of ctx.written) {
+    lines.push(blank(form))
+    for (const tool of facts.written) {
       const title = row()
-        .text('   ')
+        .space()
         .text(tool.on ? skin.done('●') : skin.hint('○'))
         .space()
         .text(tool.name, tool.on ? skin.you : skin.hint)
@@ -549,48 +734,207 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
       )
       lines.push({
         ...title.build(),
-        chosen: chosen === `read:${tool.name}` || chosen === `toggle:${tool.name}`,
+        on: focused === `read:${tool.name}` || focused === `toggle:${tool.name}`,
       })
-      if (tool.why) {
-        for (const piece of wrapTextWithAnsi(tool.why, Math.max(10, inner - 6))) {
-          lines.push(row().text('     ').text(piece, skin.hint).build())
-        }
-      }
+      if (tool.why) wrap(tool.why, 3)
+      lines.push(blank(form))
     }
-    lines.push(blank(inner))
+    return lines
   }
 
-  if (ctx.harnessExtensions.length > 0) {
-    lines.push(
-      row()
-        .space()
-        .text("PI'S OWN", skin.label)
-        .text('  loaded by pi itself, in every agent', skin.hint)
-        .build(),
+  if (here.kind === 'harness') {
+    wrap(
+      'What pi loads by itself, in every agent. Tade lists these and nothing more: they are not its to turn on, off or configure.',
+      1,
     )
-    for (const piece of ctx.harnessExtensions) {
-      lines.push(row().text('   ').text(piece.name).text(`  ${piece.where}`, skin.hint).build())
+    lines.push(blank(form))
+    for (const piece of facts.harnessExtensions) {
+      lines.push(row().space().text(piece.name).text(`  ${piece.where}`, skin.hint).build())
     }
-    lines.push(blank(inner))
+    return lines
   }
 
-  // As tall as the window allows, and no taller than it needs; scrolled so the
-  // chosen control is in view.
-  const room = Math.max(6, Math.min(lines.length, ctx.height - 8))
-  const at = Math.max(
-    0,
-    lines.findIndex((line) => line.chosen),
-  )
-  const start = Math.max(0, Math.min(at - Math.floor(room / 2), lines.length - room))
-  const shown = lines.slice(start, start + room)
-  const footer = panel.said
-    ? row().space().text(panel.said, skin.busy).build()
-    : row()
+  const view = facts.extensions.find((one) => one.name === here.id)
+  if (!view) return lines
+
+  wrap(view.description, 1, plain)
+  const trouble = view.state === 'needs setup' || view.state === 'broken'
+  if (trouble && view.problem) {
+    lines.push(blank(form))
+    for (const [index, piece] of wrapTextWithAnsi(view.problem, Math.max(10, form - 4)).entries()) {
+      lines.push(
+        row()
+          .space()
+          .text(index === 0 ? '▲' : ' ', view.state === 'broken' ? skin.bad : skin.waiting)
+          .space()
+          .text(piece, view.state === 'broken' ? skin.bad : skin.waiting)
+          .build(),
+      )
+    }
+  }
+  if (view.state === 'off') {
+    lines.push(blank(form))
+    wrap(
+      view.source === 'yours'
+        ? 'Turned off, so Tade lists it and never imports it — nothing in it has run. Turning it on takes effect the next time Tade starts, and only then can it say more than this.'
+        : 'Turned off. Turning it on takes effect the next time Tade starts.',
+      1,
+    )
+  }
+  if (view.unknownSettings.length > 0) {
+    lines.push(blank(form))
+    wrap(
+      `Not read: extensions.${view.name}.${view.unknownSettings.join(`, extensions.${view.name}.`)} — a typo, most likely.`,
+      1,
+      skin.bad,
+    )
+  }
+
+  // What can be done from here, in the order `extensionControls` walks them:
+  // what it is for first, and turning it off at the end.
+  const items: { id: string; label: string; look?: 'attention' | 'danger' | 'primary' }[] = []
+  if (view.configurable && view.state !== 'broken' && view.state !== 'off') {
+    items.push({
+      id: `setup:${view.name}`,
+      label: view.state === 'needs setup' ? 'Set up…' : 'Settings…',
+      ...(view.state === 'needs setup' ? { look: 'attention' as const } : {}),
+    })
+  }
+  if (view.state === 'ready') {
+    items.push(
+      ...view.actions.map((action) => ({
+        id: `action:${view.name}:${action.id}`,
+        label: action.title,
+      })),
+    )
+  }
+  if (view.folder) items.push({ id: `folder:${view.name}`, label: 'Open folder' })
+  if (view.state !== 'broken')
+    items.push({ id: `toggle:${view.name}`, label: view.state === 'off' ? 'Turn on' : 'Turn off' })
+  if (items.length > 0) {
+    lines.push(blank(form))
+    buttons(items)
+  }
+
+  // What it is for, in the work somebody actually does.
+  if (view.workflow.length > 0) {
+    lines.push(blank(form))
+    heading('HOW IT IS USED')
+    for (const line of view.workflow) {
+      const pieces = wrapTextWithAnsi(line, Math.max(10, form - 5))
+      pieces.forEach((piece, index) => {
+        lines.push(
+          row()
+            .space()
+            .text(index === 0 ? '·' : ' ', skin.hint)
+            .space()
+            .text(piece, plain)
+            .build(),
+        )
+      })
+    }
+  }
+
+  // Every tool, with what each is for. The header used to say "8 tools" and
+  // never which, which is how a page can be read as saying an extension does
+  // one thing.
+  if (view.tools.length > 0) {
+    lines.push(blank(form))
+    heading('TOOLS', 'what the orchestrator and your agents can call')
+    const named = Math.min(22, Math.max(10, Math.floor(form / 3)))
+    for (const tool of view.tools) {
+      // Who may call it, said only where it is not both: anything that changes
+      // something outside a project is the orchestrator's alone.
+      const only = tool.for.length === 1 ? `${tool.for[0]} only` : ''
+      // The gap the pinned note needs, and the column it ends on: a row that
+      // does not fit drops its right-hand group, and a tool whose audience
+      // quietly disappeared is worse than one line less of what it does.
+      const room = Math.max(4, form - 1 - named - (only ? visibleWidth(only) + 2 : 0))
+      const line = row()
         .space()
-        .text(`yours go in ${ctx.extensionsRoot}/<name>/extension.ts, off until you say`, skin.hint)
-        .right((r) => r.text('tab moves · enter presses · esc closes', skin.hint).space())
-        .build()
-  return box('Extensions', [...shown, footer], width, skin, { corner: 'esc' })
+        .text(padTo(cap(tool.name, named), named), skin.you)
+      line.text(cap(tool.summary, room), skin.hint)
+      if (only) line.right((r) => r.text(only, skin.hint).space())
+      lines.push(line.build())
+    }
+  }
+
+  // What it offers to watch: a schedule like any other, once it is on.
+  const watches = view.state === 'broken' ? [] : view.watches
+  if (watches.length > 0) {
+    lines.push(blank(form))
+    heading('WATCHES', 'offered; nothing is watched until you turn one on')
+    for (const watch of watches) {
+      const id = watchControl(view.name, watch)
+      const every = `  every ${watch.every}`
+      const press = id ? (watch.on ? 'Show' : `Watch ${watch.project ?? ''}`) : ''
+      // What is pinned at the right, measured before the name is cut: a row
+      // that does not fit drops its right-hand group, and the button that
+      // turns a watch on is not something to lose to a long title.
+      const pinned =
+        (watch.on ? visibleWidth(`on in ${watch.project ?? ''}  `) : 0) +
+        (press ? visibleWidth(press) + 4 : visibleWidth('open a project to watch it')) +
+        2
+      const title = row()
+        .space()
+        .text('◎', watch.on ? skin.done : skin.hint)
+        .space()
+        .text(cap(watch.title, Math.max(8, form - 3 - visibleWidth(every) - pinned)), skin.you)
+        .text(every, skin.hint)
+      title.right((r) => {
+        if (watch.on) r.text(`on in ${watch.project ?? ''}  `, skin.done)
+        if (press) {
+          r.button(press, control(id as string))
+        } else {
+          r.text('open a project to watch it', skin.hint)
+        }
+        r.space()
+      })
+      lines.push({ ...title.build(), on: id !== null && id === focused })
+      wrap(watch.means, 3)
+    }
+  }
+
+  // What it can be given, and where each one stands. A credential is said as
+  // a place — the keychain, an environment variable — and never drawn back.
+  if (view.options.length > 0) {
+    lines.push(blank(form))
+    heading(
+      'OPTIONS',
+      view.configurable
+        ? `change them in ${view.state === 'needs setup' ? 'Set up…' : 'Settings…'}`
+        : '',
+    )
+    const named = Math.min(20, Math.max(8, Math.floor(form / 3)))
+    for (const option of view.options) {
+      // A credential is said as a place and never as a value; where there is
+      // none, say where one is pasted, because the answer to "how do I give
+      // it my key" must not be "export it in your shell profile".
+      const value = option.secret
+        ? option.have
+          ? option.have.startsWith('$')
+            ? `from ${option.have}`
+            : `kept in ${option.have}`
+          : view.configurable
+            ? 'not set — paste one in Set up…'
+            : 'not set'
+        : option.value || 'not set'
+      const set = option.secret ? option.have !== '' : option.value !== ''
+      lines.push(
+        row()
+          .space()
+          .text(padTo(cap(option.label, named), named))
+          .text(cap(value, Math.max(4, form - named - 3)), set ? skin.you : skin.hint)
+          .build(),
+      )
+    }
+  }
+
+  if (view.folder) {
+    lines.push(blank(form))
+    wrap(`Yours, from ${view.folder}`, 1)
+  }
+  return lines
 }
 
 /**

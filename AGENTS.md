@@ -271,6 +271,14 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   path. Tade's own tools always load first, so a self-written one can never shadow `status` or
   `approve`. Lessons are still proposed (`skills/proposed/`): a rule you did not agree to is a
   different risk from a tool you did not run.
+- **What an extension is for is the extension's to say** (`workflow`), and the page shows it
+  unedited. Extensions is the shape Settings has — a search and a list down the side, one of them
+  in full beside it — and what that side says is its own words about how it is used, every tool it
+  brings with what each is for, what it offers to watch and what it can be given, with a credential
+  said as a place and never drawn back. A page that says only what something *is* is how an
+  extension with eight tools gets taken for the one watch it happens to show: the count in a
+  heading is not the list. One that is off or broken is listed with nothing but its name, because
+  it was never imported, and the page says that rather than inventing the rest.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
 - **Under the `pty` driver lanes are Tade's own children**, so they die with it; under `tmux` they

@@ -81,7 +81,7 @@ export class JevJudge implements Judge {
   ready(): string | null {
     return this.opts.key
       ? null
-      : 'Jev needs a TypeSafe API key: paste one into Settings › Extensions › Jev, where Tade keeps it in your keychain, or export TYPESAFE_API_KEY in your shell'
+      : 'Jev needs a TypeSafe API key: paste one into Extensions › Jev › Set up…, where Tade keeps it in your keychain, or export TYPESAFE_API_KEY in your shell'
   }
 
   /**

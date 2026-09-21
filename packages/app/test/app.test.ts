@@ -2168,10 +2168,12 @@ describe('the window, wired up', () => {
     )
     const button = find('Extensions ]')
     click(button.col + 2, button.row)
-    await until('the panel', () =>
-      screenOf(terminal.written).some((row) => row.includes('● Weather  built-in · ready')),
+    await until('the panel, on the one extension there is', () =>
+      screenOf(terminal.written).some((row) => row.includes('Weather  built-in')),
     )
-    // The keyboard starts on the first action; enter runs it for the project you are in.
+    // Tab moves into what it offers, which starts on what it can do rather
+    // than on turning it off; enter runs it for the project you are in.
+    terminal.press('\t')
     terminal.press('\r')
     await until('its answer in the conversation', () =>
       screenOf(terminal.written).some((row) => row.includes('Dry over app today.')),
@@ -2213,20 +2215,31 @@ describe('the window, wired up', () => {
     )
     const button = find('Extensions ]')
     click(button.col + 2, button.row)
-    await until('the panel', () =>
+    await until('the panel, with both of them listed', () =>
       screenOf(terminal.written).some((row) => row.includes('◐ Weather')),
     )
 
-    // The clock is on; turning it off writes that down.
-    const off = screenOf(terminal.written).findIndex((row) => row.includes('● Clock'))
+    // The clock is on; clicking its name shows it, and turning it off writes
+    // that down. Only the one you are looking at has buttons, so there is one
+    // "Turn off" on the screen and it is the clock's.
+    const clock = find('● Clock')
+    click(clock.col + 2, clock.row)
+    await until('the clock, in full', () =>
+      screenOf(terminal.written).some((row) => row.includes('Clock  built-in')),
+    )
     const turnOff = find('Turn off ]')
-    click(turnOff.col + 2, turnOff.row > off ? turnOff.row : off + 2)
+    click(turnOff.col + 2, turnOff.row)
     await until('the clock off', () =>
       screenOf(terminal.written).some((row) => row.includes('○ Clock')),
     )
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('enabled: false')
 
     // Weather needs setting up: its guide, what it offers, and saving checks it.
+    const weather = find('◐ Weather')
+    click(weather.col + 2, weather.row)
+    await until('what it needs', () =>
+      screenOf(terminal.written).some((row) => row.includes('which city?')),
+    )
     const setup = find('Set up… ]')
     click(setup.col + 2, setup.row)
     await until('the guide and its choices', () =>
@@ -2274,8 +2287,8 @@ describe('the window, wired up', () => {
     )
     const button = find('Extensions ]')
     click(button.col + 2, button.row)
-    await until('the panel', () =>
-      screenOf(terminal.written).some((row) => row.includes('◐ Weather')),
+    await until('the panel, on the one that wants setting up', () =>
+      screenOf(terminal.written).some((row) => row.includes('Weather  built-in')),
     )
     const setup = find('Set up… ]')
     click(setup.col + 2, setup.row)

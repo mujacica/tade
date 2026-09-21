@@ -44,6 +44,13 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   `ctx.caller.cwd`, which is where that agent works.
 - **`ready()` never touches the network** — it runs before the window opens. Return what to do
   ("set $SENTRY_AUTH_TOKEN…"), not that something failed.
+- **Say how it is used, in `workflow`.** A few lines for a person, each one way it is actually
+  reached for, in the order somebody would meet them — shown on its page in Extensions, unedited.
+  `description` is one sentence and `orchestrator()` / `agents()` are written for models; this is
+  the only thing that tells the person who installed it what it is for. Write what somebody is
+  doing when this happens and what it gets them, not a feature list: with nothing here, a page
+  showing one watch reads as an extension that does one thing — which is exactly how Jev, with
+  eight tools, came to look like a thing that reviews diffs.
 - **Every setting is declared** in `settings`. A key under `extensions.<name>` that is not declared is
   reported as not read, in the panel and `tade extensions`.
 - **A credential is a `secret` setting, never a string one.** Declare it once —

@@ -448,6 +448,16 @@ export interface TadeExtension {
   title: string
   /** What it is for, in a sentence. */
   description: string
+  /**
+   * How it is actually used, for a person: a handful of lines, each one way it
+   * is reached for, in the order somebody would meet them. Written for the
+   * Extensions page rather than for a model — `orchestrator()` and `agents()`
+   * are what the models are told — because a page that says only what an
+   * extension *is* leaves everybody believing it does whatever its one watch
+   * does. A workflow is not a feature list: say what somebody is doing when
+   * this happens, and what it gets them.
+   */
+  workflow?: readonly string[]
   /** Its own folder, for the harness pieces it ships. */
   root?: string
   settings?: readonly ExtensionSetting[]

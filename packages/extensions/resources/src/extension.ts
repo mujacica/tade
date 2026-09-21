@@ -221,6 +221,12 @@ export function resourcesExtension(options: ResourcesOptions = {}): TadeExtensio
     name: 'resources',
     title: 'Resources',
     description: 'What Tade and everything it runs is using, by project, kind, agent and process.',
+    workflow: [
+      'Answers whether Tade is why the machine is hot (resources_usage): CPU and memory by project, by kind, by agent or by process, with the average and the peak. “how much is Tade using” reaches it with no model at all.',
+      'Finds the agent that is running away: broken down by agent, one worker sitting at a whole core for ten minutes is visible where a single total hides it.',
+      'Keeps a few words in the status bar from one shared sample; clicking them opens the whole picture, and `warn_cpu` and `warn_memory` say when that line starts warning.',
+      'One `ps` for the whole machine, no oftener than `every` seconds, shared by every reader: watching what Tade costs must not be a thing that costs.',
+    ],
     settings: [
       {
         key: 'every',

@@ -24,8 +24,11 @@
   },
   "devDependencies": {
     "@tade/drivers-core": "workspace:*",
+    "@tade/extension-checks": "workspace:*",
+    "@tade/extension-deps": "workspace:*",
     "@tade/extension-jev": "workspace:*",
     "@tade/extension-resources": "workspace:*",
+    "@tade/extension-sentry": "workspace:*",
     "@tade/voice-stt": "workspace:*"
   }
 }

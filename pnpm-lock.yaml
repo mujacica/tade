@@ -63,12 +63,21 @@ importers:
       '@tade/drivers-core':
         specifier: workspace:*
         version: link:../drivers/core
+      '@tade/extension-checks':
+        specifier: workspace:*
+        version: link:../extensions/checks
+      '@tade/extension-deps':
+        specifier: workspace:*
+        version: link:../extensions/deps
       '@tade/extension-jev':
         specifier: workspace:*
         version: link:../extensions/jev
       '@tade/extension-resources':
         specifier: workspace:*
         version: link:../extensions/resources
+      '@tade/extension-sentry':
+        specifier: workspace:*
+        version: link:../extensions/sentry
       '@tade/voice-stt':
         specifier: workspace:*
         version: link:../voice/stt
