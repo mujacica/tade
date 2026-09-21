@@ -527,7 +527,7 @@ export function orchestratorTools(
 
   tool(
     'tade_run_list',
-    'The agents working right now, and the task each is on. One agent per task at most.',
+    'The agents working right now, and the task each is on. One agent per task at most. Each comes with the harness it runs in and the session it is talking in — which is what says where its own words are kept, since the journal has what was decided and never what was said.',
     object({}),
     () => rpc('worker/list', {}),
   )
@@ -740,7 +740,7 @@ export function orchestratorTools(
 
   tool(
     'tade_logs',
-    'What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing.',
+    "What has happened recently, from the journal: tool calls, approvals, failures and turns. Use it to answer questions about the past rather than guessing. It is what was decided, never what was said: an agent's own words are not in it, and what it printed is counted there in bytes.",
     object({
       task: string('only this task'),
       limit: { type: 'number', description: 'how many events, newest last' },
