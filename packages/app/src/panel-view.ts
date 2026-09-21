@@ -70,7 +70,7 @@ import {
   type WrittenToolView,
   watchControl,
 } from './panels.ts'
-import { BAR, barRows } from './scrollbar.ts'
+import { BAR, barRows, type Scrolled } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendView } from './spend.ts'
