@@ -6,14 +6,13 @@ import { sentryExtension } from '@tade/extension-sentry'
 import type { TadeExtension } from '@tade/extensions-core'
 import { CATALOGUE } from '@tade/mcp-core'
 import { toggleSection } from '../../../src/model.ts'
+import { extensionSetupPanel, extensionViewPanel } from '../../../src/panels/extensions/setup.ts'
 import {
   type ExtensionView,
-  extensionSetupPanel,
   extensionsPanel,
-  extensionViewPanel,
   SERVERS,
   toolSummary,
-} from '../../../src/panels.ts'
+} from '../../../src/panels/extensions/state.ts'
 import { emptyTranscript, said, suggest, youSaid } from '../../../src/transcript.ts'
 import { base, frame, NOW, type Scenario } from './fixtures.ts'
 

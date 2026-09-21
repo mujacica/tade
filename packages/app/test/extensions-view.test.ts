@@ -1,7 +1,6 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
-import { extensionsScrollable, extensionsSize } from '../src/panel-view.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import {
   type ExtensionsPanel,
@@ -12,7 +11,8 @@ import {
   type McpServerOffer,
   SERVERS as SERVERS_ROW,
   WRITTEN,
-} from '../src/panels.ts'
+} from '../src/panels/extensions/state.ts'
+import { extensionsScrollable, extensionsSize } from '../src/panels/extensions/view.ts'
 import { COLOUR } from '../src/skin.ts'
 import type { Drawn } from '../src/ui.ts'
 

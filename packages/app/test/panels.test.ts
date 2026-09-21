@@ -2,6 +2,24 @@ import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
 import {
+  extensionSetupPanel,
+  extensionViewPanel,
+  type SetupFieldView,
+  setupControls,
+} from '../src/panels/extensions/setup.ts'
+import {
+  chosenEntry,
+  type ExtensionView,
+  extensionControls,
+  extensionEntries,
+  extensionsPanel,
+  HARNESS,
+  listStart,
+  toolSummary,
+  WRITTEN,
+  watchControl,
+} from '../src/panels/extensions/state.ts'
+import {
   type FilePanel,
   filePanel,
   fileSelection,
@@ -33,27 +51,7 @@ import {
   promptPanel,
 } from '../src/panels/small/state.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
-import {
-  accountActions,
-  chosenEntry,
-  type ExtensionView,
-  extensionControls,
-  extensionEntries,
-  extensionSetupPanel,
-  extensionsPanel,
-  extensionViewPanel,
-  HARNESS,
-  listStart,
-  type Panel,
-  panelClick,
-  panelKey,
-  type SetupFieldView,
-  settingsPanel,
-  setupControls,
-  toolSummary,
-  WRITTEN,
-  watchControl,
-} from '../src/panels.ts'
+import { accountActions, type Panel, panelClick, panelKey, settingsPanel } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 import { spendView } from '../src/spend.ts'
 

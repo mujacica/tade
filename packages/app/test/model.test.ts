@@ -63,7 +63,7 @@ import {
   withTasks,
   withTerminals,
 } from '../src/model.ts'
-import { extensionsPanel } from '../src/panels.ts'
+import { extensionsPanel } from '../src/panels/extensions/state.ts'
 import { thinking, youSaid } from '../src/transcript.ts'
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')

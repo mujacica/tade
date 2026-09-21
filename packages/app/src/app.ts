@@ -210,8 +210,23 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
-import { extensionsScrollable } from './panel-view.ts'
 import type { PanelContext } from './panels/context.ts'
+import {
+  type ExtensionSetupPanel,
+  extensionSetupPanel,
+  extensionViewPanel,
+} from './panels/extensions/setup.ts'
+import {
+  type ExtensionsPanel,
+  type ExtensionView,
+  extensionsPanel,
+  type McpServerOffer,
+  type McpServerShown,
+  type McpServerView,
+  toolSummary,
+  type WrittenToolView,
+} from './panels/extensions/state.ts'
+import { extensionsScrollable } from './panels/extensions/view.ts'
 import {
   type FilePanel,
   filePanel,
@@ -269,25 +284,14 @@ import {
   ACCOUNTS,
   accountActions,
   type Choice,
-  type ExtensionSetupPanel,
-  type ExtensionsPanel,
-  type ExtensionView,
-  extensionSetupPanel,
-  extensionsPanel,
-  extensionViewPanel,
-  type McpServerOffer,
-  type McpServerShown,
-  type McpServerView,
   type Panel,
   type PanelInputs,
   panelClick,
   panelKey,
   type SettingsPanel,
   settingsPanel,
-  toolSummary,
   UPDATES,
   updateActions,
-  type WrittenToolView,
 } from './panels.ts'
 import {
   ago,

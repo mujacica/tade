@@ -3,22 +3,16 @@ import type { ParsedDiff } from '../diff.ts'
 import type { Change } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
-import { extensionSetup, extensions, extensionView, settings } from '../panel-view.ts'
-import type {
-  AccountShown,
-  Choice,
-  ExtensionView,
-  McpServerOffer,
-  Panel,
-  SetupFieldView,
-  UpdatesShown,
-  WrittenToolView,
-} from '../panels.ts'
+import { settings } from '../panel-view.ts'
+import type { AccountShown, Choice, Panel, UpdatesShown } from '../panels.ts'
 import type { SearchEntry } from '../search.ts'
 import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import type { SetupFieldView } from './extensions/setup.ts'
+import type { ExtensionView, McpServerOffer, WrittenToolView } from './extensions/state.ts'
+import { extensionSetup, extensions, extensionView } from './extensions/view.ts'
 import { fileView } from './file/view.ts'
 import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
