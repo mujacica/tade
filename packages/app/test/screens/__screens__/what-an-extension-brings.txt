@@ -8,11 +8,11 @@
    │ ● Jev                  ▕│   ever making Tade ask you for more, never less, and nothing at all under bypass.   ▕│   
    │ ◐ Sentry             ! ▕│ · It may only add caution: it never approves, merges, unholds or shortens a         ▕│   
    │ ✗ standup            ! ▕│   review, and it is never the reason anybody is given.                              ▕│   
- ▸ │ ○ release-notes        ▕│                                                                                     ▕│   
- ▾ │ · Written by Tade    1 ▕│ TOOLS  what the orchestrator and your agents can call                               ▕│   
-  M│ · pi's own           1 ▕│ jev_ask               Judge anything against questions you write                    ▕│   
-  A│                        ▕│ jev_grep              Grep that reads                                               ▕│   
-  M│                        ▕│ jev_review            Read a change against the review pack and say what it flags   █│   
+ ▸ │ ● GitHub               ▕│                                                                                     ▕│   
+ ▾ │ ○ release-notes        ▕│ TOOLS  what the orchestrator and your agents can call                               ▕│   
+  M│ · Written by Tade    1 ▕│ jev_ask               Judge anything against questions you write                    ▕│   
+  A│ · MCP servers        4 ▕│ jev_grep              Grep that reads                                               ▕│   
+  M│ · Harnesses' own     2 ▕│ jev_review            Read a change against the review pack and say what it flags   █│   
    │                        ▕│ jev_findings          What the review watch has looked at, what it flagged, what ca…█│   
  ▾ │                        ▕│ jev_verdict           Write down what a finding turned out to be, once somebody has…█│   
    │                        ▕│ jev_read_request      A second, independent reading of what some… orchestrator only █│   

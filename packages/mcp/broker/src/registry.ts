@@ -4,7 +4,9 @@ import {
   type McpTransport,
   type TransportOptions,
 } from '@tade/mcp-core'
+import { makeHttpTransport } from '@tade/mcp-http'
 import { makeScriptedTransport } from '@tade/mcp-scripted'
+import { makeStdioTransport } from '@tade/mcp-stdio'
 
 // The transports there are, by name: the one registry every call site goes
 // through, so adding a way of reaching a server is an implementation and a
@@ -22,6 +24,12 @@ import { makeScriptedTransport } from '@tade/mcp-scripted'
 // tests and every harness test run on, so whoever wants it names it.
 
 export const MCP_TRANSPORTS: Readonly<Record<string, MakeTransport>> = {
+  stdio: makeStdioTransport,
+  http: makeHttpTransport,
+  // The older shape of the same conversation, under its own name rather than
+  // worked out from an address: a server says which it speaks, and a guess
+  // that is wrong is a server that does not answer.
+  sse: (options) => makeHttpTransport({ ...options, legacy: true }),
   scripted: makeScriptedTransport,
 }
 

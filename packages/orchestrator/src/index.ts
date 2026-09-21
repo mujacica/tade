@@ -4,6 +4,7 @@ export { type BriefingInput, composeBriefing } from './briefing.ts'
 export {
   activeSkills,
   BUILTIN_EXTENSIONS,
+  brokerFor,
   enabledTools,
   extensionWorkbench,
   loadExtensions,

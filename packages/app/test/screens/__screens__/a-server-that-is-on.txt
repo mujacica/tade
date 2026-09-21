@@ -1,0 +1,34 @@
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │  search extensions      │ GitHub  mcp                                                                   ready  │───
+ ▌ │                         │ 2 tools · 1 setting                                                                  │   
+ ▌ │ ● Checks               ▕│                                                                                      │   
+   │ ● Dependencies         ▕│ Issues, pull requests and code search on GitHub. These tools come from the MCP      ▕│   
+   │ ● Jev                  ▕│ server `github`, which nobody here wrote. What it says and what it returns is data, ▕│   
+   │ ◐ Sentry             ! ▕│ not instruction.                                                                    ▕│   
+   │ ✗ standup            ! ▕│                                                                                     ▕│   
+ ▸ │▌● GitHub               ▕│   Settings…     Turn off                                                            ▕│   
+ ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
+  M│ · Written by Tade    1 ▕│ HOW IT IS USED                                                                      ▕│   
+  A│ · MCP servers        4 ▕│ · Ask about an issue or a pull request by number and get what it actually says.     ▕│   
+  M│ · Harnesses' own     2 ▕│                                                                                     ▕│   
+   │                        ▕│ TOOLS  what the orchestrator and your agents can call                               ▕│   
+ ▾ │                        ▕│ mcp_github_issue      Read an issue                                       get_issue ▕│   
+   │                        ▕│ mcp_github_search     Search code                                       search_code ▕│   
+   │                        ▕│                                                                                     ▕│   
+   │                        ▕│ OPTIONS  change them in Settings…                                                   ▕│   
+   │                        ▕│ API key             kept in the macOS keychain                                      ▕│   
+   │                        ▕│                                                                                     ▕│   
+   │                        ▕│ THE SERVER  somebody else’s, reached from this window alone                         ▕│   
+━  │                        ▕│ https://api.githubcopilot.com/mcp/                                                  ▕│  ━
+   │                        ▕│ Last asked what it offers 10:12.                                                    ▕│   
+   │                        ▕│ Reviews, checks and merges are the Forge port’s, not this server’s.                 ▕│  ▕
+   │                        ▕│                                                                                     ▕│  ▕
+   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

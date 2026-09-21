@@ -395,6 +395,34 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   calls its own call a failure comes back as a throw, because a tool fails by throwing. Nothing is
   brokered but tools — no resources, prompts, roots, sampling or elicitation — and a brokered
   answer never sets `said`, so no voice reads out a wall of somebody else's text.
+- **A server Tade starts is somebody else's program, and is run like one.** The `stdio` transport
+  spawns it **detached, in its own process group** — so a signal to Tade's never sweeps it up, and
+  whoever started it ends its group — with an environment scrubbed to `PATH`, `HOME`, `TMPDIR`,
+  what the declaration itself names and the credential where `auth` says. It works in a scratch
+  directory of its own (`<home>/mcp/<name>/`), never in a project unless `scope: project` says so
+  and the call came from one; `${project}` is put in then, and never one per agent. A sandbox asked
+  for that cannot be applied here is a server listed broken, said by `ready()` before anything
+  starts rather than found at the first tool call. Nothing waits without a deadline: a handshake
+  that does not answer is abandoned, a call can be given up on, and a program that dies is an
+  answer with the tail of what it said on the way out.
+- **Over HTTP the credential travels and nothing else does.** One transport speaks both shapes —
+  streamable (every message a POST) and the older stream-and-post-box, registered as `sse`, which
+  is a flag rather than something sniffed from an address — and the one copy of the key it is given
+  goes into the header `auth` names, never into a file, a log or anything drawn. A credential the
+  server would not take is said as that rather than as a number. What every transport says and how
+  it reads what comes back is one pure file (`packages/mcp/core/src/protocol.ts`), table-tested,
+  because two hand-written copies of "what a tool list looks like" drift the first time a server
+  answers something neither expected.
+- **A server is a row on the Extensions page, not a page of its own.** It is a source of tools like
+  any other: one somebody decided about is a row among the extensions with its own state, the ones
+  nobody has decided about are the catalogue behind one group row (`MCP servers`), and the harness
+  group lists the servers `claude mcp add` and `~/.codex/config.toml` already load — **read, never
+  adopted**, the way `readFromCi` reads a CI config. What a server's own row says is only what is
+  true: how Tade talks to it, every tool it offered with the server's own name beside Tade's, what
+  was dropped and why, and when it was last asked. One that is off was never connected, so the page
+  says that and nothing else. `tade mcp list | add | enable | disable | probe` is the same answer
+  from a terminal, and only `probe` dials; `tade extensions enable <a server>` refuses and says
+  which command it is.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
 - **What Tade needs of the machine is declared by whoever needs it.** Every driver, harness and
@@ -662,6 +690,7 @@ implementations of it.
 | `packages/judges/{jev,scripted}` | who answers them · a table, for tests and demos |
 | `packages/extensions/core` | the `TadeExtension` port, the host that runs extensions, their suite |
 | `packages/mcp/core` | the `McpTransport` port + its suite, the naming rules, what is declared, the catalogue |
+| `packages/mcp/{stdio,http}` | a program on its pipes · one already running, streamable or over a stream |
 | `packages/mcp/scripted` | a table of tools and answers: no process, no network |
 | `packages/mcp/broker` | declared servers → `TadeExtension[]`, and the transport registry |
 | `packages/telemetry` | the `Reporter` port and its suite: where Tade's own trouble goes |

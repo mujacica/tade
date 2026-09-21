@@ -1,0 +1,15 @@
+{
+  "name": "@tade/mcp-stdio",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tade/core": "workspace:*",
+    "@tade/mcp-core": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}

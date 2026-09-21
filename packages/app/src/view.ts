@@ -383,6 +383,7 @@ export interface Frame {
       | 'terminalName'
       | 'extensions'
       | 'harnessExtensions'
+      | 'servers'
       | 'extensionsRoot'
       | 'models'
       | 'modelTarget'
@@ -582,6 +583,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     terminalName: extra.terminalName ?? 'terminal',
     extensions: extra.extensions ?? [],
     harnessExtensions: extra.harnessExtensions ?? [],
+    servers: extra.servers ?? [],
     extensionsRoot: extra.extensionsRoot ?? '~/.tade/extensions',
     models: extra.models ?? [],
     modelTarget: extra.modelTarget ?? 'the orchestrator',

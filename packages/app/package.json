@@ -30,6 +30,7 @@
     "@tade/extension-jev": "workspace:*",
     "@tade/extension-resources": "workspace:*",
     "@tade/extension-sentry": "workspace:*",
+    "@tade/mcp-core": "workspace:*",
     "@tade/voice-stt": "workspace:*"
   }
 }

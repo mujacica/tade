@@ -3,7 +3,7 @@
  ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────── esc ─╮   
    │  search extensions      │ screenshots  yours                                        ready  │───
  ▌ │                         │ 1 tool                                                           │   
- ▌ │ ✗ standup            ! ▕│                                                                  │   
+ ▌ │ ● GitHub               ▕│                                                                  │   
    │ ○ release-notes        ▕│ Takes a picture of the app at a route.                          █│   
    │ ● changelog            ▕│                                                                 █│   
    │ ● linear               █│   Open folder     Turn off                                      █│   
@@ -12,7 +12,7 @@
  ▾ │▌● screenshots          █│ screenshots_run      Takes a picture of the … orchestrator only █│   
 ━  │ ● translations         █│                                                                 ▕│  ━
    │ · Written by Tade    1 █│ yours go in ~/.tade/extensions/<name>/extension.ts, off until …  │   
-   │ · pi's own           1 █│ tab moves · ↑↓ reads · enter presses · esc closes        Done    │  ▕
+   │ · MCP servers        4 ▕│ tab moves · ↑↓ reads · enter presses · esc closes        Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                              type, or hold    ctrl   +   space   

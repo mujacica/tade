@@ -153,6 +153,18 @@ export const ProjectConfigSchema = z.strictObject({
 })
 
 /**
+ * The ways Tade can talk to a server, as a declaration names them.
+ *
+ * One list: the schema refuses anything else, and `tade mcp add` offers
+ * exactly these — because a second copy of it somewhere would be the thing
+ * that accepts a word the config then refuses to load. Which of them is
+ * actually implemented is `MCP_TRANSPORTS` in the broker, which is a
+ * different question: a name nothing implements yet is a server said to be
+ * unreachable, not a config that will not load.
+ */
+export const MCP_TRANSPORT_NAMES = ['stdio', 'http', 'sse'] as const
+
+/**
  * One MCP server, as a person declares it.
  *
  * Strict, because the schema is the only reader: a typo has to be an error at
@@ -173,7 +185,7 @@ const McpServerSchema = z.strictObject({
    * How Tade talks to it: `stdio` starts a program and talks over its pipes,
    * `http` and `sse` reach one that is already running, here or somewhere else.
    */
-  transport: z.enum(['stdio', 'http', 'sse']).optional(),
+  transport: z.enum(MCP_TRANSPORT_NAMES).optional(),
   /**
    * The program Tade starts, for a `stdio` server. Tade never installs it:
    * one that is not there is listed as needing setting up, with the line to run.

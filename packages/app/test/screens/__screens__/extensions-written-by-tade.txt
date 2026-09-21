@@ -8,11 +8,11 @@
    │ ● Jev                  ▕│ next time Tade starts, and a lesson it proposes is a file you read before any of it ▕│   
    │ ◐ Sentry             ! ▕│ runs.                                                                               ▕│   
    │ ✗ standup            ! ▕│                                                                                     ▕│   
- ▸ │ ○ release-notes        ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
- ▾ │▌· Written by Tade    1 ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
-  M│ · pi's own           1 ▕│                                                                                     ▕│   
-  A│                        ▕│                                                                                     ▕│   
-  M│                        ▕│                                                                                     ▕│   
+ ▸ │ ● GitHub               ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
+ ▾ │ ○ release-notes        ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
+  M│▌· Written by Tade    1 ▕│                                                                                     ▕│   
+  A│ · MCP servers        4 ▕│                                                                                     ▕│   
+  M│ · Harnesses' own     2 ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   
  ▾ │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│   

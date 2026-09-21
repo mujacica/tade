@@ -249,6 +249,15 @@ export const PICTURES: readonly Picture[] = [
       'what it can be given, every tool it brings, and what it offers to watch.',
   },
   {
+    file: 'mcp.svg',
+    scenario: 'mcp-servers',
+    crop: 'panel',
+    about:
+      'The MCP servers Tade knows about, listed and off: what each is for, how Tade would talk ' +
+      'to it, and what turning it on would need. One somebody turns on is a row of its own up ' +
+      'among the extensions, and its tools reach every agent and the orchestrator.',
+  },
+  {
     file: 'sentry.svg',
     scenario: 'an-agent-on-a-sentry-issue',
     crop: { top: 2, height: 21 },

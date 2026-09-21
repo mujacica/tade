@@ -184,6 +184,19 @@ offers to watch, and what it can be given.
 
 ![The Extensions panel: the list down the side, and one of them in full — how it is used, its buttons, its tools, its watches and its settings](images/extensions.svg)
 
+## MCP servers, in one place
+
+An MCP server somebody turns on is an extension whose tools are that server's tools. The window is
+the only client there is, so turning one on hands its tools to every agent and to the orchestrator —
+pi, Claude Code, Codex alike — named by Tade, gated by Tade, and with your key never leaving this
+machine. No config written for anybody else's client, and no process per agent per server.
+
+The popular ones are listed and off: a server is somebody else's code with tools your agents will
+call, so turning one on is yours alone, in the window or with `tade mcp enable <name>`. What each
+harness loads by itself is listed too — read, never adopted.
+
+![The MCP servers Tade knows about, listed and off: what each is for, how Tade would talk to it, and what turning it on would need](images/mcp.svg)
+
 ## Jev, for what nobody has time to read
 
 A judge answers bounded questions — yes or no, one of these, one of these levels — with a

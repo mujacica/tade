@@ -11,14 +11,19 @@ import {
   isReady,
   loadConfig,
   readiness,
+  Secrets,
   type ThinkingLevel,
   tadeHome,
 } from '@tade/core'
 import type { ExtensionWorkbench } from '@tade/extensions-core'
+import { installedServers as claudeServers } from '@tade/harnesses-claude/installed'
+import { installedServers as codexServers } from '@tade/harnesses-codex/installed'
 import { piBinary } from '@tade/harnesses-pi/adapter'
 import { installedPieces } from '@tade/harnesses-pi/installed'
 import { credentials, findModel, loggedInProviders, usableModels } from '@tade/harnesses-pi/models'
+import { shownServers } from '@tade/mcp-broker'
 import {
+  brokerFor,
   extensionWorkbench,
   loadExtensions,
   Orchestrator,
@@ -122,11 +127,32 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         name: 'load the extensions',
         op: 'tade.extensions',
       })
+      // Where a warning goes: the journal, once the window has one — which
+      // the warm-up always waits for, since it happens after the window is up.
+      let warn: (message: string) => Promise<void> = async (message) => {
+        io.err(message)
+      }
+      // Where keys are kept, opened once: finding out costs a process on
+      // macOS, and everything that reads one — the extensions, the servers,
+      // the page — is asking the same question about the same home.
+      const secrets = Secrets.open({ home })
+      // The MCP servers a person has turned on, brokered here rather than
+      // inside `loadExtensions` so the window can ask each of them what it
+      // offers once it is up, and end their sessions on the way out.
+      const mcp = brokerFor({
+        config: cfg.config,
+        home,
+        safe,
+        secrets,
+        onWarning: (message) => void warn(message),
+      })
       const extensions = await loadExtensions({
         config: cfg.config,
         home,
         safe,
         configPath: cfg.path,
+        secrets,
+        mcp,
       })
       loadingExtensions.end()
       const extensionsRoot = expandHome(cfg.config.orchestrator.extensions)
@@ -158,6 +184,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         return
       }
       openingWorkbench.end()
+
+      warn = async (message) => {
+        await client.log.append({ type: 'warning', detail: { message } }).catch(() => {})
+      }
 
       // Everything the journal says, for whoever is watching Tade itself.
       const stopReporting = reportJournal(report, client)
@@ -262,9 +292,30 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           },
           written: () => writtenTools(extensionsRoot),
           extensions,
-          harnessExtensions: async () => installedPieces(homedir(), process.cwd()),
+          // What each harness loads by itself, listed and nothing more: pi's
+          // own extensions and skills, and the MCP servers Claude Code and
+          // Codex were set up with outside Tade. Reading them is not adopting
+          // them — their tools are not Tade's and are not named by it.
+          harnessExtensions: async () => [
+            ...installedPieces(homedir(), process.cwd()),
+            ...claudeServers(homedir(), process.cwd()),
+            ...codexServers(homedir()),
+          ],
+          // Every server Tade has been told about, the catalogue's among
+          // them, with what each offered when anybody last asked. Read again
+          // whenever a setting changes, never on the way to a frame.
+          mcpServers: (now) =>
+            shownServers(brokerFor({ config: now, home, safe, secrets }).servers, {
+              home,
+              servers: now.mcp.servers,
+            }),
         })
         timingOpen.end()
+        // Now that there is a window, ask each server that is on what it
+        // offers and write it down. Never on the way up: what an agent
+        // launching right now gets is the cache, which is what makes the
+        // first agent after a restart have the tools at all.
+        void mcp.warm()
         restoreTerminal = () => app.stop().catch(() => {})
         showTerminal = (terminal) => void app.showTerminal(terminal)
         keepOrchestratorModel = (model) => app.thinkerMovedTo(model)
@@ -381,6 +432,9 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         setExit(Exit.error)
       } finally {
         await stopOrchestrator()
+        // Whoever started a server ends it: a window that closed is a window
+        // with no MCP client in it.
+        await mcp.close().catch(() => {})
         await tools.close().catch(() => {})
         stopWatching()
         stopReporting()

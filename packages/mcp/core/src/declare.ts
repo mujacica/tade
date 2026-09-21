@@ -31,6 +31,16 @@ export interface ServerSettings {
   about?: string | undefined
 }
 
+/** One transport there is, as a declaration can be judged against it. */
+export interface TransportKind {
+  /** What a declaration names it: `stdio`, `http`. */
+  id: string
+  /** It starts a program, so a server of it needs a command and can be one per project. */
+  spawns: boolean
+  /** It reaches somewhere that is already running, so a server of it needs an address. */
+  network: boolean
+}
+
 /** Where a declaration came from, for the page to say whose words these are. */
 export type DeclaredFrom = 'catalogue' | 'yours' | 'both'
 
@@ -59,11 +69,17 @@ export interface DeclareOptions {
   /** The servers Tade knows about. The shipped one unless a test says otherwise. */
   catalogue?: readonly CatalogueEntry[]
   /**
-   * The transports there are, by name. A server whose transport is not among
-   * them is declared and said to be unreachable — which is what a catalogue
-   * entry for a kind of server Tade cannot talk to yet honestly looks like.
+   * The transports there are, each with what a declaration can be judged
+   * against: whether it starts a program, and whether it reaches one that is
+   * already running. A server whose transport is not among them is declared
+   * and said to be unreachable — which is what a catalogue entry for a kind
+   * of server Tade cannot talk to yet honestly looks like.
+   *
+   * Capabilities, never a name (R3): "one per project" is only possible where
+   * something is *started* in that project, and which transports those are is
+   * theirs to declare rather than a list of ids kept here.
    */
-  transports?: readonly string[]
+  transports?: readonly TransportKind[]
 }
 
 /**
@@ -85,7 +101,7 @@ function one(
   name: string,
   settings: ServerSettings | undefined,
   catalogue: readonly CatalogueEntry[],
-  transports: readonly string[] | undefined,
+  transports: readonly TransportKind[] | undefined,
 ): DeclaredServer {
   const entry = catalogued(name, catalogue)
   const said = settings ?? {}
@@ -134,7 +150,7 @@ function one(
 export function problemWith(
   server: ServerDeclaration,
   entry: CatalogueEntry | null,
-  transports: readonly string[] | undefined,
+  transports: readonly TransportKind[] | undefined,
 ): string | null {
   const named = serverNameProblem(server.name)
   if (named) return named
@@ -146,20 +162,24 @@ export function problemWith(
   // A transport nothing implements is not a broken declaration, it is a kind
   // of server Tade cannot talk to yet — said as such, and it comes right on
   // its own the day that transport lands.
-  if (transports && !transports.includes(server.transport)) {
+  const kind = transports?.find((one) => one.id === server.transport)
+  if (transports && !kind) {
     return `Tade cannot talk to a server over ${server.transport} yet`
   }
-  if (server.transport === 'stdio' && !server.command) {
+  // What a declaration has to say is the transport's own to want: one that
+  // starts a program needs to be told which, and one that reaches something
+  // already running needs to be told where.
+  if (kind?.spawns && !server.command) {
     return `${server.name} is a program Tade starts, and nothing says which`
   }
-  if ((server.transport === 'http' || server.transport === 'sse') && !server.url) {
+  if (kind?.network && !server.url) {
     return `${server.name} answers over ${server.transport}, and nothing says where`
   }
   if ((server.auth === 'env' || server.auth === 'header') && !server.authName) {
     const where = server.auth === 'env' ? 'environment variable' : 'header'
     return `${server.name} takes its credential in an ${where}, and nothing says which: set auth_name`
   }
-  if (server.scope === 'project' && server.transport !== 'stdio') {
+  if (server.scope === 'project' && kind && !kind.spawns) {
     return `${server.name} is one per project, which only a server Tade starts can be`
   }
   return null

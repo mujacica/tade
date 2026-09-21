@@ -1,3 +1,4 @@
+import { type Secrets, secretName } from '@tade/core'
 import type {
   ExtensionContext,
   ExtensionTool,
@@ -86,6 +87,21 @@ export interface BrokerOptions {
   safe?: boolean
   /** Where sessions are held, for whoever has to end them. Its own unless given. */
   sessions?: ServerSessions
+  /**
+   * Where pasted credentials are kept, for the warm-up — which happens
+   * outside any extension's context and so cannot ask `ctx.secret` for one.
+   * Resolved exactly as an extension's is, the environment first.
+   */
+  secrets?: Secrets
+  env?: Readonly<Record<string, string | undefined>>
+  /**
+   * The projects there are, for warming a server that runs one per project:
+   * it is opened in the first of them, because what it *offers* is the same
+   * wherever it runs and the alternative is a server that never has a cache.
+   */
+  projects?: readonly { name: string; root: string }[]
+  /** Said when a server could not be asked what it offers. Nothing goes wrong silently. */
+  onWarning?: (message: string) => void
   now?: () => number
 }
 
@@ -150,7 +166,9 @@ export function brokered(options: BrokerOptions): Brokered {
   const servers = declared({
     servers: options.servers,
     ...(options.catalogue ? { catalogue: options.catalogue } : {}),
-    transports: Object.keys(transports),
+    // What each transport says it can do, rather than a list of names kept
+    // here: which of them start a program is theirs to declare (R3).
+    transports: kindsOf(transports),
   })
   const sessions = options.sessions ?? new ServerSessions()
   const cached = options.cache ?? ((name: string) => readCache(options.home, name))
@@ -159,6 +177,11 @@ export function brokered(options: BrokerOptions): Brokered {
   // not a recovery path.
   const on = options.safe ? [] : workable(servers)
 
+  const environment = options.env ?? process.env
+  // What went wrong the last time anybody talked to one, so the page can say
+  // it was broken rather than say nothing has asked it yet. Remembered here
+  // and never dialled for: `ready()` is asked on every look at the page.
+  const troubles = new Map<string, string>()
   const made = on.map((server) =>
     extensionFor({
       server,
@@ -166,8 +189,10 @@ export function brokered(options: BrokerOptions): Brokered {
       transport: () => transportFor(server.declaration, transports),
       cached,
       sessions,
+      troubles,
     }),
   )
+  const said = options.onWarning ?? (() => {})
 
   return {
     extensions: made,
@@ -175,27 +200,113 @@ export function brokered(options: BrokerOptions): Brokered {
     async warm(signal?: AbortSignal) {
       for (const server of on) {
         if (signal?.aborted) return
-        try {
-          const transport = transportFor(server.declaration, transports)
-          const session = await sessions.of(server.declaration.name, () =>
-            transport.open(server.declaration, contextFor(server.declaration, null, options.home)),
+        const declaration = server.declaration
+        // A server that runs one per project is warmed in the first of them:
+        // what it *offers* is the same wherever it runs, and the alternative
+        // is a server whose tools nobody ever has.
+        const where = declaration.scope === 'project' ? options.projects?.[0]?.root : undefined
+        if (declaration.scope === 'project' && !where) {
+          said(
+            `${declaration.name} runs one per project and there are none here yet, so nothing has asked it what it offers`,
           )
-          const tools = await session.listTools(signal)
-          writeCache(options.home, server.declaration.name, {
-            about: session.about,
-            tools,
-            asked: new Date(options.now?.() ?? Date.now()).toISOString(),
-          })
-        } catch {
+          continue
+        }
+        const key = sessionKey(declaration.name, where)
+        try {
+          const transport = transportFor(declaration, transports)
+          const session = await sessions.of(key, () =>
+            transport.open(declaration, {
+              ...contextFor(declaration, credentialOf(declaration, options), options.home, {
+                env: environment,
+              }),
+              ...(where ? { cwd: where } : {}),
+            }),
+          )
+          const write = async () => {
+            const tools = await session.listTools(signal)
+            writeCache(options.home, declaration.name, {
+              about: session.about,
+              tools,
+              asked: new Date(options.now?.() ?? Date.now()).toISOString(),
+            })
+          }
+          await write()
+          troubles.delete(declaration.name)
+          // A server that says its list changed is written down again, and
+          // that is as far as it goes: agents are given their tools when they
+          // launch, so a new list reaches the next window — the same rule as
+          // turning a server on, and for the same reason.
+          if (transport.capabilities.announces) {
+            session.onToolsChanged(() => {
+              void write().catch(() => {
+                // What was written down last time still stands.
+              })
+            })
+          }
+        } catch (err) {
           // A server that will not answer is a server listed as broken, not a
-          // window that refuses to open. What went wrong reaches whoever
-          // asked through `ready()` and the page; nothing here throws.
-          await sessions.drop(server.declaration.name)
+          // window that refuses to open. Nothing here throws — and nothing
+          // goes wrong silently either, so it is said once, in its own words.
+          await sessions.drop(key)
+          troubles.set(declaration.name, trouble(err))
+          said(`${declaration.name} could not be asked what it offers: ${why(err)}`)
         }
       }
     },
     close: () => sessions.close(),
   }
+}
+
+/**
+ * Which session a call uses: one for the window, or one per project for a
+ * server scoped to one. Never one per agent — that is a process per agent,
+ * and a third party's handle on a worktree Tade's gate cannot see into.
+ */
+function sessionKey(name: string, project: string | undefined): string {
+  return project ? `${name} in ${project}` : name
+}
+
+/**
+ * The credential, for the warm-up, found exactly as an extension's is: the
+ * environment first — a machine that works today goes on working — then
+ * wherever Tade keeps what was pasted. Never from the config.
+ */
+function credentialOf(server: ServerDeclaration, options: BrokerOptions): string | null {
+  if (server.auth === 'none') return null
+  const env = options.env ?? process.env
+  const name = secretName(`mcp-${server.name}`, KEY)
+  if (options.secrets) {
+    return options.secrets.find(name, { env, variables: server.variables })?.value ?? null
+  }
+  for (const variable of server.variables) {
+    const value = env[variable]
+    if (value?.trim()) return value.trim()
+  }
+  return null
+}
+
+function why(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * What went wrong, with what the server itself said on its way out — which is
+ * the part somebody reading the page can actually act on, and is the server's
+ * own words rather than Tade's guess at them.
+ */
+function trouble(err: unknown): string {
+  const tail = err instanceof McpError && err.said ? readable(err.said, 400) : ''
+  return tail ? `${why(err)}: ${tail}` : why(err)
+}
+
+/** The transports there are, as a declaration can be judged against them. */
+export function kindsOf(
+  transports: Readonly<Record<string, MakeTransport>>,
+): { id: string; spawns: boolean; network: boolean }[] {
+  return Object.entries(transports).map(([id, make]) => {
+    const { spawns, network } = make().capabilities
+    return { id, spawns, network }
+  })
 }
 
 function transportFor(
@@ -210,7 +321,8 @@ function contextFor(
   server: ServerDeclaration,
   credential: string | null,
   home: string,
-  ctx?: ExtensionContext,
+  ctx?: Pick<ExtensionContext, 'env'> & Partial<Pick<ExtensionContext, 'fetch' | 'now'>>,
+  cwd?: string,
 ): TransportContext {
   return {
     home,
@@ -219,8 +331,9 @@ function contextFor(
     // the window's environment, which holds everybody's tokens.
     env: scrubbed(ctx?.env ?? {}, server.env),
     fetch: ctx?.fetch ?? fetch,
-    now: () => ctx?.now() ?? Date.now(),
+    now: () => ctx?.now?.() ?? Date.now(),
     deadlineMs: OPEN_MS,
+    ...(cwd ? { cwd } : {}),
   }
 }
 
@@ -247,6 +360,8 @@ function extensionFor(opts: {
   transport: () => McpTransport
   cached: (name: string) => CachedServer | null
   sessions: ServerSessions
+  /** What went wrong the last time anybody talked to one, by server name. */
+  troubles: Map<string, string>
 }): TadeExtension {
   const { declaration } = opts.server
   const name = declaration.name
@@ -267,15 +382,28 @@ function extensionFor(opts: {
     if (declaration.tools.length > 0 && tool.name && !declaration.tools.includes(tool.name)) {
       throw new Error(`${tool.name} is not one of the tools ${name} was turned on for`)
     }
+    const where = placeFor(declaration, ctx)
     const outcome = await withOneRetry(
-      name,
+      sessionKey(name, where),
       opts.sessions,
-      () => start(ctx),
+      () => start(ctx, where),
       (session) =>
         session.callTool(tool.offered.name, input, {
           signal: ctx.signal,
           progress: ctx.progress,
         }),
+    ).then(
+      (answered) => {
+        // It answered, so whatever was wrong with it before is not now.
+        opts.troubles.delete(name)
+        return answered
+      },
+      (err: unknown) => {
+        // Not being able to ask at all is what the page has to say about it;
+        // a call the server itself refused is about the call, not the server.
+        if (err instanceof McpError) opts.troubles.set(name, trouble(err))
+        throw err
+      },
     )
     const text = readable(outcome.text)
     // A tool fails by throwing: pi marks a call failed only then, and
@@ -287,9 +415,12 @@ function extensionFor(opts: {
     return { text }
   }
 
-  const start = (ctx: ExtensionContext) => {
+  const start = (ctx: ExtensionContext, where?: string) => {
     const transport = opts.transport()
-    return transport.open(declaration, contextFor(declaration, credential(ctx), opts.home, ctx))
+    return transport.open(
+      declaration,
+      contextFor(declaration, credential(ctx), opts.home, ctx, where),
+    )
   }
 
   return {
@@ -322,6 +453,10 @@ function extensionFor(opts: {
         .ready(declaration, contextFor(declaration, credential(ctx), opts.home, ctx))
         .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
       if (said) return said
+      // What it could be asked is one thing; what happened when somebody did
+      // is another, and it is the one worth reading.
+      const went = opts.troubles.get(name)
+      if (went) return went
       if (tools.length === 0) {
         return `nothing has asked ${name} what it offers yet${declaration.install ? `: ${declaration.install}` : ''}`
       }
@@ -329,6 +464,19 @@ function extensionFor(opts: {
     },
     tools: tools.map((tool) => toolFor(name, tool, call)),
   }
+}
+
+/**
+ * Where a call's server runs: nowhere in particular for one scoped to the
+ * window, and the root of the project the call came from for one scoped to a
+ * project. An agent's project is its own; anybody else's is the one they
+ * named, or the only one there is — and `ctx.project` says so in words when
+ * it has to be said which, which is the honest failure for a server that is
+ * about a repository and was not told one.
+ */
+function placeFor(server: ServerDeclaration, ctx: ToolContext): string | undefined {
+  if (server.scope !== 'project') return undefined
+  return ctx.caller.kind === 'agent' ? ctx.project(ctx.caller.project).root : ctx.project(null).root
 }
 
 /** One of a server's tools, as a harness is handed it. */

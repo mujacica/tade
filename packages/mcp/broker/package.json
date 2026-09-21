@@ -11,7 +11,9 @@
     "@tade/core": "workspace:*",
     "@tade/extensions-core": "workspace:*",
     "@tade/mcp-core": "workspace:*",
+    "@tade/mcp-http": "workspace:*",
     "@tade/mcp-scripted": "workspace:*",
+    "@tade/mcp-stdio": "workspace:*",
     "vitest": "^5.0.0"
   }
 }

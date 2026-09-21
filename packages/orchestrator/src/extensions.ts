@@ -233,13 +233,8 @@ export async function loadExtensions(opts: {
   // orchestrator are already handed extensions' tools in their own terms — so
   // this one line reaches pi, Claude Code, Codex and the thing you talk to,
   // without a single adapter knowing MCP exists.
-  const mcp =
-    opts.mcp ??
-    brokered({
-      servers: opts.config.mcp.servers,
-      home: opts.home,
-      ...(opts.safe ? { safe: true } : {}),
-    })
+  const secrets = opts.secrets ?? Secrets.open({ home: opts.home })
+  const mcp = opts.mcp ?? brokerFor({ ...opts, secrets })
   return ExtensionHost.load({
     builtin: BUILTIN_EXTENSIONS,
     brokered: mcp.extensions,
@@ -249,10 +244,41 @@ export async function loadExtensions(opts: {
     home: opts.home,
     // Credentials live with the home, never with the config: one home, one
     // set of keys, wherever they are being read or pasted from.
-    secrets: opts.secrets ?? Secrets.open({ home: opts.home }),
+    secrets,
     ...(opts.env ? { env: opts.env } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
     expandHome,
+  })
+}
+
+/**
+ * The MCP servers a person has turned on, brokered.
+ *
+ * Made here so that every surface which loads extensions gets the same ones,
+ * and handed the things the warm-up cannot ask an extension for: where
+ * credentials are kept, the environment they may already be in, and the
+ * projects — because a server that runs one per project has to be opened in
+ * one to be asked what it offers at all.
+ */
+export function brokerFor(opts: {
+  config: Config
+  home: string
+  safe?: boolean
+  env?: NodeJS.ProcessEnv
+  secrets?: Secrets
+  onWarning?: (message: string) => void
+}): Brokered {
+  return brokered({
+    servers: opts.config.mcp.servers,
+    home: opts.home,
+    projects: Object.entries(opts.config.projects).map(([name, project]) => ({
+      name,
+      root: expandHome(project.root),
+    })),
+    secrets: opts.secrets ?? Secrets.open({ home: opts.home }),
+    ...(opts.env ? { env: opts.env } : {}),
+    ...(opts.onWarning ? { onWarning: opts.onWarning } : {}),
+    ...(opts.safe ? { safe: true } : {}),
   })
 }
 

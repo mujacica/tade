@@ -81,6 +81,9 @@ importers:
       '@tade/extension-sentry':
         specifier: workspace:*
         version: link:../extensions/sentry
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../mcp/core
       '@tade/voice-stt':
         specifier: workspace:*
         version: link:../voice/stt
@@ -123,12 +126,24 @@ importers:
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
+      '@tade/harnesses-claude':
+        specifier: workspace:*
+        version: link:../harnesses/claude
+      '@tade/harnesses-codex':
+        specifier: workspace:*
+        version: link:../harnesses/codex
       '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
       '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
+      '@tade/mcp-broker':
+        specifier: workspace:*
+        version: link:../mcp/broker
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../mcp/core
       '@tade/orchestrator':
         specifier: workspace:*
         version: link:../orchestrator
@@ -424,9 +439,15 @@ importers:
       '@tade/mcp-core':
         specifier: workspace:*
         version: link:../core
+      '@tade/mcp-http':
+        specifier: workspace:*
+        version: link:../http
       '@tade/mcp-scripted':
         specifier: workspace:*
         version: link:../scripted
+      '@tade/mcp-stdio':
+        specifier: workspace:*
+        version: link:../stdio
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
@@ -440,8 +461,29 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/mcp/http:
+    dependencies:
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/mcp/scripted:
     dependencies:
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/mcp/stdio:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
       '@tade/mcp-core':
         specifier: workspace:*
         version: link:../core

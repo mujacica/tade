@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   activityFrom,
+  type Config,
   defaultConfigPath,
   expandHome,
   extensionEnabled,
@@ -14,7 +15,8 @@ import {
   tadeHome,
   writeSetting,
 } from '@tade/core'
-import { activeSkills, loadExtensions, writtenTools } from '@tade/orchestrator'
+import type { LoadedExtension } from '@tade/extensions-core'
+import { activeSkills, brokerFor, loadExtensions, writtenTools } from '@tade/orchestrator'
 import { recordAuthored } from '@tade/workbench'
 import { readJournal } from '@tade/workbench/events'
 import type { Command } from 'commander'
@@ -44,6 +46,16 @@ function skillNames(dir: string): string[] {
   }
 }
 
+/**
+ * The server a name is about, whether it was said as the server (`github`) or
+ * as the extension a server becomes (`mcp-github`). Null when it is neither.
+ */
+function mcpServer(name: string, config: Config): string | null {
+  const said = name.startsWith('mcp-') ? name.slice('mcp-'.length) : name
+  const known = brokerFor({ config, home: tadeHome() }).servers
+  return known.some((one) => one.declaration.name === said) ? said : null
+}
+
 export function registerExtensions(
   program: Command,
   io: Io,
@@ -71,7 +83,7 @@ export function registerExtensions(
         safe,
         configPath: opts.config,
       })
-      for (const one of host.list()) {
+      const say = (one: LoadedExtension) => {
         io.out(`${one.title} (${one.name}, ${one.source}): ${one.state}`)
         if (one.problem) io.out(`  ${one.problem}`)
         if (one.tools.length > 0)
@@ -81,6 +93,17 @@ export function registerExtensions(
             `  not read: ${one.unknownSettings.map((key) => `extensions.${one.name}.${key}`).join(', ')}`,
           )
         }
+      }
+      for (const one of host.list()) {
+        if (one.source !== 'mcp') say(one)
+      }
+      // Under their own heading, because a server is not an extension however
+      // it is implemented — and turning one on is its own command.
+      const servers = host.list().filter((one) => one.source === 'mcp')
+      if (servers.length > 0) {
+        io.out('')
+        io.out('MCP servers you turned on (`tade mcp list` says which there are):')
+        for (const one of servers) say(one)
       }
       // The single-file tools the orchestrator loads. They are not the
       // window's to hold, so the host does not list them: they are listed
@@ -138,6 +161,15 @@ export function registerExtensions(
     const cfg = await loadConfig(configPath)
     if (!cfg.ok) {
       io.err(`${cfg.path}: invalid config (run \`tade config --check\`)`)
+      setExit(Exit.invalidInput)
+      return
+    }
+    // One switch, and no ambiguity about which. A brokered extension is only
+    // ever handed over because its server is already on, so `extensions.<it>`
+    // is not a second question and turning it on here would do nothing.
+    const server = mcpServer(name, cfg.config)
+    if (server) {
+      io.err(`that is an MCP server: \`tade mcp ${on ? 'enable' : 'disable'} ${server}\``)
       setExit(Exit.invalidInput)
       return
     }

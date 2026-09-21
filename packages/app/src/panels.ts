@@ -753,6 +753,42 @@ export interface ExtensionView {
   folder: string | null
   /** What it offers to watch, and whether each is on in the project you are in. */
   watches: readonly WatchOfferView[]
+  /** What is only true of a server, for a row that is one. */
+  server?: McpServerView
+}
+
+/**
+ * One MCP server, as the page says it.
+ *
+ * A server is a source of tools like any other, so it is a row among the
+ * extensions rather than a page of its own — and these are the few things
+ * that are true of one and of nothing else: how Tade talks to it, what it
+ * offered when anybody last asked, and what of that it will not hand on.
+ *
+ * A credential is not here. It is said where every extension's is: as a
+ * place, in the setting the broker generates for it, and never as a value.
+ */
+export interface McpServerView {
+  /** The server's own name: `github`, not `mcp-github`. */
+  name: string
+  /** How Tade talks to it, as somebody would read it: the command, or the address. */
+  how: string
+  /** Whether a person has turned it on. */
+  on: boolean
+  /** Whether anybody has decided about it at all, either way. */
+  decided: boolean
+  /** The line a person runs to get the program, shown and never run unwatched. */
+  install: string | null
+  /** What is true about it that nobody would guess. */
+  note: string | null
+  /** When anybody last asked it what it offers. Null when nobody has. */
+  asked: string | null
+  /** What it offered that Tade will not hand on, and why. */
+  dropped: readonly { name: string; why: string }[]
+  /** Its command fetches code from the network every time it starts. */
+  fetches: boolean
+  /** The server's own name for each tool, by the name agents call it. */
+  theirs: Readonly<Record<string, string>>
 }
 
 /** One of an extension's tools, as the panel says it. */
@@ -826,17 +862,18 @@ export function extensionsPanel(chosen: string | null = null): ExtensionsPanel {
   }
 }
 
-/** The two groups that are not extensions, and always come last. */
+/** The three groups that are not extensions, and always come last. */
 export const WRITTEN = 'written'
 export const HARNESS = 'harness'
+export const SERVERS = 'servers'
 
 /** A row in the list down the side of the Extensions panel. */
 export interface ExtensionEntry {
-  /** An extension's name, or `written` / `harness`. */
+  /** An extension's name, or `written` / `harness` / `servers`. */
   id: string
   title: string
-  kind: 'extension' | 'written' | 'harness'
-  /** How the extension stands; null for the two groups that are not one. */
+  kind: 'extension' | 'written' | 'harness' | 'servers'
+  /** How the extension stands; null for the groups that are not one. */
   state: ExtensionView['state'] | null
   /** How many tools it has, or how many pieces are in the group. */
   count: number
@@ -857,6 +894,13 @@ export function extensionEntries(
   written: readonly WrittenToolView[] = [],
   harness: readonly { name: string; where: string }[] = [],
   search = '',
+  /**
+   * The servers nobody has decided about: the catalogue, as one row. The ones
+   * somebody has decided about are among `views`, because a live source of
+   * tools belongs beside the others — and twelve entries nobody has looked at
+   * would triple the length of a list whose whole point is findability.
+   */
+  servers: readonly McpServerOffer[] = [],
 ): ExtensionEntry[] {
   const entries: ExtensionEntry[] = views
     .filter((view) => matchesSearch(extensionWords(view), search))
@@ -881,12 +925,28 @@ export function extensionEntries(
       })
     }
   }
+  if (servers.length > 0) {
+    const words = [
+      'mcp servers',
+      ...servers.map((one) => `${one.name} ${one.title} ${one.description} ${one.how}`),
+    ]
+    if (matchesSearch(words.join(' '), search)) {
+      entries.push({
+        id: SERVERS,
+        title: 'MCP servers',
+        kind: 'servers',
+        state: null,
+        count: servers.length,
+        wants: false,
+      })
+    }
+  }
   if (harness.length > 0) {
-    const words = ['pi’s own', ...harness.map((one) => `${one.name} ${one.where}`)]
+    const words = ['harnesses’ own', ...harness.map((one) => `${one.name} ${one.where}`)]
     if (matchesSearch(words.join(' '), search)) {
       entries.push({
         id: HARNESS,
-        title: "pi's own",
+        title: "Harnesses' own",
         kind: 'harness',
         state: null,
         count: harness.length,
@@ -895,6 +955,59 @@ export function extensionEntries(
     }
   }
   return entries
+}
+
+/**
+ * One MCP server, as the window is handed it.
+ *
+ * What is true about a server is the broker's to say — `shownServers` is
+ * where it comes from — and this is the window's word for the same thing, the
+ * way a harness's own pieces arrive as a name and a place. Nothing here is a
+ * credential: a key is said as a place, in the setting the broker generates
+ * for it, and never drawn back.
+ */
+export interface McpServerShown {
+  name: string
+  title: string
+  description: string
+  workflow: readonly string[]
+  /** Whether a person has turned it on. */
+  on: boolean
+  /** Whether anybody has decided about it at all, either way. */
+  decided: boolean
+  /** What is wrong with it, or what has to happen first. */
+  problem: string | null
+  /** How Tade talks to it: the command, or the address. */
+  how: string
+  install: string | null
+  note: string | null
+  /** When anybody last asked it what it offers. */
+  asked: string | null
+  /** What it offered, by the name agents use, with the server's own beside it. */
+  tools: readonly { name: string; from: string; summary: string }[]
+  /** What it offered that Tade will not hand on, and why. */
+  dropped: readonly { name: string; why: string }[]
+  /** Its command fetches code from the network every time it starts. */
+  fetches: boolean
+}
+
+/** One server nobody has decided about, as the catalogue row offers it. */
+export interface McpServerOffer {
+  name: string
+  title: string
+  description: string
+  /** What somebody is doing when they reach for it. */
+  workflow: readonly string[]
+  /** How Tade would talk to it: the command, or the address. */
+  how: string
+  /** What it would need before it could work: a program, a credential. */
+  needs: string | null
+  /** The line a person runs to get the program, shown and never run unwatched. */
+  install: string | null
+  /** What is true about it that nobody would guess. */
+  note: string | null
+  /** Its command fetches code from the network every time it starts. */
+  fetches: boolean
 }
 
 /** Everything about an extension that searching it should find. */
@@ -910,6 +1023,9 @@ function extensionWords(view: ExtensionView): string {
     ...view.actions.map((action) => action.title),
     ...view.watches.map((watch) => `${watch.title} ${watch.means}`),
     ...view.options.map((option) => option.label),
+    // A server is found by what it is reached at, too: somebody looking for
+    // the one they set up remembers the address before the name.
+    view.server?.how ?? '',
   ].join(' ')
 }
 
@@ -961,10 +1077,20 @@ export function extensionControls(
   chosen: string | null,
   views: readonly ExtensionView[],
   written: readonly WrittenToolView[] = [],
+  servers: readonly McpServerOffer[] = [],
 ): string[] {
   if (chosen === HARNESS) return []
   if (chosen === WRITTEN) {
     return written.flatMap((tool) => [`read:${tool.name}`, `toggle:${tool.name}`])
+  }
+  // A catalogue row offers two things at most: running the line that
+  // installs the program, in a lane you are looking at, and turning it on —
+  // which is a person's act and the only way a server is ever connected.
+  if (chosen === SERVERS) {
+    return servers.flatMap((server) => [
+      ...(server.install ? [`install:${server.name}`] : []),
+      `server:${server.name}`,
+    ])
   }
   const view = views.find((one) => one.name === chosen)
   if (!view) return []
@@ -973,6 +1099,9 @@ export function extensionControls(
     controls.push(`setup:${view.name}`)
   if (view.state === 'ready')
     controls.push(...view.actions.map((action) => `action:${view.name}:${action.id}`))
+  // Nothing is installed behind a spinner: the line is shown, and running it
+  // types it into a terminal you are looking at.
+  if (view.server?.install && view.state !== 'ready') controls.push(`install:${view.server.name}`)
   if (view.folder) controls.push(`folder:${view.name}`)
   if (view.state !== 'broken') controls.push(`toggle:${view.name}`)
   if (view.state === 'broken') return controls
@@ -1019,12 +1148,14 @@ function extensionsKey(
     inputs.written ?? [],
     inputs.harnessExtensions ?? [],
     panel.search,
+    inputs.servers ?? [],
   )
   const here = chosenEntry(panel, entries)
   const controls = extensionControls(
     here?.id ?? null,
     inputs.extensions ?? [],
     inputs.written ?? [],
+    inputs.servers ?? [],
   )
   /**
    * Moving anywhere in the list starts the right-hand side at its top again,
@@ -1157,12 +1288,14 @@ function extensionsClick(
     inputs.written ?? [],
     inputs.harnessExtensions ?? [],
     panel.search,
+    inputs.servers ?? [],
   )
   const here = chosenEntry(panel, entries)
   const index = extensionControls(
     here?.id ?? null,
     inputs.extensions ?? [],
     inputs.written ?? [],
+    inputs.servers ?? [],
   ).indexOf(control)
   return index < 0
     ? stay(panel)
@@ -1445,8 +1578,10 @@ export interface PanelInputs {
   found?: number
   /** The extensions, for moving through their actions. */
   extensions?: readonly ExtensionView[]
-  /** What the harness loads by itself, which Tade only lists. */
+  /** What each harness loads by itself, which Tade only lists. */
   harnessExtensions?: readonly { name: string; where: string }[]
+  /** The MCP servers nobody has decided about: the catalogue, as one row. */
+  servers?: readonly McpServerOffer[]
   /**
    * The furthest the Extensions panel's right-hand side can be scrolled: how
    * much it has to say, less the room it is drawn in. Nought where it all fits.

@@ -46,6 +46,7 @@ import {
   type FindPanel,
   fileMatches,
   listStart,
+  type McpServerOffer,
   type MenuItem,
   type MenuPanel,
   type ModelChoice,
@@ -203,8 +204,10 @@ export interface PanelContext {
   terminalName: string
   /** The extensions this window runs with. */
   extensions: readonly ExtensionView[]
-  /** Extensions the harness loads itself, which Tade only lists. */
+  /** Extensions and servers each harness loads itself, which Tade only lists. */
   harnessExtensions: readonly { name: string; where: string }[]
+  /** The MCP servers nobody has decided about: the catalogue, as one row. */
+  servers: readonly McpServerOffer[]
   /** The tools Tade wrote for itself, on or off. */
   written: readonly WrittenToolView[]
   /** The extension view being shown, once it has been asked for. */
@@ -444,10 +447,19 @@ export function extensionsSize(
 /** Rows of the right-hand side that never scroll: which extension this is, and its shape. */
 const HEAD = 3
 
+/**
+ * What a command like `npx -y …` does, said once beside it.
+ *
+ * A reading of what somebody wrote, not a refusal: their command is theirs.
+ * The catalogue ships none of these, which is why this only ever appears
+ * beside one a person wrote themselves.
+ */
+const FETCHES = 'This fetches code from the network every time it starts.'
+
 /** What the Extensions panel draws from, and nothing more: the app counts lines with it too. */
 export type ExtensionFacts = Pick<
   PanelContext,
-  'skin' | 'extensions' | 'written' | 'harnessExtensions' | 'project'
+  'skin' | 'extensions' | 'written' | 'harnessExtensions' | 'servers' | 'project' | 'date'
 >
 
 /**
@@ -464,9 +476,15 @@ export type ExtensionFacts = Pick<
 function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const { width, height, side, body, room, listRoom } = extensionsSize(ctx.width, ctx.height)
-  const entries = extensionEntries(ctx.extensions, ctx.written, ctx.harnessExtensions, panel.search)
+  const entries = extensionEntries(
+    ctx.extensions,
+    ctx.written,
+    ctx.harnessExtensions,
+    panel.search,
+    ctx.servers,
+  )
   const here = chosenEntry(panel, entries)
-  const controls = extensionControls(here?.id ?? null, ctx.extensions, ctx.written)
+  const controls = extensionControls(here?.id ?? null, ctx.extensions, ctx.written, ctx.servers)
   const focused = panel.focus === 'body' ? (controls[panel.index] ?? null) : null
   // The control the keyboard is on is lit as the pointer's would be, so both
   // say the same thing; the pointer's own light always wins.
@@ -577,7 +595,15 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
       ? [count(ctx.written.length, 'tool Tade wrote for itself', 'tools Tade wrote for itself')]
       : here?.kind === 'harness'
         ? [count(ctx.harnessExtensions.length, 'piece')]
-        : []
+        : here?.kind === 'servers'
+          ? [
+              count(
+                ctx.servers.length,
+                'server nobody has turned on',
+                'servers nobody has turned on',
+              ),
+            ]
+          : []
   head.push(
     counts.length > 0
       ? new Row(told, skin)
@@ -723,6 +749,7 @@ export function extensionsScrollable(
     facts.written,
     facts.harnessExtensions,
     panel.search,
+    facts.servers,
   )
   const here = chosenEntry(panel, entries)
   const lines = extensionBody(facts, here, size.body - BAR, NO_POINTER, null)
@@ -840,12 +867,48 @@ function extensionBody(
 
   if (here.kind === 'harness') {
     wrap(
-      'What pi loads by itself, in every agent. Tade lists these and nothing more: they are not its to turn on, off or configure.',
+      'What each harness loads by itself, in every agent: its own extensions, its own skills, its own MCP servers. Tade lists these and nothing more — they are not its to turn on, off or configure, and their tools are not Tade’s.',
       1,
     )
     lines.push(blank(form))
     for (const piece of facts.harnessExtensions) {
       lines.push(row().space().text(piece.name).text(`  ${piece.where}`, skin.hint).build())
+    }
+    return lines
+  }
+
+  if (here.kind === 'servers') {
+    wrap(
+      'Tool servers Tade knows about, none of them on. A server is somebody else’s code with tools your agents will call, so turning one on is yours alone — and then its tools are handed to every agent and to the orchestrator, named by Tade, through this window.',
+      1,
+    )
+    for (const server of facts.servers) {
+      lines.push(blank(form))
+      const title = row()
+        .space()
+        .text('○', skin.hint)
+        .space()
+        // The room the buttons pinned at the right need, measured before the
+        // name is cut: a row that does not fit drops its right-hand group,
+        // and the button that turns a server on is not one to lose.
+        .text(cap(server.title, Math.max(8, form - (server.install ? 36 : 22))), skin.you)
+        .text(`  ${server.name}`, skin.hint)
+      title.right((r) => {
+        // The line that installs it is run in a lane you are looking at, and
+        // never behind a spinner.
+        if (server.install) r.button('Install…', control(`install:${server.name}`)).space()
+        r.button('Turn on', control(`server:${server.name}`), 'primary').space()
+      })
+      lines.push({
+        ...title.build(),
+        on: focused === `server:${server.name}` || focused === `install:${server.name}`,
+      })
+      wrap(server.description, 3)
+      wrap(server.how, 3, skin.hint)
+      if (server.needs) wrap(server.needs, 3, skin.waiting)
+      if (server.fetches) wrap(FETCHES, 3, skin.waiting)
+      if (server.install) wrap(`to install: ${server.install}`, 3, skin.hint)
+      if (server.note) wrap(server.note, 3, skin.hint)
     }
     return lines
   }
@@ -904,6 +967,9 @@ function extensionBody(
       })),
     )
   }
+  if (view.server?.install && view.state !== 'ready') {
+    items.push({ id: `install:${view.server.name}`, label: 'Install…' })
+  }
   if (view.folder) items.push({ id: `folder:${view.name}`, label: 'Open folder' })
   if (view.state !== 'broken')
     items.push({ id: `toggle:${view.name}`, label: view.state === 'off' ? 'Turn on' : 'Turn off' })
@@ -950,7 +1016,13 @@ function extensionBody(
         .space()
         .text(padTo(cap(tool.name, named), named), skin.you)
       line.text(cap(tool.summary, room), skin.hint)
+      // What the server itself calls it, so a person reading its own
+      // documentation can tell which tool this is.
+      const theirs = view.server?.theirs[tool.name]
       if (only) line.right((r) => r.text(only, skin.hint).space())
+      else if (theirs && theirs !== tool.name) {
+        line.right((r) => r.text(theirs, skin.hint).space())
+      }
       lines.push(line.build())
     }
   }
@@ -1023,6 +1095,34 @@ function extensionBody(
           .text(cap(value, Math.max(4, form - named - 3)), set ? skin.you : skin.hint)
           .build(),
       )
+    }
+  }
+
+  // What is true of a server and of nothing else: where it is, when anybody
+  // last asked it what it offers, and what of that Tade will not hand on. A
+  // server that is off was never connected, so there is none of it to say.
+  if (view.server) {
+    lines.push(blank(form))
+    heading('THE SERVER', 'somebody else’s, reached from this window alone')
+    wrap(view.server.how, 1, skin.hint)
+    // When it was asked, as a person reads a time — and as it was written
+    // down where that cannot be read, rather than a guess at what it meant.
+    const at = Date.parse(view.server.asked ?? '')
+    const asked = Number.isNaN(at) ? view.server.asked : facts.date(at)
+    wrap(
+      view.server.on
+        ? asked
+          ? `Last asked what it offers ${asked}.`
+          : 'Nothing has asked it what it offers yet.'
+        : 'Off, so it has never been connected and there is nothing else to say about it.',
+      1,
+      skin.hint,
+    )
+    if (view.server.fetches) wrap(FETCHES, 1, skin.waiting)
+    if (view.server.install) wrap(`to install: ${view.server.install}`, 1, skin.hint)
+    if (view.server.note) wrap(view.server.note, 1, skin.hint)
+    for (const dropped of view.server.dropped) {
+      wrap(`${dropped.name} is not offered: ${dropped.why}`, 1, skin.waiting)
     }
   }
 

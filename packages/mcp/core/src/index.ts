@@ -13,6 +13,7 @@ export {
   declared,
   problemWith,
   type ServerSettings,
+  type TransportKind,
   workable,
 } from './declare.ts'
 export {

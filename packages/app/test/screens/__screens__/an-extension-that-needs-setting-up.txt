@@ -8,11 +8,11 @@
    │ ● Jev                  ▕│ fixes to agents.                                                                    █│   
    │ ◐ Sentry             ! ▕│                                                                                     █│   
    │ ✗ standup            ! ▕│ ▲ no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read,           █│   
- ▸ │ ○ release-notes        ▕│   project:read, event:read, event:write), or log in with sentry-cli                 █│   
- ▾ │ · Written by Tade    1 ▕│                                                                                     █│   
-  M│ · pi's own           1 ▕│ Not read: extensions.sentry.orgg — a typo, most likely.                             █│   
-  A│                        ▕│                                                                                     █│   
-  M│                        ▕│   Set up…     Turn off                                                              █│   
+ ▸ │ ● GitHub               ▕│   project:read, event:read, event:write), or log in with sentry-cli                 █│   
+ ▾ │ ○ release-notes        ▕│                                                                                     █│   
+  M│ · Written by Tade    1 ▕│ Not read: extensions.sentry.orgg — a typo, most likely.                             █│   
+  A│ · MCP servers        4 ▕│                                                                                     █│   
+  M│ · Harnesses' own     2 ▕│   Set up…     Turn off                                                              █│   
    │                        ▕│                                                                                     █│   
  ▾ │                        ▕│ HOW IT IS USED                                                                      ▕│   
    │                        ▕│ · Says what is breaking in production: what is unresolved or new (sentry_issues),   ▕│   

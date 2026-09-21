@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./conformance": "./src/conformance.ts"
+    "./conformance": "./src/conformance.ts",
+    "./protocol": "./src/protocol.ts"
   },
   "dependencies": {
     "@tade/extensions-core": "workspace:*",

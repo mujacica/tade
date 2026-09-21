@@ -38,7 +38,12 @@ const catalogue: readonly CatalogueEntry[] = [
   },
 ]
 
-const transports = ['stdio', 'http', 'sse', 'scripted']
+const transports = [
+  { id: 'stdio', spawns: true, network: false },
+  { id: 'http', spawns: false, network: true },
+  { id: 'sse', spawns: false, network: true },
+  { id: 'scripted', spawns: false, network: false },
+]
 
 const one = (name: string, servers: Record<string, ServerSettings> = {}) => {
   const found = declared({ servers, catalogue, transports }).find(
@@ -55,7 +60,7 @@ describe('the catalogue', () => {
     }
     // Including the real one, which is the whole point: a server is somebody
     // else's code with tools your agents will call.
-    for (const server of declared({ transports: ['stdio', 'http', 'sse'] })) {
+    for (const server of declared({ transports })) {
       expect(server.declaration.enabled, server.declaration.name).toBe(false)
     }
   })
@@ -138,7 +143,7 @@ describe('what is wrong with a server, said in words', () => {
     const server = declared({
       servers: { remote: { enabled: true } },
       catalogue,
-      transports: ['stdio'],
+      transports: [{ id: 'stdio', spawns: true, network: false }],
     }).find((each) => each.declaration.name === 'remote')
     expect(server?.problem).toBe('Tade cannot talk to a server over http yet')
   })

@@ -8,11 +8,11 @@
    │▌● Jev                  ▕│ probabilities to act on, never verdicts and never prose.                            █│   
    │ ◐ Sentry             ! ▕│                                                                                     █│   
    │ ✗ standup            ! ▕│   Settings…     What Jev flagged     Review the latest commits     Turn off         █│   
- ▸ │ ○ release-notes        ▕│                                                                                     █│   
- ▾ │ · Written by Tade    1 ▕│ HOW IT IS USED                                                                      █│   
-  M│ · pi's own           1 ▕│ · Reviews what agents wrote, when nobody has time to: turn the review watch on and  █│   
-  A│                        ▕│   every branch that goes quiet is read against the review pack — injection,         █│   
-  M│                        ▕│   secrets, swallowed errors, missing tests, whether it did what was asked.          ▕│   
+ ▸ │ ● GitHub               ▕│                                                                                     █│   
+ ▾ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      █│   
+  M│ · Written by Tade    1 ▕│ · Reviews what agents wrote, when nobody has time to: turn the review watch on and  █│   
+  A│ · MCP servers        4 ▕│   every branch that goes quiet is read against the review pack — injection,         █│   
+  M│ · Harnesses' own     2 ▕│   secrets, swallowed errors, missing tests, whether it did what was asked.          ▕│   
    │                        ▕│ · Judges anything else in front of you (jev_ask): a diff, an issue list, a failing  ▕│   
  ▾ │                        ▕│   log, something somebody pasted. A few dozen literal questions at once, each       ▕│   
    │                        ▕│   answered with a probability and no prose.                                         ▕│   

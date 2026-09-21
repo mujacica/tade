@@ -13,6 +13,8 @@ import {
   extensionControls,
   extensionsPanel,
   HARNESS,
+  type McpServerOffer,
+  SERVERS as SERVERS_ROW,
   WRITTEN,
 } from '../src/panels.ts'
 import { COLOUR } from '../src/skin.ts'
@@ -164,7 +166,92 @@ const WRITTEN_TOOLS = [
     on: false,
   },
 ]
-const HARNESS_PIECES = [{ name: 'plan-mode', where: '~/.pi/agent/extensions' }]
+const HARNESS_PIECES = [
+  { name: 'plan-mode', where: '~/.pi/agent/extensions' },
+  { name: 'linear', where: '~/.claude.json (Claude Code)' },
+]
+
+/** The catalogue: servers nobody has decided about, each with what it is for. */
+const SERVERS: McpServerOffer[] = [
+  {
+    name: 'github',
+    title: 'GitHub',
+    description: 'Issues, pull requests and code search on GitHub.',
+    workflow: ['Ask about an issue by number and get what it actually says.'],
+    how: 'https://api.githubcopilot.com/mcp/',
+    needs: 'github needs a credential: paste one, or set $GITHUB_TOKEN',
+    install: null,
+    note: null,
+    fetches: false,
+  },
+  {
+    name: 'sqlite',
+    title: 'SQLite',
+    description: 'Read a database that is a file.',
+    workflow: [],
+    how: 'mcp-server-sqlite',
+    needs: null,
+    install: 'pipx install mcp-server-sqlite',
+    note: null,
+    fetches: false,
+  },
+]
+
+/** One somebody turned on, as the page shows a live source of tools. */
+const SERVER_ON: ExtensionView = {
+  name: 'mcp-linear',
+  title: 'Linear',
+  description:
+    'Issues in Linear. These tools come from the MCP server `linear`, which nobody here wrote.',
+  workflow: ['Ask about an issue by its number.'],
+  source: 'mcp',
+  state: 'ready',
+  problem: null,
+  tools: [{ name: 'mcp_linear_search', summary: 'Find an issue', for: ['agent', 'orchestrator'] }],
+  actions: [],
+  options: [],
+  unknownSettings: [],
+  configurable: false,
+  folder: null,
+  watches: [],
+  server: {
+    name: 'linear',
+    how: 'npx linear-mcp --stdio',
+    on: true,
+    decided: true,
+    install: null,
+    note: null,
+    asked: '2026-09-21T08:00:00.000Z',
+    dropped: [{ name: 'weird', why: 'its parameters are not an object' }],
+    // A command of somebody's own that downloads its code at every start,
+    // said beside it rather than refused.
+    fetches: true,
+    theirs: { mcp_linear_search: 'searchIssues' },
+  },
+}
+
+/** One somebody turned off: never connected, so there is nothing else to say. */
+const SERVER_OFF: ExtensionView = {
+  ...SERVER_ON,
+  name: 'mcp-postgres',
+  title: 'Postgres',
+  description: 'Read a database’s schema and query it.',
+  workflow: [],
+  state: 'off',
+  tools: [],
+  server: {
+    name: 'postgres',
+    how: 'mcp-server-postgres',
+    on: false,
+    decided: true,
+    install: 'npm install --global @modelcontextprotocol/server-postgres',
+    note: null,
+    asked: null,
+    dropped: [],
+    fetches: false,
+    theirs: {},
+  },
+}
 
 const context = (over: Partial<PanelContext> = {}): PanelContext =>
   ({
@@ -177,6 +264,7 @@ const context = (over: Partial<PanelContext> = {}): PanelContext =>
     spend: null,
     panes: [],
     project: 'checkout',
+    date: (at: number) => new Date(at).toISOString().slice(0, 10),
     items: [],
     changes: [],
     ahead: null,
@@ -206,6 +294,7 @@ const context = (over: Partial<PanelContext> = {}): PanelContext =>
     terminalName: 'terminal',
     extensions: EXTENSIONS,
     harnessExtensions: HARNESS_PIECES,
+    servers: SERVERS,
     written: WRITTEN_TOOLS,
     extensionView: null,
     setup: null,
@@ -221,7 +310,9 @@ const facts = {
   extensions: EXTENSIONS,
   written: WRITTEN_TOOLS,
   harnessExtensions: HARNESS_PIECES,
+  servers: SERVERS,
   project: 'checkout',
+  date: (at: number) => new Date(at).toISOString().slice(0, 10),
 }
 
 const drawnAt = (panel: ExtensionsPanel, over: Partial<PanelContext> = {}): Drawn =>
@@ -423,6 +514,67 @@ describe('the extensions page at any width', () => {
       const over = drawn.hits.filter((one) => one.row === hit.row && one.from <= hit.from)
       expect(over.at(-1)?.target.kind).not.toBe('scroll')
     }
+  })
+
+  it('offers the catalogue as one row, with every server off and what each needs', () => {
+    const said = wholePage(extensionsPanel(SERVERS_ROW))
+    expect(said).toContain('none of them on')
+    for (const server of SERVERS) {
+      expect(said).toContain(server.title)
+      expect(said).toContain(server.description)
+    }
+    // Nothing is installed behind a spinner: the line is shown, and running
+    // it is a button that types it into a terminal you are looking at.
+    expect(said).toContain('pipx install mcp-server-sqlite')
+    expect(said).toContain('Install…')
+    expect(extensionControls(SERVERS_ROW, EXTENSIONS, WRITTEN_TOOLS, SERVERS)).toEqual([
+      'server:github',
+      'install:sqlite',
+      'server:sqlite',
+    ])
+    expect(said).toContain('needs a credential')
+    expect(said).toContain('Turn on')
+    // One row in the list, not twelve: the list stays findable.
+    const rows = plainRows(drawnAt(extensionsPanel(SERVERS_ROW))).join('\n')
+    expect(rows).toContain('MCP servers')
+  })
+
+  it('says of a server that is on where it is, and what the server calls each tool', () => {
+    const over = { extensions: [...EXTENSIONS, SERVER_ON] }
+    const said = wholePage(extensionsPanel('mcp-linear'), over)
+    expect(said).toContain('THE SERVER')
+    expect(said).toContain('npx linear-mcp --stdio')
+    expect(said).toContain('mcp_linear_search')
+    // The server's own name for it, beside Tade's, so its documentation can
+    // be read against this page.
+    expect(said).toContain('searchIssues')
+    // Whose words these are, said where the words are.
+    expect(said).toContain('nobody here')
+    // What it offered that Tade will not hand on, and why.
+    expect(said).toContain('weird is not offered')
+    // A command that downloads its code every time it starts says so.
+    expect(said).toContain('fetches code from the network')
+  })
+
+  it('says of a server that is off that it was never connected, and nothing else', () => {
+    const over = { extensions: [...EXTENSIONS, SERVER_OFF] }
+    const said = wholePage(extensionsPanel('mcp-postgres'), over)
+    expect(said).toContain('never been connected')
+    expect(said).toContain('Turn on')
+    expect(said).toContain('npm install --global @modelcontextprotocol/server-postgres')
+    // No tools, no version, no "last asked": nothing has asked it anything.
+    expect(said).not.toContain('TOOLS')
+    expect(said).not.toContain('Last asked')
+  })
+
+  it('lists what each harness loads by itself without claiming any of it', () => {
+    const said = wholePage(extensionsPanel(HARNESS))
+    expect(said).toContain('harness')
+    expect(said).toContain('plan-mode')
+    // Somebody else's MCP servers are listed where they are, and named as
+    // theirs: reading what a harness loads is not adopting it.
+    expect(said).toContain('linear')
+    expect(said).toContain('~/.claude.json (Claude Code)')
   })
 
   it('says so when the search matches nothing, rather than showing an empty page', () => {

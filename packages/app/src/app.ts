@@ -243,6 +243,9 @@ import {
   harnessMenuItems,
   imageMenuItems,
   laneMenuItems,
+  type McpServerOffer,
+  type McpServerShown,
+  type McpServerView,
   type MenuSubject,
   type ModelChoice,
   type ModelPanel,
@@ -837,10 +840,39 @@ export interface AppOptions {
    * setting, which the window reads and writes like any other.
    */
   written?: () => { name: string; why: string; path: string }[]
-  /** Extensions the harness loads by itself, which Tade lists but does not run. */
+  /** Extensions and servers each harness loads by itself, which Tade lists but does not run. */
   harnessExtensions?: () => Promise<{ name: string; where: string }[]>
+  /**
+   * The MCP servers Tade has been told about — the catalogue's among them,
+   * all off until somebody says otherwise. Read again whenever the extensions
+   * are, because turning one on is a setting like any other.
+   */
+  mcpServers?: (config: Config) => readonly McpServerShown[]
   now?: () => number
   frameMs?: number
+}
+
+/**
+ * What is true of a row that is an MCP server and of nothing else.
+ *
+ * Only what was actually asked: a server that is off was never connected, so
+ * it has no tools, no version and no "last asked" — and saying otherwise
+ * would be the page inventing a connection nobody made.
+ */
+function serverFacts(server: McpServerShown | undefined): McpServerView | undefined {
+  if (!server) return undefined
+  return {
+    name: server.name,
+    how: server.how,
+    on: server.on,
+    decided: server.decided,
+    install: server.install,
+    note: server.note,
+    asked: server.asked,
+    dropped: server.dropped,
+    fetches: server.fetches,
+    theirs: Object.fromEntries(server.tools.map((tool) => [tool.name, tool.from])),
+  }
 }
 
 export class App {
@@ -1391,6 +1423,7 @@ export class App {
         written: this.writtenViews(),
         extensions: this.extensionViews(),
         harnessExtensions: this.harnessPieces,
+        servers: this.serverOffers(),
         extensionsRoot: tilde(expandHome(this.opts.config.orchestrator.extensions)),
       }
     }
@@ -1603,25 +1636,7 @@ export class App {
       })),
       schedules: this.scheduleViews(),
       clock: (at: number) => whenShort(at, this.now()),
-      date: (at: number) => {
-        const time = new Date(at)
-        const month = [
-          'Jan',
-          'Feb',
-          'Mar',
-          'Apr',
-          'May',
-          'Jun',
-          'Jul',
-          'Aug',
-          'Sep',
-          'Oct',
-          'Nov',
-          'Dec',
-        ]
-        const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''
-        return `${day} ${time.getDate()} ${month[time.getMonth()] ?? ''} ${clockOf(at)}`
-      },
+      date: (at: number) => this.dateOf(at),
       now: this.now(),
     }
   }
@@ -2498,6 +2513,7 @@ export class App {
         return
       case 'extensions':
         this.harnessPieces = (await this.opts.harnessExtensions?.().catch(() => [])) ?? []
+        this.readServers()
         // What each one can be given is asked once, on the way in, rather
         // than on every frame it is drawn.
         this.setupShown.clear()
@@ -5861,52 +5877,162 @@ export class App {
     return view
   }
 
+  /**
+   * The MCP servers nobody has decided about: the catalogue row, with what
+   * each one is for and what turning it on would need. A server somebody has
+   * decided about is a row of its own among the extensions instead, because a
+   * live source of tools belongs beside the others.
+   */
+  private serverOffers(): McpServerOffer[] {
+    return this.mcpShown
+      .filter((server) => !server.decided)
+      .map((server) => ({
+        name: server.name,
+        title: server.title,
+        description: server.description,
+        workflow: server.workflow,
+        how: server.how,
+        needs: server.problem,
+        install: server.install,
+        note: server.note,
+        fetches: server.fetches,
+      }))
+  }
+
+  /**
+   * A server somebody has decided about, as a row among the extensions.
+   *
+   * One that is on and working is already one — the broker made an extension
+   * of it and the host loaded it — so this is the rest: the ones turned off,
+   * and the ones turned on that cannot work yet. It says only what is true of
+   * a server nothing has connected to, which is what it is and what it needs.
+   */
+  private serverViews(loaded: readonly string[]): ExtensionView[] {
+    return this.mcpShown
+      .filter((server) => server.decided && !loaded.includes(`mcp-${server.name}`))
+      .map((server) => ({
+        name: `mcp-${server.name}`,
+        title: server.title,
+        description: server.description,
+        // Its own words about how it is used are the catalogue's, and it was
+        // never imported, so there is nothing else to say.
+        workflow: server.on ? server.workflow : [],
+        source: 'mcp' as const,
+        state: server.on ? ('needs setup' as const) : ('off' as const),
+        // A server that is on and workable is an extension by now, so one
+        // that is on and here was left out — `--safe`, or a name Tade's own
+        // took first. Either way it is said rather than left blank.
+        problem: server.on
+          ? (server.problem ?? `${server.name} is on, but nothing connected it in this window`)
+          : server.problem,
+        tools: [],
+        actions: [],
+        options: [],
+        unknownSettings: [],
+        configurable: false,
+        folder: null,
+        watches: [],
+        server: serverFacts(server),
+      }))
+  }
+
+  /**
+   * The server a row is about, whether the row is the server itself or the
+   * extension it became. Null when the row is not one.
+   */
+  private serverNamed(name: string): McpServerShown | null {
+    const said = name.startsWith('mcp-') ? name.slice('mcp-'.length) : name
+    return this.mcpShown.find((server) => server.name === said) ?? null
+  }
+
+  /**
+   * What each server is and what it offered, read again.
+   *
+   * Asked when the page is opened and whenever the extensions are read again
+   * — never per frame: what a server offered is a file on disk per server,
+   * and a page that redraws four times a second must not read eleven of them
+   * each time. It only changes when somebody changes a setting, which is
+   * exactly where it is asked again.
+   */
+  private mcpShown: readonly McpServerShown[] = []
+
+  private readServers(): void {
+    this.mcpShown = this.opts.mcpServers?.(this.opts.config) ?? []
+  }
+
+  /**
+   * Turn a server on or off — which is a setting, and a person's alone.
+   *
+   * Taking a capability away may be immediate and giving one may not: turning
+   * one off drops it from what is offered at once, and turning one on
+   * connects the next time Tade starts, because a client dialling into a
+   * half-configured server inside a running window is the evening lost.
+   */
+  private async turnServer(name: string, on: boolean): Promise<string> {
+    writeSetting(this.configPath, `mcp.servers.${name}.enabled`, on)
+    await this.reloadExtensions()
+    const server = this.serverNamed(name)
+    const needs = on && server?.problem ? `, and needs setting up: ${server.problem}` : ''
+    return on
+      ? `${name} is on — it connects the next time Tade starts, and its tools are offered to every agent and the orchestrator${needs}`
+      : `${name} is off — its tools stop being offered`
+  }
+
   /** The extensions, as the panel shows them. */
   private extensionViews(): ExtensionView[] {
     const offers = this.opts.extensions?.watches() ?? []
     const project = this.state.project
     const schedules = this.opts.client.schedules()
-    return (this.opts.extensions?.list() ?? []).map((one) => ({
-      name: one.name,
-      title: one.title,
-      description: one.description,
-      workflow: one.workflow,
-      source: one.source,
-      state: one.state,
-      problem: one.problem,
-      tools: one.tools.map((tool) => ({
-        name: tool.name,
-        summary: toolSummary(tool.description),
-        for: tool.for,
-      })),
-      actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
-      options: this.setupView(one.name).fields.map((field) => ({
-        key: field.key,
-        label: field.label,
-        value: field.value,
-        have: field.have,
-        secret: field.kind === 'secret',
-      })),
-      unknownSettings: one.unknownSettings,
-      configurable: this.setupView(one.name).configurable,
-      folder: one.source === 'yours' ? one.path : null,
-      watches: offers
-        .filter((offer) => offer.extension === one.name)
-        .map((offer) => ({
-          id: offer.id.slice(one.name.length + 1),
-          title: offer.title,
-          means: offer.means,
-          every: offer.every,
-          project,
-          on:
-            schedules.find(
-              (each) =>
-                each.project === project &&
-                each.does.kind === 'watch' &&
-                each.does.watch === offer.id,
-            )?.id ?? null,
+    const servers = this.mcpShown
+    const loaded = this.opts.extensions?.list() ?? []
+    return [
+      ...loaded.map((one) => ({
+        name: one.name,
+        title: one.title,
+        description: one.description,
+        workflow: one.workflow,
+        source: one.source,
+        state: one.state,
+        problem: one.problem,
+        tools: one.tools.map((tool) => ({
+          name: tool.name,
+          summary: toolSummary(tool.description),
+          for: tool.for,
         })),
-    }))
+        actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
+        options: this.setupView(one.name).fields.map((field) => ({
+          key: field.key,
+          label: field.label,
+          value: field.value,
+          have: field.have,
+          secret: field.kind === 'secret',
+        })),
+        unknownSettings: one.unknownSettings,
+        configurable: this.setupView(one.name).configurable,
+        folder: one.source === 'yours' ? one.path : null,
+        watches: offers
+          .filter((offer) => offer.extension === one.name)
+          .map((offer) => ({
+            id: offer.id.slice(one.name.length + 1),
+            title: offer.title,
+            means: offer.means,
+            every: offer.every,
+            project,
+            on:
+              schedules.find(
+                (each) =>
+                  each.project === project &&
+                  each.does.kind === 'watch' &&
+                  each.does.watch === offer.id,
+              )?.id ?? null,
+          })),
+        // What is true of a server and of nothing else, for a row that is one.
+        ...(one.source === 'mcp'
+          ? { server: serverFacts(servers.find((each) => `mcp-${each.name}` === one.name)) }
+          : {}),
+      })),
+      ...this.serverViews(loaded.map((one) => one.name)),
+    ]
   }
 
   /**
@@ -5962,7 +6088,24 @@ export class App {
           this.state = openSchedule({ ...this.state, panel: null }, name)
           this.draw()
           return
+        // A server nobody had decided about, turned on from the catalogue.
+        case 'server':
+          return stay(await this.turnServer(name, true))
+        // The line that installs a server's program, run where you can watch
+        // it: Tade never installs anything itself.
+        case 'install': {
+          const line = this.serverNamed(name)?.install
+          if (!line) return stay(null)
+          this.state = { ...this.state, panel: null }
+          await this.watchCommand('install', line)
+          return
+        }
         case 'toggle': {
+          // One switch, and for a server it is its own: `extensions.<it>` is
+          // not a second question, because a server's extension is only ever
+          // handed over when the server is already on.
+          const server = this.serverNamed(name)
+          if (server) return stay(await this.turnServer(server.name, !server.on))
           const was = host?.list().find((one) => one.name === name)
           const tool = was ? null : this.writtenViews().find((one) => one.name === name)
           if (!was && !tool) return stay(null)
@@ -6020,8 +6163,10 @@ export class App {
     this.useConfig(loaded.config)
     await host.reconfigure(loaded.config.extensions)
     // What each one can be given, and where its key is, is asked again: this
-    // is the one thing that changes it.
+    // is the one thing that changes it. The servers with them, since turning
+    // one on is a setting in the same file.
     this.setupShown.clear()
+    this.readServers()
     this.linkers = host.linkers()
     if (
       host
@@ -7326,6 +7471,7 @@ export class App {
       extensions: this.extensionViews(),
       written: this.state.panel?.kind === 'extensions' ? this.writtenViews() : [],
       harnessExtensions: this.harnessPieces,
+      servers: this.serverOffers(),
       scrollable: this.extensionRoom().body,
       listRoom: this.extensionRoom().listRoom,
       setupFields:
@@ -7337,6 +7483,27 @@ export class App {
       accountActions: accountActions(this.accountViews),
       updateActions: updateActions(this.updates, this.updatesBusy),
     }
+  }
+
+  /** A time as a person reads one: the day, the date and the clock. */
+  private dateOf(at: number): string {
+    const time = new Date(at)
+    const month = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ]
+    const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getDay()] ?? ''
+    return `${day} ${time.getDate()} ${month[time.getMonth()] ?? ''} ${clockOf(at)}`
   }
 
   /**
@@ -7355,7 +7522,9 @@ export class App {
         extensions: this.extensionViews(),
         written: this.writtenViews(),
         harnessExtensions: this.harnessPieces,
+        servers: this.serverOffers(),
         project: this.state.project,
+        date: (at: number) => this.dateOf(at),
       },
       this.terminal.columns,
       this.terminal.rows,

@@ -1,0 +1,14 @@
+{
+  "name": "@tade/mcp-http",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tade/mcp-core": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}
