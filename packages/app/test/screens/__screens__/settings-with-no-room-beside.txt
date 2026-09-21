@@ -8,10 +8,10 @@
    │  Approvals     │    nothing is sent            │   
    │  Checks        │                               │   
    │  Voice         │▌Reporter                    ↻ │   
- ▾ │  Window        │   ◉ sentry                    │   
-  M│  Projects   3  │   ○ none                      │   
-  A│  Checks per p… │   sentry sends through        │   
-━  │  Budgets   ● 1 │   Sentry’s own SDK, imported… │  ━
+ ▾ │  Window        │▌  ◉ sentry                    │   
+  M│  Projects   3  │▌  ○ none                      │   
+  A│  Checks per p… │▌  sentry sends through        │   
+━  │  Budgets   ● 1 │▌  Sentry’s own SDK, imported… │  ━
    │▌ Telemetry     │                               │   
    │  Shortcuts     │ Crashes and warnings        ↻ │  ▕
    │  Accounts  ● 2 │ ● Saved as you change it.     │  ▕

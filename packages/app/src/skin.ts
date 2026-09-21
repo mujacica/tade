@@ -111,10 +111,10 @@ export interface Skin {
   /** A field's body, already padded to its width by the caller. */
   field(text: string, hint: boolean, hover?: boolean): string
   /**
-   * A switch: a four-cell track with the knob at the end that says which way
-   * it is thrown, then the word for it. Exactly 8 columns, painted or not, so
-   * a column of them lines up whatever the skin — and the word is there
-   * because a colour is not an answer to "is this on?".
+   * A switch: a knob in a four-cell track, at the end it is thrown to, then
+   * the word for it. Exactly 8 columns, painted or not, so a column of them
+   * lines up whatever the skin — and the word is there because a colour is
+   * not an answer to "is this on?".
    */
   toggle(on: boolean, state: SwitchState): string
   /** The microphone is open. */
@@ -409,9 +409,10 @@ export const PLAIN: Skin = {
   keycap: (label) => `[${label}]`,
   badge: (text) => `(${text.trim()})`.padEnd(text.length),
   field: (text) => text,
-  // The same 8 columns the painted switch takes: the knob at the right is on,
-  // at the left is off, and the word says which without reading the picture.
-  toggle: (on) => (on ? '[─●] on ' : '[●─] off'),
+  // The same 8 columns and the same shape the painted switch has: a knob in a
+  // track, at the right for on and at the left for off, with the word saying
+  // which without reading the picture.
+  toggle: (on) => (on ? '[ █] on ' : '[█ ] off'),
   transmit: identity,
   // Without colour the one you are on is marked the way focus is marked everywhere else.
   item: (row, band) => (band === 'selected' ? `▌${row} ` : ` ${row} `),
@@ -470,33 +471,47 @@ export const COLOUR: Skin = {
     paint(
       `${bg(hover === true ? GREY.hovered : GREY.raised)}${fg(hint ? GREY.quiet : GREY.bright)}`,
     )(text),
-  // A track of four cells with the knob at the end it is thrown to: amber and
-  // to the right for on, dark and to the left for off, a shade lighter under
-  // the pointer the way every other control lights. The knob is a glyph and
-  // not a painted cell, so the switch still reads where colour does not.
+  // A knob in a track: two cells of solid knob at the end the switch is thrown
+  // to, and the two cells it is not at are the track, with a rule along them.
+  //
+  // The knob is what says the state, and it says it twice — by which end it is
+  // at, and by its colour: Tade's amber for on, the grey of a key cap for off,
+  // both of them about five to one against the track, so off is as easy to
+  // read as on and the word beside it confirms the control rather than
+  // carrying it.
+  //
+  // The track keeps its own colour whichever way the switch is thrown, which
+  // is what makes a column of them scan: the same housing every time, with the
+  // knob at one end or the other. Colouring the track instead — which this did
+  // — made on a block of amber with a dot in it and off a dark block with a
+  // dot in it, two controls of quite different weight and neither of them
+  // reading as a switch.
+  //
+  // The track is one step off the ground of the row you are on, so on that one
+  // row the paint alone all but disappears and would leave a knob with no ends
+  // to be at. Hence the rule: the track is painted *and* drawn, so where the
+  // paint cannot be told from the row under it the line still says how far the
+  // switch reaches. Both parts are otherwise cells painted in their own
+  // colour, for the reason written beside `solid`.
+  //
+  // Held down, the knob is drawn mid-track: while you are pressing it, it is
+  // on its way from one end to the other.
   toggle: (on, state) => {
-    const track = on
-      ? state === 'hover'
-        ? TONE.amberLight
-        : state === 'pressed'
-          ? TONE.amberDark
-          : TONE.amber
-      : state === 'hover'
-        ? GREY.hovered
-        : state === 'pressed'
-          ? GREY.pressed
-          : GREY.control
-    const knob = on
-      ? state === 'pressed'
-        ? GREY.quiet
-        : TONE.ink
-      : state === 'pressed'
-        ? TONE.ink
-        : GREY.bright
-    const shown = `${bg(track)}${fg(knob)}${BOLD}${on ? '   ●' : '●   '}${RESET}`
+    const rest = state === 'rest'
+    const track = rest ? GREY.control : GREY.hovered
+    const rule = rest ? GREY.quiet : GREY.heading
+    const knob = on ? (rest ? TONE.amber : TONE.amberLight) : rest ? GREY.pressed : GREY.bright
+    const groove = (cells: number) => `${bg(track)}${fg(rule)}${'─'.repeat(cells)}${RESET}`
+    const held = `${bg(knob)}${fg(knob)}██${RESET}`
+    const shown =
+      state === 'pressed'
+        ? `${groove(1)}${held}${groove(1)}`
+        : on
+          ? `${groove(2)}${held}`
+          : `${held}${groove(2)}`
     const word = on
       ? `${fg(GREY.bright)}${BOLD}on ${RESET}`
-      : `${fg(state === 'rest' ? GREY.quiet : GREY.bright)}off${RESET}`
+      : `${fg(rest ? GREY.tab : GREY.bright)}off${RESET}`
     return `${shown} ${word}`
   },
   transmit: paint(`${bg(TONE.red)}${fg(TONE.inkLight)}${BOLD}`),

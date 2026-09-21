@@ -197,7 +197,10 @@ export class Row {
     return this.put(drawn, inner + 2, opts.target)
   }
 
-  /** A switch, thrown or not: exactly 8 columns, so a column of them lines up. */
+  /**
+   * A switch, thrown or not: exactly 8 columns whatever the skin, so a column
+   * of them lines up and a switch never changes width as it is thrown.
+   */
   toggle(on: boolean, target: Target): this {
     const state: SwitchState = sameTarget(this.pointer.pressed, target)
       ? 'pressed'

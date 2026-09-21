@@ -15,12 +15,12 @@
         │  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
  ▾ FILES│  Telemetry         │ Never a key that types a character — you have to be able   │                    │        
    ▾ src│  Shortcuts         │ to type a space into your agent.                           │                    │        
-       w│  Accounts          │                                                            │       ↻ on restart │        
-       w│  Updates           │                        Try another     Use ctrl+r anyway   │       ↻ on restart │        
+       w│  Accounts          │                                                            │                    │        
+       w│  Updates           │                        Try another     Use ctrl+r anyway   │                    │        
    ▸ tes│                    ╰────────────────────────────────────────────────────────────╯                    │        
-     pac│                        │                                                                             │        
+     pac│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
      REA│                        │                                                                             │        
-        │                        │                                                                             │        
+        │                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │                                                                             │        
         │                        │                                                                             │       ▕

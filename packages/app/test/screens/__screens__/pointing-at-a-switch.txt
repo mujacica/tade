@@ -7,24 +7,24 @@
         │  Models                │ names, counts and Tade’s own words, with paths scrubbed to ~.               │        
    ⠋ ref│  Orchestrator          │                                                                             │        
      wor│  Approvals      bypass │▌Send to                     nothing is sent                    ↻ on restart │        
-        │  Checks                │                            a Sentry DSN of yours, from that project’s       │        
- ▾ CHANG│  Voice                 │                            Client Keys, or $TADE_TELEMETRY_DSN; empty send… │        
-  M pack│  Window                │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
-  A …/we│  Projects           3  │                                                                             │        
-  M src/│  Checks per project    │ Crashes and warnings          ● on                             ↻ on restart │        
-        │  Budgets           ● 1 │ What happened around them     ● on                             ↻ on restart │        
- ▾ FILES│▌ Telemetry             │ Numbers                       ● on                             ↻ on restart │        
-   ▾ src│  Shortcuts             │ What agents do                ● on                             ↻ on restart │        
-       w│  Accounts          ● 2 │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
-       w│  Updates               │ Which Tade this is          laptop                             ↻ on restart │        
-   ▸ tes│                        │ Read Sentry back              ● on                             ↻ on restart │        
-     pac│                        │ Sentry organization         $SENTRY_ORG, or sentry-cli’s default            │        
-     REA│                        │ Sentry projects             each project’s own name                         │        
-        │                        │ Your own Sentry             https://sentry.io                               │        
-━   orch│                        │ Token variable              SENTRY_AUTH_TOKEN                               │   ▾   ━
-        │                        │ New issues in the brief       ● on                                          │        
-        │                        │ What the brief counts       is:unresolved firstSeen:-24h                    │       ▕
+        │  Checks                │▌                           a Sentry DSN of yours, from that project’s       │        
+ ▾ CHANG│  Voice                 │▌                           Client Keys, or $TADE_TELEMETRY_DSN; empty send… │        
+  M pack│  Window                │                                                                             │        
+  A …/we│  Projects           3  │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
+  M src/│  Checks per project    │                                                                             │        
+        │  Budgets           ● 1 │ Crashes and warnings       ──██ on                             ↻ on restart │        
+ ▾ FILES│▌ Telemetry             │                                                                             │        
+   ▾ src│  Shortcuts             │ What happened around them  ──██ on                             ↻ on restart │        
+       w│  Accounts          ● 2 │                                                                             │        
+       w│  Updates               │ Numbers                    ──██ on                             ↻ on restart │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │ What agents do             ──██ on                             ↻ on restart │        
+     REA│                        │                                                                             │        
+        │                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+━   orch│                        │                                                                             │   ▾   ━
+        │                        │ Which Tade this is          laptop                             ↻ on restart │        
         │                        │                                                                             │       ▕
+        │                        │ Read Sentry back           ──██ on                             ↻ on restart │       ▕
         │                        │ ● Saved as you change it.                                                   │       ▕
         │                        │                                                 Open config.yaml     Done   │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕

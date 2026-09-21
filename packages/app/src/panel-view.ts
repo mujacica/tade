@@ -2367,6 +2367,20 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
       text: built.text,
       hits: [{ row: 0, from: 0, to: form - 1, target: rowTarget }, ...built.hits],
     })
+    /**
+     * A line of the setting you are on, begun the way the first one is: the
+     * marker, then the indent it would have had.
+     *
+     * A setting is as many lines as it needs — its radios, the sentence under
+     * it, the meter beside the microphone — and the band that marks it covers
+     * all of them, so the bar down its left has to as well. Marking only the
+     * first line left a band that stopped a third of the way down the row it
+     * was marking, which reads as a drawing that went wrong rather than as one
+     * row picked out. The column is taken whether or not the setting is the
+     * one you are on, so nothing moves sideways as the keyboard walks down.
+     */
+    const beneath = (indent: number, pointerOf: Pointer = keys) =>
+      new Row(form, skin, pointerOf).marker(focused).space(indent - 1)
     // A short list of options is radios, and where they would not fit beside
     // the name they go under it, one to a line, rather than off the edge.
     const room = layout.stacked ? layout.control : roomFor(layout, setting)
@@ -2387,8 +2401,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
       if (spellsOut(setting)) {
         for (const option of optionsOf(setting)) {
           lines.push(
-            new Row(form, skin, keys)
-              .space(3)
+            beneath(3)
               .radio(option.on, cap(option.label, form - 6), {
                 kind: 'control',
                 id: `set:${setting.path}=${option.value}`,
@@ -2397,16 +2410,16 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
           )
         }
       } else {
-        const under = new Row(form, skin, keys).space(3)
-        controlCol = under.used
-        control(under, setting, panel, ctx, Math.max(4, form - 4))
-        lines.push(under.build())
+        const stacked = beneath(3)
+        controlCol = stacked.used
+        control(stacked, setting, panel, ctx, Math.max(4, form - 4))
+        lines.push(stacked.build())
       }
     }
     if (setting.path === 'surfaces.voice.mic.device') {
       // Trying it is the only way to know the terminal may use it.
       const indent = layout.stacked ? 3 : 1 + layout.label + GAP
-      const meter = new Row(form, skin, pointer).space(indent)
+      const meter = beneath(indent, pointer)
       const cells = Math.max(4, Math.min(14, form - indent - 12))
       const heard = ctx.levels.slice(-cells)
       const bars = '▁▂▃▄▅▆▇█'
@@ -2443,7 +2456,7 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
       const indent = !layout.stacked && form - aligned >= 32 ? aligned : 3
       const room = form - indent - 1 - (note.mark ? 2 : 0)
       wrapTo(note.text, room, 2).forEach((piece, i) => {
-        const r = new Row(form, skin).space(indent)
+        const r = beneath(indent, NO_POINTER)
         if (note.mark) r.text(i === 0 ? note.mark : ' ', note.tone).space()
         lines.push(r.text(piece, skin.hint).build())
       })
@@ -2454,10 +2467,17 @@ function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
     }
     for (const built of lines)
       body.push(band ? { text: band(built.text), hits: built.hits } : built)
-    // Settings that say more than one line's worth stand apart; plain ones stack.
-    const roomy =
-      setting.type.kind === 'key' || setting.type.kind === 'model' || setting.type.kind === 'choice'
-    if ((roomy || layout.stacked) && at < rows.length - 1) body.push(blank(form))
+    // A clear line between every setting and the next, the same one every
+    // time. Almost every control here is a label or a knob on its own painted
+    // ground, so two settings with nothing between them run into one block of
+    // colour — the same reason the rows of buttons on the Accounts page are
+    // given a gap. Sparing it for the shorter kinds only made the top of a
+    // group breathe and the bottom of it crowd, which is what made the page
+    // read as unconsidered: a rhythm that changes half way down is one nobody
+    // chose. A group longer than the panel scrolls rather than closing up —
+    // the form already follows the row you are on, and a list of fifteen key
+    // caps with nothing between them is one nobody can read anyway.
+    if (at < rows.length - 1) body.push(blank(form))
   })
 
   // ── the foot of the form ──
@@ -2660,8 +2680,12 @@ function drawUpdates(
             ? { text: '✓ current', tone: skin.done }
             : { text: '· cannot tell', tone: skin.hint }
     const target = { kind: 'control' as const, id: rowId }
+    // The row the keyboard is on is marked down its left, the same bar every
+    // other marked row in the window gets — and the column is taken whether or
+    // not it is marked, so nothing shifts as the keyboard walks down the page.
     const name = new Row(form, skin, keys)
-      .space(3)
+      .marker(focused === rowId)
+      .space(2)
       .text(padTo(cap(program.need.title, named), named), plain, target)
       .text(padTo(cap(version, 12), 12), program.install ? plain : skin.hint)
       .text(cap(mark.text, Math.max(0, form - named - 17)), mark.tone)
@@ -2721,8 +2745,13 @@ function optionsOf(setting: Setting): { value: string; label: string; on: boolea
   }))
 }
 
-/** Whether a setting's radios fit on one line, spaced as they are drawn. */
+/** Whether a setting's control fits on the line beside its name. */
 function fitsInline(setting: Setting, room: number): boolean {
+  // What a setting that opens a list puts on the line is a field, cut to the
+  // room it has — never the options, which are in the list. Measuring those
+  // sent a setting under its own name for having wordy options it was not
+  // going to draw, and left one column of controls with two in it.
+  if (usesDropdown(setting)) return room >= 8
   const options = optionsOf(setting)
   if (options.length === 0) return true
   const width = options.reduce((sum, option) => sum + 2 + visibleWidth(option.label), 0)

@@ -5,17 +5,17 @@
  ▌ │  Agents          │ of yours, and reading that Sentry back. Never your… │t s
  ▌ │  Models          │                                                     │   
    │  Orchestrator    │ Send to                   nothing is sent         ↻ │   
-   │  Approvals       │▌Reporter                 ◉ sentry   ○ none        ↻ │   
-   │  Checks          │   sentry sends through Sentry’s own SDK, imported   │   
-   │  Voice           │   only when there is a DSN; none sends nothing      │╮  
- ▾ │  Window          │                                                     ││  
-  M│  Projects     3  │ Crashes and warnings        ● on                  ↻ ││  
-  A│  Checks per pro… │ What happened around t…     ● on                  ↻ │╯  
-  M│  Budgets     ● 1 │ Numbers                     ● on                  ↻ │   
-━  │▌ Telemetry       │ What agents do              ● on                  ↻ │  ━
-   │  Shortcuts       │ How much of Tade is ti…   ‹  0.1  ›               ↻ │   
-   │  Accounts    ● 2 │ Which Tade this is        laptop                  ↻ │  ▕
-   │  Updates         │ Read Sentry back            ● on                  ↻ │  ▕
+   │  Approvals       │                                                     │   
+   │  Checks          │▌Reporter                 ◉ sentry   ○ none        ↻ │   
+   │  Voice           │▌  sentry sends through Sentry’s own SDK, imported   │╮  
+ ▾ │  Window          │▌  only when there is a DSN; none sends nothing      ││  
+  M│  Projects     3  │                                                     ││  
+  A│  Checks per pro… │ Crashes and warnings     ──██ on                  ↻ │╯  
+  M│  Budgets     ● 1 │                                                     │   
+━  │▌ Telemetry       │ What happened around t…  ──██ on                  ↻ │  ━
+   │  Shortcuts       │                                                     │   
+   │  Accounts    ● 2 │ Numbers                  ──██ on                  ↻ │  ▕
+   │  Updates         │                                                     │  ▕
    │                  │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕
 ───╰────────────────────────────────────────────────────────────────────────╯── 
