@@ -339,6 +339,25 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   wraps. The drawing is the editor's too — the selection is laid over the rows it drew, placed in
   the text by matching them (`rowStarts`), because a second description of how it wraps would be
   right until the day it was not.
+- **The file you have open selects out of that same model, because two of them would drift.** A
+  word is the same run of letters in a file as on the line, shift and an arrow reach the same way,
+  and what a second press takes is not something anybody should have to learn twice — so `input.ts`
+  answers for both (`spanOf`, `wordAt`, `clickedSpan`, `lineKey`) and only who is pressed on behalf
+  of differs: at pi's editor every change is still made by pressing the keys a person would press
+  (`cutSpan`), because it is somebody else's object; the viewer's `Edited` is Tade's own, so the
+  press it needs lives in it (`cutSelection`, beside `back` and `joinUp`) — a selection taken out
+  is one operation, not one press per character, because the presses copy the file's lines and
+  four thousand of them was six hundred milliseconds. A test holds it to what those presses say,
+  case for case, so the two can never differ about what one press takes. Only the anchor is kept
+  (`FilePanel.anchor`); the other end is the caret the edit already holds, so the two can never
+  disagree about where the selection reaches. It is laid over what the viewer drew, in its cells
+  (`onLine`, `laidOver`), never in a second reading of how the body slid.
+- **A selection dragged over the window is bounded to the region it was started in.** The window is
+  regions side by side, not one flow of text, so a selection that took whole rows between its two
+  ends took whatever else was drawn on them: dragging over an agent came back with the sidebar's
+  queue and its agents down the left of every line but the first and the last. Which columns those
+  are is read off the map (`scrollAt`, then `extentOf` across), like everything else about where
+  something ended up.
 - **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.

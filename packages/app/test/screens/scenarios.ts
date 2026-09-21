@@ -14,6 +14,7 @@ import { sentryExtension } from '@tade/extension-sentry'
 import type { TadeExtension } from '@tade/extensions-core'
 import { CATALOGUE } from '@tade/mcp-core'
 import { parseDiff } from '../../src/diff.ts'
+import { offsetOf } from '../../src/input.ts'
 import {
   type AppState,
   focusTask,
@@ -3242,6 +3243,20 @@ export const SCENARIOS: Scenario[] = [
       panel: {
         ...filePanel('/Users/me/src/checkout/src/webhooks.ts'),
         edit: typeIn(editFrom(textLines(webhooksFile), 5, 47), '_V2'),
+      },
+    },
+    frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),
+  },
+  {
+    name: 'selecting-in-a-file',
+    about: 'Dragged over three lines of it: the selection through the break at the end of each.',
+    state: {
+      ...base(),
+      panel: {
+        ...filePanel('/Users/me/src/checkout/src/webhooks.ts'),
+        edit: editFrom(textLines(webhooksFile), 10, 3),
+        // From partway along the call on line 9 to partway into line 11.
+        anchor: offsetOf(textLines(webhooksFile), { line: 8, col: 20 }),
       },
     },
     frame: frame({ panel: { homeDir: '/Users/me', viewing: viewing(webhooksFile) } }),

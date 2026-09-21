@@ -18,6 +18,7 @@ import {
 } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
 import { type Hit, type ScrollArea, sameTarget, type Target } from './hits.ts'
+import { onLine, type Place, placeOf } from './input.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { linkedRow } from './links.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
@@ -46,6 +47,7 @@ import {
   type FilePanel,
   type FindPanel,
   fileMatches,
+  fileSelection,
   listStart,
   type McpServerOffer,
   type MenuItem,
@@ -1498,6 +1500,14 @@ function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   const drawn = formatted ? (viewing?.formatted ?? []) : (viewing?.source ?? [])
   // Formatted Markdown has no line numbers, so it has no caret either.
   const edit = formatted ? null : panel.edit
+  // What is selected, placed in the lines once: every row of the body then
+  // asks about itself with a comparison, rather than counting the file from
+  // the top again on each of them.
+  const chosen = edit ? fileSelection(panel) : null
+  const selection =
+    chosen && edit
+      ? { from: placeOf(edit.lines, chosen.from), to: placeOf(edit.lines, chosen.to) }
+      : null
   const plain = edit ? edit.lines : (viewing?.text ?? [])
   const lines = edit ? edit.lines : drawn
   const typeable = file !== null && !formatted && editable(file) === null
@@ -1597,6 +1607,7 @@ function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
           width: text,
           matches,
           current: panel.asking?.kind === 'find' ? matches[panel.asking.index] : undefined,
+          ...(selection ? { selection } : {}),
           ...(edit && edit.row === at ? { caret: caretCell, caretCells } : {}),
           skin,
         }),
@@ -1651,7 +1662,9 @@ function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
       panel.asking?.kind === 'find'
         ? '  enter the next · ↑↓ move · esc shuts the bar'
         : edit
-          ? '  ctrl+s saves · ctrl+f finds · esc leaves'
+          ? selection
+            ? '  ctrl+shift+c copies · ctrl+s saves · esc leaves'
+            : '  ctrl+s saves · ctrl+f finds · esc leaves'
           : typeable
             ? '  click to edit · ctrl+f find · ctrl+g line'
             : '  ↑↓ scroll · space a page · e editor'
@@ -1698,6 +1711,8 @@ interface Overlays {
   width: number
   matches: readonly Match[]
   current?: Match | undefined
+  /** What is selected, as its two ends in the lines: this row may be in it. */
+  selection?: { from: Place; to: Place }
   caret?: number
   caretCells?: number
   skin: Skin
@@ -1711,16 +1726,36 @@ interface Overlays {
 function laidOver(row: string, over: Overlays): string {
   const { skin } = over
   let out = row
-  const lay = (cell: number, cells: number, paint: (text: string) => string) => {
+  // `keep` takes the cells as they were drawn, colour and all, for a paint
+  // that only lays a ground under them: a selection is a background the code
+  // sits on, and stripping it would take the syntax colouring off everything
+  // inside it. A match and the caret are the other way round — they are meant
+  // to stand out — so they take the text plain and repaint it.
+  const lay = (cell: number, cells: number, paint: (text: string) => string, keep = false) => {
     const from = over.gutter + cell - over.left
     if (cells <= 0 || from < over.gutter || from + cells > over.width) return
-    const under = stripTerminalSequences(sliceByColumn(out, from, cells, true))
+    const cut = sliceByColumn(out, from, cells, true)
+    const under = keep ? cut : stripTerminalSequences(cut)
     // Half of a wide character is not a cell anything can be laid on, and a
     // paint that came back a different width would tear the row it is in.
     if (visibleWidth(under) > cells) return
-    const painted = paint(under === '' ? ' '.repeat(cells) : under)
+    const painted = paint(visibleWidth(under) === 0 ? ' '.repeat(cells) : under)
     if (visibleWidth(painted) !== cells) return
     out = compositeTuiLine(out, painted, from, cells, over.width)
+  }
+  // Under everything else: a selection is a ground the text sits on, and the
+  // matches and the caret are still read where they fall inside it.
+  const covered = over.selection ? onLine(over.selection, over.at, over.line.length) : null
+  if (covered) {
+    const start = cellOf(over.line, covered.from)
+    // The break at the end of the line, where the selection runs over it: a
+    // cell of its own, so an empty line inside one is not a hole in it.
+    const stop = cellOf(over.line, covered.to) + (covered.eol ? 1 : 0)
+    // Only the part of it on screen: the body has slid left to keep the caret
+    // in view, and a long line reaches past both edges of what is drawn.
+    const from = Math.max(start, over.left)
+    const to = Math.min(stop, over.left + over.width - over.gutter)
+    lay(from, to - from, (text) => skin.selected(text), true)
   }
   for (const match of over.matches) {
     if (match.line !== over.at) continue

@@ -6,18 +6,24 @@ import {
 } from '@earendil-works/pi-tui'
 import type { Skin } from './skin.ts'
 
-// Selecting text in the line you type on.
+// Selecting text: in the line you type on, and in the file you have open.
 //
-// The line itself is pi's own editor — it holds the text and the caret, wraps
-// it, keeps the history and collapses a long paste — and a terminal editor
-// that reports its own mouse has to be told what a second click means. So
-// what is selected is kept here, as two offsets into the text: where the
+// Both hold the text and the caret themselves — pi's own editor on the one
+// hand, the viewer's `Edited` on the other — and a terminal editor that
+// reports its own mouse has to be told what a second click means. So what is
+// selected is kept beside them, as two offsets into the text: where the
 // selection was started, and where the caret has since taken it. Everything a
 // click or a key does to those two numbers is in this file, pure, because it
 // is arithmetic over a string and nothing about it needs a terminal.
 //
+// One model for both, because two would drift: a word is the same run of
+// letters in a file as on the line, shift and an arrow reach the same way, and
+// what a second press takes is not something anybody should have to learn
+// twice. What differs is only who is pressed on behalf of — the editor that
+// holds the text — and that is the caller's.
+//
 // Offsets are indexes into the whole text, newlines included, so a selection
-// that runs over several lines is still two numbers. The editor counts in
+// that runs over several lines is still two numbers. Both editors count in
 // (line, column), which is the same thing said twice — `offsetOf` and
 // `placeOf` are the only places that translate.
 
@@ -45,8 +51,14 @@ export function spanOf(selection: Selection | null): Span | null {
   return to > from ? { from, to } : null
 }
 
+/** A position in the lines an editor holds: which line, and how far into it. */
+export interface Place {
+  line: number
+  col: number
+}
+
 /** The offset the editor's caret is at, from the lines it holds. */
-export function offsetOf(lines: readonly string[], cursor: { line: number; col: number }): number {
+export function offsetOf(lines: readonly string[], cursor: Place): number {
   const line = Math.max(0, Math.min(cursor.line, lines.length - 1))
   let at = 0
   for (let i = 0; i < line; i++) at += (lines[i]?.length ?? 0) + 1
@@ -54,7 +66,7 @@ export function offsetOf(lines: readonly string[], cursor: { line: number; col: 
 }
 
 /** Where an offset falls: which line, and how far into it. */
-export function placeOf(lines: readonly string[], offset: number): { line: number; col: number } {
+export function placeOf(lines: readonly string[], offset: number): Place {
   let left = Math.max(0, offset)
   for (let i = 0; i < lines.length; i++) {
     const length = lines[i]?.length ?? 0
@@ -62,6 +74,40 @@ export function placeOf(lines: readonly string[], offset: number): { line: numbe
     left -= length + 1
   }
   return { line: 0, col: 0 }
+}
+
+/**
+ * What a selection covers on one line of it: the characters it takes, and
+ * whether it runs on past the end of the line.
+ *
+ * For a drawing laid out a line at a time — the file viewer's — where working
+ * the offsets out again per row would walk the lines from the top on every
+ * one of them. The two ends are placed once, and each row is then a
+ * comparison. `eol` is the line break at the end of the row being inside the
+ * selection: it is a cell of its own, so a selection through an empty line is
+ * something you can see rather than a hole in it.
+ */
+export function onLine(
+  span: { from: Place; to: Place },
+  line: number,
+  length: number,
+): { from: number; to: number; eol: boolean } | null {
+  if (line < span.from.line || line > span.to.line) return null
+  const from = line === span.from.line ? Math.min(span.from.col, length) : 0
+  const to = line === span.to.line ? Math.min(span.to.col, length) : length
+  const eol = line < span.to.line
+  return to > from || eol ? { from, to, eol } : null
+}
+
+/** The text a span covers, out of the lines it runs through. */
+export function textOf(lines: readonly string[], span: Span): string {
+  const from = placeOf(lines, span.from)
+  const to = placeOf(lines, span.to)
+  if (from.line === to.line) return (lines[from.line] ?? '').slice(from.col, to.col)
+  const out = [(lines[from.line] ?? '').slice(from.col)]
+  for (let i = from.line + 1; i < to.line; i++) out.push(lines[i] ?? '')
+  out.push((lines[to.line] ?? '').slice(0, to.col))
+  return out.join('\n')
 }
 
 const WORD = /[\p{L}\p{N}_]/u
@@ -99,6 +145,29 @@ export function wordAt(text: string, at: number): Span {
 }
 
 /**
+ * Where a word-wise move lands, from an offset: over the spaces in the way,
+ * then over the run of whatever is next to them. The same runs `wordAt` takes,
+ * walked rather than spread out from a point, which is what alt and an arrow
+ * do in every text box.
+ *
+ * A move that lands where it started has nowhere to go on this line, and the
+ * editor that asked takes it off the end of the line as its plain arrow would.
+ */
+export function wordStep(text: string, at: number, back: boolean): number {
+  let where = Math.max(0, Math.min(at, text.length))
+  if (back) {
+    while (where > 0 && classOf(text[where - 1]) === 'space') where--
+    const kind = classOf(text[where - 1])
+    while (where > 0 && classOf(text[where - 1]) === kind) where--
+    return where
+  }
+  while (where < text.length && classOf(text[where]) === 'space') where++
+  const kind = classOf(text[where])
+  while (where < text.length && classOf(text[where]) === kind) where++
+  return where
+}
+
+/**
  * The line around an offset, as a triple click takes it: from after the
  * newline before it to before the newline after it. The newline itself is not
  * in it, so a line selected and typed over leaves the line break alone.
@@ -133,7 +202,7 @@ export type LineKey =
    * The caret moves, `by` that much at a time. `extend` is shift held, which
    * takes the selection with it; without it the selection is let go.
    */
-  | { do: 'move'; by: 'char' | 'word' | 'line' | 'row'; back: boolean; extend: boolean }
+  | { do: 'move'; by: 'char' | 'word' | 'line' | 'row' | 'page'; back: boolean; extend: boolean }
 
 /** The bytes a terminal sends for a key, for handing the editor a motion of its own. */
 const SEQUENCES: Record<string, string> = {
@@ -241,17 +310,23 @@ export function cutSpan(held: Held, span: Span): void {
 export function lineKey(key: string | null): LineKey | null {
   if (!key) return null
   const parts = key.split('+')
-  const name = parts.pop() ?? ''
+  const name = (parts.pop() ?? '').toLowerCase()
   const mods = new Set(parts)
   const shift = mods.has('shift')
   const word = mods.has('ctrl') || mods.has('alt')
   if (name === 'a' && !shift && (mods.has('ctrl') || mods.has('super'))) return { do: 'select all' }
+  // The end of the line, as every shell binds it. Its opposite is ctrl+a,
+  // which is spoken for above — the start of the line is Home.
+  if (name === 'e' && mods.has('ctrl'))
+    return { do: 'move', by: 'line', back: false, extend: shift }
   if (!word) {
     if (name === 'backspace') return { do: 'delete', forward: false }
     if (name === 'delete') return { do: 'delete', forward: true }
     if (name === 'home') return { do: 'move', by: 'line', back: true, extend: shift }
     if (name === 'end') return { do: 'move', by: 'line', back: false, extend: shift }
   }
+  if (name === 'pageup' || name === 'pagedown')
+    return { do: 'move', by: 'page', back: name === 'pageup', extend: shift }
   if (name === 'up' || name === 'down')
     return { do: 'move', by: 'row', back: name === 'up', extend: shift }
   if (name === 'left' || name === 'right')

@@ -134,6 +134,7 @@ import {
   type Span,
   sequenceFor,
   spanOf,
+  textOf,
   withSelection,
 } from './input.ts'
 import { appKey, checkTalkKey, keyCaps, normalKey } from './keys.ts'
@@ -240,6 +241,7 @@ import {
   type FilePanel,
   fileMenuItems,
   filePanel,
+  fileSelection,
   findPanel,
   harnessMenuItems,
   imageMenuItems,
@@ -375,6 +377,12 @@ const HELD_LINES = 200
 
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
+/**
+ * How often a drag held off the end of a file scrolls it. A hand held still
+ * reports nothing, so this is the only clock in a selection — fast enough to
+ * read as scrolling, slow enough that a whole file does not go past under it.
+ */
+const EDGE_MS = 80
 /** How much of what you said up and ctrl+r reach back through. */
 const HISTORY_MAX = 1_000
 /**
@@ -449,6 +457,27 @@ export type PointerEvent =
    * covers is copied, as a drag anywhere else on the window is.
    */
   | { kind: 'selected' }
+  /**
+   * Selecting text in the file you have open: pressed on one of its lines, at
+   * a cell of the text. `how` is what the press meant — putting the caret
+   * down, reaching there from where it already was, dragging on from it, or
+   * the second and third press, which take the word and the line.
+   */
+  | {
+      kind: 'select-file'
+      line: number
+      cell: number
+      how: 'put' | 'extend' | 'drag' | 'word' | 'line'
+    }
+  /**
+   * A drag that has left the top or the bottom of the file, by this many rows
+   * — negative is above it. The file scrolls under the selection and the
+   * selection goes on reaching, which is the only way to select past what is
+   * on screen with a mouse.
+   */
+  | { kind: 'drag-file'; rows: number; cell: number }
+  /** A drag that was selecting in the file has been let go: what it covers is copied. */
+  | { kind: 'selected-file' }
   /**
    * The wheel over somewhere that scrolls, and how far that somewhere goes —
    * down its side and along its bottom — read off the bars the last frame
@@ -555,12 +584,29 @@ class Window implements Component {
    * the terminal cannot select for itself: dragging anywhere that is not a
    * control selects here instead, and letting go copies it.
    */
-  private selection: { from: Cell; to: Cell; moved: boolean } | null = null
+  private selection: {
+    from: Cell
+    to: Cell
+    moved: boolean
+    /**
+     * The columns of the region it was started in, which it never reaches
+     * out of. The window is columns side by side rather than one flow of
+     * text, so a selection that took whole rows between its two ends took
+     * the sidebar with it: dragging over an agent came back with the queue
+     * and the agents beside it.
+     */
+    within: { from: number; to: number } | null
+  } | null = null
   /**
    * A press on the line you type on: every drag until it is let go is
    * selecting text in it, not dragging a selection across the window.
    */
   private selectingInput: { dragged: boolean } | null = null
+  /**
+   * The same for the file you have open: a press in its text selects in it,
+   * by the lines of the file rather than by the rows of the window.
+   */
+  private selectingFile: { dragged: boolean } | null = null
 
   constructor(
     frame: Window['frame'],
@@ -580,7 +626,9 @@ class Window implements Component {
     this.hits = drawn.hits
     this.rows = drawn.rows
     const chosen = this.selection?.moved ? ordered(this.selection) : null
-    return chosen ? highlighted(drawn.rows, chosen, width) : drawn.rows
+    return chosen
+      ? highlighted(drawn.rows, chosen, width, this.selection?.within ?? null)
+      : drawn.rows
   }
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -622,12 +670,29 @@ class Window implements Component {
             }),
           }
         }
+        // Dragging in the file takes its selection with it, by the lines of
+        // the file rather than the rows of the window — and off the top or
+        // the bottom of it scrolls the file under the selection, because
+        // that is the only way to reach past what is on screen with a mouse.
+        if (event.type === 'drag' && this.selectingFile) {
+          this.selectingFile = { dragged: true }
+          const where = draggedInFile(this.hits, event.x, event.y)
+          if (!where) return { handled: true, render: false }
+          return {
+            handled: true,
+            render: this.onPointer(
+              'line' in where
+                ? { kind: 'select-file', line: where.line, cell: where.cell, how: 'drag' }
+                : { kind: 'drag-file', rows: where.rows, cell: where.cell },
+            ),
+          }
+        }
         if (event.type === 'drag' && this.selection) {
           this.selection = { ...this.selection, to: { x: event.x, y: event.y }, moved: true }
           return { handled: true, render: true }
         }
         return { handled: true, render: this.onPointer({ kind: 'move', target }) }
-      case 'press':
+      case 'press': {
         // A divider taken hold of keeps every movement until it is let go.
         if (event.button === 'left' && target?.kind === 'divider') {
           this.dragging = true
@@ -670,6 +735,7 @@ class Window implements Component {
         if (target?.kind === 'input') {
           this.held = null
           this.selection = null
+          this.selectingFile = null
           this.selectingInput = { dragged: false }
           return {
             handled: true,
@@ -682,24 +748,56 @@ class Window implements Component {
             }),
           }
         }
+        // A file you have open takes its own selection too, in its own lines.
+        if (target?.kind === 'caret') {
+          this.held = null
+          this.selection = null
+          this.selectingFile = { dragged: false }
+          return {
+            handled: true,
+            render: this.onPointer({
+              kind: 'select-file',
+              line: target.line,
+              cell,
+              how: event.shift ? 'extend' : 'put',
+            }),
+          }
+        }
+        this.selectingFile = null
         // An agent pressed may be about to be dragged somewhere else in the list.
         this.held = target?.kind === 'task' ? heldAgent(this.hits, target.task, event.y) : null
-        // Anywhere that is not a control is text you might select.
+        // Anywhere that is not a control is text you might select — and only
+        // ever within the one region it was started in.
+        const area = scrollAt(this.hits, event.x, event.y)
+        const across = area ? extentOf(this.hits, { kind: 'scroll', area }, true) : null
         this.selection = pressable(target)
           ? null
-          : { from: { x: event.x, y: event.y }, to: { x: event.x, y: event.y }, moved: false }
+          : {
+              from: { x: event.x, y: event.y },
+              to: { x: event.x, y: event.y },
+              moved: false,
+              within:
+                across && across.rows > 0
+                  ? { from: across.top, to: across.top + across.rows - 1 }
+                  : null,
+            }
         return {
           handled: target !== null || this.selection !== null,
           render: this.onPointer({ kind: 'press', target }) || true,
         }
+      }
       case 'release': {
         this.dragging = false
         this.held = null
         if (this.selectingInput?.dragged) this.onPointer({ kind: 'selected' })
         this.selectingInput = null
+        // Only a drag copies, as on the line you type on: a shift+click and a
+        // double click select, and leave the clipboard alone.
+        if (this.selectingFile?.dragged) this.onPointer({ kind: 'selected-file' })
+        this.selectingFile = null
         const chosen = this.selection?.moved ? ordered(this.selection) : null
         if (chosen) {
-          const text = selectedText(this.rows, chosen)
+          const text = selectedText(this.rows, chosen, this.selection?.within ?? null)
           if (text.trim() !== '') this.onCopy(text)
         }
         // Kept lit until the next press, so you can see what was copied.
@@ -991,6 +1089,8 @@ export class App {
   /** A command voice typed into a terminal, waiting for enter or "confirm". */
   private typed: { id: string; name: string; command: string } | null = null
   private soon: NodeJS.Timeout | null = null
+  /** A drag held off the top or bottom of the file: it goes on scrolling until it is let go. */
+  private draggingFile: NodeJS.Timeout | null = null
   private screen = ''
   private recording: Recording | null = null
   /** The diff the diff panel is showing, once git has answered. */
@@ -1245,6 +1345,7 @@ export class App {
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
     if (this.soon) clearTimeout(this.soon)
+    this.stopDraggingFile()
     for (const watched of this.watching.values()) watched.stop()
     this.remember()
     this.release?.()
@@ -1769,6 +1870,7 @@ export class App {
         this.state = dragAgent(this.state, event.task, event.to)
         return true
       case 'release':
+        this.stopDraggingFile()
         if (this.state.scrolling) {
           this.state = { ...this.state, scrolling: null, pressed: null }
           return true
@@ -1806,7 +1908,78 @@ export class App {
           void this.copySelection(this.editor.getText().slice(selected.from, selected.to))
         return false
       }
+      case 'select-file':
+        this.stopDraggingFile()
+        this.selectInFile(event.line, event.cell, event.how)
+        return true
+      case 'drag-file':
+        this.dragFileOn(event.rows, event.cell)
+        return true
+      case 'selected-file': {
+        this.stopDraggingFile()
+        const text = this.fileSelectionText()
+        if (text !== null && text.trim() !== '') void this.copySelection(text)
+        return false
+      }
     }
+  }
+
+  /**
+   * The caret put where the pointer is in the file, with whatever the press
+   * meant for the selection behind it. It goes through the panel, like every
+   * other click on it: what a press means to a file is the panel model's, and
+   * what is selected lives there beside the caret.
+   */
+  private selectInFile(line: number, cell: number, how: string): void {
+    const panel = this.state.panel
+    if (panel?.kind !== 'file') return
+    this.applyPanel(panelClick(panel, `caret:${line}:${cell}:${how}`, this.panelInputs()))
+  }
+
+  /**
+   * A drag held off the top or the bottom of the file: it scrolls under the
+   * selection, as far past the edge as the pointer is and on until it is let
+   * go — the pointer sitting still off the end still reports nothing, and a
+   * selection that stopped there could never reach past one screen.
+   */
+  private dragFileOn(rows: number, cell: number): void {
+    this.stopDraggingFile()
+    this.draggingFile = setInterval(() => this.dragFile(rows, cell), EDGE_MS)
+    this.draggingFile.unref?.()
+    // After the timer, so the first step can stop it where there is nothing
+    // left to scroll.
+    this.dragFile(rows, cell)
+  }
+
+  private stopDraggingFile(): void {
+    if (this.draggingFile) clearInterval(this.draggingFile)
+    this.draggingFile = null
+  }
+
+  /** One step of that: the file scrolled, and the selection reaching the new edge. */
+  private dragFile(rows: number, cell: number): void {
+    const panel = this.state.panel
+    if (this.stopped || panel?.kind !== 'file' || !panel.edit) {
+      this.stopDraggingFile()
+      return
+    }
+    const scrolled = scrollFile(panel, rows, this.fileLines())
+    const body = this.fileBody(panel).rows
+    const line =
+      rows < 0 ? scrolled.scroll : Math.min(scrolled.scroll + body - 1, panel.edit.lines.length - 1)
+    this.applyPanel(panelClick(scrolled, `caret:${line}:${cell}:drag`, this.panelInputs()))
+    // The end of the file: the selection has reached as far as it goes, and a
+    // timer that redraws the same screen twelve times a second for the rest
+    // of the drag is a window working for nothing.
+    if (scrolled.scroll === panel.scroll) this.stopDraggingFile()
+  }
+
+  /** What is selected in the file, as its text, or nothing when nothing is. */
+  private fileSelectionText(): string | null {
+    const panel = this.state.panel
+    if (panel?.kind !== 'file' || !panel.edit) return null
+    const selected = fileSelection(panel)
+    return selected ? textOf(panel.edit.lines, selected) : null
   }
 
   /** Sizes from the config. The terminal has the last word on all of them. */
@@ -2138,7 +2311,7 @@ export class App {
     at: { x: number; y: number; cell?: number; clicks?: number } = { x: 0, y: 0 },
   ): void {
     if (this.state.panel) {
-      this.clickPanel(target, at.cell ?? 0)
+      this.clickPanel(target, at.cell ?? 0, at.clicks ?? 1)
       return
     }
     // The path under GIT opens its folder; right-clicked, it is copied.
@@ -2816,15 +2989,17 @@ export class App {
     this.draw()
   }
 
-  private clickPanel(target: Target, cell = 0): void {
+  private clickPanel(target: Target, cell = 0, clicks = 1): void {
     const panel = this.state.panel
     if (!panel) return
     if (target.kind === 'caret') {
-      // A click in the file puts the caret in it. The line is the hit's; which
-      // character of it is how far along the hit the click landed, which the
-      // panel turns into a column — it knows about tabs and about how far the
-      // body has slid to keep the caret on screen.
-      this.applyPanel(panelClick(panel, `caret:${target.line}:${cell}`, this.panelInputs()))
+      // The press already put the caret in the file — which line is the hit's,
+      // and which character of it is how far along the hit the click landed,
+      // which the panel turns into a column: it knows about tabs and about how
+      // far the body has slid to keep the caret on screen. What a click adds
+      // is the second and third press, which take the word and the line; a
+      // first press read again here would undo a shift+click behind it.
+      if (clicks >= 2) this.selectInFile(target.line, cell, clicks >= 3 ? 'line' : 'word')
       return
     }
     if (target.kind === 'dismiss') {
@@ -2914,6 +3089,11 @@ export class App {
         }
         if (choice === 'save') {
           await this.saveFile(panel)
+          return
+        }
+        if (choice === 'copy-selection') {
+          const text = this.fileSelectionText()
+          if (text !== null && text !== '') await this.copySelection(text)
           return
         }
         if (choice === 'copy-path') {
@@ -4560,6 +4740,13 @@ export class App {
     if (this.anchor === null) this.anchor = this.caretOffset()
     if (what.by === 'row') {
       this.moveCaretTo(this.rowStep(what.back, text))
+      return true
+    }
+    // A page is more than this line has, however many rows it wraps to: it
+    // reaches the end it was sent towards, which is what a text box shorter
+    // than a page does.
+    if (what.by === 'page') {
+      this.moveCaretTo(what.back ? 0 : text.length)
       return true
     }
     const key =
@@ -8039,13 +8226,82 @@ export function ordered(selection: { from: Cell; to: Cell }): { from: Cell; to: 
     : { from: to, to: from }
 }
 
+/**
+ * What a drag means to the selection in the file you have open: which of its
+ * lines the pointer is on, or how far past the top or the bottom of it the
+ * drag has gone — which scrolls the file under the selection, because it is
+ * the only way to reach past one screen of it with a mouse.
+ *
+ * Read back out of the map, because only the map knows where the panel ended
+ * up: the rows the file's own text was drawn on are exactly the rows a caret
+ * can be put in, and where they stop is where the file stops. Off to the side
+ * of them — over the line numbers, over the bar — is still a line of the
+ * file, taken at the near end of it rather than as leaving it.
+ */
+export function draggedInFile(
+  hits: readonly Hit[],
+  x: number,
+  y: number,
+): { line: number; cell: number } | { rows: number; cell: number } | null {
+  let top = Number.POSITIVE_INFINITY
+  let bottom = -1
+  let from = 0
+  let to = 0
+  let here: number | null = null
+  for (const hit of hits) {
+    if (hit.target.kind !== 'caret') continue
+    top = Math.min(top, hit.row)
+    bottom = Math.max(bottom, hit.row)
+    from = hit.from
+    to = hit.to
+    if (hit.row === y) here = hit.target.line
+  }
+  if (bottom < 0) return null
+  const cell = Math.max(0, Math.min(x - from, to - from))
+  if (here !== null) return { line: here, cell }
+  return { rows: y < top ? y - top : y - bottom, cell }
+}
+
+/**
+ * The columns a selection may reach: the region it was started in, or the
+ * whole row where it was started on nothing in particular.
+ *
+ * The window is regions side by side, not one flow of text. A selection that
+ * took whole rows between its two ends took whatever else was drawn on them
+ * with it — dragging over an agent's screen came back with the sidebar's
+ * queue and its agents down the left of every line but the first and the
+ * last. So a selection is bounded to where it began, in columns.
+ */
+export interface Within {
+  from: number
+  to: number
+}
+
+/** The first and the last column of a row a selection takes, in reading order. */
+function columnsOn(
+  chosen: { from: Cell; to: Cell },
+  y: number,
+  width: number,
+  within: Within | null,
+): { start: number; end: number } {
+  const start = Math.max(within?.from ?? 0, y === chosen.from.y ? chosen.from.x : 0)
+  const end = Math.min(
+    within ? within.to + 1 : Number.POSITIVE_INFINITY,
+    y === chosen.to.y ? chosen.to.x + 1 : width,
+  )
+  return { start, end: Math.max(start, end) }
+}
+
 /** The text a selection covers, one line per row, without the spaces that pad a row out. */
-export function selectedText(rows: readonly string[], chosen: { from: Cell; to: Cell }): string {
+export function selectedText(
+  rows: readonly string[],
+  chosen: { from: Cell; to: Cell },
+  within: Within | null = null,
+): string {
   const lines: string[] = []
   for (let y = chosen.from.y; y <= chosen.to.y; y++) {
     const plain = stripTerminalSequences(rows[y] ?? '')
-    const start = y === chosen.from.y ? chosen.from.x : 0
-    const end = y === chosen.to.y ? chosen.to.x + 1 : visibleWidth(plain)
+    const { start, end } = columnsOn(chosen, y, visibleWidth(plain), within)
     lines.push(sliceByColumn(plain, start, Math.max(0, end - start)).trimEnd())
   }
   return lines.join('\n')
@@ -8056,11 +8312,11 @@ export function highlighted(
   rows: readonly string[],
   chosen: { from: Cell; to: Cell },
   width: number,
+  within: Within | null = null,
 ): string[] {
   return rows.map((row, y) => {
     if (y < chosen.from.y || y > chosen.to.y) return row
-    const start = y === chosen.from.y ? chosen.from.x : 0
-    const end = y === chosen.to.y ? chosen.to.x + 1 : width
+    const { start, end } = columnsOn(chosen, y, width, within)
     const plain = stripTerminalSequences(row)
     const lit = sliceByColumn(plain, start, Math.max(0, end - start))
     return `${sliceByColumn(row, 0, start)}\x1b[0m\x1b[7m${lit}\x1b[0m${sliceByColumn(row, end, Math.max(0, width - end))}`

@@ -1,6 +1,7 @@
 import { closeSync, openSync, readSync, statSync, writeFileSync } from 'node:fs'
 import { Markdown, type MarkdownTheme, visibleWidth } from '@earendil-works/pi-tui'
 import { highlight, languageOf } from './highlight.ts'
+import { placeOf, type Span, wordStep } from './input.ts'
 
 // A file, read to be looked at inside the window — and typed into, a little.
 //
@@ -385,6 +386,11 @@ export function typeIn(edit: Edited, text: string): Edited {
 /**
  * A key that moves the caret or changes the text, or null where it is not one
  * of those — so the panel can go on to read it as one of its own.
+ *
+ * The two a shell binds — ctrl+a and ctrl+e — are not here: what a key means
+ * to text with a selection in it is `lineKey`'s to say, one answer for both
+ * editors, and it reads ctrl+a as selecting everything the way every other
+ * text box does. Home and End are still the start and the end of the line.
  */
 export function editKey(edit: Edited, key: string | undefined, page = 20): Edited | null {
   const line = edit.lines[edit.row] ?? ''
@@ -410,11 +416,21 @@ export function editKey(edit: Edited, key: string | undefined, page = 20): Edite
       return caretAt(edit, edit.row - page, edit.column)
     case 'pageDown':
       return caretAt(edit, edit.row + page, edit.column)
+    case 'ctrl+left':
+    case 'alt+left': {
+      // Over a word of this line, and off the front of it the way left is
+      // when there is no word left to cross.
+      const to = wordStep(line, edit.column, true)
+      return to === edit.column ? editKey(edit, 'left', page) : caretAt(edit, edit.row, to)
+    }
+    case 'ctrl+right':
+    case 'alt+right': {
+      const to = wordStep(line, edit.column, false)
+      return to === edit.column ? editKey(edit, 'right', page) : caretAt(edit, edit.row, to)
+    }
     case 'home':
-    case 'ctrl+a':
       return caretAt(edit, edit.row, 0)
     case 'end':
-    case 'ctrl+e':
       return caretAt(edit, edit.row, line.length)
     case 'enter':
       return splitLine(edit)
@@ -430,6 +446,40 @@ export function editKey(edit: Edited, key: string | undefined, page = 20): Edite
     default:
       return null
   }
+}
+
+/**
+ * A span taken out, leaving the caret where it began — the editor's own
+ * backspace, held down over a selection rather than over a character.
+ *
+ * It is here, beside `back` and `joinUp`, and not written as those presses
+ * repeated, because the presses are quadratic: every one of them copies the
+ * file's lines, so taking out four thousand lines was six hundred
+ * milliseconds and taking out a megabyte was a window that stopped answering.
+ * What it does instead is exactly what they do — the head of the first line,
+ * the tail of the last, everything between them gone, the caret at the seam,
+ * and every line it touched no longer coming from the file — and a test holds
+ * it to pressing them, case for case, so the two can never say different
+ * things about what one press takes.
+ */
+export function cutSelection(edit: Edited, span: Span): Edited {
+  if (span.to <= span.from) return edit
+  const from = placeOf(edit.lines, span.from)
+  const to = placeOf(edit.lines, span.to)
+  const head = (edit.lines[from.line] ?? '').slice(0, from.col)
+  const tail = (edit.lines[to.line] ?? '').slice(to.col)
+  const lines = [...edit.lines]
+  const came = [...edit.from]
+  lines.splice(from.line, to.line - from.line + 1, head + tail)
+  came.splice(from.line, to.line - from.line + 1, -1)
+  return clamp({
+    ...edit,
+    lines,
+    from: came,
+    row: from.line,
+    column: from.col,
+    dirty: true,
+  })
 }
 
 /** What the file would hold, saved: its own line ending, and its own last line. */

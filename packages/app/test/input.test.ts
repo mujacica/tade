@@ -8,18 +8,22 @@ import {
   lineAt,
   lineKey,
   offsetOf,
+  onLine,
   placeOf,
   putCaret,
   rowStarts,
   spanOf,
+  textOf,
   withSelection,
   wordAt,
+  wordStep,
 } from '../src/input.ts'
 import { COLOUR, PLAIN } from '../src/skin.ts'
 
-// Selecting text in the line you type on. All of it is arithmetic over a
-// string: what a second click takes, what a key does to what is selected,
-// and which cells of a drawn row it covers. None of it needs a terminal.
+// Selecting text, in the line you type on and in the file you have open. All
+// of it is arithmetic over a string: what a second click takes, what a key
+// does to what is selected, which lines of the file it runs through and which
+// cells of a drawn row it covers. None of it needs a terminal.
 
 describe('a selection', () => {
   it('reads the same whichever way it was made, and is nothing when it covers nothing', () => {
@@ -90,6 +94,68 @@ describe('what a click takes', () => {
   })
 })
 
+describe('a word-wise move', () => {
+  const text = 'why is refunds slow'
+
+  it('crosses the word it is in, and the spaces before the next one', () => {
+    expect(wordStep(text, 0, false)).toBe(3)
+    expect(wordStep(text, 3, false)).toBe(6)
+    expect(wordStep(text, 19, true)).toBe(15)
+    expect(wordStep(text, 15, true)).toBe(7)
+  })
+
+  it('takes punctuation as its own run, as a double click does', () => {
+    expect(wordStep('tade_status(...)', 0, false)).toBe(11)
+    expect(wordStep('tade_status(...)', 11, false)).toBe(16)
+  })
+
+  it('stays where it is when there is nowhere on this line to go', () => {
+    expect(wordStep(text, 0, true)).toBe(0)
+    expect(wordStep(text, text.length, false)).toBe(text.length)
+    expect(wordStep('   ', 3, true)).toBe(0)
+  })
+})
+
+describe('the lines a selection runs through', () => {
+  const lines = ['const a = 1', 'const b = 2', '', 'done()']
+  const places = (span: { from: number; to: number }) => ({
+    from: placeOf(lines, span.from),
+    to: placeOf(lines, span.to),
+  })
+
+  it('takes part of the one line it is on, and nothing of the others', () => {
+    const on = places({ from: 6, to: 7 })
+    expect(onLine(on, 0, lines[0]?.length ?? 0)).toEqual({ from: 6, to: 7, eol: false })
+    expect(onLine(on, 1, lines[1]?.length ?? 0)).toBeNull()
+  })
+
+  it('takes the rest of the first line, all of the middle, and the front of the last', () => {
+    const on = places({ from: 6, to: 11 + 1 + 11 + 1 + 0 + 1 + 4 })
+    expect(onLine(on, 0, 11)).toEqual({ from: 6, to: 11, eol: true })
+    expect(onLine(on, 1, 11)).toEqual({ from: 0, to: 11, eol: true })
+    expect(onLine(on, 3, 6)).toEqual({ from: 0, to: 4, eol: false })
+  })
+
+  it('takes the break at the end of an empty line inside it, so it is not a hole', () => {
+    const on = places({ from: 6, to: 30 })
+    expect(onLine(on, 2, 0)).toEqual({ from: 0, to: 0, eol: true })
+  })
+
+  it('reads the same whichever way it was made', () => {
+    const up = places(spanOf({ anchor: 30, head: 6 }) as never)
+    const down = places(spanOf({ anchor: 6, head: 30 }) as never)
+    expect(up).toEqual(down)
+  })
+
+  it('is the text of the lines it runs through, break and all', () => {
+    expect(textOf(lines, { from: 6, to: 7 })).toBe('a')
+    // Line 3 starts at 25, so this reaches its very front: the empty line
+    // between them is a break of its own, and it is in the text.
+    expect(textOf(lines, { from: 6, to: 25 })).toBe('a = 1\nconst b = 2\n\n')
+    expect(textOf(lines, { from: 0, to: lines.join('\n').length })).toBe(lines.join('\n'))
+  })
+})
+
 describe('what a key means to the line', () => {
   it('selects everything with ctrl+a and cmd+a', () => {
     expect(lineKey('ctrl+a')).toEqual({ do: 'select all' })
@@ -114,6 +180,21 @@ describe('what a key means to the line', () => {
     })
     expect(lineKey('shift+home')).toEqual({ do: 'move', by: 'line', back: true, extend: true })
     expect(lineKey('shift+up')).toEqual({ do: 'move', by: 'row', back: true, extend: true })
+  })
+
+  it('names a page, however the terminal cased it', () => {
+    expect(lineKey('pageUp')).toEqual({ do: 'move', by: 'page', back: true, extend: false })
+    expect(lineKey('shift+pagedown')).toEqual({
+      do: 'move',
+      by: 'page',
+      back: false,
+      extend: true,
+    })
+  })
+
+  it('names the end of the line a shell binds, and leaves its start to Home', () => {
+    expect(lineKey('ctrl+e')).toEqual({ do: 'move', by: 'line', back: false, extend: false })
+    expect(lineKey('shift+ctrl+e')).toEqual({ do: 'move', by: 'line', back: false, extend: true })
   })
 
   it('leaves everything else to the editor', () => {

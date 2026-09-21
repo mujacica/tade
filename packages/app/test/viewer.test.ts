@@ -3,9 +3,13 @@ import { join } from 'node:path'
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
+import { offsetOf, placeOf } from '../src/input.ts'
 import {
+  caretAt,
   cellOf,
   columnOf,
+  cutSelection,
+  type Edited,
   editable,
   editedText,
   editFrom,
@@ -167,9 +171,107 @@ describe('typing into a file', () => {
     )
   })
 
-  it('leaves keys it does not know to the panel', () => {
+  it('crosses a word with ctrl and alt, and the line break when there is none left', () => {
+    const words = ['const total = 1', 'done()']
+    expect(editKey(editFrom(words, 0, 0), 'ctrl+right')).toMatchObject({ row: 0, column: 5 })
+    expect(editKey(editFrom(words, 0, 5), 'alt+right')).toMatchObject({ row: 0, column: 11 })
+    expect(editKey(editFrom(words, 0, 11), 'ctrl+left')).toMatchObject({ row: 0, column: 6 })
+    // Nothing left to cross on this line, so it goes off the end of it as
+    // the plain arrow does.
+    expect(editKey(editFrom(words, 0, 0), 'ctrl+left')).toMatchObject({ row: 0, column: 0 })
+    expect(editKey(editFrom(words, 1, 0), 'ctrl+left')).toMatchObject({ row: 0, column: 15 })
+    expect(editKey(editFrom(words, 0, 15), 'ctrl+right')).toMatchObject({ row: 1, column: 0 })
+  })
+
+  it('leaves keys it does not know to the panel, ctrl+a included', () => {
     expect(editKey(editFrom(lines), 'ctrl+s')).toBeNull()
     expect(editKey(editFrom(lines), 'escape')).toBeNull()
+    // What a key means to text with a selection in it is `lineKey`'s to say,
+    // and it reads ctrl+a as selecting everything. Home is the start of the line.
+    expect(editKey(editFrom(lines, 1, 4), 'ctrl+a')).toBeNull()
+    expect(editKey(editFrom(lines, 1, 4), 'home')).toMatchObject({ row: 1, column: 0 })
+  })
+
+  describe('a selection taken out of it', () => {
+    // What it must agree with: the caret at the far end of the span, and the
+    // editor's own backspace pressed until it reaches the near one. That is
+    // what a person does by hand, and it is the whole definition of what one
+    // press takes — `cutSelection` only has to be faster, never different.
+    const pressed = (edit: Edited, span: { from: number; to: number }) => {
+      const end = placeOf(edit.lines, span.to)
+      let out = caretAt(edit, end.line, end.col)
+      for (let guard = span.to - span.from; guard > 0; guard--) {
+        if (offsetOf(out.lines, { line: out.row, col: out.column }) <= span.from) break
+        const back = editKey(out, 'backspace')
+        if (!back || back === out) break
+        out = back
+      }
+      return out
+    }
+
+    it('says exactly what holding backspace over it says', () => {
+      const file = ['function one() {', '', '\treturn 1', '', '}', 'const after = 2']
+      const whole = file.join('\n').length
+      for (const span of [
+        { from: 0, to: 0 },
+        { from: 3, to: 8 },
+        { from: 9, to: 20 },
+        { from: 0, to: 17 },
+        { from: 16, to: 30 },
+        { from: 2, to: whole },
+        { from: 0, to: whole },
+      ]) {
+        const edit = editFrom(file, 0, 0)
+        const cut = cutSelection(edit, span)
+        const byHand = pressed(edit, span)
+        expect({ lines: cut.lines, row: cut.row, column: cut.column, from: cut.from }).toEqual({
+          lines: byHand.lines,
+          row: byHand.row,
+          column: byHand.column,
+          from: byHand.from,
+        })
+      }
+    })
+
+    it('leaves the text either side of it, and the caret where it began', () => {
+      const cut = cutSelection(editFrom(['const total = 1'], 0, 0), { from: 6, to: 12 })
+      expect(cut.lines).toEqual(['const = 1'])
+      expect([cut.row, cut.column]).toEqual([0, 6])
+      expect(cut.dirty).toBe(true)
+    })
+
+    it('takes the line breaks inside it, joining what is left', () => {
+      const many = ['first line', 'second line', 'third line']
+      // From the middle of the first to the middle of the last.
+      const cut = cutSelection(editFrom(many, 0, 0), { from: 6, to: 6 + 4 + 1 + 11 + 1 + 6 })
+      expect(cut.lines).toEqual(['first line'])
+      expect([cut.row, cut.column]).toEqual([0, 6])
+    })
+
+    it('empties the file when everything is selected', () => {
+      const many = ['first line', 'second line']
+      const cut = cutSelection(editFrom(many, 1, 0), { from: 0, to: many.join('\n').length })
+      expect(cut.lines).toEqual([''])
+      expect([cut.row, cut.column]).toEqual([0, 0])
+    })
+
+    it('costs what one press costs, however much of the file it takes', () => {
+      // The presses it agrees with are quadratic — each copies the file's
+      // lines — so a big selection is where the two part company, and where
+      // typing over one used to stop the window for a second.
+      const big = Array.from({ length: 4_000 }, (_, i) => `  const value${i} = compute(${i})`)
+      const edit = editFrom(big, 0, 0)
+      const started = performance.now()
+      const cut = cutSelection(edit, { from: 0, to: big.join('\n').length })
+      expect(performance.now() - started).toBeLessThan(20)
+      expect(cut.lines).toEqual([''])
+    })
+
+    it('takes nothing it was not asked for, whatever is in the text', () => {
+      const emoji = ['a 👍🏽 b']
+      const cut = cutSelection(editFrom(emoji, 0, 0), { from: 2, to: 2 + '👍🏽'.length })
+      expect(cut.lines).toEqual(['a  b'])
+    })
   })
 
   it('counts cells rather than characters, for the tabs and the wide ones', () => {

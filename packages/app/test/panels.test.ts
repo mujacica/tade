@@ -1,5 +1,6 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
+import { textOf } from '../src/input.ts'
 import {
   accountActions,
   accountMenuItems,
@@ -19,6 +20,7 @@ import {
   type FilePanel,
   fileMenuItems,
   filePanel,
+  fileSelection,
   findPanel,
   HARNESS,
   harnessMenuItems,
@@ -454,6 +456,20 @@ describe('typing into a file', () => {
     expect(panel.scroll).toBe(4)
   })
 
+  it('is copied only where there is something to copy', () => {
+    const put = clicked(filePanel('/r/a.ts'), 0, 0)
+    expect(panelKey(put, 'ctrl+shift+c', '', inputs)).toMatchObject({ submit: false })
+    const some = panelKey(put, 'shift+right', '', inputs).panel as FilePanel
+    // However the terminal ordered the modifiers: the ones that speak the
+    // Kitty protocol report this one as `shift+ctrl+c`.
+    for (const key of ['ctrl+shift+c', 'shift+ctrl+c', 'super+c']) {
+      expect(panelKey(some, key, '', inputs)).toMatchObject({
+        submit: true,
+        choice: 'copy-selection',
+      })
+    }
+  })
+
   it('saved, comes from the file again', () => {
     const typed = panelKey(clicked(filePanel('/r/a.ts'), 0, 5), undefined, '!', inputs)
       .panel as FilePanel
@@ -461,6 +477,119 @@ describe('typing into a file', () => {
     expect(saved.edit).toMatchObject({ dirty: false, row: 0, column: 6 })
     expect(saved.edit?.from).toEqual([0, 1, 2])
     expect(saved.said).toBe('Saved a.ts.')
+  })
+})
+
+describe('selecting in a file', () => {
+  const text = ['const a = 1', 'const b = 2', '', 'done()']
+  const inputs = { text, lines: text.length, body: 4, columns: 60 }
+  const at = (panel: Panel, line: number, cell: number, how = 'put') =>
+    panelClick(panel, `caret:${line}:${cell}:${how}`, inputs).panel as FilePanel
+  const press = (panel: Panel, key: string) => panelKey(panel, key, '', inputs).panel as FilePanel
+  const chosen = (panel: FilePanel) => {
+    const span = fileSelection(panel)
+    return span ? textOf(panel.edit?.lines ?? [], span) : null
+  }
+
+  it('reaches further with shift and an arrow, over as many lines as it is held for', () => {
+    let panel = at(filePanel('/r/a.ts'), 0, 6)
+    expect(chosen(panel)).toBeNull()
+    panel = press(panel, 'shift+down')
+    expect(chosen(panel)).toBe('a = 1\nconst ')
+    panel = press(panel, 'shift+down')
+    expect(chosen(panel)).toBe('a = 1\nconst b = 2\n')
+    panel = press(panel, 'shift+end')
+    expect(chosen(panel)).toBe('a = 1\nconst b = 2\n')
+    expect(panel.edit).toMatchObject({ row: 2, column: 0 })
+  })
+
+  it('reads the same when it ends above where it began', () => {
+    const down = press(at(filePanel('/r/a.ts'), 0, 6), 'shift+down')
+    const up = press(at(filePanel('/r/a.ts'), 1, 6), 'shift+up')
+    expect(chosen(up)).toBe('a = 1\nconst ')
+    expect(chosen(up)).toBe(chosen(down))
+    // The caret is at the end it was sent towards, either way.
+    expect(up.edit).toMatchObject({ row: 0, column: 6 })
+    expect(down.edit).toMatchObject({ row: 1, column: 6 })
+  })
+
+  it('crosses a word with shift and ctrl, and a page with shift and a page key', () => {
+    const word = press(at(filePanel('/r/a.ts'), 0, 0), 'shift+ctrl+right')
+    expect(chosen(word)).toBe('const')
+    const page = press(at(filePanel('/r/a.ts'), 0, 0), 'shift+pageDown')
+    expect(page.edit?.row).toBe(3)
+    expect(chosen(page)).toBe('const a = 1\nconst b = 2\n\n')
+  })
+
+  it('takes everything on ctrl+a, and lets go on a move without shift', () => {
+    const all = press(at(filePanel('/r/a.ts'), 0, 0), 'ctrl+a')
+    expect(chosen(all)).toBe(text.join('\n'))
+    // Plain left collapses to the near end of it rather than stepping on.
+    const near = press(all, 'left')
+    expect(chosen(near)).toBeNull()
+    expect(near.edit).toMatchObject({ row: 0, column: 0 })
+    expect(chosen(press(press(all, 'shift+left'), 'down'))).toBeNull()
+  })
+
+  it('is what a second and a third press take, and shift reaches on from it', () => {
+    const word = at(filePanel('/r/a.ts'), 0, 6, 'word')
+    expect(chosen(word)).toBe('a')
+    const line = at(filePanel('/r/a.ts'), 1, 3, 'line')
+    expect(chosen(line)).toBe('const b = 2')
+    // Shift after a double click reaches on from where the word started.
+    const on = press(press(word, 'shift+down'), 'shift+end')
+    expect(chosen(on)).toBe('a = 1\nconst b = 2')
+  })
+
+  it('is dragged over the lines the pointer crossed, and shift+click reaches there', () => {
+    let panel = at(filePanel('/r/a.ts'), 0, 6)
+    panel = at(panel, 1, 5, 'drag')
+    expect(chosen(panel)).toBe('a = 1\nconst')
+    panel = at(panel, 3, 4, 'drag')
+    expect(chosen(panel)).toBe('a = 1\nconst b = 2\n\ndone')
+    // Back above where it started: the same two ends, the other way round.
+    panel = at(panel, 0, 0, 'drag')
+    expect(chosen(panel)).toBe('const ')
+    expect(chosen(at(at(filePanel('/r/a.ts'), 0, 6), 3, 4, 'extend'))).toBe(
+      'a = 1\nconst b = 2\n\ndone',
+    )
+  })
+
+  it('is what typing replaces, and what backspace and delete take', () => {
+    const start = at(at(filePanel('/r/a.ts'), 0, 6), 1, 5, 'drag')
+    const typed = panelKey(start, undefined, 'X', inputs).panel as FilePanel
+    expect(typed.edit?.lines).toEqual(['const X b = 2', '', 'done()'])
+    expect(typed.anchor).toBeNull()
+    for (const key of ['backspace', 'delete']) {
+      const gone = press(start, key)
+      expect(gone.edit?.lines).toEqual(['const  b = 2', '', 'done()'])
+      expect(gone.edit).toMatchObject({ row: 0, column: 6 })
+      expect(gone.anchor).toBeNull()
+    }
+    // A paste replaces it the same way, lines and all.
+    const pasted = panelKey(start, undefined, '\x1b[200~one\ntwo\x1b[201~', inputs)
+      .panel as FilePanel
+    expect(pasted.edit?.lines).toEqual(['const one', 'two b = 2', '', 'done()'])
+  })
+
+  it('is let go of when the caret is sent somewhere else', () => {
+    const some = press(at(filePanel('/r/a.ts'), 0, 6), 'shift+down')
+    expect(chosen(some)).not.toBeNull()
+    let bar = panelKey(some, 'ctrl+g', '\x07', inputs).panel as Panel
+    bar = panelKey(bar, '4', '4', inputs).panel as Panel
+    const went = panelKey(bar, 'enter', '\r', inputs).panel as FilePanel
+    expect(went.edit).toMatchObject({ row: 3, column: 0 })
+    expect(chosen(went)).toBeNull()
+  })
+
+  it('counts tabs and wide characters as the cells they are drawn in', () => {
+    const wide = ['\tこんにちは x', 'done()']
+    const cells = { text: wide, lines: wide.length, body: 4, columns: 60 }
+    // The tab is two cells, then five wide characters at two each.
+    const put = panelClick(filePanel('/r/a.ts'), 'caret:0:2:put', cells).panel as FilePanel
+    const to = panelClick(put, 'caret:0:12:drag', cells).panel as FilePanel
+    const span = fileSelection(to)
+    expect(span && textOf(to.edit?.lines ?? [], span)).toBe('こんにちは')
   })
 })
 

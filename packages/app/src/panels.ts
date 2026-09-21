@@ -5,12 +5,23 @@ import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
 
 export type { UpdatesShown }
 
+import {
+  clickedSpan,
+  type LineKey,
+  lineKey,
+  offsetOf,
+  placeOf,
+  type Span,
+  spanOf,
+} from './input.ts'
+import { normalKey } from './keys.ts'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 import {
   caretAt,
   cellOf,
   columnOf,
+  cutSelection,
   type Edited,
   editFrom,
   editKey,
@@ -579,6 +590,12 @@ export interface FilePanel {
   asking: FileAsk | null
   /** What has been typed into it, once you have clicked in. */
   edit: Edited | null
+  /**
+   * Where a selection in it was started, as an offset into the text. Its other
+   * end is the caret, which the edit already holds — so only this is kept, and
+   * the two can never disagree about where the selection reaches.
+   */
+  anchor: number | null
   /** Said in the footer: what the last save did, or why it would not. */
   said: string | null
   /** Esc was pressed on unsaved work, and asked before throwing it away. */
@@ -1461,10 +1478,25 @@ export function filePanel(path: string, line: number | null = null, markdown = f
     formatted: markdown && line === null,
     asking: null,
     edit: null,
+    anchor: null,
     said: null,
     warned: false,
     busy: false,
   }
+}
+
+/**
+ * What is selected in the file, in reading order, or nothing. Read from the
+ * anchor and the caret every time rather than remembered: a caret that has
+ * moved is a selection that has changed, and there is only ever one answer.
+ */
+export function fileSelection(panel: FilePanel): Span | null {
+  const edit = panel.edit
+  if (!edit || panel.anchor === null) return null
+  return spanOf({
+    anchor: panel.anchor,
+    head: offsetOf(edit.lines, { line: edit.row, col: edit.column }),
+  })
 }
 
 /** The matches in the file for the find bar as it stands, in line order. */
@@ -2867,6 +2899,11 @@ function fileKey(
  * reading keys are gone while the caret is down: what is left is `ctrl+s` to
  * save, the two bars, and esc — which asks once when there is something
  * unsaved to lose.
+ *
+ * What is selected changes what a few of them mean, and those are read first
+ * (`lineKey`, the same decoder the line you type on uses): shift and a motion
+ * reach further, ctrl+a takes the whole file, and everything that puts text in
+ * or takes text out replaces the selection before it does anything else.
  */
 function typingKey(
   panel: FilePanel,
@@ -2882,14 +2919,88 @@ function typingKey(
   if (key === 'ctrl+f') return stay(asking(panel, { kind: 'find', query: '', index: 0 }))
   if (key === 'ctrl+g') return stay(asking(panel, { kind: 'goto', digits: '' }))
   if (key === 'escape') return edit.dirty && !panel.warned ? stay(warn(panel)) : close
-  const moved = editKey(edit, key, body)
-  if (moved) return stay(typedInto(panel, moved, body))
+  const selected = fileSelection(panel)
+  // With its modifiers in one order, because a terminal reports them in its
+  // own: ctrl+shift+c arrives as `shift+ctrl+c` from the ones that speak the
+  // Kitty protocol.
+  const named = key === undefined ? null : normalKey(key)
+  // Copying is the window's, so the panel only says there is something to
+  // copy; a drag that selected it has already copied it on being let go.
+  if (named === 'ctrl+shift+c' || named === 'super+c')
+    return selected ? { panel, submit: true, choice: 'copy-selection' } : stay(panel)
+  const what = lineKey(named)
+  if (what?.do === 'select all') {
+    const last = Math.max(0, edit.lines.length - 1)
+    const all = caretAt(edit, last, (edit.lines[last] ?? '').length)
+    return stay(typedInto({ ...panel, anchor: 0 }, all, body))
+  }
+  if (what?.do === 'move') return stay(movedIn(panel, edit, what, selected, body))
+  // Everything below changes the text, so what is selected is what it
+  // replaces: the file with it taken out is what each of them starts from.
+  // Worked out only where something is about to change it — a key this editor
+  // has no meaning for must cost nothing and leave the selection where it was.
+  const without = () => (selected ? cutSelection(edit, selected) : edit)
+  const letGo = { ...panel, anchor: null }
+  // Backspace and delete take the selection and nothing more: taking it out
+  // is the whole of what they were asked for.
+  if (selected && (key === 'backspace' || key === 'delete'))
+    return stay(typedInto(letGo, without(), body))
   // A paste is text like any other here, newlines and all — pasting a line in
   // is half of what a short edit is for.
   const paste = pastedText(data)
-  if (paste !== null) return stay(typedInto(panel, typeIn(edit, paste), body))
+  if (paste !== null) return stay(typedInto(letGo, typeIn(without(), paste), body))
   const text = typed(data, key)
-  return text ? stay(typedInto(panel, typeIn(edit, text), body)) : stay(panel)
+  if (text) return stay(typedInto(letGo, typeIn(without(), text), body))
+  // What is left of the editor's own keys, every one of which changes the
+  // text: the motions were answered above, and none of these types anything
+  // `typed` would have taken first.
+  const moved = editKey(without(), key, body)
+  return moved ? stay(typedInto(letGo, moved, body)) : stay(panel)
+}
+
+/** The key of the editor's own that makes a motion: one decoder, both editors. */
+function motionKey(what: Extract<LineKey, { do: 'move' }>): string {
+  switch (what.by) {
+    case 'char':
+      return what.back ? 'left' : 'right'
+    case 'word':
+      return what.back ? 'ctrl+left' : 'ctrl+right'
+    case 'line':
+      return what.back ? 'home' : 'end'
+    case 'row':
+      return what.back ? 'up' : 'down'
+    case 'page':
+      return what.back ? 'pageUp' : 'pageDown'
+  }
+}
+
+/**
+ * An arrow, home, end or a page, with or without shift. The move itself is
+ * always the editor's own key — a caret is moved by pressing what moves a
+ * caret — and shift is only whether the anchor stays behind it.
+ *
+ * Without shift a selection is let go of, and a plain left or right collapses
+ * to the end the caret was sent towards rather than stepping on from where it
+ * was, which is what every text box does.
+ */
+function movedIn(
+  panel: FilePanel,
+  edit: Edited,
+  what: Extract<LineKey, { do: 'move' }>,
+  selected: Span | null,
+  body: number,
+): FilePanel {
+  if (!what.extend) {
+    if (selected && what.by === 'char') {
+      const at = placeOf(edit.lines, what.back ? selected.from : selected.to)
+      return typedInto({ ...panel, anchor: null }, caretAt(edit, at.line, at.col), body)
+    }
+    const moved = editKey(edit, motionKey(what), body)
+    return moved ? typedInto({ ...panel, anchor: null }, moved, body) : { ...panel, anchor: null }
+  }
+  const anchor = panel.anchor ?? offsetOf(edit.lines, { line: edit.row, col: edit.column })
+  const moved = editKey(edit, motionKey(what), body)
+  return moved ? typedInto({ ...panel, anchor }, moved, body) : { ...panel, anchor }
 }
 
 /** What was pasted, out of the markers a terminal wraps a paste in. */
@@ -2957,6 +3068,11 @@ function askKey(
   return typing ? at(0, ask.query + typing) : stay(panel)
 }
 
+/** The caret put down by a click, with whatever the click left selected behind it. */
+function putCaretIn(panel: FilePanel, edit: Edited, anchor: number | null): FilePanel {
+  return { ...panel, edit, anchor, line: null, said: null, warned: false }
+}
+
 /** A bar opened over the source: neither find nor go to line has a formatted line to land on. */
 function asking(panel: FilePanel, ask: FileAsk): FilePanel {
   return { ...panel, asking: ask, formatted: false, said: null, warned: false }
@@ -2968,6 +3084,8 @@ function atLine(panel: FilePanel, line: number, body: number, column = 0): FileP
     ...panel,
     line,
     scroll: inView(panel.scroll, line - 1, body),
+    // A caret sent somewhere else is a selection nobody can see the point of.
+    anchor: null,
     ...(panel.edit ? { edit: caretAt(panel.edit, line - 1, column) } : {}),
   }
 }
@@ -2984,25 +3102,41 @@ function inView(scroll: number, row: number, body: number): number {
 }
 
 function fileClick(panel: FilePanel, control: string, inputs: PanelInputs): PanelOutcome {
-  // `caret:<line>:<cell>` — a click in the text, by the line it landed on and
-  // how far into it. Which character that is depends on the tabs and the wide
-  // characters before it, and on how far the view has slid to keep the caret
-  // on screen, so it is worked out here rather than drawn into the id.
+  // `caret:<line>:<cell>:<how>` — a click in the text, by the line it landed
+  // on and how far into it. Which character that is depends on the tabs and
+  // the wide characters before it, and on how far the view has slid to keep
+  // the caret on screen, so it is worked out here rather than drawn into the
+  // id. `how` is what the press meant: putting the caret down, reaching there
+  // from where it was, dragging, or the second and third press.
   if (control.startsWith('caret:')) {
-    const [row, cell] = control.slice('caret:'.length).split(':').map(Number)
+    const parts = control.slice('caret:'.length).split(':')
+    const [row, cell] = parts.slice(0, 2).map(Number)
+    const how = parts[2] ?? 'put'
     const text = inputs.text ?? []
     if (row === undefined || cell === undefined || text.length === 0) return stay(panel)
     const edit = panel.edit ?? editFrom(text)
     const columns = Math.max(1, inputs.columns ?? 80)
     const left = leftOf(cellOf(edit.lines[edit.row] ?? '', edit.column), columns)
-    const line = edit.lines[Math.max(0, Math.min(edit.lines.length - 1, row))] ?? ''
-    return stay({
-      ...panel,
-      edit: caretAt(edit, row, columnOf(line, cell + left)),
-      line: null,
-      said: null,
-      warned: false,
-    })
+    const at = Math.max(0, Math.min(edit.lines.length - 1, row))
+    const line = edit.lines[at] ?? ''
+    const column = columnOf(line, cell + left)
+    // A word and a line are taken out of the line that was clicked, never out
+    // of the whole file: neither ever crosses a line break, and joining a
+    // megabyte up to find one would cost that on every second press.
+    if (how === 'word' || how === 'line') {
+      const span = clickedSpan(line, column, how === 'line' ? 3 : 2)
+      const start = offsetOf(edit.lines, { line: at, col: 0 })
+      return stay(
+        putCaretIn(
+          panel,
+          caretAt(edit, at, span.to),
+          span.to > span.from ? start + span.from : null,
+        ),
+      )
+    }
+    const was = offsetOf(edit.lines, { line: edit.row, col: edit.column })
+    const anchor = how === 'put' ? null : (panel.anchor ?? was)
+    return stay(putCaretIn(panel, caretAt(edit, at, column), anchor))
   }
   // The bar's own arrows: the same step its keys take.
   if (control === 'match-next' || control === 'match-previous') {
@@ -3024,7 +3158,9 @@ function fileClick(panel: FilePanel, control: string, inputs: PanelInputs): Pane
     case 'copy-path':
       return { panel, submit: true, choice: control }
     case 'formatted':
-      return losing ? stay(warn(panel)) : stay({ ...panel, formatted: true, scroll: 0, edit: null })
+      return losing
+        ? stay(warn(panel))
+        : stay({ ...panel, formatted: true, scroll: 0, edit: null, anchor: null })
     case 'source':
       return stay({ ...panel, formatted: false, scroll: 0 })
     default:
