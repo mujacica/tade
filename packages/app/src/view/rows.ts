@@ -2,7 +2,7 @@ import type { Hit, ScrollArea, Target } from '../hits.ts'
 import { rowHit, shift } from '../hits.ts'
 import { type AgentPane, type AppState, MARK_TONES, markOf } from '../model.ts'
 import { barRows, type Scrolled } from '../scrollbar.ts'
-import type { Band, Skin } from '../skin.ts'
+import type { Band, Look, Skin } from '../skin.ts'
 import { blank, fit, type Pointer, Row } from '../ui.ts'
 import { shortened } from './text.ts'
 
@@ -18,6 +18,53 @@ export function markTone(mark: string | null, skin: Skin): ((text: string) => st
   if (mark === 'A' || mark === 'U') return skin.done
   if (mark === 'D' || mark === '!') return skin.bad
   return null
+}
+
+/**
+ * A control in a section's heading. The one that makes another of something
+ * is a button; anything beside it is `small` — the same block two columns
+ * narrower, so a heading reads as one set of controls with one of them
+ * plainly the main one.
+ */
+export interface SectionAction {
+  label: string
+  target: Target
+  look?: Look
+  small?: boolean
+  /** Red only while the pointer is on it, as a glyph button is. */
+  danger?: boolean
+}
+
+export interface Section {
+  id: string
+  label: string
+  count: number | null
+  /**
+   * What the count is out of, where the list is showing fewer rows than the
+   * section holds — hiding the finished agents says `1/14`, not `1`, because a
+   * badge that shrinks as things are hidden reads as agents having gone away.
+   * Equal to `count` when nothing is hidden, and then only the count is drawn.
+   */
+  of?: number
+  /** Rows when unfolded. At least one, so an open section never looks broken. */
+  rows: (row: () => Row) => { text: string; hits: Hit[] }[]
+  /** Its heading's controls, the main one last: the `+` sits against the edge. */
+  actions?: SectionAction[]
+  /** Said quietly at the right of the heading: what the section is measured against. */
+  note?: string
+  /**
+   * The note in the room a narrow side leaves, drawn where the note itself
+   * will not fit. A heading with nothing beside it is exactly what a folded
+   * section has to avoid, so it says less rather than saying nothing.
+   */
+  brief?: string
+  /**
+   * Nothing in it, so it is folded until you open one. Carried on the heading
+   * you press as well, so folding and drawing never read it differently.
+   */
+  quiet?: boolean
+  /** Its items are tabs, and its rows carry their own room above and below them. */
+  banded?: boolean
 }
 
 /** An item down the side: its rows, drawn as a tab, and how it is lit. */
