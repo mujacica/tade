@@ -35,9 +35,8 @@ import {
   settingFrom,
 } from '@tade/extensions-core'
 import { git } from '@tade/status'
-import { slugify, VoiceSurface } from '@tade/voice-core'
+import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
-import type { Workbench } from '@tade/workbench'
 import type { Frame } from './frame.ts'
 import { readImage } from './images.ts'
 import {
@@ -84,7 +83,6 @@ import {
   toggleDone,
   turnSplit,
   unsplitPane,
-  whichProject,
   withProjects,
   withTasks,
   withTerminals,
@@ -108,9 +106,7 @@ import {
 } from './panels/extensions/state.ts'
 import { extensionsScrollable } from './panels/extensions/view.ts'
 import {
-  type AgentOffers,
   accountMenuItems,
-  agentOffers,
   branchMenuItems,
   changeMenuItems,
   fileMenuItems,
@@ -126,7 +122,7 @@ import {
   terminalMenuItems,
   thinkingMenuItems,
 } from './panels/menu/state.ts'
-import { type ModelChoice, type ModelPanel, modelPanel, priceSaid } from './panels/models/state.ts'
+import { priceSaid } from './panels/models/state.ts'
 import type { PanelOutcome } from './panels/outcome.ts'
 import {
   nameFrom,
@@ -144,10 +140,7 @@ import {
   updateActions,
 } from './panels/settings/state.ts'
 import {
-  type CloseDonePanel,
-  type ConfirmRemovePanel,
   closeDonePanel,
-  confirmRemovePanel,
   noteHeadlinePanel,
   type PromptPanel,
   promptPanel,
@@ -183,6 +176,7 @@ import {
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
 import { markdownLines } from './viewer.ts'
+import { Agents } from './wire/agents.ts'
 import { Checks } from './wire/checks.ts'
 import {
   type AppOptions,
@@ -296,16 +290,6 @@ export class App {
   private readonly pointerShapes = pointerShapes(process.env)
   /** When this window opened: the start of "This window" in the Spend panel. */
   private readonly openedAt = Date.now()
-  /** Agents this window has opened again on its own, so it never does it twice. */
-  private readonly reopened = new Set<string>()
-  /** Tasks whose agent is being opened right now. */
-  private readonly opening = new Set<string>()
-  /** A new agent is being made. */
-  private starting = false
-  /** Projects this window has already opened an agent in on its own. */
-  private readonly opened = new Set<string>()
-  /** Agents whose branch is being named, so a slow git is not asked twice. */
-  private readonly naming = new Set<string>()
   private statuses: NonNullable<Frame['statuses']> = []
   /** The sections extensions keep in the sidebar, as they last answered. */
   private listSections: ListSection[] = []
@@ -318,13 +302,6 @@ export class App {
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
     null
   private soon: NodeJS.Timeout | null = null
-  /** The models an agent can be started on, once they have been read. */
-  private models: ModelChoice[] = []
-  /**
-   * The models the open picker offers, when it is for one agent: its
-   * harness's, which are not the orchestrator's or another harness's.
-   */
-  private pickerModels: ModelChoice[] | null = null
   /** Providers the harness is signed in to, once read. */
   /** The Open project list for the last folder and query, and the branches found for its rows. */
   private openCache: { key: string; rows: OpenRow[]; browsing: string | null } | null = null
@@ -335,12 +312,6 @@ export class App {
   private news: News[] = []
   /** The tasks as last seen, so what changed between two looks is news. */
   private seenTasks: readonly TaskSnapshot[] | null = null
-  /**
-   * What each agent's harness lets a person ask of it, by task: learned as the
-   * tasks refresh, so drawing never waits on it. Absent is "not known yet",
-   * which offers everything, as the window always did.
-   */
-  private readonly offersByTask = new Map<string, AgentOffers>()
   /** Another screen has the terminal, so this window must not draw over it. */
   private borrowed = false
   private live: Live | null = null
@@ -387,6 +358,8 @@ export class App {
   private readonly lanes: Lanes
   /** The file you have open, the diff beside it, and the branch underneath. */
   private readonly files: Files
+  /** Making an agent, opening one again, stopping it, and what you change about one. */
+  private readonly agents: Agents
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -437,8 +410,8 @@ export class App {
       openFile: (path, line) => this.files.openFile(path, line),
       openFind: (id, query, index) => this.lanes.openFind(id, query, index),
       clicked: (target) => this.mouse.clicked(target),
-      decide: (allow) => this.decide(allow),
-      stopAgent: (task) => this.stopAgent(task),
+      decide: (allow) => this.agents.decide(allow),
+      stopAgent: (task) => this.agents.stopAgent(task),
       openDiff: (task, path) => this.files.openDiff(task, path),
       openSettings: (category) => this.settings.open(category),
       showTerminal: (id) => this.lanes.showTerminal(id),
@@ -463,7 +436,7 @@ export class App {
       showTerminal: (id) => this.lanes.showTerminal(id),
       onScreenWith: (flow) => this.onScreenWith(flow),
       refreshModels: async () => {
-        this.models = (await this.opts.models?.().catch(() => [])) ?? this.models
+        await this.agents.refreshModels()
       },
     })
     this.settings = new Settings(this.wire, {
@@ -509,7 +482,7 @@ export class App {
       askWhereImagesGo: (paths) => this.images.askWhere(paths),
       talkStart: () => void this.voice.talkStart(),
       talkStop: () => void this.voice.talkStop(),
-      decide: (allow) => void this.decide(allow),
+      decide: (allow) => void this.agents.decide(allow),
       openSearch: () => this.search.open(),
       run: (action) => void this.run(action),
       interrupt: () => void this.interruptThinker(),
@@ -525,6 +498,18 @@ export class App {
       skin: this.skin,
       soonTick: () => this.soonTick(),
       say: (said) => this.say(said),
+    })
+    this.agents = new Agents(this.wire, {
+      size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
+      useConfig: (config) => this.useConfig(config),
+      loadAccounts: () => this.machine.loadAccountViews(),
+      prefill: (line) => this.keyboard.prefill(line),
+      openDiff: (task, path) => this.files.openDiff(task, path),
+      openPlace: (target) => this.files.openPlace(target),
+      changeQueue: (task, change) => this.queue.change(task, change),
+      chooseThinkerThinking: (level) => this.chooseThinkerThinking(level),
+      thinkerModel: () => this.thinkerModel(),
+      copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
     })
     this.files = new Files(this.wire, {
       size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
@@ -561,7 +546,7 @@ export class App {
       openLink: (url) => void this.files.openLink(url),
       openDiff: (task, path) => void this.files.openDiff(task, path),
       openNote: (note) => this.notes.open(note),
-      openAgent: () => void this.openAgent(),
+      openAgent: () => void this.agents.openAgent(),
     })
     this.closed = new Promise((resolve) => {
       this.settle = resolve
@@ -725,7 +710,7 @@ export class App {
           ? menuItems(
               pane,
               this.live?.changes(subject.task).length ?? 0,
-              this.offersByTask.get(subject.task),
+              this.agents.offersFor(subject.task) ?? undefined,
             )
           : []
       }
@@ -761,7 +746,7 @@ export class App {
       case 'account':
         return accountMenuItems(
           this.machine.accounts,
-          this.harnessShown(subject.task),
+          this.agents.harnessShown(subject.task),
           subject.current,
         )
       case 'lane':
@@ -784,7 +769,7 @@ export class App {
       case 'note':
         return noteMenuItems()
       case 'thinking':
-        return thinkingMenuItems(subject.current, this.offersByTask.get(subject.task)?.levels)
+        return thinkingMenuItems(subject.current, this.agents.offersFor(subject.task)?.levels)
     }
   }
 
@@ -797,11 +782,11 @@ export class App {
   private providerOf(model: string | null, configured: string | null): string | null {
     if (configured) return configured
     if (!model) return null
-    const exact = this.models.find((known) => known.id === model)
+    const exact = this.agents.models().find((known) => known.id === model)
     if (exact) return exact.provider
     const named = model.includes('/') ? (model.split('/')[0] ?? null) : null
     if (named && this.machine.paidBy(named)) return named
-    const offering = this.models.filter((known) => known.id.endsWith(`/${model}`))
+    const offering = this.agents.models().filter((known) => known.id.endsWith(`/${model}`))
     return (
       offering.find((known) => this.machine.paidBy(known.provider))?.provider ??
       offering[0]?.provider ??
@@ -817,7 +802,7 @@ export class App {
     if (panel.kind === 'model') {
       const pane = this.state.panes.find((one) => one.task === panel.for)
       return {
-        models: this.pickerModels ?? this.models,
+        models: this.agents.offeredModels(),
         modelTarget:
           panel.for === 'orchestrator' ? 'the orchestrator' : pane ? shownName(pane) : panel.for,
         currentModel:
@@ -889,7 +874,7 @@ export class App {
 
   /** Models an agent can start on, as choices grouped by provider. */
   private get choices(): Choice[] {
-    return this.models.map((model) => {
+    return this.agents.models().map((model) => {
       const price = priceSaid(model)
       return {
         value: model.id,
@@ -973,14 +958,14 @@ export class App {
       },
       plan,
       route: {
-        harness: this.state.focused ? this.harnessShown(this.state.focused) : route.harness,
+        harness: this.state.focused ? this.agents.harnessShown(this.state.focused) : route.harness,
         model: route.model ?? null,
         thinking: route.thinking ?? null,
         provider,
         credential: this.machine.credential(provider),
       },
       vitals: live.vitals(this.state.focused),
-      offers: this.state.focused ? (this.offersByTask.get(this.state.focused) ?? null) : null,
+      offers: this.state.focused ? this.agents.offersFor(this.state.focused) : null,
       spendView,
       panel: this.panelFacts(live, width),
       voice: {
@@ -1061,7 +1046,7 @@ export class App {
           }
         }
         this.seenTasks = tasks
-        void this.learnHarnesses(tasks)
+        void this.agents.learnHarnesses(tasks)
         void this.queue.recordRulesMet()
         void this.schedules.runDue().then(() => this.advanceQueue())
         void this.reflect(tasks)
@@ -1083,7 +1068,7 @@ export class App {
         this.draw()
       },
       onChange: () => this.draw(),
-      onWork: (task) => void this.nameAgent(task),
+      onWork: (task) => void this.agents.nameAgent(task),
       onTerminals: (terminals) => {
         this.state = withTerminals(this.state, terminals)
         this.draw()
@@ -1092,7 +1077,7 @@ export class App {
     this.live = live
     this.linkers = this.opts.extensions?.linkers() ?? []
     this.watchExtensions()
-    this.reopenLost()
+    this.agents.reopenLost()
 
     const attention = this.opts.config.surfaces.voice.attention
     this.voice.use(
@@ -1160,12 +1145,12 @@ export class App {
       this.state = { ...this.state, toasts: this.state.toasts.filter((t) => t.task !== task) }
       if (verb === 'toast-show') this.state = focusTask(this.state, task)
       if (verb === 'toast-allow' || verb === 'toast-deny')
-        await this.decideFor(task, verb === 'toast-allow')
+        await this.agents.decideFor(task, verb === 'toast-allow')
       this.draw()
       return
     }
     if (action.startsWith('model:')) {
-      await this.openModels(action.slice('model:'.length))
+      await this.agents.openModels(action.slice('model:'.length))
       return
     }
     if (action.startsWith('split:')) {
@@ -1214,7 +1199,7 @@ export class App {
       return
     }
     if (action.startsWith('close-task:')) {
-      await this.closeAgent(action.slice('close-task:'.length))
+      await this.agents.closeAgent(action.slice('close-task:'.length))
       return
     }
     if (action.startsWith('checks-adopt:')) {
@@ -1284,7 +1269,7 @@ export class App {
     }
     if (action.startsWith('harness:')) {
       const task = action.slice('harness:'.length)
-      const current = this.harnessShown(task)
+      const current = this.agents.harnessShown(task)
       this.state = {
         ...this.state,
         panel: menuPanel({ kind: 'harness', task, current }, 'Harness', {
@@ -1324,7 +1309,7 @@ export class App {
     }
     switch (action) {
       case 'new-agent':
-        await this.newAgent('')
+        await this.agents.newAgent('')
         return
       case 'toggle-done':
         this.state = toggleDone(this.state)
@@ -1429,17 +1414,17 @@ export class App {
         return
       }
       case 'approve':
-        await this.decide(true)
+        await this.agents.decide(true)
         return
       case 'deny':
-        await this.decide(false)
+        await this.agents.decide(false)
         return
       case 'open-agent': {
         // Queued work has no agent yet: starting it goes through the queue, so
         // what started it and why is written down.
         const pane = this.state.panes.find((one) => one.task === this.state.focused)
         if (pane?.queued) await this.queue.change(pane.task, 'start')
-        else await this.openAgent()
+        else await this.agents.openAgent()
         return
       }
       case 'new-terminal':
@@ -1537,7 +1522,7 @@ export class App {
         await this.fromMenu(panel.subject, choice ?? '')
         return
       case 'model':
-        await this.chooseModel(panel, choice ?? '')
+        await this.agents.chooseModel(panel, choice ?? '')
         return
       case 'extensions':
         await this.fromExtensions(panel, choice ?? '')
@@ -1555,10 +1540,10 @@ export class App {
         await this.files.discard(panel.task, panel.path)
         break
       case 'confirm-remove':
-        await this.removeTask(panel)
+        await this.agents.removeTask(panel)
         break
       case 'close-done':
-        await this.closeDone(panel)
+        await this.agents.closeDone(panel)
         break
       case 'open-project':
         await this.openProject(panel)
@@ -1713,7 +1698,7 @@ export class App {
       case 'schedule':
         return this.run(`${item}:${subject.id}`)
       case 'task':
-        return this.fromTaskMenu(subject.task, item)
+        return this.agents.fromTaskMenu(subject.task, item)
       case 'file':
         return this.files.fromFileMenu(subject.path, subject.folder, item)
       case 'change':
@@ -1725,33 +1710,16 @@ export class App {
       case 'images':
         return this.images.give(subject.paths, item)
       case 'harness':
-        return this.chooseHarness(subject.task, item)
+        return this.agents.chooseHarness(subject.task, item)
       case 'account':
-        return this.chooseAccount(subject.task, item)
+        return this.agents.chooseAccount(subject.task, item)
       case 'lane':
         return this.fromLaneMenu(subject.task, subject.lane, subject.name, item)
       case 'note':
         return this.notes.fromMenu(subject, item)
       case 'thinking':
-        return this.chooseThinking(subject.task, item)
+        return this.agents.chooseThinking(subject.task, item)
     }
-  }
-
-  /** How hard an agent thinks from its next turn, and new agents from their first. */
-  private async chooseThinking(task: string, level: string): Promise<void> {
-    if (task === ORCHESTRATOR_TAB) return this.chooseThinkerThinking(level)
-    try {
-      const chosen = await this.opts.client.setAgentThinking(task, level)
-      const loaded = await loadConfig(this.configPath)
-      if (loaded.ok) this.useConfig(loaded.config)
-      this.state = notice(
-        this.state,
-        `${task} thinks at ${chosen} from its next turn, and new agents start there`,
-      )
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
   }
 
   /**
@@ -1839,89 +1807,6 @@ export class App {
       default:
         break
     }
-    this.draw()
-  }
-
-  /** The harness a task's agent is shown as running in: its own, else its route's. */
-  private harnessShown(task: string): string {
-    return (
-      this.offersByTask.get(task)?.harness ??
-      resolveRoute(this.opts.config, { project: task.split('/')[0] ?? '' }).harness
-    )
-  }
-
-  /**
-   * Learn what each task's harness offers, in the background: which harness
-   * it is in and what it can be asked. Redrawn only when something changed.
-   */
-  private async learnHarnesses(tasks: readonly TaskSnapshot[]): Promise<void> {
-    let changed = false
-    for (const task of tasks) {
-      if (await this.learnHarness(task.task)) changed = true
-    }
-    if (changed) this.draw()
-  }
-
-  private async learnHarness(task: string): Promise<boolean> {
-    const worktree = this.live?.worktreeOf(task)
-    if (!worktree) return false
-    const known = await this.opts.client.agentHarness(task, worktree).catch(() => null)
-    if (!known) return false
-    const was = this.offersByTask.get(task)
-    const now = agentOffers(known.harness, known.capabilities)
-    if (was && JSON.stringify(was) === JSON.stringify(now)) return false
-    this.offersByTask.set(task, now)
-    return true
-  }
-
-  /**
-   * Run an agent as another account of its harness, its conversation carried
-   * along, starting it again there if it is running.
-   */
-  private async chooseAccount(task: string, account: string): Promise<void> {
-    const worktree = this.live?.worktreeOf(task)
-    if (!worktree) {
-      this.state = notice(this.state, `I cannot find where ${task} works`)
-      this.draw()
-      return
-    }
-    try {
-      const done = await this.opts.client.setAgentAccount({
-        task,
-        worktree,
-        account: account || null,
-      })
-      const as = done.account ?? 'its own sign-in'
-      this.state = notice(
-        this.state,
-        `${task} runs as ${as}${done.carried ? ', its conversation with it' : ''}${done.restarted ? ', started again there' : ' from its next start'}`,
-      )
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    await this.machine.loadAccountViews()
-    this.draw()
-  }
-
-  /** Run an agent in another harness, starting it again there if it is running. */
-  private async chooseHarness(task: string, harness: string): Promise<void> {
-    const worktree = this.live?.worktreeOf(task)
-    if (!worktree) {
-      this.state = notice(this.state, `I cannot find where ${task} works`)
-      this.draw()
-      return
-    }
-    try {
-      const done = await this.opts.client.setAgentHarness({ task, worktree, harness })
-      await this.learnHarness(task)
-      this.state = notice(
-        this.state,
-        `${task} runs in ${done.harness}${done.restarted ? ', started again there' : ' from its next start'}`,
-      )
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    await this.live?.refresh()
     this.draw()
   }
 
@@ -2169,183 +2054,6 @@ export class App {
     }
   }
 
-  private async fromTaskMenu(task: string, item: string): Promise<void> {
-    const facts = this.live?.factsOf(task)
-    const worktree = this.live?.worktreeOf(task)
-    if (item.startsWith('queue-')) {
-      await this.queue.change(task, item.slice('queue-'.length))
-      return
-    }
-    switch (item) {
-      case 'open': {
-        this.state = focusTask(this.state, task)
-        const pane = this.state.panes.find((p) => p.task === task)
-        // Queued work opens as what it is: a plan, not an agent. Start now starts it.
-        if (pane && !pane.queued && !pane.lane) await this.openAgent()
-        break
-      }
-      case 'start':
-        this.state = focusTask(this.state, task)
-        await this.openAgent()
-        break
-      case 'stop':
-        await this.stopAgent(task)
-        break
-      case 'changes': {
-        const first = this.live?.changes(task)[0]
-        if (first) await this.files.openDiff(task, first.path)
-        return
-      }
-      case 'editor':
-        if (worktree) await this.files.openPlace({ path: worktree })
-        return
-      case 'rename': {
-        const pane = this.state.panes.find((p) => p.task === task)
-        this.state = {
-          ...this.state,
-          panel: {
-            ...promptPanel('rename-agent', 'Rename agent', 'NAME', pane ? shownName(pane) : ''),
-            target: task,
-          },
-        }
-        break
-      }
-      case 'model':
-        await this.openModels(task)
-        return
-      case 'account': {
-        const known = await this.opts.client
-          .agentHarness(task, this.live?.worktreeOf(task) ?? '')
-          .catch(() => null)
-        await this.machine.loadAccountViews()
-        this.state = {
-          ...this.state,
-          panel: menuPanel({ kind: 'account', task, current: known?.account ?? '' }, 'Account', {
-            row: 3,
-            col: Math.max(0, this.terminal.columns - 40),
-          }),
-        }
-        this.draw()
-        return
-      }
-      case 'copy-branch':
-        if (facts) {
-          const copied = await copyText(facts.branch, (data) => this.terminal.write(data))
-          this.state = notice(this.state, copied ? `copied ${facts.branch}` : facts.branch)
-        }
-        break
-      case 'mark-done':
-        try {
-          await this.opts.client.markDone(task, { by: 'you' })
-          await this.live?.refresh()
-          this.state = notice(this.state, `${task} is finished`)
-        } catch (err) {
-          this.state = notice(this.state, why(err))
-        }
-        break
-      case 'park': {
-        if (!worktree) break
-        const pane = this.state.panes.find((p) => p.task === task)
-        const parked = pane?.state !== 'parked'
-        try {
-          await this.opts.client.parkTask(worktree, parked, task)
-          await this.live?.refresh()
-          this.state = notice(this.state, parked ? `parked ${task}` : `picked ${task} up again`)
-        } catch (err) {
-          this.state = notice(this.state, why(err))
-        }
-        break
-      }
-      case 'remove':
-        this.state = { ...this.state, panel: confirmRemovePanel(task) }
-        break
-      default:
-        break
-    }
-    this.draw()
-  }
-
-  /**
-   * Close an agent: stop it and take it off the list. Asked first only when
-   * that would lose something — work in a worktree of its own that is not
-   * merged. An agent in the project's checkout loses nothing by going: its work
-   * is in the checkout, and only its task folder goes with it.
-   */
-  private async closeAgent(task: string): Promise<void> {
-    const facts = this.live?.factsOf(task)
-    const unmerged =
-      facts?.workspace === 'worktree' &&
-      ((this.live?.changes(task).length ?? 0) > 0 || (facts.ahead ?? 0) > 0)
-    const panel = confirmRemovePanel(task)
-    if (unmerged) {
-      this.state = { ...this.state, panel }
-      this.draw()
-      return
-    }
-    await this.removeTask(panel)
-    // Nothing to ask about, so nothing to leave open: a failure is said where you look.
-    if (this.state.panel?.kind === 'confirm-remove' && this.state.panel.error) {
-      const error = this.state.panel.error
-      this.state = notice({ ...this.state, panel: null }, error)
-    }
-    this.draw()
-  }
-
-  private async removeTask(panel: ConfirmRemovePanel): Promise<void> {
-    const error = await this.removeOne(panel.task)
-    if (error) {
-      this.state = { ...this.state, panel: { ...panel, busy: false, error } }
-      return
-    }
-    await this.live?.refresh()
-    this.state = notice({ ...this.state, panel: null }, `removed ${panel.task}`)
-  }
-
-  /**
-   * Stop one agent and take its task off the list, its worktree and branch
-   * with it. Says what stopped it from happening, or nothing when it did.
-   */
-  private async removeOne(task: string): Promise<string | null> {
-    const facts = this.live?.factsOf(task)
-    const worktree = this.live?.worktreeOf(task)
-    const root = facts ? this.opts.config.projects[facts.project]?.root : undefined
-    if (!facts || !worktree || !root) return 'I cannot find where this agent works.'
-    try {
-      // Its agent first: a worktree cannot go out from under a process using it.
-      await this.opts.client.stopAgent(task).catch(() => {})
-      const result = await this.opts.client.removeTask({
-        root: expandHome(root),
-        worktree,
-        branch: facts.branch,
-        task,
-        force: true,
-      })
-      return result.removed ? null : result.reason
-    } catch (err) {
-      return why(err)
-    }
-  }
-
-  /**
-   * Close every agent that has finished, one after another: git cannot be
-   * asked to remove two worktrees of the same repository at once. What could
-   * not be closed stays on the list and is said — the rest still went.
-   */
-  private async closeDone(panel: CloseDonePanel): Promise<void> {
-    const failed: string[] = []
-    for (const task of panel.tasks) {
-      const error = await this.removeOne(task)
-      if (error) failed.push(`${task.split('/').at(-1) ?? task}: ${error}`)
-    }
-    await this.live?.refresh()
-    const closed = panel.tasks.length - failed.length
-    const said =
-      failed.length === 0
-        ? `closed ${closed} finished agent${closed === 1 ? '' : 's'}`
-        : `closed ${closed} of ${panel.tasks.length} — ${failed.join('; ')}`
-    this.state = notice({ ...this.state, panel: null }, said)
-  }
-
   /**
    * Stop the turn the orchestrator is on, and nothing else.
    *
@@ -2413,13 +2121,13 @@ export class App {
         this.draw()
         return
       case '/new':
-        await this.newAgent(rest)
+        await this.agents.newAgent(rest)
         return
       case '/stop':
-        await this.stopAgent(rest)
+        await this.agents.stopAgent(rest)
         return
       case '/open': {
-        const task = this.findTask(rest)
+        const task = this.agents.findTask(rest)
         if (!task) {
           this.state = notice(
             this.state,
@@ -2435,217 +2143,6 @@ export class App {
       default:
         await this.onScreen(chosen.name)
     }
-  }
-
-  /**
-   * A new agent in the project you are in: its own branch and worktree, pi in
-   * it, and your eyes on it. Nothing is asked first. It is named for what you
-   * said, or `agent-2` when you said nothing, and what you said — if anything —
-   * is the first thing it hears. Name another project first to start one there.
-   */
-  private async newAgent(said: string): Promise<void> {
-    const projects = Object.keys(this.opts.config.projects)
-    if (projects.length === 0) {
-      this.state = notice(this.state, 'no projects yet — Open project adds one')
-      this.draw()
-      return
-    }
-    const { project, intent } = whichProject(said, projects, this.state.project)
-    if (!project) {
-      this.state = notice(this.state, `which project? /new ${projects.join(' · ')}`)
-      this.keyboard.prefill('/new ')
-      return
-    }
-    // A second click before the first agent exists must not make a second one.
-    if (this.starting) return
-    this.starting = true
-    this.state = notice(this.state, `starting a new agent in ${project}…`)
-    this.draw()
-    try {
-      const id = await this.startTask(project, intent)
-      this.state = focusTask(notice(this.state, `${id} is ready`), id)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    } finally {
-      this.starting = false
-    }
-    this.draw()
-  }
-
-  /**
-   * A branch, a worktree and an agent in it. The name is the first free one:
-   * a branch left behind by an agent you removed still holds its name. The pane
-   * is refreshed before anything tries to focus it, because a pane you cannot
-   * see yet cannot take focus.
-   */
-  private async startTask(project: string, intent: string): Promise<string> {
-    // A name is never used twice: pi keeps a conversation by the task's name,
-    // so a new agent given an old one's would carry on its conversation.
-    const before = await this.opts.client.events({ types: ['task_created'] }).catch(() => [])
-    const taken = new Set([
-      ...this.state.panes.filter((pane) => pane.project === project).map((pane) => pane.name),
-      ...before
-        .map((event) => event.task ?? '')
-        .filter((task) => task.startsWith(`${project}/`))
-        .map((task) => task.slice(project.length + 1)),
-    ])
-    // Said without words, it is an agent to look around with: no branch until
-    // it changes something, and then one named for what it did.
-    const detached = intent === ''
-    const stem = (intent ? slugify(intent) : '') || 'agent'
-    for (let n = 1; n <= 100; n++) {
-      const slug = intent && n === 1 ? stem : `${stem}-${n}`
-      if (taken.has(slug)) continue
-      let task: Awaited<ReturnType<Workbench['createTask']>>
-      try {
-        task = await this.opts.client.createTask({ project, slug, intent, detached, by: 'you' })
-      } catch (err) {
-        if (/already exists|used before/.test(why(err))) continue
-        throw err
-      }
-      await this.opts.client.startAgent({ task: task.id, cwd: task.worktree, prompt: intent })
-      await this.live?.refresh()
-      return task.id
-    }
-    throw new Error(`every name like ${stem} is taken in ${project}`)
-  }
-
-  /**
-   * An agent in a project you have just added, so there is somewhere to type.
-   * Only then: a project whose agents you removed stays without one — opening
-   * the window again must never bring back what you took away.
-   */
-  private ensureAgent(project: string | null): void {
-    if (!project || !this.live || this.opened.has(project)) return
-    if (!this.opts.config.projects[project]) return
-    this.opened.add(project)
-    if (this.state.panes.some((pane) => pane.project === project)) return
-    void this.newAgent('')
-  }
-
-  /**
-   * An agent that started without a branch has changed something: give it one,
-   * named for its work. Once — a failure is said, not retried every two seconds.
-   */
-  private async nameAgent(task: {
-    id: string
-    project: string
-    worktree: string
-    title: string
-  }): Promise<void> {
-    const root = this.opts.config.projects[task.project]?.root
-    if (!root || this.naming.has(task.id)) return
-    this.naming.add(task.id)
-    try {
-      const branch = await this.opts.client.nameTask({
-        task: task.id,
-        root: expandHome(root),
-        worktree: task.worktree,
-        title: task.title,
-      })
-      await this.live?.refresh()
-      this.state = notice(this.state, `${task.title} is working on ${branch}`)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
-  }
-
-  /** Open the agent in front of you: the conversation picks up where it stopped. */
-  /**
-   * Agents that were working when Tade last closed — not stopped, not
-   * removed, and not ended on their own — opened again where they left off, as
-   * though the window had never gone. Once each per window, and without taking
-   * you away from where you are.
-   */
-  private reopenLost(): void {
-    const lost = this.opts.client
-      .lanes()
-      .filter((lane) => lane.kind === 'agent' && !lane.alive && lane.lost === true)
-    for (const lane of lost) {
-      const pane = this.state.panes.find((one) => one.task === lane.task)
-      if (!pane || pane.lane || this.reopened.has(lane.task) || this.opening.has(lane.task))
-        continue
-      if (!this.live?.worktreeOf(lane.task)) continue
-      this.reopened.add(lane.task)
-      void this.openAgent(lane.task, false)
-    }
-  }
-
-  private async openAgent(task: string | null = this.state.focused, focus = true): Promise<void> {
-    if (!task) return
-    const worktree = this.live?.worktreeOf(task)
-    if (!worktree) {
-      this.state = notice(this.state, `I do not know where ${task} works`)
-      this.draw()
-      return
-    }
-    // Two clicks before the first agent has registered must not start two.
-    if (this.opening.has(task)) return
-    this.opening.add(task)
-    try {
-      // Reattached, never restarted: its lane and its conversation come back
-      // exactly where they were, and nothing is said to it. An agent told its
-      // first instruction a second time would do the work again.
-      await this.opts.client.reopenAgent({ task: task as never, cwd: worktree })
-      await this.live?.refresh()
-      const told = notice(this.state, `opened ${task} where it left off`)
-      this.state = focus ? focusTask(told, task) : told
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    } finally {
-      this.opening.delete(task)
-    }
-    this.draw()
-  }
-
-  /**
-   * The agent in front of you is not running — the window it ran in closed, or
-   * it stopped — so open it again, where it left off, without being asked.
-   * Once per agent per window: one that stops again straight away is left for
-   * you to look at, with its button, rather than started in a loop.
-   */
-  private reopenStopped(): void {
-    const pane = this.state.panes.find((one) => one.task === this.state.focused)
-    // Only an agent whose run stopped: one never started waits to be asked,
-    // and one that finished is waiting for review, not for another run.
-    if (!pane || pane.lane || pane.state !== 'failed') return
-    if (this.reopened.has(pane.task) || this.opening.has(pane.task)) return
-    if (!this.live?.worktreeOf(pane.task)) return
-    this.reopened.add(pane.task)
-    void this.openAgent(pane.task)
-  }
-
-  /** Stop the agent you are watching, or the one you name. Its work stays. */
-  private async stopAgent(said: string): Promise<void> {
-    const task = this.findTask(said) ?? this.state.focused
-    if (!task) {
-      this.state = notice(this.state, 'which agent? /stop name')
-      this.keyboard.prefill('/stop ')
-      return
-    }
-    try {
-      // Stopped on purpose: not something to start again behind your back.
-      this.reopened.add(task)
-      await this.opts.client.stopAgent(task)
-      await this.live?.refresh()
-      this.state = notice(this.state, `${task} stopped — its branch and worktree stay`)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
-  }
-
-  /** The task somebody meant by a word or two of its name. */
-  private findTask(said: string): string | null {
-    const want = said.trim().toLowerCase()
-    if (want === '') return null
-    const tasks = this.state.panes.map((pane) => pane.task)
-    return (
-      tasks.find((task) => task.toLowerCase() === want) ??
-      tasks.find((task) => task.toLowerCase().includes(want)) ??
-      null
-    )
   }
 
   /** Ask, on a screen of its own, and put the window back afterwards. */
@@ -2745,29 +2242,6 @@ export class App {
       })
   }
 
-  /** Answer what the focused agent is waiting on. */
-  private async decide(allow: boolean): Promise<void> {
-    const task = this.state.focused
-    if (!task) return
-    await this.decideFor(task, allow)
-  }
-
-  /** Answer what one agent is waiting on, wherever you are looking. */
-  private async decideFor(task: string, allow: boolean): Promise<void> {
-    try {
-      const [pending] = await this.opts.client.pendingApprovals(task)
-      if (!pending) return
-      await this.opts.client.decideApproval(pending.run, pending.requestId, {
-        allow,
-        ...(allow ? {} : { reason: 'denied from the window' }),
-      })
-      this.state = notice(this.state, `${allow ? 'approved' : 'denied'}: ${pending.summary}`)
-    } catch (err) {
-      this.state = notice(this.state, err instanceof Error ? err.message : String(err))
-    }
-    this.draw()
-  }
-
   /** Re-read the focused lane's screen. */
   /**
    * Look again, one look at a time. Looks overlapping could finish out of
@@ -2816,7 +2290,7 @@ export class App {
 
   private async look(): Promise<void> {
     if (this.stopped) return
-    this.reopenStopped()
+    this.agents.reopenStopped()
     this.askExtensions()
     this.images.look()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
@@ -2880,65 +2354,6 @@ export class App {
   private thinkerModel(): string | null {
     const { provider, model } = this.opts.config.orchestrator
     return model ? (provider ? `${provider}/${model}` : model) : null
-  }
-
-  /** Choose a model for the orchestrator, or for one agent's session. */
-  private async openModels(target: string): Promise<void> {
-    if (this.models.length === 0) {
-      this.models = (await this.opts.models?.().catch(() => [])) ?? []
-    }
-    const worktree = target === 'orchestrator' ? null : this.live?.worktreeOf(target)
-    this.pickerModels =
-      target === 'orchestrator'
-        ? ((await this.opts.orchestratorModels?.().catch(() => null)) ?? null)
-        : worktree
-          ? await this.opts.client.agentModels(target, worktree).catch(() => null)
-          : null
-    const offered = this.pickerModels ?? this.models
-    // Starting on the one in use, so enter is a no-op and ↑↓ is "the one next to it".
-    const current =
-      target === 'orchestrator' ? this.thinkerModel() : (this.live?.vitals(target)?.model ?? null)
-    const index = current
-      ? Math.max(
-          0,
-          offered.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
-        )
-      : 0
-    this.state = { ...this.state, panel: { ...modelPanel(target), index } }
-    this.draw()
-  }
-
-  /**
-   * Switch to a model. An agent switches its own session there and then. The
-   * orchestrator's is written to the config — so it stays — and it is started
-   * again on it, carrying on the same conversation.
-   */
-  private async chooseModel(panel: ModelPanel, id: string): Promise<void> {
-    try {
-      if (panel.for === 'orchestrator') {
-        const [provider, ...rest] = id.split('/')
-        writeSetting(this.configPath, 'orchestrator.provider', provider)
-        writeSetting(this.configPath, 'orchestrator.model', rest.join('/'))
-        const loaded = await loadConfig(this.configPath)
-        if (loaded.ok) this.useConfig(loaded.config)
-        this.state = { ...this.state, panel: null }
-        this.state = notice(this.state, `the orchestrator is moving to ${rest.join('/')}`)
-        this.draw()
-        await this.opts.restartThinker?.()
-      } else {
-        const chosen = await this.opts.client.setAgentModel(panel.for, id)
-        // It is new agents' model now too: read back what the workbench wrote.
-        const loaded = await loadConfig(this.configPath)
-        if (loaded.ok) this.opts.config = loaded.config
-        this.state = notice(
-          { ...this.state, panel: null },
-          `${panel.for} is switching to ${chosen.id}, and new agents start on it`,
-        )
-      }
-    } catch (err) {
-      this.state = { ...this.state, panel: { ...panel, busy: false, error: why(err) } }
-    }
-    this.draw()
   }
 
   /**
@@ -3771,7 +3186,7 @@ export class App {
       this.state = withProjects(this.state, Object.keys(loaded.config.projects))
       this.state = notice({ ...selectProject(this.state, name), panel: null }, `opened ${name}`)
       await this.live?.refresh()
-      this.ensureAgent(name)
+      this.agents.ensureAgent(name)
     } catch (err) {
       fail(why(err))
     }
@@ -3810,7 +3225,8 @@ export class App {
         this.state.panel?.kind === 'extension-setup'
           ? (this.setupFacts(this.state.panel)?.fields ?? [])
           : [],
-      models: this.state.panel?.kind === 'model' ? (this.pickerModels ?? this.models) : this.models,
+      models:
+        this.state.panel?.kind === 'model' ? this.agents.offeredModels() : this.agents.models(),
       settings: this.settings.rows(),
       accountActions: accountActions(this.machine.accounts),
       updateActions: updateActions(this.machine.updates, this.machine.updatesBusy),
