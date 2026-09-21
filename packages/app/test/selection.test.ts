@@ -1,7 +1,7 @@
 import { sliceByColumn, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { draggedInFile, highlighted, ordered, selectedText } from '../src/app.ts'
 import type { Hit } from '../src/hits.ts'
+import { draggedInFile, highlighted, ordered, selectedText } from '../src/pointer.ts'
 
 // Selecting text by dragging over it: the window reports the mouse, so the
 // terminal cannot select for itself, and without this nothing on screen could
