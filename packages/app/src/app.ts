@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import {
@@ -11,22 +11,17 @@ import {
 } from '@earendil-works/pi-tui'
 import {
   type Config,
-  composeBrief,
   DEFAULT_ATTENTION,
-  describeWork,
   expandHome,
   extensionEnabled,
   HARNESS_CHOICES,
   type LaneId,
   loadConfig,
-  needsReflection,
   orchestratorRoute,
   parseQuietHours,
   planStandings,
-  reflectionPrompt,
   resolveRoute,
   THINKING_LEVELS,
-  type ThinkingLevel,
 } from '@tade/core'
 import {
   type ExtensionWorkbench,
@@ -38,22 +33,11 @@ import { git } from '@tade/status'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import type { Frame } from './frame.ts'
-import { readImage } from './images.ts'
-import {
-  addEnded,
-  addNews,
-  agentEnded,
-  eventNews,
-  type News,
-  taskNews,
-  unended,
-  withNews,
-} from './inbox.ts'
+import { agentEnded, eventNews } from './inbox.ts'
 import { keyCaps } from './keys.ts'
 import { resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
-import type { TaskSnapshot } from './model.ts'
 import {
   type AppState,
   activeTerminal,
@@ -159,28 +143,16 @@ import {
   readRecents,
   recentProjects,
 } from './projects.ts'
-import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
-import { addProject, editSettings, writeSetting } from './settings.ts'
+import { addProject, writeSetting } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
-import {
-  fromThinker,
-  interrupted,
-  problem,
-  ran,
-  said,
-  suggest,
-  tadeDid,
-  thinking,
-  youSaid,
-} from './transcript.ts'
+import { fromThinker, ran, said } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
 import { markdownLines } from './viewer.ts'
 import { Agents } from './wire/agents.ts'
 import { Checks } from './wire/checks.ts'
 import {
   type AppOptions,
-  clockOf,
   type Thinker,
   type Wiring,
   type WorkerImageFile,
@@ -194,6 +166,7 @@ import { Lanes } from './wire/lanes.ts'
 import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
+import { Orchestrator } from './wire/orchestrator.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Schedules, scheduleIdOf } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
@@ -263,23 +236,6 @@ export class App {
   private readonly terminal: Terminal
   private readonly tui: TuiAltScreen
   private state: AppState = initialState()
-  /**
-   * Where free text goes, once there is something to send it to.
-   *
-   * Settable, because the orchestrator is a model in another process and can
-   * take a few seconds to come up. The window opens without waiting for it:
-   * an empty terminal while something else starts is the worst first second
-   * Tade could have, and everything except free text works meanwhile.
-   */
-  private thinker: Thinker | null = null
-  /** The pictures that went with what was said last, until the orchestrator is asked. */
-  private sending: string[] = []
-  /**
-   * The files attached to what the orchestrator is answering, for the agents it
-   * starts while it does. Only until it has answered: a picture belongs to the
-   * message it came with, not to whatever is started next.
-   */
-  private answering: readonly string[] = []
   /** Text the extensions know how to open, asked once: working it out reads files. */
   private linkers: readonly Linker[] = []
   /** What each field of the setup panel offers, once looked up. */
@@ -295,7 +251,6 @@ export class App {
   private listSections: ListSection[] = []
   private statusedAt = Number.NEGATIVE_INFINITY
   private asking = false
-  private speakingTurn = false
   /** A look at the lanes is under way, and whether another was asked for meanwhile. */
   private looking = false
   private lookAgain = false
@@ -306,14 +261,6 @@ export class App {
   /** The Open project list for the last folder and query, and the branches found for its rows. */
   private openCache: { key: string; rows: OpenRow[]; browsing: string | null } | null = null
   private readonly branches = new Map<string, string | null>()
-  /** Tasks being looked back at right now, so two polls cannot double up. */
-  private readonly reflecting = new Set<string>()
-  /** What happened that the orchestrator has not heard yet: it goes with the next thing said to it. */
-  private news: News[] = []
-  /** The tasks as last seen, so what changed between two looks is news. */
-  private seenTasks: readonly TaskSnapshot[] | null = null
-  /** Another screen has the terminal, so this window must not draw over it. */
-  private borrowed = false
   private live: Live | null = null
   private timer: NodeJS.Timeout | null = null
   /** When the whole screen was last written over itself. */
@@ -360,6 +307,8 @@ export class App {
   private readonly files: Files
   /** Making an agent, opening one again, stopping it, and what you change about one. */
   private readonly agents: Agents
+  /** The thing you talk to: what it is told, what it answers, and the screen it borrows. */
+  private readonly orchestrator: Orchestrator
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -388,10 +337,8 @@ export class App {
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
     this.queue = new Queue(this.wire, {
-      news: (said) => {
-        this.news = addNews(this.news, said, this.now())
-      },
-      tell: (text) => this.tell(text),
+      news: (said) => this.orchestrator.note(said),
+      tell: (text) => this.orchestrator.tell(text),
       schedules: {
         views: () => this.schedules.views(),
         set: (req) => this.schedules.set(req),
@@ -399,10 +346,8 @@ export class App {
       },
     })
     this.schedules = new Schedules(this.wire, {
-      news: (said) => {
-        this.news = addNews(this.news, said, this.now())
-      },
-      tell: (text) => this.tell(text),
+      news: (said) => this.orchestrator.note(said),
+      tell: (text) => this.orchestrator.tell(text),
       advanceQueue: () => void this.advanceQueue(),
     })
     this.search = new Search(this.wire, {
@@ -434,7 +379,7 @@ export class App {
         }
       },
       showTerminal: (id) => this.lanes.showTerminal(id),
-      onScreenWith: (flow) => this.onScreenWith(flow),
+      onScreenWith: (flow) => this.orchestrator.onScreenWith(flow),
       refreshModels: async () => {
         await this.agents.refreshModels()
       },
@@ -442,28 +387,27 @@ export class App {
     this.settings = new Settings(this.wire, {
       loadAccounts: () => void this.machine.loadAccountViews(),
       lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
-      tellThinking: (level) => this.tellThinkerThinking(level),
+      tellThinking: (level) => this.orchestrator.tellThinking(level),
       setupChanged: () => this.setupShown.clear(),
       silence: () => {
-        this.speakingTurn = false
+        this.orchestrator.stopSpeaking()
         void this.voice.silence()
       },
     })
     this.images = new Images(this.wire, {
       menuItemsFor: (panel) => this.menuItemsFor(panel),
       soonTick: () => this.soonTick(),
-      answering: () => this.answering,
+      answering: () => this.orchestrator.attached(),
     })
     this.voice = new Voice(this.wire, {
       submit: () => this.keyboard.submit(),
-      say: (said) => this.say(said),
+      say: (said) => this.orchestrator.say(said),
       useConfig: (config) => this.useConfig(config),
     })
     this.checks = new Checks(this.wire, {
       sections: () => this.listSections,
       callId: () => `you-${++this.ranCount}`,
     })
-    if (opts.thinker) this.thinkWith(opts.thinker)
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
     // clickable: events arrive at the component with coordinates local to it.
@@ -485,19 +429,36 @@ export class App {
       decide: (allow) => void this.agents.decide(allow),
       openSearch: () => this.search.open(),
       run: (action) => void this.run(action),
-      interrupt: () => void this.interruptThinker(),
+      interrupt: () => void this.orchestrator.interrupt(),
       quit: () => this.quit(),
       soonTick: () => this.soonTick(),
       toLane: (data) => this.lanes.toLane(data),
       act: (said) => void this.act(said),
-      say: (said) => this.say(said),
+      say: (said) => this.orchestrator.say(said),
     })
     this.lanes = new Lanes(this.wire, {
       size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
       layout: () => this.window.layout(),
       skin: this.skin,
       soonTick: () => this.soonTick(),
-      say: (said) => this.say(said),
+      say: (said) => this.orchestrator.say(said),
+    })
+    this.orchestrator = new Orchestrator(this.wire, {
+      terminal: this.terminal,
+      suspend: () => this.tui.stop(),
+      resume: () => this.tui.start(),
+      voice: {
+        ready: () => this.voice.ready,
+        awaiting: () => this.voice.awaiting,
+        handle: (said) => this.voice.handle(said),
+        speakChunk: (text) => this.voice.speakChunk(text),
+        speakMessage: (text) => this.voice.speakMessage(text),
+        flushSpeech: () => this.voice.flushSpeech(),
+      },
+      remember: (said) => this.keyboard.remember(said),
+      useConfig: (config) => this.useConfig(config),
+      credential: (provider) => this.machine.credential(provider),
+      anchored: (next) => this.anchored(next),
     })
     this.agents = new Agents(this.wire, {
       size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
@@ -507,8 +468,8 @@ export class App {
       openDiff: (task, path) => this.files.openDiff(task, path),
       openPlace: (target) => this.files.openPlace(target),
       changeQueue: (task, change) => this.queue.change(task, change),
-      chooseThinkerThinking: (level) => this.chooseThinkerThinking(level),
-      thinkerModel: () => this.thinkerModel(),
+      chooseThinkerThinking: (level) => this.orchestrator.chooseThinking(level),
+      thinkerModel: () => this.orchestrator.model(),
       copyToClipboard: (text) => copyText(text, (data) => this.terminal.write(data)),
     })
     this.files = new Files(this.wire, {
@@ -516,13 +477,13 @@ export class App {
       skin: this.skin,
       copy: (text) => this.copy(text),
       openSearch: (query) => this.search.open(query),
-      onScreenWith: (flow) => this.onScreenWith(flow),
+      onScreenWith: (flow) => this.orchestrator.onScreenWith(flow),
       paneSize: () => this.lanes.paneSize(),
       applyPanel: (outcome) => this.applyPanel(outcome),
     })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
-      borrowed: () => this.borrowed,
+      borrowed: () => this.orchestrator.borrowed(),
       size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
       write: (data) => this.terminal.write(data),
       pointerShapes: () => this.pointerShapes,
@@ -567,27 +528,33 @@ export class App {
    * knowing when that changed is the difference between waiting and retyping.
    */
   attachThinker(thinker: Thinker): void {
-    this.thinkWith(thinker)
-    this.state = notice(this.state, 'orchestrator ready')
-    this.draw()
+    this.orchestrator.attach(thinker)
   }
 
-  /** Take free text to this thinker, and show what it does as it does it. */
-  private thinkWith(thinker: Thinker): void {
-    this.thinker = thinker
-    thinker.onEvent?.((event) => {
-      // Said as it streams. The whole message follows its pieces, and only
-      // closes them off: said again, every answer was heard twice at once.
-      if (this.speakingTurn && event.type === 'delta' && event.text) {
-        this.voice.speakChunk(event.text)
-      } else if (this.speakingTurn && event.type === 'message' && event.text) {
-        this.voice.speakMessage(event.text)
-      }
-      this.state = this.anchored(
-        withTranscript(this.state, fromThinker(this.state.transcript, event, this.now())),
-      )
-      this.draw()
-    })
+  /**
+   * Write down the model the orchestrator ended up on when none was chosen,
+   * so it stays on it. Otherwise the harness's default decides every start,
+   * and that default is whatever an agent last switched to.
+   */
+  keepThinkerModel(model: { provider?: string; id: string }): void {
+    this.orchestrator.keepModel(model)
+  }
+
+  /**
+   * The orchestrator switched its own model, because it was asked to: kept for
+   * the next start and shown on its tab, without restarting what it is doing.
+   */
+  thinkerMovedTo(model: { provider: string; id: string }): void {
+    this.orchestrator.movedTo(model)
+  }
+
+  /**
+   * The orchestrator could not be started, said where you would have waited
+   * for it — not swallowed, which left a window that never answered anything
+   * and gave no reason.
+   */
+  thinkerFailed(reason: string): void {
+    this.orchestrator.failed(reason)
   }
 
   /** What extensions may ask of this window, once it exists to be asked. */
@@ -606,57 +573,6 @@ export class App {
       this.state = focusTask(this.state, task)
       this.draw()
     })
-  }
-
-  /**
-   * Write down the model the orchestrator ended up on when none was chosen,
-   * so it stays on it. Otherwise the harness's default decides every start,
-   * and that default is whatever an agent last switched to.
-   */
-  keepThinkerModel(model: { provider?: string; id: string }): void {
-    if (this.opts.config.orchestrator.model) return
-    this.saveThinkerModel(model)
-  }
-
-  /**
-   * The orchestrator switched its own model, because it was asked to: kept for
-   * the next start and shown on its tab, without restarting what it is doing.
-   */
-  thinkerMovedTo(model: { provider: string; id: string }): void {
-    this.saveThinkerModel(model)
-    this.state = notice(this.state, `the orchestrator is now on ${model.provider}/${model.id}`)
-    this.draw()
-  }
-
-  private saveThinkerModel(model: { provider?: string; id: string }): void {
-    try {
-      writeSetting(this.configPath, 'orchestrator.provider', model.provider)
-      writeSetting(this.configPath, 'orchestrator.model', model.id)
-      this.useConfig({
-        ...this.opts.config,
-        orchestrator: {
-          ...this.opts.config.orchestrator,
-          model: model.id,
-          ...(model.provider ? { provider: model.provider } : {}),
-        },
-      })
-    } catch {
-      // Not writable: it still runs, only without the promise to stay put.
-    }
-  }
-
-  /**
-   * The orchestrator could not be started, said where you would have waited
-   * for it — not swallowed, which left a window that never answered anything
-   * and gave no reason.
-   */
-  thinkerFailed(reason: string): void {
-    this.state = withTranscript(
-      this.state,
-      problem(this.state.transcript, `The orchestrator did not start: ${reason}`, this.now()),
-    )
-    this.state = notice(this.state, null)
-    this.draw()
   }
 
   /** Resolves when the window has been closed. */
@@ -807,7 +723,7 @@ export class App {
           panel.for === 'orchestrator' ? 'the orchestrator' : pane ? shownName(pane) : panel.for,
         currentModel:
           panel.for === 'orchestrator'
-            ? this.thinkerModel()
+            ? this.orchestrator.model()
             : (live.vitals(panel.for)?.model ?? null),
       }
     }
@@ -974,10 +890,10 @@ export class App {
       },
       home: tilde(this.opts.home),
       linkers: this.linkers,
-      orchestratorModel: this.thinkerModel(),
+      orchestratorModel: this.orchestrator.model(),
       orchestratorThinking: this.opts.config.orchestrator.thinking ?? null,
-      orchestratorAccount: this.thinkerAccount(),
-      orchestratorOffers: this.thinker?.offers ?? null,
+      orchestratorAccount: this.orchestrator.account(),
+      orchestratorOffers: this.orchestrator.offers(),
       bindings: this.opts.config.surfaces.window.keys,
       muted: this.opts.config.surfaces.voice.muted,
       clipboardImage: this.images.offered,
@@ -1040,27 +956,22 @@ export class App {
         // Focus can only be restored once there are panes to restore it to,
         // and only the first time: after that it is wherever you moved to.
         this.window.restoreFocus()
-        if (this.seenTasks) {
-          for (const text of taskNews(this.seenTasks, tasks)) {
-            this.news = addNews(this.news, text, this.now())
-          }
-        }
-        this.seenTasks = tasks
+        this.orchestrator.noteTasks(tasks)
         void this.agents.learnHarnesses(tasks)
         void this.queue.recordRulesMet()
         void this.schedules.runDue().then(() => this.advanceQueue())
-        void this.reflect(tasks)
+        void this.orchestrator.reflect(tasks)
         this.draw()
       },
       onEvent: (event) => {
         this.state = onEvent(this.state, event, this.now())
         const heard = eventNews(event)
-        if (heard) this.news = addNews(this.news, heard, this.now())
+        if (heard) this.orchestrator.note(heard)
         // An agent that is gone, however it went: told rather than discovered
         // by the orchestrator steering something that is not there any more.
         const ended = agentEnded(event)
-        if (ended) this.news = addEnded(this.news, ended, this.now())
-        if (event.type === 'run_started' && event.task) this.news = unended(this.news, event.task)
+        if (ended) this.orchestrator.noteEnded(ended)
+        if (event.type === 'run_started' && event.task) this.orchestrator.noteStarted(event.task)
         this.draw()
       },
       onWarning: (message) => {
@@ -1094,15 +1005,15 @@ export class App {
           this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
         ),
         vocabulary: async () => vocabulary(live.tasks),
-        status: async (scope) => this.describe(scope),
+        status: async (scope) => this.orchestrator.describe(scope),
         worktreeOf: async (task) => live.worktreeOf(task),
-        show: async (task) => this.show(task),
+        show: async (task) => this.orchestrator.show(task),
         openSettings: async () => this.openSettings(),
-        brief: () => this.brief(),
+        brief: () => this.orchestrator.brief(),
         extension: (said) => this.heardByExtension(said),
         tasks: async () => knownTasks(live.tasks),
         history: async () => live.history,
-        ask: (text: string) => this.ask(text),
+        ask: (text: string) => this.orchestrator.ask(text),
         terminals: this.lanes.voiceTerminals(),
         ...(this.opts.now ? { now: this.opts.now } : {}),
         // Typing at an agent is what mutes speech for that task.
@@ -1281,7 +1192,7 @@ export class App {
       return
     }
     if (action.startsWith('ask:')) {
-      this.say(action.slice('ask:'.length))
+      this.orchestrator.say(action.slice('ask:'.length))
       return
     }
     if (action.startsWith('extension-view:')) {
@@ -1384,7 +1295,7 @@ export class App {
         this.draw()
         return
       case 'brief':
-        await this.brief()
+        await this.orchestrator.brief()
         return
       case 'open-project':
         this.openCache = null
@@ -1469,24 +1380,6 @@ export class App {
       }
       default:
         await this.act(action)
-    }
-  }
-
-  /** Borrow the terminal for a flow on the shared screen, then put the window back. */
-  private async onScreenWith(flow: (ui: Ui) => Promise<void>): Promise<void> {
-    if (this.borrowed) return
-    this.borrowed = true
-    this.tui.stop()
-    try {
-      await runScreen({ title: 'Tade', terminal: this.terminal }, flow)
-    } catch (err) {
-      if (!(err instanceof ScreenCancelled)) {
-        this.state = notice(this.state, why(err))
-      }
-    } finally {
-      this.borrowed = false
-      this.tui.start()
-      this.draw()
     }
   }
 
@@ -1719,54 +1612,6 @@ export class App {
         return this.notes.fromMenu(subject, item)
       case 'thinking':
         return this.agents.chooseThinking(subject.task, item)
-    }
-  }
-
-  /**
-   * How hard the orchestrator thinks, from its next reply on. Written to the
-   * config, like the model it is on, so it stays — but unlike the model it
-   * needs no restart: the level is asked of the process it is already in, and
-   * the conversation carries on.
-   */
-  private async chooseThinkerThinking(level: string): Promise<void> {
-    const chosen = THINKING_LEVELS.find((one) => one === level.trim().toLowerCase())
-    if (!chosen) {
-      this.state = notice(this.state, `${level} is not a thinking level`)
-      this.draw()
-      return
-    }
-    try {
-      writeSetting(this.configPath, 'orchestrator.thinking', chosen)
-      const loaded = await loadConfig(this.configPath)
-      if (loaded.ok) this.useConfig(loaded.config)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-      this.draw()
-      return
-    }
-    const trouble = await this.tellThinkerThinking(chosen)
-    this.state = notice(
-      this.state,
-      trouble
-        ? `the orchestrator will think at ${chosen} when it next starts: ${trouble}`
-        : `the orchestrator thinks at ${chosen} from its next reply, and starts there`,
-    )
-    this.draw()
-  }
-
-  /**
-   * Ask the orchestrator to think at a level now. Answers why it could not be
-   * told — it is still starting, or stopped — rather than throwing: the level
-   * is in the config either way, so the next start has it.
-   */
-  private async tellThinkerThinking(level: ThinkingLevel): Promise<string | null> {
-    const move = this.thinker?.setThinking
-    if (!this.thinker || !move) return 'it is not running yet'
-    try {
-      await move.call(this.thinker, level)
-      return null
-    } catch (err) {
-      return why(err)
     }
   }
 
@@ -2055,41 +1900,6 @@ export class App {
   }
 
   /**
-   * Stop the turn the orchestrator is on, and nothing else.
-   *
-   * What it already said stays, its session does not change and the next
-   * thing you say carries on the same conversation — it is never introduced
-   * again, so interrupting it must never be a way of restarting it. What is
-   * typed on the line is not touched: escape is the key you press to stop
-   * something, not to lose a sentence.
-   *
-   * A harness that cannot do this mid-turn says so in its own words rather
-   * than swallowing the key, which would look exactly like a stop that did
-   * not work.
-   */
-  private async interruptThinker(): Promise<void> {
-    const offers = this.thinker?.offers
-    if (!this.thinker?.interrupt || !offers?.interrupt.shown) {
-      const why = offers?.interrupt.note ?? 'cannot be stopped once it has started'
-      this.state = notice(this.state, `${offers?.harness ?? 'the orchestrator'} ${why}`)
-      this.draw()
-      return
-    }
-    try {
-      await this.thinker.interrupt()
-      // Said in the conversation rather than on a line that goes: scrolled
-      // back to next week, it is the reason the turn above it stops mid-way.
-      this.state = notice(
-        withTranscript(this.state, interrupted(this.state.transcript)),
-        'stopped the orchestrator',
-      )
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
-  }
-
-  /**
    * Carry out a slash command.
    *
    * Work happens in the window. Starting a task used to throw the whole screen
@@ -2141,105 +1951,8 @@ export class App {
         return
       }
       default:
-        await this.onScreen(chosen.name)
+        await this.orchestrator.onScreen(chosen.name)
     }
-  }
-
-  /** Ask, on a screen of its own, and put the window back afterwards. */
-  private async onScreen(command: string): Promise<void> {
-    if (this.borrowed) return
-    this.borrowed = true
-    this.tui.stop()
-    try {
-      await runScreen(
-        { title: command, context: [join(this.opts.home, 'config.yaml')], terminal: this.terminal },
-        async (ui) => {
-          try {
-            const done = await this.runCommand(command, ui)
-            if (done) this.state = notice(this.state, done)
-          } catch (err) {
-            // Shown here and waited on, rather than thrown out to a window
-            // that is about to redraw over it: an explanation that leaves with
-            // the screen is an explanation nobody read.
-            if (err instanceof ScreenCancelled) throw err
-            await ui.pause(`  ${err instanceof Error ? err.message : String(err)}`)
-          }
-        },
-      )
-    } catch (err) {
-      // ctrl+c closes the form, not Tade.
-      if (!(err instanceof ScreenCancelled)) {
-        this.state = notice(this.state, err instanceof Error ? err.message : String(err))
-      }
-    } finally {
-      this.borrowed = false
-      this.tui.start()
-      this.draw()
-    }
-  }
-
-  /** Free text, which only the orchestrator can answer. */
-  private async ask(text: string): Promise<string> {
-    if (!this.thinker) return 'The orchestrator is still starting.'
-    this.state = withTranscript(this.state, thinking(this.state.transcript, this.now()))
-    this.draw()
-    const images = this.sending.flatMap((path) => readImage(path) ?? [])
-    this.sending = []
-    this.speakingTurn =
-      this.opts.config.surfaces.voice.speak && !this.opts.config.surfaces.voice.muted
-    // What happened since it last heard goes with what you said, so what
-    // answers you knows it — and is shown, since it is part of what was asked.
-    if (this.news.length > 0) {
-      const told = this.news.map((one) => one.text).join('; ')
-      this.state = withTranscript(
-        this.state,
-        tadeDid(this.state.transcript, `told the orchestrator: ${told}`, this.now()),
-      )
-    }
-    const message = withNews(text, this.news, clockOf)
-    this.news = []
-    try {
-      return await this.thinker.ask(message, images)
-    } catch (err) {
-      this.state = withTranscript(this.state, problem(this.state.transcript, why(err), this.now()))
-      return ''
-    } finally {
-      this.speakingTurn = false
-      this.voice.flushSpeech()
-    }
-  }
-
-  /** Everything addressed to Tade arrives here, however it was said. */
-  private say(said: string): void {
-    if (said === '' || !this.voice.ready) return
-    this.keyboard.remember(said)
-    // Shown the moment it is sent, not once something has answered it. The
-    // pictures waiting go with it, and only with it.
-    this.sending = this.state.attached
-    const attached = [...this.state.attached]
-    this.answering = attached
-    this.state = withTranscript(
-      { ...this.state, attached: [] },
-      youSaid(this.state.transcript, said, this.now(), this.state.attached),
-    )
-    this.draw()
-    void this.voice
-      .handle(said)
-      .then(() => {
-        this.state = setQuestion(this.state, this.voice.awaiting)
-        this.draw()
-      })
-      .catch((err: unknown) => {
-        this.state = withTranscript(
-          this.state,
-          problem(this.state.transcript, why(err), this.now()),
-        )
-        this.draw()
-      })
-      .finally(() => {
-        // Answered: what came with it goes to no agent started after.
-        if (this.answering === attached) this.answering = []
-      })
   }
 
   /** Re-read the focused lane's screen. */
@@ -2339,21 +2052,6 @@ export class App {
       this.soon = null
       void this.tick()
     }, LOOK_SOON_MS)
-  }
-
-  private thinkerAccount(): NonNullable<Frame['orchestratorAccount']> {
-    const { provider, model } = this.opts.config.orchestrator
-    const paying = provider ?? (model?.includes('/') ? (model.split('/')[0] ?? null) : null)
-    return {
-      provider: paying,
-      credential: this.machine.credential(paying),
-    }
-  }
-
-  /** The orchestrator's model as the config has it: `provider/id`, or the id alone. */
-  private thinkerModel(): string | null {
-    const { provider, model } = this.opts.config.orchestrator
-    return model ? (provider ? `${provider}/${model}` : model) : null
   }
 
   /**
@@ -2973,86 +2671,6 @@ export class App {
     }
   }
 
-  /**
-   * The brief, on demand: what is stopped, what is moving, and what the
-   * extensions found — with what to ask about each offered to click. Returned
-   * as it would be said, for a surface that speaks it.
-   */
-  private async brief(): Promise<string> {
-    const tasks = (this.live?.tasks ?? []).map((task) => ({
-      task: task.task,
-      state: task.state,
-      waiting: task.approval?.summary ?? null,
-      reason: '',
-    }))
-    const found = (await this.opts.extensions?.brief().catch(() => null)) ?? {
-      items: [],
-      problems: [],
-    }
-    const composed = composeBrief(tasks, {
-      localHour: new Date(this.now()).getHours(),
-      extras: found.items.map((item) => item.said),
-    })
-    const at = this.now()
-    let transcript = said(this.state.transcript, composed.spoken, at)
-    for (const item of found.items) {
-      if (item.ask) transcript = suggest(transcript, item.said, item.ask, at)
-    }
-    this.state = withTranscript({ ...this.state, bottom: ORCHESTRATOR_TAB }, transcript)
-    if (found.problems.length > 0) this.state = notice(this.state, found.problems.join(' · '))
-    this.draw()
-    return composed.spoken
-  }
-
-  private async show(task: string): Promise<string> {
-    const known = this.state.panes.some((pane) => pane.task === task)
-    if (!known) return `I don't have a pane for ${task}.`
-    this.state = focusTask(this.state, task)
-    this.draw()
-
-    const lane = `${task}/agent` as LaneId
-    if (!this.opts.client.driver.capabilities.focus) return `Showing ${task}.`
-    try {
-      await this.opts.client.focusLane(lane)
-      return `Showing ${task}.`
-    } catch {
-      // The lane may not exist, or the terminal may have moved on. The pane
-      // moved either way, which is the part this window can promise.
-      return `Showing ${task}.`
-    }
-  }
-
-  /**
-   * Look back at tasks that have finished.
-   *
-   * Nothing was ever prompting the orchestrator to notice a lesson; a tool it
-   * may call whenever it likes is one it calls to be helpful rather than when
-   * it has learned something. A finished task is the one moment there is
-   * something to learn from, and the journal remembers which have been looked
-   * at, so nothing is reflected on twice.
-   *
-   * Quiet by design: it proposes, and what it proposes waits for you in
-   * `tade skills` and the next brief. Nothing is said out loud.
-   */
-  private async reflect(tasks: readonly TaskSnapshot[]): Promise<void> {
-    const thinker = this.thinker
-    if (!thinker || !this.opts.config.orchestrator.reflect) return
-    const finished = needsReflection(
-      tasks.map((task) => ({ task: task.task, state: task.state })),
-      this.live?.events ?? [],
-    ).filter((task) => !this.reflecting.has(task))
-
-    for (const task of finished) {
-      this.reflecting.add(task)
-      // Recorded before asking, not after: an ask that fails or is interrupted
-      // must not make Tade ask again about the same task every two seconds.
-      await this.opts.client.log
-        .append({ type: 'reflected', task, detail: { by: 'orchestrator' } })
-        .catch(() => {})
-      await this.tell(reflectionPrompt(task)).catch(() => {})
-    }
-  }
-
   /** Start whatever queued work is ready, and say what is held. */
   advanceQueue(): Promise<string[]> {
     return this.queue.advance()
@@ -3061,20 +2679,6 @@ export class App {
   /** What the orchestrator's queue tools do, answered from this window. */
   queueTools(): QueueTools {
     return this.queue.tools()
-  }
-
-  /**
-   * Tell the orchestrator something now rather than with the next thing you
-   * say: after the turn it is on, never across it. Sent in the middle of your
-   * question, it used to be refused, and was lost.
-   */
-  private async tell(text: string): Promise<void> {
-    const thinker = this.thinker
-    if (!thinker) return
-    const message = withNews(text, this.news, clockOf, 'Tade says:')
-    this.news = []
-    if (thinker.tell) await thinker.tell(message)
-    else await thinker.ask(message)
   }
 
   /**
@@ -3274,52 +2878,8 @@ export class App {
     this.settings.use(config)
   }
 
-  /** What each command actually does, once it has a screen to ask on. */
-  private async runCommand(command: string, ui: Ui): Promise<string> {
-    const path = join(this.opts.home, 'config.yaml')
-    switch (command) {
-      case '/settings':
-        await editSettings(ui, path)
-        return 'settings closed'
-      case '/project': {
-        const root = resolve(await ui.ask('repository path', this.opts.cwd ?? process.cwd()))
-        if (!existsSync(join(root, '.git'))) throw new Error(`${root} is not a git repository`)
-        const fallback = basename(root)
-          .toLowerCase()
-          .replace(/[^a-z0-9-]+/g, '-')
-        const name = await ui.ask('call it what?', fallback)
-        addProject(path, name, root)
-        return `added ${name} → ${root}, from the next time Tade starts`
-      }
-      default:
-        return ''
-    }
-  }
-
-  private describe(scope: string | null): string {
-    const live = this.live
-    const tasks = live?.tasks ?? []
-    // Asked about one agent, answer with what it has been doing. Asked about
-    // everything, answer with the shape of it: an account of nine tasks at
-    // once is unusable, spoken or read.
-    if (live && scope && tasks.some((task) => task.task === scope)) {
-      return describeWork(live.workOn(scope), this.now())
-    }
-    const wanted = scope
-      ? tasks.filter((t) => t.task === scope || t.task.startsWith(`${scope}/`))
-      : tasks
-    if (wanted.length === 0) return scope ? `nothing going on in ${scope}.` : 'nothing going on.'
-    // Waiting on you is a decision to make: an agent idle at its prompt is not one.
-    const blocked = wanted.filter((t) => markOf(t) === 'needs-you').length
-    const working = wanted.filter((t) => markOf(t) === 'working').length
-    const parts = [`${wanted.length} task${wanted.length === 1 ? '' : 's'}`]
-    if (working > 0) parts.push(`${working} working`)
-    parts.push(blocked > 0 ? `${blocked} waiting on you` : 'nothing blocked')
-    return `${parts.join(', ')}.`
-  }
-
   private draw(): void {
-    if (!this.stopped && !this.borrowed) this.tui.requestRender()
+    if (!this.stopped && !this.orchestrator.borrowed()) this.tui.requestRender()
   }
 
   /**
@@ -3332,7 +2892,7 @@ export class App {
    * wiped nothing visibly happens.
    */
   private repaint(): void {
-    if (this.stopped || this.borrowed) return
+    if (this.stopped || this.orchestrator.borrowed()) return
     const shown = (this.tui as unknown as { previousScreen?: unknown }).previousScreen
     if (!Array.isArray(shown) || shown.length === 0) return
     let buffer = '\x1b[?2026h\x1b7'
