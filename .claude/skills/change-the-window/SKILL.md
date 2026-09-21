@@ -16,8 +16,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
-| `panels.ts` | What a panel holds and what a key or click does to it | a terminal |
-| `panel-view.ts` | How each panel is drawn, and the `PanelContext` it draws from | a terminal |
+| `panels.ts` | The `Panel` union, `PanelInputs`, and the two dispatches — `panelKey` and `panelClick` — and nothing else | a terminal |
+| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, and `small` for the ten that are one question each. Over three shared ones: `context` (`PanelContext`, `drawPanel`), `cells` (`cap`, `bar`, `pad`, the drawing every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
@@ -118,9 +118,14 @@ regions in a cycle now.
 - **Every control has the same width painted and plain.** Add a look to `skin.ts` for both `COLOUR`
   and `PLAIN`; `test/hits.test.ts` compares the hits of the two.
 - **A button names an action; it never types a command.** Add the action to `App.run`. If it needs
-  more than a click, it opens a panel: add the panel's state and key/click rules to `panels.ts`
-  (tested in `test/panels.test.ts`), draw it in `panel-view.ts`, and carry it out in
-  `App.submitPanel`, putting any failure back into the panel rather than behind it.
+  more than a click, it opens a panel, and **a new panel is a folder in `panels/`**: `state.ts` for
+  what it holds and what a key or a click does to it (tested in `test/panels.test.ts`), `view.ts`
+  for how it is drawn, its arm in the `Panel` union and in `panelKey`/`panelClick`, its entry in
+  `drawPanel`, its slice of `PanelContext`, a scenario, and an app test that opens it through the
+  whole window. Then carry it out in `App.submitPanel`, putting any failure back into the panel
+  rather than behind it. A panel under about 250 lines all told joins `panels/small/` instead of
+  taking a folder — and the dispatch stays a dispatch: what a key does to your panel is a function
+  in your own file, never a branch written out in `panels.ts`.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
 - **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`): an agent is two rows — its
@@ -189,8 +194,8 @@ regions in a cycle now.
   browser's lib and change `ReadableStream` in unrelated packages; `highlight.ts` loads it with
   `createRequire` behind a small interface of its own.
 - **A menu is a subject and its items.** `MenuSubject` says what was right-clicked (an agent, a
-  file, a changed file, the branch); `*MenuItems` in `panels.ts` list what can be done, with `off`
-  saying why not; `App.fromMenu` carries each out. A row with a menu shows `≡` under the pointer as a
+  file, a changed file, the branch); `*MenuItems` in `panels/menu/state.ts` list what can be done,
+  with `off` saying why not; `App.fromMenu` carries each out. A row with a menu shows `≡` under the pointer as a
   `{ kind: 'menu', subject }` hit, and `subjectOf` maps a right-click to the same subject.
 - **An agent's screen is read from the bottom.** pi draws from the top of its terminal and stops at
   its prompt, so `renderMain` drops trailing blank rows of an `agent` lane and pads above. Never do

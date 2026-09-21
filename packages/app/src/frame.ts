@@ -11,14 +11,14 @@ import type { SpendView } from './spend.ts'
 
 // What the window is handed, as data.
 //
-// `view.ts` draws it and `panel-view.ts` draws the panel over it, but the
-// shape of what they are given belongs to neither of them: `live.ts` fills
-// most of it in without drawing anything, and a panel names a `Change`
-// without knowing what a window looks like. Kept inside the drawing, it made
-// a cycle out of two files that never call each other — `view` wants
-// `drawPanel`, `panel-view` wanted `Change` — and gave the polling a reason
-// to import the renderer. So the contract lives here, on its own, and
-// everything that has to name a piece of it reads this file.
+// `view.ts` draws it and `panels/` draws the panel over it, but the shape of
+// what they are given belongs to neither of them: `live.ts` fills most of it
+// in without drawing anything, and a panel names a `Change` without knowing
+// what a window looks like. Kept inside the drawing, it made a cycle out of
+// two files that never call each other — `view` wants `drawPanel`, the panels
+// wanted `Change` — and gave the polling a reason to import the renderer. So
+// the contract lives here, on its own, and everything that has to name a
+// piece of it reads this file.
 //
 // Types only. Nothing here runs and nothing here draws; a rule about any of
 // it belongs in `model.ts`.

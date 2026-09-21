@@ -35,7 +35,6 @@ const BUDGET: Record<string, number> = {
   'packages/app/src/app.ts': 8_700,
   'packages/app/src/live.ts': 1_300,
   'packages/app/src/model.ts': 2_000,
-  'packages/app/src/panel-view.ts': 1_150,
   'packages/app/src/screen.ts': 900,
   'packages/app/test/app.test.ts': 3_000,
   'packages/app/test/model.test.ts': 1_100,
@@ -231,18 +230,14 @@ describe('app.ts is wiring', () => {
  * The files that are a pure function of what they are handed.
  *
  * All of them pass today; this pins a property the repo already has and nothing
- * currently defends. `view/*`, `panels/*` and the panel halves that will land
- * under them are covered by prefix, so the rule arrives with the files rather
- * than after them.
+ * currently defends. `view/*` and `panels/*` are covered by prefix, so the rule
+ * arrives with a new region or a new panel rather than after it.
  */
 const PURE = [
   'packages/app/src/frame.ts',
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
   'packages/app/src/model.ts',
-  // `panel-view.ts` is the drawing half of the panels, and dissolves into
-  // `panels/<name>/` with the rest of them. Both halves are pure; both stay so.
-  'packages/app/src/panel-view.ts',
   'packages/app/src/panels.ts',
   'packages/app/src/plan-graph.ts',
   'packages/app/src/scroll.ts',
@@ -310,9 +305,8 @@ describe('pure files stay pure', () => {
 
   it('names no file this repository does not have', () => {
     // A rule that quietly stops applying is the thing this whole file is
-    // against. `panel-view.ts` dissolves into `panels/` in slice 5; when it
-    // goes, its line here has to go with it rather than sit there meaning
-    // nothing.
+    // against. `panel-view.ts` dissolved into `panels/<name>/` in slice 5, and
+    // its line here went with it rather than sitting there meaning nothing.
     const known = new Set(tracked())
     const gone = PURE.filter((path) => !known.has(path))
     report(

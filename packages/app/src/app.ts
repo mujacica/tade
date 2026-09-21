@@ -266,6 +266,15 @@ import {
 } from './panels/project/state.ts'
 import { searchPanel } from './panels/search/state.ts'
 import {
+  ACCOUNTS,
+  accountActions,
+  type Choice,
+  type SettingsPanel,
+  settingsPanel,
+  UPDATES,
+  updateActions,
+} from './panels/settings/state.ts'
+import {
   type BranchRow,
   branchPanel,
   type CloseDonePanel,
@@ -280,19 +289,7 @@ import {
   promptPanel,
 } from './panels/small/state.ts'
 import { spendPanel } from './panels/spend/state.ts'
-import {
-  ACCOUNTS,
-  accountActions,
-  type Choice,
-  type Panel,
-  type PanelInputs,
-  panelClick,
-  panelKey,
-  type SettingsPanel,
-  settingsPanel,
-  UPDATES,
-  updateActions,
-} from './panels.ts'
+import { type Panel, type PanelInputs, panelClick, panelKey } from './panels.ts'
 import {
   ago,
   branchOf,

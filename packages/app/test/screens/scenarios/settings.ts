@@ -1,5 +1,5 @@
 import { ConfigSchema, settingsOf } from '@tade/core'
-import { settingsPanel } from '../../../src/panels.ts'
+import { settingsPanel } from '../../../src/panels/settings/state.ts'
 import { base, frame, type Scenario } from './fixtures.ts'
 
 // Settings: the categories down the side, one of them open beside them, and

@@ -16,7 +16,7 @@ Nothing here is ever taken by hand, touched up, or cropped in an image editor.
 Any change that somebody could see, including:
 
 - a row, a column, a panel, a divider, a scrollbar — anything in `packages/app/src/view/`,
-  `view.ts`, `panel-view.ts`, `ui.ts` or `layout.ts`
+  `packages/app/src/panels/`, `view.ts`, `ui.ts` or `layout.ts`
 - a colour, a control's look, a shade — anything in `skin.ts`
 - a label, a button, a heading, a hint somebody reads
 - what an extension's `view` returns, which the window draws in a panel

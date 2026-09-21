@@ -40,6 +40,7 @@ import {
 } from '../src/panels/menu/state.ts'
 import { perMillion, priceCells, priceSaid } from '../src/panels/models/state.ts'
 import { searchPanel } from '../src/panels/search/state.ts'
+import { accountActions, settingsPanel } from '../src/panels/settings/state.ts'
 import {
   branchChoices,
   branchPanel,
@@ -51,7 +52,7 @@ import {
   promptPanel,
 } from '../src/panels/small/state.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
-import { accountActions, type Panel, panelClick, panelKey, settingsPanel } from '../src/panels.ts'
+import { type Panel, panelClick, panelKey } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 import { spendView } from '../src/spend.ts'
 
