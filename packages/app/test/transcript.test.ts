@@ -5,6 +5,7 @@ import {
   emptyTranscript,
   fromThinker,
   fromTurn,
+  interrupted,
   problem,
   said,
   suggest,
@@ -185,6 +186,65 @@ describe('the conversation', () => {
       expect(visibleWidth(line.text)).toBe(23)
       expect(stripTerminalSequences(line.text)).not.toContain('\n')
     }
+  })
+})
+
+describe('a turn you stopped', () => {
+  it('keeps everything it said, and stops saying it is thinking', () => {
+    let current = thinking(youSaid(emptyTranscript(), 'run the webhook tests', 0), 0)
+    current = fromThinker(current, { type: 'delta', text: 'looking at the retries' }, 1)
+    const stopped = interrupted(current)
+    expect(stopped.thinking).toBeNull()
+    expect(text(stopped, 60, 9_000).join('\n')).toContain('looking at the retries')
+    expect(text(stopped, 60, 9_000).join('\n')).not.toContain('thinking')
+  })
+
+  it('never leaves a tool claiming to still be running', () => {
+    let current = thinking(youSaid(emptyTranscript(), 'run the webhook tests', 0), 0)
+    current = fromThinker(
+      current,
+      { type: 'tool', id: '1', tool: 'tade_terminal_run', input: {} },
+      1,
+    )
+    const stopped = interrupted(current)
+    expect(stopped.entries.at(-1)).toMatchObject({
+      kind: 'tool',
+      state: 'failed',
+      result: 'you stopped it before it answered',
+    })
+  })
+
+  // The one line that would be a lie: it did not go quiet, you stopped it.
+  it('is not reported as the orchestrator finishing without saying anything', () => {
+    const stopped = interrupted(thinking(youSaid(emptyTranscript(), 'status', 0), 0))
+    const settled = fromTurn(stopped, {
+      utterance: 'status',
+      intent: 'free',
+      at: 2,
+      reply: '',
+      task: null,
+      why: null,
+    })
+    expect(text(settled).join('\n')).not.toContain('without saying anything')
+    // And the next thing you say clears it, so a real silence is still reported.
+    const again = thinking(youSaid(settled, 'and now?', 3), 3)
+    expect(again.stopped).toBe(false)
+    const quiet = fromTurn(again, {
+      utterance: 'and now?',
+      intent: 'free',
+      at: 4,
+      reply: '',
+      task: null,
+      why: null,
+    })
+    expect(text(quiet).join('\n')).toContain('without saying anything')
+  })
+
+  it('says escape stops it, where the harness says it can be stopped', () => {
+    const asked = thinking(youSaid(emptyTranscript(), 'status', 0), 0)
+    const stoppable = transcriptLines(asked, 60, PLAIN, pointer, 3_000, [], true)
+    expect(stoppable.at(-1)?.text).toContain('esc stops it')
+    expect(text(asked, 60, 3_000).at(-1)).not.toContain('esc stops it')
   })
 })
 

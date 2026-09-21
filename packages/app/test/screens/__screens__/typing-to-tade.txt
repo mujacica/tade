@@ -28,7 +28,7 @@
                                                                                                                        ▕
                                                                                                                        ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
-───────────────────────────────────────────────────────────────  enter sends · shift+enter new line · ↑ ctrl+r history ─
+─────────────────────────────────────────────────────  enter sends · shift+enter new line · ctrl+c clears, again quits ─
  what is going on with checkout▏                                                                                        
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

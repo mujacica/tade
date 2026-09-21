@@ -34,7 +34,14 @@ export {
   withProjects,
   withTasks,
 } from './model.ts'
-export { openProjectPanel, type Panel, panelClick, panelKey } from './panels.ts'
+export {
+  openProjectPanel,
+  type Panel,
+  panelClick,
+  panelKey,
+  type ThinkerOffers,
+  thinkerOffers,
+} from './panels.ts'
 export { initialRouter, PREFIX, pending, type Routed, type RouterState, route } from './router.ts'
 export {
   initialScreen,

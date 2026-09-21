@@ -330,6 +330,22 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   and reading a whole answer out is how people learn to stop listening. And **mute is now**: the
   sentence being said is cut off where it is (`Speaker.stop`) and what was queued behind it is
   dropped (`VoiceSurface.silence`), because the moment you press it is the moment you needed it.
+- **Escape stops what is thinking; ctrl+c throws away what you typed; neither ever does the
+  other's job.** This is not Tade's invention — pi, Claude Code and Codex all answer these two keys
+  this way, each interrupting the turn and each leaving the editor exactly as it was — and a window
+  full of other people's panes is no place to invent a third convention. So escape never deletes a
+  character: it stops the orchestrator's turn (`Orchestrator.interrupt`), leaving the session id,
+  the conversation and everything already said alone — the orchestrator is never introduced again,
+  so interrupting it may never be a way of restarting it. What a harness can do mid-turn is declared
+  (`capabilities.abort`) and read through `offer()` (`thinkerOffers`); one that cannot says so in
+  its own words rather than swallowing the key, which looks exactly like a stop that did not work.
+  ctrl+c empties the line, the pictures going with it and a search part-way through, and with
+  nothing left to throw away does what it does everywhere else and closes Tade — "clear input, then
+  quit", which needs no timer, because the second press has nothing to clear however long you took
+  over it. And because escape already closes panels, what it means is decided in one pure place
+  (`escapeMeans`) and is always exactly one thing: a panel, then whatever else has the keyboard
+  (pi interrupts its own agent on escape and a shell's editor wants it too), then a history search,
+  then the turn, then stepping off the line — which only ever happens with nothing on it to lose.
 - **The line you type on is pi's editor; what is selected on it is Tade's own.** The editor holds
   the text and the caret, and a window that reports its own mouse has to be told what a second
   click means — so the selection is two offsets kept beside it (`app/src/input.ts`), and every

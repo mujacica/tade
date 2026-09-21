@@ -62,6 +62,10 @@ describe('keys the shell claims', () => {
     expect(appKey('\t', held)).toBe('tab')
     expect(appKey('\x1b[Z', held)).toBe('shift+tab')
     expect(appKey('\x03', held)).toBe('ctrl+c')
+    // Named, not claimed: what escape does depends on where you are, and
+    // `escapeMeans` is what decides. Naming it is how the window gets the
+    // chance to stop its own turn with it.
+    expect(appKey('\x1b', held)).toBe('escape')
     // Search: ctrl+k, and Cmd+K where the terminal reports Cmd (kitty protocol).
     expect(appKey('\x0b', held)).toBe('search')
     expect(appKey('\x1b[107;9u', held)).toBe('search')
@@ -72,7 +76,7 @@ describe('keys the shell claims', () => {
   it('leaves ordinary typing alone', () => {
     // `?` included: it is a character, and a question to an agent ends in one.
     // ctrl+g too, now that search has a key of its own: pi opens your editor with it.
-    for (const data of ['x', 'hello', '?', '\r', '\x1b[A', '\x1b', '\x07']) {
+    for (const data of ['x', 'hello', '?', '\r', '\x1b[A', '\x07']) {
       expect(appKey(data, held)).toBeNull()
     }
   })

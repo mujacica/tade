@@ -278,6 +278,7 @@ import {
   searchPanel,
   settingsPanel,
   spendPanel,
+  type ThinkerOffers,
   terminalMenuItems,
   thinkingMenuItems,
   toolSummary,
@@ -325,6 +326,7 @@ import { spendView as spendViewOf } from './spend.ts'
 import { windowTitle } from './title.ts'
 import {
   fromThinker,
+  interrupted,
   problem,
   ran,
   said,
@@ -412,7 +414,8 @@ const MAX_SPEECH_MS = 120_000
 
 /** Backspace, and what some terminals send instead. */
 
-const HELP = 'tab moves · / lists commands · ctrl+space talks · ctrl+c quits'
+const HELP =
+  'tab moves · / lists commands · ctrl+space talks · esc stops · ctrl+c clears, then quits'
 
 /** Two readings of a lane's screen that say the same thing, and so redraw nothing. */
 function same(a: LaneView | null, b: LaneView | null): boolean {
@@ -871,6 +874,14 @@ export interface Thinker {
    * the level is asked of the process it is already in, never a restart.
    */
   setThinking?(level: string): Promise<void>
+  /**
+   * Stop the turn it is on. Not stopping it: the conversation, its session and
+   * everything it has already said stay exactly as they are, and the next
+   * thing you say carries on from there.
+   */
+  interrupt?(): Promise<void>
+  /** What its harness can be asked of a turn in flight, in `offer()`'s words. */
+  offers?: ThinkerOffers
   onEvent?(listener: (event: ThinkerEvent) => void): () => void
 }
 
@@ -1716,6 +1727,7 @@ export class App {
       orchestratorModel: this.thinkerModel(),
       orchestratorThinking: this.opts.config.orchestrator.thinking ?? null,
       orchestratorAccount: this.thinkerAccount(),
+      orchestratorOffers: this.thinker?.offers ?? null,
       splitScreen: this.splitScreen,
       splitTerminal: this.state.terminalSplit
         ? { screen: this.splitTerminalScreen, find: null }
@@ -2223,7 +2235,7 @@ export class App {
       case 'help':
         this.state = notice(
           this.state,
-          'tab switches · ctrl+space talks · a/d answers · ctrl+c quits',
+          'tab switches · ctrl+space talks · a/d answers · ctrl+c clears, then quits',
         )
         this.draw()
         return { consume: true }
@@ -2259,6 +2271,18 @@ export class App {
       case 'project-number':
         this.state = projectNumber(this.state, action.n)
         this.draw()
+        return { consume: true }
+      case 'interrupt':
+        void this.interruptThinker()
+        return { consume: true }
+      case 'leave-line':
+        // Only ever reached with nothing on the line, so nothing is lost.
+        this.anchor = null
+        this.state = setListening(setDictation(this.state, null), false)
+        this.draw()
+        return { consume: true }
+      case 'discard':
+        this.discardLine()
         return { consume: true }
       case 'quit':
         this.quit()
@@ -4639,7 +4663,8 @@ export class App {
   /**
    * Type on the orchestrator's line. pi's own editor takes the keys — the
    * cursor, words, undo, a paste, lines that wrap, ↑ for what was said —
-   * so the line behaves as pi's does. Enter sends it; escape abandons it.
+   * so the line behaves as pi's does. Enter sends it; escape stops whatever is
+   * thinking and never touches it, and ctrl+c is what throws it away.
    *
    * What is selected is Tade's own, because the editor has no idea there is
    * a selection: the few keys a selection changes the meaning of are
@@ -4673,11 +4698,12 @@ export class App {
       return
     }
     if (key === 'escape') {
-      // Escape abandons it rather than sending half a sentence, pictures and all.
-      this.anchor = null
-      this.editor.setText('')
-      this.state = setListening(setDictation({ ...this.state, attached: [] }, null), false)
-      this.draw()
+      // Never the line. Escape is how every harness stops what is thinking —
+      // pi, Claude Code and Codex all interrupt on it and all leave the editor
+      // untouched — and `keyAction` has already spent it on the turn if there
+      // was one to stop. Here there was not, so nothing happens: losing a
+      // half-written message to the key you press when you want something to
+      // stop is the worst version of this. ctrl+c is what throws it away.
       return
     }
     if (!this.selectionKey(key ?? null)) {
@@ -4886,12 +4912,69 @@ export class App {
   }
 
   /**
+   * Stop the turn the orchestrator is on, and nothing else.
+   *
+   * What it already said stays, its session does not change and the next
+   * thing you say carries on the same conversation — it is never introduced
+   * again, so interrupting it must never be a way of restarting it. What is
+   * typed on the line is not touched: escape is the key you press to stop
+   * something, not to lose a sentence.
+   *
+   * A harness that cannot do this mid-turn says so in its own words rather
+   * than swallowing the key, which would look exactly like a stop that did
+   * not work.
+   */
+  private async interruptThinker(): Promise<void> {
+    const offers = this.thinker?.offers
+    if (!this.thinker?.interrupt || !offers?.interrupt.shown) {
+      const why = offers?.interrupt.note ?? 'cannot be stopped once it has started'
+      this.state = notice(this.state, `${offers?.harness ?? 'the orchestrator'} ${why}`)
+      this.draw()
+      return
+    }
+    try {
+      await this.thinker.interrupt()
+      // Said in the conversation rather than on a line that goes: scrolled
+      // back to next week, it is the reason the turn above it stops mid-way.
+      this.state = notice(
+        withTranscript(this.state, interrupted(this.state.transcript)),
+        'stopped the orchestrator',
+      )
+    } catch (err) {
+      this.state = notice(this.state, why(err))
+    }
+    this.draw()
+  }
+
+  /**
+   * Throw away what you were about to send: the line, the pictures going with
+   * it, and a search you were part-way through. The keyboard stays where it
+   * is, so the next thing you type lands on the same line.
+   *
+   * Pressed again there is nothing left to throw away, and ctrl+c does what
+   * it does everywhere else in Tade and closes it — which is pi's, Claude
+   * Code's and Codex's "clear input, then quit", without a timer deciding
+   * whether your second press counted.
+   */
+  private discardLine(): void {
+    this.anchor = null
+    this.editor.setText('')
+    // Emptied, never closed: only ever reached with the line open, and the
+    // keyboard stays on it.
+    this.state = setDictation({ ...this.state, attached: [], historySearch: null }, '')
+    // Nothing is said about it: the line says what ctrl+c does next, and
+    // clearing your own line is not something the conversation should record.
+    this.draw()
+  }
+
+  /**
    * Hand what was said to the surface, which works out who you meant.
    *
    * Sending empties the line; it never closes it. The keyboard is on the
    * orchestrator because you put it there, and one message is rarely all you
    * have to say — a line that closed itself dropped the next sentence into
-   * whichever agent happened to be in front of you. Escape is what leaves.
+   * whichever agent happened to be in front of you. Escape is what leaves an
+   * empty one, and ctrl+c is what empties it.
    */
   private submit(): void {
     this.syncLine()

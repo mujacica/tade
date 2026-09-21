@@ -356,6 +356,110 @@ describe('the window, wired up', () => {
     expect(asked).toHaveLength(2)
   })
 
+  it('stops the orchestrator on escape, and leaves what you typed alone', async () => {
+    const stops: number[] = []
+    const listeners: Array<(event: ThinkerEvent) => void> = []
+    await start({
+      thinker: {
+        onEvent: (listener) => {
+          listeners.push(listener)
+          return () => {}
+        },
+        offers: {
+          harness: 'pi',
+          interrupt: { shown: true, support: 'live', note: null },
+        },
+        interrupt: async () => {
+          stops.push(1)
+          for (const listener of listeners) listener({ type: 'idle' })
+        },
+        // Never answers: this is the turn you get tired of waiting for.
+        ask: () => new Promise<string>(() => {}),
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'why is refunds slow') terminal.press(char)
+    terminal.press('\r')
+    await until('it to be thinking', () =>
+      screenOf(terminal.written).some((row) => row.includes('thinking')),
+    )
+
+    // The next sentence, half written, while it is still working.
+    for (const char of 'and also search') terminal.press(char)
+    await until('the half-written line', () =>
+      screenOf(terminal.written).some((row) => row.includes('and also search')),
+    )
+
+    terminal.press('\x1b')
+    await until('the turn to be stopped', () => stops.length === 1)
+    await until('it to stop saying it is thinking', () =>
+      screenOf(terminal.written).every((row) => !row.includes('thinking')),
+    )
+
+    // The whole point: the half-written message is still there, still being
+    // typed, and the next character lands on the end of it.
+    terminal.written = ''
+    terminal.press('!')
+    await until('the line to have kept what you typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('and also search!')),
+    )
+  })
+
+  it('says so rather than swallowing escape, where its harness cannot be stopped', async () => {
+    await start({
+      thinker: {
+        offers: {
+          harness: 'codex',
+          interrupt: { shown: false, support: 'none', note: 'runs a turn to the end' },
+        },
+        ask: () => new Promise<string>(() => {}),
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'why is refunds slow') terminal.press(char)
+    terminal.press('\r')
+    await until('it to be thinking', () =>
+      screenOf(terminal.written).some((row) => row.includes('thinking')),
+    )
+    terminal.written = ''
+    terminal.press('\x1b')
+    await until('the reason', () =>
+      screenOf(terminal.written).some((row) => row.includes('runs a turn to the end')),
+    )
+  })
+
+  it('throws away what you typed on ctrl+c, and keeps the line open', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x00')
+    for (const char of 'why is refunds slow') terminal.press(char)
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('why is refunds slow')),
+    )
+
+    terminal.written = ''
+    terminal.press('\x03') // ctrl+c: the line, not Tade
+    await until('the line to be empty', () =>
+      screenOf(terminal.written).every((row) => !row.includes('why is refunds slow')),
+    )
+    // Emptied, not closed, and Tade is still open: the next sentence goes to
+    // the orchestrator without reopening anything.
+    for (const char of 'and search') terminal.press(char)
+    terminal.press('\r')
+    await until('the question', () => asked.length === 1)
+    expect(asked[0]).toBe('and search')
+  })
+
   it('says what the orchestrator answers once, as it streams in', async () => {
     const said: string[] = []
     const speaker = await Speaker.create({
@@ -605,10 +709,11 @@ describe('the window, wired up', () => {
         row.includes('Attach the screenshot on the clipboard'),
       ),
     ).toBe(false)
-    // Abandoned, and something new copied: offered when the line opens again.
-    terminal.press('\x1b')
+    // Abandoned with ctrl+c — escape never throws anything away, and a picture
+    // going with the message is something to throw away — and something new
+    // copied: offered again on the line, which ctrl+c empties without closing.
+    terminal.press('\x03')
     copy = '8'
-    terminal.press('\x00')
     await until(
       'the next copy offered',
       () =>

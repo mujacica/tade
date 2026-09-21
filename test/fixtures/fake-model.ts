@@ -14,6 +14,12 @@ export interface FakeModelOptions {
   finalText?: string
   /** Refuse every request with this status and body, as a provider does a request it will not route. */
   refuse?: { status: number; body: unknown }
+  /**
+   * Awaited before answering, so a test can have a turn that is still in
+   * flight: what an agent being interrupted needs, and the one thing a
+   * scripted model that answers instantly can never be.
+   */
+  hold?: () => Promise<void>
 }
 
 export interface FakeModel {
@@ -29,14 +35,26 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
 
   const server: Server = createServer((req, res) => {
     let body = ''
+    // A request whose caller gave up mid-answer is not this server's problem:
+    // writing to it fails, and an unhandled error would take the test down.
+    res.on('error', () => {})
     req.on('data', (chunk) => {
       body += chunk
     })
     req.on('end', () => {
+      void answer()
+    })
+
+    async function answer(): Promise<void> {
       try {
         requests.push(JSON.parse(body) as Record<string, unknown>)
       } catch {
         requests.push({ unparseable: body })
+      }
+      if (opts.hold) {
+        await opts.hold()
+        // Whoever was waiting has gone: there is nobody to answer.
+        if (res.writableEnded || res.destroyed) return
       }
       if (opts.refuse) {
         res.writeHead(opts.refuse.status, { 'content-type': 'application/json' })
@@ -102,7 +120,7 @@ export async function startFakeModel(opts: FakeModelOptions = {}): Promise<FakeM
       }
       res.write('data: [DONE]\n\n')
       res.end()
-    })
+    }
   })
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))

@@ -57,6 +57,12 @@ export function transcriptLines(
   pointer: Pointer,
   now: number,
   linkers: readonly Linker[] = [],
+  /**
+   * Escape stops the turn, as its harness declares it can. Said beside the
+   * spinner and nowhere else: the one moment the key does anything is the one
+   * moment worth saying it, which is where every harness says it too.
+   */
+  stoppable = false,
 ): Line[] {
   const lines: Line[] = []
   const plainText = (text: string) => lines.push({ text: fit(text, width), hits: [] })
@@ -91,9 +97,12 @@ export function transcriptLines(
     !transcript.entries.some((entry) => entry.kind === 'tool' && entry.state === 'running')
   if (busy && transcript.thinking !== null) {
     const seconds = Math.max(0, Math.floor((now - transcript.thinking) / 1000))
-    plainText(
-      `  ${skin.busy(spinner(now))} ${skin.hint(`thinking${seconds >= 2 ? ` · ${seconds}s` : ''}`)}`,
-    )
+    const said = [
+      'thinking',
+      ...(seconds >= 2 ? [`${seconds}s`] : []),
+      ...(stoppable ? ['esc stops it'] : []),
+    ].join(' · ')
+    plainText(`  ${skin.busy(spinner(now))} ${skin.hint(said)}`)
   }
   return lines
 }

@@ -91,6 +91,44 @@ describe('Orchestrator', () => {
     await until(() => idle)
   }, 90_000)
 
+  it('stops the turn it is on, and carries on the same conversation after', async () => {
+    // Interrupting is not stopping. Everything about the window's escape key
+    // rests on this: the process stays up, the session id does not change, and
+    // the next thing you say continues where you cut it off — it is never
+    // introduced again.
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let holding = true
+    const chat = await start({
+      finalText: 'Back with you.',
+      hold: async () => {
+        if (holding) await held
+      },
+    })
+    const events: OrchestratorEvent[] = []
+    chat.onEvent((event) => events.push(event))
+
+    await chat.ask('run the webhook tests')
+    await until(() => (model?.requests.length ?? 0) > 0)
+    await chat.interrupt()
+    // It finished the turn rather than the conversation.
+    await until(() => events.some((event) => event.type === 'idle'))
+    expect(chat.stopped).toBeNull()
+    expect(events.some((event) => event.type === 'exited')).toBe(false)
+    // Cut off before it said anything, which is what was being asked for.
+    expect(events.some((event) => event.type === 'message')).toBe(false)
+
+    holding = false
+    release()
+    expect(await chat.askFor('and now?', 30_000)).toBe('Back with you.')
+    // The same conversation: what you asked before you stopped it is still in it.
+    const carried = told((model?.requests.length ?? 1) - 1)
+    expect(carried).toContain('run the webhook tests')
+    expect(carried).toContain('and now?')
+  }, 90_000)
+
   it('comes back to the same conversation when Tade is closed and opened again', async () => {
     // The whole of remembering where it left off: one session id, kept for
     // ever, so the second start is a continuation and not an introduction.

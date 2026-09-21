@@ -1795,6 +1795,33 @@ export interface AgentOffers {
   levels: readonly string[]
 }
 
+/**
+ * What a person may ask of the orchestrator's turn, as its harness offers it.
+ *
+ * Its own type rather than an agent's: the orchestrator has no lane, no
+ * branch and no account of its own to change, and the one thing anybody asks
+ * of it mid-turn is to stop. Read through `offer()` like everything else, so
+ * no surface ever asks which harness it is.
+ */
+export interface ThinkerOffers {
+  harness: string
+  /** Stopping the turn it is on, leaving the conversation. */
+  interrupt: Offer
+}
+
+export function thinkerOffers(harness: string, capabilities: WorkerCapabilities): ThinkerOffers {
+  const abort = offer(capabilities, 'abort', capabilities.abort)
+  // Only `live` is an interruption. `idle` waits for the turn to end and
+  // `restart` starts the agent again — either would be a key that looks like
+  // it stopped something and did not, so they are declined here with the
+  // harness's own sentence rather than offered as a stop.
+  if (abort.support === 'live') return { harness, interrupt: abort }
+  // The harness's own sentence where it wrote one — every `why` is written to
+  // follow the harness's name — and a plain one where it did not.
+  const why = capabilities.why.abort ?? 'cannot stop a turn once it has started'
+  return { harness, interrupt: { ...abort, shown: false, note: why } }
+}
+
 export function agentOffers(harness: string, capabilities: WorkerCapabilities): AgentOffers {
   return {
     harness,

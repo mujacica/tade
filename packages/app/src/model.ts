@@ -1761,6 +1761,12 @@ export type KeyAction =
   | { kind: 'help' }
   | { kind: 'search' }
   | { kind: 'quit' }
+  /** Stop the turn the orchestrator is on, and leave what you typed alone. */
+  | { kind: 'interrupt' }
+  /** Step off the orchestrator's line, which only ever happens with nothing on it. */
+  | { kind: 'leave-line' }
+  /** Throw away what you were about to send: the line, and the pictures with it. */
+  | { kind: 'discard' }
   /** Put the keyboard on the orchestrator's line. */
   | { kind: 'orchestrator' }
   /** Do what a button of that name does. */
@@ -1809,6 +1815,44 @@ export function projectNumber(state: AppState, n: number): AppState {
   return name ? selectProject(state, name) : state
 }
 
+/**
+ * What escape means where you are. Exactly one of these, never two: "escape
+ * closed the picker *and* stopped the model" is the bug this exists to make
+ * impossible, so the precedence is written down once and read everywhere.
+ *
+ * A panel first, because it has the keyboard; then whatever you are typing
+ * into that is not Tade's own line, because pi interrupts on escape and vim
+ * leaves insert mode on it and a window that ate the key would break both;
+ * then searching back through what you said, which escape ends; and only
+ * then the orchestrator's turn. What is typed on the line is never touched by
+ * any of them — losing a half-written message because you wanted to stop the
+ * model is the worst version of this key.
+ */
+export type EscapeMeans = 'panel' | 'lane' | 'search' | 'interrupt' | 'leave' | 'nothing'
+
+export function escapeMeans(state: AppState): EscapeMeans {
+  if (state.panel) return 'panel'
+  // A terminal or an agent with the keyboard answers escape itself.
+  if (state.dictation === null) {
+    if (state.keyboard === 'terminal' && activeTerminal(state)) return 'lane'
+    if (state.focused !== null) return 'lane'
+  }
+  if (state.historySearch) return 'search'
+  if (state.transcript.thinking !== null) return 'interrupt'
+  // Stepping off the line, and only ever with nothing on it to lose: escape
+  // backs out of where you are everywhere else, and here there is nothing for
+  // it to back out of until the line is empty. With something typed it does
+  // nothing at all, which is the whole point of the key.
+  if (state.dictation !== null && !somethingTyped(state)) return 'leave'
+  return 'nothing'
+}
+
+/** Whether there is anything on the orchestrator's line to throw away. */
+export function somethingTyped(state: AppState): boolean {
+  if (state.dictation === null) return false
+  return state.dictation !== '' || state.attached.length > 0 || state.historySearch !== null
+}
+
 export function keyAction(key: string, state: AppState): KeyAction {
   // A terminal with the keyboard gets tab for completion, ctrl+c to interrupt,
   // and every letter: only talking and search stay Tade's.
@@ -1823,6 +1867,14 @@ export function keyAction(key: string, state: AppState): KeyAction {
     if (RUNS.has(key) || key === 'mute' || key === 'keys') return { kind: 'run', action: key }
     return { kind: 'none' }
   }
+  // Escape is only ever the window's where the window is what you are typing
+  // at, and only ever one thing: `escapeMeans` says which.
+  if (key === 'escape') {
+    const means = escapeMeans(state)
+    if (means === 'interrupt') return { kind: 'interrupt' }
+    if (means === 'leave') return { kind: 'leave-line' }
+    return { kind: 'none' }
+  }
   // Typing a command, tab finishes it rather than moving on.
   if (key === 'tab' && (state.dictation?.startsWith('/') ?? false)) return { kind: 'complete' }
   if (key === 'tab') return { kind: 'focus-next' }
@@ -1831,7 +1883,11 @@ export function keyAction(key: string, state: AppState): KeyAction {
   // swallowed by whatever is running in a pane.
   if (key === 'talk-down') return { kind: 'talk-start' }
   if (key === 'talk-up') return state.listening ? { kind: 'talk-stop' } : { kind: 'none' }
-  if (key === 'ctrl+c') return { kind: 'quit' }
+  // ctrl+c throws away what you were about to send, and quits once there is
+  // nothing left to throw away — which is what pi, Claude Code and Codex all
+  // do, and why "press it again" needs no timer here: the second press has
+  // nothing to clear, so it quits however long you took over it.
+  if (key === 'ctrl+c') return somethingTyped(state) ? { kind: 'discard' } : { kind: 'quit' }
   if (key === 'search') return { kind: 'search' }
   if (key === 'orchestrator') return { kind: 'orchestrator' }
   if (key === 'keys' || key === 'mute') return { kind: 'run', action: key }

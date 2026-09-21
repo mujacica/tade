@@ -106,6 +106,11 @@ export function appKey(data: string, ctx: KeyContext): string | null {
   if (released) return null
 
   if (key === 'ctrl+c') return key
+  // Escape is named, never claimed here: what it means depends on where you
+  // are (`escapeMeans`), and everywhere but Tade's own line it is handed
+  // straight on — pi interrupts its agent with it, and a shell's editor wants
+  // it too.
+  if (key === 'escape') return key
   // Search. Cmd+K arrives as super+k only where the terminal reports the Cmd
   // key at all; Terminal.app and most others keep Cmd for themselves.
   if (key === 'super+k') return 'search'
@@ -135,10 +140,10 @@ export function appKey(data: string, ctx: KeyContext): string | null {
 
 /** Keys that belong to something you would lose by giving them to Tade. */
 const TAKEN: Record<string, string> = {
-  'ctrl+c': 'ctrl+c closes Tade, and stops a running command everywhere else',
+  'ctrl+c': 'ctrl+c discards what you typed, then closes Tade',
   'ctrl+d': 'pi and shells exit on ctrl+d',
   'ctrl+o': 'pi shows more with ctrl+o',
-  escape: 'pi interrupts the agent on escape',
+  escape: 'escape stops what is thinking: Tade’s orchestrator, or the agent you are at',
   enter: 'enter sends what you typed',
   tab: 'Tade moves between agents with tab',
   'shift+tab': 'Tade moves between agents with shift+tab',

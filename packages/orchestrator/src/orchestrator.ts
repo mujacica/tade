@@ -427,6 +427,24 @@ export class Orchestrator {
   }
 
   /**
+   * Stop the turn it is on, and nothing else.
+   *
+   * Interrupting is not stopping: the process stays up, its session id does
+   * not change, and the next thing you say carries on the same conversation —
+   * which is the whole difference between this and `stop()`. What it managed
+   * to say before you cut it off is already in the conversation and stays
+   * there, so it knows what it was doing when you interrupted it.
+   *
+   * Whether its harness can do this mid-turn is declared (`capabilities.abort`)
+   * and read through `offer()`; a harness that cannot says so rather than
+   * being asked and quietly doing nothing.
+   */
+  async interrupt(): Promise<void> {
+    if (this.gone) throw new Error(`The orchestrator is not running: ${this.gone}`)
+    await this.adapter.abort(ORCHESTRATOR_RUN)
+  }
+
+  /**
    * How hard it thinks, from its next reply on. Asked of the process it is
    * already in — unlike a model, which it is restarted on — so the
    * conversation carries on mid-sentence.

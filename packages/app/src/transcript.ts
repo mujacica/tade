@@ -59,13 +59,22 @@ export interface Transcript {
   entries: Entry[]
   /** When the orchestrator started on what you asked, while it is still on it. */
   thinking: number | null
+  /**
+   * You stopped the turn it was on, rather than it finishing.
+   *
+   * Kept because a stopped turn and a silent one look identical from here —
+   * both end with nothing said — and only one of them is the failure this
+   * conversation exists to report. Cleared the moment the next turn starts,
+   * so it is never read against a turn it was not about.
+   */
+  stopped: boolean
 }
 
 /** Enough to scroll back through a morning; older entries fall off the top. */
 export const TRANSCRIPT_MAX = 300
 
 export function emptyTranscript(): Transcript {
-  return { entries: [], thinking: null }
+  return { entries: [], thinking: null, stopped: false }
 }
 
 function push(transcript: Transcript, entry: Entry): Transcript {
@@ -79,12 +88,35 @@ export function youSaid(
   at: number,
   images: readonly string[] = [],
 ): Transcript {
-  return push(transcript, { kind: 'you', text, images: [...images], at })
+  return push({ ...transcript, stopped: false }, { kind: 'you', text, images: [...images], at })
 }
 
 /** The orchestrator has been handed something, and is working until it is idle again. */
 export function thinking(transcript: Transcript, at: number): Transcript {
-  return { ...transcript, thinking: transcript.thinking ?? at }
+  return { ...transcript, thinking: transcript.thinking ?? at, stopped: false }
+}
+
+/**
+ * You stopped the turn it was on.
+ *
+ * Everything it said and did up to here stays — it is what you were reading
+ * when you decided to stop it — and the conversation is not ended: the next
+ * thing you say carries on from exactly this point. A tool that was still
+ * running never answered, and saying it is still running is the one thing
+ * that would now be untrue.
+ */
+export function interrupted(transcript: Transcript): Transcript {
+  const settled = settleStreaming(transcript)
+  return {
+    ...settled,
+    thinking: null,
+    stopped: true,
+    entries: settled.entries.map((entry) =>
+      entry.kind === 'tool' && entry.state === 'running'
+        ? { ...entry, state: 'failed', result: 'you stopped it before it answered', progress: null }
+        : entry,
+    ),
+  }
 }
 
 /**
@@ -107,6 +139,9 @@ export function fromTurn(transcript: Transcript, turn: Turn): Transcript {
       .some((entry) => entry.kind === 'said' || entry.kind === 'tool' || entry.kind === 'problem')
     const settled = { ...transcript, thinking: null }
     if (answered) return settled
+    // You stopped it, so it saying nothing is the answer you asked for rather
+    // than the silence below.
+    if (transcript.stopped) return settled
     // Nothing shown and nothing said is the silence this conversation exists
     // to prevent: say that much, at least.
     if (turn.reply.trim() === '') {

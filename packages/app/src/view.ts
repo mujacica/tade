@@ -60,6 +60,7 @@ import {
   sectionOpen,
   showingActions,
   shownName,
+  somethingTyped,
   spinner,
   splitShown,
   tasksOf,
@@ -67,7 +68,7 @@ import {
   terminalsOf,
 } from './model.ts'
 import { drawPanel, type PanelContext } from './panel-view.ts'
-import type { AgentOffers } from './panels.ts'
+import type { AgentOffers, ThinkerOffers } from './panels.ts'
 import {
   drawPlan,
   drawWhy,
@@ -445,6 +446,12 @@ export interface Frame {
   orchestratorModel?: string | null
   /** How hard the orchestrator thinks, as the config has it; null where nothing was chosen. */
   orchestratorThinking?: string | null
+  /**
+   * What its harness can be asked of a turn in flight, as `offer()` reads it.
+   * Whether escape says it stops anything is read from here and never from
+   * which harness it is.
+   */
+  orchestratorOffers?: ThinkerOffers | null
   /** Text extensions know how to open, made clickable wherever it is shown. */
   linkers?: readonly Linker[]
   now?: number
@@ -3970,6 +3977,7 @@ function renderStrip(
     pointer,
     frame.now ?? 0,
     frame.linkers,
+    frame.orchestratorOffers?.interrupt.shown ?? false,
   )
   const quiet = (text: string): Line => ({ text: fit(text, inner), hits: [] })
   if (state.question) {
@@ -4089,7 +4097,13 @@ function inputBox(
     if (newer > 0) {
       r.button(`↓ ${newer} newer`, { kind: 'action', name: 'transcript-end' }).text('─', rule)
     } else if (open && !state.historySearch) {
-      r.text(' enter sends · shift+enter new line · ↑ ctrl+r history ', skin.hint).text('─', rule)
+      // What the two keys people reach for do *now*: with something on the
+      // line ctrl+c is what throws it away, and what you said before is
+      // reached from an empty one anyway. Escape is said where it does
+      // something — beside the spinner — and never here, because here it
+      // leaves the line alone.
+      const last = somethingTyped(state) ? 'ctrl+c clears, again quits ' : '↑ ctrl+r history '
+      r.text(` enter sends · shift+enter new line · ${last}`, skin.hint).text('─', rule)
     }
   }
   const probe = new Row(width, skin)

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { App } from '@tade/app'
+import { App, thinkerOffers } from '@tade/app'
 import {
   activityFrom,
   defaultConfigPath,
@@ -380,6 +380,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                   // Its thinking level, moved without restarting it: the
                   // conversation carries on at the new level.
                   setThinking: (level) => started.setThinking(level as ThinkingLevel),
+                  // Stopping a turn without ending the conversation, and what
+                  // its harness says about being asked to.
+                  interrupt: () => started.interrupt(),
+                  offers: thinkerOffers(config.orchestrator.harness, started.capabilities),
                   onEvent: (listener) => started.onEvent(listener),
                 })
                 // Nothing chosen, so the harness picked: keep what it picked, so the

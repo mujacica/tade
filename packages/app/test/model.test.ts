@@ -7,6 +7,7 @@ import {
   doneTasks,
   dragAgent,
   dropAgent,
+  escapeMeans,
   FOCUS_GUARD_MS,
   focusBy,
   focusNumber,
@@ -41,6 +42,7 @@ import {
   showOrchestrator,
   showTerminal,
   sidebar,
+  somethingTyped,
   splitPane,
   splitRatio,
   splitShown,
@@ -60,6 +62,7 @@ import {
   withTerminals,
 } from '../src/model.ts'
 import { extensionsPanel } from '../src/panels.ts'
+import { thinking, youSaid } from '../src/transcript.ts'
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')
 
@@ -663,6 +666,106 @@ describe('a split pane', () => {
     expect(focusNumber(base, 5)).toBe(base)
     const two = withProjects(base, ['app', 'shop'])
     expect(projectNumber(two, 2).project).toBe('shop')
+  })
+})
+
+describe('escape, and what it is allowed to mean', () => {
+  // The three harnesses Tade runs agents in all answer this key the same way:
+  // pi, Claude Code and Codex each interrupt the turn and each leave the
+  // editor exactly as it was. The window does what they do, and — because it
+  // is a window and not one pane — it has to settle what escape means when
+  // something else is already using it.
+  const busy = (over: Partial<AppState> = {}): AppState =>
+    state({
+      focused: null,
+      chose: true,
+      transcript: thinking(youSaid(initialState().transcript, 'why is refunds slow', 0), 0),
+      ...over,
+    })
+
+  it('stops the orchestrator while it is thinking, and only then', () => {
+    expect(escapeMeans(busy({ dictation: 'half a sentence' }))).toBe('interrupt')
+    expect(keyAction('escape', busy({ dictation: 'half a sentence' }))).toEqual({
+      kind: 'interrupt',
+    })
+    // Nothing is running, so there is nothing for it to stop — and it still
+    // does not touch the line.
+    expect(escapeMeans(state({ focused: null, chose: true, dictation: 'half a sentence' }))).toBe(
+      'nothing',
+    )
+    expect(keyAction('escape', state({ focused: null, chose: true, dictation: 'x' }))).toEqual({
+      kind: 'none',
+    })
+  })
+
+  it('steps off the line only when there is nothing on it to lose', () => {
+    const typed = state({ focused: null, chose: true, dictation: 'half a sentence' })
+    expect(escapeMeans(typed)).toBe('nothing')
+    const empty = state({ focused: null, chose: true, dictation: '' })
+    expect(escapeMeans(empty)).toBe('leave')
+    expect(keyAction('escape', empty)).toEqual({ kind: 'leave-line' })
+    // A picture going with the message is something to lose, so it holds too.
+    expect(escapeMeans({ ...empty, attached: ['/tmp/shot.png'] })).toBe('nothing')
+    // And a turn to stop comes first: leaving the line can wait.
+    expect(escapeMeans(busy({ dictation: '' }))).toBe('interrupt')
+  })
+
+  it('closes what is open before it stops anything, and never does both', () => {
+    const panelled = busy({ dictation: '', panel: extensionsPanel() })
+    expect(escapeMeans(panelled)).toBe('panel')
+    expect(keyAction('escape', panelled)).toEqual({ kind: 'none' })
+  })
+
+  it('ends a history search before it stops anything', () => {
+    const searching = busy({
+      dictation: 'park refunds',
+      historySearch: { query: 'park', skip: 0, draft: 'draft', missing: false },
+    })
+    expect(escapeMeans(searching)).toBe('search')
+    expect(keyAction('escape', searching)).toEqual({ kind: 'none' })
+  })
+
+  it('belongs to whatever else has the keyboard: an agent, a terminal', () => {
+    // pi interrupts its own agent on escape and a shell's editor wants it too,
+    // so a window that ate the key would break both.
+    const atAgent = focusTask({ ...busy(), dictation: null }, 'checkout/refunds')
+    expect(escapeMeans(atAgent)).toBe('lane')
+    const inTerminal = showTerminal(
+      withTerminals(busy(), [{ id: 'checkout/terminals/1', name: 'tests', project: 'checkout' }]),
+      'checkout/terminals/1',
+    )
+    expect(escapeMeans(inTerminal)).toBe('lane')
+    expect(keyAction('escape', inTerminal)).toEqual({ kind: 'none' })
+  })
+})
+
+describe('ctrl+c on the orchestrator line', () => {
+  // "clear input, then quit", which is Codex's wording and pi's and Claude
+  // Code's behaviour: the second press has nothing left to clear, so it quits
+  // however long you took over it.
+  it('discards what is typed, and quits once there is nothing left to discard', () => {
+    const typed = state({ focused: null, chose: true, dictation: 'why is refunds slow' })
+    expect(somethingTyped(typed)).toBe(true)
+    expect(keyAction('ctrl+c', typed)).toEqual({ kind: 'discard' })
+    const empty = state({ focused: null, chose: true, dictation: '' })
+    expect(somethingTyped(empty)).toBe(false)
+    expect(keyAction('ctrl+c', empty)).toEqual({ kind: 'quit' })
+  })
+
+  it('counts the pictures going with it, and a search part-way through', () => {
+    expect(somethingTyped(state({ dictation: '', attached: ['/tmp/shot.png'] }))).toBe(true)
+    expect(
+      somethingTyped(
+        state({
+          dictation: '',
+          historySearch: { query: 'park', skip: 0, draft: '', missing: false },
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  it('is still the way out from anywhere the line is closed', () => {
+    expect(keyAction('ctrl+c', state({ dictation: null }))).toEqual({ kind: 'quit' })
   })
 })
 

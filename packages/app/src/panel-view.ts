@@ -1842,7 +1842,6 @@ function keysSheet(ctx: PanelContext): Drawn {
   }
   rows.push(
     blank(inner),
-    // Sending keeps the line, so say what leaves it: enter used to be both.
     means(
       label('On the orchestrator line')
         .keys(['↑'])
@@ -1850,8 +1849,19 @@ function keysSheet(ctx: PanelContext): Drawn {
         .space()
         .keys(['ctrl', 'r'])
         .space(2),
-      'what you said before · esc leaves',
+      'what you said before',
     ),
+    // Two keys people reach for at the same moment and mean opposite things
+    // by, so each says what it leaves alone.
+    means(
+      label('Stop the orchestrator').keys(['esc']).space(2),
+      'stops the turn it is on · what you typed stays',
+    ),
+    means(
+      label('Discard what you typed').keys(['ctrl', 'c']).space(2),
+      'the line and the pictures with it',
+    ),
+    means(label('Quit').keys(['ctrl', 'c']).space(2), 'once there is nothing left to discard'),
     means(
       label('In a panel')
         .keys(['enter'])
@@ -1871,7 +1881,6 @@ function keysSheet(ctx: PanelContext): Drawn {
         .space(2),
       'find · line · save',
     ),
-    label('Quit').keys(['ctrl', 'c']).build(),
     blank(inner),
     new Row(inner, skin)
       .space()
