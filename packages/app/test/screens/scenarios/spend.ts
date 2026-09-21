@@ -1,5 +1,5 @@
 import { type PlanSource, planStandings } from '@tade/core'
-import { spendPanel } from '../../../src/panels.ts'
+import { spendPanel } from '../../../src/panels/spend/state.ts'
 import { spendView } from '../../../src/spend.ts'
 import { base, frame, made, NOW, ran, type Scenario, usage } from './fixtures.ts'
 

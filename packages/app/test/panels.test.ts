@@ -32,6 +32,7 @@ import {
   notePanel,
   promptPanel,
 } from '../src/panels/small/state.ts'
+import { spendPanel } from '../src/panels/spend/state.ts'
 import {
   accountActions,
   chosenEntry,
@@ -49,7 +50,6 @@ import {
   type SetupFieldView,
   settingsPanel,
   setupControls,
-  spendPanel,
   toolSummary,
   WRITTEN,
   watchControl,

@@ -264,6 +264,7 @@ import {
   type PromptPanel,
   promptPanel,
 } from './panels/small/state.ts'
+import { spendPanel } from './panels/spend/state.ts'
 import {
   ACCOUNTS,
   accountActions,
@@ -283,7 +284,6 @@ import {
   panelKey,
   type SettingsPanel,
   settingsPanel,
-  spendPanel,
   toolSummary,
   UPDATES,
   updateActions,

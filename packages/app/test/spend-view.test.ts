@@ -1,9 +1,9 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
-import { nameLines, spendColumns } from '../src/panel-view.ts'
 import { drawPanel, type PanelContext } from '../src/panels/context.ts'
-import { type SpendPanel, spendPanel } from '../src/panels.ts'
+import { type SpendPanel, spendPanel } from '../src/panels/spend/state.ts'
+import { nameLines, spendColumns } from '../src/panels/spend/view.ts'
 import { COLOUR } from '../src/skin.ts'
 import { type SpendBy, spendView } from '../src/spend.ts'
 

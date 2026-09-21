@@ -3,7 +3,7 @@ import type { ParsedDiff } from '../diff.ts'
 import type { Change } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
-import { extensionSetup, extensions, extensionView, settings, spend } from '../panel-view.ts'
+import { extensionSetup, extensions, extensionView, settings } from '../panel-view.ts'
 import type {
   AccountShown,
   Choice,
@@ -40,6 +40,7 @@ import {
   quit,
   reload,
 } from './small/view.ts'
+import { spend } from './spend/view.ts'
 
 // What a panel is handed, and which drawing answers which panel.
 //
