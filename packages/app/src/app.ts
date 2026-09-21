@@ -43,7 +43,6 @@ import {
   type Plan,
   type PlanBusy,
   parseQuietHours,
-  parseSetting,
   planStandings,
   QUEUE_CHANGES,
   queueStateOf,
@@ -52,15 +51,11 @@ import {
   resolveRoute,
   type Schedule,
   type ScheduleDoes,
-  type Setting,
-  type SettingGroup,
-  settingsOf,
   startFrom,
   THINKING_LEVELS,
   type ThinkingLevel,
   taskOrigin,
   type When,
-  wantedInstead,
   watchedFrom,
 } from '@tade/core'
 import {
@@ -116,7 +111,7 @@ import {
   textOf,
   withSelection,
 } from './input.ts'
-import { appKey, checkTalkKey, keyCaps, normalKey } from './keys.ts'
+import { appKey, keyCaps, normalKey } from './keys.ts'
 import { asRemembered, type LayoutPrefs, type RememberedWindow, resolveLayout } from './layout.ts'
 import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
@@ -246,7 +241,6 @@ import {
   ACCOUNTS,
   accountActions,
   type Choice,
-  type SettingsPanel,
   settingsPanel,
   UPDATES,
   updateActions,
@@ -338,6 +332,7 @@ import {
 } from './wire/context.ts'
 import { Images, imagesTitle } from './wire/images.ts'
 import { Notes } from './wire/notes.ts'
+import { Settings } from './wire/settings.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -1091,6 +1086,8 @@ export class App {
   private readonly voice: Voice
   /** Pictures, and the clipboard they usually arrive on. */
   private readonly images: Images
+  /** The Settings page, and the one path a setting is written by. */
+  private readonly settings: Settings
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1118,6 +1115,16 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.settings = new Settings(this.wire, {
+      loadAccounts: () => void this.loadAccountViews(),
+      lookAtWhatIsInstalled: () => void this.lookAtWhatIsInstalled(),
+      tellThinking: (level) => this.tellThinkerThinking(level),
+      setupChanged: () => this.setupShown.clear(),
+      silence: () => {
+        this.speakingTurn = false
+        void this.voice.silence()
+      },
+    })
     this.images = new Images(this.wire, {
       menuItemsFor: (panel) => this.menuItemsFor(panel),
       soonTick: () => this.soonTick(),
@@ -1492,7 +1499,7 @@ export class App {
     if (panel.kind === 'settings') {
       return {
         choices: this.choices,
-        settings: this.settingRows(),
+        settings: this.settings.rows(),
         accounts: this.accountViews,
         updates: this.updates,
         updatesBusy: this.updatesBusy,
@@ -3030,7 +3037,7 @@ export class App {
       case 'settings': {
         if (choice?.startsWith('write:')) {
           const [path, value] = choice.slice('write:'.length).split('\u0000')
-          if (path !== undefined) await this.saveSetting(panel, path, value ?? '')
+          if (path !== undefined) await this.settings.save(panel, path, value ?? '')
           return
         }
         if (choice === 'open-file') {
@@ -3156,7 +3163,7 @@ export class App {
     for (const project of projects(this.state)) {
       entries.push({ id: `project:${project}`, kind: 'project', label: project, mark: '▣' })
     }
-    for (const group of this.settingRows()) {
+    for (const group of this.settings.rows()) {
       for (const setting of group.settings) {
         entries.push({
           id: `setting:${group.id}`,
@@ -6186,23 +6193,6 @@ export class App {
     }
   }
 
-  /**
-   * Every setting Settings shows: what the config holds, and a field for each
-   * credential the loaded extensions ask for — so a key can be pasted here as
-   * well as on the extension's own page, and is kept in the same one place.
-   */
-  private settingRows(): SettingGroup[] {
-    const secrets = (this.opts.extensions?.secrets() ?? []).map((one) => ({
-      name: one.name,
-      title: `${one.title} ${one.label.toLowerCase()}`,
-      means: one.means,
-      from: one.from,
-      placeholder: one.placeholder,
-      variables: one.variables,
-    }))
-    return settingsOf(this.opts.config, secrets)
-  }
-
   /** The setup panel's facts: the extension as it stands, and what its fields offer. */
   private setupFacts(panel: ExtensionSetupPanel): NonNullable<PanelContext['setup']> | null {
     const host = this.opts.extensions
@@ -7099,13 +7089,8 @@ export class App {
    * screen has the keyboard — two things drawing at once is the bug this whole
    * design exists to avoid — and starts again where it left off.
    */
-  private async openSettings(category = 'agents'): Promise<string> {
-    this.state = { ...this.state, panel: settingsPanel(category) }
-    this.draw()
-    // Asked each time the page opens: a sign-in made in another terminal counts.
-    void this.loadAccountViews()
-    if (category === UPDATES) void this.lookAtWhatIsInstalled()
-    return 'Settings are open.'
+  private openSettings(category = 'agents'): Promise<string> {
+    return this.settings.open(category)
   }
 
   /**
@@ -7244,7 +7229,7 @@ export class App {
           ? (this.setupFacts(this.state.panel)?.fields ?? [])
           : [],
       models: this.state.panel?.kind === 'model' ? (this.pickerModels ?? this.models) : this.models,
-      settings: this.settingRows(),
+      settings: this.settings.rows(),
       accountActions: accountActions(this.accountViews),
       updateActions: updateActions(this.updates, this.updatesBusy),
     }
@@ -7326,133 +7311,11 @@ export class App {
   }
 
   private get configPath(): string {
-    return join(this.opts.home, 'config.yaml')
+    return this.settings.path
   }
 
-  /**
-   * Write one setting, read the config back, and use it. A value the schema
-   * refuses is put back as it was, with the reason in the panel — never left
-   * in a file Tade will not open next time.
-   */
-  /**
-   * The config as it is now, everywhere that holds one. The workbench keeps its
-   * own copy, and it is the one that decides where agents work, how many may
-   * run and what they are told: a setting saved here that only the window saw
-   * would say "applies now" and apply to nothing.
-   */
   private useConfig(config: Config): void {
-    const was = this.opts.config.surfaces.voice.muted
-    this.opts.config = config
-    this.opts.client.config = config
-    this.live?.useConfig(config)
-    // Muted is quiet now, not at the end of the sentence: the moment you press
-    // it is the moment you needed it. What was queued behind goes with it, and
-    // the rest of the answer still arriving is not spoken either. Here rather
-    // than in the button, so muting from the settings does the same thing.
-    if (config.surfaces.voice.muted && !was) {
-      this.speakingTurn = false
-      void this.voice.silence()
-    }
-  }
-
-  private async saveSetting(panel: SettingsPanel, path: string, value: string): Promise<void> {
-    const setting = this.settingRows()
-      .flatMap((group) => group.settings)
-      .find((one) => one.path === path)
-    // A credential never goes near the config, so it never goes near the
-    // read-change-write below either: it is kept, and the extension asked
-    // again whether it can work now.
-    if (setting?.kept) {
-      await this.saveKey(panel, setting, value)
-      return
-    }
-    const before = readFileSync(this.configPath, 'utf8')
-    try {
-      if (setting?.type.kind === 'key') {
-        const check = checkTalkKey(value, setting.type.printable === true)
-        if (!check.ok) throw new Error(check.reason)
-      }
-      if (path === 'orchestrator.model') {
-        // Chosen as provider/id; stored as the two keys the orchestrator reads.
-        const [provider, ...rest] = value.split('/')
-        writeSetting(
-          this.configPath,
-          'orchestrator.provider',
-          rest.length > 0 ? provider : undefined,
-        )
-        writeSetting(
-          this.configPath,
-          'orchestrator.model',
-          rest.length > 0 ? rest.join('/') : value || undefined,
-        )
-      } else {
-        const typed = setting ? parseSetting(setting, value) : value
-        if (value !== '' && typed === undefined)
-          throw new Error(
-            `${setting?.title ?? path} needs ${setting ? wantedInstead(setting) : 'a usable value'}.`,
-          )
-        writeSetting(this.configPath, path, typed)
-      }
-      const loaded = await loadConfig(this.configPath)
-      if (!loaded.ok) {
-        writeFileSync(this.configPath, before)
-        throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
-      }
-      this.useConfig(loaded.config)
-      // An extension's own setting means nothing until the extension has it:
-      // Settings can change one (which Sentry the Sentry extension reads), so
-      // the host is handed the config here as it is from the Extensions panel.
-      if (path.startsWith('extensions.')) {
-        await this.opts.extensions?.reconfigure(loaded.config.extensions)
-        this.setupShown.clear()
-      }
-      // How hard the orchestrator thinks is live only if the one running is
-      // told: a setting that looks applied and is not is worse than one that
-      // waits honestly, so where it could not be told, it says so.
-      const trouble =
-        path === 'orchestrator.thinking' && loaded.config.orchestrator.thinking
-          ? await this.tellThinkerThinking(loaded.config.orchestrator.thinking)
-          : null
-      const said =
-        setting?.live === false
-          ? `Saved. ${setting.title} applies when Tade next starts.`
-          : trouble
-            ? `Saved. It applies when the orchestrator next starts: ${trouble}`
-            : 'Saved. It applies now.'
-      this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
-    } catch (err) {
-      this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }
-    }
-    this.draw()
-  }
-
-  /**
-   * Keep a key somebody pasted into Settings. It goes where Tade keeps
-   * credentials — never the config — and what is said back says where it
-   * went, whether the environment still beats it, and never the key.
-   */
-  private async saveKey(panel: SettingsPanel, setting: Setting, value: string): Promise<void> {
-    const kept = setting.kept ?? ''
-    const [extension, ...rest] = kept.split('.')
-    try {
-      const host = this.opts.extensions
-      if (!host || !extension || rest.length === 0) throw new Error(`nowhere to keep ${kept}`)
-      const saved = host.saveSecret(extension, rest.join('.'), value)
-      // Its extension may have been waiting on exactly this to be ready, and
-      // where its key is is what the Extensions page says about it.
-      await host.reconfigure(this.opts.config.extensions)
-      this.setupShown.clear()
-      const said =
-        value.trim() === ''
-          ? `${setting.title} is cleared.`
-          : saved.beaten
-            ? `Saved in ${saved.where} — but ${saved.beaten} is set, and that is what is used.`
-            : `Saved in ${saved.where}. It applies now.`
-      this.state = { ...this.state, panel: { ...panel, saved: said, error: null } }
-    } catch (err) {
-      this.state = { ...this.state, panel: { ...panel, saved: null, error: why(err) } }
-    }
-    this.draw()
+    this.settings.use(config)
   }
 
   /**
