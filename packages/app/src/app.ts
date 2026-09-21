@@ -73,13 +73,10 @@ import {
   settingFrom,
 } from '@tade/extensions-core'
 import { git } from '@tade/status'
-import type { Reporter } from '@tade/telemetry'
 import {
   type AudioClip,
-  type Recorder,
   type Recording,
   slugify,
-  type Transcriber,
   VoiceSurface,
   type VoiceTerminals,
 } from '@tade/voice-core'
@@ -251,7 +248,6 @@ import {
   noteMenuItems,
   queueMenuItems,
   scheduleMenuItems,
-  type ThinkerOffers,
   terminalMenuItems,
   thinkingMenuItems,
 } from './panels/menu/state.ts'
@@ -284,7 +280,6 @@ import {
   diffPanel,
   findPanel,
   noteHeadlinePanel,
-  notePanel,
   type PromptPanel,
   promptPanel,
 } from './panels/small/state.ts'
@@ -335,7 +330,6 @@ import {
   ran,
   said,
   suggest,
-  type ThinkerEvent,
   tadeDid,
   thinking,
   youSaid,
@@ -353,6 +347,8 @@ import {
   textLines,
   type ViewedFile,
 } from './viewer.ts'
+import type { AppOptions, Thinker, Wiring, WorkerImageFile } from './wire/context.ts'
+import { Notes } from './wire/notes.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -864,107 +860,11 @@ class Window implements Component {
   }
 }
 
-/**
- * Where free text goes: the orchestrator, seen from the window. Answers come
- * back from `ask`; everything it does on the way arrives through `onEvent`,
- * so the conversation can be watched rather than waited on.
- */
-export interface Thinker {
-  ask(text: string, images?: readonly WorkerImageFile[]): Promise<string>
-  /** Tell it something without cutting across what it is doing: after its turn, if it is on one. */
-  tell?(text: string): Promise<void>
-  /**
-   * How hard it thinks, from its next reply on. Its conversation carries on:
-   * the level is asked of the process it is already in, never a restart.
-   */
-  setThinking?(level: string): Promise<void>
-  /**
-   * Stop the turn it is on. Not stopping it: the conversation, its session and
-   * everything it has already said stay exactly as they are, and the next
-   * thing you say carries on from there.
-   */
-  interrupt?(): Promise<void>
-  /** What its harness can be asked of a turn in flight, in `offer()`'s words. */
-  offers?: ThinkerOffers
-  onEvent?(listener: (event: ThinkerEvent) => void): () => void
-}
-
-/** A picture to send with what you said: where it is, and what kind. */
-export interface WorkerImageFile {
-  path: string
-  data: string
-  mimeType: string
-}
-
-export interface AppOptions {
-  client: Workbench
-  config: Config
-  /** The system clipboard's pictures: what is there, and saving it. The machine's own unless given. */
-  clipboard?: {
-    state: typeof clipboardState
-    image: typeof clipboardImage
-  }
-  /** Tade's state directory, where generated earcons are kept. */
-  home: string
-  cwd?: string
-  terminal?: Terminal
-  speaker?: Speaker
-  /** Push-to-talk becomes speech when both of these are given. */
-  transcriber?: Transcriber
-  recorder?: Recorder
-  /**
-   * Where anything the grammar does not recognise goes. Without it, free text
-   * gets "I didn't catch that", which is a poor answer to a real question.
-   */
-  thinker?: Thinker
-  /**
-   * The models an agent can be started on, from the harness's own catalog.
-   * Passed in, so the window does not have to know which harness it is.
-   */
-  models?: () => Promise<{ id: string; provider: string; name: string }[]>
-  /** Providers the harness is signed in to. */
-  accounts?: () => Promise<string[]>
-  /** How each provider with credentials is paid for: signed in, or a key. */
-  credentials?: () => Promise<Record<string, 'signed-in' | 'api-key' | 'env-key'>>
-  /** The command that runs the harness interactively, for signing in. */
-  signIn?: () => { command: string; args: string[] }
-  /** The extensions this window runs with: their actions, their answers, their brief. */
-  extensions?: ExtensionHost
-  /** What the window lets an extension do: start an agent on something. */
-  extensionWorkbench?: ExtensionWorkbench
-  /**
-   * Where Tade's own trouble goes. The window reports what it cannot show
-   * you: a look at the tasks that took far longer than the time between two.
-   */
-  report?: Reporter
-  /**
-   * Start the orchestrator again, on what the config now says, carrying on its
-   * conversation. Without it, a new model applies when Tade next starts.
-   */
-  restartThinker?: () => Promise<void>
-  /** What the orchestrator could run on, as its own harness offers them. */
-  orchestratorModels?: () => Promise<ModelChoice[]>
-  /**
-   * Restart the window with the same arguments so changes can be tried live.
-   * The callback should stop the app, release the home lock, and re-exec.
-   */
-  reloadWindow?: () => Promise<void>
-  /**
-   * The tools Tade wrote for itself, to list. Whether each is on is a
-   * setting, which the window reads and writes like any other.
-   */
-  written?: () => { name: string; why: string; path: string }[]
-  /** Extensions and servers each harness loads by itself, which Tade lists but does not run. */
-  harnessExtensions?: () => Promise<{ name: string; where: string }[]>
-  /**
-   * The MCP servers Tade has been told about — the catalogue's among them,
-   * all off until somebody says otherwise. Read again whenever the extensions
-   * are, because turning one on is a setting like any other.
-   */
-  mcpServers?: (config: Config) => readonly McpServerShown[]
-  now?: () => number
-  frameMs?: number
-}
+// `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts`,
+// with the `Wiring` the subjects are handed: what the window was opened with
+// is the first thing every one of them reaches for. Re-exported here so
+// nothing outside the package has to know that they moved.
+export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 
 /**
  * What is true of a row that is an MCP server and of nothing else.
@@ -1212,9 +1112,41 @@ export class App {
   private stopped = false
   private settle: () => void = () => {}
   private readonly closed: Promise<void>
+  /**
+   * What the subjects are handed: the five names every one of them needs, and
+   * nothing else. Built once, over `this`, so a subject reads the state as it
+   * is now rather than as it was when it was made.
+   */
+  private readonly wire: Wiring
+  /** Reading a note, copying it, taking it back. */
+  private readonly notes: Notes
 
   private constructor(opts: AppOptions) {
+    // Named rather than `this`, because a getter inside an object literal has
+    // a `this` of its own: the window has to be closed over for the two fields
+    // that change to be read as they are at every look.
+    const app = this
     this.opts = opts
+    this.wire = {
+      get opts() {
+        return opts
+      },
+      get state() {
+        return app.state
+      },
+      put: (next) => {
+        app.state = next
+      },
+      get live() {
+        return app.live
+      },
+      now: () => app.now(),
+      draw: () => app.draw(),
+      note: (err) => {
+        app.state = notice(app.state, why(err))
+      },
+    }
+    this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
     if (opts.thinker) this.thinkWith(opts.thinker)
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
@@ -2394,7 +2326,7 @@ export class App {
         // A note cut short down the side is read whole on its own page, which
         // is also where it is changed and taken back. A click is for reading
         // it; the ≡ beside it is what asks for the menu.
-        this.openNote({ at: target.at, text: target.text })
+        this.notes.open({ at: target.at, text: target.text })
         return
       case 'menu':
         this.openMenu(target.subject, at)
@@ -2651,7 +2583,7 @@ export class App {
     }
     if (action.startsWith('forget-note:')) {
       const [at, ...text] = action.slice('forget-note:'.length).split('\u0000')
-      this.forgetNote({ at: at ?? '', text: text.join('\u0000') })
+      this.notes.forget({ at: at ?? '', text: text.join('\u0000') })
       return
     }
     if (action.startsWith('detach-image:')) {
@@ -3569,7 +3501,7 @@ export class App {
       case 'lane':
         return this.fromLaneMenu(subject.task, subject.lane, subject.name, item)
       case 'note':
-        return this.fromNoteMenu(subject, item)
+        return this.notes.fromMenu(subject, item)
       case 'thinking':
         return this.chooseThinking(subject.task, item)
     }
@@ -3646,45 +3578,6 @@ export class App {
    * read back out of memory, since the row it was clicked on carries only what
    * names it.
    */
-  private openNote(note: { at: string; text: string }): void {
-    const kept = this.opts.client
-      .recallAll()
-      .find((one) => one.at === note.at && one.text === note.text)
-    this.state = {
-      ...this.state,
-      panel: notePanel(
-        {
-          at: note.at,
-          summary: kept?.summary ?? null,
-          scope: kept?.scope ?? null,
-          by: kept?.by ?? 'unknown',
-        },
-        note.text,
-      ),
-    }
-    this.draw()
-  }
-
-  /** What a note's menu does: open it, copy its words, or forget it. */
-  private async fromNoteMenu(note: { at: string; text: string }, item: string): Promise<void> {
-    if (item === 'edit') {
-      this.openNote(note)
-      return
-    }
-    if (item === 'copy') {
-      await this.copy(note.text)
-      return
-    }
-    if (item === 'forget') this.forgetNote(note)
-  }
-
-  /** Take a note back. It is not recalled again, by anyone, after a restart too. */
-  private forgetNote(note: { at: string; text: string }): void {
-    const forgot = this.opts.client.forget(note, 'window')
-    this.state = notice(this.state, forgot ? 'forgot that note' : 'that note was already forgotten')
-    this.draw()
-  }
-
   /** What a shell's menu does: rename it, show it beside or below the agent, or close it. */
   private async fromLaneMenu(
     task: string,
@@ -4166,7 +4059,7 @@ export class App {
         return
       }
       this.state = { ...this.state, panel: null }
-      this.forgetNote(note)
+      this.notes.forget(note)
       return
     }
     try {
