@@ -2522,13 +2522,29 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'pointing-at-a-terminal-tab',
-    about: "A terminal's tab under the pointer: its menu and close button appear.",
+    about:
+      "A terminal's tab under the pointer: its close and its menu appear, in room that was " +
+      'kept for them, so no tab moves as the pointer crosses the row.',
     state: {
       ...withTerminals(base(), [
         { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
         { id: 'checkout/terminals/2', project: 'checkout', name: 'server' },
       ]),
       hover: { kind: 'bottom-tab', tab: 'checkout/terminals/2' },
+    },
+    frame: frame(),
+  },
+  {
+    name: 'pointing-at-a-terminal-tabs-close',
+    about:
+      "The pointer on a terminal tab's own close: the close is lit and the tab is still lit " +
+      'behind it, because a tab and its buttons are one thing to point at.',
+    state: {
+      ...withTerminals(base(), [
+        { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+        { id: 'checkout/terminals/2', project: 'checkout', name: 'server' },
+      ]),
+      hover: { kind: 'action', name: 'close-terminal:checkout/terminals/2' },
     },
     frame: frame(),
   },

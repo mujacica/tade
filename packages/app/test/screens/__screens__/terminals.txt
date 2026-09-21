@@ -21,7 +21,7 @@
    ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
      package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
      README.md               ▕│                                                                                         
-━   orchestrator     tests     ▾    ×     server                +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⌕     ⤢     ▾   ━
+━   orchestrator     tests           server           +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⌕     ⤢     ▾   ━
                                                                                                                         
 ~/src/checkout (main) $ pnpm test src/webhooks                                                                         ▕
                                                                                                                        ▕

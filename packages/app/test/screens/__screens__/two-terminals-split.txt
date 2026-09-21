@@ -16,7 +16,7 @@
                              ▕│  │   Allow once     Deny                                        │                       
  ▾ FILES                     ▕│  ╰──────────────────────────────────────────────────────────────╯                       
    ▾ src/                    ▕│                                                                                         
-━   orchestrator     tests     ▾    ×     server                +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⌕     ⤢     ▾   ━
+━   orchestrator     tests           server           +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⌕     ⤢     ▾   ━
                                                                                                                         
 ~/src/checkout (main) $ pnpm test --watch                                                                               
  ✓ 48 tests                                                                                                             

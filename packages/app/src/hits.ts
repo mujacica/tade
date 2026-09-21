@@ -144,6 +144,19 @@ export function sameTarget(a: Target | null, b: Target | null): boolean {
 }
 
 /**
+ * Whether the pointer is anywhere in one thing: a row or a tab, and the
+ * buttons that belong to it and are drawn beside it.
+ *
+ * Every control is its own target, so a row that asked only about itself goes
+ * dark the moment you reach for its close — and the buttons it lit up to offer
+ * you go with it, out from under the pointer that summoned them. Moving onto a
+ * child is not leaving the parent, and this is the one place that says so.
+ */
+export function pointingIn(hover: Target | null, group: readonly Target[]): boolean {
+  return group.some((one) => sameTarget(hover, one))
+}
+
+/**
  * Whether pointing at this is pointing at something you can press. Rows of
  * transcript are clickable in the sense that they focus the strip, but they
  * are not buttons, and asking for a hand over them would be a lie.

@@ -119,8 +119,14 @@ export class Row {
     return this.put(this.skin.icon(label, state), visibleWidth(label) + 2, target)
   }
 
-  tab(label: string, target: Target, on: boolean): this {
-    const hover = sameTarget(this.pointer.hover, target)
+  /**
+   * A tab. `within` is for a tab with buttons of its own beside it: the
+   * pointer on one of those is still the pointer on the tab, so it stays lit
+   * as you reach for its close rather than going out under your hand. What
+   * counts as its own is the caller's to say — `pointingIn` is how it says it.
+   */
+  tab(label: string, target: Target, on: boolean, within = false): this {
+    const hover = within || sameTarget(this.pointer.hover, target)
     return this.put(this.skin.tabbed(label, on, hover), visibleWidth(label) + 4, target)
   }
 

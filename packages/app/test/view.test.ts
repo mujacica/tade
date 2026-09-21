@@ -2,7 +2,7 @@ import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { PlanStanding } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
-import { type Hit, hitAt } from '../src/hits.ts'
+import { type Hit, hitAt, sameTarget, type Target } from '../src/hits.ts'
 import {
   type AppState,
   addTurn,
@@ -751,6 +751,46 @@ describe('the bottom panel and its handles', () => {
     // The terminal's screen is what shows, and clicking it is for typing into.
     expect(rows.join('\n')).toContain('$ pnpm test')
     expect(hits.some((hit) => hit.target.kind === 'terminal')).toBe(true)
+  })
+
+  it('is one thing to point at: a tab, its close and its menu, and no tab moves', () => {
+    const terminals = withTerminals(state(), [
+      { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
+      { id: 'checkout/terminals/2', project: 'checkout', name: 'server' },
+    ])
+    const at = (hover: Target | null) => {
+      const { rows, hits } = draw(
+        { ...terminals, hover },
+        { ...frame({ width: 120, height: 30 }), skin: COLOUR },
+      )
+      const row = rows.findIndex((each) => each.includes('orchestrator'))
+      const box = (target: Target) =>
+        hits.find((hit) => hit.row === row && sameTarget(hit.target, target)) ?? null
+      return { text: rows[row] ?? '', box }
+    }
+    const tab: Target = { kind: 'bottom-tab', tab: 'checkout/terminals/1' }
+    const close: Target = { kind: 'action', name: 'close-terminal:checkout/terminals/1' }
+    const menu: Target = { kind: 'menu', subject: { kind: 'terminal', id: 'checkout/terminals/1' } }
+    const other: Target = { kind: 'bottom-tab', tab: 'checkout/terminals/2' }
+
+    // Nobody pointing: the buttons are not drawn, so they cannot be pressed.
+    const away = at(null)
+    expect(away.box(close)).toBe(null)
+    expect(away.box(menu)).toBe(null)
+
+    // On the tab, on its close, on its menu: the same three are there either
+    // way, and the tab is lit under all three.
+    for (const hover of [tab, close, menu]) {
+      const here = at(hover)
+      expect(here.box(close)).not.toBe(null)
+      expect(here.box(menu)).not.toBe(null)
+      // Lit, whichever of the three it is on: a tab at rest has no ground.
+      expect(here.text).toContain(COLOUR.tabbed('tests', false, true))
+      expect(away.text).toContain(COLOUR.tabbed('tests', false, false))
+      // Nothing moved: the room the buttons take was kept while they were away.
+      expect(here.box(other)?.from).toBe(away.box(other)?.from)
+      expect(here.box(tab)?.from).toBe(away.box(tab)?.from)
+    }
   })
 
   it('folds to its tabs and fills the window when asked', () => {

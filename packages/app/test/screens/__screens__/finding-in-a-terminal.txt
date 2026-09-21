@@ -21,7 +21,7 @@
    ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
      package.json            ▕│  ╰───────────────────────────╭─ Find in tests ────────────────────────────────── esc ─╮ 
      README.md               ▕│                              │  assert▏                           1 of 2     ↑    ↓   │ 
-━   orchestrator     tests     ▾    ×     +   ━━━━━━━━━━━━━━━╰────────────────────────────────────────────────────────╯━
+━   orchestrator     tests           +   ━━━━━━━━━━━━━━━━━━━━╰────────────────────────────────────────────────────────╯━
                                                                                                                         
  ✓ src/ledger.test.ts (4 tests)                                                                                         
  ✗ charges once                                                                                                         

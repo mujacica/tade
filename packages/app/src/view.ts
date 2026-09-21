@@ -19,7 +19,15 @@ import {
 } from '@tade/core'
 import type { LaneScrolling } from '@tade/drivers-core'
 import { type FileEntry, folderMark } from './files.ts'
-import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
+import {
+  type Hit,
+  pointingIn,
+  rowHit,
+  type ScrollArea,
+  sameTarget,
+  shift,
+  type Target,
+} from './hits.ts'
 import { keyCaps } from './keys.ts'
 import { type LayoutPrefs, resolveLayout } from './layout.ts'
 import { type Linker, linkedRow } from './links.ts'
@@ -1349,7 +1357,7 @@ function fileRow(
     subject: { kind: 'file', path: entry.path, folder: entry.folder },
   }
   // Lit under the pointer, so it is plain which one a click would open.
-  const hovered = sameTarget(row.pointer.hover, target) || sameTarget(row.pointer.hover, menu)
+  const hovered = pointingIn(row.pointer.hover, [target, menu])
   // Coloured the way git sees it, as an editor would: changed amber, new
   // green, conflicted red, and a folder by the most pressing thing inside.
   const mark = entry.folder ? folderMark(entry.path, marks) : (marks[entry.path] ?? null)
@@ -1358,7 +1366,7 @@ function fileRow(
   if (entry.folder) row.text(`${entry.open ? '▾' : '▸'} ${entry.name}/`, tone ?? skin.busy)
   else row.text(`  ${entry.name}`, tone ?? (hovered ? skin.you : (t) => t))
   row.right((r) => {
-    if (hovered) r.button('≡', menu).space()
+    if (hovered) r.icon('≡', menu).space()
     if (mark) r.text(entry.folder ? '•' : mark, tone ?? skin.hint).space()
     else if (!hovered) r.space(2)
   })
@@ -1399,6 +1407,16 @@ const TAB_EDGES = 4
 
 /** Two glyph buttons at the end of a tab, `×` and `≡`, and the room after them. */
 const TAB_ICONS = 7
+
+/**
+ * The same two at the end of a tab in a row of tabs, where the gap after them
+ * belongs to the next tab: a tab block ends in two columns of its own padding,
+ * so a glyph button needs nothing put in front of it.
+ */
+const STRIP_ICONS = 6
+
+/** One glyph button — a row's `≡` — and the column of room after it. */
+const MENU_ICON = 4
 
 /**
  * What is drawn inside a tab, laid on it: its ends and its ground when lit,
@@ -1480,7 +1498,7 @@ function taskRow(
   const target: Target = { kind: 'task', task: task.task }
   const close: Target = { kind: 'action', name: `close-task:${task.task}` }
   const menu: Target = { kind: 'task-menu', task: task.task }
-  const pointed = [target, close, menu].some((one) => sameTarget(pointer.hover, one))
+  const pointed = pointingIn(pointer.hover, [target, close, menu])
   // Only where they are drawn: an invisible button is a trap. Not on the one in your hand.
   const buttons = pointed && !task.dragging
   const cost =
@@ -1730,7 +1748,7 @@ function scheduleRow(
   }
   const remove: Target = { kind: 'action', name: `schedule-remove:${one.id}` }
   const menu: Target = { kind: 'menu', subject: { kind: 'schedule', id: one.id } }
-  const pointed = [target, toggle, remove, menu].some((each) => sameTarget(pointer.hover, each))
+  const pointed = pointingIn(pointer.hover, [target, toggle, remove, menu])
   const band: Band | null = selected ? 'selected' : pointed ? 'hovered' : null
   const mark = scheduleMark(one, skin)
   const next = one.next[0]
@@ -2059,7 +2077,7 @@ function queueRow(
   }
   const remove: Target = { kind: 'action', name: `queue-remove:${pane.task}` }
   const menu: Target = { kind: 'task-menu', task: pane.task }
-  const pointed = [target, toggle, remove, menu].some((one) => sameTarget(pointer.hover, one))
+  const pointed = pointingIn(pointer.hover, [target, toggle, remove, menu])
   const band: Band | null = pane.focused ? 'selected' : pointed ? 'hovered' : null
   const look = queueLook(pane.queued, skin, frame, row.parent === null)
   const shift = visibleWidth(stems.stem)
@@ -3072,7 +3090,7 @@ function noteRow(
   const target: Target = { kind: 'note', at: note.at, text: note.text }
   const forget: Target = { kind: 'action', name: `forget-note:${note.at}\u0000${note.text}` }
   const menu: Target = { kind: 'menu', subject: { kind: 'note', at: note.at, text: note.text } }
-  const pointed = [target, forget, menu].some((one) => sameTarget(pointer.hover, one))
+  const pointed = pointingIn(pointer.hover, [target, forget, menu])
   const band: Band | null = pointed ? 'hovered' : null
   const said = note.text.replace(/\s+/g, ' ').trim()
   const headline = (note.summary ?? '').replace(/\s+/g, ' ').trim()
@@ -3182,15 +3200,15 @@ function changeRow(
     .filter(Boolean)
     .join(' ')
   const menu: Target = { kind: 'menu', subject: { kind: 'change', task, path: change.path } }
-  const hovered = sameTarget(row.pointer.hover, target) || sameTarget(row.pointer.hover, menu)
-  const room = row.width - 5 - (counts ? counts.length + 2 : 0) - (hovered ? 6 : 0)
+  const hovered = pointingIn(row.pointer.hover, [target, menu])
+  const room = row.width - 5 - (counts ? counts.length + 2 : 0) - (hovered ? MENU_ICON : 0)
   row
     .space(2)
     .text(change.mark, mark)
     .space()
     .text(shortPath(change.path, room), hovered ? skin.you : (t) => t)
   row.right((r) => {
-    if (hovered) r.button('≡', menu).space()
+    if (hovered) r.icon('≡', menu).space()
     if (change.added) r.text(`+${change.added}`, skin.done)
     if (change.added && change.removed) r.space()
     if (change.removed) r.text(`−${change.removed}`, skin.bad)
@@ -3257,20 +3275,31 @@ function renderMain(
     if (pane.lanes.length === 0) r.tab('agent', { kind: 'task', task: pane.task }, !work)
     for (const { id, label } of laneLabels(pane.lanes)) {
       const target: Target = { kind: 'lane', task: pane.task, lane: id }
-      r.tab(label, target, id === shown)
       const kind = pane.lanes.find((lane) => lane.id === id)?.kind
-      if (kind === 'agent') continue
-      // A shell's menu and close, on the tab you point at or are on; the room is
-      // kept either way, so pointing never moves the tabs.
+      // The agent's own tab has no buttons: it is not a lane you close.
+      if (kind === 'agent') {
+        r.tab(label, target, id === shown)
+        continue
+      }
+      // A shell's close and menu, as a terminal tab has them: drawn while the
+      // pointer is anywhere in the tab, and the tab lit while it is on them.
+      //
+      // Their room is *not* kept here, where the bottom panel's tabs keep
+      // theirs. This row is already full — what is to the right of the tabs is
+      // the harness, the model, how hard it thinks and how much context is
+      // left, and six columns held for buttons nobody is pointing at took the
+      // thinking control and the context meter off it. A strip that grows by
+      // six while you point at it costs less than a control you can no longer
+      // read, and it is less than the ten these tabs moved by before, which
+      // they moved by whenever the shell was simply the one in front.
       const menu: Target = {
         kind: 'menu',
         subject: { kind: 'lane', task: pane.task, lane: id, name: label },
       }
       const close: Target = { kind: 'action', name: `close-lane:${id}` }
-      const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
-      if (id === shown || pointed || state.splits[pane.task]?.lane === id) {
-        r.button('▾', menu).button('×', close, 'danger')
-      }
+      const pointed = pointingIn(state.hover, [target, menu, close])
+      r.tab(label, target, id === shown, pointed)
+      if (pointed) r.icon('×', close, 'danger').icon('≡', menu)
     }
     r.tab('actions', { kind: 'pane-tab', task: pane.task, tab: 'actions' }, work)
     r.space().button('+', { kind: 'action', name: 'new-shell' }, 'add')
@@ -4133,16 +4162,18 @@ function bottomTabs(
     const target: Target = { kind: 'bottom-tab', tab: terminal.id }
     const menu: Target = { kind: 'menu', subject: { kind: 'terminal', id: terminal.id } }
     const close: Target = { kind: 'action', name: `close-terminal:${terminal.id}` }
-    row.space().tab(terminal.name, target, on)
-    // Its menu and its close button, on the tab you point at or are on. The
-    // room for them is kept either way, so pointing never moves the tabs.
-    const pointed = [target, menu, close].some((one) => sameTarget(state.hover, one))
-    row.space()
-    if (on || pointed) {
-      row.button('▾', menu).button('×', close, 'danger')
-    } else {
-      row.space(10)
-    }
+    // A tab and the two buttons beside it are one thing to point at: they are
+    // drawn while the pointer is anywhere in it, and the tab stays lit while
+    // it is on them, so reaching for a close is never leaving the tab.
+    //
+    // Their room is kept whether they are drawn or not. These tabs sit in a
+    // row you sweep along, so room taken on hover would slide every tab after
+    // it out from under the pointer that summoned it — and this row has the
+    // room to spare, since what is to the right of the tabs is the rule.
+    const pointed = pointingIn(state.hover, [target, menu, close])
+    row.space().tab(terminal.name, target, on, pointed)
+    if (pointed) row.icon('×', close, 'danger').icon('≡', menu)
+    else row.space(STRIP_ICONS)
   }
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
 
