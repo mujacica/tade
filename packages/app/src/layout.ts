@@ -104,16 +104,25 @@ export function resolveLayout(
 
 /**
  * What is worth writing down when the window closes: which pane you were on,
- * the sizes you dragged the dividers to, and the order you dragged agents
- * into. The config says what a window starts at; a divider you moved is you
- * saying otherwise, and losing that on every restart would be asking you to
- * say it again.
+ * the sizes you dragged the dividers to, the order you dragged agents into,
+ * and the view choices you made in the sidebar's headings. The config says
+ * what a window starts at; a divider you moved is you saying otherwise, and
+ * losing that on every restart would be asking you to say it again.
+ *
+ * Every one of these is a view, never a decision about the work: hiding a
+ * finished agent does not close it, and folding a section does not empty it.
+ * That is why they live here rather than in the config — nothing reads them
+ * but the window that drew them, and they are one person's, on one machine.
  */
 export interface RememberedWindow {
   /** The task whose pane had focus. */
   focused: string | null
   sidebarWidth?: number
   stripHeight?: number
+  /** `H` beside AGENTS was on: the finished agents are kept out of the list. */
+  hidingDone?: boolean
+  /** The sidebar sections you folded shut, by id. */
+  folded?: string[]
   /** By project, the agents in the order they were dragged into. */
   order?: Record<string, string[]>
 }
@@ -137,10 +146,18 @@ export function asRemembered(value: unknown): RememberedWindow | null {
       if (Array.isArray(tasks)) order[project] = tasks.filter((task) => typeof task === 'string')
     }
   }
+  // Absent and empty are different answers: nothing written means the window
+  // starts folded where it always did, and an empty list means you opened
+  // every one of them and that is how you want it back.
+  const folded = Array.isArray(raw.folded)
+    ? raw.folded.filter((name): name is string => typeof name === 'string')
+    : null
   return {
     focused: typeof raw.focused === 'string' ? raw.focused : null,
     ...size('sidebarWidth'),
     ...size('stripHeight'),
+    ...(typeof raw.hidingDone === 'boolean' ? { hidingDone: raw.hidingDone } : {}),
+    ...(folded ? { folded } : {}),
     ...(Object.keys(order).length > 0 ? { order } : {}),
   }
 }

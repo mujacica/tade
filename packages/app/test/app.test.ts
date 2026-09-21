@@ -972,6 +972,28 @@ describe('the window, wired up', () => {
     throw new Error(`"${label}" is not on screen`)
   }
 
+  /**
+   * The sidebar alone: everything left of the divider, as one piece of text.
+   * The pane beside it draws the same names, so a test about the list has to
+   * be about the list.
+   */
+  function sidebar(): string {
+    return screenOf(terminal.written)
+      .map((line) => {
+        const edge = Math.max(line.indexOf('│'), line.indexOf('┃'))
+        return edge > 0 ? line.slice(0, edge) : line
+      })
+      .join('\n')
+  }
+
+  /** A sidebar heading and where it is, for pressing what is pinned to its right. */
+  function headingRow(label = 'AGENTS'): { row: number; text: string } {
+    const lines = sidebar().split('\n')
+    const row = lines.findIndex((line) => line.includes(label))
+    if (row < 0) throw new Error(`no ${label} heading on screen`)
+    return { row, text: lines[row] ?? '' }
+  }
+
   it('starts a new agent from its button, asking nothing first', async () => {
     await start()
     await until('the first frame', () =>
@@ -2237,6 +2259,46 @@ describe('the window, wired up', () => {
     await running.stop()
     const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
     expect(kept.sidebarWidth).toBe(edge + 10)
+  }, 30_000)
+
+  it('opens on the view you left: the finished agents hidden, the sections you folded', async () => {
+    terminal.columns = 120
+    terminal.rows = 40
+    // One of the two has finished, so `H` beside AGENTS is there to press.
+    await client.log.append({ type: 'task_done', task: 'app/search', detail: { by: 'you' } })
+    const first = await start()
+    await until('the finished agent', () => sidebar().includes('✓ search'))
+    // `H` on the AGENTS heading. Found on the sidebar's own side of the
+    // divider: the pane beside it has letters in that row too.
+    const { row, text } = headingRow()
+    const col = text.lastIndexOf('H')
+    expect(col).toBeGreaterThan(0)
+    click(col, row)
+    await until('the finished agent gone from the list', () => !sidebar().includes('✓ search'))
+    // Hidden is a view and nothing more: the agent it hid is still an agent.
+    expect(sidebar()).toContain('refunds')
+    expect(headingRow().text).toContain('<H>')
+    // The same goes for the heading beside it: folding a section shut is a
+    // view choice made on a heading too, and it survives or it does not.
+    const changes = headingRow('CHANGES')
+    click(changes.text.indexOf('CHANGES'), changes.row)
+    await until('the section folded', () => headingRow('CHANGES').text.includes('▸ CHANGES'))
+    await first.stop()
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.hidingDone).toBe(true)
+    expect(kept.folded).toContain('changes')
+
+    // Opened again, and it never draws them: the choice is read back before
+    // the first frame, so the list does not flash the other way. Everything
+    // written, not the screen as it ends up — a row painted and taken away is
+    // exactly what this is about.
+    terminal.written = ''
+    await start()
+    await until('the window again', () => sidebar().includes('refunds'))
+    expect(headingRow().text).toContain('<H>')
+    expect(headingRow('CHANGES').text).toContain('▸ CHANGES')
+    expect(terminal.written).not.toContain('✓ search')
+    expect(terminal.written).not.toContain('▾ CHANGES')
   }, 30_000)
 
   it('runs an extension from its panel, and shows it working and what it said', async () => {

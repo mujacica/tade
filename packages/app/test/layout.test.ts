@@ -90,6 +90,32 @@ describe('asRemembered', () => {
     ).toEqual({ focused: null, order: { app: ['app/b', 'app/a'] } })
   })
 
+  it('reads back the view choices in the sidebar headings, either way round', () => {
+    // `false` is a choice — you pressed `H` again — and so is an empty list of
+    // folded sections. Only a file that never said is a file that says nothing.
+    expect(asRemembered({ focused: null, hidingDone: true, folded: ['notes', 'queue'] })).toEqual({
+      focused: null,
+      hidingDone: true,
+      folded: ['notes', 'queue'],
+    })
+    expect(asRemembered({ focused: null, hidingDone: false, folded: [] })).toEqual({
+      focused: null,
+      hidingDone: false,
+      folded: [],
+    })
+    expect(asRemembered({ focused: null })).toEqual({ focused: null })
+  })
+
+  it('drops a view choice that is not one, rather than starting the window on it', () => {
+    expect(asRemembered({ focused: null, hidingDone: 'yes', folded: 'notes' })).toEqual({
+      focused: null,
+    })
+    expect(asRemembered({ focused: null, folded: ['notes', 7, null] })).toEqual({
+      focused: null,
+      folded: ['notes'],
+    })
+  })
+
   it('is null on anything it does not recognise', () => {
     // A layout file is a convenience; refusing to open the window over one
     // would be absurd.

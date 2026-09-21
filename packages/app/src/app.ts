@@ -149,6 +149,7 @@ import {
   doneTasks,
   dragAgent,
   dropAgent,
+  FOLDED_AT_START,
   focusBy,
   focusNumber,
   focusTask,
@@ -1224,6 +1225,14 @@ export class App {
       const kept: RememberedWindow = {
         focused: this.state.focused,
         ...this.state.sizes,
+        // Only what is not what a window starts at, exactly as a dragged size
+        // is: a file that wrote down today's defaults would freeze them, and
+        // the day `FOLDED_AT_START` changes nobody who had ever moved a
+        // divider would see it. So `[]` is written down — you opened the one
+        // section that starts folded, and that is a choice — while `['notes']`
+        // is not, because it is not one.
+        ...(this.state.hidingDone ? { hidingDone: true } : {}),
+        ...(sameSections(this.state.folded, FOLDED_AT_START) ? {} : { folded: this.state.folded }),
         ...(Object.keys(this.state.order).length > 0 ? { order: this.state.order } : {}),
       }
       writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
@@ -1767,11 +1776,16 @@ export class App {
 
   private async begin(): Promise<void> {
     this.remembered = this.recall()
-    const { sidebarWidth, stripHeight, order } = this.remembered ?? {}
+    const { sidebarWidth, stripHeight, order, hidingDone, folded } = this.remembered ?? {}
     this.state = {
       ...this.state,
       sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
       order: order ?? {},
+      // Here rather than on the first tasks: the view you left is what the
+      // first frame draws, so a list you hid the finished agents in never
+      // flashes them and then takes them away again.
+      hidingDone: hidingDone ?? this.state.hidingDone,
+      folded: folded ?? this.state.folded,
     }
     // Read once, in the background: nothing waits on the catalog but the list.
     void this.loadAccounts()
@@ -2145,6 +2159,9 @@ export class App {
       }
       case 'section':
         this.state = toggleSection(this.state, target.section)
+        // Written where it was chosen, as a dragged divider is: a window that
+        // was killed rather than closed still opens the way you left it.
+        this.remember()
         break
       case 'bottom-tab':
         this.state =
@@ -2393,6 +2410,10 @@ export class App {
         return
       case 'toggle-done':
         this.state = toggleDone(this.state)
+        // Written here and not only on the way out: the window you press this
+        // in is the window you leave open for days, and one that was killed
+        // rather than closed would forget it every time.
+        this.remember()
         this.draw()
         return
       case 'close-done': {
@@ -7846,6 +7867,15 @@ function clockOf(at: number): string {
 
 function why(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * The same set of sections, whatever order they were folded in: what is
+ * written down is a set, and folding two and unfolding one of them is not a
+ * different answer from having folded the other first.
+ */
+function sameSections(folded: readonly string[], others: readonly string[]): boolean {
+  return folded.length === others.length && folded.every((name) => others.includes(name))
 }
 
 /** Only some terminals report key releases, which is what holding a key needs. */
