@@ -32,6 +32,7 @@ import {
   removeAttachment,
   resizeTo,
   scrollBarTo,
+  scrollBy,
   searchKey,
   selectProject,
   setDictation,
@@ -39,7 +40,6 @@ import {
   showOrchestrator,
   showTerminal,
   sidebar,
-  slideAcross,
   splitPane,
   splitRatio,
   splitShown,
@@ -765,23 +765,71 @@ describe('dragging a scrollbar', () => {
 })
 
 describe('moving a region sideways', () => {
+  const wide = { total: 60, shown: 20 }
+
   it('goes right and stops at nothing of it scrolled past', () => {
-    const right = slideAcross(state(), 'sidebar', 6)
+    const right = scrollBy(state(), 'sidebar', 6, wide, true)
     expect(right.across).toBe(6)
-    expect(slideAcross(right, 'sidebar', -20).across).toBe(0)
-    expect(slideAcross(state(), 'plan', 4).planAcross).toBe(4)
+    expect(scrollBy(right, 'sidebar', -20, wide, true).across).toBe(0)
+    expect(scrollBy(state(), 'plan', 4, wide, true).planAcross).toBe(4)
   })
 
   it('leaves alone what has nowhere to go sideways', () => {
     for (const area of ['pane', 'terminal', 'transcript', 'panel'] as const) {
-      expect(slideAcross(state(), area, 4)).toEqual(state())
+      expect(scrollBy(state(), area, 4, wide, true)).toEqual(state())
     }
+    // And a region as wide as its pane: the bar beside it says so by having
+    // no track to speak of, and the wheel over it is handed back.
+    expect(scrollBy(state(), 'sidebar', 4, { total: 20, shown: 20 }, true)).toEqual(state())
   })
 
   it('says how far across a region is, never further than there is to go', () => {
-    const moved = slideAcross(state(), 'sidebar', 50)
+    const moved = scrollBy(state(), 'sidebar', 50, { total: 200, shown: 20 }, true)
     expect(acrossOf(moved, 'sidebar', 60, 20)).toBe(40)
     expect(acrossOf(moved, 'sidebar', 20, 20)).toBe(0)
     expect(acrossOf(moved, 'pane', 60, 20)).toBe(0)
+  })
+})
+
+describe('the one move', () => {
+  // Every surface that scrolls goes through this: the wheel, a key, a drag on
+  // the bar. What each region keeps its place in differs, and that is the
+  // whole of what differs.
+  const deep = { total: 100, shown: 10 }
+
+  it('stops at both ends, whichever way the region counts', () => {
+    expect(scrollBy(state(), 'sidebar', -5, deep).scroll).toBe(0)
+    expect(scrollBy(state(), 'sidebar', 500, deep).scroll).toBe(90)
+    // A screen counts back from its newest line: down is towards it.
+    const back = scrollBy(state(), 'pane', -500, deep)
+    expect(back.paneScroll).toBe(90)
+    expect(scrollBy(back, 'pane', 500, deep).paneScroll).toBe(0)
+    const conversation = scrollBy(state(), 'transcript', -500, deep)
+    expect(conversation.transcriptScroll).toBe(90)
+  })
+
+  it('never runs on past the end, so coming back moves on the first notch', () => {
+    // The bug this replaced: the offset went on growing past the last line
+    // there was to read, because only the drawing clamped it and only on the
+    // way out. A flick off the end bought a handful of notches that did
+    // nothing on the way back — which is what "not smooth" felt like.
+    let end = state()
+    for (let i = 0; i < 40; i++) end = scrollBy(end, 'sidebar', 30, deep)
+    expect(end.scroll).toBe(90)
+    expect(scrollBy(end, 'sidebar', -3, deep).scroll).toBe(87)
+    let back = state()
+    for (let i = 0; i < 40; i++) back = scrollBy(back, 'pane', -30, deep)
+    expect(back.paneScroll).toBe(90)
+    expect(scrollBy(back, 'pane', 3, deep).paneScroll).toBe(87)
+  })
+
+  it('hands back what has nowhere to go, rather than swallowing it', () => {
+    for (const fits of [
+      { total: 10, shown: 10 },
+      { total: 0, shown: 0 },
+    ]) {
+      expect(scrollBy(state(), 'terminal', -3, fits)).toEqual(state())
+    }
+    expect(scrollBy(state(), 'sidebar', 0, deep)).toEqual(state())
   })
 })

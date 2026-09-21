@@ -643,9 +643,11 @@ describe('the window, wired up', () => {
     await until('the picker', () =>
       screenOf(terminal.written).some((row) => row.includes('Model for the orchestrator')),
     )
-    // The wheel over the list moves through it, as far as it goes.
+    // The wheel over the list moves through it, as far as it goes — a name a
+    // notch, because notches arriving in a run are a finger on a trackpad and
+    // a flick through a list is not a request to visit forty models.
     const list = find('model-3 ')
-    for (let i = 0; i < 12; i++) terminal.press(`\x1b[<65;${list.col + 1};${list.row + 1}M`)
+    for (let i = 0; i < 40; i++) terminal.press(`\x1b[<65;${list.col + 1};${list.row + 1}M`)
     await until('scrolled down the list', () =>
       screenOf(terminal.written).some((row) => row.includes('model-35')),
     )
@@ -886,6 +888,73 @@ describe('the window, wired up', () => {
     terminal.press('\x1b')
     await until('the panel to close', () => !terminal.written.includes('Reload Tade?'))
   })
+
+  it('scrolls a terminal with the wheel, by the lines the terminal counted', async () => {
+    const opened = await client.openTerminal({ project: 'app' })
+    // Enough printed that there is scrollback to read back through.
+    // Counted in the shell rather than with `seq`, which is one more program
+    // to be missing on somebody's machine.
+    const printing = 'i=1; while [ $i -le 400 ]; do echo "printed line $i"; i=$((i+1)); done'
+    await client.write(opened.id, `${printing}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    // A real shell, starting and printing four hundred lines: on a machine
+    // running the rest of this suite beside it that is not always quick.
+    await until(
+      'the terminal in front',
+      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
+      20_000,
+    )
+    const rows = screenOf(terminal.written)
+    const shell = rows.findIndex((row) => row.includes('printed line 400'))
+    expect(shell).toBeGreaterThan(0)
+
+    /** The newest line still on screen, which says how far back it has gone. */
+    const newest = () => {
+      const seen = screenOf(terminal.written).flatMap((row) => {
+        const found = /printed line (\d+)/.exec(row)
+        return found ? [Number(found[1])] : []
+      })
+      return seen.length === 0 ? 0 : Math.max(...seen)
+    }
+
+    // Twenty notches of the wheel up, as a terminal in SGR mouse mode sends
+    // them. Arriving in a run they are a finger on a trackpad, which reports
+    // a notch a line — so they are worth twenty-odd lines, not the sixty that
+    // three rows a notch used to make of them.
+    const wheelUp = `\x1b[<64;10;${shell + 1}M`
+    for (let i = 0; i < 20; i++) terminal.press(wheelUp)
+    await until('the terminal scrolled back', () => newest() < 400)
+    expect(newest()).toBeGreaterThan(360)
+    expect(newest()).toBeLessThan(390)
+
+    // Sitting there scrolled back, the lane is not read again. Scrollback
+    // above the live screen cannot change, and reading it back on every look
+    // cost what it asked for — twelve milliseconds two thousand lines back,
+    // four times a second, for lines that were the same every time.
+    // Once it has stopped printing: a lane still growing has to be read
+    // again, and that is the bottom being read, not the scrollback.
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    let reads = 0
+    const read = client.capture.bind(client)
+    client.capture = (lane, lines, styled) => {
+      reads++
+      return read(lane, lines, styled)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(reads).toBeLessThan(2)
+
+    // And it stops at the oldest line there is rather than counting on past
+    // it: an offset that ran off the end used to buy a handful of notches
+    // that did nothing on the way back.
+    for (let i = 0; i < 900; i++) terminal.press(wheelUp)
+    await until('the oldest line there is', () => newest() < 20)
+    const top = newest()
+    terminal.press(`\x1b[<65;10;${shell + 1}M`)
+    await until('one notch down moving straight away', () => newest() > top)
+  }, 30_000)
 
   /** A left click, as a terminal in SGR mouse mode sends it: press, then release. */
   function click(col: number, row: number): void {

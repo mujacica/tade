@@ -10,6 +10,7 @@ import {
 import type { Turn } from '@tade/voice-core'
 import type { ScrollArea, Target } from './hits.ts'
 import type { Panel } from './panels.ts'
+import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
 import { emptyTranscript, fromTurn, type Transcript, tadeDid } from './transcript.ts'
 
@@ -1037,12 +1038,6 @@ export function toggleCheck(state: AppState, task: string, check: string): AppSt
   return { ...state, openCheck }
 }
 
-/** Scroll the ACTIONS tab. `draw` keeps it from going past the end. */
-export function scrollActions(state: AppState, rows: number): AppState {
-  const actionsScroll = Math.max(0, state.actionsScroll + rows)
-  return actionsScroll === state.actionsScroll ? state : { ...state, actionsScroll }
-}
-
 /** The second lane an agent's pane shows, while it is alive and not the one already shown. */
 export function splitShown(state: AppState, pane: AgentPane): Split | null {
   const split = state.splits[pane.task]
@@ -1218,30 +1213,6 @@ export function toggleFolder(state: AppState, path: string): AppState {
   return { ...state, expanded }
 }
 
-/** Scroll the sidebar. `draw` keeps it from going past the end. */
-export function scrollSidebar(state: AppState, rows: number): AppState {
-  return { ...state, scroll: Math.max(0, state.scroll + rows) }
-}
-
-/**
- * Move a region sideways, by columns. `draw` keeps it from going past the
- * right-hand end, because only the drawing knows how wide the thing turned
- * out to be.
- */
-export function slideAcross(state: AppState, area: ScrollArea, columns: number): AppState {
-  if (area === 'plan') {
-    const planAcross = Math.max(0, state.planAcross + columns)
-    return planAcross === state.planAcross ? state : { ...state, planAcross }
-  }
-  if (area === 'sidebar') {
-    const across = Math.max(0, state.across + columns)
-    return across === state.across ? state : { ...state, across }
-  }
-  // Everywhere else has nowhere to go sideways, and says so by not moving:
-  // the wheel then does what it does without shift, rather than being eaten.
-  return state
-}
-
 /** Columns left of the first one in view, for a region that moves sideways. */
 export function acrossOf(state: AppState, area: ScrollArea, total: number, shown: number): number {
   const most = Math.max(0, total - shown)
@@ -1325,13 +1296,62 @@ export function scrollBarTo(state: AppState, y: number): AppState {
   if (!bar) return state
   const view = { total: bar.total, shown: bar.shown, rows: bar.rows, offset: 0 }
   const offset = offsetAt(view, y - bar.top - bar.grab)
-  if (bar.across === true) {
-    if (bar.area === 'plan') return { ...state, planAcross: offset }
-    if (bar.area === 'sidebar') return { ...state, across: offset }
+  return atOffset(state, bar.area, offset, bar, bar.across === true)
+}
+
+/**
+ * Scroll a region from where it is by `by` rows — or, `across`, by that many
+ * columns — and never past either end.
+ *
+ * The one move every surface makes. A notch of the wheel, a key, a drag on
+ * the bar: each works out where it means to land and lands there through
+ * `atOffset`, so the three of them can never disagree about where the end is.
+ * Which they used to: an agent's screen and a terminal had no end at all and
+ * went on counting past the last line there was, so a flick past the bottom
+ * bought a handful of notches that did nothing on the way back.
+ *
+ * `reach` is what the drawing said the region is. Nothing here lays anything
+ * out to find that: the bar beside it carries the numbers already.
+ */
+export function scrollBy(
+  state: AppState,
+  area: ScrollArea,
+  by: number,
+  reach: Reach,
+  across = false,
+): AppState {
+  if (by === 0 || !scrollable(reach)) return state
+  const most = endOf(reach)
+  const from = across
+    ? acrossOf(state, area, reach.total, reach.shown)
+    : offsetOf(state, area, reach.total, reach.shown)
+  const to = Math.max(0, Math.min(most, from + by))
+  return to === from ? state : atOffset(state, area, to, reach, across)
+}
+
+/**
+ * Put a region at an offset: `offset` lines above the first one in view, or
+ * columns left of it.
+ *
+ * The other half of `offsetOf`, and the only writer. Where a region keeps its
+ * place differs — a sidebar counts down from the top, a screen counts back
+ * from its newest line — and this is the one place that difference is
+ * written, as `offsetOf` is the one place it is read.
+ */
+export function atOffset(
+  state: AppState,
+  area: ScrollArea,
+  offset: number,
+  reach: Reach,
+  across = false,
+): AppState {
+  if (across) {
+    if (area === 'plan') return { ...state, planAcross: offset }
+    if (area === 'sidebar') return { ...state, across: offset }
     return state
   }
-  const back = Math.max(0, bar.total - bar.shown - offset)
-  switch (bar.area) {
+  const back = Math.max(0, reach.total - reach.shown - offset)
+  switch (area) {
     case 'sidebar':
       return { ...state, scroll: offset }
     case 'actions':
@@ -1445,12 +1465,6 @@ export function withTranscript(state: AppState, transcript: Transcript): AppStat
     transcript,
     transcriptScroll: yours ? 0 : state.transcriptScroll,
   }
-}
-
-/** Scroll the conversation back (positive) or forward, never past either end. */
-export function scrollTranscript(state: AppState, rows: number, total: number): AppState {
-  const most = Math.max(0, total)
-  return { ...state, transcriptScroll: Math.max(0, Math.min(most, state.transcriptScroll + rows)) }
 }
 
 export function setQuestion(state: AppState, question: AppState['question']): AppState {

@@ -173,10 +173,8 @@ import {
   removeAttachment,
   resizeTo,
   type ScheduleView,
-  scrollActions,
   scrollBarTo,
-  scrollSidebar,
-  scrollTranscript,
+  scrollBy,
   searchKey,
   selectProject,
   setDictation,
@@ -187,7 +185,6 @@ import {
   showOrchestrator,
   showPlan,
   showTerminal,
-  slideAcross,
   splitPane,
   splitRatio,
   splitShown,
@@ -302,6 +299,7 @@ import {
 } from './queue.ts'
 import { initialRouter, pending, type RouterState, route } from './router.ts'
 import { runScreen, ScreenCancelled, type Ui } from './screen.ts'
+import { cutFrom, type HeldLines, type Reach, reachOf, Wheel } from './scroll.ts'
 import { BAR } from './scrollbar.ts'
 import {
   parseOpenId,
@@ -353,6 +351,20 @@ const FRAME_MS = 250
 
 /** How soon after a lane prints something it is looked at again. */
 const LOOK_SOON_MS = 8
+
+/**
+ * How many lines past what is on screen a lane is read back, once it is being
+ * scrolled: room for the wheel to move in before the driver has to be asked
+ * again.
+ *
+ * A capture costs what it asks for — a tenth of a millisecond a line, so
+ * twelve of them two thousand lines back — and it used to be paid again on
+ * every look and again on every notch, for the same lines that had not
+ * changed since the agent printed them. Scrollback above the live screen
+ * never changes; only the bottom does. So the lines are kept, and the screen
+ * the window draws is cut out of them.
+ */
+const HELD_LINES = 200
 
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
@@ -427,8 +439,22 @@ export type PointerEvent =
    * covers is copied, as a drag anywhere else on the window is.
    */
   | { kind: 'selected' }
-  /** The wheel over somewhere that scrolls; `across` where shift turned it sideways. */
-  | { kind: 'wheel'; area: ScrollArea; rows: number; across?: boolean }
+  /**
+   * The wheel over somewhere that scrolls, and how far that somewhere goes —
+   * down its side and along its bottom — read off the bars the last frame
+   * drew, as a press on a scrollbar reads its numbers off the same map. The
+   * window is what knows where things ended up; laying the region out again
+   * to count it is the same work twice, on every notch.
+   */
+  | {
+      kind: 'wheel'
+      area: ScrollArea
+      rows: number
+      /** Shift held, which turns the wheel sideways wherever there is a sideways. */
+      shift: boolean
+      reach: Reach
+      sideways: Reach
+    }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
   /** A scrollbar taken hold of: what it was drawn from, where its track is, and where it was pressed. */
@@ -499,6 +525,9 @@ class Window implements Component {
   private readonly frame: (width: number) => { state: AppState; frame: Frame }
   private readonly onPointer: (event: PointerEvent) => boolean
   private readonly onCopy: (text: string) => void
+  private readonly clock: () => number
+  /** The wheel, which remembers only when it last turned. */
+  private readonly wheel = new Wheel()
   private hits: readonly Hit[] = []
   private rows: readonly string[] = []
   /** A divider is held: every movement until it is let go is a drag. */
@@ -521,10 +550,12 @@ class Window implements Component {
     frame: Window['frame'],
     onPointer: (event: PointerEvent) => boolean,
     onCopy: (text: string) => void,
+    clock: () => number,
   ) {
     this.frame = frame
     this.onPointer = onPointer
     this.onCopy = onCopy
+    this.clock = clock
   }
 
   render(width: number): string[] {
@@ -674,14 +705,22 @@ class Window implements Component {
       case 'wheel': {
         const area = scrollAt(this.hits, event.x, event.y)
         if (!area || !event.wheelDelta) return undefined
+        // How far a notch goes is the wheel's to say: what the terminal
+        // counted, at a few rows each when they arrive apart and a row each
+        // when they arrive in a run. Three rows for every notch of a flick is
+        // what made a trackpad cross the screen three times over.
         // Shift turns the wheel sideways, as it does everywhere else.
+        const rows = this.wheel.rows(area, event.wheelDelta, this.clock())
+        if (rows === 0) return { handled: true, render: false }
         return {
           handled: true,
           render: this.onPointer({
             kind: 'wheel',
             area,
-            rows: Math.sign(event.wheelDelta) * 3,
-            across: event.shift,
+            rows,
+            shift: event.shift,
+            reach: reachOf(this.hits, area),
+            sideways: reachOf(this.hits, area, true),
           }),
         }
       }
@@ -843,6 +882,11 @@ export class App {
    */
   private paneView: LaneView | null = null
   private terminalView: LaneView | null = null
+  /**
+   * The lines each of those two screens was last read as, and how deep the
+   * read went — what the wheel cuts a new screen out of, through `cutFrom`.
+   */
+  private readonly held = new Map<'pane' | 'terminal', HeldLines>()
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private statuses: NonNullable<Frame['statuses']> = []
@@ -1565,8 +1609,8 @@ export class App {
         // it does, shift or no shift: there is nothing above or below it.
         // Somewhere with nowhere to go sideways hands the wheel back rather
         // than swallowing it, and it scrolls as it would without shift.
-        if (!panel && (event.across === true || event.area === 'plan')) {
-          const moved = slideAcross(this.state, event.area, event.rows)
+        if (!panel && (event.shift || event.area === 'plan')) {
+          const moved = scrollBy(this.state, event.area, event.rows, event.sideways, true)
           if (moved !== this.state) {
             this.state = moved
             return true
@@ -1578,50 +1622,32 @@ export class App {
           this.state = { ...this.state, panel: scrollFile(panel, event.rows, this.fileLines()) }
           return true
         }
-        // The list down the side of a panel scrolls by itself, and moves
-        // nothing: what is chosen stays chosen while you look for another.
-        if (event.area === 'panel-side' && panel?.kind === 'extensions') {
-          const most = this.extensionRoom().list
-          this.state = {
-            ...this.state,
-            panel: {
-              ...panel,
-              listScroll: Math.max(0, Math.min(most, panel.listScroll + event.rows)),
-            },
-          }
-          return true
-        }
-        if (event.area === 'panel' && panel) {
-          const key = event.rows > 0 ? 'down' : 'up'
-          let outcome: PanelOutcome = { panel, submit: false }
-          for (let i = 0; i < Math.abs(event.rows); i++) {
-            if (!outcome.panel) break
-            outcome = panelKey(outcome.panel, key, '', this.panelInputs())
-          }
+        // A panel that is a list rather than a page has nothing to scroll:
+        // the wheel over it moves what is chosen, which is what its down key
+        // does. A row a notch, never the notch's rows — a flick through a
+        // list of models is not a request to visit forty of them.
+        if (event.area === 'panel' && panel && !('scroll' in panel)) {
+          const outcome = panelKey(panel, event.rows > 0 ? 'down' : 'up', '', this.panelInputs())
           this.state = { ...this.state, panel: outcome.panel }
           return true
         }
-        if (event.area === 'sidebar' && !panel) {
-          this.state = scrollSidebar(this.state, event.rows)
-          return true
-        }
-        if (event.area === 'actions' && !panel) {
-          this.state = scrollActions(this.state, event.rows)
-          return true
-        }
-        if ((event.area === 'pane' || event.area === 'terminal') && !panel) {
-          // The wheel up reads back through what was printed.
-          const which = event.area === 'pane' ? 'paneScroll' : 'terminalScroll'
-          this.state = { ...this.state, [which]: Math.max(0, this.state[which] - event.rows) }
+        // An open panel is in front of everything: the wheel beside it moves
+        // nothing behind it, however much of the window is still drawn there.
+        if (panel && event.area !== 'panel' && event.area !== 'panel-side') return false
+        // Everywhere else: the one move, clamped to what the last frame said
+        // the region actually is. Nothing is laid out again to find that out.
+        const moved = scrollBy(this.state, event.area, event.rows, event.reach)
+        if (moved === this.state) return false
+        this.state = moved
+        if (event.area === 'pane' || event.area === 'terminal') {
+          // A lane's screen is read from the driver, so the wheel would leave
+          // the text where it was until the next look while the bar beside it
+          // had already moved. Cut the lines we hold to where it now is, and
+          // ask for more only when it has gone past them.
+          this.reslice(event.area)
           this.soonTick()
-          return true
         }
-        if (event.area === 'transcript' && !panel) {
-          // The wheel up reads back: further from the newest line.
-          this.state = scrollTranscript(this.state, -event.rows, this.transcriptRows())
-          return true
-        }
-        return false
+        return true
       }
       case 'grab':
         this.state = { ...this.state, resizing: event.edge }
@@ -1630,13 +1656,21 @@ export class App {
         this.state = grabBar(this.state, event.bar, event.track, event.y)
         // A screen scrolled back is read further back than it is tall: ask for
         // the lines now rather than at the next beat.
-        if (event.bar.area === 'pane' || event.bar.area === 'terminal') this.soonTick()
+        if (event.bar.area === 'pane' || event.bar.area === 'terminal') {
+          this.reslice(event.bar.area)
+          this.soonTick()
+        }
         return true
       case 'drag': {
         const bar = this.state.scrolling
         if (bar) {
           this.state = scrollBarTo(this.state, event.y)
-          if (bar.area === 'pane' || bar.area === 'terminal') this.soonTick()
+          if (bar.area === 'pane' || bar.area === 'terminal') {
+            // As the wheel does: the text goes with the thumb rather than a
+            // look behind it, and what the held lines cannot reach is asked for.
+            this.reslice(bar.area)
+            this.soonTick()
+          }
           return true
         }
         if (!this.state.resizing) return false
@@ -1838,6 +1872,7 @@ export class App {
         (width) => ({ state: this.state, frame: this.frameFor(live, width) }),
         (event) => this.pointer(event),
         (text) => void this.copySelection(text),
+        () => this.now(),
       ),
     )
     this.release = this.tui.addInputListener((data) => this.onInput(data))
@@ -2394,10 +2429,14 @@ export class App {
         return
       case 'pane-end':
         this.state = { ...this.state, paneScroll: 0 }
+        // Back to the newest line, and the text goes there with the bar: the
+        // lines held may already reach it, and the look catches up if not.
+        this.reslice('pane')
         this.soonTick()
         return
       case 'terminal-end':
         this.state = { ...this.state, terminalScroll: 0 }
+        this.reslice('terminal')
         this.soonTick()
         return
       case 'transcript-end':
@@ -5051,11 +5090,9 @@ export class App {
       }
     }
     this.title(pane ? `${pane.project} › ${shownName(pane)}` : this.state.project)
-    const screen = this.scrolledBack(
-      await (this.live?.capture(lane, size.rows + this.state.paneScroll, this.skin.colour) ?? ''),
-      size.rows,
-      'paneScroll',
-    )
+    // How deep the lane is, read before its text: which lines are held is
+    // counted from the depth, so a screen cut against a depth from the frame
+    // before it is a screen cut in the wrong place.
     // Only for the one screen the bar and the cursor are drawn on: a split is
     // two lanes and gets neither.
     const view = split ? null : ((await this.live?.screen(lane)) ?? null)
@@ -5063,6 +5100,7 @@ export class App {
       this.paneView = view
       this.draw()
     }
+    const screen = await this.laneScreen('pane', lane, size.rows)
     const terminal = await this.captureTerminal()
     // While the orchestrator or an agent down the side works, its spinner is news every frame.
     const working =
@@ -5080,15 +5118,6 @@ export class App {
   }
 
   /**
-   * Read the terminal in front of the bottom panel, sized to the panel. Says
-   * whether what it shows has changed. Nothing is read while the panel is
-   * folded or showing the orchestrator.
-   */
-  /**
-   * How far the conversation can scroll back: its lines, less the rows the
-   * strip shows them in. Laid out the way the view lays it out, at its width.
-   */
-  /**
    * Scrolled back, the lines you are reading stay where they are while new
    * ones arrive below: the distance from the bottom grows by what was added.
    */
@@ -5102,49 +5131,107 @@ export class App {
     return { ...next, transcriptScroll: Math.max(0, next.transcriptScroll + grown) }
   }
 
-  private transcriptRows(): number {
+  /** Which of the two screens an area is, and where each keeps how far back it is. */
+  private static readonly SCROLL_OF = {
+    pane: 'paneScroll',
+    terminal: 'terminalScroll',
+  } as const
+
+  /**
+   * A lane's screen, cut to where it is scrolled to — read back from the
+   * driver only when what is already held does not reach that far.
+   *
+   * Scrollback is the one thing about a lane that cannot change: the agent
+   * appends, it never rewrites what it printed an hour ago. So a screen read
+   * two thousand lines back is read once, and the wheel moving through it is
+   * an array slice. What still has to be asked every look is the bottom,
+   * where the agent is typing, and that is the cheap end.
+   */
+  private async laneScreen(
+    area: 'pane' | 'terminal',
+    lane: string | null,
+    rows: number,
+  ): Promise<string> {
+    if (!lane) {
+      this.held.delete(area)
+      return ''
+    }
+    const which = App.SCROLL_OF[area]
+    const at = (area === 'pane' ? this.paneView : this.terminalView)?.lines ?? 0
+    // Never further back than there is to read: the wheel is clamped against
+    // what the last frame drew, and this is the same clamp against what the
+    // driver says now, for a lane that shrank or was relaunched under us.
+    const most = Math.max(0, at - rows)
+    if (at > 0 && this.state[which] > most) this.state = { ...this.state, [which]: most }
+    const back = this.state[which]
+    const held = this.held.get(area)
+    if (held?.lane === lane && at >= held.at) {
+      const cut = cutFrom(held, rows, back, at)
+      if (cut !== null) return cut
+    }
+    // Room to move in before the driver has to be asked again — only once
+    // there is scrollback in play, so a lane at its newest line costs what it
+    // always did.
+    const asked = rows + back + (back > 0 ? HELD_LINES : 0)
+    const captured = (await this.live?.capture(lane, asked, this.skin.colour)) ?? ''
+    const lines = captured.split('\n')
+    // A capture ends at the newest line, so how many lines came back is what
+    // says which lines they are. A lane with no depth of its own — half of a
+    // split — has only its capture to count from.
+    const read = { lane, lines, at: Math.max(at, lines.length), asked }
+    this.held.set(area, read)
+    return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
+  }
+
+  /**
+   * Cut the lines already held to where the wheel has just put them, so the
+   * text moves on the same frame as the bar beside it. What it cannot reach
+   * waits for the look the wheel asked for, a few milliseconds behind.
+   */
+  private reslice(area: 'pane' | 'terminal'): void {
+    const held = this.held.get(area)
+    if (!held) return
+    const view = area === 'pane' ? this.paneView : this.terminalView
+    const cut = cutFrom(
+      held,
+      this.laneRows(area),
+      this.state[App.SCROLL_OF[area]],
+      view?.lines ?? held.at,
+    )
+    if (cut === null) return
+    if (area === 'pane') this.screen = cut
+    else this.terminalScreen = cut
+  }
+
+  /** How many rows of a lane are on screen: what a capture is cut to. */
+  private laneRows(area: 'pane' | 'terminal'): number {
+    if (area === 'pane') {
+      const pane = this.state.panes.find((p) => p.task === this.state.focused)
+      const split = pane ? splitShown(this.state, pane) : null
+      return this.halves(this.paneSize(split !== null), split).first.rows
+    }
     const layout = resolveLayout(this.layout(), {
       width: this.terminal.columns,
       height: Math.max(6, this.terminal.rows),
     })
-    const width = layout.sidebarWidth + layout.mainWidth + 1
-    const lines = transcriptLines(
-      this.state.transcript,
-      width,
-      this.skin,
-      { hover: null, pressed: null },
-      this.now(),
-      this.linkers,
-    )
-    // As the strip lays it out: its tab row, then the conversation, then the
-    // input box, which is taller while what is typed wraps.
-    // The strip's tabs, and the row of room under them.
-    const room = layout.stripHeight - 2
-    const input = Math.min(
-      Math.max(3, room - 1),
-      this.state.dictation !== null ? this.editor.render(width).length : 3,
-    )
-    return Math.max(0, lines.length - Math.max(0, room - input))
+    const split = terminalSplitShown(this.state)
+    // Sized exactly as `captureTerminal` sizes it: two readings of one layout
+    // drift, and a screen cut to the wrong number of rows is a screen that
+    // jumps when the look catches up with the wheel.
+    return this.halves(
+      {
+        cols: Math.max(20, layout.sidebarWidth + layout.mainWidth + 1 - (split ? 0 : BAR)),
+        rows: Math.max(1, layout.stripHeight - 2),
+      },
+      split,
+    ).first.rows
   }
 
   /**
-   * A screen read further back than it is tall, cut to the part scrolled to.
-   * Scrolling past the oldest line there is stops at it.
+   * Read the terminal in front of the bottom panel, sized to the panel. Says
+   * whether what it shows has changed. Nothing is read while the panel is
+   * folded or showing the orchestrator.
    */
-  private scrolledBack(
-    captured: string,
-    rows: number,
-    which: 'paneScroll' | 'terminalScroll',
-  ): string {
-    const back = this.state[which]
-    if (back === 0) return captured
-    const lines = captured.split('\n')
-    const most = Math.max(0, lines.length - rows)
-    if (back > most) this.state = { ...this.state, [which]: most }
-    const end = lines.length - this.state[which]
-    return lines.slice(Math.max(0, end - rows), end).join('\n')
-  }
-
   private async captureTerminal(): Promise<boolean> {
     const terminal = activeTerminal(this.state)
     const layout = resolveLayout(this.layout(), {
@@ -5179,20 +5266,14 @@ export class App {
         changed = true
       }
     }
-    const screen = this.scrolledBack(
-      await (this.live?.capture(
-        terminal.id,
-        size.rows + this.state.terminalScroll,
-        this.skin.colour,
-      ) ?? ''),
-      size.rows,
-      'terminalScroll',
-    )
+    // The depth before the text, as an agent's pane reads them: what is held
+    // is kept by which lines they are, and that is counted from the depth.
     const view = split ? null : ((await this.live?.screen(terminal.id)) ?? null)
     if (!same(view, this.terminalView)) {
       this.terminalView = view
       changed = true
     }
+    const screen = await this.laneScreen('terminal', terminal.id, size.rows)
     if (screen === this.terminalScreen) return changed
     this.terminalScreen = screen
     return true

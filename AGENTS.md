@@ -239,6 +239,27 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   of names — the boxes and the arrows are what say what waits on what, and a list says none of it.
   What is pinned at the right of a row stays pinned to the pane and not to what scrolls under it: a
   button a deep chain put out of reach is a button that is gone.
+- **Everything that scrolls scrolls the same way, and how far a region goes is read off its own
+  bar.** One move (`scrollBy` in `model.ts`) and one setter (`atOffset`, the other half of
+  `offsetOf`): the wheel, a key and a drag on the bar each work out the offset they mean and land
+  there, so none of them can disagree about where the end is. Seven surfaces with five ideas of
+  the end is what "not smooth" was — three of them counted on past the last line there was, so a
+  flick off the end bought a handful of notches that did nothing on the way back. Nothing lays a
+  region out again to answer a notch: the scrollbar hit already carries `total` and `shown`
+  because a drag needs them (`reachOf`), and counting a conversation instead cost two milliseconds
+  a notch. What a notch is worth is the wheel's (`scroll.ts`): a terminal reports a notch and
+  never says whether the hand is on a wheel or a trackpad, so the rate is read — one arriving
+  alone is a detent and moves `NOTCH` rows, one inside a run is a line of a drag and moves the
+  lines the terminal already counted. A terminal grid moves by whole cells and that is the
+  ceiling: even, in step and predictable, never sub-cell.
+- **A lane's screen is read once and cut, not read again per notch.** A capture costs what it asks
+  for, so reading `rows + scroll` lines back on every look cost a millisecond per two hundred
+  lines scrolled, four times a second, for lines that had not changed since the agent printed
+  them. Scrollback above the live screen cannot change — an agent appends, it never rewrites — so
+  the lines are held with how deep the lane was when they were read (`HeldLines`) and the screen
+  is cut out of them (`cutFrom`); only the bottom is asked for again. That is also what puts the
+  text and the bar beside it on the same frame: the wheel cuts, where it used to move a number and
+  leave the text until the next look.
 - **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
   to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
   it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,
