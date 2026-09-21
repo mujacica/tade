@@ -3,13 +3,14 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Config, Note, SkillActivity, TadeEvent, ThinkingLevel, Unsubscribe } from '@tade/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
-import type {
-  HarnessModel,
-  WorkerAdapter,
-  WorkerCapabilities,
-  WorkerExtras,
-  WorkerImage,
-  WorkerModel,
+import {
+  type HarnessModel,
+  WORKER_ENV,
+  type WorkerAdapter,
+  type WorkerCapabilities,
+  type WorkerExtras,
+  type WorkerImage,
+  type WorkerModel,
 } from '@tade/harnesses-core'
 import { sessionIdFor } from '@tade/harnesses-pi'
 import { HARNESS_ADAPTERS } from '@tade/workbench/harnesses'
@@ -18,8 +19,9 @@ import { activeSkills, enabledTools } from './extensions.ts'
 
 /**
  * What Tade's own tools are told, whichever harness loads them: where to call
- * back to, where Tade keeps things, and how to run the CLI that answers
- * "where are we" exactly as a person would see it.
+ * back to, where Tade keeps things, how to run the CLI that answers "where
+ * are we" exactly as a person would see it, and which extension tools this
+ * orchestrator was given.
  */
 function toolEnv(opts: OrchestratorOptions): Record<string, string> {
   const env: Record<string, string> = {}
@@ -36,6 +38,16 @@ function toolEnv(opts: OrchestratorOptions): Record<string, string> {
   env.TADE_SKILLS = skillsRoot(opts)
   env.TADE_CLI = process.execPath
   env.TADE_CLI_ARGS = CLI_BIN
+  // The extension tools listed for this run, said here rather than left to
+  // whatever a harness happens to pass down to a server it spawns: pi's
+  // adapter sets this from the same `extras`, and nobody promises Claude Code
+  // hands its own environment to an MCP server, so an orchestrator on one
+  // silently had fewer tools than an orchestrator on the other — a capability
+  // difference nobody declared. Taken back out when there are none, because
+  // Tade opened from inside an agent inherits that agent's list, and the
+  // orchestrator's tools are not an agent's.
+  if (opts.extensions?.extras.tools) env[WORKER_ENV.tools] = opts.extensions.extras.tools
+  else delete env[WORKER_ENV.tools]
   return env
 }
 
@@ -43,8 +55,11 @@ function toolEnv(opts: OrchestratorOptions): Record<string, string> {
  * An MCP server that serves Tade's own tools, written where the harness that
  * starts it can find it: the same tools pi loads as an extension, in the
  * terms a harness that speaks MCP takes them.
+ *
+ * Exported so a test can start exactly what a harness would start, from
+ * exactly the bytes it would read.
  */
-function writeToolServer(opts: OrchestratorOptions): string {
+export function writeToolServer(opts: OrchestratorOptions): string {
   const path = join(opts.runDir, 'tade-tools.mcp.json')
   mkdirSync(opts.runDir, { recursive: true, mode: 0o700 })
   writeFileSync(

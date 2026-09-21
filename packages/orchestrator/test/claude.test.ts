@@ -3,10 +3,12 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ConfigSchema } from '@tade/core'
+import { ExtensionHost } from '@tade/extensions-core'
 import { Workbench } from '@tade/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type FakeAnthropic, startFakeAnthropic } from '../../../test/fixtures/fake-anthropic.ts'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { orchestratorExtensions } from '../src/extensions.ts'
 import { Orchestrator } from '../src/orchestrator.ts'
 import { ToolHost } from '../src/tool-host.ts'
 
@@ -132,6 +134,85 @@ describe.runIf(installed)('the orchestrator in Claude Code', () => {
     await until(() => idle, 90_000)
     // Its own name, not the harness's way of spelling it.
     expect(tools).toContain('tade_status')
+  }, 120_000)
+
+  it("is offered an extension's tool, and calling it reaches the extension", async () => {
+    // Tade's own tools and the extensions' are one list, handed to whichever
+    // harness it runs in. Claude Code takes them as a server it starts, and
+    // what that server is told is the written file's to say — so this is the
+    // one place the two harnesses could quietly differ.
+    const asked: string[] = []
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          tools: [
+            {
+              name: 'weather_now',
+              description: 'Is it raining where a project lives.',
+              parameters: { type: 'object', properties: { project: { type: 'string' } } },
+              for: ['orchestrator'],
+              run: async (input) => {
+                asked.push(String(input.project))
+                return { text: `Raining over ${String(input.project)}.` }
+              },
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    await tools.close()
+    tools = await ToolHost.listen({
+      tade,
+      path: join(home, 'tools.sock'),
+      extensions: async (call) =>
+        (
+          await extensions.call(call.tool, call.input, {
+            caller: { kind: 'orchestrator' },
+            id: call.callId,
+          })
+        ).text,
+    })
+    let idle = false
+    model = await startFakeAnthropic({
+      tool: { name: 'mcp__tade__weather_now', input: { project: 'app' } },
+      finalText: 'Hold the deploy.',
+    })
+    orchestrator = await Orchestrator.start({
+      home,
+      socket: tools.path,
+      runDir: tmp('tcc-chat-'),
+      cwd: repo.root,
+      config: ConfigSchema.parse({
+        orchestrator: { harness: 'claude-code', model: 'haiku' },
+        projects: { app: { root: repo.root } },
+      }),
+      env: {
+        ...process.env,
+        CLAUDE_CONFIG_DIR: account,
+        ANTHROPIC_BASE_URL: model.url,
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      },
+      extensions: orchestratorExtensions(extensions, home, 'claude-code'),
+    })
+    orchestrator.onIdle(() => {
+      idle = true
+    })
+
+    await orchestrator.ask('can we deploy app?')
+    await until(() => idle && asked.length > 0, 90_000)
+    // Offered: it is in the list the model was handed, beside Tade's own.
+    const offered = (model.requests.find((request) => Array.isArray(request.tools))?.tools ??
+      []) as Array<{ name?: string }>
+    expect(offered.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['mcp__tade__tade_status', 'mcp__tade__weather_now']),
+    )
+    // And run where it lives, which is the window, not the agent.
+    expect(asked).toEqual(['app'])
   }, 120_000)
 
   it('says what each of its turns cost, so the window can show it', async () => {
