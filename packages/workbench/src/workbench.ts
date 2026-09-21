@@ -22,6 +22,7 @@ import {
   noSpend,
   type Plan,
   type PlanBusy,
+  type PlanSource,
   parseConfig,
   type QueueChange,
   resolveRoute,
@@ -52,7 +53,6 @@ import {
   noHarnessSpend,
   offer,
   type PermissionDecision,
-  type PlanLimits,
   type RunId,
   type SignIn,
   type Support,
@@ -65,11 +65,17 @@ import {
 import { git, readCommits } from '@tade/status'
 import type { Reporter } from '@tade/telemetry'
 import { parse as parseYaml } from 'yaml'
-import { type AccountView, harnessAccount, listAccounts } from './accounts.ts'
+import { type AccountView, harnessAccount, listAccounts, planWindows } from './accounts.ts'
 import { recordAuthored } from './authored.ts'
 import { checksAt, checksGate } from './checks.ts'
 import { EventLog, readJournal } from './events.ts'
-import { accountKey, adapterKey, HARNESS_ADAPTERS, type HarnessOptions } from './harnesses.ts'
+import {
+  accountKey,
+  adapterKey,
+  adapterParts,
+  HARNESS_ADAPTERS,
+  type HarnessOptions,
+} from './harnesses.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
@@ -672,23 +678,32 @@ export class Workbench {
   }
 
   /**
-   * How much of each harness's plan is used, as that harness last said.
+   * How much of each account's plan is used, as its harness last said, beside
+   * what that harness is able to say at all.
    *
-   * Never asks anybody: a harness that watches its own limits keeps the last
+   * Never asks anybody: a harness that is told its own limits keeps the last
    * answer it was given, and this reads it. Anything that reached out here
-   * would be a network call on a beat, which is the thing that must not
-   * happen — and a harness that cannot say at all (`spend.limits` false) is
-   * simply absent rather than reported as zero, because "none used" and
-   * "cannot know" are different answers and only one of them is good news.
+   * would be a network call on the window's beat, which is the thing that must
+   * not happen.
+   *
+   * Every account that has an adapter is reported, the ones with nothing to
+   * say included: "none used" and "cannot know" are different answers, only
+   * one of them is good news, and which it is, is `planStandings`' to decide
+   * from the harness's own declaration rather than from an empty figure. An
+   * account nothing has needed yet has no adapter and is absent, which says
+   * the same thing — nothing has run as it, so nothing has been said.
    */
-  planLimits(): { harness: string; limits: PlanLimits }[] {
-    const out: { harness: string; limits: PlanLimits }[] = []
-    for (const [harness, adapter] of Object.entries(this.adapters)) {
-      if (!adapter.capabilities.spend.limits) continue
-      const limits = adapter.limits()
-      if (limits) out.push({ harness, limits })
-    }
-    return out
+  planUsage(): PlanSource[] {
+    return Object.entries(this.adapters).map(([key, adapter]) => {
+      const can = adapter.capabilities.spend.limits
+      const said = can === 'none' ? null : adapter.limits()
+      return {
+        ...adapterParts(key),
+        can,
+        why: adapter.capabilities.why.limits ?? null,
+        said: said ? { at: said.at, windows: planWindows(said) } : null,
+      }
+    })
   }
 
   info(): WorkbenchInfo {

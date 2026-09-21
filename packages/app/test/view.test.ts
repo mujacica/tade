@@ -1,4 +1,5 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
+import type { PlanStanding } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
 import { type Hit, hitAt } from '../src/hits.ts'
@@ -31,6 +32,7 @@ import {
   type CheckView,
   type CommitView,
   draw,
+  type Frame,
   renderApp,
   wrapPath,
 } from '../src/view.ts'
@@ -906,6 +908,99 @@ describe('the status strip', () => {
         (hit) => hit.target.kind === 'action' && hit.target.name === 'thinking:orchestrator',
       ),
     ).toBe(false)
+  })
+})
+
+describe('what a subscription has left, in the strip', () => {
+  const NOW = 1_800_000_000_000
+  const HOUR = 3_600_000
+  const spending = {
+    tokens: 1_500,
+    usd: 0.351,
+    hasCost: true,
+    byTask: {},
+    runtime: { ms: 80 * 60_000, runs: 2, running: true },
+  }
+  const standing = (over: Partial<PlanStanding> = {}): PlanStanding => ({
+    harness: 'claude-code',
+    account: null,
+    at: NOW - 60_000,
+    cannotTell: null,
+    windows: [{ label: '5h', used: 78.4, resetsAt: NOW + 2 * HOUR }],
+    ...over,
+  })
+  const strip = (over: Partial<Frame> = {}, appState: Partial<AppState> = {}) =>
+    draw(
+      { ...state(), ...appState },
+      {
+        ...frame({ width: 120 }),
+        skin: COLOUR,
+        now: NOW,
+        spend: spending,
+        plan: [standing()],
+        ...over,
+      },
+    )
+  const foot = (drawn: { rows: string[] }) => drawn.rows[drawn.rows.length - 1] ?? ''
+  /** What a link looks like: underlined right up to the words. */
+  const linked = (row: string, text: string) =>
+    new RegExp(`${String.fromCharCode(27)}\\[4m${text.replace(/[$.%]/g, '\\$&')}`).test(row)
+
+  it('says how much of the window is gone and when it comes back', () => {
+    const text = plain(foot(strip()))
+    expect(text).toContain('5h 78%')
+    expect(text).toContain('↻ 2h')
+    // Its own figure, in front of the money and never folded into it.
+    expect(text.indexOf('5h 78%')).toBeLessThan(text.indexOf('$0.35'))
+  })
+
+  it('opens the same overview as the money beside it, and lights with it', () => {
+    const pointed = strip({}, { hover: { kind: 'action', name: 'spend' } })
+    const row = foot(pointed)
+    expect(linked(row, '5h 78%')).toBe(true)
+    const hit = pointed.hits.find(
+      (one) => one.target.kind === 'action' && one.target.name === 'spend',
+    )
+    expect(hit).toBeDefined()
+  })
+
+  it('says nothing at all when no harness has said', () => {
+    const quiet = plain(
+      foot(strip({ plan: [standing({ windows: [], at: null, cannotTell: 'has not said yet' })] })),
+    )
+    expect(quiet).not.toContain('5h')
+    // The reason belongs on the page that has room for a sentence, not here.
+    expect(quiet).not.toContain('has not said')
+  })
+
+  it('names whose plan it is only when more than one account has one', () => {
+    expect(plain(foot(strip()))).not.toContain('claude-code 5h')
+    const two = plain(
+      foot(
+        strip({
+          plan: [
+            standing(),
+            standing({
+              harness: 'codex',
+              account: 'work',
+              windows: [{ label: '5h', used: 91, resetsAt: NOW + HOUR }],
+            }),
+          ],
+        }),
+      ),
+    )
+    // The fullest is the one that stops somebody working, and it is named.
+    expect(two).toContain('codex @work 5h 91%')
+  })
+
+  it('is the last figure it gives up as the window narrows', () => {
+    const narrow = plain(foot(strip({ width: 64 })))
+    expect(narrow).not.toContain('tok')
+    // When it comes back goes before the share does: a share on its own is
+    // still true, and the page it opens says the rest.
+    expect(narrow).not.toContain('↻')
+    expect(narrow).toContain('5h 78%')
+    expect(narrow).toContain('$0.35')
   })
 })
 

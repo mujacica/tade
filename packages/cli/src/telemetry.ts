@@ -4,6 +4,7 @@ import {
   type Config,
   defaultConfigPath,
   loadConfig,
+  planStandings,
   RUNTIME_EVENTS,
   runtimeFrom,
   startOfToday,
@@ -98,24 +99,34 @@ async function reportRuntime(reporter: Reporter, client: Workbench): Promise<voi
   }
 }
 
-/** How much of each plan is used, for the harnesses that can say. */
+/**
+ * How much of each plan is used, for the harnesses that can say — and only
+ * where what they said is still about the window running now.
+ *
+ * The fullest window of a harness is the one reported: an account's name is a
+ * name somebody wrote, so it can never be a dimension, and two accounts of one
+ * harness would otherwise write the same series twice. The fullest is the one
+ * that stops somebody working, which is what a gauge here is for.
+ */
 function reportLimits(reporter: Reporter, client: Workbench): void {
   const now = Date.now()
-  for (const { harness, limits } of client.planLimits()) {
-    for (const [window, used] of [
-      ['5h', limits.fiveHour],
-      ['7d', limits.sevenDay],
-    ] as const) {
-      if (!used) continue
-      reporter.measure({
-        at: now,
-        name: 'tade.plan.used',
-        kind: 'gauge',
-        value: used.used,
-        unit: 'percent',
-        about: { harness, window },
-      })
+  const fullest = new Map<string, number>()
+  for (const standing of planStandings(client.planUsage(), now)) {
+    for (const window of standing.windows) {
+      const key = `${standing.harness}\u0000${window.label}`
+      fullest.set(key, Math.max(fullest.get(key) ?? 0, window.used))
     }
+  }
+  for (const [key, used] of fullest) {
+    const [harness = '', window = ''] = key.split('\u0000')
+    reporter.measure({
+      at: now,
+      name: 'tade.plan.used',
+      kind: 'gauge',
+      value: used,
+      unit: 'percent',
+      about: { harness, window },
+    })
   }
 }
 

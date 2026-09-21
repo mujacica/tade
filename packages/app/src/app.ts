@@ -45,6 +45,7 @@ import {
   type PlanBusy,
   parseQuietHours,
   parseSetting,
+  planStandings,
   QUEUE_CHANGES,
   queueStateOf,
   readyToStart,
@@ -1510,6 +1511,11 @@ export class App {
     const spend = live.spendToday()
     const ran = live.runtimeToday()
     const panel = this.state.panel
+    // What the harnesses last said about their plans: read from what they
+    // already hold, so this costs a few property reads on the window's beat
+    // and never a request to anybody.
+    const planSources = this.opts.client.planUsage()
+    const plan = planStandings(planSources, this.now())
     const spendView =
       panel?.kind === 'spend'
         ? spendViewOf(live.spending, {
@@ -1520,6 +1526,7 @@ export class App {
             projects: projects(this.state),
             runs: live.runs,
             made: live.produced,
+            plan: planSources,
             budgets: Object.fromEntries(
               Object.entries(this.opts.config.projects).map(([name, project]) => [
                 name,
@@ -1581,6 +1588,7 @@ export class App {
         byTask: spend.byTask,
         runtime: ran.total,
       },
+      plan,
       route: {
         harness: this.state.focused ? this.harnessShown(this.state.focused) : route.harness,
         model: route.model ?? null,

@@ -3747,6 +3747,89 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     )
   }
 
+  // What a subscription has left, under what it cost: money and a plan are
+  // different currencies with no rate between them, so this is its own list
+  // and nothing here is added to anything above it. Always now, whichever
+  // window the tabs are on — there is no such thing as last Tuesday's plan.
+  rows.push(blank(inner))
+  rows.push(row().space().text('PLAN', skin.label).build())
+  const whose = 17
+  const sentence = inner - whose - 2
+  // What can be said comes first. A reason is worth reading, and worth
+  // reading after the figures somebody opened this to see.
+  const standings = [...(view?.plan ?? [])].sort(
+    (a, b) => Number(b.windows.length > 0) - Number(a.windows.length > 0),
+  )
+  if (standings.length === 0) {
+    rows.push(row().space(3).text('No harness here has a plan to report.', skin.hint).build())
+  }
+  // The panel floats over the work, so the section is bounded — and what it
+  // left out is said, because a list that stops without saying so reads as a
+  // list of everything there is.
+  const PLAN_LINES = 9
+  let lines = 0
+  let dropped = 0
+  for (const standing of standings) {
+    const drawn: { text: string; hits: Hit[] }[] = []
+    if (standing.cannotTell === null) {
+      let top = true
+      for (const window of standing.windows) {
+        const used = Math.round(window.used)
+        const tone = used >= 90 ? skin.bad : used >= 75 ? skin.waiting : skin.done
+        const left = window.resetsIn
+        const line = row()
+          .space()
+          .text(padTo(top ? standing.label : '', whose))
+          .space()
+          .text(pad(window.label, 4), skin.hint)
+          .meter(Math.min(1, used / 100), 10, tone)
+          .space()
+          .text(`${used}%`.padStart(4), tone)
+          .space(2)
+          .text(
+            padTo(left === null ? 'no reset given' : `resets in ${duration(left)}`, 17),
+            skin.hint,
+          )
+        // When the harness last said it. The figure is only ever as fresh as
+        // the last agent that ran, and a share that has not moved in an hour
+        // is an hour-old share rather than one that stopped growing.
+        if (top && standing.saidAgo !== null) {
+          line.text(`said ${duration(standing.saidAgo)} ago`, skin.hint)
+        }
+        drawn.push(line.build())
+        top = false
+      }
+    } else {
+      // The harness's own sentence, whole: what a person reads is a sentence
+      // somebody wrote, never a blank or a zero standing in for one.
+      const said = wrapTo(`cannot tell — ${standing.cannotTell}`, sentence, 2)
+      said.forEach((part, at) => {
+        drawn.push(
+          row()
+            .space()
+            .text(padTo(at === 0 ? standing.label : '', whose))
+            .space()
+            .text(part, skin.hint)
+            .build(),
+        )
+      })
+    }
+    if (lines + drawn.length > PLAN_LINES) {
+      dropped += 1
+      continue
+    }
+    rows.push(...drawn)
+    lines += drawn.length
+  }
+  if (dropped > 0) {
+    rows.push(
+      row()
+        .space(3)
+        .text(`${dropped} more account${dropped === 1 ? '' : 's'} not shown.`, skin.hint)
+        .build(),
+    )
+  }
+
   // What the money bought, beside what it cost: the two numbers are only
   // worth anything together, and a morning that spent forty dollars on three
   // commits is a different morning from one that spent it on thirty.
@@ -3819,7 +3902,7 @@ function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   rows.push(
     row()
       .space()
-      .text('Prices as pi reports them · runtime from an agent starting to exiting.', skin.hint)
+      .text('Prices as the harness reports them · a plan is a share, never money.', skin.hint)
       .build(),
   )
 

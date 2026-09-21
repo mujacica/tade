@@ -40,7 +40,7 @@ class FakeAdapter implements WorkerAdapter {
     nativeExtensions: false,
     skills: false,
     tools: true,
-    spend: { usd: 'none', tokens: false, limits: false },
+    spend: { usd: 'none', tokens: false, limits: 'none' },
     accounts: false,
     mcp: false,
     headless: true,

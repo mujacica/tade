@@ -42,6 +42,14 @@ export function adapterKey(harness: string, account?: string | null): string {
   return account ? `${harness}@${account}` : harness
 }
 
+/** The harness and account an adapter is filed under, read back out of its key. */
+export function adapterParts(key: string): { harness: string; account: string | null } {
+  const at = key.indexOf('@')
+  return at === -1
+    ? { harness: key, account: null }
+    : { harness: key.slice(0, at), account: key.slice(at + 1) }
+}
+
 /** Where Tade keeps an API-key account's key: named so no extension's can collide with it. */
 export function accountKey(name: string): string {
   return `accounts.${name}.key`

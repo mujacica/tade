@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { type Config, type HarnessId, secretCommand } from '@tade/core'
+import { type Config, type HarnessId, type PlanWindow, secretCommand } from '@tade/core'
 import type { AccountStatus, HarnessAccount, PlanLimits, WorkerAdapter } from '@tade/harnesses-core'
 import { accountKey, HARNESS_ADAPTERS } from './harnesses.ts'
 
@@ -25,6 +25,23 @@ export interface AccountView {
   forNewAgents: boolean
   /** Whether it has a sign-in of its own to run. */
   canSignIn: boolean
+}
+
+/**
+ * A harness's two named windows as plain ones, labelled with what each covers.
+ *
+ * The port names them `fiveHour` and `sevenDay` because that is what both
+ * subscription harnesses are told; this is the one place those names become
+ * words somebody reads, so nothing downstream has to know either harness.
+ */
+export function planWindows(limits: {
+  fiveHour: { used: number; resetsAt: number } | null
+  sevenDay: { used: number; resetsAt: number } | null
+}): PlanWindow[] {
+  return [
+    limits.fiveHour ? { label: '5h', ...limits.fiveHour } : null,
+    limits.sevenDay ? { label: '7d', ...limits.sevenDay } : null,
+  ].filter((one) => one !== null)
 }
 
 /**

@@ -521,6 +521,18 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   declares which it can do (`capabilities.spend.usd`), and that word rides on every `usage` event
   as `priced`, so a total can say which it is. pi prices each turn against its own catalog; Claude
   Code estimates.
+- **A subscription is not money, and is never totalled with it.** Where a plan pays for the work
+  there is no price per turn, so what is used up is a share of a rolling window — and that lives in
+  its own type (`PlanWindow`, `core/src/limits.ts`), in its own list on the Spend page, in its own
+  indicator in the strip, and in no total anywhere. Every figure is what the *service* told the
+  harness and nothing Tade counted. When a harness can say is declared like everything else
+  (`capabilities.spend.limits`: `anytime`, `while-working`, `none`, each short of full carrying a
+  sentence in `why.limits`) and never sniffed: both subscription harnesses are told as their agents
+  run, so before one has, the honest answer is the harness's own sentence rather than zero.
+  `planStandings` is where that is decided, and it throws away a share whose window has already
+  started over — a percentage belonging to a window that is gone looks exactly like one that is
+  true, which is the one way this could be worse than saying nothing. Nothing here asks anybody
+  anything: the window draws it on its own beat, so `limits()` reads what the harness already holds.
 - **An agent's turn is the work of a model, and is timed as one.** The supervisor sees a turn start,
   the tools it calls and what it cost, so that is where it is timed (`agentTurns`): a
   `gen_ai.invoke_agent` span per turn with `gen_ai.execute_tool` spans inside it, the model and the

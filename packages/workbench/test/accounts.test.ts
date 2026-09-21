@@ -96,6 +96,36 @@ describe('accounts', () => {
     })
   })
 
+  it('says what every account can report about its plan, and none of it as money', async () => {
+    const usage = client.planUsage()
+    const pi = usage.find((one) => one.harness === 'pi')
+    // pi prices every turn and is never told what a plan has left: it says so,
+    // in its own words, rather than being left out or reported as nothing used.
+    expect(pi).toMatchObject({ account: null, can: 'none', said: null })
+    expect(pi?.why).toContain('plan')
+    // A fresh window has heard nothing from either subscription harness. That
+    // is not zero used, and the declaration is what makes the difference
+    // readable: it can say, and has not yet.
+    for (const harness of ['claude-code', 'codex']) {
+      const one = usage.find((source) => source.harness === harness)
+      expect(one?.can).toBe('while-working')
+      expect(one?.said).toBeNull()
+      expect((one?.why ?? '').length).toBeGreaterThan(10)
+    }
+    // No money anywhere in it: a plan is a share of a window, and the two are
+    // never added up.
+    expect(JSON.stringify(usage)).not.toContain('usd')
+  })
+
+  it('reports an added account’s plan apart from its harness’s own sign-in', async () => {
+    await client.addAccount({ name: 'work', harness: 'claude-code' })
+    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: 'fix it' })
+    await client.setAgentHarness({ task: task.id, worktree: task.worktree, harness: 'claude-code' })
+    await client.setAgentAccount({ task: task.id, worktree: task.worktree, account: 'work' })
+    const claude = client.planUsage().filter((one) => one.harness === 'claude-code')
+    expect(claude.map((one) => one.account).sort()).toEqual([null, 'work'])
+  })
+
   it('takes one away, and nothing is left pointing at it', async () => {
     await client.addAccount({ name: 'work', harness: 'claude-code' })
     await client.useAccount('claude-code', 'work')

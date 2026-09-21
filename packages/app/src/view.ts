@@ -9,9 +9,13 @@ import {
   DONE_RULE_MEANS,
   describeLook,
   duration,
+  type PlanStanding,
+  planLabel,
   type QueueState,
   type Runtime,
+  resetsIn,
   taskOrigin,
+  tightestWindow,
 } from '@tade/core'
 import type { LaneScrolling } from '@tade/drivers-core'
 import { type FileEntry, folderMark } from './files.ts'
@@ -327,6 +331,15 @@ export interface Frame {
   notes?: readonly NoteShown[]
   /** Today's spend, in total and by task. */
   spend?: Spend
+  /**
+   * How much of each account's plan is used, as its harness last said — and
+   * for the ones that cannot say, why not.
+   *
+   * Never money. A subscription is not charged per turn, so what is used up is
+   * a share of a rolling window, and it is drawn as its own thing rather than
+   * folded into a total that would then mean nothing.
+   */
+  plan?: readonly PlanStanding[]
   /**
    * What the agent you are looking at runs on, as configured, and how that
    * provider is paid for: `signed in`, `API key`, `env API key`.
@@ -4311,6 +4324,11 @@ function renderFoot(
   // How long the agents have been at it today, beside what they charged for
   // it: the two halves of the same question.
   const ran = spend?.runtime && spend.runtime.ms > 0 ? spend.runtime : null
+  // What a subscription has left, which is the only figure that means anything
+  // when nothing is priced. The fullest window across every account: the one
+  // about to stop somebody working. Nothing at all when no harness has said —
+  // the reason is on the Spend page, and a strip is no place for a sentence.
+  const plan = tightestWindow(frame.plan ?? [])
   // Everything here is clickable, and says so under the pointer the way a
   // link does: lit and underlined, rather than a block of background that
   // would read as a button in a strip that has none.
@@ -4319,15 +4337,35 @@ function renderFoot(
   // Said in full where there is room, and shed from the left where there is
   // not: what it costs is the part worth keeping on a small terminal, and how
   // long it took is the next to last to go.
-  const full = { model: true, account: true, thinking: true, tokens: true, runtime: true }
-  const tries = [
-    full,
-    { model: true, account: false, thinking: true, tokens: true, runtime: true },
-    { model: true, account: false, thinking: true, tokens: false, runtime: true },
-    { model: true, account: false, thinking: false, tokens: false, runtime: true },
-    { model: false, account: false, thinking: false, tokens: false, runtime: true },
-    { model: false, account: false, thinking: false, tokens: false, runtime: false },
+  //
+  // What a plan has left is the last figure of all, because where a
+  // subscription pays for the work it is the only one that says anything: the
+  // dollars beside it are an estimate of something nobody is charged. When
+  // even it is too wide, when it comes back goes before the share does — a
+  // share with no reset beside it is still true, and the page it opens says
+  // the rest.
+  const full = {
+    model: true,
+    account: true,
+    thinking: true,
+    tokens: true,
+    runtime: true,
+    plan: true,
+    reset: true,
+  }
+  const shed: Array<keyof typeof full> = [
+    'account',
+    'tokens',
+    'thinking',
+    'model',
+    'reset',
+    'runtime',
+    'plan',
   ]
+  // Each try is the one before it with one more thing given up, so the order
+  // above is the whole of what gets shed and in what order.
+  const tries: Array<typeof full> = [full]
+  for (const what of shed) tries.push({ ...(tries[tries.length - 1] ?? full), [what]: false })
   const status = (show: (typeof tries)[number]) => (r: Row) => {
     // What extensions keep here — what Tade is using — clicked for their view.
     if (show.model) {
@@ -4355,6 +4393,23 @@ function renderFoot(
     // What today cost, in one clickable group: the whole of it lights, because
     // the whole of it opens the same overview.
     const money = lit(target, skin.hint)
+    // A share of a plan, never added to the money beside it: the two are
+    // different currencies and there is no rate between them. It opens the
+    // same overview, where the windows are listed account by account.
+    if (plan && show.plan) {
+      // Without a clock there is no "in two hours" to say, only the share.
+      const left = frame.now === undefined ? null : resetsIn(plan.window, frame.now)
+      const used = Math.round(plan.window.used)
+      const tone = used >= 90 ? skin.bad : used >= 75 ? skin.waiting : skin.hint
+      // Whose plan, only where more than one account has one to speak of: with
+      // a single sign-in the name is noise, and with two the figure is a
+      // riddle without it.
+      const whose = (frame.plan ?? []).filter((one) => one.windows.length > 0).length > 1
+      if (whose) r.text(`${planLabel(plan)} `, money, target)
+      r.text(`${plan.window.label} ${used}%`, lit(target, tone), target)
+      if (left !== null && show.reset) r.text(` ↻ ${duration(left)}`, money, target)
+      r.text(' │ ', skin.chrome, target)
+    }
     if (spent && show.tokens) {
       r.text(tokens(spend.tokens), money, target).text(' │ ', skin.chrome, target)
     }

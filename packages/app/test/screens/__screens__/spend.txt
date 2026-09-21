@@ -1,34 +1,34 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
-                             █│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ! stripe-v15      $1╭─ Spend ────────────────────────────────────────────────────────── esc ─╮                       
- ▌   wants you to appro│ $2.66  1.9M tokens  2h 5m             Today    This window    7 days   │                       
-                       │                                                                        │                       
-   ⠋ refunds         $0│ by   Agent    Project    Model                                         │                       
-     working           │                                                                        │                       
+━━━━━━━━━━━━━━━━━━━━━━━╭─ Spend ────────────────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2           │ $2.66  1.9M tokens  2h 5m             Today    This window    7 days   │5 ▾     high ▾     ×   
+                       │                                                                        │───────────────────────
+ ▌ ! stripe-v15      $1│ by   Agent    Project    Model                                         │                       
+ ▌   wants you to appro│                                                                        │                       
                        │ WHO                 MODEL           TOKENS  SHARE     RUNTIME    COST  │                       
- ▸ SMART QUEUE         │ ◆ orchestrator      claude-opus-5     412k  ██░░░░░░░░      —   $0.58  │                       
- ▾ CHANGES  3        vs│ ! stripe-v15        claude-opus-5     880k  █████░░░░░    55m   $1.26  │                       
-  M package.json       │ ⠋ refunds           claude-opus-5     460k  ██░░░░░░░░    40m   $0.62  │                       
-  A …/webhooks.test.ts │ ✓ search/pagination claude-sonnet-5   148k  █░░░░░░░░░    30m   $0.20  │                       
-  M src/webhooks.ts   +│                                                                        │                       
-                       │ PRODUCED                                                               │                       
- ▾ FILES               │ 4 commits    +357 −58  16 files  1 unattributed                        │                       
-   ▾ src/              │ tests        2 runs   1 failed    45.5s                                │                       
-       webhooks.test.ts│ types        2 runs   all green   20.6s                                │                       
-       webhooks.ts     │                                                                        │                       
-   ▸ test/             │ BUDGETS                                                                │                       
-     package.json      │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                       
-     README.md         │ search     $0.20                    no budget — set one                │                       
+   ⠋ refunds         $0│ ◆ orchestrator      claude-opus-5     412k  ██░░░░░░░░      —   $0.58  │                       
+     working           │ ! stripe-v15        claude-opus-5     880k  █████░░░░░    55m   $1.26  │                       
+                       │ ⠋ refunds           claude-opus-5     460k  ██░░░░░░░░    40m   $0.62  │                       
+ ▸ SMART QUEUE         │ ✓ search/pagination claude-sonnet-5   148k  █░░░░░░░░░    30m   $0.20  │                       
+ ▾ CHANGES  3        vs│                                                                        │                       
+  M package.json       │ PLAN                                                                   │                       
+  A …/webhooks.test.ts │ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago    │                       
+  M src/webhooks.ts   +│                   7d  ███░░░░░░░  31%  resets in 3d                    │                       
+                       │ claude-code @rev… 5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago   │                       
+ ▾ FILES               │ pi                cannot tell — is never told what a plan has left: it │                       
+   ▾ src/              │                   prices every turn against its own catalog instead    │                       
+       webhooks.test.ts│                                                                        │                       
+       webhooks.ts     │ PRODUCED                                                               │                       
+   ▸ test/             │ 4 commits    +357 −58  16 files  1 unattributed                        │                       
+     package.json      │ tests        2 runs   1 failed    45.5s                                │                       
+     README.md         │ types        2 runs   all green   20.6s                                │                       
 ━   orchestrator     + │                                                                        │━━━━━━━━━   ⤢     ▾   ━
-                       │ Prices as pi reports them · runtime from an agent starting to exiting. │                       
-                       ╰────────────────────────────────────────────────────────────────────────╯                      ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+                       │ BUDGETS                                                                │                       
+                       │ checkout   $1.88 of $5.00 a day     █████░░░░░░░ 38%                   │                      ▕
+                       │ search     $0.20                    no budget — set one                │                      ▕
+                       │                                                                        │                      ▕
+                       │ Prices as the harness reports them · a plan is a share, never money.   │                      ▕
+ ❯ what you say   ◆ the╰────────────────────────────────────────────────────────────────────────╯                      ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
+   Extensions     Settings     Mute      claude-opus-5 ▾ │ high ▾ │ claude-code 5h 78% ↻ 1h 22m │ 2h 5m │ $2.66 today ▾ 

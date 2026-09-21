@@ -140,7 +140,13 @@ What every agent and the orchestrator cost today, this window or this week — t
 dollars, each project against the budget you gave it — and what that bought: commits, the size of
 them, and how the project's own checks have been going.
 
-![Spend: every agent with its model, tokens, share, runtime and cost, what that bought in commits and lines, how the project’s own checks have been going, and each project against its budget](images/spend.svg)
+Where a subscription pays for the work there is no price per turn, so what is used up is a share of
+a rolling window: how much of each plan is gone, when it comes back, and — for a harness that
+cannot say — its own sentence for why, rather than a zero standing in for one. Never added to the
+money: a plan and a dollar are different currencies with no rate between them. The fullest window
+sits in the status bar beside the cost.
+
+![Spend: every agent with its model, tokens, share, runtime and cost, how much of each subscription’s window is used and when it resets, what that bought in commits and lines, and each project against its budget](images/spend.svg)
 
 ## Resources
 

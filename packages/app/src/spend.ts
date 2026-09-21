@@ -3,8 +3,12 @@ import {
   type BudgetVerdict,
   type CheckTally,
   checkBudget,
+  type PlanSource,
   type Produced,
+  planLabel,
+  planStandings,
   type Runtime,
+  resetsIn,
   runtimeFrom,
   spendFrom,
   startOfToday,
@@ -51,6 +55,22 @@ export interface SpendRow {
   runtime: Runtime | null
 }
 
+/**
+ * How one account's plan stands, as the panel draws it: shares of windows and
+ * how long until each comes back, or the harness's own sentence for why there
+ * is nothing to say. Never money, and in no total on the page.
+ */
+export interface PlanRow {
+  /** `claude-code`, `codex @work`. */
+  label: string
+  /** The windows still running. Empty when nothing can be said. */
+  windows: readonly { label: string; used: number; resetsIn: number | null }[]
+  /** How long ago the harness said it. Null when nothing can be said. */
+  saidAgo: number | null
+  /** Why there is nothing to show, in the harness's words. Null when there is. */
+  cannotTell: string | null
+}
+
 export interface BudgetRow {
   project: string
   /** Spent today, which is what a daily budget is measured against. */
@@ -72,6 +92,15 @@ export interface SpendView {
   /** Every agent's time in this window added up: two running at once count as two. */
   runtime: Runtime
   rows: SpendRow[]
+  /**
+   * How much of each account's plan is used now. Not money and never added to
+   * it: a subscription has no price per turn, so the figures here are shares
+   * of a window and belong to no total on this page.
+   *
+   * Always now, whichever window the rest of the panel is showing — a plan is
+   * what is left today, and there is no such thing as last Tuesday's.
+   */
+  plan: readonly PlanRow[]
   budgets: BudgetRow[]
   /** What the money bought: commits, and how big they were. */
   produced: Produced
@@ -101,6 +130,8 @@ export function spendView(
     runs?: readonly TadeEvent[]
     /** Where commits and check runs are read from. The same events, unless said. */
     made?: readonly TadeEvent[]
+    /** What each harness account can say about its plan, and what it last said. */
+    plan?: readonly PlanSource[]
   },
 ): SpendView {
   const since = sinceOf(opts.window, opts.now, opts.openedAt)
@@ -199,10 +230,29 @@ export function spendView(
     hasCost: report.total.hasCost,
     runtime: ran.total,
     rows,
+    plan: planRows(opts.plan ?? [], opts.now),
     budgets,
     produced: made.produced,
     checks: made.checks,
   }
+}
+
+/**
+ * What each account's plan standing looks like on the page: the standing
+ * itself is `planStandings`' to decide, and this only turns the moments in it
+ * into the lengths of time a person reads.
+ */
+function planRows(sources: readonly PlanSource[], now: number): PlanRow[] {
+  return planStandings(sources, now).map((standing) => ({
+    label: planLabel(standing),
+    windows: standing.windows.map((window) => ({
+      label: window.label,
+      used: window.used,
+      resetsIn: resetsIn(window, now),
+    })),
+    saidAgo: standing.at === null ? null : Math.max(0, now - standing.at),
+    cannotTell: standing.cannotTell,
+  }))
 }
 
 /** Every bucket either side knows about, in the order money found them. */

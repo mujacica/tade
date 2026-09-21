@@ -233,7 +233,7 @@ export class CodexAdapter implements WorkerAdapter {
     // `codex exec --json`: a turn run to completion under Codex's own event
     // stream, which is how Tade draws the thing you talk to.
     headless: true,
-    spend: { usd: 'none', tokens: true, limits: true },
+    spend: { usd: 'none', tokens: true, limits: 'while-working' },
     accounts: true,
     why: {
       model:
@@ -246,6 +246,8 @@ export class CodexAdapter implements WorkerAdapter {
         'has no place for pi extensions: their tools and skills still reach it, their own code does not',
       spend:
         'counts tokens but never prices them, so what a Codex agent cost in money is not a number anybody here can honestly give',
+      limits:
+        'writes it down as each turn ends, so there is nothing to show until an agent of it has worked',
     },
   }
 

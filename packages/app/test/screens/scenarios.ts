@@ -1,4 +1,11 @@
-import { ConfigSchema, IDLE_REASON, settingsOf, type TadeEvent } from '@tade/core'
+import {
+  ConfigSchema,
+  IDLE_REASON,
+  type PlanSource,
+  planStandings,
+  settingsOf,
+  type TadeEvent,
+} from '@tade/core'
 import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
 import { findingsReport, jevExtension } from '@tade/extension-jev'
@@ -769,6 +776,45 @@ const ran = [
   runEvent('run_started', 'search/pagination', '2026-09-13T13:02:00.000Z'),
   runEvent('run_started', 'checkout/refunds', '2026-09-13T13:20:00.000Z'),
   runEvent('run_exited', 'search/pagination', '2026-09-13T13:32:00.000Z'),
+]
+
+/**
+ * What the harnesses last said about their plans: Claude Code on a
+ * subscription with most of a five-hour window gone, a second account of it
+ * barely touched, and pi, which prices every turn and never hears about a
+ * plan at all.
+ */
+const plans: PlanSource[] = [
+  {
+    harness: 'claude-code',
+    account: null,
+    can: 'while-working',
+    why: 'reports it as one of its agents replies, so there is nothing to show until one has',
+    said: {
+      at: NOW - 6 * 60_000,
+      windows: [
+        { label: '5h', used: 78, resetsAt: NOW + 4_920_000 },
+        { label: '7d', used: 31, resetsAt: NOW + 3 * 86_400_000 },
+      ],
+    },
+  },
+  {
+    harness: 'claude-code',
+    account: 'reviews',
+    can: 'while-working',
+    why: 'reports it as one of its agents replies, so there is nothing to show until one has',
+    said: {
+      at: NOW - 41 * 60_000,
+      windows: [{ label: '5h', used: 12, resetsAt: NOW + 7_200_000 }],
+    },
+  },
+  {
+    harness: 'pi',
+    account: null,
+    can: 'none',
+    why: 'is never told what a plan has left: it prices every turn against its own catalog instead',
+    said: null,
+  },
 ]
 
 /** What the Settings panel is shown: a machine set up the way the design was drawn. */
@@ -2690,9 +2736,10 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'spend',
     about:
-      'The Spend panel: the orchestrator and every agent today, and each project against its budget.',
+      'The Spend panel: the orchestrator and every agent today, each project against its budget, and how much of each subscription is left.',
     state: { ...base(), panel: spendPanel() },
     frame: frame({
+      plan: planStandings(plans, NOW),
       spendView: spendView(spent, {
         window: 'today',
         by: 'agent',
@@ -2702,6 +2749,7 @@ export const SCENARIOS: Scenario[] = [
         budgets: { checkout: { usd_per_day: 5 } },
         runs: ran,
         made,
+        plan: plans,
       }),
     }),
   },

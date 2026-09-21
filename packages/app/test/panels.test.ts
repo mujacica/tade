@@ -1,4 +1,4 @@
-import type { TadeEvent } from '@tade/core'
+import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import {
   accountActions,
@@ -100,6 +100,84 @@ describe('the Spend panel', () => {
       kind: 'task',
       tokens: 1500,
       usd: 0.351,
+    })
+  })
+
+  describe('what it says about a subscription', () => {
+    const now = Date.parse('2026-09-13T14:00:00.000Z')
+    const HOUR = 3_600_000
+    const view = (plan: PlanSource[]) =>
+      spendView([], {
+        window: 'today',
+        by: 'agent',
+        now,
+        openedAt: now - HOUR,
+        projects: ['search'],
+        budgets: {},
+        plan,
+      })
+
+    it('reads a plan as shares of windows and how long until each comes back', () => {
+      const [row] = view([
+        {
+          harness: 'claude-code',
+          account: null,
+          can: 'while-working',
+          why: 'says it while an agent replies',
+          said: {
+            at: now - 4 * 60_000,
+            windows: [
+              { label: '5h', used: 78, resetsAt: now + 2 * HOUR },
+              { label: '7d', used: 21, resetsAt: now + 40 * HOUR },
+            ],
+          },
+        },
+      ]).plan
+      expect(row?.label).toBe('claude-code')
+      expect(row?.cannotTell).toBeNull()
+      expect(row?.windows).toEqual([
+        { label: '5h', used: 78, resetsIn: 2 * HOUR },
+        { label: '7d', used: 21, resetsIn: 40 * HOUR },
+      ])
+      expect(row?.saidAgo).toBe(4 * 60_000)
+    })
+
+    it('gives a harness that cannot say its own sentence, and no figures', () => {
+      const [row] = view([
+        {
+          harness: 'pi',
+          account: null,
+          can: 'none',
+          why: 'is never told what a plan has left: it prices every turn instead',
+          said: null,
+        },
+      ]).plan
+      expect(row?.windows).toEqual([])
+      expect(row?.saidAgo).toBeNull()
+      expect(row?.cannotTell).toBe(
+        'is never told what a plan has left: it prices every turn instead',
+      )
+    })
+
+    it('names the account beside the harness, so two of one are told apart', () => {
+      const rows = view([
+        { harness: 'codex', account: 'work', can: 'none', why: 'nothing yet', said: null },
+        { harness: 'codex', account: null, can: 'none', why: 'nothing yet', said: null },
+      ]).plan
+      expect(rows.map((row) => row.label)).toEqual(['codex @work', 'codex'])
+    })
+
+    it('has nothing to say when no harness was read', () => {
+      expect(
+        spendView([], {
+          window: 'today',
+          by: 'agent',
+          now,
+          openedAt: now - HOUR,
+          projects: ['search'],
+          budgets: {},
+        }).plan,
+      ).toEqual([])
     })
   })
 

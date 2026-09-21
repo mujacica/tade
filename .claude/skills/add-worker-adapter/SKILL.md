@@ -136,6 +136,14 @@ differently enough to be worth writing down:
 - **Tokens without a price are `spend.usd: 'none'`.** Codex counts every turn in its rollout and
   prices none of it. Adding an estimate would be money that was guessed sitting beside money that
   was priced, so the number is simply not given, and `why` says so.
+- **What a plan has left is `spend.limits` and `limits()`, and never money.** Say `anytime` only if
+  the harness can be asked whenever; both of the ones here are told as their agents run, so they say
+  `while-working` and `why.limits` says what a person sees until one has. `limits()` must be cheap
+  and never reach the network — the window reads it every frame — so hold the last thing the harness
+  said and return it, `null` when nothing has been said. Percentages of a window and when that
+  window starts over, nothing else: Claude Code's status line carries `rate_limits.five_hour` and
+  `.seven_day`, Codex writes `token_count.rate_limits` into its rollout. Never turn either into a
+  dollar.
 - **A folder is trusted under the name the harness looks it up by.** Codex asks "do you trust this
   directory?" before anything else happens, by the *real* path — a worktree Tade calls `/var/...`
   is `/private/var/...` to it on macOS — so the answer has to be written under both names or it is

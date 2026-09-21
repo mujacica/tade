@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type {
   LaneId,
+  LimitsSupport,
   RequiredProgram,
   SandboxSpec,
   TaskId,
@@ -371,6 +372,7 @@ export type HarnessFeature =
   | 'mcp'
   | 'headless'
   | 'spend'
+  | 'limits'
   | 'accounts'
 
 export interface WorkerCapabilities {
@@ -422,10 +424,14 @@ export interface WorkerCapabilities {
   headless: boolean
   /**
    * What its spend is worth: dollars the harness priced exactly, its own
-   * estimate, or none — and whether it knows how much of a plan's limits are
-   * used, which is the number that matters on a subscription.
+   * estimate, or none — and how much it can say about a plan's windows, which
+   * is the number that matters on a subscription, where money means nothing.
+   *
+   * `limits` is declared rather than sniffed and is about *when* an answer can
+   * exist at all: a harness whose agents report it as they run has nothing to
+   * say until one has, and that is not the same as nothing being used.
    */
-  spend: { usd: 'exact' | 'estimate' | 'none'; tokens: boolean; limits: boolean }
+  spend: { usd: 'exact' | 'estimate' | 'none'; tokens: boolean; limits: LimitsSupport }
   /**
    * Can be run as more than one account on one machine — each its own
    * sign-in, kept apart — so agents on two of them can work at once.
@@ -539,7 +545,13 @@ export interface SignIn {
   how: string
 }
 
-/** How much of a plan's limits are used, as the harness last said. */
+/**
+ * How much of a plan's limits are used, as the harness last said.
+ *
+ * Percentages of a rolling window and when that window starts over: what both
+ * subscription harnesses are told by the service and neither counts itself.
+ * Never money — a plan has no price per turn, and `Spend` is the other thing.
+ */
 export interface PlanLimits {
   at: number
   fiveHour: { used: number; resetsAt: number } | null
@@ -634,7 +646,13 @@ export interface WorkerAdapter {
   signIn(): SignIn | null
   /** Sign this account out, as the harness does it. */
   signOut(): Promise<void>
-  /** How much of its plan this account has used, when an agent last said. */
+  /**
+   * How much of its plan this account has used, when an agent last said.
+   *
+   * Reads what is already held and asks nobody: the window draws this on its
+   * own beat. Null is the honest answer whenever nothing has said, and a
+   * harness whose `spend.limits` is `none` always answers it.
+   */
   limits(): PlanLimits | null
   /**
    * Make this account's folder ready to sign in to: made, and — with `share`

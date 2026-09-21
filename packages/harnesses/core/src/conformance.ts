@@ -1,5 +1,5 @@
 import { isAbsolute } from 'node:path'
-import { declarationProblems, type TaskId, THINKING_LEVELS } from '@tade/core'
+import { declarationProblems, LIMITS_SUPPORT, type TaskId, THINKING_LEVELS } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type HarnessFeature,
@@ -49,13 +49,12 @@ const PARTIAL: Array<[HarnessFeature, (adapter: WorkerAdapter) => boolean]> = [
   ['mcp', (a) => !a.capabilities.mcp],
   ['headless', (a) => !a.capabilities.headless],
   ['accounts', (a) => !a.capabilities.accounts],
-  [
-    'spend',
-    (a) =>
-      a.capabilities.spend.usd !== 'exact' ||
-      !a.capabilities.spend.tokens ||
-      !a.capabilities.spend.limits,
-  ],
+  ['spend', (a) => a.capabilities.spend.usd !== 'exact' || !a.capabilities.spend.tokens],
+  // Anything less than being askable whenever has to say so in words, because
+  // that sentence is exactly what the window shows in place of a number: a
+  // harness that only speaks while an agent runs has nothing to show until one
+  // has, and "nothing yet" must never be read as "nothing used".
+  ['limits', (a) => a.capabilities.spend.limits !== 'anytime'],
 ]
 
 let counter = 0
@@ -101,6 +100,23 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
         expect(['inline', 'path', 'none']).toContain(can.images)
         expect(['exact', 'estimate', 'none']).toContain(can.spend.usd)
+        expect(LIMITS_SUPPORT).toContain(can.spend.limits)
+      })
+
+      it('says how much of a plan is used only in percentages of a window, or not at all', async () => {
+        const one = await adapter()
+        const limits = one.limits()
+        // Never asks anybody — the window reads this every frame — so a fresh
+        // adapter has nothing to say, and says that rather than saying zero.
+        if (one.capabilities.spend.limits === 'none') expect(limits).toBeNull()
+        if (limits === null) return
+        expect(Number.isFinite(limits.at)).toBe(true)
+        for (const window of [limits.fiveHour, limits.sevenDay]) {
+          if (!window) continue
+          expect(Number.isFinite(window.used)).toBe(true)
+          expect(window.used).toBeGreaterThanOrEqual(0)
+          expect(Number.isFinite(window.resetsAt)).toBe(true)
+        }
       })
 
       it('declares the programs it needs in a way anything can look up and ask', async () => {

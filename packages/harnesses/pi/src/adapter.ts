@@ -254,13 +254,15 @@ export class PiAdapter implements WorkerAdapter {
     headless: true,
     // pi prices every message against its own catalog; a plan's limits are
     // the provider's to know.
-    spend: { usd: 'exact', tokens: true, limits: false },
+    spend: { usd: 'exact', tokens: true, limits: 'none' },
     accounts: false,
     why: {
       accounts:
         'keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and you sign in to them inside pi',
       mcp: 'is given tools as an extension it loads, which is how Tade hands it its own',
       spend: "pi prices each turn itself, but does not know how much of a plan's limits is used",
+      limits:
+        'is never told what a plan has left: it prices every turn against its own catalog instead',
     },
   }
 
@@ -383,6 +385,7 @@ export class PiAdapter implements WorkerAdapter {
     throw new Error('pi signs out inside pi: open it and type /logout')
   }
 
+  /** Nothing: pi is told what a turn costs, never what a subscription has left. */
   limits(): PlanLimits | null {
     return null
   }

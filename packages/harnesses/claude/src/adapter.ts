@@ -246,7 +246,7 @@ export class ClaudeAdapter implements WorkerAdapter {
     // `-p --input-format stream-json`: a conversation over its own protocol,
     // which is how Tade draws the thing you talk to.
     headless: true,
-    spend: { usd: 'estimate', tokens: true, limits: true },
+    spend: { usd: 'estimate', tokens: true, limits: 'while-working' },
     accounts: true,
     why: {
       model:
@@ -259,6 +259,7 @@ export class ClaudeAdapter implements WorkerAdapter {
         'has no place for pi extensions: their tools and skills still reach it, their own code does not',
       spend:
         "prices a session only as its own estimate; on a subscription it is the plan's limits that are used up",
+      limits: 'reports it as one of its agents replies, so there is nothing to show until one has',
     },
   }
 
