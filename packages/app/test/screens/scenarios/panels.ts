@@ -1,16 +1,18 @@
 import { initialState, withProjects } from '../../../src/model.ts'
 import {
-  branchMenuItems,
-  changeMenuItems,
   closeDonePanel,
   confirmRemovePanel,
+  noteHeadlinePanel,
+  promptPanel,
+} from '../../../src/panels/small/state.ts'
+import {
+  branchMenuItems,
+  changeMenuItems,
   fileMenuItems,
   menuItems,
   menuPanel,
   modelPanel,
-  noteHeadlinePanel,
   openProjectPanel,
-  promptPanel,
   thinkingMenuItems,
 } from '../../../src/panels.ts'
 import { base, finished, frame, type Scenario, utcDate } from './fixtures.ts'

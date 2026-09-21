@@ -4,30 +4,19 @@ import type { Change } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
 import {
-  branches,
-  closeDone,
-  confirm,
-  confirmRemove,
-  diff,
   extensionSetup,
   extensions,
   extensionView,
   fileView,
-  find,
-  keysSheet,
   menu,
   models,
   openProject,
-  prompt,
-  quit,
-  reload,
   search,
   settings,
   spend,
 } from '../panel-view.ts'
 import type {
   AccountShown,
-  BranchRow,
   Choice,
   ExtensionView,
   McpServerOffer,
@@ -44,6 +33,19 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import type { BranchRow } from './small/state.ts'
+import {
+  branches,
+  closeDone,
+  confirm,
+  confirmRemove,
+  diff,
+  find,
+  keysSheet,
+  prompt,
+  quit,
+  reload,
+} from './small/view.ts'
 
 // What a panel is handed, and which drawing answers which panel.
 //

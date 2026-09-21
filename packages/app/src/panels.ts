@@ -16,6 +16,35 @@ import {
 } from './input.ts'
 import { normalKey } from './keys.ts'
 import { close, control, type PanelOutcome, stay, typed } from './panels/outcome.ts'
+import {
+  type BranchPanel,
+  type BranchRow,
+  branchClick,
+  branchKey,
+  type CloseDonePanel,
+  type ConfirmPanel,
+  type ConfirmRemovePanel,
+  confirmClick,
+  confirmKey,
+  type DiffPanel,
+  diffClick,
+  diffKey,
+  type FindPanel,
+  findClick,
+  findKey,
+  type KeysPanel,
+  keysClick,
+  keysKey,
+  type PromptPanel,
+  promptClick,
+  promptKey,
+  type QuitPanel,
+  quitClick,
+  quitKey,
+  type ReloadPanel,
+  reloadClick,
+  reloadKey,
+} from './panels/small/state.ts'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 import {
@@ -121,41 +150,6 @@ export interface MenuItem {
   danger?: boolean
   /** A rule above it. */
   divider?: boolean
-}
-
-/** Asked before anything that cannot be undone. */
-export interface ConfirmRemovePanel {
-  kind: 'confirm-remove'
-  task: string
-  field: 'keep' | 'remove'
-  busy: boolean
-  error: string | null
-}
-
-/**
- * Asked before closing every agent that has finished at once. Always asked,
- * however little each one would lose: a button that empties the list without
- * a word is one nobody presses twice.
- */
-export interface CloseDonePanel {
-  kind: 'close-done'
-  /** The tasks it would close, as the list names them. */
-  tasks: string[]
-  field: 'keep' | 'remove'
-  busy: boolean
-  error: string | null
-}
-
-/** A changed file, read-only, a hunk at a time. */
-export interface DiffPanel {
-  kind: 'diff'
-  task: string
-  /** The changed files, and which one is shown. */
-  files: string[]
-  file: number
-  /** Lines scrolled past. */
-  scroll: number
-  busy: false
 }
 
 /**
@@ -289,68 +283,6 @@ export interface OpenRow {
   git: boolean
 }
 
-/**
- * One line of text asked for: a note, a branch name. What it is for decides
- * what the words become, and a note can be about this project or everything.
- */
-export interface PromptPanel {
-  kind: 'prompt'
-  purpose:
-    | 'note'
-    | 'edit-note'
-    /**
-     * The headline over a note in the window: `target` is the note, when it
-     * was said and what it said joined by a NUL. The only way one is written
-     * for a note that was taken before anybody wrote one.
-     */
-    | 'note-headline'
-    | 'new-branch'
-    | 'rename-branch'
-    | 'rename-terminal'
-    | 'rename-lane'
-    | 'run-command'
-    | 'rename-agent'
-    | 'rename-schedule'
-    /** An account to add: `target` is its harness and its kind, joined by a NUL. */
-    | 'account-name'
-    /** An API-key account's key: `target` is the account. Never drawn as typed. */
-    | 'account-key'
-  /**
-   * The terminal or agent it is about, for renaming one or running a command
-   * in it; for a note being changed, when it was said and what it said, joined
-   * by a NUL.
-   */
-  target?: string
-  /**
-   * For a note: everything known about it besides its words, so the page that
-   * changes one is also the page that reads it whole.
-   */
-  note?: NoteKnown
-  title: string
-  /** What the field is, said before it. */
-  label: string
-  text: string
-  /** A note that is about every project, not the one you are in. */
-  everywhere: boolean
-  busy: boolean
-  error: string | null
-}
-
-/** Finding text in a terminal's scrollback, from the bottom up. */
-export interface FindPanel {
-  kind: 'find'
-  /** The terminal's lane id. */
-  terminal: string
-  query: string
-  /** Which match is shown, counting from the newest. */
-  index: number
-  busy: false
-}
-
-export function findPanel(terminal: string, query = '', index = 0): FindPanel {
-  return { kind: 'find', terminal, query, index, busy: false }
-}
-
 /** What can be done with a terminal, from its tab. */
 export function terminalMenuItems(split = false): MenuItem[] {
   return [
@@ -436,130 +368,6 @@ export function imageMenuItems(where: {
   ]
 }
 
-/** Switching the project's checkout to another branch, or a new one. */
-export interface BranchPanel {
-  kind: 'branch'
-  /** Narrows the branches; a name nobody has offers to create it. */
-  query: string
-  index: number
-  busy: boolean
-  error: string | null
-}
-
-/** One of the project's branches, as git lists them. */
-export interface BranchRow {
-  name: string
-  current: boolean
-  /** When it last had a commit, said the way people say it. */
-  when: string
-}
-
-/** Asked before throwing work away. */
-export interface ConfirmPanel {
-  kind: 'confirm'
-  purpose: 'discard'
-  task: string | null
-  path: string
-  /** Keep is where the keyboard starts; the other button is the one that throws work away. */
-  field: 'keep' | 'remove'
-  busy: boolean
-  error: string | null
-}
-
-/**
- * What is known about a note besides its words: the headline it was given,
- * what it is about, who said it and when. When it was said and what it said
- * are together what names a note; nothing else about it is unique.
- */
-export interface NoteKnown {
-  at: string
-  /** The headline written beside it when it was taken, if anybody wrote one. */
-  summary: string | null
-  /** A task id, a project name, or null when it is about everything. */
-  scope: string | null
-  /** Where it came from: `voice`, `window`, `cli`, `orchestrator`. */
-  by: string
-}
-
-/** Writing the headline a note is read by, for a note that has none or a worse one. */
-export function noteHeadlinePanel(note: NoteKnown, said: string): PromptPanel {
-  return {
-    ...promptPanel(
-      'note-headline',
-      'Headline',
-      'WHAT IT IS ABOUT AND WHAT IT DOES',
-      note.summary ?? '',
-    ),
-    target: `${note.at}\u0000${said}`,
-  }
-}
-
-/** A note, read whole and changed from the same page: its words are the field. */
-export function notePanel(note: NoteKnown, said: string): PromptPanel {
-  return {
-    ...promptPanel('edit-note', 'Note', 'NOTE', said),
-    target: `${note.at}\u0000${said}`,
-    note,
-  }
-}
-
-/**
- * What is known about a note, in the words a page says it in: what it is
- * about, and who said it when. `when` is the moment as the window says
- * moments, since only the window knows which clock a person is reading.
- */
-export function noteFacts(note: NoteKnown, when: string): { about: string; said: string } {
-  const who =
-    note.by === 'orchestrator'
-      ? 'the orchestrator'
-      : note.by === 'voice' || note.by === 'window' || note.by === 'cli'
-        ? 'you'
-        : note.by && note.by !== 'unknown'
-          ? note.by
-          : 'somebody'
-  return {
-    about: note.scope === null ? 'About everything' : `About ${note.scope}`,
-    said: `Said by ${who} · ${when}`,
-  }
-}
-
-export function promptPanel(
-  purpose: PromptPanel['purpose'],
-  title: string,
-  label: string,
-  text = '',
-): PromptPanel {
-  return {
-    kind: 'prompt',
-    purpose,
-    title,
-    label,
-    text,
-    everywhere: false,
-    busy: false,
-    error: null,
-  }
-}
-
-export function branchPanel(): BranchPanel {
-  return { kind: 'branch', query: '', index: 0, busy: false, error: null }
-}
-
-/** The branches matching what was typed, and a new one when none is called that. */
-export function branchChoices(
-  rows: readonly BranchRow[],
-  query: string,
-): { name: string; create: boolean; row: BranchRow | null }[] {
-  const want = query.trim().toLowerCase()
-  const found = rows
-    .filter((row) => row.name.toLowerCase().includes(want))
-    .map((row) => ({ name: row.name, create: false, row }))
-  const exact = rows.some((row) => row.name === query.trim())
-  return want && !exact && /^[\w./-]+$/.test(query.trim())
-    ? [{ name: query.trim(), create: true, row: null }, ...found]
-    : found
-}
-
 /** Search: agents, files in every worktree, lines inside them, actions and settings. */
 export interface SearchPanel {
   kind: 'search'
@@ -608,12 +416,6 @@ export interface FilePanel {
 export type FileAsk =
   | { kind: 'find'; query: string; index: number }
   | { kind: 'goto'; digits: string }
-
-/** The keys Tade keeps, and the way to change the one that is yours. */
-export interface KeysPanel {
-  kind: 'keys'
-  busy: false
-}
 
 /** Choosing a model: for the orchestrator, or for one agent's session. */
 export interface ModelPanel {
@@ -1447,20 +1249,6 @@ function setValue(panel: ExtensionSetupPanel, key: string, value: string): Exten
   return { ...panel, values: { ...panel.values, [key]: value }, error: null, said: null }
 }
 
-/** Closing, when closing would stop something. */
-export interface QuitPanel {
-  kind: 'quit'
-  field: 'cancel' | 'quit'
-  busy: false
-}
-
-/** Reloading, when reloading would stop something. */
-export interface ReloadPanel {
-  kind: 'reload'
-  field: 'cancel' | 'reload'
-  busy: false
-}
-
 export function searchPanel(query = ''): SearchPanel {
   return { kind: 'search', query, index: 0, busy: false }
 }
@@ -1966,21 +1754,6 @@ export function scheduleMenuItems(schedule: {
   ]
 }
 
-/** What `X` in the AGENTS heading asks first, with the agents it would close in it. */
-export function closeDonePanel(tasks: readonly string[]): CloseDonePanel {
-  return { kind: 'close-done', tasks: [...tasks], field: 'keep', busy: false, error: null }
-}
-
-export function confirmRemovePanel(task: string): ConfirmRemovePanel {
-  // Keep is where the keyboard starts: enter on a question like this should
-  // be the answer that loses nothing.
-  return { kind: 'confirm-remove', task, field: 'keep', busy: false, error: null }
-}
-
-export function diffPanel(task: string, files: readonly string[], file = 0): DiffPanel {
-  return { kind: 'diff', task, files: [...files], file: Math.max(0, file), scroll: 0, busy: false }
-}
-
 export function spendPanel(): SpendPanel {
   return { kind: 'spend', window: 'today', by: 'agent', busy: false }
 }
@@ -2001,7 +1774,7 @@ export function panelKey(
   if (panel.kind === 'open-project') return openKey(panel, key, data, inputs.rows ?? [])
   if (panel.kind === 'search') return searchKey(panel, key, data, inputs.entries ?? [])
   if (panel.kind === 'file') return fileKey(panel, key, data, inputs)
-  if (panel.kind === 'keys') return key === 'escape' || key === 'enter' ? close : stay(panel)
+  if (panel.kind === 'keys') return keysKey(panel, key)
   if (panel.kind === 'model') return modelKey(panel, key, data, inputs.models ?? [])
   if (panel.kind === 'extension-setup') return setupKey(panel, key, data, inputs.setupFields ?? [])
   if (panel.kind === 'extension-view') {
@@ -2016,24 +1789,8 @@ export function panelKey(
       : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
   }
   if (panel.kind === 'extensions') return extensionsKey(panel, key, data, inputs)
-  if (panel.kind === 'quit') {
-    if (key === 'escape') return close
-    if (key === 'tab' || key === 'left' || key === 'right') {
-      return stay({ ...panel, field: panel.field === 'cancel' ? 'quit' : 'cancel' })
-    }
-    if (key === 'enter')
-      return panel.field === 'cancel' ? close : { panel, submit: true, choice: 'quit' }
-    return stay(panel)
-  }
-  if (panel.kind === 'reload') {
-    if (key === 'escape') return close
-    if (key === 'tab' || key === 'left' || key === 'right') {
-      return stay({ ...panel, field: panel.field === 'cancel' ? 'reload' : 'cancel' })
-    }
-    if (key === 'enter')
-      return panel.field === 'cancel' ? close : { panel, submit: true, choice: 'reload' }
-    return stay(panel)
-  }
+  if (panel.kind === 'quit') return quitKey(panel, key)
+  if (panel.kind === 'reload') return reloadKey(panel, key)
   if (panel.kind === 'spend') return spendKey(panel, key)
   if (panel.kind === 'menu') return menuKey(panel, key, inputs.items ?? [])
   if (panel.kind === 'prompt') return promptKey(panel, key, data)
@@ -2051,8 +1808,7 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
   if (panel.kind === 'open-project') return openClick(panel, control, inputs.rows ?? [])
   if (panel.kind === 'search') return searchClick(panel, control, inputs.entries ?? [])
   if (panel.kind === 'file') return fileClick(panel, control, inputs)
-  if (panel.kind === 'keys')
-    return control === 'change-keys' ? { panel, submit: true, choice: 'change-keys' } : stay(panel)
+  if (panel.kind === 'keys') return keysClick(panel, control)
   if (panel.kind === 'model') {
     if (control === 'cancel') return close
     const chosen = modelChoices(inputs.models ?? [], panel.query)[Number(control.slice(4))]
@@ -2072,57 +1828,19 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
       : setupPress({ ...panel, index }, control, fields)
   }
   if (panel.kind === 'extensions') return extensionsClick(panel, control, inputs)
-  if (panel.kind === 'quit') {
-    if (control === 'cancel') return close
-    if (control === 'quit') return { panel, submit: true, choice: 'quit' }
-    if (control === 'where') return { panel, submit: true, choice: 'where' }
-    return stay(panel)
-  }
-  if (panel.kind === 'reload') {
-    if (control === 'cancel') return close
-    if (control === 'reload') return { panel, submit: true, choice: 'reload' }
-    return stay(panel)
-  }
+  if (panel.kind === 'quit') return quitClick(panel, control)
+  if (panel.kind === 'reload') return reloadClick(panel, control)
   if (panel.kind === 'spend') return spendClick(panel, control)
   if (panel.kind === 'menu') {
     return control.startsWith('item:')
       ? { panel, submit: true, choice: control.slice(5) }
       : stay(panel)
   }
-  if (panel.kind === 'find') {
-    const count = Math.max(1, inputs.found ?? 0)
-    if (control === 'close') return close
-    if (control === 'older') return stay({ ...panel, index: (panel.index + 1) % count })
-    if (control === 'newer') return stay({ ...panel, index: (panel.index - 1 + count) % count })
-    return stay(panel)
-  }
-  if (panel.kind === 'prompt') {
-    if (control === 'cancel') return close
-    if (control === 'save') return savePrompt(panel)
-    if (control === 'everywhere') return stay({ ...panel, everywhere: !panel.everywhere })
-    // A note's own page does what its menu does: have its words, take it back,
-    // or write the headline it is read by.
-    if (panel.note && (control === 'copy' || control === 'forget' || control === 'headline'))
-      return { panel, submit: true, choice: control }
-    return stay(panel)
-  }
-  if (panel.kind === 'branch') {
-    if (control === 'cancel') return close
-    const choice = branchChoices(inputs.branches ?? [], panel.query)[Number(control.slice(4))]
-    if (control.startsWith('row:') && choice) {
-      return {
-        panel: { ...panel, busy: true, error: null },
-        submit: true,
-        choice: `${choice.create ? 'create' : 'switch'}:${choice.name}`,
-      }
-    }
-    return stay(panel)
-  }
-  if (panel.kind === 'confirm-remove' || panel.kind === 'confirm' || panel.kind === 'close-done') {
-    if (control === 'keep') return close
-    if (control === 'remove') return { panel: { ...panel, busy: true, error: null }, submit: true }
-    return stay(panel)
-  }
+  if (panel.kind === 'find') return findClick(panel, control, inputs.found ?? 0)
+  if (panel.kind === 'prompt') return promptClick(panel, control)
+  if (panel.kind === 'branch') return branchClick(panel, control, inputs.branches ?? [])
+  if (panel.kind === 'confirm-remove' || panel.kind === 'confirm' || panel.kind === 'close-done')
+    return confirmClick(panel, control)
   return diffClick(panel, control)
 }
 
@@ -2173,128 +1891,6 @@ function menuKey(
     return item && !item.off ? { panel, submit: true, choice: item.id } : stay(panel)
   }
   return stay(panel)
-}
-
-/** Typing narrows; enter and ↑ go to an older match, ↓ to a newer one. */
-function findKey(
-  panel: FindPanel,
-  key: string | undefined,
-  data: string,
-  found: number,
-): PanelOutcome {
-  if (key === 'escape') return close
-  const count = Math.max(1, found)
-  if (key === 'enter' || key === 'up') return stay({ ...panel, index: (panel.index + 1) % count })
-  if (key === 'down') return stay({ ...panel, index: (panel.index - 1 + count) % count })
-  if (key === 'backspace')
-    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0 })
-  if (key === 'ctrl+u') return stay({ ...panel, query: '', index: 0 })
-  const text = typed(data, key)
-  return text ? stay({ ...panel, query: panel.query + text, index: 0 }) : stay(panel)
-}
-
-function savePrompt(panel: PromptPanel): PanelOutcome {
-  if (panel.text.trim() === '') {
-    const said =
-      panel.purpose === 'note'
-        ? 'Write the note first.'
-        : panel.purpose === 'note-headline'
-          ? 'Write the headline first.'
-          : panel.purpose === 'run-command'
-            ? 'Type the command first.'
-            : 'Give it a name.'
-    return stay({ ...panel, error: said })
-  }
-  return { panel: { ...panel, busy: true, error: null }, submit: true, choice: 'save' }
-}
-
-/** Typing, and enter to keep it. A paste arrives whole; tab turns a note's scope. */
-function promptKey(panel: PromptPanel, key: string | undefined, data: string): PanelOutcome {
-  if (panel.busy) return key === 'escape' ? close : stay(panel)
-  if (key === 'escape') return close
-  if (key === 'enter') return savePrompt(panel)
-  if (key === 'tab' && panel.purpose === 'note')
-    return stay({ ...panel, everywhere: !panel.everywhere })
-  if (key === 'backspace') return stay({ ...panel, text: [...panel.text].slice(0, -1).join('') })
-  if (key === 'ctrl+u') return stay({ ...panel, text: '' })
-  const text = data.startsWith('\x1b')
-    ? ''
-    : [...data].map((char) => (control(char) ? ' ' : char)).join('')
-  if (key === 'space') return stay({ ...panel, text: `${panel.text} `, error: null })
-  // Branch names have no spaces, so a space typed into one is a dash.
-  const branch = panel.purpose === 'new-branch' || panel.purpose === 'rename-branch'
-  const typedText = branch ? text.replace(/\s/g, '-') : text
-  return typedText ? stay({ ...panel, text: panel.text + typedText, error: null }) : stay(panel)
-}
-
-function branchKey(
-  panel: BranchPanel,
-  key: string | undefined,
-  data: string,
-  rows: readonly BranchRow[],
-): PanelOutcome {
-  if (panel.busy) return key === 'escape' ? close : stay(panel)
-  if (key === 'escape') return close
-  const choices = branchChoices(rows, panel.query)
-  if (key === 'down' || key === 'up') {
-    const count = Math.max(1, choices.length)
-    return stay({ ...panel, index: (panel.index + (key === 'down' ? 1 : -1) + count) % count })
-  }
-  if (key === 'enter') {
-    const choice = choices[panel.index]
-    return choice
-      ? {
-          panel: { ...panel, busy: true, error: null },
-          submit: true,
-          choice: `${choice.create ? 'create' : 'switch'}:${choice.name}`,
-        }
-      : stay(panel)
-  }
-  if (key === 'backspace')
-    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0 })
-  const text = typed(data, key)
-  return text && !/\s/.test(text)
-    ? stay({ ...panel, query: panel.query + text, index: 0 })
-    : stay(panel)
-}
-
-function confirmKey(
-  panel: ConfirmRemovePanel | ConfirmPanel | CloseDonePanel,
-  key: string | undefined,
-): PanelOutcome {
-  if (panel.busy) return stay(panel)
-  if (key === 'escape') return close
-  if (key === 'tab' || key === 'shift+tab' || key === 'left' || key === 'right') {
-    return stay({ ...panel, field: panel.field === 'keep' ? 'remove' : 'keep' })
-  }
-  if (key === 'enter') {
-    return panel.field === 'keep'
-      ? close
-      : { panel: { ...panel, busy: true, error: null }, submit: true }
-  }
-  return stay(panel)
-}
-
-function diffKey(panel: DiffPanel, key: string | undefined): PanelOutcome {
-  if (key === 'escape' || key === 'enter') return close
-  if (key === 'down') return stay({ ...panel, scroll: panel.scroll + 1 })
-  if (key === 'up') return stay({ ...panel, scroll: Math.max(0, panel.scroll - 1) })
-  if (key === 'pageDown' || key === 'space') return stay({ ...panel, scroll: panel.scroll + 10 })
-  if (key === 'pageUp') return stay({ ...panel, scroll: Math.max(0, panel.scroll - 10) })
-  if (key === 'left' || key === 'right') return stay(stepFile(panel, key === 'left' ? -1 : 1))
-  return stay(panel)
-}
-
-function diffClick(panel: DiffPanel, control: string): PanelOutcome {
-  if (control === 'prev-file') return stay(stepFile(panel, -1))
-  if (control === 'next-file') return stay(stepFile(panel, 1))
-  if (control === 'editor' || control === 'ask') return { panel, submit: true, choice: control }
-  return stay(panel)
-}
-
-function stepFile(panel: DiffPanel, delta: number): DiffPanel {
-  const count = Math.max(1, panel.files.length)
-  return { ...panel, file: (panel.file + delta + count) % count, scroll: 0 }
 }
 
 // ── Settings ────────────────────────────────────────────────────────────────
