@@ -2,6 +2,13 @@ import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
 import {
+  type FilePanel,
+  filePanel,
+  fileSelection,
+  savedFile,
+  scrollFile,
+} from '../src/panels/file/state.ts'
+import {
   accountMenuItems,
   agentOffers,
   branchMenuItems,
@@ -34,17 +41,12 @@ import {
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
-  type FilePanel,
-  filePanel,
-  fileSelection,
   HARNESS,
   listStart,
   type Panel,
   panelClick,
   panelKey,
   type SetupFieldView,
-  savedFile,
-  scrollFile,
   settingsPanel,
   setupControls,
   spendPanel,

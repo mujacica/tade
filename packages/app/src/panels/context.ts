@@ -3,14 +3,7 @@ import type { ParsedDiff } from '../diff.ts'
 import type { Change } from '../frame.ts'
 import type { ScrollArea } from '../hits.ts'
 import type { AgentPane } from '../model.ts'
-import {
-  extensionSetup,
-  extensions,
-  extensionView,
-  fileView,
-  settings,
-  spend,
-} from '../panel-view.ts'
+import { extensionSetup, extensions, extensionView, settings, spend } from '../panel-view.ts'
 import type {
   AccountShown,
   Choice,
@@ -26,6 +19,7 @@ import type { Skin } from '../skin.ts'
 import type { SpendView } from '../spend.ts'
 import type { Drawn, Pointer } from '../ui.ts'
 import type { ViewedFile } from '../viewer.ts'
+import { fileView } from './file/view.ts'
 import type { MenuItem } from './menu/state.ts'
 import { menu } from './menu/view.ts'
 import type { ModelChoice } from './models/state.ts'

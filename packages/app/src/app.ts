@@ -210,8 +210,16 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
-import { extensionsScrollable, fileBodySize, fileViewSize } from './panel-view.ts'
+import { extensionsScrollable } from './panel-view.ts'
 import type { PanelContext } from './panels/context.ts'
+import {
+  type FilePanel,
+  filePanel,
+  fileSelection,
+  savedFile,
+  scrollFile,
+} from './panels/file/state.ts'
+import { fileBodySize, fileViewSize } from './panels/file/view.ts'
 import {
   type AgentOffers,
   accountMenuItems,
@@ -266,9 +274,6 @@ import {
   extensionSetupPanel,
   extensionsPanel,
   extensionViewPanel,
-  type FilePanel,
-  filePanel,
-  fileSelection,
   type McpServerOffer,
   type McpServerShown,
   type McpServerView,
@@ -277,8 +282,6 @@ import {
   panelClick,
   panelKey,
   type SettingsPanel,
-  savedFile,
-  scrollFile,
   settingsPanel,
   spendPanel,
   toolSummary,

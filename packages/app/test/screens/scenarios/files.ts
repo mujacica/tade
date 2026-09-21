@@ -1,8 +1,8 @@
 import { parseDiff } from '../../../src/diff.ts'
 import { offsetOf } from '../../../src/input.ts'
 import { initialState, toggleSection, withProjects } from '../../../src/model.ts'
+import { filePanel } from '../../../src/panels/file/state.ts'
 import { branchPanel, diffPanel } from '../../../src/panels/small/state.ts'
-import { filePanel } from '../../../src/panels.ts'
 import {
   editFrom,
   formattedLines,
