@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import {
   getKeybindings,
   ProcessTerminal,
@@ -38,8 +38,6 @@ import { git } from '@tade/status'
 import { slugify, VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
-import { type ParsedDiff, parseDiff } from './diff.ts'
-import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import type { Frame } from './frame.ts'
 import { readImage } from './images.ts'
 import {
@@ -84,10 +82,8 @@ import {
   swapSplit,
   terminalSplitShown,
   toggleDone,
-  toggleFolder,
   turnSplit,
   unsplitPane,
-  viewLane,
   whichProject,
   withProjects,
   withTasks,
@@ -111,8 +107,6 @@ import {
   type WrittenToolView,
 } from './panels/extensions/state.ts'
 import { extensionsScrollable } from './panels/extensions/view.ts'
-import { type FilePanel, filePanel, savedFile } from './panels/file/state.ts'
-import { fileBodySize, fileViewSize } from './panels/file/view.ts'
 import {
   type AgentOffers,
   accountMenuItems,
@@ -150,13 +144,10 @@ import {
   updateActions,
 } from './panels/settings/state.ts'
 import {
-  type BranchRow,
-  branchPanel,
   type CloseDonePanel,
   type ConfirmRemovePanel,
   closeDonePanel,
   confirmRemovePanel,
-  diffPanel,
   noteHeadlinePanel,
   type PromptPanel,
   promptPanel,
@@ -191,17 +182,7 @@ import {
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
-import {
-  editedText,
-  formattable,
-  formattedLines,
-  markdownLines,
-  readForView,
-  saveEdited,
-  sourceLines,
-  textLines,
-  type ViewedFile,
-} from './viewer.ts'
+import { markdownLines } from './viewer.ts'
 import { Checks } from './wire/checks.ts'
 import {
   type AppOptions,
@@ -212,6 +193,7 @@ import {
   whenShort,
   why,
 } from './wire/context.ts'
+import { Files } from './wire/files.ts'
 import { Images, imagesTitle } from './wire/images.ts'
 import { Keyboard } from './wire/keyboard.ts'
 import { Lanes } from './wire/lanes.ts'
@@ -324,8 +306,6 @@ export class App {
   private readonly opened = new Set<string>()
   /** Agents whose branch is being named, so a slow git is not asked twice. */
   private readonly naming = new Set<string>()
-  /** The project checkout's branches, for the Switch branch panel. */
-  private branchRows: BranchRow[] = []
   private statuses: NonNullable<Frame['statuses']> = []
   /** The sections extensions keep in the sidebar, as they last answered. */
   private listSections: ListSection[] = []
@@ -338,16 +318,6 @@ export class App {
   private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
     null
   private soon: NodeJS.Timeout | null = null
-  /** The diff the diff panel is showing, once git has answered. */
-  private diff: ParsedDiff | null = null
-  /** The file the viewer is showing, its coloured source, and its Markdown laid out at a width. */
-  private viewed: {
-    file: ViewedFile
-    source: string[]
-    /** The same lines uncoloured: what a find looks through and a caret counts in. */
-    text: string[]
-    formatted: { width: number; lines: string[] } | null
-  } | null = null
   /** The models an agent can be started on, once they have been read. */
   private models: ModelChoice[] = []
   /**
@@ -415,6 +385,8 @@ export class App {
   private readonly mouse: Mouse
   /** The two screens in front of you, the terminals they are, and what is typed into them. */
   private readonly lanes: Lanes
+  /** The file you have open, the diff beside it, and the branch underneath. */
+  private readonly files: Files
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -462,12 +434,12 @@ export class App {
     })
     this.search = new Search(this.wire, {
       settings: () => this.settings.rows(),
-      openFile: (path, line) => this.openFile(path, line),
+      openFile: (path, line) => this.files.openFile(path, line),
       openFind: (id, query, index) => this.lanes.openFind(id, query, index),
       clicked: (target) => this.mouse.clicked(target),
       decide: (allow) => this.decide(allow),
       stopAgent: (task) => this.stopAgent(task),
-      openDiff: (task, path) => this.openDiff(task, path),
+      openDiff: (task, path) => this.files.openDiff(task, path),
       openSettings: (category) => this.settings.open(category),
       showTerminal: (id) => this.lanes.showTerminal(id),
       quit: () => this.quit(),
@@ -554,6 +526,15 @@ export class App {
       soonTick: () => this.soonTick(),
       say: (said) => this.say(said),
     })
+    this.files = new Files(this.wire, {
+      size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
+      skin: this.skin,
+      copy: (text) => this.copy(text),
+      openSearch: (query) => this.search.open(query),
+      onScreenWith: (flow) => this.onScreenWith(flow),
+      paneSize: () => this.lanes.paneSize(),
+      applyPanel: (outcome) => this.applyPanel(outcome),
+    })
     this.mouse = new Mouse(this.wire, {
       stopped: () => this.stopped,
       borrowed: () => this.borrowed,
@@ -572,13 +553,13 @@ export class App {
       selectTo: (line, x, extend, drag) => this.keyboard.selectTo(line, x, extend, drag),
       selectedOnLine: () => this.keyboard.selectedText(),
       clickedOn: (line, x, clicks) => this.keyboard.clickedOn(line, x, clicks),
-      fileLines: () => this.fileLines(),
-      fileBody: (panel) => this.fileBody(panel),
+      fileLines: () => this.files.lines(),
+      fileBody: (panel) => this.files.body(panel),
       copySelection: (text) => void this.copySelection(text),
-      resolvePath: (path) => this.resolvePath(path),
-      openFile: (path, line) => this.openFile(path, line),
-      openLink: (url) => void this.openLink(url),
-      openDiff: (task, path) => void this.openDiff(task, path),
+      resolvePath: (path) => this.files.resolvePath(path),
+      openFile: (path, line) => this.files.openFile(path, line),
+      openLink: (url) => void this.files.openLink(url),
+      openDiff: (task, path) => void this.files.openDiff(task, path),
       openNote: (note) => this.notes.open(note),
       openAgent: () => void this.openAgent(),
     })
@@ -749,7 +730,7 @@ export class App {
           : []
       }
       case 'file': {
-        const marks = this.live?.marksAt(this.hereOnDisk()) ?? {}
+        const marks = this.live?.marksAt(this.files.hereOnDisk()) ?? {}
         return fileMenuItems({
           folder: subject.folder,
           open: this.state.expanded.includes(subject.path),
@@ -766,7 +747,7 @@ export class App {
         )
       }
       case 'change': {
-        const marks = this.live?.marksAt(this.hereOnDisk()) ?? {}
+        const marks = this.live?.marksAt(this.files.hereOnDisk()) ?? {}
         return changeMenuItems({ uncommitted: marks[subject.path] !== undefined, agent })
       }
       case 'branch': {
@@ -862,7 +843,7 @@ export class App {
         extensionsRoot: tilde(expandHome(this.opts.config.orchestrator.extensions)),
       }
     }
-    if (panel.kind === 'branch') return { branches: this.branchRows }
+    if (panel.kind === 'branch') return { branches: this.files.branches() }
     if (panel.kind === 'find') {
       return {
         found: this.lanes.findMatches().length,
@@ -879,10 +860,10 @@ export class App {
         base: live.baseOf(panel.task),
       }
     }
-    if (panel.kind === 'diff') return { diff: this.diff }
+    if (panel.kind === 'diff') return { diff: this.files.shownDiff() }
     if (panel.kind === 'search')
       return { entries: this.search.entries(), searching: this.search.searching }
-    if (panel.kind === 'file') return { viewing: this.viewingAt(width) }
+    if (panel.kind === 'file') return { viewing: this.files.viewing(width) }
     if (panel.kind === 'keys') {
       const talk = this.opts.config.surfaces.voice.talk
       return { talkKey: talk.key, talkMode: talk.mode, releases: kittyActive(this.terminal) }
@@ -1439,7 +1420,7 @@ export class App {
         this.draw()
         return
       case 'new-shell':
-        await this.openShell()
+        await this.files.openShell()
         return
       case 'next-waiting': {
         const next = nextWaiting(this.state)
@@ -1489,7 +1470,7 @@ export class App {
         this.draw()
         return
       case 'copy-path': {
-        const path = this.hereOnDisk()
+        const path = this.files.hereOnDisk()
         if (!path) return
         const copied = await copyText(path, (data) => this.terminal.write(data))
         this.state = notice(this.state, copied ? `copied ${path}` : path)
@@ -1497,149 +1478,13 @@ export class App {
         return
       }
       case 'open-path': {
-        const path = this.hereOnDisk()
-        if (path) await this.reveal(path, true)
+        const path = this.files.hereOnDisk()
+        if (path) await this.files.reveal(path, true)
         return
       }
       default:
         await this.act(action)
     }
-  }
-
-  /**
-   * Open a file you clicked, in your editor, at the line if there is one.
-   * Relative paths are the agent's, so they resolve in its worktree.
-   */
-  private async openPlace(target: { path: string; line?: number; column?: number }): Promise<void> {
-    const file = this.resolvePath(target.path)
-    const { editor } = chooseEditor(this.opts.config.surfaces.window.editor, process.env)
-    const opener = openerFor(
-      editor,
-      {
-        file,
-        ...(target.line ? { line: target.line } : {}),
-        ...(target.column ? { column: target.column } : {}),
-      },
-      process.env,
-    )
-    const where = `${basename(file)}${target.line ? `:${target.line}` : ''}`
-    if (opener.kind === 'terminal') {
-      // A terminal editor gets a terminal: this one, for as long as you are in
-      // it, with the window put back when you quit — never two programs reading
-      // one keyboard.
-      await this.onScreenWith(async (ui) => {
-        await ui.run(`${opener.command} ${where}`, opener.command, opener.args)
-      })
-      return
-    }
-    try {
-      await launch(opener)
-      this.state = notice(
-        this.state,
-        `opened ${where} in ${editor === 'system' ? 'its app' : editor}`,
-      )
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
-  }
-
-  /**
-   * Where a path someone clicked is: relative ones are the agent's, so they
-   * resolve in its worktree, or in the project when no agent is in front of you.
-   */
-  private resolvePath(path: string): string {
-    return isAbsolute(path)
-      ? path
-      : resolve(this.hereOnDisk() ?? this.opts.cwd ?? process.cwd(), path)
-  }
-
-  /** The folder you are looking at on disk: the focused agent's worktree, or the project's. */
-  private hereOnDisk(): string | null {
-    const focused = this.state.panes.find((pane) => pane.task === this.state.focused)
-    const worktree = focused ? this.live?.worktreeOf(focused.task) : null
-    if (worktree) return worktree
-    const root = this.state.project
-      ? this.opts.config.projects[this.state.project]?.root
-      : undefined
-    return root ? expandHome(root) : null
-  }
-
-  /** Read a file into the viewer, at a line if there is one. */
-  private openFile(path: string, line: number | null = null): void {
-    const file = readForView(path)
-    this.viewed = {
-      file,
-      source: sourceLines(file, !this.skin.colour),
-      text: textLines(file),
-      formatted: null,
-    }
-    this.state = { ...this.state, panel: filePanel(path, line, formattable(file)) }
-    this.draw()
-  }
-
-  /** What the viewer draws, with Markdown laid out for the width it has now. */
-  private viewingAt(width: number): NonNullable<Frame['panel']>['viewing'] {
-    const viewed = this.viewed
-    if (!viewed) return null
-    if (!formattable(viewed.file))
-      return { file: viewed.file, source: viewed.source, text: viewed.text, formatted: null }
-    const room = fileViewSize(width, this.terminal.rows).width - 4
-    if (viewed.formatted?.width !== room) {
-      viewed.formatted = {
-        width: room,
-        lines: formattedLines(viewed.file, room, !this.skin.colour),
-      }
-    }
-    return {
-      file: viewed.file,
-      source: viewed.source,
-      text: viewed.text,
-      formatted: viewed.formatted.lines,
-    }
-  }
-
-  /**
-   * Write what was typed into the file back, and read it again — so what is on
-   * screen is what is on disk, coloured as a whole file rather than line by
-   * line, and the tree beside it shows git's new mark for it.
-   *
-   * A save that could not happen stays in the panel, with the file still open
-   * and everything typed still in it.
-   */
-  private async saveFile(panel: FilePanel): Promise<void> {
-    const viewed = this.viewed
-    const edit = panel.edit
-    if (!viewed || !edit || viewed.file.path !== panel.path) return
-    try {
-      const file = saveEdited(viewed.file, editedText(edit, viewed.file))
-      this.viewed = {
-        file,
-        source: sourceLines(file, !this.skin.colour),
-        text: textLines(file),
-        formatted: null,
-      }
-      this.state = {
-        ...this.state,
-        panel: savedFile(panel, this.viewed.text, `Saved ${basename(panel.path)}.`),
-      }
-      this.draw()
-      await this.live?.refresh()
-    } catch (err) {
-      this.state = { ...this.state, panel: { ...panel, said: why(err), warned: true } }
-    }
-    this.draw()
-  }
-
-  private async openLink(url: string): Promise<void> {
-    try {
-      const opener = openerForLink(url)
-      if (opener.kind === 'detached') await launch(opener)
-      this.state = notice(this.state, `opened ${url}`)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
   }
 
   /** Borrow the terminal for a flow on the shared screen, then put the window back. */
@@ -1660,42 +1505,6 @@ export class App {
     }
   }
 
-  /**
-   * A shell in the task's worktree, as a tab beside its agent: the place to
-   * run the tests yourself, or look at what it did, without leaving the task.
-   */
-  private async openShell(): Promise<void> {
-    const pane = this.state.panes.find((p) => p.task === this.state.focused)
-    const worktree = pane ? this.live?.worktreeOf(pane.task) : null
-    if (!pane || !worktree) {
-      this.state = notice(this.state, 'open an agent first: a shell starts in its worktree')
-      this.draw()
-      return
-    }
-    const taken = new Set(pane.lanes.map((lane) => lane.id))
-    let id = `${pane.task}/shell`
-    for (let n = 2; taken.has(id); n++) id = `${pane.task}/shell-${n}`
-    const size = this.lanes.paneSize()
-    try {
-      await this.opts.client.spawn({
-        id: id as LaneId,
-        task: pane.task as never,
-        kind: 'shell',
-        cwd: worktree,
-        command: process.env.SHELL ?? '/bin/sh',
-        args: ['-l'],
-        cols: size.cols,
-        rows: size.rows,
-        title: `${pane.name} shell`,
-      })
-      await this.live?.refresh()
-      this.state = viewLane(this.state, pane.task, id)
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    }
-    this.draw()
-  }
-
   private applyPanel(outcome: PanelOutcome): void {
     const before = this.state.panel
     this.state = { ...this.state, panel: outcome.panel }
@@ -1703,7 +1512,7 @@ export class App {
     if (outcome.panel?.kind === 'diff') {
       const was = before?.kind === 'diff' ? before : null
       if (!was || was.file !== outcome.panel.file || was.task !== outcome.panel.task) {
-        void this.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
+        void this.files.loadDiff(outcome.panel.task, outcome.panel.files[outcome.panel.file] ?? '')
       }
     }
     if (outcome.panel?.kind === 'search') {
@@ -1740,10 +1549,10 @@ export class App {
         await this.savePrompt(panel, choice)
         break
       case 'branch':
-        await this.switchBranch(choice ?? '')
+        await this.files.switchBranch(choice ?? '')
         break
       case 'confirm':
-        await this.discard(panel.task, panel.path)
+        await this.files.discard(panel.task, panel.path)
         break
       case 'confirm-remove':
         await this.removeTask(panel)
@@ -1760,7 +1569,7 @@ export class App {
       case 'file':
         if (choice === 'editor') {
           this.state = { ...this.state, panel: null }
-          await this.openPlace({
+          await this.files.openPlace({
             path: panel.path,
             ...(panel.edit ? { line: panel.edit.row + 1, column: panel.edit.column + 1 } : {}),
             ...(!panel.edit && panel.line ? { line: panel.line } : {}),
@@ -1768,7 +1577,7 @@ export class App {
           return
         }
         if (choice === 'save') {
-          await this.saveFile(panel)
+          await this.files.saveFile(panel)
           return
         }
         if (choice === 'copy-selection') {
@@ -1802,7 +1611,7 @@ export class App {
         }
         if (choice === 'open-file') {
           this.state = { ...this.state, panel: null }
-          await this.openPlace({ path: this.configPath })
+          await this.files.openPlace({ path: this.configPath })
           return
         }
         if (choice?.startsWith('account:')) await this.machine.accountAction(choice)
@@ -1815,10 +1624,10 @@ export class App {
         if (!path) return
         if (choice === 'editor') {
           this.state = { ...this.state, panel: null }
-          await this.openPlace({ path })
+          await this.files.openPlace({ path })
           return
         }
-        if (choice === 'ask') await this.askAbout(panel.task, path)
+        if (choice === 'ask') await this.files.askAbout(panel.task, path)
         break
       }
       default:
@@ -1872,7 +1681,7 @@ export class App {
         : subject.kind === 'branch'
           ? (focused
               ? this.live?.factsOf(focused.task)?.branch
-              : this.live?.branchAt(this.hereOnDisk() ?? '')) || 'branch'
+              : this.live?.branchAt(this.files.hereOnDisk() ?? '')) || 'branch'
           : subject.kind === 'terminal'
             ? (this.state.terminals.find((one) => one.id === subject.id)?.name ?? 'terminal')
             : subject.kind === 'images'
@@ -1906,11 +1715,11 @@ export class App {
       case 'task':
         return this.fromTaskMenu(subject.task, item)
       case 'file':
-        return this.fromFileMenu(subject.path, subject.folder, item)
+        return this.files.fromFileMenu(subject.path, subject.folder, item)
       case 'change':
-        return this.fromChangeMenu(subject.task, subject.path, item)
+        return this.files.fromChangeMenu(subject.task, subject.path, item)
       case 'branch':
-        return this.fromBranchMenu(item)
+        return this.files.fromBranchMenu(item)
       case 'terminal':
         return this.fromTerminalMenu(subject.id, item)
       case 'images':
@@ -2135,138 +1944,6 @@ export class App {
     this.draw()
   }
 
-  private async fromFileMenu(path: string, folder: boolean, item: string): Promise<void> {
-    const full = this.resolvePath(path)
-    const focused = this.state.panes.find((p) => p.task === this.state.focused)
-    switch (item) {
-      case 'open':
-        this.openFile(full)
-        return
-      case 'toggle':
-        this.state = toggleFolder(this.state, path)
-        break
-      case 'search':
-        this.search.open(`${path}/`)
-        return
-      case 'editor':
-        await this.openPlace({ path: full })
-        return
-      case 'changes':
-        if (focused) await this.openDiff(focused.task, path)
-        return
-      case 'ask':
-        if (focused) await this.askAbout(focused.task, path)
-        break
-      case 'copy-path':
-        await this.copy(full)
-        return
-      case 'copy-relative':
-        await this.copy(path)
-        return
-      case 'reveal':
-        await this.reveal(full, folder)
-        return
-      default:
-        break
-    }
-    this.draw()
-  }
-
-  private async fromChangeMenu(task: string | null, path: string, item: string): Promise<void> {
-    const full = this.resolvePath(path)
-    switch (item) {
-      case 'diff':
-        if (task) await this.openDiff(task, path)
-        return
-      case 'open':
-        this.openFile(full)
-        return
-      case 'editor':
-        await this.openPlace({ path: full })
-        return
-      case 'ask':
-        if (task) await this.askAbout(task, path)
-        break
-      case 'copy-path':
-        await this.copy(full)
-        return
-      case 'discard':
-        this.state = {
-          ...this.state,
-          panel: {
-            kind: 'confirm',
-            purpose: 'discard',
-            task,
-            path,
-            field: 'keep',
-            busy: false,
-            error: null,
-          },
-        }
-        break
-      default:
-        break
-    }
-    this.draw()
-  }
-
-  private async fromBranchMenu(item: string): Promise<void> {
-    const focused = this.state.panes.find((p) => p.task === this.state.focused)
-    const here = this.hereOnDisk()
-    const branch = focused
-      ? (this.live?.factsOf(focused.task)?.branch ?? '')
-      : (this.live?.branchAt(here ?? '') ?? '')
-    switch (item) {
-      case 'switch': {
-        this.branchRows = here ? await (this.live?.branchesOf(here) ?? []) : []
-        this.state = { ...this.state, panel: branchPanel() }
-        break
-      }
-      case 'new':
-        this.state = {
-          ...this.state,
-          panel: promptPanel('new-branch', 'New branch', 'BRANCH NAME'),
-        }
-        break
-      case 'rename':
-        this.state = {
-          ...this.state,
-          panel: promptPanel(
-            'rename-branch',
-            branch ? 'Rename branch' : 'Name the branch',
-            'BRANCH NAME',
-            branch ? branch.replace(/^tade\//, '') : '',
-          ),
-        }
-        break
-      case 'pull': {
-        if (!here) break
-        const out = await git(here, ['pull', '--ff-only'], 60_000)
-        this.state = notice(
-          this.state,
-          out.ok ? `pulled ${branch || 'the branch'}` : `pull failed: ${out.stderr.split('\n')[0]}`,
-        )
-        break
-      }
-      case 'copy':
-        if (branch) await this.copy(branch)
-        return
-      case 'copy-path':
-        if (here) await this.copy(here)
-        return
-      case 'changes': {
-        if (!focused) break
-        const first = this.live?.changes(focused.task)[0]
-        if (first) await this.openDiff(focused.task, first.path)
-        else this.state = notice(this.state, `${shownName(focused)} has not changed anything yet`)
-        break
-      }
-      default:
-        break
-    }
-    this.draw()
-  }
-
   private async fromTerminalMenu(id: string, item: string): Promise<void> {
     const name = this.state.terminals.find((one) => one.id === id)?.name ?? 'terminal'
     switch (item) {
@@ -2320,24 +1997,6 @@ export class App {
         break
     }
     this.draw()
-  }
-
-  /** Reveal a file in the system's file manager. */
-  private async reveal(path: string, folder: boolean): Promise<void> {
-    try {
-      if (process.platform === 'darwin') {
-        await launch({ kind: 'detached', command: 'open', args: folder ? [path] : ['-R', path] })
-      } else {
-        await launch({
-          kind: 'detached',
-          command: 'xdg-open',
-          args: [folder ? path : dirname(path)],
-        })
-      }
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-      this.draw()
-    }
   }
 
   /** Carry out a one-line panel: keep a note, or make or rename a branch. */
@@ -2477,7 +2136,7 @@ export class App {
         this.state = notice({ ...this.state, panel: null }, 'noted')
         return
       }
-      const here = this.hereOnDisk()
+      const here = this.files.hereOnDisk()
       if (!here) return fail('There is no checkout here to make a branch in.')
       if (panel.purpose === 'new-branch') {
         const out = await git(here, ['switch', '-c', text])
@@ -2510,50 +2169,6 @@ export class App {
     }
   }
 
-  /** Switch the project's checkout to a branch, or to a new one. */
-  private async switchBranch(choice: string): Promise<void> {
-    const panel = this.state.panel
-    const [verb, ...rest] = choice.split(':')
-    const name = rest.join(':')
-    const here = this.hereOnDisk()
-    if (!here || !name || panel?.kind !== 'branch') return
-    const out = await git(
-      here,
-      verb === 'create' ? ['switch', '-c', name] : ['switch', name],
-      30_000,
-    )
-    if (!out.ok) {
-      // Git's own words: an unstaged change in the way is a reason worth reading.
-      this.state = {
-        ...this.state,
-        panel: { ...panel, busy: false, error: out.stderr.split('\n')[0] ?? 'git refused' },
-      }
-      return
-    }
-    this.state = notice({ ...this.state, panel: null }, `on ${name}`)
-    await this.live?.refresh()
-  }
-
-  /** Throw away a file's uncommitted changes: back to the last commit, or gone if never committed. */
-  private async discard(task: string | null, path: string): Promise<void> {
-    const panel = this.state.panel
-    const root = task ? this.live?.worktreeOf(task) : this.hereOnDisk()
-    if (!root || panel?.kind !== 'confirm') return
-    const marks = this.live?.marksAt(root) ?? {}
-    const out =
-      marks[path] === 'U'
-        ? await git(root, ['clean', '-f', '--', path])
-        : await git(root, ['restore', '--staged', '--worktree', '--source=HEAD', '--', path])
-    if (!out.ok) {
-      this.state = {
-        ...this.state,
-        panel: { ...panel, busy: false, error: out.stderr.split('\n')[0] ?? 'git refused' },
-      }
-      return
-    }
-    this.state = notice({ ...this.state, panel: null }, `discarded ${path}`)
-  }
-
   private async fromTaskMenu(task: string, item: string): Promise<void> {
     const facts = this.live?.factsOf(task)
     const worktree = this.live?.worktreeOf(task)
@@ -2578,11 +2193,11 @@ export class App {
         break
       case 'changes': {
         const first = this.live?.changes(task)[0]
-        if (first) await this.openDiff(task, first.path)
+        if (first) await this.files.openDiff(task, first.path)
         return
       }
       case 'editor':
-        if (worktree) await this.openPlace({ path: worktree })
+        if (worktree) await this.files.openPlace({ path: worktree })
         return
       case 'rename': {
         const pane = this.state.panes.find((p) => p.task === task)
@@ -2729,46 +2344,6 @@ export class App {
         ? `closed ${closed} finished agent${closed === 1 ? '' : 's'}`
         : `closed ${closed} of ${panel.tasks.length} — ${failed.join('; ')}`
     this.state = notice({ ...this.state, panel: null }, said)
-  }
-
-  /** The diff panel, on a changed file, with every other changed file a step away. */
-  private async openDiff(task: string, path: string): Promise<void> {
-    const files = (this.live?.changes(task) ?? []).map((change) => change.path)
-    const at = Math.max(0, files.indexOf(path))
-    this.applyPanel({
-      panel: diffPanel(task, files.length > 0 ? files : [path], at),
-      submit: false,
-    })
-  }
-
-  private async loadDiff(task: string, path: string): Promise<void> {
-    this.diff = null
-    this.draw()
-    const text = await this.live?.diffOf(task, path).catch(() => null)
-    const panel = this.state.panel
-    // Only if the panel is still on that file: a slow git must not draw an old diff.
-    if (panel?.kind === 'diff' && panel.task === task && panel.files[panel.file] === path) {
-      this.diff = text ? parseDiff(text) : parseDiff('')
-      this.draw()
-    }
-  }
-
-  /**
-   * Put a question about a file in front of the agent, unsent. Typed into its
-   * prompt, not submitted: asking costs money, so you are the one who presses
-   * enter.
-   */
-  private async askAbout(task: string, path: string): Promise<void> {
-    const pane = this.state.panes.find((p) => p.task === task)
-    this.state = { ...focusTask(this.state, task), panel: null }
-    if (!pane?.lane) {
-      this.state = notice(this.state, `open ${task}'s agent first, then ask`)
-      return
-    }
-    this.state = viewLane(this.state, task, pane.lane)
-    await this.opts.client
-      .write(pane.lane as LaneId, new TextEncoder().encode(`Look at ${path}: `))
-      .catch(() => {})
   }
 
   /**
@@ -3597,7 +3172,7 @@ export class App {
           return
         case 'folder': {
           const folder = host?.list().find((one) => one.name === name)?.path
-          if (folder) await this.reveal(folder, true)
+          if (folder) await this.files.reveal(folder, true)
           return stay(null)
         }
         case 'watch': {
@@ -3656,7 +3231,7 @@ export class App {
           const tool = this.writtenViews().find((one) => one.name === name)
           if (!tool) return stay(null)
           this.state = { ...this.state, panel: null }
-          await this.openPlace({ path: tool.path })
+          await this.files.openPlace({ path: tool.path })
           return
         }
         default:
@@ -3939,7 +3514,7 @@ export class App {
     if (!host || !row) return
     if (!row.opens) {
       const link = row.links?.[0]
-      if (link) await this.openLink(link.url)
+      if (link) await this.files.openLink(link.url)
       return
     }
     this.state = {
@@ -4208,15 +3783,16 @@ export class App {
     // The file's own lines, and only while they are the file the panel is on:
     // a caret counts columns in them, and in the wrong file it would land
     // somewhere nobody pointed at.
-    const viewed = panel?.kind === 'file' && this.viewed?.file.path === panel.path
-    const file = panel?.kind === 'file' ? this.fileBody(panel) : null
+    const file = panel?.kind === 'file' ? this.files.body(panel) : null
     return {
       entries: this.search.entries(),
       lines:
-        this.state.panel?.kind === 'extension-view' ? this.extensionViewLines() : this.fileLines(),
-      text: viewed ? (this.viewed?.text ?? []) : [],
+        this.state.panel?.kind === 'extension-view'
+          ? this.extensionViewLines()
+          : this.files.lines(),
+      text: this.files.textAt(panel),
       ...(file ? { body: file.rows, columns: file.columns } : {}),
-      branches: this.branchRows,
+      branches: this.files.branches(),
       found: this.lanes.findMatches().length,
       rows:
         this.state.panel?.kind === 'open-project'
@@ -4272,27 +3848,6 @@ export class App {
     if (!shown) return 0
     const inner = Math.min(110, this.terminal.columns - 4) - 4
     return markdownLines(shown.markdown, inner, !this.skin.colour).length
-  }
-
-  /** How many lines the viewer has to scroll through, as it is showing the file now. */
-  private fileLines(): number {
-    const panel = this.state.panel
-    if (panel?.kind !== 'file' || !this.viewed) return 0
-    const viewing = this.viewingAt(this.terminal.columns)
-    if (panel.edit) return panel.edit.lines.length
-    return panel.formatted && viewing?.formatted
-      ? viewing.formatted.length
-      : this.viewed.source.length
-  }
-
-  /** The size of the viewer's body, for keeping the caret in it and for reading a click. */
-  private fileBody(panel: FilePanel): { rows: number; columns: number } {
-    return fileBodySize(
-      this.terminal.columns,
-      this.terminal.rows,
-      this.fileLines(),
-      panel.asking !== null,
-    )
   }
 
   private get configPath(): string {

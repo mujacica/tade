@@ -32,7 +32,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
  * doing that in review is the conversation this test exists to force.
  */
 const BUDGET: Record<string, number> = {
-  'packages/app/src/app.ts': 4_550,
+  'packages/app/src/app.ts': 4_100,
   'packages/app/src/live.ts': 1_300,
   'packages/app/src/model.ts': 2_000,
   'packages/app/src/screen.ts': 900,
