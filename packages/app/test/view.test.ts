@@ -28,7 +28,8 @@ import {
 } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { youSaid } from '../src/transcript.ts'
-import { BUTTONS, draw, renderApp, wrapPath } from '../src/view.ts'
+import { wrapPath } from '../src/view/text.ts'
+import { BUTTONS, draw, renderApp } from '../src/view.ts'
 
 /** The same row without its colour, for comparing positions against columns. */
 const plain = (row: string) =>

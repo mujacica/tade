@@ -2,7 +2,6 @@ import {
   compositeTuiLine,
   sliceByColumn,
   stripTerminalSequences,
-  truncateToWidth,
   visibleWidth,
 } from '@earendil-works/pi-tui'
 import {
@@ -86,7 +85,7 @@ import {
   planWidth,
   treeStems,
 } from './plan-graph.ts'
-import { BAR, barAcross, barRows, type Scrolled } from './scrollbar.ts'
+import { BAR, barAcross } from './scrollbar.ts'
 import { type Band, type Look, PLAIN, type Skin } from './skin.ts'
 import { type Line, transcriptLines } from './transcript-view.ts'
 import {
@@ -101,6 +100,37 @@ import {
   slid,
   stack,
 } from './ui.ts'
+import {
+  barBeside,
+  doing,
+  isScrolling,
+  type ListItem,
+  MENU_ICON,
+  markTone,
+  STRIP_ICONS,
+  secondRow,
+  TAB_EDGES,
+  TAB_ICONS,
+  tabbed,
+  tabList,
+  toneOf,
+} from './view/rows.ts'
+import {
+  capitalised,
+  clock,
+  clockOf,
+  cutAtWord,
+  dollars,
+  saidShort,
+  shortened,
+  shortModel,
+  shortPath,
+  spell,
+  tailOf,
+  tokens,
+  wrapPath,
+  wrapWords,
+} from './view/text.ts'
 
 // Drawing, as one pure function of state.
 //
@@ -485,10 +515,6 @@ function talkChip(r: Row, state: AppState, frame: Frame, skin: Skin, word = true
   if (!word) return void r.keys(voice.keys, target)
   r.keys(voice.keys).space()
   r.text('talk', skin.hint, target)
-}
-
-function clock(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 // ── Side: where, agents, changes, files, notes ───────────────────────────────
@@ -884,44 +910,6 @@ function headingWidth(actions: readonly SectionAction[], width: number, skin: Sk
   return probe.used + 1
 }
 
-/**
- * Rows with a scrollbar against their right edge: each one as drawn, in the
- * room it was given, and one more column saying where in the whole thing you
- * are.
- *
- * The bar's hits carry what it was drawn from, so a drag on it can be turned
- * back into a line to scroll to without laying the region out a second time.
- */
-function barBeside(
-  rows: readonly { text: string; hits: Hit[] }[],
-  view: Scrolled,
-  area: ScrollArea,
-  width: number,
-  state: AppState,
-  skin: Skin,
-): { text: string; hits: Hit[] }[] {
-  const bar = barRows(view, skin, isScrolling(state, area))
-  const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
-  return Array.from({ length: view.rows }, (_, i) => ({
-    text: `${fit(rows[i]?.text ?? '', width)}${bar[i] ?? ' '}`,
-    hits: [...(rows[i]?.hits ?? []), { row: 0, from: width, to: width, target }],
-  }))
-}
-
-/**
- * Whether the pointer is on this region's bar, or holding it. A region with
- * two of them lights the one being used: the bar down its side and the one
- * along its bottom are two handles, not one.
- */
-function isScrolling(state: AppState, area: ScrollArea, across = false): boolean {
-  if (state.scrolling?.area === area) return (state.scrolling.across === true) === across
-  return (
-    state.hover?.kind === 'scrollbar' &&
-    state.hover.area === area &&
-    (state.hover.across === true) === across
-  )
-}
-
 /** The repository, the branch in front of you, and the worktree an agent works in. */
 function whereRows(
   row: () => Row,
@@ -982,25 +970,6 @@ function whereRows(
   return rows
 }
 
-/** A path in lines of a width, broken after a slash where it can be, and anywhere where it cannot. */
-export function wrapPath(path: string, width: number): string[] {
-  const lines: string[] = []
-  let line = ''
-  for (const part of path.split(/(?<=\/)/)) {
-    if (line !== '' && line.length + part.length > width) {
-      lines.push(line)
-      line = ''
-    }
-    line += part
-    while (line.length > width) {
-      lines.push(line.slice(0, width))
-      line = line.slice(width)
-    }
-  }
-  if (line !== '' || lines.length === 0) lines.push(line)
-  return lines
-}
-
 /** A file or folder in the tree, indented by how deep it is. */
 function fileRow(
   row: Row,
@@ -1033,110 +1002,6 @@ function fileRow(
   return {
     text: hovered ? skin.hovered(built.text) : built.text,
     hits: [rowHit(0, row.width, target), ...built.hits.filter((hit) => hit.target.kind === 'menu')],
-  }
-}
-
-function markTone(mark: string | null, skin: Skin): ((text: string) => string) | null {
-  if (mark === 'M' || mark === 'R') return skin.waiting
-  if (mark === 'A' || mark === 'U') return skin.done
-  if (mark === 'D' || mark === '!') return skin.bad
-  return null
-}
-
-/** An item down the side: its rows, drawn as a tab, and how it is lit. */
-interface ListItem {
-  rows: { text: string; hits: Hit[] }[]
-  band: Band | null
-  /** What goes in the room under it, where a blank row would be: a tree's lines carry on. */
-  under?: { text: string; hits: Hit[] }
-}
-
-/**
- * Items down the side as tabs, a row of room between them: a tab never
- * touches the one next to it, and lighting one moves nothing.
- */
-function tabList(items: readonly ListItem[], width: number): { text: string; hits: Hit[] }[] {
-  const out = [blank(width)]
-  for (const item of items) out.push(...item.rows, item.under ?? blank(width))
-  return out
-}
-
-/** Columns a tab spends on itself: a margin and an end, on each side. */
-const TAB_EDGES = 4
-
-/** Two glyph buttons at the end of a tab, `×` and `≡`, and the room after them. */
-const TAB_ICONS = 7
-
-/**
- * The same two at the end of a tab in a row of tabs, where the gap after them
- * belongs to the next tab: a tab block ends in two columns of its own padding,
- * so a glyph button needs nothing put in front of it.
- */
-const STRIP_ICONS = 6
-
-/** One glyph button — a row's `≡` — and the column of room after it. */
-const MENU_ICON = 4
-
-/**
- * What is drawn inside a tab, laid on it: its ends and its ground when lit,
- * and every hit moved to where the tab puts it. The whole row is the item;
- * what sits on it is on top.
- */
-function tabbed(
-  width: number,
-  skin: Skin,
-  band: Band | null,
-  inner: { text: string; hits: Hit[] },
-  target: Target,
-): { text: string; hits: Hit[] } {
-  return {
-    text: ` ${skin.item(inner.text, band)} `,
-    hits: [rowHit(0, width, target), ...shift(inner.hits, 0, TAB_EDGES / 2)],
-  }
-}
-
-/**
- * A tab's second row: what is said quietly under its first, lit with it. A
- * tab is two rows because two rows is what reads as a tab and not a line —
- * one row was too thin, and three all ground was too heavy.
- */
-function secondRow(
-  width: number,
-  skin: Skin,
-  pointer: Pointer,
-  band: Band | null,
-  said: string,
-  target: Target,
-  indent: number,
-): { text: string; hits: Hit[] } {
-  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer)
-  inner.space(indent).text(shortened(said, Math.max(1, inner.width - indent - 1)), skin.hint)
-  return tabbed(width, skin, band, inner.build(), target)
-}
-
-/** What an agent is doing, in a few words, for the row under its name. */
-function doing(pane: AgentPane): string {
-  const reason = pane.reason ?? ''
-  switch (markOf(pane)) {
-    case 'working':
-      return reason && reason !== 'agent running' ? `working · ${reason}` : 'working'
-    case 'idle':
-      return 'idle · waiting for you'
-    case 'needs-you':
-      return pane.approval ? `wants you to approve ${pane.approval.summary}` : reason
-    case 'done':
-      if (pane.finished) {
-        return pane.finished.summary ? `finished · ${pane.finished.summary}` : 'finished'
-      }
-      return reason.startsWith('agent stopped')
-        ? 'stopped · its work is in the checkout'
-        : reason || 'finished'
-    case 'failed':
-      return reason || 'failed'
-    case 'parked':
-      return 'parked'
-    default:
-      return 'not started'
   }
 }
 
@@ -1235,17 +1100,6 @@ function queueLook(
     case 'paused':
       return { glyph: '‖', tone: skin.faded, when: 'paused', whenTone: skin.faded }
   }
-}
-
-/** A moment, said the way the frame says moments. */
-function clockOf(frame: Frame): (at: number) => string {
-  return (
-    frame.clock ??
-    ((at) => {
-      const time = new Date(at)
-      return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
-    })
-  )
 }
 
 /** A task's name without its project, which the list it is in already says. */
@@ -1606,11 +1460,6 @@ function renderSchedule(
   const filled = [...shown.rows]
   while (filled.length < height) filled.push(' '.repeat(width))
   return { rows: filled, hits: shown.hits }
-}
-
-/** The first letter of a phrase as the start of a sentence. */
-function capitalised(text: string): string {
-  return text ? `${text[0]?.toUpperCase() ?? ''}${text.slice(1)}` : text
 }
 
 /**
@@ -2057,28 +1906,6 @@ function queueWord(state: QueueState): string {
   }
 }
 
-/** Plain words to a width, broken between words where it can be. */
-function wrapWords(text: string, width: number): string[] {
-  const lines: string[] = []
-  for (const paragraph of text.split('\n')) {
-    let line = ''
-    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-      if (!line) line = word
-      else if (visibleWidth(`${line} ${word}`) <= width) line = `${line} ${word}`
-      else {
-        lines.push(line)
-        line = word
-      }
-      while (visibleWidth(line) > width) {
-        lines.push(truncateToWidth(line, width, ''))
-        line = line.slice(truncateToWidth(line, width, '').length)
-      }
-    }
-    lines.push(line)
-  }
-  return lines
-}
-
 /**
  * Queued work in front of you, where an agent's screen would be: where it
  * stands and what to do about it, the whole chain it is in drawn as boxes with
@@ -2523,17 +2350,6 @@ function toneFor(
   return skin.hint
 }
 
-/**
- * How long a check took, to the second it took: `2.1s`, `1m 04s`. Not
- * `duration`, which rounds a minute and four seconds to a minute — the
- * seconds are the whole of what somebody watching a suite is reading.
- */
-function spell(seconds: number): string {
-  const whole = Math.max(0, Math.round(seconds))
-  if (whole < 60) return `${seconds < 10 ? seconds.toFixed(1) : whole}s`
-  return `${Math.floor(whole / 60)}m ${String(whole % 60).padStart(2, '0')}s`
-}
-
 /** A check's state as one character, the same one the CLI prints. */
 function glyphFor(state: string): string {
   if (state === 'passed') return '✓'
@@ -2816,32 +2632,6 @@ function taskTag(scope: string | null, project: string | null): string {
   return inProject(project, scope)
 }
 
-/** As much of a line as fits, ending at a word where one ends in time. */
-function cutAtWord(line: string, room: number): string {
-  const cut = line.slice(0, room)
-  const space = cut.lastIndexOf(' ')
-  return space > room / 2 ? cut.slice(0, space) : cut
-}
-
-/** Text that fits a width, ending in `…` when it had to be cut. */
-function shortened(text: string, room: number): string {
-  return visibleWidth(text) <= room ? text : truncateToWidth(text, Math.max(1, room), '…')
-}
-
-/**
- * A sentence that fits a width, ending in `…` when it had to be cut — and at
- * a word, where one ends in time. A word cut through its middle is the
- * difference between a line somebody reads and a fragment of one; a name or a
- * path has no words to cut at, which is why this is only for what was said.
- */
-function saidShort(text: string, room: number): string {
-  if (visibleWidth(text) <= room) return text
-  const hard = truncateToWidth(text, Math.max(1, room), '…')
-  const body = hard.slice(0, -1)
-  const space = body.lastIndexOf(' ')
-  return space > body.length / 2 ? `${body.slice(0, space).trimEnd()}…` : hard
-}
-
 function changeRow(
   row: Row,
   change: Change,
@@ -2884,23 +2674,6 @@ function changeRow(
     text: hovered ? skin.hovered(built.text) : built.text,
     hits: [rowHit(0, row.width, target), ...built.hits.filter((hit) => hit.target.kind === 'menu')],
   }
-}
-
-/** The end of something too long, which for a branch is the part that names it. */
-function tailOf(text: string, room: number): string {
-  return text.length <= room ? text : `…${text.slice(-Math.max(1, room - 1))}`
-}
-
-/** `src/payments/webhooks.test.ts` → `…/webhooks.test.ts`: the name is the part you know. */
-export function shortPath(path: string, room: number): string {
-  if (path.length <= room) return path
-  const name = path.split('/').at(-1) ?? path
-  const short = `…/${name}`
-  return short.length <= room ? short : `…${name.slice(-Math.max(1, room - 1))}`
-}
-
-function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
-  return skin[MARK_TONES[markOf(pane)]]
 }
 
 // ── Middle: the agent you are watching ───────────────────────────────────────
@@ -4165,21 +3938,4 @@ export function laneLabels(
     if (lane.kind !== 'agent' && lane.title) return { id: lane.id, label: lane.title }
     return { id: lane.id, label: n === 1 ? lane.kind : `${lane.kind} ${n}` }
   })
-}
-
-// ── Numbers, the way people read them ────────────────────────────────────────
-
-export function tokens(count: number): string {
-  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M tok`
-  if (count >= 1_000) return `${Math.round(count / 1_000)}k tok`
-  return `${count} tok`
-}
-
-export function dollars(usd: number): string {
-  return usd >= 100 ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`
-}
-
-/** `anthropic/claude-opus-5` reads as `claude-opus-5`: the provider is said separately. */
-function shortModel(model: string): string {
-  return model.split('/').at(-1) ?? model
 }
