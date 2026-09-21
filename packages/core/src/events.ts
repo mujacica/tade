@@ -78,6 +78,13 @@ export const EventType = z.enum([
    * what re-reading `git log` every time would not.
    */
   'commit_seen',
+  /**
+   * Tade added its own files to a project's ignore rules, and which lines it
+   * added. It edits a file that is not its own, once, the first time it works
+   * there — so the one line saying it did is what makes that undoable rather
+   * than mysterious.
+   */
+  'ignore_written',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -130,6 +137,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // nothing announces is worse than no statistic.
   check_ran: 'routine',
   commit_seen: 'routine',
+  // Routine, for the same reason `commit_seen` is: a fact written down once so
+  // it can be read back, not something to interrupt anybody with. The change
+  // itself is already in `git status` and in the diff, which is where somebody
+  // sees it; what this line adds is who put it there.
+  ignore_written: 'routine',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

@@ -65,7 +65,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - Tests use **real git repos** built by `test/fixtures/mkrepo.ts`. Never mock git.
 - **A fixture must not be kinder than reality.** If the fixture differs from what a user's machine
   looks like, it hides bugs instead of finding them: `mkrepo` deliberately leaves `.tade/`
-  untracked, because a real repository does, and excluding it once concealed a broken teardown.
+  untracked and unignored, because a repository Tade has not worked in yet does, and excluding it
+  once concealed a broken teardown. The rules arrive in a fixture the way they arrive anywhere —
+  `createTask` writes them — so a test that goes through the workbench gets what a user gets, and
+  one that does not is a project before Tade, which is also a thing that exists.
 - Git is invoked directly with `--porcelain=v2` / `-z`. No git wrapper libraries.
 - Parsers of external formats (provider transcripts) return `null` on unknown shapes, never throw.
 - `intent_spoken` is stored verbatim. Never paraphrase or normalise it.
@@ -163,11 +166,27 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   rollup stays `unknown` rather than going green off a guess. Adoption is the act that changes it —
   `tade checks adopt`, `checks_propose`, the button on the ACTIONS tab, all writing the same file the
   same way — and what CI does and Tade cannot is named every time rather than dropped. `.tade/checks.yaml`
-  is the one file Tade writes into somebody else's repository: it never commits there (`recordAuthored`
-  is for `<home>`, and `git add -A` over a shared checkout would sweep up four agents' half-written
-  work), it goes through the YAML document so the comments survive, and it refuses a draft rather
-  than leaving a broken file to be found by hand. It is the orchestrator's and a person's, never an
-  agent's: an agent judged by these checks does not get a tool that rewrites its own gate.
+  is one of the two files Tade writes into somebody else's repository, and the only one it writes
+  the contents of: it never commits there (`recordAuthored` is for `<home>`, and `git add -A` over
+  a shared checkout would sweep up four agents' half-written work), it goes through the YAML
+  document so the comments survive, and it refuses a draft rather than leaving a broken file to be
+  found by hand. It is the orchestrator's and a person's, never an agent's: an agent judged by
+  these checks does not get a tool that rewrites its own gate.
+- **Everything else Tade writes under a project is ignored, and the manifest is the exception.**
+  A task file is one person's, `checks.jsonl` rotates and dies with the worktree it ran in, an
+  attachment is a pasted screenshot, a lock holds a pid — none of it means anything on another
+  machine, and all of it was being committed. So the first time Tade works in a project
+  (`ensureIgnored`, from `createTask`) it appends two lines to the project's `.gitignore`:
+  `/.tade/*`, and `!/.tade/checks.yaml` to put back the one file a person writes and CI is
+  generated from. Written as a denial with one exception, never as a list of what to deny — the
+  next thing Tade learns to write under `.tade/` is ignored the day it is written. `/.tade/*` and
+  not `/.tade/`, because git never descends into an ignored folder and the exception under one can
+  never be reached. It is `.gitignore` and not `.git/info/exclude`: what went wrong is a *push*,
+  which is everybody's, and a rule that travels protects the teammate who never ran Tade — while a
+  rule nobody can see is the worse surprise. So it only ever appends, only ever once (it asks git
+  whether the outcome already holds, however somebody spelled it), never edits a line somebody
+  wrote, never commits, and says in the journal (`ignore_written`) that it did — which is what
+  makes it undoable rather than mysterious.
 - **A run is about a tree, not a commit id.** It is recorded against the commit that was checked
   out, and an agent's next act is to commit — so what it read is also written down (`coverageOf`):
   that commit's tree, every tracked path whose bytes on disk differed from it, and the untracked
@@ -690,7 +709,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   `--help`, a setting's `means`, a tool's description, the shortcuts sheet, the README for the showcase,
   and a comment beside the code for why that code is the way it is. A design document is a plan,
   and a plan that outlives its build is a second description of the system that nothing keeps
-  honest — write it in the task, build it, and let git keep it.
+  honest — write it in the task and build it.
+  **A task folder is not where a document is kept**, and since `.tade/` became ignored it is not
+  kept anywhere: it lives on the disk of whoever was building it and goes when the task does,
+  which is right for the thing it is. So a plan that is finished with has nothing to do, and a
+  plan whose *reasoning* is worth keeping puts it where the thing it describes is — a skill, a
+  comment beside the code, a test that cannot drift from it — before the folder goes. The one
+  case that earns a file of its own is a plan parked mid-build, and it goes in `docs/` with the
+  thing that ends it written inside it (`docs/modularity.md`: delete it when its §5 is done).
+  Moved there, never copied: two copies of one plan is the drift this rule is about.
 - **`.claude/skills/` holds step-by-step recipes** for recurring changes (a CLI command, a config
   key, an extension, the window, ...). Use the matching skill, and add or update one when you create
   a new extension point or a change teaches you something a recipe should have said. Do not confuse

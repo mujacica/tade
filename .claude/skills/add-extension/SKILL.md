@@ -37,7 +37,8 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   outside the project — resolving a Sentry issue — is `['orchestrator']` only, and its description
   says "only when asked".
 - **Work happens in agents.** A tool that changes a project calls `ctx.tade.startAgent(...)` with a
-  `context` (becomes `.tade/context.md`), `links` (kept in `task.yaml`, shown under GIT) and
+  `context` (becomes `.tade/context.md` — ignored by the project, so it is the agent's to read and
+  nobody's to commit), `links` (kept in `task.yaml`, shown under GIT) and
   `prepare` (changes the directory it will work in before it starts: the checkout or its
   worktree, as `agents.workspace` says). When `ctx.tade` is null there is no
   window: say so, don't do the work somewhere else. When `ctx.caller.kind === 'agent'`, work in

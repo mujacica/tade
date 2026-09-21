@@ -16,6 +16,7 @@ in step.
 | `packages/workbench/src/registry.ts` | lane state and its persistence |
 | `packages/workbench/src/events.ts` | the journal |
 | `packages/orchestrator/src/tool-host.ts` | only if an orchestrator tool needs to call it |
+| `packages/workbench/src/ignore.ts` | only if the operation writes a new kind of file into a project |
 
 ## Steps
 
@@ -35,6 +36,14 @@ in step.
   with `HomeBusyError`. So an operation that only *reads* — the journal, the notes, git — must not
   need it. Use `readJournal(home)` or `Memory.open(home)` and leave the lock alone; a question you
   cannot ask while a window is open is a question people will stop asking.
+- **A new file under `.tade/` is already ignored, and that is the answer you want.** The rules are
+  a denial with one exception (`IGNORE_RULES` in `ignore.ts`: `/.tade/*`, then `!/.tade/checks.yaml`),
+  written that way so whatever Tade learns to write next is out of somebody's history the day it is
+  written. Only add to `IGNORE_RULES` when a file is genuinely the *project's* — a person edits it,
+  it means the same on another machine, and something holds it honest — which so far is true of
+  exactly one file. If you do add one, put it after the denial: order matters, and a negation git
+  never reaches does nothing. Never exclude a folder (`/.tade/`) rather than its contents, or
+  nothing under it can be put back.
 - **Never report a lane as alive without evidence from the driver.** A live pid says something is
   running, not that we can drive it. `reconcile` asks the driver and takes its answer.
 - **`close()` lets go; `stopEverything()` ends the work.** Closing Tade must never stop agents that

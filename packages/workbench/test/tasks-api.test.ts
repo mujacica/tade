@@ -53,6 +53,24 @@ describe('task and run RPC', () => {
     expect(event?.detail.intent_spoken).toBe(INTENT)
   })
 
+  it('ignores its own bookkeeping the first time it works in a project, once', async () => {
+    const path = join(repo.root, '.gitignore')
+    expect(existsSync(path)).toBe(false)
+    await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const written = readFileSync(path, 'utf8')
+    expect(written).toContain('/.tade/*')
+    expect(written).toContain('!/.tade/checks.yaml')
+
+    const [said] = await client.events({ types: ['ignore_written'] })
+    expect(said?.detail.project).toBe('app')
+    expect(said?.detail.added).toEqual(['/.tade/*', '!/.tade/checks.yaml'])
+
+    // The second task finds it done and says nothing more about it.
+    await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })
+    expect(readFileSync(path, 'utf8')).toBe(written)
+    expect(await client.events({ types: ['ignore_written'] })).toHaveLength(1)
+  })
+
   it('creates tasks side by side in the checkout, and removing one leaves the checkout alone', async () => {
     const one = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
     const two = await client.createTask({ project: 'app', slug: 'search', intent: 'faster search' })

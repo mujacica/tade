@@ -29,7 +29,9 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   the tool, not just what it does. `tade_task_create` tells it to pass the human's words verbatim,
   because that field can never be reconstructed later, and to pass the `context` and `links` it
   gathered, which are written beside the task (`.tade/context.md` in a worktree,
-  `.tade/tasks/<name>/context.md` in a shared checkout) for the agent to read first.
+  `.tade/tasks/<name>/context.md` in a shared checkout) for the agent to read first. Everything
+  under `.tade/` is ignored by the project, so what you write there is the agent's to read and
+  nobody's to commit — if it has to outlive the task, it goes where the thing it describes is.
 - **Answer with `content`; fail by throwing.** pi reads a tool's `{ content: [{ type: 'text', text }] }`
   and nothing else, and marks a call failed only when it throws — the thrown message is what the
   model reads, so make it say what to do instead. The `tool()` helper does both: return a string or

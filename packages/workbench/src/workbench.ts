@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { readRuns } from '@tade/checks-core'
+import { MANIFEST_PATH, readRuns } from '@tade/checks-core'
 import {
   AccountName,
   type Caution,
@@ -23,6 +23,7 @@ import {
   type Plan,
   type PlanBusy,
   type PlanSource,
+  PROJECT_DIR,
   parseConfig,
   type QueueChange,
   resolveRoute,
@@ -77,6 +78,7 @@ import {
   HARNESS_ADAPTERS,
   type HarnessOptions,
 } from './harnesses.ts'
+import { ensureIgnored, IGNORE_PATH } from './ignore.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
@@ -950,6 +952,9 @@ export class Workbench {
         `a task in ${req.project}'s checkout cannot finish when ${req.done}: agents there share one branch. Use said, idle or manual`,
       )
     }
+    // Before the task, so the folder it is about to write is ignored from the
+    // instant it exists rather than from the next one.
+    await this.ignoreOwnFiles(req.project, root)
     const task = await createTask({
       project: req.project,
       root,
@@ -982,6 +987,33 @@ export class Workbench {
       },
     })
     return task
+  }
+
+  /**
+   * Add Tade's own files to a project's ignore rules the first time it works
+   * there, and write down that it did. Idempotent, so every task after the
+   * first costs a read and nothing else — which is also what fixes a project
+   * Tade had already been working in before this existed.
+   *
+   * It is in the project's own checkout, uncommitted, where `git status` shows
+   * it and a person commits or reverts it. A worktree made before that commit
+   * carries the tree it was made from, so agents there are protected once
+   * somebody keeps it.
+   */
+  private async ignoreOwnFiles(project: string, root: string): Promise<void> {
+    const done = await ensureIgnored(root)
+    if (done.added.length === 0) return
+    await this.log.append({
+      type: 'ignore_written',
+      detail: {
+        project,
+        path: IGNORE_PATH,
+        added: done.added,
+        // Nothing commits it: this is the one file Tade changes in somebody's
+        // repository beside the checks manifest, and both are theirs to keep.
+        message: `${IGNORE_PATH} in ${project} now ignores what Tade writes under ${PROJECT_DIR}/, except ${MANIFEST_PATH}. It is not committed.`,
+      },
+    })
   }
 
   /**

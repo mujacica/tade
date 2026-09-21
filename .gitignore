@@ -4,8 +4,19 @@ coverage/
 *.log
 .DS_Store
 .tade-test-*/
-# What is going on right now, written by whoever is running the checks and
-# taken back when they end: this machine's, never a commit's — and while it is
-# there, `pnpm exec biome ci .` would otherwise read it as a file somebody
-# wrote badly, which made `format` fail inside every run that wrote it.
-.tade/checks.running.json
+# Tade writes its own bookkeeping under .tade/ — task files, the context an
+# agent was handed, pasted attachments, check runs, locks — and none of it is
+# this project's: it is one machine's and one person's, and it was being
+# committed. checks.yaml is the exception, because a person writes it, CI is
+# generated from it and a test holds it to `pnpm check`.
+#
+# `/.tade/*` and not `/.tade/`: git does not descend into an ignored folder, so
+# excluding the folder itself would take checks.yaml with it and the line below
+# could never put it back.
+#
+# One of these earns its own note. `checks.running.json` says what is being
+# checked right now and is taken back when the run ends, and while it is there
+# `pnpm exec biome ci .` read it as a file somebody had written badly — which
+# made `format` fail inside every run that wrote it.
+/.tade/*
+!/.tade/checks.yaml

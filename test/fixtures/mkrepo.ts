@@ -63,8 +63,12 @@ export function mkrepo(opts: { remote?: boolean } = {}): Repo & { remote: string
   const base = tmp('tade-repo-')
   const root = join(base, 'repo')
   mkdirSync(root)
-  // Deliberately NOT excluding `.tade/`: a real repository doesn't, and
-  // pretending otherwise hides bugs in how Tade handles its own files.
+  // Deliberately NOT excluding `.tade/`: this is a repository Tade has not
+  // worked in yet, which is what every project is until it has. The rules
+  // arrive here the way they arrive anywhere — `createTask` writes them — so
+  // a test that goes through the workbench gets what a user gets, and one
+  // that builds `.tade/` by hand sees it untracked, which is how excluding it
+  // once concealed a broken teardown.
   runGit(root, 'init', '-q', '-b', 'main')
 
   const repo: Repo & { remote: string | null } = {
