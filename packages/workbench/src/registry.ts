@@ -7,6 +7,7 @@ import {
   LaneNotFoundError,
   type LaneScreen,
   type LaneSpec,
+  type WheelTurn,
   type WorkspaceDriver,
 } from '@tade/drivers-core'
 import { PtyDriver } from '@tade/drivers-pty'
@@ -327,10 +328,16 @@ export class LaneRegistry {
     return this.driver.capture(id, { lines, ...(styled ? { styled } : {}) })
   }
 
-  /** How far back that lane can be read, and where typing appears in it. */
+  /** How far back that lane can be read, where typing appears, and whose the scrolling is. */
   async screen(id: LaneId): Promise<LaneScreen> {
     this.requireAlive(id)
     return this.driver.screen(id)
+  }
+
+  /** Turn the wheel over a lane, for a program that scrolls itself. */
+  async wheel(id: LaneId, turn: WheelTurn): Promise<void> {
+    this.requireAlive(id)
+    await this.driver.wheel(id, turn)
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

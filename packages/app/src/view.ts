@@ -13,6 +13,7 @@ import {
   type Runtime,
   taskOrigin,
 } from '@tade/core'
+import type { LaneScrolling } from '@tade/drivers-core'
 import { type FileEntry, folderMark } from './files.ts'
 import { type Hit, rowHit, type ScrollArea, sameTarget, shift, type Target } from './hits.ts'
 import { keyCaps } from './keys.ts'
@@ -99,13 +100,20 @@ import {
 export type { Drawn } from './ui.ts'
 
 /**
- * What a lane's screen is like around its text: how many lines it holds, and
- * where what you type lands — counted back from the last line captured, as the
- * driver reports it.
+ * What a lane's screen is like around its text: how many lines it holds,
+ * where what you type lands — counted back from the last line captured, as
+ * the driver reports it — and whose the scrolling is.
  */
 export interface LaneView {
   lines: number
   cursor: { back: number; column: number }
+  /**
+   * Who the wheel over it belongs to, as the driver found the program in it
+   * has left its screen. Absent where nothing has said yet, which reads as
+   * the window's, because that is what every lane was until one said
+   * otherwise.
+   */
+  scrolling?: LaneScrolling
 }
 
 /** A row an extension keeps in the sidebar, as the window draws it. */

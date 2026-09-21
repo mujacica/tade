@@ -406,7 +406,10 @@ const HELP = 'tab moves · / lists commands · ctrl+space talks · ctrl+c quits'
 function same(a: LaneView | null, b: LaneView | null): boolean {
   if (!a || !b) return a === b
   return (
-    a.lines === b.lines && a.cursor.back === b.cursor.back && a.cursor.column === b.cursor.column
+    a.lines === b.lines &&
+    a.cursor.back === b.cursor.back &&
+    a.cursor.column === b.cursor.column &&
+    a.scrolling === b.scrolling
   )
 }
 
@@ -457,6 +460,12 @@ export type PointerEvent =
       shift: boolean
       reach: Reach
       sideways: Reach
+      /**
+       * Where the pointer is inside the region, zero-based from its top left.
+       * Only a lane that answers the wheel itself needs it: a program with
+       * more than one region in it scrolls the one under the pointer.
+       */
+      at: { column: number; row: number }
     }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
@@ -706,8 +715,14 @@ class Window implements Component {
         })
         return { handled: true }
       case 'wheel': {
+        // Swallowed wherever it lands, even over a corner of the window that
+        // scrolls nothing. Tade draws exactly one screen and never scrolls
+        // one, so a notch handed back is a notch the terminal library moves
+        // its own viewport by — the whole window sliding, the line you type
+        // on with it. The keys that did this are already taken back
+        // (`freeViewportKeys`); the wheel is the one that was left.
         const area = scrollAt(this.hits, event.x, event.y)
-        if (!area || !event.wheelDelta) return undefined
+        if (!area || !event.wheelDelta) return { handled: true, render: false }
         // How far a notch goes is the wheel's to say: what the terminal
         // counted, at a few rows each when they arrive apart and a row each
         // when they arrive in a run. Three rows for every notch of a flick is
@@ -715,6 +730,8 @@ class Window implements Component {
         // Shift turns the wheel sideways, as it does everywhere else.
         const rows = this.wheel.rows(area, event.wheelDelta, this.clock())
         if (rows === 0) return { handled: true, render: false }
+        const region = extentOf(this.hits, { kind: 'scroll', area })
+        const across = extentOf(this.hits, { kind: 'scroll', area }, true)
         return {
           handled: true,
           render: this.onPointer({
@@ -724,6 +741,7 @@ class Window implements Component {
             shift: event.shift,
             reach: reachOf(this.hits, area),
             sideways: reachOf(this.hits, area, true),
+            at: { column: event.x - across.top, row: event.y - region.top },
           }),
         }
       }
@@ -1646,6 +1664,12 @@ export class App {
         // An open panel is in front of everything: the wheel beside it moves
         // nothing behind it, however much of the window is still drawn there.
         if (panel && event.area !== 'panel' && event.area !== 'panel-side') return false
+        // A lane whose program took the whole screen keeps no scrollback for
+        // the window to move, and the ones that do it ask for the mouse so
+        // they can answer the wheel themselves. So it gets the wheel, and
+        // scrolls its own conversation. Nothing here changes: what it does
+        // with it is read back on the next look, like everything else it draws.
+        if (this.turnedInLane(event)) return false
         // Everywhere else: the one move, clamped to what the last frame said
         // the region actually is. Nothing is laid out again to find that out.
         const moved = scrollBy(this.state, event.area, event.rows, event.reach)
@@ -5263,6 +5287,39 @@ export class App {
     const read = { lane, lines, at: Math.max(at, lines.length), asked }
     this.held.set(area, read)
     return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
+  }
+
+  /**
+   * A wheel that is the lane's to answer rather than the window's: turned in
+   * it, and true when it was.
+   *
+   * Which it is comes from the lane, never from which harness is in it: a
+   * shell with an editor open in it is the same situation as an agent that
+   * draws its own conversation, and only the lane's own screen knows. The
+   * driver was asked on the last look (`scrolling`), so this costs nothing.
+   *
+   * `nobody` — a program that took the screen and does not want the mouse —
+   * is still the lane's, and still true: there is nothing to scroll and
+   * moving something else instead would be worse than doing nothing.
+   */
+  private turnedInLane(event: Extract<PointerEvent, { kind: 'wheel' }>): boolean {
+    if (event.area !== 'pane' && event.area !== 'terminal') return false
+    const view = event.area === 'pane' ? this.paneView : this.terminalView
+    if (!view || view.scrolling === undefined || view.scrolling === 'window') return false
+    const lane = event.area === 'pane' ? this.paneLane() : (activeTerminal(this.state)?.id ?? null)
+    if (view.scrolling === 'lane' && lane) {
+      void this.live?.wheel(lane, { rows: event.rows, ...event.at })
+      // What it drew in answer is a change to its screen, which the next look
+      // reads as it reads every other: sooner, because somebody is watching.
+      this.soonTick()
+    }
+    return true
+  }
+
+  /** The lane the agent's pane is showing, if it is showing one. */
+  private paneLane(): string | null {
+    const pane = this.state.panes.find((one) => one.task === this.state.focused)
+    return pane ? laneShown(this.state, pane) : null
   }
 
   /**

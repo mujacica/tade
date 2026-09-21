@@ -48,6 +48,15 @@ export interface WorkspaceCapabilities {
   setTitle: boolean
   /** Can discover lanes it did not create. */
   adopt: boolean
+  /**
+   * Can hand a lane what the pointer did, for a program that asked for it.
+   *
+   * A program that takes the whole screen keeps no scrollback for anybody
+   * else to move, and the ones that do it ask for the mouse so they can
+   * answer the wheel themselves. Without this, such a lane cannot be
+   * scrolled at all and has to say so.
+   */
+  pointer: boolean
 }
 
 export interface AdoptHint {
@@ -69,10 +78,26 @@ export interface CaptureOptions {
 }
 
 /**
+ * Who moves what a lane shows, which is the program in it to decide and
+ * nobody else's to guess.
+ *
+ * - `window`: it prints and the lane keeps what it printed, so the wheel
+ *   moves the lines a window holds. Every shell, and every agent that prints
+ *   its conversation.
+ * - `lane`: it took the whole screen for itself and asked for the mouse.
+ *   There is no scrollback to move — what scrolled off was never kept — and
+ *   the wheel is its own to answer, so it is handed one.
+ * - `nobody`: it took the screen and did not ask for the mouse. Nothing can
+ *   scroll it, and saying that is worth more than a wheel that does nothing.
+ */
+export type LaneScrolling = 'window' | 'lane' | 'nobody'
+
+/**
  * What a lane's screen is like around the text `capture` returns: how far back
- * it can be read, and where what you type lands. Neither can be read out of the
- * text itself, and both are what a window needs to draw a scrollbar that says
- * where you are and a cursor that says where you are typing.
+ * it can be read, where what you type lands, and whose the scrolling is.
+ * None can be read out of the text itself, and they are what a window needs to
+ * draw a scrollbar that says where you are, a cursor that says where you are
+ * typing, and a wheel that moves what the person meant to move.
  */
 export interface LaneScreen {
   /** Lines the screen and everything kept above it hold together: the most `capture` can return. */
@@ -84,6 +109,23 @@ export interface LaneScreen {
    * program that has just printed a line leaves it.
    */
   cursor: { back: number; column: number }
+  /** Whose the scrolling is, as the program in the lane has left it. */
+  scrolling: LaneScrolling
+}
+
+/**
+ * A turn of the wheel over a lane: how far, and where the pointer was.
+ *
+ * `rows` is signed — negative is up, towards what was printed earlier — and
+ * counted in rows rather than detents, so a lane scrolling itself moves as far
+ * as a lane the window scrolls. `column` and `row` are zero-based cells of the
+ * lane's own screen, because a program with more than one region in it answers
+ * the wheel differently depending on which one the pointer is over.
+ */
+export interface WheelTurn {
+  rows: number
+  column: number
+  row: number
 }
 
 export type LaneOutputListener = (chunk: Uint8Array) => void
@@ -114,8 +156,16 @@ export interface WorkspaceDriver {
   write(lane: LaneId, data: Uint8Array): Promise<void>
   /** A rendered snapshot of the screen, not a soup of escape sequences. */
   capture(lane: LaneId, opts: CaptureOptions): Promise<string>
-  /** How far back that snapshot can go, and where typing appears in it. */
+  /** How far back that snapshot can go, where typing appears in it, and whose the scrolling is. */
   screen(lane: LaneId): Promise<LaneScreen>
+  /**
+   * Turn the wheel over a lane, for a program that asked for the mouse.
+   *
+   * Only ever what the program asked for: one that never asked is sent
+   * nothing, because bytes it cannot read are bytes typed into it. Throws
+   * `UnsupportedCapabilityError` where `capabilities.pointer` is false.
+   */
+  wheel(lane: LaneId, turn: WheelTurn): Promise<void>
   resize(lane: LaneId, cols: number, rows: number): Promise<void>
   focus(lane: LaneId): Promise<void>
   setTitle(lane: LaneId, title: string): Promise<void>

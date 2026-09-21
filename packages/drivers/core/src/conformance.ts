@@ -112,7 +112,15 @@ export function testWorkspaceDriver(
 
     it('declares an id and a full capability set', () => {
       expect(driver.id).toBeTruthy()
-      for (const key of ['detach', 'remoteAttach', 'nativeTabs', 'focus', 'setTitle', 'adopt']) {
+      for (const key of [
+        'detach',
+        'remoteAttach',
+        'nativeTabs',
+        'focus',
+        'setTitle',
+        'adopt',
+        'pointer',
+      ]) {
         expect(typeof driver.capabilities[key as 'focus']).toBe('boolean')
       }
     })
@@ -518,6 +526,59 @@ export function testWorkspaceDriver(
       await until(async () => (await driver.screen(s.id)).cursor.back === 0)
       const typing = await driver.screen(s.id)
       expect(typing.cursor).toEqual({ back: 0, column: 2 })
+    })
+
+    // Who scrolls a lane is the program in it to decide, and the only way to
+    // know is to ask the lane: a window that guessed from what it launched
+    // would be wrong the moment somebody opened an editor in a shell.
+    it('says whose the scrolling is, and it is the window until a program says otherwise', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      // A program that prints keeps what it printed: those lines are the
+      // window's to move.
+      expect((await driver.screen(s.id)).scrolling).toBe('window')
+
+      // One that takes the whole screen and asks for the mouse keeps nothing
+      // above it, and answers the wheel itself.
+      await driver.write(s.id, line('screen'))
+      await waitFor(s.id, 'own screen')
+      await until(async () => (await driver.screen(s.id)).scrolling === 'lane')
+    })
+
+    it('a program that took the screen and wants no mouse is nobody to scroll', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('quiet'))
+      await waitFor(s.id, 'own screen, no mouse')
+      await until(async () => (await driver.screen(s.id)).scrolling === 'nobody')
+    })
+
+    // The whole point of knowing whose the scrolling is: handing it over.
+    it('turns the wheel in a lane that asked for the mouse, and in no other', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      if (!driver.capabilities.pointer) {
+        await expect(driver.wheel(s.id, { rows: -1, column: 4, row: 2 })).rejects.toThrow()
+        return
+      }
+      // Nothing at all to a program that never asked: what it cannot read as
+      // a pointer it reads as somebody typing at it.
+      await driver.wheel(s.id, { rows: -1, column: 4, row: 2 })
+      await driver.write(s.id, line('mark'))
+      await waitFor(s.id, 'got:mark')
+      expect(await capture(s.id)).not.toContain('saw:<')
+
+      await driver.write(s.id, line('screen'))
+      await waitFor(s.id, 'own screen')
+      // Three rows is three reports: a report says the wheel moved, never how
+      // far, so how far is said by how many.
+      await driver.wheel(s.id, { rows: -3, column: 4, row: 2 })
+      await until(async () => (await capture(s.id)).split('saw:<').length - 1 === 3)
+      // Zero-based here, one-based on the wire, and up is the first button.
+      expect(await capture(s.id)).toContain('saw:<64;5;3M')
     })
 
     // Closing Tade and opening it again is the ordinary case, not the

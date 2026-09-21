@@ -52,7 +52,16 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   on the empty rows below that line, which is where a program that just printed a line leaves it).
   Measure both exactly the way your own `capture` measures, or the window draws a scrollbar and a
   block cursor in the wrong places. The suite checks that a capture asked for more lines than there
-  are returns exactly `lines` of them.
+  are returns exactly `lines` of them. It also says **whose the scrolling is** (`scrolling`): a
+  program on the alternate screen keeps no scrollback for the window to move, so it is `lane` when
+  it also asked for the mouse and `nobody` when it did not, and `window` for everything that
+  prints. Read it off the lane, never off what the lane was launched with — a shell becomes an
+  editor the moment somebody types one.
+- **`wheel()` hands a notch to a program that asked for the mouse**, and `capabilities.pointer`
+  says whether you can. Encode with `wheelBytes` rather than by hand, and send nothing at all to a
+  program that never asked: bytes it cannot read as a pointer are characters typed into it. Your
+  backend has to be able to say which encoding was asked for (tmux `#{mouse_sgr_flag}`; the pty
+  driver watches the mode go past in the output), because the two are not interchangeable.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver

@@ -263,6 +263,21 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   alone is a detent and moves `NOTCH` rows, one inside a run is a line of a drag and moves the
   lines the terminal already counted. A terminal grid moves by whole cells and that is the
   ceiling: even, in step and predictable, never sub-cell.
+- **A lane that took the whole screen scrolls itself, and the wheel is handed to it.** A program
+  on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no scrollback for
+  anybody else to move: the lines that went past were never kept, so a window scrolling it has
+  nothing to scroll, which is why turning the wheel over one did nothing at all and drew a bar with
+  no thumb on it. Whose it is, is the lane's own to say and never the harness's: the driver reports
+  it per lane (`LaneScreen.scrolling` — `window`, `lane`, `nobody`), because a shell with `vim`
+  open in it is the same situation as an agent that draws its own conversation, and a window that
+  guessed from what it launched would be wrong the moment somebody opened one. `lane` means it
+  also asked for the mouse, so the notch goes to it (`wheel` on the driver, behind
+  `capabilities.pointer`) and it scrolls its own conversation; `nobody` means it took the screen
+  and wants no mouse, and then nothing moves, honestly. The bytes are the program's own encoding
+  and never a guess (`wheelBytes`): a report in the wrong one is not a scroll that misses, it is
+  characters typed into it. And the wheel is swallowed wherever it lands, scrollable or not —
+  Tade draws exactly one screen and never scrolls one, so a notch handed back is the terminal
+  library moving a viewport of its own, which is the window sliding under you.
 - **A lane's screen is read once and cut, not read again per notch.** A capture costs what it asks
   for, so reading `rows + scroll` lines back on every look cost a millisecond per two hundred
   lines scrolled, four times a second, for lines that had not changed since the agent printed

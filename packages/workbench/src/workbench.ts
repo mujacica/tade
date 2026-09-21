@@ -40,7 +40,12 @@ import {
   type Unsubscribe,
   writeSetting,
 } from '@tade/core'
-import type { LaneScreen, WorkspaceCapabilities, WorkspaceDriver } from '@tade/drivers-core'
+import type {
+  LaneScreen,
+  WheelTurn,
+  WorkspaceCapabilities,
+  WorkspaceDriver,
+} from '@tade/drivers-core'
 import {
   type HarnessAccount,
   type HarnessModel,
@@ -732,9 +737,14 @@ export class Workbench {
     return this.registry.capture(lane, lines, styled)
   }
 
-  /** How far back that screen can be read, and where typing appears in it. */
+  /** How far back that screen can be read, where typing appears, and whose the scrolling is. */
   screen(lane: LaneId): Promise<LaneScreen> {
     return this.registry.screen(lane)
+  }
+
+  /** Turn the wheel over a lane whose program scrolls itself. */
+  wheel(lane: LaneId, turn: WheelTurn): Promise<void> {
+    return this.registry.wheel(lane, turn)
   }
 
   resize(lane: LaneId, cols: number, rows: number): Promise<void> {

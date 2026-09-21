@@ -4,6 +4,10 @@
 process.stdin.setEncoding('utf8')
 if (process.stdin.isTTY) process.stdin.setRawMode(true)
 
+// Built from a character code: an escape written into a regular expression is
+// usually somebody's mistake, and lint says so.
+const POINTER_REPORT = new RegExp(`${String.fromCharCode(27)}\\[<(\\d+;\\d+;\\d+[Mm])`, 'g')
+
 let buffer = ''
 process.stdout.write(`ready ${process.stdout.columns}x${process.stdout.rows}\r\n`)
 
@@ -13,6 +17,13 @@ process.stdout.on('resize', () => {
 
 process.stdin.on('data', (chunk) => {
   buffer += chunk
+  // A pointer report has no newline in it, so it would never complete a line
+  // and would sit in the buffer for ever. It is answered on its own, with the
+  // escape written out so that a capture can show it was received at all.
+  buffer = buffer.replace(POINTER_REPORT, (_all, rest) => {
+    process.stdout.write(`saw:<${rest}\r\n`)
+    return ''
+  })
   let i = buffer.indexOf('\r')
   let j = buffer.indexOf('\n')
   while (i >= 0 || j >= 0) {
@@ -22,6 +33,17 @@ process.stdin.on('data', (chunk) => {
     if (line === 'exit') process.exit(0)
     // Colour, for checking that a styled capture keeps it and a plain one does not.
     if (line === 'paint') process.stdout.write('\x1b[38;5;196mred\x1b[0m \x1b[1mbold\x1b[0m\r\n')
+    // Take the whole screen and ask for the mouse, the way a program that
+    // draws its own interface does: no scrollback for anybody else to move,
+    // and the wheel its own to answer.
+    if (line === 'screen') {
+      process.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h')
+      process.stdout.write('\x1b[2J\x1b[Hown screen\r\n')
+    }
+    // The same, without asking for the mouse: nobody can scroll this at all.
+    if (line === 'quiet') {
+      process.stdout.write('\x1b[?1049h\x1b[2J\x1b[Hown screen, no mouse\r\n')
+    }
     // Two painted blocks with plain spaces between them: what a row of
     // buttons is, and where a capture that carries paint across the gap
     // shows up as a band of colour nobody drew.

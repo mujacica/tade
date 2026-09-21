@@ -10,10 +10,14 @@ import {
   LaneNotFoundError,
   type LaneOutputListener,
   type LaneScreen,
+  type LaneScrolling,
   type LaneSpec,
   UnsupportedCapabilityError,
+  type WheelEncoding,
+  type WheelTurn,
   type WorkspaceCapabilities,
   type WorkspaceDriver,
+  wheelBytes,
 } from '@tade/drivers-core'
 import { type IPty, spawn } from 'node-pty'
 
@@ -49,6 +53,23 @@ interface Lane {
   replay: Buffer[]
   replayBytes: number
   closed: boolean
+  /**
+   * How the program in it asked to be told about the pointer.
+   *
+   * The emulator says whether it asked at all (`mouseTrackingMode`) but not
+   * in which of the two encodings it wants the answer, so that one mode is
+   * read off the stream on its way past. Reading it here rather than through
+   * the emulator's insides is the difference between a fact and a guess that
+   * survives until the emulator is upgraded.
+   */
+  encoding: WheelEncoding
+  /**
+   * The tail of the last chunk, so a sequence cut in half by where the read
+   * happened to end is still read. Missing one is not a scroll that goes
+   * nowhere: it is a report in the wrong encoding, which is characters typed
+   * into the program.
+   */
+  tail: string
 }
 
 const DEFAULTS = {
@@ -72,6 +93,9 @@ export class PtyDriver implements WorkspaceDriver {
     focus: false,
     setTitle: true,
     adopt: false,
+    // Lanes are real terminals of our own, so a program in one can be told
+    // what the pointer did exactly as the terminal it thinks it is in would.
+    pointer: true,
   }
 
   private readonly lanes = new Map<string, Lane>()
@@ -141,6 +165,8 @@ export class PtyDriver implements WorkspaceDriver {
       replay: [],
       replayBytes: 0,
       closed: false,
+      encoding: 'legacy',
+      tail: '',
     }
     // Only once the new one is running: a launch that fails leaves the old
     // screen where it was, to be read.
@@ -155,6 +181,8 @@ export class PtyDriver implements WorkspaceDriver {
     pty.onData((data) => {
       const buf = Buffer.from(data, 'utf8')
       lane.handle.lastOutputAt = Date.now()
+      lane.encoding = encodingAfter(lane.tail + data, lane.encoding)
+      lane.tail = data.slice(-TAIL)
       term.write(data)
       lane.replay.push(buf)
       lane.replayBytes += buf.byteLength
@@ -209,7 +237,17 @@ export class PtyDriver implements WorkspaceDriver {
     return {
       lines: last + 1,
       cursor: { back: last - (buffer.baseY + buffer.cursorY), column: buffer.cursorX },
+      scrolling: scrollingOf(buffer.type, lane.term.modes.mouseTrackingMode),
     }
+  }
+
+  async wheel(id: LaneId, turn: WheelTurn): Promise<void> {
+    const lane = this.live(id)
+    // Nothing at all to a program that never asked for the mouse: what it
+    // cannot read as a pointer it reads as somebody typing.
+    if (lane.term.modes.mouseTrackingMode === 'none') return
+    const bytes = wheelBytes(turn, lane.encoding)
+    if (bytes.length > 0) await this.write(id, bytes)
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {
@@ -349,6 +387,50 @@ function lastWritten(buffer: import('@xterm/headless').IBuffer, rows: number): n
   while (last >= 0 && (buffer.getLine(last)?.translateToString(true).trim() ?? '') === '') last--
   return last
 }
+
+/**
+ * Whose the scrolling is, from what the program in the lane has done to its
+ * terminal: took the screen for itself, and asked for the mouse or not.
+ *
+ * The alternate screen is what decides, because it is what says there is no
+ * scrollback: a program that prints keeps every line it printed whether or
+ * not it also wants the mouse, and those lines are the window's to move.
+ */
+function scrollingOf(
+  buffer: 'normal' | 'alternate',
+  mouse: import('@xterm/headless').IModes['mouseTrackingMode'],
+): LaneScrolling {
+  if (buffer !== 'alternate') return 'window'
+  return mouse === 'none' ? 'nobody' : 'lane'
+}
+
+/**
+ * Which encoding the program is asking for after this much output, given what
+ * it was asking for before.
+ *
+ * Only the encoding: whether it wants the pointer at all is the emulator's to
+ * say, and it says it. `1006` is the one anything written this decade turns
+ * on, and the one thing here worth reading; a program that turns it off
+ * again is back to the encoding every terminal has always understood.
+ */
+function encodingAfter(data: string, was: WheelEncoding): WheelEncoding {
+  let now = was
+  for (const [, params, set] of data.matchAll(PRIVATE_MODE)) {
+    if ((params ?? '').split(';').includes('1006')) now = set === 'h' ? 'sgr' : 'legacy'
+  }
+  return now
+}
+
+/** How much of a chunk is kept, to read a sequence cut across two of them. */
+const TAIL = 64
+
+/**
+ * A private mode being turned on or off, as a program says it.
+ *
+ * Built from a character code, as everywhere else here: an escape written
+ * into a regular expression is usually somebody's mistake, and lint says so.
+ */
+const PRIVATE_MODE = new RegExp(`${String.fromCharCode(27)}\\[\\?([0-9;]+)([hl])`, 'g')
 
 function safely(fn: () => void): void {
   try {

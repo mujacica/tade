@@ -20,9 +20,13 @@ import {
   LaneNotFoundError,
   type LaneOutputListener,
   type LaneScreen,
+  type LaneScrolling,
   type LaneSpec,
+  type WheelEncoding,
+  type WheelTurn,
   type WorkspaceCapabilities,
   type WorkspaceDriver,
+  wheelBytes,
 } from '@tade/drivers-core'
 
 // execFile, never exec: tmux is invoked with an argument array and no shell.
@@ -113,6 +117,56 @@ const SPEC_OPTION = '@tade-spec'
  */
 const FIELD = '|'
 
+/**
+ * What a pane is like, in one ask: where the cursor is, how tall it is, and
+ * what its program has done to the screen and the mouse.
+ *
+ * One `display-message` for all of it, because every one of these is a
+ * process, and the window asks for a pane four times a second.
+ */
+const PANE_FORMAT =
+  '#{cursor_x} #{cursor_y} #{pane_height} #{alternate_on} ' +
+  '#{mouse_any_flag} #{mouse_button_flag} #{mouse_standard_flag} #{mouse_sgr_flag}'
+
+/** What `PANE_FORMAT` came back with. */
+interface Pane {
+  x: number
+  y: number
+  height: number
+  /** The program took the whole screen for itself, so tmux keeps no history of it. */
+  own: boolean
+  /** It asked for the mouse, in any of the ways there are to ask. */
+  mouse: boolean
+  encoding: WheelEncoding
+}
+
+function readPane(said: string): Pane {
+  const [x = 0, y = 0, height = 0, alternate = 0, any = 0, button = 0, standard = 0, sgr = 0] = said
+    .trim()
+    .split(/\s+/)
+    .map(Number)
+  return {
+    x,
+    y,
+    height,
+    own: alternate === 1,
+    mouse: any === 1 || button === 1 || standard === 1,
+    encoding: sgr === 1 ? 'sgr' : 'legacy',
+  }
+}
+
+/**
+ * Whose the scrolling is, from what the pane's program has done to it.
+ *
+ * The alternate screen is what decides, because it is what says there is no
+ * history: a program that prints keeps every line it printed whether or not
+ * it also wants the mouse, and those lines are the window's to move.
+ */
+function scrollingOf(pane: Pane): LaneScrolling {
+  if (!pane.own) return 'window'
+  return pane.mouse ? 'lane' : 'nobody'
+}
+
 export class TmuxDriver implements WorkspaceDriver {
   readonly id = 'tmux'
   readonly capabilities: WorkspaceCapabilities = {
@@ -125,6 +179,9 @@ export class TmuxDriver implements WorkspaceDriver {
     setTitle: true,
     // The lane id is stored on the window, so they come back exactly.
     adopt: true,
+    // tmux tracks what each pane's program asked of its mouse, and `send-keys`
+    // puts bytes on that pane's input: between them, a pointer report.
+    pointer: true,
   }
   readonly programs: readonly RequiredProgram[] = [
     {
@@ -289,32 +346,46 @@ export class TmuxDriver implements WorkspaceDriver {
   async screen(id: LaneId): Promise<LaneScreen> {
     const lane = this.live(id)
     // Two asks, because tmux answers them apart: how much there is to read,
-    // and where the cursor is on the screen at the bottom of it. The cursor is
+    // and what the pane is like — where the cursor is on the screen at the
+    // bottom of it, and what its program has done to its mouse. The cursor is
     // reported against the last line a capture would end on, so it has to be
     // counted against the same trimming capture does.
     const [text, where] = await Promise.all([
       this.tmux(['capture-pane', '-p', '-t', lane.window, '-S', `-${this.opts.scrollback}`]),
-      this.tmux([
-        'display-message',
-        '-p',
-        '-t',
-        lane.window,
-        '#{cursor_x} #{cursor_y} #{pane_height}',
-      ]),
+      this.tmux(['display-message', '-p', '-t', lane.window, PANE_FORMAT]),
     ])
     const all = text.split('\n')
     // tmux ends its output with a newline; that is not a row of anything.
     if (all.at(-1) === '') all.pop()
     const captured = all.length
     while (all.length > 0 && all.at(-1)?.trim() === '') all.pop()
-    const [x = 0, y = 0, height = 0] = where.trim().split(/\s+/).map(Number)
+    const pane = readPane(where)
+    const scrolling = scrollingOf(pane)
+    const { x, y, height } = pane
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height) || height <= 0) {
-      return { lines: all.length, cursor: { back: 0, column: 0 } }
+      return { lines: all.length, cursor: { back: 0, column: 0 }, scrolling }
     }
     // Where the visible screen starts in what was captured: everything above
     // it is scrollback, and the cursor's row is counted from there.
     const top = captured - height
-    return { lines: all.length, cursor: { back: all.length - 1 - (top + y), column: x } }
+    return {
+      lines: all.length,
+      cursor: { back: all.length - 1 - (top + y), column: x },
+      scrolling,
+    }
+  }
+
+  async wheel(id: LaneId, turn: WheelTurn): Promise<void> {
+    const lane = this.live(id)
+    // Asked again rather than remembered from the last look: a program that
+    // has just let go of the mouse would otherwise be typed at, and what it
+    // wants is one short answer from tmux away.
+    const pane = readPane(
+      await this.tmux(['display-message', '-p', '-t', lane.window, PANE_FORMAT]),
+    )
+    if (!pane.mouse) return
+    const bytes = wheelBytes(turn, pane.encoding)
+    if (bytes.length > 0) await this.write(id, bytes)
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import { ConfigSchema, Secrets } from '@tade/core'
+import { ECHO_CHILD } from '@tade/drivers-core/conformance'
 import { ExtensionHost } from '@tade/extensions-core'
 import { ScriptedRecorder, ScriptedTranscriber } from '@tade/voice-stt'
 import { Speaker } from '@tade/voice-tts'
@@ -955,6 +956,39 @@ describe('the window, wired up', () => {
     terminal.press(`\x1b[<65;10;${shell + 1}M`)
     await until('one notch down moving straight away', () => newest() > top)
   }, 30_000)
+
+  // A program that takes the whole screen keeps no scrollback for the window
+  // to move, and asks for the mouse so it can answer the wheel itself. This
+  // is what Claude Code does, and what scrolling in its pane did nothing at
+  // all before: nothing to move, and nobody sent the notch on.
+  it('hands the wheel to a lane whose program took the screen for itself', async () => {
+    const opened = await client.openTerminal({ project: 'app' })
+    // The driver suite's own child: it can take the screen on command, and
+    // says what pointer reports it was sent.
+    await client.write(opened.id, `${process.execPath} ${ECHO_CHILD}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until('the child running', () =>
+      screenOf(terminal.written).some((row) => row.includes('ready')),
+    )
+
+    await client.write(opened.id, 'screen\r')
+    await until('it to take the screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('own screen')),
+    )
+    const where = screenOf(terminal.written).findIndex((row) => row.includes('own screen'))
+    expect(where).toBeGreaterThan(0)
+
+    // Three notches up over its screen. Nothing here moves — there is no
+    // scrollback to move through — and the program is told, so what it draws
+    // in answer is its own scrolling.
+    for (let i = 0; i < 3; i++) terminal.press(`\x1b[<64;10;${where + 1}M`)
+    await until('the program told about the wheel', () =>
+      screenOf(terminal.written).some((row) => row.includes('saw:<64;')),
+    )
+  }, 20_000)
 
   /** A left click, as a terminal in SGR mouse mode sends it: press, then release. */
   function click(col: number, row: number): void {
