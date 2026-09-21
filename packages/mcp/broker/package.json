@@ -1,0 +1,17 @@
+{
+  "name": "@tade/mcp-broker",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tade/core": "workspace:*",
+    "@tade/extensions-core": "workspace:*",
+    "@tade/mcp-core": "workspace:*",
+    "@tade/mcp-scripted": "workspace:*",
+    "vitest": "^5.0.0"
+  }
+}

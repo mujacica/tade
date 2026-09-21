@@ -735,7 +735,8 @@ export interface ExtensionView {
    * off or broken: it was never imported, so there is nothing to ask.
    */
   workflow: readonly string[]
-  source: 'built-in' | 'yours'
+  /** Tade's own, a folder of yours, or an MCP server somebody turned on. */
+  source: 'built-in' | 'yours' | 'mcp'
   state: 'ready' | 'needs setup' | 'off' | 'broken'
   /** What is wrong, or what to do before it can work. */
   problem: string | null

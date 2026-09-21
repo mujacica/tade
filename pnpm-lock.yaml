@@ -413,6 +413,42 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/mcp/broker:
+    dependencies:
+      '@tade/core':
+        specifier: workspace:*
+        version: link:../../core
+      '@tade/extensions-core':
+        specifier: workspace:*
+        version: link:../../extensions/core
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../core
+      '@tade/mcp-scripted':
+        specifier: workspace:*
+        version: link:../scripted
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/mcp/core:
+    dependencies:
+      '@tade/extensions-core':
+        specifier: workspace:*
+        version: link:../../extensions/core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/mcp/scripted:
+    dependencies:
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@opentelemetry/api@1.9.1)(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/orchestrator:
     dependencies:
       '@tade/core':
@@ -439,12 +475,27 @@ importers:
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../extensions/core
+      '@tade/harnesses-claude':
+        specifier: workspace:*
+        version: link:../harnesses/claude
+      '@tade/harnesses-codex':
+        specifier: workspace:*
+        version: link:../harnesses/codex
       '@tade/harnesses-core':
         specifier: workspace:*
         version: link:../harnesses/core
       '@tade/harnesses-pi':
         specifier: workspace:*
         version: link:../harnesses/pi
+      '@tade/mcp-broker':
+        specifier: workspace:*
+        version: link:../mcp/broker
+      '@tade/mcp-core':
+        specifier: workspace:*
+        version: link:../mcp/core
+      '@tade/mcp-scripted':
+        specifier: workspace:*
+        version: link:../mcp/scripted
       '@tade/workbench':
         specifier: workspace:*
         version: link:../workbench

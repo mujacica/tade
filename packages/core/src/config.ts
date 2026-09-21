@@ -152,6 +152,78 @@ export const ProjectConfigSchema = z.strictObject({
   checks: ChecksConfigSchema.partial().optional(),
 })
 
+/**
+ * One MCP server, as a person declares it.
+ *
+ * Strict, because the schema is the only reader: a typo has to be an error at
+ * `tade config --check` and never a setting silently ignored. What is left
+ * out the catalogue fills in — `packages/mcp/core/src/catalogue.ts` ships the
+ * ones Tade knows about, listed and off — and whether the merged declaration
+ * can actually work is `declared()`'s to say, in words, because the catalogue
+ * is code and the schema cannot see it.
+ */
+const McpServerSchema = z.strictObject({
+  /**
+   * Whether this server is on. Off for every one of them, the popular ones
+   * included: a server is somebody else's code with tools your agents will
+   * call. It connects the next time Tade starts; turning it off is at once.
+   */
+  enabled: z.boolean().optional(),
+  /**
+   * How Tade talks to it: `stdio` starts a program and talks over its pipes,
+   * `http` and `sse` reach one that is already running, here or somewhere else.
+   */
+  transport: z.enum(['stdio', 'http', 'sse']).optional(),
+  /**
+   * The program Tade starts, for a `stdio` server. Tade never installs it:
+   * one that is not there is listed as needing setting up, with the line to run.
+   */
+  command: z.string().min(1).optional(),
+  /** What that program is started with. `${project}` is the project's root. */
+  args: z.array(z.string()).optional(),
+  /** Where an `http` or `sse` server answers. */
+  url: z.string().min(1).optional(),
+  /**
+   * Environment the started program gets. Never a credential: those are kept
+   * where credentials are kept and are never written here.
+   */
+  env: z.record(z.string(), z.string()).optional(),
+  /** Headers sent with every request. Never a credential, for the same reason. */
+  header: z.record(z.string(), z.string()).optional(),
+  /**
+   * How its credential reaches it: as an environment variable of the program
+   * Tade starts, as `Authorization: Bearer`, or as a header you name.
+   */
+  auth: z.enum(['none', 'env', 'bearer', 'header']).optional(),
+  /** The variable or header the credential goes in, for `env` and `header`. */
+  auth_name: z.string().min(1).optional(),
+  /**
+   * The environment variable your key is already in, when it is not the one
+   * Tade looks in. Whatever is set there wins over what you pasted.
+   */
+  key_env: z.string().min(1).optional(),
+  /**
+   * Offer only these of its tools to your agents, by the name Tade gives
+   * them. Empty offers all — which is what a server you trust gets and one
+   * you are trying does not.
+   */
+  tools: z.array(z.string()).optional(),
+  /**
+   * One of it for this window, or one per project, started in that project's
+   * own directory. Never one per agent: that is a process per agent, and a
+   * third party's handle on a worktree Tade's gate cannot see into.
+   */
+  scope: z.enum(['window', 'project']).optional(),
+  /**
+   * What the started program may write to. `none` means everything you can;
+   * the others hold it to a scratch directory of its own. Asked for and
+   * unavailable, the server is listed broken rather than started loose.
+   */
+  sandbox: z.enum(['none', 'seatbelt', 'bwrap']).optional(),
+  /** What you turned it on for, in a line. The popular ones come with their own words. */
+  about: z.string().optional(),
+})
+
 /** Whether a pattern compiles, so a typo is caught at `--check` time. */
 function isPattern(source: string): boolean {
   try {
@@ -424,6 +496,25 @@ export const ConfigSchema = z
     /** When a project's own checks run, and what a red one does. */
     checks: ChecksConfigSchema.prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),
+    /**
+     * The MCP servers this machine is set up to reach, by name. One that
+     * somebody turns on becomes an extension whose tools are that server's
+     * tools, and every harness and the orchestrator are handed those the way
+     * they are already handed Tade's own — so there is one table, one
+     * namespace and one gate, and no harness is given a config of its own.
+     *
+     * Everything here is off until a person says otherwise, the ones the
+     * catalogue ships included: a server is somebody else's code with tools
+     * your agents will call, and an agent or the orchestrator may propose one
+     * but never turn one on.
+     */
+    mcp: z
+      .strictObject({
+        servers: z
+          .record(z.string().regex(/^[a-z0-9][a-z0-9-]{0,15}$/), McpServerSchema)
+          .default({}),
+      })
+      .prefault({}),
     /**
      * Settings for each extension, by its name. Which keys mean something is
      * the extension's to say, so they are checked against what it declares

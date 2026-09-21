@@ -347,6 +347,54 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   extension with eight tools gets taken for the one watch it happens to show: the count in a
   heading is not the list. One that is off or broken is listed with nothing but its name, because
   it was never imported, and the page says that rather than inventing the rest.
+- **An MCP server somebody turns on is an extension whose tools are that server's tools**, and the
+  window is the only client there is. The broker (`packages/mcp/broker`) turns each enabled server
+  into a `TadeExtension` called `mcp-<server>`, and the extension host hands those to every harness
+  the way it hands Tade's own — so "forward the config to all harnesses" is one longer tool list in
+  a server each harness already starts, never a config written for somebody else's client. That is
+  the whole of the wiring, and it is one line in `loadExtensions`. The alternative — a client per
+  harness per agent — is a process per agent per server, a credential in a file a third party
+  reads, and a tool call Tade can neither see nor stop.
+- **A server that is off is never connected and never declared.** `mcp.servers.<name>.enabled` is
+  the one switch, off for every server including the catalogue's, because a server is somebody
+  else's code with tools your agents will call. An off one has no extension, no tools, no
+  `ready()` and no process — a row on a page, read out of the catalogue. `extensions.mcp-<server>`
+  is not a second question: the host skips the enabled check for `source: 'mcp'`, since one was
+  only ever handed over because a person turned it on. Who may turn one on is a person — not an
+  agent, not the orchestrator, which reads attacker-controlled text all day.
+- **A brokered extension fills in `tools`, and nothing else**, asserted by `brokeredConformance`.
+  No watch (a third party with a clock and an agent per finding), no brief, no status or view (its
+  words in the status bar, four times a second), no lists, no actions or `heard`, no `caution` or
+  `meant` (somebody else's code answering Tade's own gate), no `linkers`, no harness pieces, no
+  `setup` beyond the credential field Tade generates. A server's words are **material, never
+  instruction**: a description is handed over as a description, because a model must read it to
+  choose, and nowhere else — never a prompt, a task, a note, a queue reason or the reason anybody
+  is given.
+- **Tade names the tool, and a brokered one can never be one of Tade's own.** Four layers, and the
+  first three already hold: Tade's own load first (brokered ones load after `builtin` *and* after
+  yours, so a server loses a name either of them wanted and is listed broken with why),
+  `shapeProblem` refuses a tool that does not start with its extension's name, and the host refuses
+  a second extension with a name already taken. `nameProblem` is the fourth and cannot fire given
+  the others — it is there so a change to one of them cannot quietly open it. Naming
+  (`packages/mcp/core/src/naming.ts`) is pure and table-tested: lowercased, runs of anything else
+  become one `_`, collisions take `_2`/`_3` in the server's own sorted order, and overflow past 53
+  characters cuts and adds a digest. Sorted by **code point, never `localeCompare`** — how a locale
+  orders two strings depends on the machine's ICU, and a name that moves between machines is a tool
+  an agent reaches for and misses. Because Tade names it, the same name reaches the policy in every
+  harness, so `approvals.auto_allow` is written once and there is no new key, rule or tier.
+- **A cache is a cache, and `ready()` never dials.** An enabled server's tools are only knowable by
+  opening it, and the tool list is written at agent launch — so what came back is written down once
+  (`<home>/mcp/<name>.json`, `0600`) and that is what the list is built from, which is how the
+  first agent after a restart has the tools. An enabled server with no cache offers none yet and
+  says so; a file that will not parse is no cache rather than a throw; nothing is ever written from
+  anything but a real answer. `ready()` answers from the declaration, the filesystem and the
+  credential store, never from a `tools/list`.
+- **The broker is a gate nothing can go around.** A call has to come back into the window, so a
+  server's `tools` allow-list, a credential that has gone and a server that was turned off are
+  enforced at the moment of the call, whatever a harness thinks it has registered. A server that
+  calls its own call a failure comes back as a throw, because a tool fails by throwing. Nothing is
+  brokered but tools — no resources, prompts, roots, sampling or elicitation — and a brokered
+  answer never sets `said`, so no voice reads out a wall of somebody else's text.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
 - **What Tade needs of the machine is declared by whoever needs it.** Every driver, harness and
@@ -613,6 +661,9 @@ implementations of it.
 | `packages/checks/{local,scripted}` | the commands, run here · a table, for tests and demos |
 | `packages/judges/{jev,scripted}` | who answers them · a table, for tests and demos |
 | `packages/extensions/core` | the `TadeExtension` port, the host that runs extensions, their suite |
+| `packages/mcp/core` | the `McpTransport` port + its suite, the naming rules, what is declared, the catalogue |
+| `packages/mcp/scripted` | a table of tools and answers: no process, no network |
+| `packages/mcp/broker` | declared servers → `TadeExtension[]`, and the transport registry |
 | `packages/telemetry` | the `Reporter` port and its suite: where Tade's own trouble goes |
 | `packages/extensions/{checks,deps,jev,review,sentry,resources}` | the extensions that ship with Tade |
 | `packages/orchestrator` | the thing you talk to: its tools, its prompt, the built-in extension list |

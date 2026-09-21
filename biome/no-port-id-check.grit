@@ -11,6 +11,6 @@ or {
   `$_ !== $obj.id`
 } where {
   // No capture groups: Grit binds each group to a variable.
-  $obj <: r".*[Dd]river.*|.*[Aa]dapter.*|.*[Ss]urface.*|.*[Ss]tore.*|.*[Ee]ngine.*|.*[Ww]orker.*",
+  $obj <: r".*[Dd]river.*|.*[Aa]dapter.*|.*[Ss]urface.*|.*[Ss]tore.*|.*[Ee]ngine.*|.*[Ww]orker.*|.*[Tt]ransport.*",
   register_diagnostic(span=$obj, message="R3: branch on the port's declared capabilities, never on its id.")
 }

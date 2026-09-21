@@ -41,6 +41,14 @@ describe('R3 lint rule', () => {
     ).toContain('R3')
   })
 
+  it('rejects branching on a transport id', () => {
+    // What a transport can do here is `capabilities.spawns`, never whether it
+    // happens to be called `stdio`.
+    expect(
+      lint("export const f = (transport: { id: string }) => transport.id === 'stdio'\n"),
+    ).toContain('R3')
+  })
+
   it('allows branching on capabilities', () => {
     expect(
       lint(

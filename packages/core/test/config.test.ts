@@ -116,6 +116,47 @@ projects:
     expect(r.issues[0]?.path).toBe('projects.checkout.max_parallel')
   })
 
+  it('has no MCP server in it until somebody writes one', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.mcp.servers).toEqual({})
+  })
+
+  it('takes a server that is written out, and one that leans on the catalogue', () => {
+    const r = parseConfig(
+      'mcp:\n  servers:\n    linear:\n      enabled: true\n      transport: stdio\n      command: linear-mcp\n      args: ["--stdio"]\n      auth: env\n      auth_name: LINEAR_API_KEY\n      tools: [mcp_linear_search]\n      scope: window\n    sentry: {}\n',
+    )
+    expect(r.ok && r.config.mcp.servers.linear).toEqual({
+      enabled: true,
+      transport: 'stdio',
+      command: 'linear-mcp',
+      args: ['--stdio'],
+      auth: 'env',
+      auth_name: 'LINEAR_API_KEY',
+      tools: ['mcp_linear_search'],
+      scope: 'window',
+    })
+    // Nothing said about it: the catalogue fills it in, and it is still off.
+    expect(r.ok && r.config.mcp.servers.sentry).toEqual({})
+  })
+
+  it('names a typo inside a server, rather than keeping a setting nothing reads', () => {
+    const r = parseConfig('mcp:\n  servers:\n    linear:\n      transprt: stdio\n')
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.issues[0]?.path).toBe('mcp.servers.linear.transprt')
+  })
+
+  it('refuses a transport and a name it has no meaning for', () => {
+    const transport = parseConfig(
+      'mcp:\n  servers:\n    linear:\n      transport: carrier-pigeon\n',
+    )
+    expect(!transport.ok && transport.issues[0]?.path).toBe('mcp.servers.linear.transport')
+    // A server's name has to leave room for its tools' names, and be the
+    // letters every harness can take.
+    const named = parseConfig('mcp:\n  servers:\n    A_Very_Long_Server:\n      transport: stdio\n')
+    expect(named.ok).toBe(false)
+  })
+
   it('reports unparseable YAML as a file-level issue', () => {
     const r = parseConfig('workspace: [unclosed\n')
     expect(r.ok).toBe(false)

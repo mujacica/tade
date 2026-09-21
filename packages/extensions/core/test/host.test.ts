@@ -229,6 +229,95 @@ describe('loading extensions', () => {
   })
 })
 
+describe('an extension an MCP server was brokered into', () => {
+  const server = (name = 'mcp-linear'): TadeExtension => ({
+    name,
+    title: 'Linear',
+    description: 'Issues in Linear.',
+    tools: [
+      {
+        name: `${name.replace(/-/g, '_')}_search`,
+        description: 'Search issues.',
+        parameters: object({}),
+        for: ['agent', 'orchestrator'],
+        run: async () => ({ text: 'two issues' }),
+      },
+    ],
+  })
+
+  it('needs no second switch: turning its server on is the one there is', async () => {
+    // `extensions.mcp-<server>.*` is not a place to put anything. An
+    // extension of yours with nothing said about it is off; this one is on,
+    // because it was only ever handed over because a person turned it on.
+    const loaded = await ExtensionHost.load({
+      brokered: [server()],
+      config: { extensions: {}, projects },
+      home: '/home',
+    })
+    expect(loaded.list()[0]).toMatchObject({ name: 'mcp-linear', source: 'mcp', state: 'ready' })
+    expect(loaded.specs('agent').map((spec) => spec.name)).toEqual(['mcp_linear_search'])
+  })
+
+  it('loads after Tade’s own and after yours, so a server can never take their name', async () => {
+    const root = tmp('tade-ext-')
+    const mine = join(root, 'mcp-linear')
+    mkdirSync(mine, { recursive: true })
+    writeFileSync(
+      join(mine, 'extension.ts'),
+      `export default {
+        name: 'mcp-linear', title: 'Mine', description: 'Mine, not the server’s.',
+        tools: [{ name: 'mcp_linear_mine', description: 'Mine.', parameters: { type: 'object', properties: {} }, for: ['agent'], run: async () => ({ text: 'mine' }) }],
+      }\n`,
+    )
+    const loaded = await ExtensionHost.load({
+      builtin: [weather()],
+      brokered: [server()],
+      root,
+      config: {
+        extensions: { weather: { city: 'Vienna' }, 'mcp-linear': { enabled: true } },
+        projects,
+      },
+      home: '/home',
+    })
+    expect(loaded.list().map((one) => [one.name, one.source, one.state])).toEqual([
+      ['weather', 'built-in', 'ready'],
+      ['mcp-linear', 'yours', 'ready'],
+      ['mcp-linear', 'mcp', 'broken'],
+    ])
+    // The server loses the name and is listed as broken with why; what was
+    // already there goes on working.
+    const lost = loaded.list().find((one) => one.source === 'mcp')
+    expect(lost?.problem).toBe('another extension is already called mcp-linear')
+    expect(loaded.specs('agent').map((spec) => spec.name)).toEqual([
+      'weather_now',
+      'mcp_linear_mine',
+    ])
+  })
+
+  it('is refused outright when what it offers is not shaped like a tool', async () => {
+    const loaded = await ExtensionHost.load({
+      brokered: [
+        {
+          ...server(),
+          tools: [
+            {
+              name: 'search',
+              description: 'Named as one of Tade’s own would be.',
+              parameters: object({}),
+              for: ['agent'],
+              run: async () => ({ text: '' }),
+            },
+          ],
+        },
+      ],
+      config: { extensions: {}, projects },
+      home: '/home',
+    })
+    expect(loaded.list()[0]?.state).toBe('broken')
+    expect(loaded.specs('agent')).toEqual([])
+  })
+})
+
 describe('running a tool', () => {
   it('answers with its links written out, and reports how it went as it goes', async () => {
     const loaded = await host()

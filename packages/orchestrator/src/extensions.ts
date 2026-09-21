@@ -35,6 +35,7 @@ import {
   type TadeExtension,
 } from '@tade/extensions-core'
 import type { WorkerExtras } from '@tade/harnesses-core'
+import { type Brokered, brokered } from '@tade/mcp-broker'
 import { branchSlug, type Workbench, type WorkbenchExtensions } from '@tade/workbench'
 
 // Finding the tools Tade wrote for itself. The rules about which files count
@@ -209,6 +210,12 @@ export async function loadExtensions(opts: {
   configPath?: string
   /** Where pasted credentials are kept; this home's own unless given. */
   secrets?: Secrets
+  /**
+   * The MCP servers, already brokered, for whoever has to end their sessions.
+   * One is made from the config when nothing is handed in, so every surface
+   * that loads extensions gets the servers a person turned on.
+   */
+  mcp?: Brokered
 }): Promise<ExtensionHost> {
   const root = expandHome(opts.config.orchestrator.extensions)
   // What the move turned on is read back before anything loads: an extension
@@ -221,8 +228,21 @@ export async function loadExtensions(opts: {
           () => opts.config.extensions,
         )
       : opts.config.extensions
+  // The whole of the wiring. An MCP server somebody turned on is an extension
+  // whose tools are that server's tools, and every harness and the
+  // orchestrator are already handed extensions' tools in their own terms — so
+  // this one line reaches pi, Claude Code, Codex and the thing you talk to,
+  // without a single adapter knowing MCP exists.
+  const mcp =
+    opts.mcp ??
+    brokered({
+      servers: opts.config.mcp.servers,
+      home: opts.home,
+      ...(opts.safe ? { safe: true } : {}),
+    })
   return ExtensionHost.load({
     builtin: BUILTIN_EXTENSIONS,
+    brokered: mcp.extensions,
     root,
     ...(opts.safe ? { safe: true } : {}),
     config: { extensions: settings, projects: opts.config.projects },

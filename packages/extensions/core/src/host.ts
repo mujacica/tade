@@ -51,7 +51,14 @@ export interface LoadedExtension {
    * which is never imported and so has nothing to say beyond its name.
    */
   workflow: readonly string[]
-  source: 'built-in' | 'yours'
+  /**
+   * Where it came from: Tade's own, a folder of yours, or an MCP server
+   * somebody turned on. `mcp` is not a third kind of extension — it is one
+   * produced from a server declaration, and the difference that matters is
+   * that it was only ever handed over because it is already on, so there is
+   * no second switch under `extensions.<name>` to ask about.
+   */
+  source: 'built-in' | 'yours' | 'mcp'
   /** Its folder, where it has one. */
   path: string | null
   state: ExtensionState
@@ -118,6 +125,14 @@ export interface ExtensionRun {
 
 export interface HostOptions {
   builtin?: readonly TadeExtension[]
+  /**
+   * Extensions produced from MCP servers somebody turned on, one per server.
+   * Loaded last, after Tade's own and after yours, so a server can never take
+   * a name either of them wanted — it loses it and is listed as broken with
+   * why. What is in them is `tools` and nothing else, which the broker's own
+   * conformance suite asserts.
+   */
+  brokered?: readonly TadeExtension[]
   /** The extensions directory: yours are the folders in it. */
   root?: string | null
   /** Start with none of yours. */
@@ -274,7 +289,7 @@ export class ExtensionHost {
   static async load(opts: HostOptions): Promise<ExtensionHost> {
     const found: {
       extension: TadeExtension | null
-      source: 'built-in' | 'yours'
+      source: 'built-in' | 'yours' | 'mcp'
       path: string | null
       /** It would not load, and this is why. */
       error: string | null
@@ -349,6 +364,20 @@ export class ExtensionHost {
       }
     }
 
+    // Last, on purpose: Tade's own and yours-in-code have already taken the
+    // names they wanted, so a server that asks for one of them loses it.
+    for (const extension of opts.brokered ?? []) {
+      found.push({
+        extension,
+        source: 'mcp' as const,
+        path: null,
+        error: null,
+        off: null,
+        about: '',
+        name: extension.name,
+      })
+    }
+
     const host = new ExtensionHost([], opts)
     const taken = new Set<string>()
     for (const one of found) {
@@ -416,7 +445,11 @@ export class ExtensionHost {
       state: 'ready' as ExtensionState,
       problem: null,
     }
-    if (!extensionEnabled(settings, entry.loaded.source)) {
+    // A brokered one was only ever handed over because a person turned its
+    // server on: one switch, and it is `mcp.servers.<name>.enabled`. Asking a
+    // second question under `extensions.mcp-<server>` would be a place to put
+    // something that turns nothing on.
+    if (entry.loaded.source !== 'mcp' && !extensionEnabled(settings, entry.loaded.source)) {
       entry.loaded = { ...base, state: 'off', problem: 'turned off' }
       return
     }
