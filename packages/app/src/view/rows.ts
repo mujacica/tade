@@ -54,6 +54,9 @@ export const TAB_ICONS = 7
  */
 export const STRIP_ICONS = 6
 
+/** Three glyph buttons at the end of a queued tab — pause, remove, menu — and the room after them. */
+export const QUEUE_ICONS = 10
+
 /** One glyph button — a row's `≡` — and the column of room after it. */
 export const MENU_ICON = 4
 

@@ -1,4 +1,5 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
+import { taskOrigin } from '@tade/core'
 import type { Frame } from '../frame.ts'
 
 // Width, words, paths, moments and numbers: the small answers every region of
@@ -97,6 +98,27 @@ export function capitalised(text: string): string {
 /** `anthropic/claude-opus-5` reads as `claude-opus-5`: the provider is said separately. */
 export function shortModel(model: string): string {
   return model.split('/').at(-1) ?? model
+}
+
+/** A task's name without its project, which the list it is in already says. */
+export function inProject(project: string, text: string): string {
+  return text.replaceAll(`${project}/`, '')
+}
+
+/** Who asked for queued work, in a word. */
+export function askedBy(by: string | undefined): string {
+  const origin = taskOrigin(by)
+  return origin.kind === 'you' ? 'you' : origin.name
+}
+
+/**
+ * Who asked, as short as the row under a name needs: the marks the
+ * conversation is drawn with — ❯ what you said, ◆ the orchestrator — or an
+ * extension's or a schedule's own name.
+ */
+export function askedMark(by: string | undefined): string {
+  const origin = taskOrigin(by)
+  return origin.kind === 'you' ? '❯' : origin.kind === 'orchestrator' ? '◆' : origin.name
 }
 
 // ── Moments, the way people read them ────────────────────────────────────────
