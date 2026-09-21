@@ -43,6 +43,8 @@ import {
   menuItems,
   menuPanel,
   modelPanel,
+  noteHeadlinePanel,
+  notePanel,
   openProjectPanel,
   promptPanel,
   searchPanel,
@@ -248,11 +250,36 @@ const frame = (over: Partial<Frame> = {}): Frame => ({
     { path: 'src/webhooks.test.ts', mark: 'A', added: 48, removed: null },
     { path: 'src/webhooks.ts', mark: 'M', added: 12, removed: 4 },
   ],
+  // A headline over the words, where whoever took the note wrote one — and the
+  // oldest with none, drawn in its own words the way every note used to be.
   notes: [
-    { text: 'the staging key rotates on the 1st', at: '2026-09-01T09:00:00.000Z' },
-    { text: 'we pin major versions', at: '2026-09-02T09:00:00.000Z' },
-    { text: 'refunds go through the ledger service', at: '2026-09-03T09:00:00.000Z' },
-    { text: 'never force-push to main', at: '2026-09-04T09:00:00.000Z' },
+    {
+      text: 'the staging key rotates on the 1st',
+      at: '2026-09-01T09:00:00.000Z',
+      scope: 'checkout',
+      by: 'window',
+    },
+    {
+      text: 'we pin major versions',
+      summary: 'Pin dependencies',
+      at: '2026-09-02T09:00:00.000Z',
+      scope: 'checkout',
+      by: 'voice',
+    },
+    {
+      text: 'refunds go through the ledger service, never the gateway',
+      summary: 'Refunds via the ledger',
+      at: '2026-09-03T09:00:00.000Z',
+      scope: 'checkout/refunds',
+      by: 'orchestrator',
+    },
+    {
+      text: 'never force-push to main',
+      summary: 'Main is never force-pushed',
+      at: '2026-09-04T09:00:00.000Z',
+      scope: null,
+      by: 'voice',
+    },
   ],
   base: 'main',
   spend: {
@@ -1982,10 +2009,43 @@ export const SCENARIOS: Scenario[] = [
       hover: {
         kind: 'note',
         at: '2026-09-03T09:00:00.000Z',
-        text: 'refunds go through the ledger service',
+        text: 'refunds go through the ledger service, never the gateway',
       },
     },
     frame: frame(),
+  },
+  {
+    name: 'a-note-read-whole',
+    about:
+      'A note clicked in the side opens on its own page: the headline it was given, what it is about, who said it when — and its words, to change, copy, forget or write a headline for from there.',
+    state: {
+      ...base(),
+      folded: ['changes', 'files', 'where'],
+      panel: notePanel(
+        {
+          at: '2026-09-03T09:00:00.000Z',
+          summary: 'Refunds via the ledger',
+          scope: 'checkout/refunds',
+          by: 'orchestrator',
+        },
+        'refunds go through the ledger service, never the gateway',
+      ),
+    },
+    frame: frame({ date: utcDate }),
+  },
+  {
+    name: 'writing-a-notes-headline',
+    about:
+      'Writing the line a note is read by, for one taken before anybody wrote one: the note’s own words above it, and what is asked for said plainly.',
+    state: {
+      ...base(),
+      folded: ['changes', 'files', 'where'],
+      panel: noteHeadlinePanel(
+        { at: '2026-09-01T09:00:00.000Z', summary: null, scope: 'checkout', by: 'window' },
+        'the staging key rotates on the 1st',
+      ),
+    },
+    frame: frame({ date: utcDate }),
   },
   {
     name: 'pointing-at-a-file',

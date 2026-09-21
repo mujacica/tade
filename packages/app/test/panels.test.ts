@@ -25,6 +25,9 @@ import {
   laneMenuItems,
   listStart,
   menuItems,
+  noteFacts,
+  noteHeadlinePanel,
+  notePanel,
   type Panel,
   panelClick,
   panelKey,
@@ -449,6 +452,75 @@ describe('a note', () => {
     const outcome = panelKey(promptPanel('note', 'New note', 'NOTE'), 'enter', '\r')
     expect(outcome.submit).toBe(false)
     expect(outcome.panel).toMatchObject({ error: 'Write the note first.' })
+  })
+
+  it('opens on its own page: its words, what it is about, and who said it when', () => {
+    const panel = notePanel(
+      {
+        at: '2026-09-03T09:00:00.000Z',
+        summary: 'Refunds via the ledger',
+        scope: 'checkout/refunds',
+        by: 'orchestrator',
+      },
+      'refunds go through the ledger service',
+    )
+    // The words are the field, so reading it and changing it are one page.
+    expect(panel).toMatchObject({
+      purpose: 'edit-note',
+      title: 'Note',
+      text: 'refunds go through the ledger service',
+    })
+    expect(noteFacts(panel.note!, 'Thu 3 Sep 09:00')).toEqual({
+      about: 'About checkout/refunds',
+      said: 'Said by the orchestrator · Thu 3 Sep 09:00',
+    })
+  })
+
+  it('says a note is about everything where it is, and that you said it yourself', () => {
+    const facts = noteFacts(
+      { at: '2026-09-04T09:00:00.000Z', summary: null, scope: null, by: 'voice' },
+      'Fri 4 Sep 09:00',
+    )
+    expect(facts.about).toBe('About everything')
+    expect(facts.said).toBe('Said by you · Fri 4 Sep 09:00')
+    // A note from before anybody recorded where one came from claims nothing.
+    expect(noteFacts({ at: 'x', summary: null, scope: null, by: 'unknown' }, 'then').said).toBe(
+      'Said by somebody · then',
+    )
+  })
+
+  it('is given the headline it is read by from its own page, and nowhere else', () => {
+    const known = {
+      at: '2026-09-01T09:00:00.000Z',
+      summary: null,
+      scope: 'checkout',
+      by: 'window',
+    }
+    const page = notePanel(known, 'the staging key rotates on the 1st')
+    expect(panelClick(page, 'headline')).toMatchObject({ submit: true, choice: 'headline' })
+
+    const asking = noteHeadlinePanel(known, 'the staging key rotates on the 1st')
+    expect(asking).toMatchObject({ purpose: 'note-headline', text: '' })
+    // It names the note it is about, so saving it changes that one and no other.
+    expect(asking.target).toBe('2026-09-01T09:00:00.000Z\u0000the staging key rotates on the 1st')
+    // A headline that says nothing is not a headline.
+    expect(panelKey(asking, 'enter', '\r')).toMatchObject({
+      submit: false,
+      panel: { error: 'Write the headline first.' },
+    })
+  })
+
+  it('copies and forgets from its own page, as its menu does', () => {
+    const panel = notePanel(
+      { at: '2026-09-03T09:00:00.000Z', summary: null, scope: 'checkout', by: 'window' },
+      'we pin major versions',
+    )
+    expect(panelClick(panel, 'copy')).toMatchObject({ submit: true, choice: 'copy' })
+    expect(panelClick(panel, 'forget')).toMatchObject({ submit: true, choice: 'forget' })
+    // Nothing else grows those buttons: a branch name is not a note.
+    expect(panelClick(promptPanel('new-branch', 'New branch', 'NAME'), 'forget')).toMatchObject({
+      submit: false,
+    })
   })
 
   it('turns a space in a branch name into a dash', () => {

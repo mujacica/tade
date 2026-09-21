@@ -616,13 +616,17 @@ export function orchestratorTools(
     object(
       {
         text: string('exactly what they said, never a tidier version of it'),
+        summary: string(
+          'a headline for it in your own words, a few words long: what it is about and what it does, like "Refunds go through the ledger". It is shown above the note in the window, so it is the line somebody reads first. It never replaces the note — write it as well as, not instead of, their words.',
+        ),
         about: string('task or project it is about, if any'),
       },
-      ['text'],
+      ['text', 'summary'],
     ),
     (p) =>
       rpc('memory/remember', {
         text: String(p.text),
+        summary: p.summary ? String(p.summary) : null,
         scope: p.about ? String(p.about) : null,
         by: 'orchestrator',
       }),

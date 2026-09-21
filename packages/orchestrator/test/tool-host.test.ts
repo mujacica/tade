@@ -132,6 +132,44 @@ describe('starting an agent for the orchestrator', () => {
   })
 })
 
+describe('writing a note down', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('keeps the words and the headline apart, and takes neither for the other', async () => {
+    const written: unknown[][] = []
+    const tade = {
+      remember: (...args: unknown[]) => {
+        written.push(args)
+        return { ok: true }
+      },
+    } as unknown as Workbench
+    const path = join(tmp('tade-tools-'), 'tools.sock')
+    host = await ToolHost.listen({ tade, path })
+
+    await call(path, 'memory/remember', {
+      text: 'refunds go through the ledger service',
+      summary: 'Refunds via the ledger',
+      scope: 'app/refunds',
+      by: 'orchestrator',
+    })
+    expect(written[0]).toEqual([
+      'refunds go through the ledger service',
+      'app/refunds',
+      'orchestrator',
+      'Refunds via the ledger',
+    ])
+
+    // A note taken without one is taken without one: nothing is made up here.
+    await call(path, 'memory/remember', { text: 'we pin majors', scope: null })
+    expect(written[1]).toEqual(['we pin majors', null, 'tade', null])
+  })
+})
+
 describe('where everything stands', () => {
   let host: ToolHost | null = null
 

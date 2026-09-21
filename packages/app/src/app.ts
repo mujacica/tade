@@ -250,7 +250,9 @@ import {
   menuPanel,
   modelPanel,
   nameFrom,
+  noteHeadlinePanel,
   noteMenuItems,
+  notePanel,
   type OpenProjectPanel,
   type OpenRow,
   openProjectPanel,
@@ -2141,8 +2143,10 @@ export class App {
         this.openMenu({ kind: 'task', task: target.task }, at)
         return
       case 'note':
-        // A note cut short is read whole in its menu's title; the menu is what it offers.
-        this.openMenu({ kind: 'note', at: target.at, text: target.text }, at)
+        // A note cut short down the side is read whole on its own page, which
+        // is also where it is changed and taken back. A click is for reading
+        // it; the ≡ beside it is what asks for the menu.
+        this.openNote({ at: target.at, text: target.text })
         return
       case 'menu':
         this.openMenu(target.subject, at)
@@ -2830,7 +2834,7 @@ export class App {
         await this.saveSetup(panel)
         return
       case 'prompt':
-        await this.savePrompt(panel)
+        await this.savePrompt(panel, choice)
         break
       case 'branch':
         await this.switchBranch(choice ?? '')
@@ -3380,17 +3384,35 @@ export class App {
     }
   }
 
-  /** What a note's menu does: change it, copy its words, or forget it. */
+  /**
+   * A note's own page: what it says, what it is about, who said it when — and
+   * saving, copying or forgetting it from there. What is known about it is
+   * read back out of memory, since the row it was clicked on carries only what
+   * names it.
+   */
+  private openNote(note: { at: string; text: string }): void {
+    const kept = this.opts.client
+      .recallAll()
+      .find((one) => one.at === note.at && one.text === note.text)
+    this.state = {
+      ...this.state,
+      panel: notePanel(
+        {
+          at: note.at,
+          summary: kept?.summary ?? null,
+          scope: kept?.scope ?? null,
+          by: kept?.by ?? 'unknown',
+        },
+        note.text,
+      ),
+    }
+    this.draw()
+  }
+
+  /** What a note's menu does: open it, copy its words, or forget it. */
   private async fromNoteMenu(note: { at: string; text: string }, item: string): Promise<void> {
     if (item === 'edit') {
-      this.state = {
-        ...this.state,
-        panel: {
-          ...promptPanel('edit-note', 'Note', 'NOTE', note.text),
-          target: `${note.at}\u0000${note.text}`,
-        },
-      }
-      this.draw()
+      this.openNote(note)
       return
     }
     if (item === 'copy') {
@@ -3866,10 +3888,30 @@ export class App {
   }
 
   /** Carry out a one-line panel: keep a note, or make or rename a branch. */
-  private async savePrompt(panel: PromptPanel): Promise<void> {
+  private async savePrompt(panel: PromptPanel, choice?: string): Promise<void> {
     const text = panel.text.trim()
     const fail = (error: string) => {
       this.state = { ...this.state, panel: { ...panel, busy: false, error } }
+    }
+    // A note's page offers what its menu does, and each does exactly the same
+    // thing from either place.
+    if (panel.note && (choice === 'copy' || choice === 'forget' || choice === 'headline')) {
+      const note = {
+        at: panel.note.at,
+        text: (panel.target ?? '').split('\u0000').slice(1).join('\u0000'),
+      }
+      if (choice === 'copy') {
+        await this.copy(note.text)
+        return
+      }
+      if (choice === 'headline') {
+        this.state = { ...this.state, panel: noteHeadlinePanel(panel.note, note.text) }
+        this.draw()
+        return
+      }
+      this.state = { ...this.state, panel: null }
+      this.forgetNote(note)
+      return
     }
     try {
       if (panel.purpose === 'rename-agent' && panel.target) {
@@ -3953,6 +3995,19 @@ export class App {
         this.state = notice({ ...this.state, panel: null }, 'noted')
         return
       }
+      if (panel.purpose === 'note-headline') {
+        const [when = '', ...said] = (panel.target ?? '').split('\u0000')
+        const was = this.opts.client
+          .recallAll()
+          .find((one) => one.at === when && one.text === said.join('\u0000'))
+        if (!was) return fail('That note is not there any more.')
+        // Said again with the headline it is read by, and the old line taken
+        // back: the words are handed over exactly as they were kept.
+        this.opts.client.remember(was.text, was.scope, 'window', text)
+        this.opts.client.forget({ at: was.at, text: was.text }, 'window')
+        this.state = notice({ ...this.state, panel: null }, 'noted')
+        return
+      }
       if (panel.purpose === 'edit-note') {
         const [at = '', ...said] = (panel.target ?? '').split('\u0000')
         const was = this.opts.client
@@ -3960,8 +4015,10 @@ export class App {
           .find((one) => one.at === at && one.text === said.join('\u0000'))
         if (!was) return fail('That note is not there any more.')
         if (was.text !== text) {
-          // Said again in its new words, about what it was about, and the old words taken back.
-          this.opts.client.remember(text, was.scope, 'window')
+          // Said again in its new words, about what it was about, and the old
+          // words taken back. The headline it was given goes with it: it says
+          // what the note is for, which changing its wording does not.
+          this.opts.client.remember(text, was.scope, 'window', was.summary ?? null)
           this.opts.client.forget({ at: was.at, text: was.text }, 'window')
         }
         this.state = notice({ ...this.state, panel: null }, 'noted')

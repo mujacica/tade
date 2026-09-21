@@ -73,7 +73,13 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   is a query": nothing can recover them, so they are kept verbatim in `<home>/memory.jsonl`,
   append-only, and a line that won't parse is skipped rather than thrown over. Never lowercase or
   reword one — `parseUtterance` recovers the original casing for exactly this reason, and it took a
-  test with a capital letter in it to notice that it didn't.
+  test with a capital letter in it to notice that it didn't. A headline may be written *beside* one
+  (`summary`, what the note is about and what it does) by whoever takes it down — the orchestrator
+  writes one as it calls `tade_remember`, and a person writes one on the note's own page — and the
+  window reads a note by it, over the words themselves. It is never made out of the note: a summary drawn from the text at drawing time is a
+  guess at what somebody meant, made four times a second, and the whole reason notes are verbatim is
+  that nothing can recover that. Optional and always will be, since every note taken before it
+  existed has none; those are drawn in their own words, as they always were.
 - **A task is finished when the journal says so** (`task_done`). Its agent says it (`tade_done`), a
   person or the orchestrator marks it, or the window sees the task's own rule met and writes that
   down once. The rule is `done` in its task file — `said`, `idle`, `committed`, `merged`, `manual` —

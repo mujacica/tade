@@ -216,6 +216,14 @@ export const PICTURES: readonly Picture[] = [
       'thing that saying "remember …" to Tade does.',
   },
   {
+    file: 'note.svg',
+    scenario: 'a-note-read-whole',
+    crop: 'panel',
+    about:
+      'A note read whole: the headline it was given, what it is about, who said it when, and its ' +
+      'own words — changed, copied, forgotten or given a headline from the same page.',
+  },
+  {
     file: 'spend.svg',
     scenario: 'spend',
     crop: 'panel',

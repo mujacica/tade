@@ -1386,9 +1386,18 @@ export class Workbench {
 
   // --- notes
 
-  /** Write something down, exactly as it was said. */
-  remember(text: string, scope: string | null = null, by = 'unknown'): Note {
-    return this.memory.remember(text, scope, by)
+  /**
+   * Write something down, exactly as it was said, with the headline whoever
+   * took it wrote for it — what it is about and what it does, never a tidier
+   * version of the words themselves.
+   */
+  remember(
+    text: string,
+    scope: string | null = null,
+    by = 'unknown',
+    summary: string | null = null,
+  ): Note {
+    return this.memory.remember(text, scope, by, Date.now(), summary)
   }
 
   /**

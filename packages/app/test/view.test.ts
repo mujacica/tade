@@ -628,6 +628,79 @@ describe('the path under GIT', () => {
   })
 })
 
+describe('notes down the side', () => {
+  const at = '2026-09-03T09:00:00.000Z'
+  /** The side with NOTES open: it is the one section that starts folded. */
+  const side = (
+    notes: readonly {
+      text: string
+      at: string
+      summary?: string
+      scope?: string | null
+      by?: string
+    }[],
+    sidebarWidth = 40,
+  ) =>
+    draw(
+      { ...state(), folded: ['agents', 'changes', 'files', 'where'], project: 'checkout' },
+      { ...frame({ width: 120, height: 40 }), notes, layout: { sidebarWidth } },
+    ).rows.map((row) => plain(row).slice(0, sidebarWidth - 1))
+
+  it('says what a note is about over the words it was told in', () => {
+    const rows = side([
+      {
+        text: 'refunds go through the ledger service, never the gateway',
+        summary: 'Refunds via the ledger',
+        at,
+        scope: 'checkout',
+        by: 'orchestrator',
+      },
+    ])
+    const headline = rows.findIndex((row) => row.includes('Refunds via the ledger'))
+    expect(headline).toBeGreaterThan(0)
+    // The note itself, in its own words, on the line under its headline.
+    expect(rows[headline + 1]).toContain('refunds go through')
+    expect(rows[headline + 1]).toContain('…')
+  })
+
+  it('draws a note nobody wrote a headline for in its own words', () => {
+    const rows = side([
+      { text: 'the staging key rotates on the 1st', at, scope: 'checkout', by: 'window' },
+    ])
+    const first = rows.findIndex((row) => row.includes('the staging key'))
+    expect(first).toBeGreaterThan(0)
+    // Its own first words on top and the rest carrying on under them —
+    // nothing here invents a headline out of what was said.
+    expect(rows[first + 1]).toContain('the 1st')
+    expect(rows.join('\n')).not.toContain('the staging key rotates on the 1st the staging')
+  })
+
+  it('cuts what it shows at a word, never through the middle of one', () => {
+    const said = 'hovering over the purple buttons does not change them, which makes them look dead'
+    const rows = side([{ text: said, summary: 'Purple buttons look dead', at, scope: 'checkout' }])
+    const shown = rows.find((row) => row.includes('hovering over')) ?? ''
+    expect(shown).toContain('…')
+    // Every word before the ellipsis is a whole word of the note.
+    const words = shown.replace('…', '').trim().split(/\s+/)
+    for (const word of words) expect(said.split(/\s+/)).toContain(word)
+  })
+
+  it('says which task a note is about, where the side has room to say it', () => {
+    const note = {
+      text: 'the webhook retries twice',
+      summary: 'Webhook retries',
+      at,
+      scope: 'checkout/refunds',
+      by: 'orchestrator',
+    }
+    const wide = side([note], 44).find((row) => row.includes('the webhook retries')) ?? ''
+    expect(wide).toContain('· refunds')
+    // Narrow, its own words are worth more than what it is about.
+    const narrow = side([note], 26).find((row) => row.includes('the webhook retries')) ?? ''
+    expect(narrow).not.toContain('refunds')
+  })
+})
+
 describe('an agent pane', () => {
   it('sits at the bottom, like a conversation, however little the agent has drawn', () => {
     const screen = ['pi v0.85', '', '> fix the refunds', '', '', ''].join('\n')

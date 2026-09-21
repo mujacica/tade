@@ -15,8 +15,18 @@ export function registerNotes(program: Command, io: Io, _setExit: (code: number)
     .command('remember <text...>')
     .description('Write something down, exactly as you said it')
     .option('--about <scope>', 'the task or project it is about')
-    .action((words: string[], opts: { about?: string }) => {
-      const note = Memory.open(tadeHome()).remember(words.join(' '), opts.about ?? null, 'cli')
+    .option(
+      '--headline <words>',
+      'what it is about and what it does, in a few words: the line the window reads it by',
+    )
+    .action((words: string[], opts: { about?: string; headline?: string }) => {
+      const note = Memory.open(tadeHome()).remember(
+        words.join(' '),
+        opts.about ?? null,
+        'cli',
+        Date.now(),
+        opts.headline ?? null,
+      )
       io.out(note.scope ? `noted, about ${note.scope}` : 'noted')
     })
 
@@ -38,6 +48,11 @@ export function registerNotes(program: Command, io: Io, _setExit: (code: number)
         return
       }
       const width = Math.max(...notes.map((note) => (note.scope ?? '—').length))
-      for (const note of notes) io.out(`${(note.scope ?? '—').padEnd(width)}  ${note.text}`)
+      for (const note of notes) {
+        // The words, always — a headline is said after them, never instead of
+        // them, because the words are the only part nothing can recover.
+        const headline = note.summary ? `  (${note.summary})` : ''
+        io.out(`${(note.scope ?? '—').padEnd(width)}  ${note.text}${headline}`)
+      }
     })
 }

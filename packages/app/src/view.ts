@@ -235,6 +235,24 @@ export interface ActionsView {
   notes: readonly string[]
 }
 
+/**
+ * A note down the side: what was said, and what is known beside it.
+ *
+ * `summary` is a headline somebody wrote when the note was taken — never a
+ * reading of `text`, which is kept word for word and is the only thing nothing
+ * could recover. A note taken before anybody wrote one has none, and is drawn
+ * in its own words instead.
+ */
+export interface NoteShown {
+  text: string
+  at: string
+  summary?: string
+  /** A task id, a project name, or null when it is about everything. */
+  scope?: string | null
+  /** Where it came from: `voice`, `window`, `cli`, `orchestrator`. */
+  by?: string
+}
+
 /** A file the task has changed, as git sees it. */
 export interface Change {
   path: string
@@ -297,9 +315,8 @@ export interface Frame {
   lists?: readonly ListSectionView[]
   /** The branch those changes are counted against. */
   base?: string | null
-  /** What you have told Tade about this project, newest first. */
   /** Notes about this project and everything, oldest first: named by when they were said. */
-  notes?: readonly { text: string; at: string }[]
+  notes?: readonly NoteShown[]
   /** Today's spend, in total and by task. */
   spend?: Spend
   /**
@@ -520,6 +537,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     pointer,
     scrolling: state.scrolling?.area ?? null,
     home: frame.home ?? '~/.tade',
+    date: frame.date ?? clockOf(frame),
     route: frame.route ?? null,
     spend: frame.spendView ?? null,
     panes: state.panes,
@@ -987,7 +1005,7 @@ function renderSidebar(
               blank(width),
             ]
           : tabList(
-              notes.map((note) => noteRow(width, skin, pointer, note)),
+              notes.map((note) => noteRow(width, skin, pointer, note, state.project)),
               width,
             ),
     },
@@ -3006,38 +3024,90 @@ function renderQueued(
   return { rows: filled, hits: shown.hits }
 }
 
+/** The least a note's own words are worth a row: less than this, and what it is about goes. */
+const NOTE_WORDS = 16
+
 /**
- * A note down the side, as a tab, cut short with `…`: its menu reads it
- * whole. Under the pointer, a forget and a menu, the way an agent has a close.
+ * A note down the side, as a tab of two lines: the headline it was given —
+ * what it is about and what it does — over the note as it was said, cut short
+ * with `…`, which its own page reads whole.
+ *
+ * A note nobody wrote a headline for is drawn in its own words, as it always
+ * was: as much as fits on top, the rest carrying on underneath. Nothing here
+ * ever makes a headline out of the words themselves — a note is kept verbatim
+ * because nothing can recover what was meant by it, and a summary invented
+ * four times a second would be exactly that guess. Under the pointer, a forget
+ * and a menu, the way an agent has a close.
  */
 function noteRow(
   width: number,
   skin: Skin,
   pointer: Pointer,
-  note: { text: string; at: string },
+  note: NoteShown,
+  project: string | null,
 ): ListItem {
   const target: Target = { kind: 'note', at: note.at, text: note.text }
   const forget: Target = { kind: 'action', name: `forget-note:${note.at}\u0000${note.text}` }
   const menu: Target = { kind: 'menu', subject: { kind: 'note', at: note.at, text: note.text } }
   const pointed = [target, forget, menu].some((one) => sameTarget(pointer.hover, one))
   const band: Band | null = pointed ? 'hovered' : null
+  const said = note.text.replace(/\s+/g, ' ').trim()
+  const headline = (note.summary ?? '').replace(/\s+/g, ' ').trim()
   const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
-  // Its buttons' room is kept whether they are shown or not: where a note breaks
-  // decides how many rows it takes, and pointing at it must not move the list.
-  const room = Math.max(1, inner.width - inner.used - TAB_ICONS - 1)
-  const line = note.text.replace(/\s+/g, ' ').trim()
-  // Two lines of it when it runs on, one when it does not: the rest is in its menu.
-  const first = visibleWidth(line) > room ? cutAtWord(line, room) : line
-  inner.text(shortened(first, room), pointed ? (t) => t : skin.hint, target)
+  // With no headline, where the first line breaks decides what the second one
+  // says — so its buttons' room is kept whether they are drawn or not, or
+  // pointing at a note would rewrite the line under it. A headline has the
+  // whole note under it either way, so its room is its own.
+  const kept = headline && !pointed ? 0 : TAB_ICONS
+  const room = Math.max(1, inner.width - inner.used - kept - 1)
+  const first = headline || (visibleWidth(said) > room ? cutAtWord(said, room) : said)
+  // The headline carries the weight; the words themselves are said quietly
+  // under it, which is the whole of what the two lines are for.
+  inner.text(saidShort(first, room), headline || pointed ? (t) => t : skin.hint, target)
   if (pointed) inner.right((r) => r.icon('×', forget, 'danger').icon('≡', menu).space())
-  const rest = line.slice(first.length).trim()
+  const rest = headline ? said : said.slice(first.length).trim()
   return {
     rows: [
       tabbed(width, skin, band, inner.build(), target),
-      ...(rest ? [secondRow(width, skin, pointer, band, rest, target, 1)] : []),
+      ...(rest ? [noteWordsRow(width, skin, pointer, band, rest, target, note, project)] : []),
     ],
     band,
   }
+}
+
+/**
+ * The note itself, under its headline: quiet, cut at a word with `…`, and at
+ * the end of it the task it is about — where it is about one, since the list
+ * is already only this project's. What it is about is dropped rather than
+ * leaving its own words a corner of the row.
+ */
+function noteWordsRow(
+  width: number,
+  skin: Skin,
+  pointer: Pointer,
+  band: Band | null,
+  said: string,
+  target: Target,
+  note: NoteShown,
+  project: string | null,
+): { text: string; hits: Hit[] } {
+  const inner = new Row(Math.max(0, width - TAB_EDGES), skin, pointer).space()
+  // Set off by a dot, or the task's name reads as the end of the sentence
+  // above it rather than as what that sentence is about.
+  const about = taskTag(note.scope ?? null, project)
+  const tag = about ? `· ${about}` : ''
+  const corner = tag ? visibleWidth(tag) + 2 : 0
+  const room = Math.max(1, inner.width - inner.used - 1)
+  const shown = tag && room - corner >= NOTE_WORDS ? tag : ''
+  inner.text(saidShort(said, room - (shown ? corner : 0)), skin.hint, target)
+  if (shown) inner.right((r) => r.text(shown, skin.hint, target).space())
+  return tabbed(width, skin, band, inner.build(), target)
+}
+
+/** Which task a note is about, where it is about one rather than the whole project. */
+function taskTag(scope: string | null, project: string | null): string {
+  if (!scope || !project || !scope.startsWith(`${project}/`)) return ''
+  return inProject(project, scope)
 }
 
 /** As much of a line as fits, ending at a word where one ends in time. */
@@ -3050,6 +3120,20 @@ function cutAtWord(line: string, room: number): string {
 /** Text that fits a width, ending in `…` when it had to be cut. */
 function shortened(text: string, room: number): string {
   return visibleWidth(text) <= room ? text : truncateToWidth(text, Math.max(1, room), '…')
+}
+
+/**
+ * A sentence that fits a width, ending in `…` when it had to be cut — and at
+ * a word, where one ends in time. A word cut through its middle is the
+ * difference between a line somebody reads and a fragment of one; a name or a
+ * path has no words to cut at, which is why this is only for what was said.
+ */
+function saidShort(text: string, room: number): string {
+  if (visibleWidth(text) <= room) return text
+  const hard = truncateToWidth(text, Math.max(1, room), '…')
+  const body = hard.slice(0, -1)
+  const space = body.lastIndexOf(' ')
+  return space > body.length / 2 ? `${body.slice(0, space).trimEnd()}…` : hard
 }
 
 function changeRow(

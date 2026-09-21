@@ -44,7 +44,7 @@ import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import type { ActionsView, Change, CheckView, CommitView } from './view.ts'
+import type { ActionsView, Change, CheckView, CommitView, NoteShown } from './view.ts'
 
 // Where the app gets its facts.
 //
@@ -929,7 +929,7 @@ export class Live {
   }
 
   /** What you have told Tade that applies to a project, newest first. */
-  notes(project: string | null): { text: string; at: string }[] {
+  notes(project: string | null): NoteShown[] {
     const all: readonly Note[] = this.opts.client.recallAll()
     return all
       .filter(
@@ -938,7 +938,13 @@ export class Live {
       )
       .slice()
       .reverse()
-      .map((note) => ({ text: note.text, at: note.at }))
+      .map((note) => ({
+        text: note.text,
+        at: note.at,
+        scope: note.scope,
+        by: note.by,
+        ...(note.summary ? { summary: note.summary } : {}),
+      }))
   }
 
   /** Every `usage` event of the last seven days, for the Spend panel. */

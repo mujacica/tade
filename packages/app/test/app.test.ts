@@ -1990,6 +1990,36 @@ describe('the window, wired up', () => {
     })
   })
 
+  it('writes the headline a note is read by, for one that was taken without one', async () => {
+    terminal.rows = 60
+    client.remember('the staging key rotates on the 1st', 'app', 'window')
+    await start()
+    await until('the notes heading', () =>
+      screenOf(terminal.written).some((row) => row.includes('NOTES')),
+    )
+    const heading = find('NOTES')
+    click(heading.col, heading.row)
+    await until('the note', () => screenOf(terminal.written).some((row) => row.includes('staging')))
+    const note = find('staging')
+    click(note.col, note.row)
+    await until('its page', () => terminal.written.includes('Add a headline…'))
+    const button = find('Add a headline…')
+    click(button.col + 2, button.row)
+    await until('the headline asked for', () =>
+      terminal.written.includes('WHAT IT IS ABOUT AND WHAT IT DOES'),
+    )
+    for (const char of 'Staging key rotates monthly') terminal.press(char)
+    terminal.press('\r')
+    await until('the headline kept', () => client.recallAll()[0]?.summary !== undefined)
+    // Said again with its headline: the words themselves are handed over untouched.
+    expect(client.recallAll()[0]).toMatchObject({
+      text: 'the staging key rotates on the 1st',
+      summary: 'Staging key rotates monthly',
+      scope: 'app',
+    })
+    expect(client.recallAll()).toHaveLength(1)
+  })
+
   it('scrolls the sidebar by dragging the bar down its right', async () => {
     // Short of room, so there is more in the sidebar than fits and the bar has
     // a thumb to take hold of.
@@ -2161,6 +2191,30 @@ describe('the window, wired up', () => {
     // A commit that is nowhere else is asked about, not thrown away.
     await until('the question', () => terminal.written.includes('Remove ledger?'))
     expect(await client.events({ types: ['task_removed'] })).toEqual([])
+  })
+
+  it('opens a note on its own page when it is clicked, and forgets it from there', async () => {
+    terminal.rows = 60
+    client.remember('the staging key rotates on the 1st', 'app', 'window')
+    await start()
+    await until('the notes heading', () =>
+      screenOf(terminal.written).some((row) => row.includes('NOTES')),
+    )
+    const heading = find('NOTES')
+    click(heading.col, heading.row)
+    await until('the note', () => screenOf(terminal.written).some((row) => row.includes('staging')))
+    const note = find('staging')
+    click(note.col, note.row)
+    // The page it opens on, not the menu the ≡ beside it asks for.
+    await until('its page', () => terminal.written.includes('Said by'))
+    const page = screenOf(terminal.written).join('\n')
+    expect(page).toContain('About app')
+    expect(page).toContain('the staging key rotates on the 1st')
+    expect(page).not.toContain('Edit…')
+    // Forgetting it is on the page, where it is read.
+    const forget = find('Forget')
+    click(forget.col + 2, forget.row)
+    await until('the note forgotten', () => client.recallAll().length === 0)
   })
 
   it('forgets a note from the × that pointing at it shows', async () => {

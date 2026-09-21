@@ -13,6 +13,17 @@ import { z } from 'zod'
 export const NoteSchema = z.strictObject({
   /** Exactly what was said. Never paraphrase it. */
   text: z.string().min(1),
+  /**
+   * A headline for it, written by whoever took it down: what the note is
+   * about and what it does, in a few words. It sits *beside* the note and
+   * never in place of it — `text` is still the whole of what was said, and
+   * nothing here may ever be drawn from it by rewording, shortening or
+   * lowercasing what a person said.
+   *
+   * Optional, and always will be: every note taken before this existed has
+   * none, and a note can be written down by anything.
+   */
+  summary: z.string().min(1).optional(),
   /** A task id, a project name, or null when it is about everything. */
   scope: z.string().nullable(),
   /**
@@ -26,8 +37,21 @@ export const NoteSchema = z.strictObject({
 
 export type Note = z.infer<typeof NoteSchema>
 
-export function note(text: string, scope: string | null, by: string, now: number): Note {
-  return { text: text.trim(), scope, by, at: new Date(now).toISOString() }
+export function note(
+  text: string,
+  scope: string | null,
+  by: string,
+  now: number,
+  summary: string | null = null,
+): Note {
+  const headline = summary?.trim()
+  return {
+    text: text.trim(),
+    ...(headline ? { summary: headline } : {}),
+    scope,
+    by,
+    at: new Date(now).toISOString(),
+  }
 }
 
 /** How specific a scope is: a task beats its project beats everything. */

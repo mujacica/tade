@@ -24,6 +24,35 @@ describe('note', () => {
     expect(saved.at).toBe('2026-09-12T10:00:00.000Z')
   })
 
+  it('keeps a headline beside the words, never instead of them', () => {
+    const saved = note(
+      'refunds go through the ledger service',
+      'checkout/refunds',
+      'orchestrator',
+      NOW,
+      '  Refunds via the ledger  ',
+    )
+    expect(saved.summary).toBe('Refunds via the ledger')
+    // The words themselves are untouched by having one.
+    expect(saved.text).toBe('refunds go through the ledger service')
+    expect(NoteSchema.parse(saved)).toEqual(saved)
+  })
+
+  it('has no headline where nobody wrote one, rather than one made up', () => {
+    const saved = note('we pin major versions', null, 'window', NOW)
+    expect(saved.summary).toBeUndefined()
+    expect('summary' in saved).toBe(false)
+    // An empty one is nobody writing one.
+    expect(note('a thing', null, 'cli', NOW, '   ').summary).toBeUndefined()
+  })
+
+  it('still loads a note written before a headline could be given', () => {
+    const old = { text: 'we pin majors', scope: null, by: 'voice', at: '2026-09-01T00:00:00.000Z' }
+    const parsed = NoteSchema.parse(old)
+    expect(parsed.summary).toBeUndefined()
+    expect(parsed.text).toBe('we pin majors')
+  })
+
   it('round-trips through its schema', () => {
     const one = note('a thing', null, 'cli', NOW)
     expect(NoteSchema.parse(one)).toEqual(one)

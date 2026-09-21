@@ -6,20 +6,20 @@
  ▌   wants you to approve…   █│                                                                                         
                              █│                                                                                         
    ⠋ refunds         $0.62   █│                                                                                         
-     working                 █│                                                                                         
-                             █│                                                                                         
- ▸ SMART QUEUE          none █│                                                                                         
- ▸ CHANGES  3        vs main █│                                                                                         
- ▸ FILES                     █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
- ▾ NOTES  4             +    █│    so src/webhooks.ts needs the new constructEvent signature.                           
-                             █│                                                                                         
-   the staging key           █│  ▸ Read src/webhooks.ts                                                                 
-   rotates on the 1st        █│  ▸ Edit src/webhooks.ts  +12 −4                                                         
+     working            ╭─ Headline ───────────────────────────────────────────────────── esc ─╮                        
+                        │                                                                      │                        
+ ▸ SMART QUEUE          │ the staging key rotates on the 1st                                   │                        
+ ▸ CHANGES  3        vs │                                                                      │                        
+ ▸ FILES                │ WHAT IT IS ABOUT AND WHAT IT DOES                                    │                        
+ ▾ NOTES  4             │  ▏                                                                   │                        
+                        │                                                                      │                        
+   the staging key      │                                                  Cancel     Save ⏎   │                        
+   rotates on the 1st   ╰──────────────────────────────────────────────────────────────────────╯                        
                              █│  ▸ bash npm i stripe@15                                                                 
    Pin dependencies          ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
    we pin major versions     ▕│  │ bash  npm i stripe@15                                        │                       
                              ▕│  │   Allow once     Deny                                        │                       
-   Refunds via the…  ×  ≡    ▕│  ╰──────────────────────────────────────────────────────────────╯                       
+   Refunds via the ledger    ▕│  ╰──────────────────────────────────────────────────────────────╯                       
    refunds go through…       ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         

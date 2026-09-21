@@ -91,6 +91,31 @@ describe('tade remember and notes', () => {
     expect(saved.stdout).toBe('noted, about checkout/refunds')
   })
 
+  it('keeps a headline beside the words, and says the words first', async () => {
+    await tade(
+      'remember',
+      '--about',
+      'checkout',
+      '--headline',
+      'Staging key rotates monthly',
+      'the',
+      'staging',
+      'key',
+      'rotates',
+      'on',
+      'the',
+      '1st',
+    )
+    const listed = await tade('notes')
+    expect(listed.stdout).toContain('the staging key rotates on the 1st')
+    expect(listed.stdout).toContain('(Staging key rotates monthly)')
+    const json = JSON.parse((await tade('notes', '--json')).stdout)
+    expect(json[0]).toMatchObject({
+      text: 'the staging key rotates on the 1st',
+      summary: 'Staging key rotates monthly',
+    })
+  })
+
   it('has a machine-readable form', async () => {
     await tade('remember', '--about', 'checkout', 'the', 'staging', 'key', 'rotates')
     const json = JSON.parse((await tade('notes', '--json')).stdout)

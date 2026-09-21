@@ -53,6 +53,7 @@ import {
   matchingChoices,
   modelChoices,
   nameFrom,
+  noteFacts,
   type OpenProjectPanel,
   type OpenRow,
   type Panel,
@@ -118,6 +119,8 @@ export interface PanelContext {
   scrolling?: ScrollArea | null
   /** Tade's home, as you would type it: where worktrees are made. */
   home: string
+  /** A moment with its date, the way the window says one: `Mon 7 Sep 09:00`. */
+  date: (at: number) => string
   route: { harness: string; model: string | null; provider: string | null } | null
   /** Where the money went, for the window and grouping the Spend panel is on. */
   spend: SpendView | null
@@ -3134,8 +3137,37 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
   const width = Math.min(72, ctx.width - 4)
   const inner = width - 2
   const row = () => new Row(inner, skin, ctx.pointer)
-  const rows: { text: string; hits: Hit[] }[] = [
-    blank(inner),
+  const rows: { text: string; hits: Hit[] }[] = [blank(inner)]
+  // A note opens on what it is before it opens on the field: the headline it
+  // was given, what it is about, and who said it when. The words under the
+  // field are the note itself, whole — this page is where it is read.
+  if (panel.note) {
+    const at = Date.parse(panel.note.at)
+    const facts = noteFacts(panel.note, Number.isNaN(at) ? panel.note.at : ctx.date(at))
+    if (panel.note.summary) {
+      for (const line of wrapTextWithAnsi(panel.note.summary, inner - 2).slice(0, 2)) {
+        rows.push(row().space().text(line, skin.you).build())
+      }
+    }
+    rows.push(row().space().text(facts.about, skin.hint).build())
+    rows.push(row().space().text(facts.said, skin.hint).build())
+    rows.push(blank(inner))
+  }
+  // Which note a headline is being written for: its own words, quietly, since
+  // the page it was asked from is gone while this is answered.
+  if (panel.purpose === 'note-headline') {
+    const said = (panel.target ?? '').split('\u0000').slice(1).join('\u0000')
+    if (said) {
+      rows.push(
+        row()
+          .space()
+          .text(fitTo(said, inner - 2), skin.hint)
+          .build(),
+      )
+      rows.push(blank(inner))
+    }
+  }
+  rows.push(
     row().space().text(panel.label, skin.label).build(),
     row()
       .space()
@@ -3144,7 +3176,7 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
         caret: true,
       })
       .build(),
-  ]
+  )
   // A field shows the end of what is typed; a note is read whole, under it.
   const aNote = panel.purpose === 'note' || panel.purpose === 'edit-note'
   if (aNote && visibleWidth(panel.text) > inner - 5) {
@@ -3172,11 +3204,37 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
         .build(),
     )
   }
+  if (panel.note) {
+    rows.push(blank(inner))
+    rows.push(
+      row()
+        .space()
+        .text('Kept word for word: changing it says it again, in the new words.', skin.hint)
+        .build(),
+    )
+  }
   rows.push(
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
   )
+  const buttons = row()
+  // Taking it back sits apart from saving it, at the other end of the row:
+  // nothing can recover a note, so its press is never the one beside ⏎.
+  if (panel.note) {
+    buttons
+      .space()
+      .button('Forget', { kind: 'control', id: 'forget' }, 'danger')
+      .space()
+      .button('Copy', { kind: 'control', id: 'copy' })
+      .space()
+      // The one place a headline is written for a note that was taken before
+      // anybody wrote one, or given a worse one than it deserved.
+      .button(panel.note.summary ? 'Headline…' : 'Add a headline…', {
+        kind: 'control',
+        id: 'headline',
+      })
+  }
   rows.push(
-    row()
+    buttons
       .right((r) =>
         r
           .button('Cancel', { kind: 'control', id: 'cancel' })

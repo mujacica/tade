@@ -50,6 +50,41 @@ describe('Memory', () => {
     ])
   })
 
+  it('keeps a headline beside a note, and a note that never had one', () => {
+    const home = tmp('tade-mem-')
+    const memory = Memory.open(home)
+    memory.remember(
+      'refunds go through the ledger service',
+      'checkout/refunds',
+      'orchestrator',
+      NOW,
+      'Refunds via the ledger',
+    )
+    memory.remember('we pin major versions', 'checkout', 'window', NOW + 1000)
+
+    const reopened = Memory.open(home).all()
+    expect(reopened.map((n) => [n.text, n.summary])).toEqual([
+      ['we pin major versions', undefined],
+      ['refunds go through the ledger service', 'Refunds via the ledger'],
+    ])
+    // A headline is written beside the words, never over them.
+    const line = JSON.parse(readFileSync(join(home, 'memory.jsonl'), 'utf8').split('\n')[0] ?? '{}')
+    expect(line.text).toBe('refunds go through the ledger service')
+    expect(line.summary).toBe('Refunds via the ledger')
+  })
+
+  it('loads a note written before headlines existed', () => {
+    const home = tmp('tade-mem-')
+    // Exactly the line an older Tade wrote: nothing in it about a headline.
+    appendFileSync(
+      join(home, 'memory.jsonl'),
+      `${JSON.stringify({ text: 'never force-push to main', scope: null, by: 'voice', at: '2026-09-04T09:00:00.000Z' })}\n`,
+    )
+    const notes = Memory.open(home).all()
+    expect(notes.map((n) => n.text)).toEqual(['never force-push to main'])
+    expect(notes[0]?.summary).toBeUndefined()
+  })
+
   it('is append-only, one note per line', () => {
     const home = tmp('tade-mem-')
     const memory = Memory.open(home)

@@ -39,9 +39,18 @@ export class Memory {
     return new Memory(path, load(path))
   }
 
-  /** Write something down, verbatim. */
-  remember(text: string, scope: string | null, by = 'unknown', now: number = Date.now()): Note {
-    const entry = note(text, scope, by, now)
+  /**
+   * Write something down, verbatim. A headline may be written beside it —
+   * never instead of it: `text` is kept exactly as it arrived.
+   */
+  remember(
+    text: string,
+    scope: string | null,
+    by = 'unknown',
+    now: number = Date.now(),
+    summary: string | null = null,
+  ): Note {
+    const entry = note(text, scope, by, now, summary)
     appendFileSync(this.path, `${JSON.stringify(entry)}\n`)
     this.notes.push(entry)
     return entry

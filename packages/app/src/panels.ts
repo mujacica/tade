@@ -286,6 +286,12 @@ export interface PromptPanel {
   purpose:
     | 'note'
     | 'edit-note'
+    /**
+     * The headline over a note in the window: `target` is the note, when it
+     * was said and what it said joined by a NUL. The only way one is written
+     * for a note that was taken before anybody wrote one.
+     */
+    | 'note-headline'
     | 'new-branch'
     | 'rename-branch'
     | 'rename-terminal'
@@ -303,6 +309,11 @@ export interface PromptPanel {
    * by a NUL.
    */
   target?: string
+  /**
+   * For a note: everything known about it besides its words, so the page that
+   * changes one is also the page that reads it whole.
+   */
+  note?: NoteKnown
   title: string
   /** What the field is, said before it. */
   label: string
@@ -441,6 +452,63 @@ export interface ConfirmPanel {
   field: 'keep' | 'remove'
   busy: boolean
   error: string | null
+}
+
+/**
+ * What is known about a note besides its words: the headline it was given,
+ * what it is about, who said it and when. When it was said and what it said
+ * are together what names a note; nothing else about it is unique.
+ */
+export interface NoteKnown {
+  at: string
+  /** The headline written beside it when it was taken, if anybody wrote one. */
+  summary: string | null
+  /** A task id, a project name, or null when it is about everything. */
+  scope: string | null
+  /** Where it came from: `voice`, `window`, `cli`, `orchestrator`. */
+  by: string
+}
+
+/** Writing the headline a note is read by, for a note that has none or a worse one. */
+export function noteHeadlinePanel(note: NoteKnown, said: string): PromptPanel {
+  return {
+    ...promptPanel(
+      'note-headline',
+      'Headline',
+      'WHAT IT IS ABOUT AND WHAT IT DOES',
+      note.summary ?? '',
+    ),
+    target: `${note.at}\u0000${said}`,
+  }
+}
+
+/** A note, read whole and changed from the same page: its words are the field. */
+export function notePanel(note: NoteKnown, said: string): PromptPanel {
+  return {
+    ...promptPanel('edit-note', 'Note', 'NOTE', said),
+    target: `${note.at}\u0000${said}`,
+    note,
+  }
+}
+
+/**
+ * What is known about a note, in the words a page says it in: what it is
+ * about, and who said it when. `when` is the moment as the window says
+ * moments, since only the window knows which clock a person is reading.
+ */
+export function noteFacts(note: NoteKnown, when: string): { about: string; said: string } {
+  const who =
+    note.by === 'orchestrator'
+      ? 'the orchestrator'
+      : note.by === 'voice' || note.by === 'window' || note.by === 'cli'
+        ? 'you'
+        : note.by && note.by !== 'unknown'
+          ? note.by
+          : 'somebody'
+  return {
+    about: note.scope === null ? 'About everything' : `About ${note.scope}`,
+    said: `Said by ${who} · ${when}`,
+  }
 }
 
 export function promptPanel(
@@ -1847,6 +1915,10 @@ export function panelClick(panel: Panel, control: string, inputs: PanelInputs = 
     if (control === 'cancel') return close
     if (control === 'save') return savePrompt(panel)
     if (control === 'everywhere') return stay({ ...panel, everywhere: !panel.everywhere })
+    // A note's own page does what its menu does: have its words, take it back,
+    // or write the headline it is read by.
+    if (panel.note && (control === 'copy' || control === 'forget' || control === 'headline'))
+      return { panel, submit: true, choice: control }
     return stay(panel)
   }
   if (panel.kind === 'branch') {
@@ -1941,9 +2013,11 @@ function savePrompt(panel: PromptPanel): PanelOutcome {
     const said =
       panel.purpose === 'note'
         ? 'Write the note first.'
-        : panel.purpose === 'run-command'
-          ? 'Type the command first.'
-          : 'Give it a name.'
+        : panel.purpose === 'note-headline'
+          ? 'Write the headline first.'
+          : panel.purpose === 'run-command'
+            ? 'Type the command first.'
+            : 'Give it a name.'
     return stay({ ...panel, error: said })
   }
   return { panel: { ...panel, busy: true, error: null }, submit: true, choice: 'save' }

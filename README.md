@@ -157,6 +157,13 @@ notes that concern their work.
 
 ![A note being written: about this project or about everything, kept word for word](images/notes.svg)
 
+Down the side each one is two lines: what it is about and what it does, over the words you actually
+said. Tade writes that headline as it takes the note down, never out of the words afterwards — and
+clicking a note opens the note itself, where you can write one yourself, change the words, copy them
+or forget it.
+
+![A note read whole: the headline it was given, what it is about, who said it when, and its own words — changed, copied, forgotten or given a headline from the same page](images/note.svg)
+
 ## Many projects, many tasks
 
 Projects along the top, agents running in all of them at once. An agent in a project you are not

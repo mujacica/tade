@@ -250,6 +250,7 @@ export class ToolHost {
           String(p.text),
           p.scope === null || p.scope === undefined ? null : String(p.scope),
           p.by ? String(p.by) : 'tade',
+          p.summary ? String(p.summary) : null,
         ),
       'events/read': (p) => tade.events(p as never),
       'terminal/list': (p) => tade.terminals(p.project ? String(p.project) : undefined),
