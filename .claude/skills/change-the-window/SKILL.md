@@ -275,7 +275,8 @@ a word there; plain text does not.
 
 The window is drawn from state by a pure function, so how it looks is tested like anything else:
 
-1. **Golden screens.** `test/screens/scenarios.ts` lists named states drawn with fixed data;
+1. **Golden screens.** `test/screens/scenarios/` holds named states drawn with fixed data, one
+   file per subject and `fixtures.ts` for the world they share;
    `test/screens.test.ts` keeps each as plain text (the layout) and as exact ANSI (the look) under
    `test/screens/__screens__/`, and checks geometry and hit placement for every one. Add a scenario
    for any state worth protecting.

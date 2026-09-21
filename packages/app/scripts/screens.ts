@@ -114,7 +114,7 @@ writeFileSync(
   .pair { display: grid; gap: 12px; }
 </style>
 <h1>Tade screens</h1>
-<p>${SCENARIOS.length} screens. Drawn from <code>packages/app/test/screens/scenarios.ts</code>.</p>
+<p>${SCENARIOS.length} screens. Drawn from <code>packages/app/test/screens/scenarios/</code>.</p>
 ${sections.join('\n')}`,
 )
 process.stdout.write(`${out}\n`)

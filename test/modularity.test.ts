@@ -41,7 +41,6 @@ const BUDGET: Record<string, number> = {
   'packages/app/test/app.test.ts': 3_000,
   'packages/app/test/model.test.ts': 1_100,
   'packages/app/test/panels.test.ts': 1_400,
-  'packages/app/test/screens/scenarios.ts': 3_500,
   'packages/app/test/view.test.ts': 1_500,
   'packages/core/src/settings.ts': 1_200,
   'packages/drivers/tmux/src/index.ts': 900,

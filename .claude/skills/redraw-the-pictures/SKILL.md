@@ -69,8 +69,9 @@ could see, because the goldens never go through a terminal.
 
 ## Adding a picture
 
-1. Add a scenario to `packages/app/test/screens/scenarios.ts` — a state and a frame, fixed data
-   only: no clock, no git, no terminal.
+1. Add a scenario to the file for what it is about under `packages/app/test/screens/scenarios/` —
+   a state and a frame, fixed data only: no clock, no git, no terminal. The world they are all
+   drawn against is `scenarios/fixtures.ts`; `scenarios.ts` only gathers them.
 2. Add an entry to `PICTURES` in `packages/app/scripts/pictures.ts`: the file, the scenario, the
    crop (a rectangle, or `'panel'` for whatever panel floats over the window), and `about` — what
    somebody who cannot see it is told, which is the alt text and is not optional.

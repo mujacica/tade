@@ -82,5 +82,5 @@ and through the window in `app.test.ts`.
 **A watch.** It belongs to an extension: follow `add-extension`. Tade's side — turning it on,
 looking, the journal, the queue, telling people — needs nothing new.
 
-Then: a screen scenario for anything drawn (`test/screens/scenarios.ts`, `pnpm screens`, accept on
+Then: a screen scenario for anything drawn (`test/screens/scenarios/queue.ts`, `pnpm screens`, accept on
 purpose), the invariant in `AGENTS.md` if a rule changed, and `pnpm check` on its own.
