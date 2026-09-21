@@ -232,7 +232,7 @@ const plainRows = (drawn: Drawn) => drawn.rows.map((row) => stripTerminalSequenc
 /** Everything the panel says about one extension, read by scrolling to the end of it. */
 function wholePage(panel: ExtensionsPanel, over: Partial<PanelContext> = {}): string {
   const ctx = { width: 120, height: 34, ...over }
-  const most = extensionsScrollable(panel, facts, ctx.width, ctx.height)
+  const most = extensionsScrollable(panel, facts, ctx.width, ctx.height).body
   const { room } = extensionsSize(ctx.width, ctx.height)
   const said: string[] = []
   for (let scroll = 0; ; scroll = Math.min(most, scroll + room)) {
@@ -279,7 +279,7 @@ describe('the extensions page at any width', () => {
       for (const watch of jev.watches) {
         // A long name gives up its end to the button that turns the watch on,
         // and says it did with an ellipsis.
-        const name = width >= 96 ? watch.title : watch.title.slice(0, 12)
+        const name = width >= 96 ? watch.title : watch.title.slice(0, 10)
         expect(said, `${watch.title} at ${width}`).toContain(name)
       }
       expect(said, `at ${width}`).toContain('HOW IT IS USED')
@@ -310,7 +310,7 @@ describe('the extensions page at any width', () => {
   it('reaches everything it says by scrolling, and stops at the end of it', () => {
     for (const width of WIDTHS) {
       const panel = extensionsPanel('jev')
-      const most = extensionsScrollable(panel, facts, width, 26)
+      const most = extensionsScrollable(panel, facts, width, 26).body
       const { room } = extensionsSize(width, 26)
       // What is left after the last scroll is exactly the room there is: a
       // page that could be scrolled past its own end has rows nobody can read.
@@ -352,6 +352,76 @@ describe('the extensions page at any width', () => {
     for (const target of targets) {
       const lit = drawnAt(panel, { pointer: { hover: target, pressed: null } })
       expect(lit.rows.join('\n'), JSON.stringify(target)).not.toBe(rest.rows.join('\n'))
+    }
+  })
+
+  it('draws a bar beside each side, and lets go of neither at the foot', () => {
+    // Twenty of them, on a terminal where neither side fits: both scroll.
+    const many = [
+      ...EXTENSIONS,
+      ...Array.from({ length: 16 }, (_, i) => ({ ...off, name: `one-${i}`, title: `one-${i}` })),
+    ]
+    const panel = { ...extensionsPanel('jev'), listScroll: 4 }
+    const drawn = drawnAt(panel, { extensions: many, height: 24 })
+    const bars = drawn.hits.filter((hit) => hit.target.kind === 'scrollbar')
+    const areas = new Set(bars.map((hit) => (hit.target as { area: string }).area))
+    expect([...areas].sort()).toEqual(['panel', 'panel-side'])
+    // Each one is a column, and it is the same column on every row it is on.
+    for (const area of areas) {
+      const mine = bars.filter((hit) => (hit.target as { area: string }).area === area)
+      expect(new Set(mine.map((hit) => hit.from)).size, area).toBe(1)
+      expect(
+        mine.every((hit) => hit.from === hit.to),
+        area,
+      ).toBe(true)
+      expect(mine.length, area).toBeGreaterThan(4)
+    }
+    // And one thumb: a run of the same painted cell, not a box per row.
+    const { room } = extensionsSize(120, 24)
+    const shown = plainRows(drawn)
+    expect(shown.filter((row) => row.includes('█')).length).toBeGreaterThan(0)
+    expect(room).toBeGreaterThan(0)
+    // The two rows at the foot are the foot: no bar, and Done on the last of
+    // them, whatever the page is scrolled to.
+    const scrolled = drawnAt(
+      { ...panel, scroll: 999, following: false },
+      { extensions: many, height: 24 },
+    )
+    const rows = plainRows(scrolled)
+    const foot = rows.length - 2
+    expect(rows[foot]).toContain('Done')
+    // The page's own bar stops where the page does. The list's runs on beside
+    // the foot, because the list does: the two rows at the foot are the
+    // right-hand side's, and nothing of the page is drawn over them.
+    const page = bars.filter((hit) => (hit.target as { area: string }).area === 'panel')
+    expect(page.every((hit) => hit.row < foot)).toBe(true)
+    expect(rows[foot - 1]).toContain('yours go in')
+    expect(
+      scrolled.hits.some((hit) => hit.target.kind === 'control' && hit.target.id === 'close'),
+    ).toBe(true)
+  })
+
+  it('gives the wheel over the list the list, and over the page the page', () => {
+    const drawn = drawnAt(extensionsPanel('jev'))
+    const { side } = extensionsSize(120, 34)
+    const scrolls = drawn.hits.filter((hit) => hit.target.kind === 'scroll')
+    expect(scrolls.length).toBeGreaterThan(4)
+    for (const hit of scrolls) {
+      expect((hit.target as { area: string }).area).toBe('panel-side')
+      // The side and its bar, and nothing of what is beside them — a column
+      // in from the panel's own border. The wheel over the page is the
+      // panel's own area, which the window lays under this one.
+      expect(hit.from).toBe(1)
+      expect(hit.to).toBe(side + 1)
+    }
+    // And a name in the list is still clickable through it.
+    const pick = drawn.hits.filter(
+      (hit) => hit.target.kind === 'control' && hit.target.id.startsWith('pick:'),
+    )
+    expect(pick.length).toBeGreaterThan(3)
+    for (const hit of pick) {
+      const over = drawn.hits.filter((one) => one.row === hit.row && one.from <= hit.from)
+      expect(over.at(-1)?.target.kind).not.toBe('scroll')
     }
   })
 

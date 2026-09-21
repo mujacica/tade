@@ -1,0 +1,20 @@
+   T A D E      checkout    search    infra      +            ! 1  ⠋ 1      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────── esc ─╮   
+   │  search extensions      │ screenshots  yours                                        ready  │───
+ ▌ │                         │ 1 tool                                                           │   
+ ▌ │ ✗ standup            ! ▕│                                                                  │   
+   │ ○ release-notes        ▕│ Takes a picture of the app at a route.                          █│   
+   │ ● changelog            ▕│                                                                 █│   
+   │ ● linear               █│   Open folder     Turn off                                      █│   
+   │ ● oncall               █│                                                                 █│   
+ ▾ │ ● postgres             █│ TOOLS  what the orchestrator and your agents can call           █│   
+  M│▌● screenshots          █│ screenshots_run      Takes a picture of the … orchestrator only █│   
+━  │ ● translations         █│                                                                 ▕│  ━
+   │ · Written by Tade    1 █│ yours go in ~/.tade/extensions/<name>/extension.ts, off until …  │   
+   │ · pi's own           1 █│ tab moves · ↑↓ reads · enter presses · esc closes        Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                              type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

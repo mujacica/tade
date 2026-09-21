@@ -82,6 +82,8 @@ export type Target =
 export type ScrollArea =
   | 'sidebar'
   | 'panel'
+  /** The list down the side of a panel that has one, which scrolls by itself. */
+  | 'panel-side'
   | 'transcript'
   | 'pane'
   | 'terminal'

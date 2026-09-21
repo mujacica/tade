@@ -508,7 +508,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     height: rows.length,
     skin,
     pointer,
-    scrolling: state.scrolling?.area === 'panel',
+    scrolling: state.scrolling?.area ?? null,
     home: frame.home ?? '~/.tade',
     route: frame.route ?? null,
     spend: frame.spendView ?? null,

@@ -1275,6 +1275,10 @@ export function offsetOf(state: AppState, area: ScrollArea, total: number, shown
       return state.panel && 'scroll' in state.panel
         ? Math.max(0, Math.min(state.panel.scroll, Math.max(0, total - shown)))
         : 0
+    case 'panel-side':
+      return state.panel && 'listScroll' in state.panel
+        ? Math.max(0, Math.min(state.panel.listScroll, Math.max(0, total - shown)))
+        : 0
     // A picture of a chain is as tall as it is; it only ever moves sideways.
     case 'plan':
       return 0
@@ -1339,8 +1343,21 @@ export function scrollBarTo(state: AppState, y: number): AppState {
     case 'transcript':
       return { ...state, transcriptScroll: back }
     case 'panel':
+      // A page being dragged by its bar is not following anything: what the
+      // keyboard was last on must not pull it back under the pointer.
       return state.panel && 'scroll' in state.panel
-        ? { ...state, panel: { ...state.panel, scroll: offset } }
+        ? {
+            ...state,
+            panel: {
+              ...state.panel,
+              scroll: offset,
+              ...('following' in state.panel ? { following: false } : {}),
+            },
+          }
+        : state
+    case 'panel-side':
+      return state.panel && 'listScroll' in state.panel
+        ? { ...state, panel: { ...state.panel, listScroll: offset } }
         : state
     case 'plan':
       return state

@@ -16,7 +16,7 @@ import {
   shownValue,
 } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
-import { type Hit, sameTarget, type Target } from './hits.ts'
+import { type Hit, type ScrollArea, sameTarget, type Target } from './hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { linkedRow } from './links.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
@@ -45,6 +45,7 @@ import {
   type FilePanel,
   type FindPanel,
   fileMatches,
+  listStart,
   type MenuItem,
   type MenuPanel,
   type ModelChoice,
@@ -106,8 +107,12 @@ export interface PanelContext {
   height: number
   skin: Skin
   pointer: Pointer
-  /** The panel's own scrollbar is being dragged, so it is drawn lit. */
-  scrolling?: boolean
+  /**
+   * Which of the panel's scrollbars is being dragged, so that one is drawn
+   * lit. A panel with two of them — a list and what it is showing — lights
+   * the one in your hand, not both.
+   */
+  scrolling?: ScrollArea | null
   /** Tade's home, as you would type it: where worktrees are made. */
   home: string
   route: { harness: string; model: string | null; provider: string | null } | null
@@ -372,17 +377,37 @@ function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   return box(`Model for ${ctx.modelTarget}`, rows, width, skin, { corner: 'esc' })
 }
 
-/** How big the Extensions panel is, and how its two sides divide the room. */
+/**
+ * How big the Extensions panel is, and how its two sides divide the room.
+ *
+ * Settings' shape, and not Settings' block: a form is as tall as its rows and
+ * stops, while this holds an extension's own account of itself — sixty lines
+ * for one of them — so it takes the window it is given, less the margin and
+ * the strip at the foot it must never cover. Capped at 120 columns only
+ * because prose read across a whole ultrawide is prose nobody reads.
+ */
 export function extensionsSize(
   width: number,
   height: number,
-): { width: number; height: number; inner: number; side: number; body: number; room: number } {
-  // The same block Settings takes, because they are the same shape and a
-  // window with two sizes of the same panel looks like an accident.
-  const w = Math.min(104, Math.max(32, width - 6))
-  const h = Math.max(14, Math.min(28, height - 4))
+): {
+  width: number
+  height: number
+  inner: number
+  /** The list's whole region, the column its bar takes included. */
+  side: number
+  /** The right-hand side's whole region, the column its bar takes included. */
+  body: number
+  /** Rows of the right-hand side that scroll. */
+  room: number
+  /** Rows of the list that scroll. */
+  listRoom: number
+} {
+  const w = Math.min(120, Math.max(32, width - 6))
+  // The window's own strip at the bottom is four rows, and a panel drawn over
+  // it is a panel whose foot — Done, and what it last said — is under it.
+  const h = Math.max(14, height - 6)
   const inner = w - 2
-  const side = sideWidth(inner)
+  const side = sideWidth(inner) + BAR
   return {
     width: w,
     height: h,
@@ -392,6 +417,8 @@ export function extensionsSize(
     // What is left after the border, the head that stays put and the two
     // rows at the foot.
     room: Math.max(1, h - 2 - HEAD - 2),
+    // What is left after the border and the search field with its blank row.
+    listRoom: Math.max(1, h - 2 - 2),
   }
 }
 
@@ -417,7 +444,7 @@ export type ExtensionFacts = Pick<
  */
 function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const { width, height, side, body, room } = extensionsSize(ctx.width, ctx.height)
+  const { width, height, side, body, room, listRoom } = extensionsSize(ctx.width, ctx.height)
   const entries = extensionEntries(ctx.extensions, ctx.written, ctx.harnessExtensions, panel.search)
   const here = chosenEntry(panel, entries)
   const controls = extensionControls(here?.id ?? null, ctx.extensions, ctx.written)
@@ -426,27 +453,30 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   // say the same thing; the pointer's own light always wins.
   const pointer =
     ctx.pointer.hover?.kind === 'control' ? ctx.pointer : withFocus(ctx.pointer, focused)
+  // Each side keeps a column for its own bar, so the two are the same object
+  // the rest of the window uses and the text never runs under one.
+  const names = side - BAR
+  const told = body - BAR
 
   // ── the side: search, then every extension the search leaves ──
   const aside: { text: string; hits: Hit[] }[] = []
   const asking = panel.search === '' && panel.focus !== 'search'
   aside.push(
-    new Row(side, skin, pointer)
+    new Row(names, skin, pointer)
       .space()
-      .field(asking ? 'search extensions' : panel.search, side - 2, {
+      .field(asking ? 'search extensions' : panel.search, names - 2, {
         caret: panel.focus === 'search',
         hint: asking,
         target: { kind: 'control', id: 'search' },
       })
       .build(),
   )
-  aside.push(blank(side))
+  aside.push(blank(names))
   const at = Math.max(
     0,
     entries.findIndex((entry) => entry.id === here?.id),
   )
-  const listRoom = Math.max(1, height - 2 - 2)
-  const from = scrolledTo(entries.length, listRoom, at, at)
+  const from = listStart(panel.listScroll, entries.length, listRoom, at)
   for (const entry of entries.slice(from, from + listRoom)) {
     const on = entry.id === here?.id
     const target = { kind: 'control' as const, id: `pick:${entry.id}` }
@@ -461,12 +491,12 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
             : entry.state === 'off'
               ? skin.hint('○')
               : skin.waiting('◐')
-    const row = new Row(side, skin, ctx.pointer)
+    const row = new Row(names, skin, ctx.pointer)
       .marker(on && panel.focus === 'list', target)
       .text(mark, undefined, target)
       .space()
       .text(
-        cap(entry.title, side - 7),
+        cap(entry.title, names - 7),
         entry.state === 'off' ? skin.hint : on || pointed ? skin.you : (text) => text,
         target,
       )
@@ -481,7 +511,7 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     const built = row.build()
     aside.push({
       text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: side - 1, target }],
+      hits: [{ row: 0, from: 0, to: names - 1, target }],
     })
   }
 
@@ -489,9 +519,9 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const view =
     here?.kind === 'extension' ? ctx.extensions.find((one) => one.name === here.id) : null
   const head: { text: string; hits: Hit[] }[] = []
-  const heading = new Row(body, skin, pointer).space()
+  const heading = new Row(told, skin, pointer).space()
   if (view) {
-    heading.text(cap(view.title, body - 24), skin.brand).text(`  ${view.source}`, skin.hint)
+    heading.text(cap(view.title, told - 24), skin.brand).text(`  ${view.source}`, skin.hint)
     heading.right((r) =>
       r
         .text(
@@ -507,10 +537,10 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
         .space(),
     )
   } else if (here) {
-    heading.text(cap(here.title, body - 2), skin.brand)
+    heading.text(cap(here.title, told - 2), skin.brand)
   } else {
     heading.text(
-      cap(panel.search ? `Nothing matches “${panel.search}”` : 'Extensions', body - 2),
+      cap(panel.search ? `Nothing matches “${panel.search}”` : 'Extensions', told - 2),
       skin.brand,
     )
   }
@@ -531,16 +561,16 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
         : []
   head.push(
     counts.length > 0
-      ? new Row(body, skin)
+      ? new Row(told, skin)
           .space()
-          .text(cap(counts.join(' · '), body - 2), skin.hint)
+          .text(cap(counts.join(' · '), told - 2), skin.hint)
           .build()
-      : blank(body),
+      : blank(told),
   )
-  head.push(blank(body))
+  head.push(blank(told))
 
   // ── the body, which scrolls ──
-  const lines = extensionBody(ctx, here, body, pointer, focused)
+  const lines = extensionBody(ctx, here, told, pointer, focused)
   /** Where the control the keyboard is on ended up, so tabbing keeps it in view. */
   let focusFrom = 0
   let focusTo = 0
@@ -559,47 +589,89 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
 
   // ── the foot ──
   const said = panel.said
-    ? new Row(body, skin)
+    ? new Row(told, skin)
         .space()
-        .text(cap(panel.said, body - 2), skin.busy)
+        .text(cap(panel.said, told - 2), skin.busy)
         .build()
-    : new Row(body, skin)
+    : new Row(told, skin)
         .space()
         .text(
-          cap(`yours go in ${ctx.extensionsRoot}/<name>/extension.ts, off until you say`, body - 2),
+          cap(`yours go in ${ctx.extensionsRoot}/<name>/extension.ts, off until you say`, told - 2),
           skin.hint,
         )
         .build()
-  const keys = new Row(body, skin, ctx.pointer)
+  // Done is pinned to the foot, which no part of the page scrolls over: a
+  // button that reading past the fold takes away is a button that is gone.
+  // Said as fully as there is room for, and never cut mid-word: a hint with
+  // an ellipsis in it has stopped being a hint.
+  const how =
+    told >= 62
+      ? 'tab moves · ↑↓ reads · enter presses · esc closes'
+      : told >= 44
+        ? 'tab moves · ↑↓ reads · enter presses'
+        : '↑↓ reads · enter presses'
+  const keys = new Row(told, skin, ctx.pointer)
     .space()
-    .text(
-      cap(
-        lines.length > room
-          ? `${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · tab moves · enter presses`
-          : 'tab moves · enter presses · esc closes',
-        body - 12,
-      ),
-      skin.hint,
-    )
+    .text(cap(how, told - 12), skin.hint)
     .right((r) => r.button('Done', { kind: 'control', id: 'close' }, 'primary').space())
 
+  // ── the two of them, each with its own bar ──
+  const listBar = bar(
+    { total: entries.length, shown: listRoom, offset: from, rows: listRoom },
+    'panel-side',
+    ctx,
+  )
+  const bodyBar = bar({ total: lines.length, shown: room, offset: start, rows: room }, 'panel', ctx)
   const main = [...head, ...shown]
   const rowsOfBody = height - 2
   const rows: { text: string; hits: Hit[] }[] = []
   for (let i = 0; i < rowsOfBody; i++) {
-    const left = aside[i] ?? blank(side)
-    let right = main[i] ?? blank(body)
+    const left = aside[i] ?? blank(names)
+    let right = main[i] ?? blank(told)
     if (i === rowsOfBody - 2) right = said
     if (i === rowsOfBody - 1) right = keys.build()
+    // A bar runs beside what it scrolls and nowhere else: the search field
+    // keeps its own row, and so do the two at the foot.
+    const beside = listBar[i - 2]
+    const along = i >= HEAD && i < HEAD + room ? bodyBar[i - HEAD] : null
     rows.push({
-      text: `${fitTo(left.text, side)}${skin.chrome('│')}${fitTo(right.text, body)}`,
+      text: `${fitTo(left.text, names)}${beside?.cell ?? ' '}${skin.chrome('│')}${fitTo(right.text, told)}${along?.cell ?? ' '}`,
       hits: [
+        // The wheel over the list moves the list, and over the page the page.
+        // Laid under everything on the row, so a click still presses what it
+        // is on; the panel's own scroll hit is under this one in turn.
+        { row: 0, from: 0, to: side, target: { kind: 'scroll', area: 'panel-side' } as Target },
         ...left.hits,
+        ...(beside ? [{ row: 0, from: names, to: names, target: beside.target }] : []),
         ...right.hits.map((hit) => ({ ...hit, from: hit.from + side + 1, to: hit.to + side + 1 })),
+        ...(along
+          ? [{ row: 0, from: side + 1 + told, to: side + 1 + told, target: along.target }]
+          : []),
       ],
     })
   }
   return box('Extensions', rows, width, skin, { corner: 'esc' })
+}
+
+/**
+ * A scrollbar's cells for one of the panel's two sides, each with the hit that
+ * turns a drag on it back into a line to scroll to. The same bar the rest of
+ * the window uses — one thumb, painted cells — so the panel does not grow a
+ * scrollbar of its own.
+ *
+ * Drawn whether or not there is anything to scroll: a column that comes and
+ * goes moves everything beside it every time the page changes.
+ */
+function bar(
+  view: Scrolled,
+  area: 'panel' | 'panel-side',
+  ctx: PanelContext,
+): { cell: string; target: Target }[] {
+  const held =
+    ctx.scrolling === area ||
+    (ctx.pointer.hover?.kind === 'scrollbar' && ctx.pointer.hover.area === area)
+  const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
+  return barRows(view, ctx.skin, held).map((cell) => ({ cell, target }))
 }
 
 /** `8 tools`, `1 watch`: a count said the way somebody would say it. */
@@ -615,16 +687,17 @@ interface Told {
 }
 
 /**
- * How many lines further the right-hand side could be scrolled, for the keys
- * and the wheel. Laid out exactly as it is drawn — one layout, asked twice —
- * because a second reading of how long the page is drifts from the first.
+ * How much further each side of the panel could be scrolled, and how many
+ * rows the list shows, for the keys and the wheel. Laid out exactly as it is
+ * drawn — one layout, asked twice — because a second reading of how long the
+ * page is drifts from the first.
  */
 export function extensionsScrollable(
   panel: ExtensionsPanel,
   facts: ExtensionFacts,
   width: number,
   height: number,
-): number {
+): { body: number; list: number; listRoom: number } {
   const size = extensionsSize(width, height)
   const entries = extensionEntries(
     facts.extensions,
@@ -633,8 +706,12 @@ export function extensionsScrollable(
     panel.search,
   )
   const here = chosenEntry(panel, entries)
-  const lines = extensionBody(facts, here, size.body, NO_POINTER, null)
-  return Math.max(0, lines.length - size.room)
+  const lines = extensionBody(facts, here, size.body - BAR, NO_POINTER, null)
+  return {
+    body: Math.max(0, lines.length - size.room),
+    list: Math.max(0, entries.length - size.listRoom),
+    listRoom: size.listRoom,
+  }
 }
 
 /**
@@ -923,7 +1000,7 @@ function extensionBody(
       lines.push(
         row()
           .space()
-          .text(padTo(cap(option.label, named), named))
+          .text(padTo(cap(option.label, named - 1), named))
           .text(cap(value, Math.max(4, form - named - 3)), set ? skin.you : skin.hint)
           .build(),
       )
@@ -1409,7 +1486,7 @@ function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     const bar = barRows(
       { total: lines.length, shown: body, offset: scroll, rows: body },
       skin,
-      ctx.scrolling === true || ctx.pointer.hover?.kind === 'scrollbar',
+      ctx.scrolling === 'panel' || ctx.pointer.hover?.kind === 'scrollbar',
     )
     const target: Target = {
       kind: 'scrollbar',

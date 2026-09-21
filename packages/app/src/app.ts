@@ -1564,6 +1564,19 @@ export class App {
           this.state = { ...this.state, panel: scrollFile(panel, event.rows, this.fileLines()) }
           return true
         }
+        // The list down the side of a panel scrolls by itself, and moves
+        // nothing: what is chosen stays chosen while you look for another.
+        if (event.area === 'panel-side' && panel?.kind === 'extensions') {
+          const most = this.extensionRoom().list
+          this.state = {
+            ...this.state,
+            panel: {
+              ...panel,
+              listScroll: Math.max(0, Math.min(most, panel.listScroll + event.rows)),
+            },
+          }
+          return true
+        }
         if (event.area === 'panel' && panel) {
           const key = event.rows > 0 ? 'down' : 'up'
           let outcome: PanelOutcome = { panel, submit: false }
@@ -7072,7 +7085,8 @@ export class App {
       extensions: this.extensionViews(),
       written: this.state.panel?.kind === 'extensions' ? this.writtenViews() : [],
       harnessExtensions: this.harnessPieces,
-      scrollable: this.extensionsScrollable(),
+      scrollable: this.extensionRoom().body,
+      listRoom: this.extensionRoom().listRoom,
       setupFields:
         this.state.panel?.kind === 'extension-setup'
           ? (this.setupFacts(this.state.panel)?.fields ?? [])
@@ -7084,13 +7098,14 @@ export class App {
   }
 
   /**
-   * How much further the Extensions panel could be scrolled, laid out exactly
-   * as it is drawn. The panel is what holds the scroll, so what its keys and
-   * the wheel may do to it has to be measured against the same layout.
+   * How much further each side of the Extensions panel could be scrolled, and
+   * how many rows its list shows, laid out exactly as it is drawn. The panel
+   * is what holds the scroll, so what its keys, its bars and the wheel may do
+   * to it has to be measured against the same layout.
    */
-  private extensionsScrollable(): number {
+  private extensionRoom(): { body: number; list: number; listRoom: number } {
     const panel = this.state.panel
-    if (panel?.kind !== 'extensions') return 0
+    if (panel?.kind !== 'extensions') return { body: 0, list: 0, listRoom: 1 }
     return extensionsScrollable(
       panel,
       {

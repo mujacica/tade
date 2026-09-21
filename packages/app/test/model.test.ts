@@ -57,6 +57,7 @@ import {
   withTasks,
   withTerminals,
 } from '../src/model.ts'
+import { extensionsPanel } from '../src/panels.ts'
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')
 
@@ -732,6 +733,19 @@ describe('dragging a scrollbar', () => {
 
   it('lets go of it, and of nothing else', () => {
     expect(scrollBarTo(state(), 5)).toEqual(state())
+  })
+
+  it('drags a panel that has two bars by whichever one is held', () => {
+    const open = { ...state(), panel: extensionsPanel('jev') }
+    // The page beside the list: dragged, it stops following the control the
+    // keyboard was on — a page that jumps back under the pointer is unusable.
+    const page = grabBar(open, { area: 'panel', total: 60, shown: 20 }, track, 12)
+    expect(page.panel).toMatchObject({ kind: 'extensions', scroll: 40, following: false })
+    expect(page.panel).toMatchObject({ listScroll: 0 })
+    // And the list itself, which moves nothing else: what is chosen stays chosen.
+    const list = grabBar(open, { area: 'panel-side', total: 40, shown: 10 }, track, 12)
+    expect(list.panel).toMatchObject({ kind: 'extensions', listScroll: 30, chosen: 'jev' })
+    expect(list.panel).toMatchObject({ scroll: 0 })
   })
 
   it('drags the one lying down by its column, and moves the region sideways', () => {

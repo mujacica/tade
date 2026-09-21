@@ -856,6 +856,40 @@ function extensionShown(
   }
 }
 
+/** One of your own, as somebody with a folder full of them has. */
+function yourExtension(name: string, about: string): ExtensionView {
+  return {
+    name,
+    title: name,
+    description: about,
+    workflow: [],
+    source: 'yours',
+    state: 'ready',
+    problem: null,
+    tools: [{ name: `${name.replace(/-/g, '_')}_run`, summary: about, for: ['orchestrator'] }],
+    actions: [],
+    options: [],
+    unknownSettings: [],
+    configurable: false,
+    folder: `/Users/me/.tade/extensions/${name}`,
+    watches: [],
+  }
+}
+
+/** A folder somebody has been filling for a while: the list scrolls, and says so. */
+function manyExtensionFacts() {
+  const facts = extensionFacts()
+  const mine = [
+    yourExtension('changelog', 'Drafts the changelog from what merged this week.'),
+    yourExtension('linear', 'Reads the tickets assigned to you.'),
+    yourExtension('oncall', 'Says who is on call, and what has paged them.'),
+    yourExtension('postgres', 'Runs a read-only query against the staging database.'),
+    yourExtension('screenshots', 'Takes a picture of the app at a route.'),
+    yourExtension('translations', 'Finds strings nobody has translated yet.'),
+  ]
+  return { ...facts, extensions: [...facts.extensions, ...mine] }
+}
+
 function extensionFacts() {
   return {
     extensions: [
@@ -2129,6 +2163,17 @@ export const SCENARIOS: Scenario[] = [
     frame: frame({ panel: extensionFacts() }),
   },
   {
+    name: 'a-lot-of-extensions',
+    about:
+      'A folder somebody has been filling: the list down the side scrolls under its own bar, the ' +
+      'page beside it under its own, and neither runs into the two rows at the foot.',
+    state: {
+      ...base(),
+      panel: { ...extensionsPanel('screenshots'), listScroll: 5 },
+    },
+    frame: frame({ width: 100, height: 20, panel: manyExtensionFacts() }),
+  },
+  {
     name: 'what-an-extension-brings',
     about:
       'The same extension, read further down: every tool it brings with what each is for, what it ' +
@@ -2148,7 +2193,7 @@ export const SCENARIOS: Scenario[] = [
       'than a value.',
     state: {
       ...base(),
-      panel: { ...extensionsPanel('sentry'), focus: 'body', index: 1 },
+      panel: { ...extensionsPanel('sentry'), focus: 'body', index: 0 },
     },
     frame: frame({ panel: extensionFacts() }),
   },

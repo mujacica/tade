@@ -1490,6 +1490,9 @@ describe('the window, wired up', () => {
       'utf8',
     )
     expect(file).toContain('by: schedule:rain')
+    // The panel is over the conversation, which is where Tade says what a
+    // watch found: close it, and there it is.
+    terminal.press('\x1b')
     await until('said where you would look', () =>
       screenOf(terminal.written).some((row) =>
         row.includes('Rain found 3 new: queued app/bring-in-shed and app/bring-in-yard'),

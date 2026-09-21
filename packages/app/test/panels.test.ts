@@ -23,6 +23,7 @@ import {
   HARNESS,
   harnessMenuItems,
   laneMenuItems,
+  listStart,
   menuItems,
   type Panel,
   panelClick,
@@ -688,6 +689,26 @@ describe('the Extensions panel', () => {
     panel = panelKey(panel, 'escape', '', inputs).panel as typeof panel
     expect(panel).toMatchObject({ search: '', focus: 'list' })
     expect(panelKey(panel, 'escape', '', inputs).panel).toBeNull()
+  })
+
+  it('brings the list back to what the keyboard chose, and leaves where you scrolled it alone', () => {
+    // Somebody scrolled the list away from what is chosen: it stays where
+    // they put it, because they are reading it.
+    expect(listStart(4, 12, 5, 0)).toBe(0)
+    expect(listStart(4, 12, 5, 6)).toBe(4)
+    expect(listStart(0, 12, 5, 9)).toBe(5)
+    // Never past the end, and never before the start.
+    expect(listStart(99, 12, 5, 11)).toBe(7)
+    expect(listStart(-3, 12, 5, 0)).toBe(0)
+    // Nothing to scroll is nothing scrolled.
+    expect(listStart(4, 3, 5, 0)).toBe(0)
+
+    // Walking down past the last row in view brings the list with it.
+    let panel = { ...extensionsPanel('deps'), listScroll: 0 }
+    panel = panelKey(panel, 'down', '', { ...inputs, listRoom: 1 }).panel as typeof panel
+    expect(panel).toMatchObject({ chosen: 'sentry', listScroll: 1 })
+    panel = panelKey(panel, 'up', '', { ...inputs, listRoom: 1 }).panel as typeof panel
+    expect(panel).toMatchObject({ chosen: 'deps', listScroll: 0 })
   })
 
   it('scrolls the right-hand side as far as it has, and stops following the buttons', () => {

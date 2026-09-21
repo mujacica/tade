@@ -571,6 +571,8 @@ export interface ExtensionsPanel {
   index: number
   /** Lines of the right-hand side scrolled past. */
   scroll: number
+  /** Rows of the list scrolled past, for the one that is longer than its side. */
+  listScroll: number
   /**
    * Whether the right-hand side follows the control the keyboard is on. It
    * does while you tab between them, and stops the moment you scroll it
@@ -677,6 +679,7 @@ export function extensionsPanel(chosen: string | null = null): ExtensionsPanel {
     chosen,
     index: 0,
     scroll: 0,
+    listScroll: 0,
     following: true,
     focus: 'list',
     search: '',
@@ -780,6 +783,22 @@ function matchesSearch(text: string, search: string): boolean {
   return words.every((word) => haystack.includes(word))
 }
 
+/**
+ * The first row of a list to draw: where it was scrolled to, moved as far as
+ * it must to keep the row you are on in view.
+ *
+ * Which is the whole rule, in one place: whoever scrolls reads where they
+ * like, and the keyboard moving the choice brings the list back to it —
+ * because a choice you cannot see is a choice you did not make.
+ */
+export function listStart(scroll: number, total: number, room: number, chosen: number): number {
+  const most = Math.max(0, total - room)
+  let from = Math.max(0, Math.min(scroll, most))
+  if (chosen >= from + room) from = Math.min(most, chosen - room + 1)
+  if (chosen < from) from = chosen
+  return Math.max(0, Math.min(from, most))
+}
+
 /** Which entry the panel is on: what was chosen, or the first one there is. */
 export function chosenEntry(
   panel: ExtensionsPanel,
@@ -869,9 +888,28 @@ function extensionsKey(
     inputs.extensions ?? [],
     inputs.written ?? [],
   )
-  /** Moving anywhere in the list starts the right-hand side at its top again. */
-  const at = (id: string | null): PanelOutcome =>
-    stay({ ...panel, chosen: id, index: 0, scroll: 0, following: true, focus: 'list' })
+  /**
+   * Moving anywhere in the list starts the right-hand side at its top again,
+   * and brings the list to what was chosen if it had been scrolled away from
+   * it. The list holds where it is rather than working it out from the
+   * choice, so that the wheel and the bar can move it and it stays moved.
+   */
+  const at = (id: string | null): PanelOutcome => {
+    const index = Math.max(
+      0,
+      entries.findIndex((entry) => entry.id === id),
+    )
+    const room = Math.max(1, inputs.listRoom ?? entries.length)
+    return stay({
+      ...panel,
+      chosen: id,
+      index: 0,
+      scroll: 0,
+      following: true,
+      focus: 'list',
+      listScroll: listStart(panel.listScroll, entries.length, room, index),
+    })
+  }
 
   if (panel.focus === 'search') {
     if (key === 'escape') return stay({ ...panel, search: '', focus: 'list' })
@@ -1274,6 +1312,8 @@ export interface PanelInputs {
    * much it has to say, less the room it is drawn in. Nought where it all fits.
    */
   scrollable?: number
+  /** How many rows of the extensions list are in view, for keeping the chosen one in them. */
+  listRoom?: number
   /** Models there are to choose from. */
   models?: readonly ModelChoice[]
   /** The tools Tade wrote for itself, on or off. */

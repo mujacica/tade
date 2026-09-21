@@ -1,33 +1,33 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮    ×   
-        │  search extensions     │ Jev  built-in                                                         ready │────────
- ▌ ! str│                        │ 8 tools · 2 watches · 5 settings                                            │        
- ▌   wan│ ● Checks               │                                                                             │        
-        │ ● Dependencies         │ Asks a judge bounded questions about diffs, logs, requests, plans and       │        
-   ⠋ ref│▌● Jev                  │ queues: probabilities to act on, never verdicts and never prose.            │        
-     wor│ ◐ Sentry             ! │                                                                             │        
-        │ ✗ standup            ! │   Settings…     What Jev flagged     Review the latest commits              │        
- ▾ CHANG│ ○ release-notes        │                                                                             │        
-  M pack│ · Written by Tade    1 │   Turn off                                                                  │        
-  A …/we│ · pi's own           1 │                                                                             │        
-  M src/│                        │ HOW IT IS USED                                                              │        
-        │                        │ · Reviews what agents wrote, when nobody has time to: turn the review       │        
- ▾ FILES│                        │   watch on and every branch that goes quiet is read against the review      │        
-   ▾ src│                        │   pack — injection, secrets, swallowed errors, missing tests, whether it    │        
-       w│                        │   did what was asked.                                                       │        
-       w│                        │ · Judges anything else in front of you (jev_ask): a diff, an issue list, a  │        
-   ▸ tes│                        │   failing log, something somebody pasted. A few dozen literal questions at  │        
-     pac│                        │   once, each answered with a probability and no prose.                      │        
-     REA│                        │ · Finds the lines that answer a question, in a log, the journal or a file   │        
-        │                        │   (jev_grep) — a filter to read, not an answer.                             │        
-━   orch│                        │ · Says what it has already flagged (jev_findings), and takes your word for  │   ▾   ━
-        │                        │   whether it was right (jev_verdict): nothing else says whether a question  │        
-        │                        │   is worth asking again.                                                    │       ▕
-        │                        │ · Reads things back before somebody guesses: what was actually asked for    │       ▕
-        │                        │ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say       │       ▕
-        │                        │ 1–21 of 62 · tab moves · enter presses                               Done   │       ▕
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+ ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │  search extensions      │ Jev  built-in                                                                 ready  │───
+ ▌ │                         │ 8 tools · 2 watches · 5 settings                                                     │   
+ ▌ │ ● Checks               ▕│                                                                                      │   
+   │ ● Dependencies         ▕│ Asks a judge bounded questions about diffs, logs, requests, plans and queues:       █│   
+   │▌● Jev                  ▕│ probabilities to act on, never verdicts and never prose.                            █│   
+   │ ◐ Sentry             ! ▕│                                                                                     █│   
+   │ ✗ standup            ! ▕│   Settings…     What Jev flagged     Review the latest commits     Turn off         █│   
+ ▾ │ ○ release-notes        ▕│                                                                                     █│   
+  M│ · Written by Tade    1 ▕│ HOW IT IS USED                                                                      █│   
+  A│ · pi's own           1 ▕│ · Reviews what agents wrote, when nobody has time to: turn the review watch on and  █│   
+  M│                        ▕│   every branch that goes quiet is read against the review pack — injection,         █│   
+   │                        ▕│   secrets, swallowed errors, missing tests, whether it did what was asked.          ▕│   
+ ▾ │                        ▕│ · Judges anything else in front of you (jev_ask): a diff, an issue list, a failing  ▕│   
+   │                        ▕│   log, something somebody pasted. A few dozen literal questions at once, each       ▕│   
+   │                        ▕│   answered with a probability and no prose.                                         ▕│   
+   │                        ▕│ · Finds the lines that answer a question, in a log, the journal or a file           ▕│   
+   │                        ▕│   (jev_grep) — a filter to read, not an answer.                                     ▕│   
+   │                        ▕│ · Says what it has already flagged (jev_findings), and takes your word for whether  ▕│   
+   │                        ▕│   it was right (jev_verdict): nothing else says whether a question is worth asking  ▕│   
+   │                        ▕│   again.                                                                            ▕│   
+━  │                        ▕│ · Reads things back before somebody guesses: what was actually asked for            ▕│  ━
+   │                        ▕│   (jev_read_request), a plan before Tade keeps it (jev_plan_check), what to do      ▕│   
+   │                        ▕│   first of what is queued (jev_queue_order).                                        ▕│  ▕
+   │                        ▕│ · Answers a sentence typed into search that matched no letters, with which of the   ▕│  ▕
+   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

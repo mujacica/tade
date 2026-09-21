@@ -1,33 +1,33 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENT╭─ Extensions ─────────────────────────────────────────────────────────────────────────────────── esc ─╮    ×   
-        │  search extensions     │ Jev  built-in                                                         ready │────────
- ▌ ! str│                        │ 8 tools · 2 watches · 5 settings                                            │        
- ▌   wan│ ● Checks               │                                                                             │        
-        │ ● Dependencies         │   to do first of what is queued (jev_queue_order).                          │        
-   ⠋ ref│ ● Jev                  │ · Answers a sentence typed into search that matched no letters, with which  │        
-     wor│ ◐ Sentry             ! │   of the things already listed it might mean.                               │        
-        │ ✗ standup            ! │ · Reads a command an agent is held at that the approval rules do not name   │        
- ▾ CHANG│ ○ release-notes        │   — only ever making Tade ask you for more, never less, and nothing at all  │        
-  M pack│ · Written by Tade    1 │   under bypass.                                                             │        
-  A …/we│ · pi's own           1 │ · It may only add caution: it never approves, merges, unholds or shortens   │        
-  M src/│                        │   a review, and it is never the reason anybody is given.                    │        
-        │                        │                                                                             │        
- ▾ FILES│                        │ TOOLS  what the orchestrator and your agents can call                       │        
-   ▾ src│                        │ jev_ask               Judge anything against questions you write            │        
-       w│                        │ jev_grep              Grep that reads                                       │        
-       w│                        │ jev_review            Read a change against the review pack and say what it…│        
-   ▸ tes│                        │ jev_findings          What the review watch has looked at, what it flagged,…│        
-     pac│                        │ jev_verdict           Write down what a finding turned out to be, once some…│        
-     REA│                        │ jev_read_request      A second, independent reading of w… orchestrator only │        
-        │                        │ jev_plan_check        Read a plan before you keep it, an… orchestrator only │        
-━   orch│                        │ jev_queue_order       Suggest what should come first out… orchestrator only │   ▾   ━
-        │                        │                                                                             │        
-        │                        │ WATCHES  offered; nothing is watched until you turn one on                  │       ▕
-        │                        │ ◎ Review what agents change  every 10m                     Watch checkout   │       ▕
-        │                        │ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say       │       ▕
-        │                        │ 23–43 of 62 · tab moves · enter presses                              Done   │       ▕
- ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
+ ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │  search extensions      │ Jev  built-in                                                                 ready  │───
+ ▌ │                         │ 8 tools · 2 watches · 5 settings                                                     │   
+ ▌ │ ● Checks               ▕│                                                                                      │   
+   │ ● Dependencies         ▕│ · Reads a command an agent is held at that the approval rules do not name — only    ▕│   
+   │ ● Jev                  ▕│   ever making Tade ask you for more, never less, and nothing at all under bypass.   ▕│   
+   │ ◐ Sentry             ! ▕│ · It may only add caution: it never approves, merges, unholds or shortens a         ▕│   
+   │ ✗ standup            ! ▕│   review, and it is never the reason anybody is given.                              ▕│   
+ ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
+  M│ · Written by Tade    1 ▕│ TOOLS  what the orchestrator and your agents can call                               ▕│   
+  A│ · pi's own           1 ▕│ jev_ask               Judge anything against questions you write                    ▕│   
+  M│                        ▕│ jev_grep              Grep that reads                                               ▕│   
+   │                        ▕│ jev_review            Read a change against the review pack and say what it flags   █│   
+ ▾ │                        ▕│ jev_findings          What the review watch has looked at, what it flagged, what ca…█│   
+   │                        ▕│ jev_verdict           Write down what a finding turned out to be, once somebody has…█│   
+   │                        ▕│ jev_read_request      A second, independent reading of what some… orchestrator only █│   
+   │                        ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only █│   
+   │                        ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only █│   
+   │                        ▕│                                                                                     █│   
+   │                        ▕│ WATCHES  offered; nothing is watched until you turn one on                          █│   
+   │                        ▕│ ◎ Review what agents change  every 10m                             Watch checkout   ▕│   
+━  │                        ▕│   When an agent’s branch stops moving, reads its whole diff against what it         ▕│  ━
+   │                        ▕│   branched from — injection, secrets, permissions, swallowed errors, missing tests, ▕│   
+   │                        ▕│   whether it did what was asked, and this repository’s own rules — and reports what ▕│  ▕
+   │                        ▕│   it flags, for somebody who can explain it to read. It never blocks a commit,      ▕│  ▕
+   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
