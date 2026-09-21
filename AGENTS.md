@@ -719,6 +719,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 ## Keeping the repo maintainable
 
 - **This file is the one guide.** `CLAUDE.md` is a link to it, so every agent reads the same words.
+- **A file over 800 lines is a conversation.** `test/modularity.test.ts` holds one budget per file —
+  `DEFAULT = 800`, and a line of its own for each file allowed to be bigger — and a number in it may
+  go **down** in the commit that earns it, never up; a budget sitting more than 150 lines above its
+  file is the ratchet failing, so the numbers follow the files down rather than staying at the year
+  they were written. It holds the two import rules beside them: `app.ts` imports `wire/*` and no
+  `wire/*` imports `app.ts`, and the pure files (`frame.ts`, `model.ts`, `view.ts`, `view/*`,
+  `panels/*`, `skin.ts`, `ui.ts`, ...) contain no `node:` import, no clock read and no `async`. It
+  runs in `test:smoke`, so a file crossing its line is said at the commit rather than in CI, and every
+  failure says what to do about it. `app.ts` reached 8,635 lines because adding the fortieth subject
+  to it was never once visibly a decision, and prose does not fail a build.
 - **`README.md` is the showcase**, and the source a web page will be built from: a hero, a section per
   feature, each a picture and a line or three, then install and setup — which must stay findable,
   because they are the one thing a README may not lose. Explanations belong where they are used —
