@@ -10,6 +10,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | File | Holds | Testable without |
 |---|---|---|
 | `model.ts` | What is shown, as data: panes, projects, focus, key meanings | a terminal |
+| `frame.ts` | `Frame`: the shape of what the window is handed to draw, and nothing else | — (types only) |
 | `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line | a terminal |
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something | a terminal |

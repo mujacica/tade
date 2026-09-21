@@ -42,9 +42,9 @@ import { livenessFrom } from '@tade/workbench/lane-liveness'
 import type { LaneRecord } from '@tade/workbench/registry'
 import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
+import type { ActionsView, Change, CheckView, CommitView, NoteShown } from './frame.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import type { ActionsView, Change, CheckView, CommitView, NoteShown } from './view.ts'
 
 // Where the app gets its facts.
 //

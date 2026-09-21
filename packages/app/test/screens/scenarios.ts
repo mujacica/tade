@@ -14,6 +14,7 @@ import { sentryExtension } from '@tade/extension-sentry'
 import type { TadeExtension } from '@tade/extensions-core'
 import { CATALOGUE } from '@tade/mcp-core'
 import { parseDiff } from '../../src/diff.ts'
+import type { ActionsView, CheckView, CommitView, Frame } from '../../src/frame.ts'
 import { offsetOf } from '../../src/input.ts'
 import {
   type AppState,
@@ -76,7 +77,6 @@ import {
   thinking,
   youSaid,
 } from '../../src/transcript.ts'
-import type { ActionsView, CheckView, CommitView, Frame } from '../../src/view.ts'
 import {
   editFrom,
   formattedLines,

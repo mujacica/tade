@@ -1,4 +1,5 @@
 export { App, type AppOptions } from './app.ts'
+export type { Frame } from './frame.ts'
 export { type Hit, hitAt, pressable, rowHit, sameTarget, type Target } from './hits.ts'
 export { appKey, type KeyContext, TALK } from './keys.ts'
 export { knownTasks, Live, type LiveOptions, snapshotsFrom } from './live.ts'
@@ -66,4 +67,4 @@ export {
 } from './skin.ts'
 export { type TitleFacts, titleMark, windowTitle } from './title.ts'
 export { box, type Drawn as Region, overlay, type Pointer, Row } from './ui.ts'
-export { BUTTONS, type Drawn, draw, type Frame, renderApp } from './view.ts'
+export { BUTTONS, type Drawn, draw, renderApp } from './view.ts'

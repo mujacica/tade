@@ -89,6 +89,7 @@ import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
+import type { ActionsView, Frame, LaneView } from './frame.ts'
 import {
   extentOf,
   type Hit,
@@ -337,7 +338,7 @@ import {
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
-import { type ActionsView, draw, type Frame, type LaneView } from './view.ts'
+import { draw } from './view.ts'
 import {
   editedText,
   formattable,

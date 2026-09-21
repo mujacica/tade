@@ -17,6 +17,7 @@ import {
   shownValue,
 } from '@tade/core'
 import type { ParsedDiff } from './diff.ts'
+import type { Change } from './frame.ts'
 import { type Hit, type ScrollArea, sameTarget, type Target } from './hits.ts'
 import { onLine, type Place, placeOf } from './input.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
@@ -92,7 +93,6 @@ import {
   type Pointer,
   Row,
 } from './ui.ts'
-import type { Change } from './view.ts'
 import {
   bytes,
   cellOf,

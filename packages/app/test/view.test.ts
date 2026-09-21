@@ -2,6 +2,7 @@ import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import type { PlanStanding } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 import { describe, expect, it } from 'vitest'
+import type { ActionsView, CheckView, CommitView, Frame } from '../src/frame.ts'
 import { type Hit, hitAt, sameTarget, type Target } from '../src/hits.ts'
 import {
   type AppState,
@@ -27,16 +28,7 @@ import {
 } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { youSaid } from '../src/transcript.ts'
-import {
-  type ActionsView,
-  BUTTONS,
-  type CheckView,
-  type CommitView,
-  draw,
-  type Frame,
-  renderApp,
-  wrapPath,
-} from '../src/view.ts'
+import { BUTTONS, draw, renderApp, wrapPath } from '../src/view.ts'
 
 /** The same row without its colour, for comparing positions against columns. */
 const plain = (row: string) =>
