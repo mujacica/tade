@@ -22,7 +22,7 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
 | `packages/app/src/live.ts` | `QUEUE_READS`: what the rules read, from the whole journal |
 | `packages/app/src/app.ts` | the passes: `advanceQueue`, `runSchedules`, `fire`, `lookWith`, and `queueTools` for the orchestrator |
 | `packages/app/src/queue.ts` | what is said: the schedule card's facts, what the orchestrator is told |
-| `packages/app/src/view.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
+| `packages/app/src/view/queue.ts`, `view/plan.ts`, `view/schedule.ts`, `plan-graph.ts` | the SMART QUEUE, the cards, the plan |
 | `packages/orchestrator/src/tools-extension.ts`, `tool-host.ts` | `tade_done`, `tade_plan`, `tade_queue`, `tade_queue_change`, `tade_schedule` |
 | `packages/extensions/core/src/port.ts`, `host.ts` | `ExtensionWatch`, and the host that looks with one |
 

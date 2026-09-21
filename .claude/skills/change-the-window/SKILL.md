@@ -11,7 +11,8 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 |---|---|---|
 | `model.ts` | What is shown, as data: panes, projects, focus, key meanings | a terminal |
 | `frame.ts` | `Frame`: the shape of what the window is handed to draw, and nothing else | — (types only) |
-| `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line | a terminal |
+| `view.ts` | `draw(state, frame) → { rows, hits }`, one row per line: the composition, and nothing else | a terminal |
+| `view/` | One file per region — `top`, `sidebar`, `main`, `queue`, `plan`, `schedule`, `actions`, `strip`, `foot` — over three shared ones: `text` (width, words, moments, numbers), `rows` (a tab, a section, a scrollbar) and `lane`/`split`, which two regions each reach for | a terminal |
 | `ui.ts` | `Row` (controls that know where they are clickable), `box`, `overlay` | a terminal |
 | `hits.ts` | What is where on the screen, so a click can mean something | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
@@ -48,8 +49,14 @@ redraws over the explanation is a window that ate it.
 started after `App.start` and handed over with `attachThinker`. Never make the first frame wait on
 something that talks to a network.
 
-Put behaviour in `model.ts` and drawing in `view.ts`. If `app.ts` grows a rule, it is in the wrong
+Put behaviour in `model.ts` and drawing in `view/`. If `app.ts` grows a rule, it is in the wrong
 file and cannot be tested.
+
+**A region's file is a leaf, and `view.ts` is the only thing that composes them.** A helper one
+region uses lives in that region's file; one two regions reach for goes to `view/text.ts`,
+`view/rows.ts`, `view/lane.ts` or `view/split.ts`, never left where the first of the two happened
+to need it — that is how the drawing became one 4,185-line file, and it is what would put two
+regions in a cycle now.
 
 ## Conventions
 
@@ -116,7 +123,7 @@ file and cannot be tested.
   `App.submitPanel`, putting any failure back into the panel rather than behind it.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
-- **Items down the side are tabs** (`tabList`, `tabbed` in `view.ts`): an agent is two rows — its
+- **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`): an agent is two rows — its
   name, and what it is doing under it (`doing`) — and a note is two rows only where its words run
   on, broken where they would break with its buttons showing; a row of room between tabs, a margin
   and an end on each side (`skin.item`). One row read as a line and three rows of ground as a slab;
@@ -133,7 +140,7 @@ file and cannot be tested.
   AGENTS (`close-done`), which always asks and names what it would close — a button that empties
   the list without a word is one nobody presses twice.
 - **A section's heading holds a set of controls, and the main one is a button.** `Section.actions`
-  in `view.ts`, the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
+  (`view/rows.ts`, fitted in `view/sidebar.ts`), the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
   block two columns narrower, so they read as the same set without reading as wide as the `+`.
   Short of columns a heading gives up its count first (the list under it is the count), then the
   small controls, the one nearest the button first (`headingFit`) — but where there is no button
@@ -206,7 +213,7 @@ file and cannot be tested.
 - **Lists that can outgrow the screen scroll.** Lay a `{ kind: 'scroll', area }` hit under the rows
   (first, so everything drawn on top still wins) and handle the wheel in `App.pointer`: the sidebar
   keeps `state.scroll`, a panel's list moves its own index.
-- **Anything that scrolls has a bar down its right** (`scrollbar.ts`, `barBeside` in `view.ts`): a
+- **Anything that scrolls has a bar down its right** (`scrollbar.ts`, `barBeside` in `view/rows.ts`): a
   column the region gives up, a thumb saying how much is in view and where, and a
   `{ kind: 'scrollbar', area, total, shown }` hit on every row of it carrying what it was drawn
   from — so a drag becomes a line to scroll to (`grabBar`, `scrollBarTo`) without laying the region
@@ -296,7 +303,8 @@ The window is drawn from state by a pure function, so how it looks is tested lik
 ## Steps
 
 1. Add the state and its rules to `model.ts` as pure functions, with tests in `test/model.test.ts`.
-2. Draw it in `view.ts`, and assert the geometry contract in `test/view.test.ts`.
+2. Draw it in the `view/` file for the region it is in, and assert the geometry contract in
+   `test/view.test.ts`. `view.ts` gains a line only if it is a whole new region.
 3. If it needs a key, name it in `keys.ts` (test the real escape bytes — verify them against
    `parseKey` rather than writing them from memory) and give it meaning in `keyAction`.
 4. If it needs a new fact, add it to `live.ts`; keep the fold from status/lanes/approvals pure and
