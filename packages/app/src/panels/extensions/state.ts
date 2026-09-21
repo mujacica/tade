@@ -614,3 +614,26 @@ export function extensionsClick(
         choice: control,
       }
 }
+
+/**
+ * What is true of a row that is an MCP server and of nothing else.
+ *
+ * Only what was actually asked: a server that is off was never connected, so
+ * it has no tools, no version and no "last asked" — and saying otherwise
+ * would be the page inventing a connection nobody made.
+ */
+export function serverFacts(server: McpServerShown | undefined): McpServerView | undefined {
+  if (!server) return undefined
+  return {
+    name: server.name,
+    how: server.how,
+    on: server.on,
+    decided: server.decided,
+    install: server.install,
+    note: server.note,
+    asked: server.asked,
+    dropped: server.dropped,
+    fetches: server.fetches,
+    theirs: Object.fromEntries(server.tools.map((tool) => [tool.name, tool.from])),
+  }
+}

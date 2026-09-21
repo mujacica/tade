@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import {
@@ -13,7 +12,6 @@ import {
   type Config,
   DEFAULT_ATTENTION,
   expandHome,
-  extensionEnabled,
   HARNESS_CHOICES,
   type LaneId,
   loadConfig,
@@ -23,12 +21,7 @@ import {
   resolveRoute,
   THINKING_LEVELS,
 } from '@tade/core'
-import {
-  type ExtensionWorkbench,
-  type SetupFieldView as HostSetupField,
-  type ListSection,
-  settingFrom,
-} from '@tade/extensions-core'
+import type { ExtensionWorkbench } from '@tade/extensions-core'
 import { git } from '@tade/status'
 import { VoiceSurface } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
@@ -36,7 +29,6 @@ import type { Frame } from './frame.ts'
 import { agentEnded, eventNews } from './inbox.ts'
 import { keyCaps } from './keys.ts'
 import { resolveLayout } from './layout.ts'
-import type { Linker } from './links.ts'
 import { knownTasks, Live } from './live.ts'
 import {
   type AppState,
@@ -51,7 +43,6 @@ import {
   notice,
   ORCHESTRATOR_TAB,
   onEvent,
-  openSchedule,
   parseCommand,
   projects,
   QUEUE_FILTERS,
@@ -70,25 +61,9 @@ import {
   withProjects,
   withTasks,
   withTerminals,
-  withTranscript,
 } from './model.ts'
-import type { PanelContext } from './panels/context.ts'
-import {
-  type ExtensionSetupPanel,
-  extensionSetupPanel,
-  extensionViewPanel,
-} from './panels/extensions/setup.ts'
-import {
-  type ExtensionsPanel,
-  type ExtensionView,
-  extensionsPanel,
-  type McpServerOffer,
-  type McpServerShown,
-  type McpServerView,
-  toolSummary,
-  type WrittenToolView,
-} from './panels/extensions/state.ts'
-import { extensionsScrollable } from './panels/extensions/view.ts'
+import { extensionViewPanel } from './panels/extensions/setup.ts'
+import { extensionsPanel } from './panels/extensions/state.ts'
 import {
   accountMenuItems,
   branchMenuItems,
@@ -143,12 +118,10 @@ import {
   readRecents,
   recentProjects,
 } from './projects.ts'
-import { addProject, writeSetting } from './settings.ts'
+import { addProject } from './settings.ts'
 import { PLAIN, pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { spendView as spendViewOf } from './spend.ts'
-import { fromThinker, ran, said } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
-import { markdownLines } from './viewer.ts'
 import { Agents } from './wire/agents.ts'
 import { Checks } from './wire/checks.ts'
 import {
@@ -159,6 +132,7 @@ import {
   whenShort,
   why,
 } from './wire/context.ts'
+import { Extensions } from './wire/extensions.ts'
 import { Files } from './wire/files.ts'
 import { Images, imagesTitle } from './wire/images.ts'
 import { Keyboard } from './wire/keyboard.ts'
@@ -190,7 +164,7 @@ const LOOK_SOON_MS = 8
 /** How long a screen the terminal wiped on its own stays dark, at most. */
 const REPAINT_MS = 2_000
 /** How often extensions are asked what they keep in the status bar. */
-const STATUS_MS = 5_000
+const _STATUS_MS = 5_000
 /**
  * A look at the tasks slower than this is worth knowing about: the window
  * looks every couple of seconds, so one this slow is already late for the next.
@@ -208,54 +182,18 @@ const HELP =
 // nothing outside the package has to know that they moved.
 export type { AppOptions, Thinker, WorkerImageFile } from './wire/context.ts'
 
-/**
- * What is true of a row that is an MCP server and of nothing else.
- *
- * Only what was actually asked: a server that is off was never connected, so
- * it has no tools, no version and no "last asked" — and saying otherwise
- * would be the page inventing a connection nobody made.
- */
-function serverFacts(server: McpServerShown | undefined): McpServerView | undefined {
-  if (!server) return undefined
-  return {
-    name: server.name,
-    how: server.how,
-    on: server.on,
-    decided: server.decided,
-    install: server.install,
-    note: server.note,
-    asked: server.asked,
-    dropped: server.dropped,
-    fetches: server.fetches,
-    theirs: Object.fromEntries(server.tools.map((tool) => [tool.name, tool.from])),
-  }
-}
-
 export class App {
   private readonly opts: AppOptions
   private readonly terminal: Terminal
   private readonly tui: TuiAltScreen
   private state: AppState = initialState()
-  /** Text the extensions know how to open, asked once: working it out reads files. */
-  private linkers: readonly Linker[] = []
-  /** What each field of the setup panel offers, once looked up. */
-  private setupChoices: Record<string, readonly string[]> = {}
-  /** What the harness loads by itself, once asked. */
-  private harnessPieces: { name: string; where: string }[] = []
   private readonly skin: Skin = skinFor(process.env, process.stdout.isTTY === true)
   private readonly pointerShapes = pointerShapes(process.env)
   /** When this window opened: the start of "This window" in the Spend panel. */
   private readonly openedAt = Date.now()
-  private statuses: NonNullable<Frame['statuses']> = []
-  /** The sections extensions keep in the sidebar, as they last answered. */
-  private listSections: ListSection[] = []
-  private statusedAt = Number.NEGATIVE_INFINITY
-  private asking = false
   /** A look at the lanes is under way, and whether another was asked for meanwhile. */
   private looking = false
   private lookAgain = false
-  private extensionShown: { name: string; title: string; markdown: string; at: number } | null =
-    null
   private soon: NodeJS.Timeout | null = null
   /** Providers the harness is signed in to, once read. */
   /** The Open project list for the last folder and query, and the branches found for its rows. */
@@ -265,8 +203,6 @@ export class App {
   private timer: NodeJS.Timeout | null = null
   /** When the whole screen was last written over itself. */
   private repaintedAt = 0
-  /** Extension actions you have run, for giving each its own line. */
-  private ranCount = 0
   private release: (() => void) | null = null
   private stopped = false
   private settle: () => void = () => {}
@@ -309,6 +245,8 @@ export class App {
   private readonly agents: Agents
   /** The thing you talk to: what it is told, what it answers, and the screen it borrows. */
   private readonly orchestrator: Orchestrator
+  /** The extensions, the servers brokered as extensions, and the page that says what each is for. */
+  private readonly extensions: Extensions
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -388,7 +326,7 @@ export class App {
       loadAccounts: () => void this.machine.loadAccountViews(),
       lookAtWhatIsInstalled: () => void this.machine.lookAtWhatIsInstalled(),
       tellThinking: (level) => this.orchestrator.tellThinking(level),
-      setupChanged: () => this.setupShown.clear(),
+      setupChanged: () => this.extensions.forgetSetup(),
       silence: () => {
         this.orchestrator.stopSpeaking()
         void this.voice.silence()
@@ -405,8 +343,8 @@ export class App {
       useConfig: (config) => this.useConfig(config),
     })
     this.checks = new Checks(this.wire, {
-      sections: () => this.listSections,
-      callId: () => `you-${++this.ranCount}`,
+      sections: () => this.extensions.lists(),
+      callId: () => this.extensions.callId(),
     })
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
@@ -442,6 +380,24 @@ export class App {
       skin: this.skin,
       soonTick: () => this.soonTick(),
       say: (said) => this.orchestrator.say(said),
+    })
+    this.extensions = new Extensions(this.wire, {
+      size: () => ({ columns: this.terminal.columns, rows: this.terminal.rows }),
+      skin: this.skin,
+      useConfig: (config) => this.useConfig(config),
+      dateOf: (at) => this.window.dateOf(at),
+      anchored: (next) => this.anchored(next),
+      openPlace: (target) => this.files.openPlace(target),
+      openLink: (url) => this.files.openLink(url),
+      reveal: (path, folder) => this.files.reveal(path, folder),
+      watchCommand: (kind, line) => this.machine.watchCommand(kind, line),
+      setSchedule: (req) => this.schedules.set(req),
+      scheduleNamed: (name) => this.schedules.views().find((one) => one.id === scheduleIdOf(name)),
+      scheduledElsewhere: (name, project) =>
+        this.opts.client
+          .schedules()
+          .some((one) => one.id === scheduleIdOf(name) && one.project !== project),
+      spoken: (text) => spokenLine(text),
     })
     this.orchestrator = new Orchestrator(this.wire, {
       terminal: this.terminal,
@@ -727,9 +683,9 @@ export class App {
             : (live.vitals(panel.for)?.model ?? null),
       }
     }
-    if (panel.kind === 'extension-setup') return { setup: this.setupFacts(panel) }
+    if (panel.kind === 'extension-setup') return { setup: this.extensions.setupFacts(panel) }
     if (panel.kind === 'extension-view') {
-      const shown = this.extensionShown
+      const shown = this.extensions.shown()
       return {
         extensionView:
           shown?.name === panel.extension ? { title: shown.title, markdown: shown.markdown } : null,
@@ -737,10 +693,10 @@ export class App {
     }
     if (panel.kind === 'extensions') {
       return {
-        written: this.writtenViews(),
-        extensions: this.extensionViews(),
-        harnessExtensions: this.harnessPieces,
-        servers: this.serverOffers(),
+        written: this.extensions.writtenViews(),
+        extensions: this.extensions.extensionViews(),
+        harnessExtensions: this.extensions.harnessLoads(),
+        servers: this.extensions.serverOffers(),
         extensionsRoot: tilde(expandHome(this.opts.config.orchestrator.extensions)),
       }
     }
@@ -889,7 +845,7 @@ export class App {
         available: this.opts.recorder !== undefined,
       },
       home: tilde(this.opts.home),
-      linkers: this.linkers,
+      linkers: this.extensions.knownLinks(),
       orchestratorModel: this.orchestrator.model(),
       orchestratorThinking: this.opts.config.orchestrator.thinking ?? null,
       orchestratorAccount: this.orchestrator.account(),
@@ -901,8 +857,8 @@ export class App {
         (one) => one.state === 'needs setup' || one.state === 'broken',
       ).length,
       ...this.keyboard.input(width),
-      statuses: this.statuses,
-      lists: this.listSections.map((section) => ({
+      statuses: this.extensions.strip(),
+      lists: this.extensions.lists().map((section) => ({
         id: section.id,
         title: section.title,
         problem: section.problem,
@@ -986,8 +942,8 @@ export class App {
       },
     })
     this.live = live
-    this.linkers = this.opts.extensions?.linkers() ?? []
-    this.watchExtensions()
+    this.extensions.readLinkers()
+    this.extensions.watchExtensions()
     this.agents.reopenLost()
 
     const attention = this.opts.config.surfaces.voice.attention
@@ -1010,7 +966,7 @@ export class App {
         show: async (task) => this.orchestrator.show(task),
         openSettings: async () => this.openSettings(),
         brief: () => this.orchestrator.brief(),
-        extension: (said) => this.heardByExtension(said),
+        extension: (said) => this.extensions.heardByExtension(said),
         tasks: async () => knownTasks(live.tasks),
         history: async () => live.history,
         ask: (text: string) => this.orchestrator.ask(text),
@@ -1128,7 +1084,7 @@ export class App {
     }
     if (action.startsWith('list-row:')) {
       const [section, id] = action.slice('list-row:'.length).split('\u0000')
-      await this.openListRow(section ?? '', id ?? '')
+      await this.extensions.openListRow(section ?? '', id ?? '')
       return
     }
     const scheduling = /^schedule-(open|run|pause|resume|remove|rename):(.+)$/.exec(action)
@@ -1199,12 +1155,12 @@ export class App {
       const name = action.slice('extension-view:'.length)
       this.state = { ...this.state, panel: extensionViewPanel(name) }
       this.draw()
-      await this.refreshExtensionView(name)
+      await this.extensions.refreshExtensionView(name)
       return
     }
     if (action.startsWith('extension:')) {
       const [, name, id] = action.split(':')
-      await this.runExtension(name ?? '', id ?? '')
+      await this.extensions.runExtension(name ?? '', id ?? '')
       return
     }
     if (action.startsWith('forget-note:')) {
@@ -1277,15 +1233,11 @@ export class App {
         this.draw()
         return
       case 'extensions':
-        this.harnessPieces = (await this.opts.harnessExtensions?.().catch(() => [])) ?? []
-        this.readServers()
-        // What each one can be given is asked once, on the way in, rather
-        // than on every frame it is drawn.
-        this.setupShown.clear()
+        await this.extensions.reread()
         {
           // It opens on the one that wants somebody — something to set up,
           // something broken — and on the first of them when nothing does.
-          const views = this.extensionViews()
+          const views = this.extensions.extensionViews()
           const wants = views.find((one) => one.state === 'needs setup' || one.state === 'broken')
           this.state = {
             ...this.state,
@@ -1418,10 +1370,10 @@ export class App {
         await this.agents.chooseModel(panel, choice ?? '')
         return
       case 'extensions':
-        await this.fromExtensions(panel, choice ?? '')
+        await this.extensions.fromExtensions(panel, choice ?? '')
         return
       case 'extension-setup':
-        await this.saveSetup(panel)
+        await this.extensions.saveSetup(panel)
         return
       case 'prompt':
         await this.savePrompt(panel, choice)
@@ -2004,7 +1956,7 @@ export class App {
   private async look(): Promise<void> {
     if (this.stopped) return
     this.agents.reopenStopped()
-    this.askExtensions()
+    this.extensions.askExtensions()
     this.images.look()
     if (this.now() - this.repaintedAt >= REPAINT_MS) {
       this.repaintedAt = this.now()
@@ -2052,623 +2004,6 @@ export class App {
       this.soon = null
       void this.tick()
     }, LOOK_SOON_MS)
-  }
-
-  /**
-   * The tools Tade wrote for itself, as the panel shows them: the files it
-   * found, and whether each is turned on, which is a setting like any other.
-   */
-  private writtenViews(): WrittenToolView[] {
-    return (this.opts.written?.() ?? []).map((tool) => ({
-      ...tool,
-      on: extensionEnabled(this.opts.config.extensions[tool.name], 'yours'),
-    }))
-  }
-
-  /**
-   * What an extension can be given and where each value stands, as its own
-   * setup says it — kept until the extensions are read again.
-   *
-   * Asking costs something: where a credential is kept is answered by the
-   * keychain, which is a program started. Doing that for every extension on
-   * every frame is how a window that redraws on each keystroke ends up
-   * running `security` a hundred times a minute, and the answer only ever
-   * changes when Tade reloads the extensions — which is where it is dropped.
-   */
-  private setupShown = new Map<string, { configurable: boolean; fields: HostSetupField[] }>()
-
-  private setupView(name: string): { configurable: boolean; fields: HostSetupField[] } {
-    const had = this.setupShown.get(name)
-    if (had) return had
-    const setup = this.opts.extensions?.setupOf(name) ?? null
-    const view = { configurable: setup !== null, fields: setup?.fields ?? [] }
-    this.setupShown.set(name, view)
-    return view
-  }
-
-  /**
-   * The MCP servers nobody has decided about: the catalogue row, with what
-   * each one is for and what turning it on would need. A server somebody has
-   * decided about is a row of its own among the extensions instead, because a
-   * live source of tools belongs beside the others.
-   */
-  private serverOffers(): McpServerOffer[] {
-    return this.mcpShown
-      .filter((server) => !server.decided)
-      .map((server) => ({
-        name: server.name,
-        title: server.title,
-        description: server.description,
-        workflow: server.workflow,
-        how: server.how,
-        needs: server.problem,
-        install: server.install,
-        note: server.note,
-        fetches: server.fetches,
-      }))
-  }
-
-  /**
-   * A server somebody has decided about, as a row among the extensions.
-   *
-   * One that is on and working is already one — the broker made an extension
-   * of it and the host loaded it — so this is the rest: the ones turned off,
-   * and the ones turned on that cannot work yet. It says only what is true of
-   * a server nothing has connected to, which is what it is and what it needs.
-   */
-  private serverViews(loaded: readonly string[]): ExtensionView[] {
-    return this.mcpShown
-      .filter((server) => server.decided && !loaded.includes(`mcp-${server.name}`))
-      .map((server) => ({
-        name: `mcp-${server.name}`,
-        title: server.title,
-        description: server.description,
-        // Its own words about how it is used are the catalogue's, and it was
-        // never imported, so there is nothing else to say.
-        workflow: server.on ? server.workflow : [],
-        source: 'mcp' as const,
-        state: server.on ? ('needs setup' as const) : ('off' as const),
-        // A server that is on and workable is an extension by now, so one
-        // that is on and here was left out — `--safe`, or a name Tade's own
-        // took first. Either way it is said rather than left blank.
-        problem: server.on
-          ? (server.problem ?? `${server.name} is on, but nothing connected it in this window`)
-          : server.problem,
-        tools: [],
-        actions: [],
-        options: [],
-        unknownSettings: [],
-        configurable: false,
-        folder: null,
-        watches: [],
-        server: serverFacts(server),
-      }))
-  }
-
-  /**
-   * The server a row is about, whether the row is the server itself or the
-   * extension it became. Null when the row is not one.
-   */
-  private serverNamed(name: string): McpServerShown | null {
-    const said = name.startsWith('mcp-') ? name.slice('mcp-'.length) : name
-    return this.mcpShown.find((server) => server.name === said) ?? null
-  }
-
-  /**
-   * What each server is and what it offered, read again.
-   *
-   * Asked when the page is opened and whenever the extensions are read again
-   * — never per frame: what a server offered is a file on disk per server,
-   * and a page that redraws four times a second must not read eleven of them
-   * each time. It only changes when somebody changes a setting, which is
-   * exactly where it is asked again.
-   */
-  private mcpShown: readonly McpServerShown[] = []
-
-  private readServers(): void {
-    this.mcpShown = this.opts.mcpServers?.(this.opts.config) ?? []
-  }
-
-  /**
-   * Turn a server on or off — which is a setting, and a person's alone.
-   *
-   * Taking a capability away may be immediate and giving one may not: turning
-   * one off drops it from what is offered at once, and turning one on
-   * connects the next time Tade starts, because a client dialling into a
-   * half-configured server inside a running window is the evening lost.
-   */
-  private async turnServer(name: string, on: boolean): Promise<string> {
-    writeSetting(this.configPath, `mcp.servers.${name}.enabled`, on)
-    await this.reloadExtensions()
-    const server = this.serverNamed(name)
-    const needs = on && server?.problem ? `, and needs setting up: ${server.problem}` : ''
-    return on
-      ? `${name} is on — it connects the next time Tade starts, and its tools are offered to every agent and the orchestrator${needs}`
-      : `${name} is off — its tools stop being offered`
-  }
-
-  /** The extensions, as the panel shows them. */
-  private extensionViews(): ExtensionView[] {
-    const offers = this.opts.extensions?.watches() ?? []
-    const project = this.state.project
-    const schedules = this.opts.client.schedules()
-    const servers = this.mcpShown
-    const loaded = this.opts.extensions?.list() ?? []
-    return [
-      ...loaded.map((one) => ({
-        name: one.name,
-        title: one.title,
-        description: one.description,
-        workflow: one.workflow,
-        source: one.source,
-        state: one.state,
-        problem: one.problem,
-        tools: one.tools.map((tool) => ({
-          name: tool.name,
-          summary: toolSummary(tool.description),
-          for: tool.for,
-        })),
-        actions: one.actions.map((action) => ({ id: action.id, title: action.title })),
-        options: this.setupView(one.name).fields.map((field) => ({
-          key: field.key,
-          label: field.label,
-          value: field.value,
-          have: field.have,
-          secret: field.kind === 'secret',
-        })),
-        unknownSettings: one.unknownSettings,
-        configurable: this.setupView(one.name).configurable,
-        folder: one.source === 'yours' ? one.path : null,
-        watches: offers
-          .filter((offer) => offer.extension === one.name)
-          .map((offer) => ({
-            id: offer.id.slice(one.name.length + 1),
-            title: offer.title,
-            means: offer.means,
-            every: offer.every,
-            project,
-            on:
-              schedules.find(
-                (each) =>
-                  each.project === project &&
-                  each.does.kind === 'watch' &&
-                  each.does.watch === offer.id,
-              )?.id ?? null,
-          })),
-        // What is true of a server and of nothing else, for a row that is one.
-        ...(one.source === 'mcp'
-          ? { server: serverFacts(servers.find((each) => `mcp-${each.name}` === one.name)) }
-          : {}),
-      })),
-      ...this.serverViews(loaded.map((one) => one.name)),
-    ]
-  }
-
-  /**
-   * Turn a watch on in a project, as you: a schedule named for the watch, or
-   * for the watch and the project when it is already on somewhere else, looking
-   * as often as the watch says. Said in a line: when it looks, and what it waits
-   * for when its extension cannot look yet.
-   */
-  private async turnOnWatch(watch: string, project: string): Promise<string> {
-    const offer = this.opts.extensions?.watches().find((one) => one.id === watch)
-    if (!offer) throw new Error(`there is no watch called ${watch}`)
-    const elsewhere = this.opts.client
-      .schedules()
-      .some((one) => one.id === scheduleIdOf(offer.title) && one.project !== project)
-    const name = elsewhere ? `${offer.title} in ${project}` : offer.title
-    await this.schedules.set({ name, project, said: '', watch, by: 'you' })
-    const view = this.schedules.views().find((one) => one.id === scheduleIdOf(name))
-    const first = view?.next[0]
-    const when = first === undefined ? '' : `, first at ${whenShort(first, this.now())}`
-    const yet = offer.problem ? `; it cannot look yet: ${offer.problem}` : ''
-    return `${name} is on in ${project}: it looks ${view?.when ?? `every ${offer.every}`}${when}${yet}`
-  }
-
-  /** Something pressed in the Extensions panel. */
-  private async fromExtensions(panel: ExtensionsPanel, choice: string): Promise<void> {
-    const [verb, ...rest] = choice.split(':')
-    const name = rest[0] ?? ''
-    const host = this.opts.extensions
-    const stay = (said: string | null) => {
-      this.state = { ...this.state, panel: { ...panel, busy: false, said } }
-      this.draw()
-    }
-    try {
-      switch (verb) {
-        case 'action':
-          this.state = { ...this.state, panel: null }
-          await this.runExtension(name, rest[1] ?? '')
-          return
-        case 'setup':
-          this.openSetup(name)
-          return
-        case 'folder': {
-          const folder = host?.list().find((one) => one.name === name)?.path
-          if (folder) await this.files.reveal(folder, true)
-          return stay(null)
-        }
-        case 'watch': {
-          const project = this.state.project
-          if (!project) return stay('Open a project to watch it')
-          return stay(await this.turnOnWatch(`${name}.${rest[1] ?? ''}`, project))
-        }
-        case 'watching':
-          this.state = openSchedule({ ...this.state, panel: null }, name)
-          this.draw()
-          return
-        // A server nobody had decided about, turned on from the catalogue.
-        case 'server':
-          return stay(await this.turnServer(name, true))
-        // The line that installs a server's program, run where you can watch
-        // it: Tade never installs anything itself.
-        case 'install': {
-          const line = this.serverNamed(name)?.install
-          if (!line) return stay(null)
-          this.state = { ...this.state, panel: null }
-          await this.machine.watchCommand('install', line)
-          return
-        }
-        case 'toggle': {
-          // One switch, and for a server it is its own: `extensions.<it>` is
-          // not a second question, because a server's extension is only ever
-          // handed over when the server is already on.
-          const server = this.serverNamed(name)
-          if (server) return stay(await this.turnServer(server.name, !server.on))
-          const was = host?.list().find((one) => one.name === name)
-          const tool = was ? null : this.writtenViews().find((one) => one.name === name)
-          if (!was && !tool) return stay(null)
-          const on = was ? was.state === 'off' : tool?.on !== true
-          // Written down either way: one of Tade's own is on unless it says
-          // otherwise, and one of yours is off until it says so.
-          writeSetting(this.configPath, `extensions.${name}.enabled`, on)
-          await this.reloadExtensions()
-          if (tool) {
-            // Nothing is loaded mid-session, so say when it takes effect.
-            return stay(
-              on
-                ? `${name} is on — it loads the next time Tade starts`
-                : `${name} is off — it stops loading the next time Tade starts`,
-            )
-          }
-          const now = host?.list().find((one) => one.name === name)
-          const later =
-            now?.state === 'off' && now.problem?.startsWith('turned on') ? ` — ${now.problem}` : ''
-          return stay(
-            on
-              ? `${was?.title ?? name} is on${later}${now?.state === 'needs setup' ? `, and needs setting up: ${now.problem}` : ''}`
-              : `${was?.title ?? name} is off`,
-          )
-        }
-        case 'read': {
-          const tool = this.writtenViews().find((one) => one.name === name)
-          if (!tool) return stay(null)
-          this.state = { ...this.state, panel: null }
-          await this.files.openPlace({ path: tool.path })
-          return
-        }
-        default:
-          return stay(null)
-      }
-    } catch (err) {
-      stay(why(err))
-    }
-  }
-
-  /**
-   * Read the config again and let the extensions take it. The orchestrator is
-   * started again when what it can call changed, so a turned-on extension is
-   * one it can use now, not after a restart.
-   */
-  private async reloadExtensions(): Promise<void> {
-    const host = this.opts.extensions
-    if (!host) return
-    const before = host
-      .specs('orchestrator')
-      .map((one) => one.name)
-      .join()
-    const loaded = await loadConfig(this.configPath)
-    if (!loaded.ok) throw new Error(loaded.issues[0]?.message ?? 'the config would not load')
-    this.useConfig(loaded.config)
-    await host.reconfigure(loaded.config.extensions)
-    // What each one can be given, and where its key is, is asked again: this
-    // is the one thing that changes it. The servers with them, since turning
-    // one on is a setting in the same file.
-    this.setupShown.clear()
-    this.readServers()
-    this.linkers = host.linkers()
-    if (
-      host
-        .specs('orchestrator')
-        .map((one) => one.name)
-        .join() !== before
-    ) {
-      void this.opts.restartThinker?.()
-    }
-  }
-
-  /**
-   * What extensions keep in the status bar, asked every few seconds and never
-   * waited on: the tick goes on drawing while they answer, and an open view is
-   * asked again with them so it stays current.
-   */
-  private askExtensions(): void {
-    const host = this.opts.extensions
-    const tade = this.opts.extensionWorkbench
-    if (!host || !tade || this.asking || this.now() - this.statusedAt < STATUS_MS) return
-    this.asking = true
-    this.statusedAt = this.now()
-    const panel = this.state.panel
-    void host
-      .statuses(tade)
-      .then(async (found) => {
-        this.statuses = found.map((one) => ({
-          extension: one.extension,
-          text: one.item.text,
-          tone: one.item.tone ?? 'quiet',
-          viewable: one.viewable,
-        }))
-        if (panel?.kind === 'extension-view') await this.refreshExtensionView(panel.extension)
-        // The sections extensions keep in the sidebar, on the same beat: the
-        // host answers each from its own cache and asks nobody oftener than
-        // that section says, so this costs a function call most times.
-        this.listSections = await host.lists(tade).catch(() => this.listSections)
-        this.draw()
-      })
-      .catch(() => {})
-      .finally(() => {
-        this.asking = false
-      })
-  }
-
-  /** Ask an extension for its view again, and show it if its panel is still open. */
-  private async refreshExtensionView(name: string): Promise<void> {
-    const host = this.opts.extensions
-    const tade = this.opts.extensionWorkbench
-    if (!host || !tade) return
-    try {
-      const view = await host.view(name, tade)
-      this.extensionShown = { name, ...view, at: this.now() }
-    } catch (err) {
-      this.extensionShown = { name, title: name, markdown: why(err), at: this.now() }
-    }
-    if (this.state.panel?.kind === 'extension-view') this.draw()
-  }
-
-  /** Set an extension up, or change its settings, in a panel. */
-  private openSetup(name: string): void {
-    const setup = this.opts.extensions?.setupOf(name)
-    if (!setup) return
-    this.setupChoices = {}
-    this.state = { ...this.state, panel: extensionSetupPanel(name, setup.fields) }
-    this.draw()
-    // What a field offers — the organizations a token can see — is looked up
-    // once the panel is open, rather than making it wait.
-    for (const field of setup.fields.filter((one) => one.offers)) {
-      void this.opts.extensions?.choices(name, field.key).then((choices) => {
-        this.setupChoices = { ...this.setupChoices, [field.key]: choices }
-        this.draw()
-      })
-    }
-  }
-
-  /** The setup panel's facts: the extension as it stands, and what its fields offer. */
-  private setupFacts(panel: ExtensionSetupPanel): NonNullable<PanelContext['setup']> | null {
-    const host = this.opts.extensions
-    const setup = host?.setupOf(panel.extension)
-    const loaded = host?.list().find((one) => one.name === panel.extension)
-    if (!setup || !loaded) return null
-    return {
-      title: loaded.title,
-      state: loaded.state,
-      problem: loaded.problem,
-      guide: setup.guide,
-      links: setup.links,
-      fields: setup.fields.map((field) => ({
-        key: field.key,
-        label: field.label,
-        help: field.help,
-        placeholder: field.placeholder,
-        kind: field.kind,
-        choices: this.setupChoices[field.key] ?? [],
-        ...(field.have ? { have: field.have } : {}),
-      })),
-    }
-  }
-
-  /** Save what was typed into the setup panel, and say whether it works now. */
-  private async saveSetup(panel: ExtensionSetupPanel): Promise<void> {
-    const host = this.opts.extensions
-    const setup = host?.setupOf(panel.extension)
-    if (!host || !setup) return
-    const before = readFileSync(this.configPath, 'utf8')
-    try {
-      const kept: string[] = []
-      for (const field of setup.fields) {
-        const typed = panel.values[field.key] ?? ''
-        if (field.kind === 'secret') {
-          // Never into the config. A key goes to the keychain, or to Tade's
-          // own 0600 file, and an empty field that had nothing in it is left
-          // alone rather than forgetting what is already kept.
-          if (typed.trim() === '') continue
-          const saved = host.saveSecret(panel.extension, field.key, typed)
-          kept.push(
-            saved.beaten
-              ? `${field.label} is in ${saved.where}, but ${saved.beaten} is set and wins`
-              : `${field.label} is in ${saved.where}`,
-          )
-          continue
-        }
-        const value = settingFrom(typed, field.kind)
-        writeSetting(
-          this.configPath,
-          `extensions.${panel.extension}.${field.key}`,
-          value as Parameters<typeof writeSetting>[2],
-        )
-      }
-      await this.reloadExtensions()
-      const now = host.list().find((one) => one.name === panel.extension)
-      const said = [
-        now?.state === 'ready' ? `Saved. ${now.title} is ready.` : kept.length > 0 ? 'Saved.' : '',
-        ...kept,
-      ]
-        .filter((line) => line !== '')
-        .join(' ')
-      this.state = {
-        ...this.state,
-        panel: {
-          ...panel,
-          busy: false,
-          // What was typed is gone from the panel the moment it is kept:
-          // nothing holds a key in memory for the next repaint to draw.
-          values: Object.fromEntries(
-            Object.entries(panel.values).map(([key, value]) => [
-              key,
-              setup.fields.find((one) => one.key === key)?.kind === 'secret' ? '' : value,
-            ]),
-          ),
-          error: now?.state === 'ready' ? null : (now?.problem ?? null),
-          said: said === '' ? null : said,
-        },
-      }
-    } catch (err) {
-      writeFileSync(this.configPath, before)
-      this.state = { ...this.state, panel: { ...panel, busy: false, error: why(err) } }
-    }
-    this.draw()
-  }
-
-  /**
-   * Show extension tools running in the conversation: yours from start to
-   * answer, and how the orchestrator's are getting on while they run. An
-   * agent's are shown in its own pane, by its harness.
-   */
-  private watchExtensions(): void {
-    this.opts.extensions?.onRun((run) => {
-      const at = this.now()
-      let transcript = this.state.transcript
-      // An agent running its project's checks is a run somebody may be
-      // watching on its ACTIONS tab: look often while it goes, the same as
-      // for the button here.
-      if (run.tool === 'checks_run' && run.caller.kind === 'agent' && run.state !== 'ok') {
-        this.live?.hurryUp(run.caller.task)
-      }
-      if (run.caller.kind === 'agent') return
-      if (run.caller.kind === 'you') {
-        if (run.state === 'running') transcript = ran(transcript, run, at)
-        if (run.state === 'ok' || run.state === 'failed') {
-          transcript = fromThinker(
-            transcript,
-            {
-              type: 'tool_done',
-              id: run.id,
-              ok: run.state === 'ok',
-              text: run.state === 'ok' ? '' : run.text,
-            },
-            at,
-          )
-          if (run.state === 'ok') transcript = said(transcript, run.text, at)
-        }
-      }
-      if (run.state === 'progress') {
-        transcript = fromThinker(transcript, { type: 'progress', id: run.id, text: run.text }, at)
-      }
-      this.state = this.anchored(withTranscript(this.state, transcript))
-      this.draw()
-    })
-  }
-
-  /** Run one of an extension's actions for the project you are in, in front of you. */
-  private async runExtension(name: string, id: string): Promise<void> {
-    const host = this.opts.extensions
-    const found = host?.actions().find((one) => one.extension.name === name && one.action.id === id)
-    if (!host || !found) {
-      this.state = notice(this.state, `no extension action ${name}:${id}`)
-      this.draw()
-      return
-    }
-    const { action } = found
-    const project = this.state.project
-    if (action.project && !project) {
-      this.state = notice(this.state, 'open a project first: this works on one')
-      this.draw()
-      return
-    }
-    this.state = {
-      ...this.state,
-      bottom: ORCHESTRATOR_TAB,
-      bottomMode: this.state.bottomMode === 'min' ? 'open' : this.state.bottomMode,
-    }
-    this.draw()
-    await host
-      .call(
-        action.tool,
-        { ...(action.input ?? {}), ...(action.project && project ? { project } : {}) },
-        {
-          caller: { kind: 'you' },
-          id: `you-${++this.ranCount}`,
-          tade: this.opts.extensionWorkbench ?? null,
-        },
-      )
-      // Shown by the run itself: a failure's reason is already on its line.
-      .catch(() => {})
-  }
-
-  /**
-   * Open a row an extension keeps in the sidebar: it runs the tool the row
-   * names, in the conversation, and the answer lands where everything else
-   * an extension says does.
-   */
-  private async openListRow(section: string, id: string): Promise<void> {
-    const host = this.opts.extensions
-    const row = this.listSections
-      .find((one) => one.id === section)
-      ?.rows.find((one) => one.id === id)
-    if (!host || !row) return
-    if (!row.opens) {
-      const link = row.links?.[0]
-      if (link) await this.files.openLink(link.url)
-      return
-    }
-    this.state = {
-      ...this.state,
-      bottom: ORCHESTRATOR_TAB,
-      bottomMode: this.state.bottomMode === 'min' ? 'open' : this.state.bottomMode,
-    }
-    this.draw()
-    await host
-      .call(row.opens.tool, row.opens.input ?? {}, {
-        caller: { kind: 'you' },
-        id: `you-${++this.ranCount}`,
-        tade: this.opts.extensionWorkbench ?? null,
-      })
-      .catch(() => {})
-  }
-
-  /**
-   * Something said that an extension listens for, run as its button would be;
-   * the answer lands in the transcript, and its first sentence is the reply.
-   */
-  private async heardByExtension(said: string): Promise<string | null> {
-    const host = this.opts.extensions
-    const found = host?.heard(said)
-    if (!host || !found) return null
-    const project = this.state.project
-    if (found.action.project && !project) return 'Open a project first: that works on one.'
-    try {
-      const answer = await host.call(
-        found.action.tool,
-        { ...(found.action.input ?? {}), ...(found.action.project && project ? { project } : {}) },
-        {
-          caller: { kind: 'you' },
-          id: `you-${++this.ranCount}`,
-          tade: this.opts.extensionWorkbench ?? null,
-        },
-      )
-      return answer.said ?? spokenLine(answer.text)
-    } catch (err) {
-      return why(err)
-    }
   }
 
   /** Start whatever queued work is ready, and say what is held. */
@@ -2807,7 +2142,7 @@ export class App {
       entries: this.search.entries(),
       lines:
         this.state.panel?.kind === 'extension-view'
-          ? this.extensionViewLines()
+          ? this.extensions.extensionViewLines()
           : this.files.lines(),
       text: this.files.textAt(panel),
       ...(file ? { body: file.rows, columns: file.columns } : {}),
@@ -2819,15 +2154,15 @@ export class App {
           : [],
       choices: this.choices,
       items: this.menuItemsFor(this.state.panel),
-      extensions: this.extensionViews(),
-      written: this.state.panel?.kind === 'extensions' ? this.writtenViews() : [],
-      harnessExtensions: this.harnessPieces,
-      servers: this.serverOffers(),
-      scrollable: this.extensionRoom().body,
-      listRoom: this.extensionRoom().listRoom,
+      extensions: this.extensions.extensionViews(),
+      written: this.state.panel?.kind === 'extensions' ? this.extensions.writtenViews() : [],
+      harnessExtensions: this.extensions.harnessLoads(),
+      servers: this.extensions.serverOffers(),
+      scrollable: this.extensions.extensionRoom().body,
+      listRoom: this.extensions.extensionRoom().listRoom,
       setupFields:
         this.state.panel?.kind === 'extension-setup'
-          ? (this.setupFacts(this.state.panel)?.fields ?? [])
+          ? (this.extensions.setupFacts(this.state.panel)?.fields ?? [])
           : [],
       models:
         this.state.panel?.kind === 'model' ? this.agents.offeredModels() : this.agents.models(),
@@ -2835,39 +2170,6 @@ export class App {
       accountActions: accountActions(this.machine.accounts),
       updateActions: updateActions(this.machine.updates, this.machine.updatesBusy),
     }
-  }
-
-  /**
-   * How much further each side of the Extensions panel could be scrolled, and
-   * how many rows its list shows, laid out exactly as it is drawn. The panel
-   * is what holds the scroll, so what its keys, its bars and the wheel may do
-   * to it has to be measured against the same layout.
-   */
-  private extensionRoom(): { body: number; list: number; listRoom: number } {
-    const panel = this.state.panel
-    if (panel?.kind !== 'extensions') return { body: 0, list: 0, listRoom: 1 }
-    return extensionsScrollable(
-      panel,
-      {
-        skin: this.skin,
-        extensions: this.extensionViews(),
-        written: this.writtenViews(),
-        harnessExtensions: this.harnessPieces,
-        servers: this.serverOffers(),
-        project: this.state.project,
-        date: (at: number) => this.window.dateOf(at),
-      },
-      this.terminal.columns,
-      this.terminal.rows,
-    )
-  }
-
-  /** How many lines an extension's view has, as wide as its panel draws it. */
-  private extensionViewLines(): number {
-    const shown = this.extensionShown
-    if (!shown) return 0
-    const inner = Math.min(110, this.terminal.columns - 4) - 4
-    return markdownLines(shown.markdown, inner, !this.skin.colour).length
   }
 
   private get configPath(): string {
