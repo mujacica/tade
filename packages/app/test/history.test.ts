@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
-import { sessionPrompts } from '../src/app.ts'
+import { sessionPrompts } from '../src/wire/keyboard.ts'
 
 // Lines typed before Tade journaled them are still in the orchestrator's pi
 // sessions, which is where up and ctrl+r find them the first time.
