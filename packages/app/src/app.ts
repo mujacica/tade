@@ -21,7 +21,6 @@ import {
 } from '@earendil-works/pi-tui'
 import {
   type Config,
-  checksFor,
   composeBrief,
   DEFAULT_ATTENTION,
   type DoneRule,
@@ -86,7 +85,7 @@ import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
 import { type ParsedDiff, parseDiff } from './diff.ts'
 import { chooseEditor, launch, openerFor, openerForLink } from './editor.ts'
 import { grep, listFiles, type Match, type SearchRoot } from './finder.ts'
-import type { ActionsView, Frame, LaneView } from './frame.ts'
+import type { Frame, LaneView } from './frame.ts'
 import {
   extentOf,
   type Hit,
@@ -347,7 +346,14 @@ import {
   textLines,
   type ViewedFile,
 } from './viewer.ts'
-import type { AppOptions, Thinker, Wiring, WorkerImageFile } from './wire/context.ts'
+import { Checks } from './wire/checks.ts'
+import {
+  type AppOptions,
+  type Thinker,
+  type Wiring,
+  type WorkerImageFile,
+  why,
+} from './wire/context.ts'
 import { Notes } from './wire/notes.ts'
 
 // The window: every project down the side, the agent you are watching in the
@@ -1020,12 +1026,6 @@ export class App {
   } | null = null
   /** Every file in every place search looks, and when they were listed. */
   private searchFiles: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
-  /**
-   * Tasks whose checks the window is running now, and when it asked, so a
-   * second press waits and the page says it is going before the run has had
-   * time to write anything down.
-   */
-  private readonly runningChecks = new Map<string, number>()
   /** Lines found inside files, for the text they were found for. */
   private grepped: { text: string; matches: Match[] } = { text: '', matches: [] }
   private grepping: string | null = null
@@ -1120,6 +1120,8 @@ export class App {
   private readonly wire: Wiring
   /** Reading a note, copying it, taking it back. */
   private readonly notes: Notes
+  /** Adopting a project's checks, running a task's, reading what one printed. */
+  private readonly checks: Checks
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1147,6 +1149,10 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.checks = new Checks(this.wire, {
+      sections: () => this.listSections,
+      callId: () => `you-${++this.ranCount}`,
+    })
     if (opts.thinker) this.thinkWith(opts.thinker)
     this.terminal = opts.terminal ?? new ProcessTerminal()
     // Mouse reporting is on by default, which is what makes the window
@@ -1611,22 +1617,7 @@ export class App {
           }
         : null,
       changes: live.changes(this.state.focused),
-      actions: this.state.focused
-        ? (() => {
-            const seen = live.actions(this.state.focused, this.reviewOf(this.state.focused))
-            if (!seen) return null
-            const asked = this.runningChecks.get(seen.task)
-            // A run writes down what it is doing as it does it; between the
-            // press and the first check starting there is nothing written,
-            // and a button that does nothing for a second is a button people
-            // press twice.
-            if (seen.running || asked === undefined) return seen
-            return {
-              ...seen,
-              running: { since: asked, by: 'you', done: 0, total: seen.checks.length },
-            }
-          })()
-        : null,
+      actions: this.state.focused ? this.checks.actionsFor(live, this.state.focused) : null,
       notes: live.notes(this.state.project),
       base: live.baseOf(this.state.focused),
       spend: {
@@ -2488,16 +2479,16 @@ export class App {
       return
     }
     if (action.startsWith('checks-adopt:')) {
-      await this.adoptChecks(action.slice('checks-adopt:'.length))
+      await this.checks.adopt(action.slice('checks-adopt:'.length))
       return
     }
     if (action.startsWith('check-log:')) {
       const [task, check] = action.slice('check-log:'.length).split('\u0000')
-      if (task && check) await this.showCheck(task, check)
+      if (task && check) await this.checks.show(task, check)
       return
     }
     if (action.startsWith('checks-run:')) {
-      await this.runChecks(action.slice('checks-run:'.length))
+      await this.checks.run(action.slice('checks-run:'.length))
       return
     }
     if (action.startsWith('list-row:')) {
@@ -6414,32 +6405,6 @@ export class App {
       })
   }
 
-  /**
-   * The review a task is out for, as the extension that keeps that list last
-   * saw it. Read from its cache: the window never asks a forge anything.
-   */
-  private reviewOf(task: string): ActionsView['review'] {
-    // `checks.ci` is what asks for the other half of the row: with it off,
-    // the ACTIONS tab is the local run and says nothing about anybody's CI.
-    if (!checksFor(this.opts.config, task.split('/')[0] ?? null).ci) return null
-    for (const section of this.listSections) {
-      const row = section.rows.find((one) => one.task === task)
-      if (!row) continue
-      const link = row.links?.[0]
-      return {
-        number: row.title.split(' ')[0] ?? '',
-        title:
-          row.title
-            .split(/\s{2,}/)
-            .slice(1)
-            .join(' ') || row.title,
-        url: link?.url ?? '',
-        marks: row.marks ?? [],
-      }
-    }
-    return null
-  }
-
   /** Ask an extension for its view again, and show it if its panel is still open. */
   private async refreshExtensionView(name: string): Promise<void> {
     const host = this.opts.extensions
@@ -6651,103 +6616,6 @@ export class App {
   }
 
   /**
-   * Write what this project already runs in CI into its `.tade/checks.yaml`,
-   * which is what turns a reading into checks Tade may run.
-   *
-   * It goes through `checks_propose` rather than writing the file here: the
-   * orchestrator, the CLI and this button must all write the same file the
-   * same way, and what the tool says about what it could not take is worth
-   * putting in the conversation, where there is room for it — a notice is one
-   * line and the next notice eats it.
-   */
-  private async adoptChecks(task: string): Promise<void> {
-    const host = this.opts.extensions
-    if (!host) {
-      this.state = notice(this.state, 'no extensions are loaded, so nothing can write them here')
-      this.draw()
-      return
-    }
-    const project = task.split('/')[0] ?? task
-    this.state = {
-      ...this.state,
-      bottom: ORCHESTRATOR_TAB,
-      transcript: ran(
-        this.state.transcript,
-        { id: `you-${this.ranCount + 1}`, tool: 'checks_propose', input: { project, adopt: true } },
-        this.now(),
-      ),
-    }
-    this.draw()
-    try {
-      const answer = await host.call(
-        'checks_propose',
-        { project, adopt: true },
-        // A person pressing a button is not an agent: the tool is the
-        // orchestrator's, and `you` is neither, so no audience gate applies.
-        {
-          caller: { kind: 'you' },
-          id: `you-${++this.ranCount}`,
-          tade: this.opts.extensionWorkbench ?? null,
-        },
-      )
-      this.state = {
-        ...this.state,
-        transcript: said(this.state.transcript, answer.text, this.now()),
-      }
-    } catch (err) {
-      this.state = {
-        ...this.state,
-        transcript: problem(this.state.transcript, why(err), this.now()),
-      }
-    } finally {
-      this.draw()
-    }
-  }
-
-  /**
-   * Run a task's checks, in its own worktree, through the same path
-   * everything else uses: one run at a time per checkout, written down
-   * against the commit, and shown here as it goes.
-   */
-  private async runChecks(task: string): Promise<void> {
-    if (this.runningChecks.has(task)) {
-      /* the same press twice: the first one is still going */
-      this.state = notice(this.state, `${task} is already running its checks`)
-      this.draw()
-      return
-    }
-    const host = this.opts.extensions
-    const project = task.split('/')[0] ?? task
-    if (!host) {
-      this.state = notice(this.state, 'no extensions are loaded, so nothing can run them here')
-      this.draw()
-      return
-    }
-    this.runningChecks.set(task, this.now())
-    // Look often while it goes, so the page shows which check is running
-    // rather than nothing for ten seconds.
-    this.live?.hurryUp(task)
-    this.draw()
-    try {
-      const worktree = this.live?.worktreeOf(task) ?? null
-      await host.call(
-        'checks_run',
-        { project },
-        {
-          caller: worktree ? { kind: 'agent', task, project, cwd: worktree } : { kind: 'you' },
-          id: `you-${++this.ranCount}`,
-          tade: this.opts.extensionWorkbench ?? null,
-        },
-      )
-    } catch (err) {
-      this.state = notice(this.state, why(err))
-    } finally {
-      this.runningChecks.delete(task)
-      this.draw()
-    }
-  }
-
-  /**
    * Open a row an extension keeps in the sidebar: it runs the tool the row
    * names, in the conversation, and the answer lands where everything else
    * an extension says does.
@@ -6776,34 +6644,6 @@ export class App {
         tade: this.opts.extensionWorkbench ?? null,
       })
       .catch(() => {})
-  }
-
-  /** What one check printed the last time it ran here, in the conversation. */
-  private async showCheck(task: string, check: string): Promise<void> {
-    const host = this.opts.extensions
-    const worktree = this.live?.worktreeOf(task) ?? null
-    const project = task.split('/')[0] ?? task
-    if (!host) return
-    this.state = {
-      ...this.state,
-      bottom: ORCHESTRATOR_TAB,
-      bottomMode: this.state.bottomMode === 'min' ? 'open' : this.state.bottomMode,
-    }
-    this.draw()
-    await host
-      .call(
-        'checks_log',
-        { check, project },
-        {
-          caller: worktree ? { kind: 'agent', task, project, cwd: worktree } : { kind: 'you' },
-          id: `you-${++this.ranCount}`,
-          tade: this.opts.extensionWorkbench ?? null,
-        },
-      )
-      .catch((err: unknown) => {
-        this.state = notice(this.state, why(err))
-        this.draw()
-      })
   }
 
   /**
@@ -8394,10 +8234,6 @@ function whenShort(at: number, now: number): string {
 function clockOf(at: number): string {
   const time = new Date(at)
   return `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
-}
-
-function why(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
 }
 
 /**

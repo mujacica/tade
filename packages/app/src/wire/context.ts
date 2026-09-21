@@ -129,6 +129,11 @@ export interface AppOptions {
   frameMs?: number
 }
 
+/** What went wrong, in words. The one reading of an unknown throw there is. */
+export function why(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 /** What every subject of the window may reach, and nothing more. */
 export interface Wiring {
   /** What the window was opened with: the workbench, the config, the callbacks. */
