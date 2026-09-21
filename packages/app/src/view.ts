@@ -376,7 +376,7 @@ export interface Frame {
   muted?: boolean
   /** A picture is on the clipboard, and has not been taken or turned down. */
   clipboardImage?: boolean
-  /** Extensions that need setting up, or are broken: the Extensions button says so. */
+  /** Extensions that need setting up, or are broken: a badge beside the Extensions button. */
   extensionsNeedYou?: number
   /** The second lane of a split pane, as captured. */
   splitScreen?: string
@@ -427,8 +427,14 @@ export interface Spend {
 /**
  * The footer's buttons: the few things that are not about an agent. Starting
  * one and opening a project have their own `+` where agents and projects are,
- * and search has ctrl+k beside the talk key. Each is grey unless there is
- * something to say: an extension that needs you, or sound that is off.
+ * and search has ctrl+k beside the talk key.
+ *
+ * A button's colour here is what pressing it does. Two of them open a page
+ * and do nothing else, so they are the window's own grey and look alike,
+ * because they are alike. The third turns the sound off or back on, which is
+ * a thing done to the window rather than a page to look at, so it is the
+ * stop-and-go pair `danger` and `go` — and what it has to say beyond that, it
+ * says in its label.
  */
 export const BUTTONS: readonly { label: string; action: string }[] = [
   { label: 'Extensions', action: 'extensions' },
@@ -4137,19 +4143,26 @@ function renderFoot(
 ): Drawn {
   const row = new Row(width, skin, pointer).space()
   for (const button of BUTTONS) {
-    // Violet means something here wants you: an extension to set up, or sound
-    // that is off. The same violet the sidebar marks an agent waiting on you
-    // with, as dark and as saturated as the brand's amber. Otherwise a button
-    // is grey, whatever it does.
-    const muted = button.action === 'mute' && frame.muted === true
-    const needed = button.action === 'extensions' && (frame.extensionsNeedYou ?? 0) > 0
-    row
-      .button(
-        muted ? 'Unmute' : button.label,
-        { kind: 'action', name: button.action },
-        muted || needed ? 'attention' : 'rest',
-      )
-      .space()
+    const press: Target = { kind: 'action', name: button.action }
+    // The sound button is the one here that carries state, and what it wears
+    // is what the press will do: red to cut the sound off, green to bring it
+    // back. That way round because the label is a verb and the colour is the
+    // same sentence — a red button stops something, a green one starts it —
+    // and because the loud one is then on screen only while there is sound to
+    // lose, with the green appearing exactly when you are muted and looking
+    // for the way out. Black letters on both: the grounds are bright, and
+    // which ink a ground takes is `inkOn`'s to decide, not this loop's.
+    const sound = button.action === 'mute'
+    const muted = sound && frame.muted === true
+    row.button(muted ? 'Unmute' : button.label, press, sound ? (muted ? 'go' : 'danger') : 'rest')
+    // Extensions is a page like Settings and is drawn as one — the same grey,
+    // the same ink, the same weight. How many of them need setting up or are
+    // broken is a count, and a count is said the way every other count in the
+    // window is said: a badge beside the thing it is about, in the button's
+    // own target so the two are one control to click.
+    const needed = button.action === 'extensions' ? (frame.extensionsNeedYou ?? 0) : 0
+    if (needed > 0) row.text(` ${needed} `, skin.badge, press)
+    row.space()
   }
   const spend = frame.spend
   const target: Target = { kind: 'action', name: 'spend' }

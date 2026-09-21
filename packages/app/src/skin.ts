@@ -40,6 +40,13 @@ export type Look =
   | 'primary'
   | 'attention'
   | 'danger'
+  /**
+   * The other half of `danger`: the press that turns back on what a red one
+   * turns off. The two are a pair and are drawn as one — the same weight, the
+   * same dark letters, a stop and a go — so a control that is one of them in
+   * one state and the other in the next says which by its colour alone.
+   */
+  | 'go'
   | 'off'
   /** Makes another of something: a `+` that has to be found at a glance. */
   | 'add'
@@ -197,16 +204,18 @@ const BOLD = `${ESC}1m`
  * whatever can be read on it: dark ink on the amber, on the red and on the
  * green, light ink on the greys. A coloured button is a light block with dark
  * letters and a grey one is a dark block with light letters, and which of the
- * two something is says what it is for before any of it is read.
+ * two something is says what it is for before any of it is read. Which of the
+ * two inks a ground takes is not written down beside each one — it is
+ * `inkOn`'s to answer, for the reason written there.
  *
- * The green plays both parts, and takes a different shade for each. As *text*
- * it means finished and is the light one (114, `#87d787`). As the *ground* of
- * the button the window would like you to press it is the muted one (65,
- * `#5f875f`) with a light label on it: dark enough to sit quietly beside the
- * amber and the red without competing with them, and the one green in the 256
- * that is neither a pure green nor a pale one. Under the pointer it lightens
- * past what white letters can be read on, so the letters go dark — which is
- * what a grey button does when it is held, for the same reason.
+ * The green plays both parts. As *text* it means finished; as the *ground* of
+ * the button that turns something back on it is the same 114 (`#87d787`),
+ * light enough to read on the window's near-black and bright enough to take
+ * the dark ink, which is what lets it stand beside the red at the same weight
+ * — a stop and a go are one pair or they are nothing. The muted green (65,
+ * `#5f875f`) is a third part again: the ground of the press the window would
+ * merely *like* you to make, dark enough to sit quietly beside the amber and
+ * the red without competing with them.
  *
  * Red is the one exception, and deliberately: something that has gone wrong is
  * allowed to be darker and louder than the rest, because it is not decoration.
@@ -220,11 +229,13 @@ const TONE = {
   amberDark: 94,
   /** Waiting on you, as text: light enough to be read on the window's ground. */
   violetText: 176,
-  /** Done, as text. */
+  /** Done, as text; and the ground of the press that turns something back on. */
   green: 114,
+  /** The same green under the pointer: the same hue with the light turned up. */
+  greenLit: 157,
   /** The press the window would like next: a muted green, as a ground. */
   greenMuted: 65,
-  /** The same under the pointer: lighter, and past what a light label survives. */
+  /** The same under the pointer. */
   greenMutedLight: 71,
   /** Where you are. The one complement in the palette, at the amber's own value. */
   cyan: 80,
@@ -275,6 +286,61 @@ const GREY = {
  */
 export const WORDMARK_SHADES = [223, 221, TONE.amber, 208, 166]
 
+/**
+ * The six levels of the xterm colour cube, and what a number in it is worth.
+ *
+ * The window paints in numbers, so nothing here can tell by looking whether a
+ * label can be read on the ground under it. The 256 are a fixed table, which
+ * is what makes that a question with an answer: 16–231 are a 6×6×6 cube of
+ * these levels and 232–255 a grey ramp. The first sixteen are not in it, and
+ * are not in the palette either, for the same reason — they are whatever the
+ * terminal's theme says they are, so their colour is not ours to compute.
+ */
+const CUBE = [0, 95, 135, 175, 215, 255]
+
+function rgbOf(tone: number): [number, number, number] {
+  if (tone >= 232) {
+    const step = 8 + 10 * (tone - 232)
+    return [step, step, step]
+  }
+  const at = tone - 16
+  const level = (n: number) => CUBE[n] ?? 0
+  return [level(Math.floor(at / 36)), level(Math.floor(at / 6) % 6), level(at % 6)]
+}
+
+/** Relative luminance, the WCAG one: 0 for black, 1 for white. */
+function luminance(tone: number): number {
+  const channel = (value: number) => {
+    const part = value / 255
+    return part <= 0.03928 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4
+  }
+  const [r, g, b] = rgbOf(tone)
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+/** How far apart two tones are, as the WCAG ratio: 1 for the same, 21 at most. */
+export function contrast(a: number, b: number): number {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05)
+}
+
+/**
+ * The ink a label takes on a ground: whichever of the palette's two inks can
+ * be read on it — the dark one on a bright ground, the light one on a dark.
+ *
+ * It is computed rather than written down beside each control, because a
+ * choice made once per button is a choice that gets made wrong. It was: the
+ * one green ground in the palette wore the white label at 4.1:1, under the
+ * 4.5 that counts as readable, three paragraphs below a comment saying dark
+ * ink goes on the green — and nothing anywhere could have noticed, because
+ * nothing anywhere was comparing the two. Now the ground decides, and the
+ * only way to get it wrong is to say so out loud (`ink` on a `Paint`, which
+ * two looks do and both say why).
+ */
+export function inkOn(ground: number): number {
+  return contrast(ground, TONE.ink) >= contrast(ground, TONE.inkLight) ? TONE.ink : TONE.inkLight
+}
+
 const paint =
   (code: string) =>
   (text: string): string =>
@@ -306,20 +372,40 @@ const solid = (tone: number, glyph: string) => `${bg(tone)}${fg(tone)}${glyph}${
  */
 const MARKER = solid(TONE.amberDark, '▌')
 
-/** A block in the control's own colour, label centred on its ground. */
-function block(label: string, ground: number, ink: number, bold = false, pad = '  '): string {
-  return `${bg(ground)}${fg(ink)}${bold ? BOLD : ''}${pad}${label}${pad}${RESET}`
+/**
+ * How a block is painted: the ground, and whether its label is bold.
+ *
+ * The ink is not in here unless it has to be, because the ground already
+ * answers it — see `inkOn`. A look that names one is a look whose label is
+ * not ordinary text on a ground, and says which it is.
+ */
+interface Paint {
+  ground: number
+  bold?: boolean
+  /** Ink the ground does not decide. Only ever for a reason written beside it. */
+  ink?: number
 }
 
-const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
-  rest: [GREY.control, GREY.bright, false],
-  hover: [GREY.hovered, TONE.inkLight, false],
-  pressed: [GREY.pressed, TONE.ink, false],
-  primary: [TONE.amber, TONE.ink, true],
-  attention: [TONE.greenMuted, TONE.inkLight, true],
-  danger: [TONE.red, TONE.ink, true],
-  off: [GREY.raised, GREY.chrome, false],
-  add: [GREY.control, TONE.amber, true],
+/** A block in the control's own colour, label centred on its ground. */
+function block(label: string, paint: Paint, pad = '  '): string {
+  const ink = paint.ink ?? inkOn(paint.ground)
+  return `${bg(paint.ground)}${fg(ink)}${paint.bold === true ? BOLD : ''}${pad}${label}${pad}${RESET}`
+}
+
+const LOOKS: Record<Look, Paint> = {
+  rest: { ground: GREY.control },
+  hover: { ground: GREY.hovered },
+  pressed: { ground: GREY.pressed },
+  primary: { ground: TONE.amber, bold: true },
+  attention: { ground: TONE.greenMuted, bold: true },
+  go: { ground: TONE.green, bold: true },
+  danger: { ground: TONE.red, bold: true },
+  // The one control meant to be hard to read: it cannot be pressed, and a
+  // label the ground can carry would say it could.
+  off: { ground: GREY.raised, ink: GREY.chrome },
+  // The label *is* the signal here, so it is the brand's amber rather than
+  // ink at all: a `+` that has to be found at a glance on a grey block.
+  add: { ground: GREY.control, ink: TONE.amber, bold: true },
 }
 
 /**
@@ -327,10 +413,11 @@ const LOOKS: Record<Look, [ground: number, ink: number, bold: boolean]> = {
  * meaning: a shade lighter, the way every other control lights. A look not in
  * here lights by becoming `hover`, and `off` never lights at all.
  */
-const LIT: Partial<Record<Look, [ground: number, ink: number, bold: boolean]>> = {
-  primary: [TONE.amberLight, TONE.ink, true],
-  attention: [TONE.greenMutedLight, TONE.ink, true],
-  danger: [TONE.redLight, TONE.ink, true],
+const LIT: Partial<Record<Look, Paint>> = {
+  primary: { ground: TONE.amberLight, bold: true },
+  attention: { ground: TONE.greenMutedLight, bold: true },
+  go: { ground: TONE.greenLit, bold: true },
+  danger: { ground: TONE.redLight, bold: true },
 }
 
 const identity = (text: string) => text
@@ -350,8 +437,8 @@ export const markLabel = (label: string) => [...label].join(' ')
  * things that drift apart the first time the palette moves.
  */
 function tabBlock(label: string, on: boolean, hover: boolean): string {
-  if (on) return block(label, TONE.amber, TONE.ink, true)
-  if (hover) return block(label, GREY.control, GREY.bright)
+  if (on) return block(label, { ground: TONE.amber, bold: true })
+  if (hover) return block(label, { ground: GREY.control })
   return paint(fg(GREY.tab))(`  ${label}  `)
 }
 
@@ -359,11 +446,13 @@ function tabBlock(label: string, on: boolean, hover: boolean): string {
 const TAB_GROUNDS: Record<Band, number> = { selected: GREY.control, hovered: GREY.raised }
 
 const ICONS: Record<IconState, [ground: number | null, ink: number, bold: boolean]> = {
+  // The two with no ground are glyphs on the window's own near-black, so
+  // their ink is a text tone; the three with one take what the ground gives.
   rest: [null, GREY.tab, false],
   signal: [null, TONE.amber, true],
-  hover: [GREY.hovered, TONE.inkLight, false],
-  danger: [TONE.red, TONE.ink, true],
-  pressed: [GREY.pressed, TONE.ink, false],
+  hover: [GREY.hovered, inkOn(GREY.hovered), false],
+  danger: [TONE.red, inkOn(TONE.red), true],
+  pressed: [GREY.pressed, inkOn(GREY.pressed), false],
 }
 
 export const PLAIN: Skin = {
@@ -446,26 +535,30 @@ export const COLOUR: Skin = {
   hint: paint(fg(GREY.quiet)),
   faded: paint(fg(GREY.faded)),
   link: paint(`${fg(TONE.amber)}${ESC}4m`),
-  cursor: paint(`${bg(GREY.bright)}${fg(TONE.ink)}`),
+  cursor: paint(`${bg(GREY.bright)}${fg(inkOn(GREY.bright))}`),
   found: (text, on) =>
-    paint(on ? `${bg(TONE.amber)}${fg(TONE.ink)}` : `${bg(GREY.control)}${fg(GREY.bright)}`)(text),
+    paint(
+      on
+        ? `${bg(TONE.amber)}${fg(inkOn(TONE.amber))}`
+        : `${bg(GREY.control)}${fg(inkOn(GREY.control))}`,
+    )(text),
   // The track is the ground a step up from the window, quiet enough to sit
   // beside a divider without competing with it; the thumb is the grey the
   // window's rules are drawn in, and while you hold it the grey of anything
   // said out loud — a handle you have taken hold of should say so.
   scrollTrack: () => solid(GREY.raised, '▕'),
   scrollThumb: (lit) => solid(lit ? GREY.quiet : GREY.chrome, '█'),
-  button: (label, look, lit) => {
-    const [ground, ink, bold] = (lit === true ? LIT[look] : undefined) ?? LOOKS[look]
-    return block(label, ground, ink, bold)
-  },
-  chip: (label, look, lit) => {
-    const [ground, ink, bold] = (lit === true ? LIT[look] : undefined) ?? LOOKS[look]
-    return block(label, ground, ink, bold, ' ')
-  },
+  button: (label, look, lit) => block(label, (lit === true ? LIT[look] : undefined) ?? LOOKS[look]),
+  chip: (label, look, lit) =>
+    block(label, (lit === true ? LIT[look] : undefined) ?? LOOKS[look], ' '),
   tabbed: tabBlock,
-  keycap: (label, hover) =>
-    `${bg(hover === true ? GREY.bright : GREY.pressed)}${fg(TONE.ink)}${BOLD} ${label} ${RESET}`,
+  keycap: (label, hover) => {
+    const ground = hover === true ? GREY.bright : GREY.pressed
+    return `${bg(ground)}${fg(inkOn(ground))}${BOLD} ${label} ${RESET}`
+  },
+  // A count, not a label: it keeps a quiet grey of its own rather than the
+  // ink the ground would give it, so a number beside a heading or a button
+  // reads as a remark about it and not as a second control.
   badge: paint(`${bg(GREY.control)}${fg(GREY.pressed)}`),
   field: (text, hint, hover) =>
     paint(
@@ -514,7 +607,9 @@ export const COLOUR: Skin = {
       : `${fg(rest ? GREY.tab : GREY.bright)}off${RESET}`
     return `${shown} ${word}`
   },
-  transmit: paint(`${bg(TONE.red)}${fg(TONE.inkLight)}${BOLD}`),
+  // The microphone open, said on the red: dark letters, because that is what
+  // the red carries. White on it is 3:1 and was the worst-read thing drawn.
+  transmit: paint(`${bg(TONE.red)}${fg(inkOn(TONE.red))}${BOLD}`),
   item: (row, band) => {
     if (!band) return ` ${row} `
     const ground = TAB_GROUNDS[band]
