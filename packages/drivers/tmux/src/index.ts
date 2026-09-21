@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, statSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { constants, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { type LaneId, resolveCommand, stringEnv, type Unsubscribe } from '@tade/core'
@@ -64,6 +64,10 @@ interface Lane {
   queue: Promise<void>
   closed: boolean
   exited: boolean
+  /** The signal it ended on, for whoever subscribes after it already has. */
+  signal: number | null
+  /** When its pane was first seen dead, while tmux had yet to say how. */
+  deadAt: number | null
 }
 
 const DEFAULTS = {
@@ -75,6 +79,13 @@ const DEFAULTS = {
   cols: 120,
   rows: 40,
 }
+
+/**
+ * How long a dead pane is given to say how it ended before the lane is
+ * reported exited with nothing known about the code. Only a child tmux never
+ * reaps takes this long; the answer normally arrives within a poll or two.
+ */
+const STATUS_GRACE_MS = 2_000
 
 /** Where the lane id is kept, on the window itself. */
 const LANE_OPTION = '@tade-lane'
@@ -204,6 +215,8 @@ export class TmuxDriver implements WorkspaceDriver {
       queue: Promise.resolve(),
       closed: false,
       exited: false,
+      signal: null,
+      deadAt: null,
     }
     this.lanes.set(spec.id, lane)
 
@@ -376,6 +389,8 @@ export class TmuxDriver implements WorkspaceDriver {
         queue: Promise.resolve(),
         closed: false,
         exited: dead === '1',
+        signal: null,
+        deadAt: null,
       })
       await this.tmux(['pipe-pane', '-O', '-t', window, `cat >> ${shellArg(pipe)}`]).catch(() => {})
       found.push({ ...handle })
@@ -414,7 +429,7 @@ export class TmuxDriver implements WorkspaceDriver {
   onExit(id: LaneId, listener: LaneExitListener): Unsubscribe {
     const lane = this.live(id)
     if (!lane.handle.alive) {
-      safely(() => listener({ code: lane.handle.exitCode, signal: null }))
+      safely(() => listener({ code: lane.handle.exitCode, signal: lane.signal }))
       return () => {}
     }
     lane.exits.add(listener)
@@ -533,6 +548,19 @@ export class TmuxDriver implements WorkspaceDriver {
     for (const listener of lane.outputs) safely(() => listener(chunk))
   }
 
+  /**
+   * Notice anything that has ended, and how.
+   *
+   * A dead pane is not a reaped one. `pane_dead` is tmux's own end of the pty
+   * being closed; what the command ended with is a second thing, known only
+   * once its child has been waited on, and until then tmux answers
+   * `pane_dead_status` and `pane_dead_signal` with nothing at all. Which of
+   * the two comes first is not ours to depend on: tmux 3.4 — Ubuntu's, and
+   * the runner's — closes the pty first and left a clean exit reading as an
+   * exit code nobody knows, where 3.7 and macOS never showed a gap at all.
+   * So the pane says *that* it ended, the status says *what with*, and a lane
+   * is not reported exited on the first of those alone.
+   */
   private async reap(): Promise<void> {
     const live = [...this.lanes.values()].filter((l) => !l.closed && !l.exited)
     if (live.length === 0) return
@@ -542,24 +570,41 @@ export class TmuxDriver implements WorkspaceDriver {
       '-t',
       this.opts.session,
       '-F',
-      ['#{window_id}', '#{pane_dead}', '#{pane_dead_status}'].join(FIELD),
+      ['#{window_id}', '#{pane_dead}', '#{pane_dead_status}', '#{pane_dead_signal}'].join(FIELD),
     ]).catch(() => '')
 
-    const dead = new Map<string, number | null>()
+    const dead = new Map<string, { told: boolean; code: number | null; signal: number | null }>()
     for (const row of rows.split('\n')) {
-      const [window, isDead, status] = row.split(FIELD)
+      const [window, isDead, status = '', signal = ''] = row.split(FIELD)
       if (!window || isDead !== '1') continue
-      dead.set(window, status === undefined || status === '' ? null : Number(status))
+      // One of the two is how tmux says it: a command that exited has a
+      // status and no signal, one that was killed has a signal and no status,
+      // and one that has not been waited on yet has neither.
+      dead.set(window, {
+        told: status !== '' || signal !== '',
+        code: exitStatus(status),
+        signal: signalNumber(signal),
+      })
     }
 
+    const now = Date.now()
     for (const lane of live) {
-      if (!dead.has(lane.window)) continue
+      const end = dead.get(lane.window)
+      if (!end) continue
+      lane.deadAt ??= now
+      // Waiting for ever is its own way of being wrong: only a child tmux
+      // never reaps — something that outlived its own terminal — leaves this
+      // unanswered, and a lane that says it is still running for the rest of
+      // the window is worse than one that says it ended without saying how,
+      // which is what a null code has always meant here.
+      if (!end.told && now - lane.deadAt < STATUS_GRACE_MS) continue
       // Whatever it printed on the way out still counts.
       this.drain(lane)
       lane.exited = true
       lane.handle.alive = false
-      lane.handle.exitCode = dead.get(lane.window) ?? null
-      const event = { code: lane.handle.exitCode, signal: null }
+      lane.handle.exitCode = end.code
+      lane.signal = end.signal
+      const event = { code: end.code, signal: end.signal }
       for (const listener of lane.exits) safely(() => listener(event))
     }
   }
@@ -641,6 +686,28 @@ function parseSpec(json: string): LaneSpec | null {
     // Someone else's window, or a spec from a version that wrote it differently.
     return null
   }
+}
+
+/** What a command exited with. Nothing at all is not a zero. */
+function exitStatus(status: string): number | null {
+  if (status === '') return null
+  const code = Number(status)
+  return Number.isInteger(code) ? code : null
+}
+
+/**
+ * What a command was killed by, as a number.
+ *
+ * tmux names a signal the way the platform it was built on does — `HUP`
+ * where that has a name for it, `1` where it does not — and a lane's exit is
+ * reported as the number, whichever of the two we were handed.
+ */
+function signalNumber(signal: string): number | null {
+  if (signal === '') return null
+  const n = Number(signal)
+  if (Number.isInteger(n)) return n > 0 ? n : null
+  const known: Record<string, number | undefined> = constants.signals
+  return known[signal.startsWith('SIG') ? signal : `SIG${signal}`] ?? null
 }
 
 function under(path: string, root: string): boolean {

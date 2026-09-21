@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { gitEnv, mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // What agents actually produced, written down once.
@@ -27,9 +27,11 @@ describe('writing down what was produced', () => {
     // installed Tade, which is what every real one looks like. mkrepo's own
     // history is seconds old, and a fixture whose past is younger than the
     // window is kinder than reality: it would let the floor go untested.
+    // The fixture's own environment, not the machine's: a commit that reaches
+    // for whichever identity git can find is one a Linux runner has none of.
     execFileSync('git', ['commit', '--amend', '--no-edit', '--quiet'], {
       cwd: repo.root,
-      env: { ...process.env, GIT_COMMITTER_DATE: '2025-01-05T09:00:00Z' },
+      env: gitEnv({ GIT_COMMITTER_DATE: '2025-01-05T09:00:00Z' }),
       stdio: 'pipe',
     })
     writeFileSync(join(home, 'config.yaml'), `projects:\n  shop:\n    root: ${repo.root}\n`, 'utf8')

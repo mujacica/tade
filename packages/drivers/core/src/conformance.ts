@@ -300,6 +300,27 @@ export function testWorkspaceDriver(
       expect(handle).toMatchObject({ alive: false, exitCode: 0 })
     })
 
+    // A command can outlive its own terminal: close the pty, ignore the
+    // hangup that follows it, and exit a moment later. A pane is dead the
+    // moment its pty closes and what the command exited with is only known
+    // once the child has been waited on, which under Ubuntu's tmux is later
+    // — so a driver reading the first as the second reports a clean exit as
+    // no exit code at all. That is what `null` says here, and it is not what
+    // happened: how it ended is a thing to be told, never a thing to assume
+    // from a terminal going quiet.
+    it('reports the code a command that outlived its terminal exited with', async () => {
+      const s = spec({
+        command: '/bin/sh',
+        args: ['-c', 'trap "" HUP; exec >/dev/null 2>&1 </dev/null; sleep 0.3; exit 7'],
+      })
+      await driver.open(s)
+      const exits: Array<{ code: number | null }> = []
+      driver.onExit(s.id, (e) => exits.push(e))
+      await until(() => exits.length > 0)
+      expect(exits[0]?.code).toBe(7)
+      expect(await driver.get(s.id)).toMatchObject({ alive: false, exitCode: 7 })
+    })
+
     it('attachCommand names the lane and is non-empty', async () => {
       const s = spec()
       await driver.open(s)

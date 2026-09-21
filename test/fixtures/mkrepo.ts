@@ -17,6 +17,21 @@ const ENV = {
   GIT_CONFIG_NOSYSTEM: '1',
 }
 
+/**
+ * The environment the fixture's own git runs in: an identity of its own, and
+ * none of the machine's configuration.
+ *
+ * Exported because a test that spawns git itself has to commit in it too. The
+ * identity is the fixture's rather than the machine's for the same reason the
+ * config is: a Linux runner has no `user.name` at all, so a commit that falls
+ * back to whatever git finds works on a laptop and fails with `empty ident
+ * name` in CI — a test that passes because of how the machine it ran on
+ * happened to be set up. What it is not is a repository with no identity:
+ * that is a real failure path of Tade's own commands, and one they answer
+ * themselves (`-c user.name=Tade`), never by borrowing this.
+ */
+export const gitEnv = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => ({ ...ENV, ...extra })
+
 export function tmp(prefix = 'tade-'): string {
   // realpath: macOS tmpdir is a symlink, and git reports resolved paths.
   return realpathSync(mkdtempSync(join(tmpdir(), prefix)))
