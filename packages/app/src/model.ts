@@ -138,6 +138,8 @@ export interface AppState {
   question: { question: string; candidates: string[] } | null
   /** How far back the focused agent's screen is scrolled, in lines; 0 follows its newest. */
   paneScroll: number
+  /** How far down the ACTIONS tab is scrolled, in rows: a page, counted from the top. */
+  actionsScroll: number
   /** How far back the terminal in front is scrolled, in lines; 0 follows its newest. */
   terminalScroll: number
   /**
@@ -199,11 +201,17 @@ export interface AppState {
   /** By task: the lane tab you chose, when it is not the agent. */
   viewing: Record<string, string>
   /**
-   * By task: the pane shows its work instead of a lane. Absent means a lane,
-   * as it always has — `viewing` is not overloaded with a sentinel, which
-   * would collide the day somebody names a shell `work`.
+   * By task: the pane shows what it has done instead of a lane. Absent means
+   * a lane, as it always has — `viewing` is not overloaded with a sentinel,
+   * which would collide the day somebody names a shell `actions`.
    */
-  paneTab: Record<string, 'work'>
+  paneTab: Record<string, 'actions'>
+  /**
+   * By task: which check on the ACTIONS tab is open, showing what it printed.
+   * One at a time — a page where every failure is unfolded is a page you
+   * scroll rather than read.
+   */
+  openCheck: Record<string, string>
   /** Agents elsewhere that asked for you while you were looking at something else. */
   toasts: { task: string; at: number }[]
   /** The terminals open along the bottom, in every project. */
@@ -281,6 +289,7 @@ export function initialState(): AppState {
     transcript: emptyTranscript(),
     transcriptScroll: 0,
     paneScroll: 0,
+    actionsScroll: 0,
     terminalScroll: 0,
     attached: [],
     listening: false,
@@ -308,6 +317,7 @@ export function initialState(): AppState {
     panel: null,
     viewing: {},
     paneTab: {},
+    openCheck: {},
     toasts: [],
     terminals: [],
     bottom: ORCHESTRATOR_TAB,
@@ -921,23 +931,46 @@ export function whichProject(
 /** Look at one of a task's lanes. */
 export function viewLane(state: AppState, task: string, lane: string): AppState {
   const paneTab = { ...state.paneTab }
-  // Clicking a lane's tab is leaving the work tab: the two are one row of
+  // Clicking a lane's tab is leaving the actions tab: the two are one row of
   // tabs, and only one of them is in front.
   delete paneTab[task]
   return { ...focusTask(state, task), paneTab, viewing: { ...state.viewing, [task]: lane } }
 }
 
-/** Show a task's work — its branch, its commits, its review, its checks — in its pane. */
-export function viewWork(state: AppState, task: string): AppState {
+/**
+ * Show what a task has done — its commits, what is not committed, its review
+ * and how its checks stand — in its pane, instead of a lane.
+ */
+export function viewActions(state: AppState, task: string): AppState {
   return {
     ...focusTask(state, task),
-    paneTab: { ...state.paneTab, [task]: 'work' },
+    paneTab: { ...state.paneTab, [task]: 'actions' },
+    actionsScroll: 0,
   }
 }
 
-/** Whether the pane for this task is showing its work rather than a lane. */
-export function showingWork(state: AppState, task: string | null): boolean {
-  return task !== null && state.paneTab[task] === 'work'
+/** Whether the pane for this task is showing what it has done rather than a lane. */
+export function showingActions(state: AppState, task: string | null): boolean {
+  return task !== null && state.paneTab[task] === 'actions'
+}
+
+/**
+ * Open a check on the ACTIONS tab, showing what it printed — or shut it, if it
+ * is the one already open. Reading a failure is what the page is for, so it
+ * happens here rather than in the conversation.
+ */
+export function toggleCheck(state: AppState, task: string, check: string): AppState {
+  const open = state.openCheck[task] === check
+  const openCheck = { ...state.openCheck }
+  if (open) delete openCheck[task]
+  else openCheck[task] = check
+  return { ...state, openCheck }
+}
+
+/** Scroll the ACTIONS tab. `draw` keeps it from going past the end. */
+export function scrollActions(state: AppState, rows: number): AppState {
+  const actionsScroll = Math.max(0, state.actionsScroll + rows)
+  return actionsScroll === state.actionsScroll ? state : { ...state, actionsScroll }
 }
 
 /** The second lane an agent's pane shows, while it is alive and not the one already shown. */
@@ -1158,6 +1191,10 @@ export function offsetOf(state: AppState, area: ScrollArea, total: number, shown
   switch (area) {
     case 'sidebar':
       return Math.max(0, Math.min(state.scroll, total - shown))
+    // A page rather than a screen: it counts down from the top, as the
+    // sidebar does, because its first row is where you start reading.
+    case 'actions':
+      return Math.max(0, Math.min(state.actionsScroll, total - shown))
     case 'pane':
       return back(state.paneScroll)
     case 'terminal':
@@ -1223,6 +1260,8 @@ export function scrollBarTo(state: AppState, y: number): AppState {
   switch (bar.area) {
     case 'sidebar':
       return { ...state, scroll: offset }
+    case 'actions':
+      return { ...state, actionsScroll: offset }
     case 'pane':
       return { ...state, paneScroll: back }
     case 'terminal':

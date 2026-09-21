@@ -123,7 +123,7 @@ A project says what it checks in one file, and that same file is what CI is gene
 runs them here, one set at a time per checkout, and records each against the commit it ran on. A
 push with nothing green behind it is held, with what is missing.
 
-![The work tab: branch, commits and whose they are, the pull request it is out for, and the project's own checks run here](images/work.svg)
+![The ACTIONS tab: the commits this agent made, what is not committed, and each check with what it ran, how long it took and what it counted](images/work.svg)
 
 ## Reviews, and the loop around them
 

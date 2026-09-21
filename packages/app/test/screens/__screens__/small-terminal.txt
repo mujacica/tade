@@ -1,6 +1,6 @@
    T A D E      checkout    search    infra      +           ctrl   +   space   
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2        +    █│ checkou…    agent    shell    work     +            
+ ▾ AGENTS  2        +    █│ stripe-…    agent    shell    actions     +         
                          █│─────────────────────────────────────────────────────
  ▌ ! stripe-v15  $1.26   █│    so src/webhooks.ts needs the new constructEvent s
  ▌   wants you to app…   █│                                                     

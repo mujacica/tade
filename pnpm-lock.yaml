@@ -26,6 +26,9 @@ importers:
       '@earendil-works/pi-tui':
         specifier: 0.85.1
         version: 0.85.1
+      '@tade/checks-core':
+        specifier: workspace:*
+        version: link:../checks/core
       '@tade/core':
         specifier: workspace:*
         version: link:../core

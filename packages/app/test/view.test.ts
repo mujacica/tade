@@ -13,7 +13,9 @@ import {
   setListening,
   setQuestion,
   type TaskSnapshot,
+  toggleCheck,
   toggleDone,
+  viewActions,
   withProjects,
   withTasks,
   withTerminals,
@@ -21,7 +23,15 @@ import {
 } from '../src/model.ts'
 import { COLOUR } from '../src/skin.ts'
 import { youSaid } from '../src/transcript.ts'
-import { BUTTONS, draw, renderApp, wrapPath } from '../src/view.ts'
+import {
+  type ActionsView,
+  BUTTONS,
+  type CheckView,
+  type CommitView,
+  draw,
+  renderApp,
+  wrapPath,
+} from '../src/view.ts'
 
 /** The same row without its colour, for comparing positions against columns. */
 const plain = (row: string) =>
@@ -273,6 +283,173 @@ describe("what an agent's harness offers", () => {
     expect(shown).not.toContain('thinking:checkout/refunds')
     // The harness is still a control: moving the agent is always possible.
     expect(shown).toContain('harness:checkout/refunds')
+  })
+})
+
+describe('the ACTIONS tab', () => {
+  const aCommit = (over: Partial<CommitView> = {}): CommitView => ({
+    sha: 'a1b2c3d4e5f6000000000000000000000000abcd',
+    subject: 'move to the stripe v15 payment intents API',
+    at: 0,
+    task: 'checkout/refunds',
+    files: 3,
+    added: 48,
+    removed: 12,
+    ...over,
+  })
+  const aCheck = (over: Partial<CheckView> = {}): CheckView => ({
+    id: 'tests',
+    title: 'The tests',
+    run: 'pnpm vitest run',
+    state: 'not run',
+    required: true,
+    skip: null,
+    needs: [],
+    summary: null,
+    seconds: null,
+    startedAt: null,
+    at: null,
+    commit: null,
+    carried: false,
+    counts: [],
+    places: [],
+    more: 0,
+    tail: [],
+    ...over,
+  })
+  const actions = (over: Partial<ActionsView> = {}): ActionsView => ({
+    task: 'checkout/refunds',
+    branch: 'tade/refunds',
+    base: 'main',
+    ahead: 1,
+    behind: 0,
+    dirty: 0,
+    shared: true,
+    commit: 'a1b2c3d4e5f6000000000000000000000000abcd',
+    mine: [aCommit()],
+    others: [],
+    review: null,
+    checks: [aCheck()],
+    rollup: 'unknown',
+    source: 'from .tade/checks.yaml',
+    adoptable: false,
+    running: null,
+    notes: [],
+    ...over,
+  })
+  const page = (view: ActionsView, size: { width?: number; height?: number } = {}) =>
+    renderApp(viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'), {
+      ...frame(size),
+      actions: view,
+    }).join('\n')
+
+  it('keeps this agent’s commits apart from everybody else’s', () => {
+    const text = page(
+      actions({
+        others: [aCommit({ sha: '9999999', subject: 'somebody else’s work', task: 'checkout/x' })],
+      }),
+      { width: 140, height: 40 },
+    )
+    expect(text).toContain('THIS AGENT’S COMMITS')
+    expect(text).toContain('ALSO ON THIS BRANCH')
+    expect(text).toContain('+48')
+  })
+
+  it('says it cannot tell whose the uncommitted files are in a shared checkout', () => {
+    expect(page(actions({ dirty: 4 }))).toContain('4 files not committed')
+    expect(page(actions({ dirty: 4 }))).toContain('shared checkout')
+    // In a worktree of its own there is nobody else to confuse it with.
+    expect(page(actions({ dirty: 4, shared: false }))).toContain('its own worktree')
+  })
+
+  it('never lets a check nobody ran read as one that passed', () => {
+    const text = page(actions(), { width: 140, height: 30 })
+    expect(text).toContain('nobody has run these')
+    expect(text).not.toContain('green')
+  })
+
+  it('says what ran, how long it took and what it counted', () => {
+    const text = page(
+      actions({
+        rollup: 'fail',
+        checks: [
+          aCheck({
+            state: 'failed',
+            seconds: 64,
+            at: 0,
+            counts: [
+              { label: 'failed', count: 4, tone: 'bad' },
+              { label: 'passed', count: 20, tone: 'good' },
+            ],
+            places: [{ path: 'test/view.test.ts', at: '37:5', note: 'a name' }],
+          }),
+        ],
+      }),
+      { width: 140, height: 30 },
+    )
+    expect(text).toContain('pnpm vitest run')
+    expect(text).toContain('1m 04s')
+    expect(text).toContain('4 failed')
+    expect(text).toContain('test/view.test.ts:37:5')
+  })
+
+  it('shows a run as it goes, and what it printed when a check is opened', () => {
+    const going = page(
+      actions({
+        running: { since: 0, by: 'you', done: 1, total: 3 },
+        checks: [aCheck({ state: 'running', startedAt: 0 })],
+      }),
+    )
+    expect(going).toContain('running')
+    expect(going).toContain('1 of 3')
+
+    const view = actions({
+      checks: [aCheck({ state: 'failed', tail: ['the last thing it printed'] })],
+    })
+    const shut = renderApp(
+      viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'),
+      { ...frame({ width: 140, height: 40 }), actions: view },
+    ).join('\n')
+    expect(shut).not.toContain('the last thing it printed')
+    const open = renderApp(
+      toggleCheck(
+        viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'),
+        'checkout/refunds',
+        'tests',
+      ),
+      { ...frame({ width: 140, height: 40 }), actions: view },
+    ).join('\n')
+    expect(open).toContain('the last thing it printed')
+  })
+
+  it('fills the window exactly, however long the page is', () => {
+    const view = actions({
+      dirty: 12,
+      mine: Array.from({ length: 9 }, (_, i) => aCommit({ sha: `${i}`.repeat(8) })),
+      others: Array.from({ length: 4 }, (_, i) => aCommit({ sha: `${i}`.repeat(8), task: 'x/y' })),
+      checks: [
+        aCheck({ id: 'format', state: 'passed', seconds: 2 }),
+        aCheck({ state: 'failed', tail: Array.from({ length: 40 }, (_, i) => `line ${i}`) }),
+      ],
+      notes: ['a note about what a local run does not prove'],
+    })
+    for (const size of [
+      { width: 80, height: 24 },
+      { width: 140, height: 40 },
+      { width: 60, height: 14 },
+      { width: 46, height: 12 },
+    ]) {
+      const rows = renderApp(
+        toggleCheck(
+          viewActions(focusTask(state(), 'checkout/refunds'), 'checkout/refunds'),
+          'checkout/refunds',
+          'tests',
+        ),
+        { ...frame(size), actions: view },
+      )
+      expect(rows.length).toBe(size.height)
+      for (const row of rows) expect(visibleWidth(row)).toBe(size.width)
+    }
   })
 })
 

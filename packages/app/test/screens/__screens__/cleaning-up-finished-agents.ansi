@@ -1,6 +1,6 @@
 [38;5;239m   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk [0m
 [38;5;239m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
-[38;5;239m ▾ AGENTS  4   ◉  ⌫     +    █│ checkout › stri…    agent    shell    work     +     claude-opus-5 ▾     high ▾     ×   [0m
+[38;5;239m ▾ AGENTS  4   ◉  ⌫     +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   [0m
 [38;5;239m                             █│─────────────────────────────────────────────────────────────────────────────────────────[0m
 [38;5;239m ▌ ! stripe-v15      $1.26   █│                                                                                         [0m
 [38;5;239m ▌   wants you to approve…   █│                                                                                         [0m

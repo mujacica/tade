@@ -951,6 +951,35 @@ describe('the window, wired up', () => {
     expect(repo.git('branch', '--list', 'tade/search')).toContain('tade/search')
   }, 30_000)
 
+  it('shows what an agent committed on its ACTIONS tab, and says nobody ran the checks', async () => {
+    // A commit of its own, attributed the way every commit an agent makes is,
+    // and one beside it that is somebody else's.
+    const worktree = join(repo.root, '..', 'worktrees', 'app-refunds')
+    repo.commit(
+      'charge once on retry\n\nTade-Task: app/refunds',
+      { 'refunds.ts': 'once' },
+      worktree,
+    )
+    repo.commit('tidy the readme', { 'README.md': '# fixture\n\ntidy\n' }, worktree)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('actions')
+    terminal.written = ''
+    click(tab.col, tab.row)
+    await until('the page', () =>
+      screenOf(terminal.written).some((row) => row.includes('THIS AGENT')),
+    )
+    const page = screenOf(terminal.written).join('\n')
+    // Its own commit is under its own heading, with what it touched. The
+    // other one is on the branch and not its work, so it is not counted here.
+    expect(page).toContain('charge once on ret')
+    expect(page).toContain('1 +7')
+    expect(page).not.toContain('tidy the readme')
+    // And a project that checks nothing says so, rather than looking fine.
+    expect(page).toContain('CHECKS')
+    expect(page).toContain('No checks configured')
+  }, 30_000)
+
   it('opens a project from the + beside the tabs, looking in your home folder', async () => {
     const folders = tmp('tade-app-home-')
     writeFileSync(join(folders, 'notes.txt'), 'not a folder')

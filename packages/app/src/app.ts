@@ -172,6 +172,7 @@ import {
   removeAttachment,
   resizeTo,
   type ScheduleView,
+  scrollActions,
   scrollBarTo,
   scrollSidebar,
   scrollTranscript,
@@ -192,14 +193,15 @@ import {
   startHistorySearch,
   swapSplit,
   terminalSplitShown,
+  toggleCheck,
   toggleDone,
   toggleFolder,
   toggleSection,
   turnSplit,
   typingLane,
   unsplitPane,
+  viewActions,
   viewLane,
-  viewWork,
   whichProject,
   withProjects,
   withTasks,
@@ -323,7 +325,7 @@ import {
   youSaid,
 } from './transcript.ts'
 import { transcriptLines } from './transcript-view.ts'
-import { draw, type Frame, type LaneView, type WorkView } from './view.ts'
+import { type ActionsView, draw, type Frame, type LaneView } from './view.ts'
 import {
   editedText,
   formattable,
@@ -902,8 +904,12 @@ export class App {
   } | null = null
   /** Every file in every place search looks, and when they were listed. */
   private searchFiles: { at: number; files: { root: SearchRoot; path: string }[] } | null = null
-  /** Tasks whose checks the window is running now, so a second press waits. */
-  private readonly runningChecks = new Set<string>()
+  /**
+   * Tasks whose checks the window is running now, and when it asked, so a
+   * second press waits and the page says it is going before the run has had
+   * time to write anything down.
+   */
+  private readonly runningChecks = new Map<string, number>()
   /** Lines found inside files, for the text they were found for. */
   private grepped: { text: string; matches: Match[] } = { text: '', matches: [] }
   private grepping: string | null = null
@@ -1429,10 +1435,20 @@ export class App {
           }
         : null,
       changes: live.changes(this.state.focused),
-      work: this.state.focused
+      actions: this.state.focused
         ? (() => {
-            const seen = live.work(this.state.focused, this.reviewOf(this.state.focused))
-            return seen ? { ...seen, running: this.runningChecks.has(seen.task) } : null
+            const seen = live.actions(this.state.focused, this.reviewOf(this.state.focused))
+            if (!seen) return null
+            const asked = this.runningChecks.get(seen.task)
+            // A run writes down what it is doing as it does it; between the
+            // press and the first check starting there is nothing written,
+            // and a button that does nothing for a second is a button people
+            // press twice.
+            if (seen.running || asked === undefined) return seen
+            return {
+              ...seen,
+              running: { since: asked, by: 'you', done: 0, total: seen.checks.length },
+            }
           })()
         : null,
       notes: live.notes(this.state.project),
@@ -1560,6 +1576,10 @@ export class App {
         }
         if (event.area === 'sidebar' && !panel) {
           this.state = scrollSidebar(this.state, event.rows)
+          return true
+        }
+        if (event.area === 'actions' && !panel) {
+          this.state = scrollActions(this.state, event.rows)
           return true
         }
         if ((event.area === 'pane' || event.area === 'terminal') && !panel) {
@@ -2032,11 +2052,13 @@ export class App {
         break
       }
       case 'pane-tab':
-        this.state = viewWork(this.state, target.task)
+        this.state = viewActions(this.state, target.task)
         break
       case 'check':
-        void this.showCheck(target.task, target.check)
-        return
+        // Reading a failure is what the page is for: it opens there, and the
+        // whole log is a button inside it.
+        this.state = toggleCheck(this.state, target.task, target.check)
+        break
       case 'task-menu':
         this.openMenu({ kind: 'task', task: target.task }, at)
         return
@@ -2200,6 +2222,11 @@ export class App {
     }
     if (action.startsWith('checks-adopt:')) {
       await this.adoptChecks(action.slice('checks-adopt:'.length))
+      return
+    }
+    if (action.startsWith('check-log:')) {
+      const [task, check] = action.slice('check-log:'.length).split('\u0000')
+      if (task && check) await this.showCheck(task, check)
       return
     }
     if (action.startsWith('checks-run:')) {
@@ -5818,9 +5845,9 @@ export class App {
    * The review a task is out for, as the extension that keeps that list last
    * saw it. Read from its cache: the window never asks a forge anything.
    */
-  private reviewOf(task: string): WorkView['review'] {
+  private reviewOf(task: string): ActionsView['review'] {
     // `checks.ci` is what asks for the other half of the row: with it off,
-    // the work tab is the local run and says nothing about anybody's CI.
+    // the ACTIONS tab is the local run and says nothing about anybody's CI.
     if (!checksFor(this.opts.config, task.split('/')[0] ?? null).ci) return null
     for (const section of this.listSections) {
       const row = section.rows.find((one) => one.task === task)
@@ -5983,6 +6010,12 @@ export class App {
     this.opts.extensions?.onRun((run) => {
       const at = this.now()
       let transcript = this.state.transcript
+      // An agent running its project's checks is a run somebody may be
+      // watching on its ACTIONS tab: look often while it goes, the same as
+      // for the button here.
+      if (run.tool === 'checks_run' && run.caller.kind === 'agent' && run.state !== 'ok') {
+        this.live?.hurryUp(run.caller.task)
+      }
       if (run.caller.kind === 'agent') return
       if (run.caller.kind === 'you') {
         if (run.state === 'running') transcript = ran(transcript, run, at)
@@ -6105,6 +6138,7 @@ export class App {
    */
   private async runChecks(task: string): Promise<void> {
     if (this.runningChecks.has(task)) {
+      /* the same press twice: the first one is still going */
       this.state = notice(this.state, `${task} is already running its checks`)
       this.draw()
       return
@@ -6116,7 +6150,10 @@ export class App {
       this.draw()
       return
     }
-    this.runningChecks.add(task)
+    this.runningChecks.set(task, this.now())
+    // Look often while it goes, so the page shows which check is running
+    // rather than nothing for ten seconds.
+    this.live?.hurryUp(task)
     this.draw()
     try {
       const worktree = this.live?.worktreeOf(task) ?? null

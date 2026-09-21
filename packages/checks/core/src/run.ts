@@ -3,6 +3,7 @@ import { waitForRunLock } from './lock.ts'
 import type { Check, CheckLog, CheckRun, Covered, ProjectRef, Runner } from './port.ts'
 import { RunnerError, settled } from './port.ts'
 import { writeRun } from './records.ts'
+import { clearRunning, type RunningCheck, type RunningNow, writeRunning } from './running.ts'
 
 // Running a project's checks the way Tade runs them: one run at a time in a
 // worktree, what is skipped said rather than dropped, and every finished run
@@ -94,19 +95,61 @@ export async function runChecks(request: RunRequest): Promise<CheckLog[]> {
 
   const controller = new AbortController()
   request.signal?.addEventListener('abort', () => controller.abort(), { once: true })
+  // What is going on, for anybody watching: written as it changes, and taken
+  // back when the run ends. The record in `checks.jsonl` is still only ever
+  // what finished — this is the minutes in between, which used to be silence.
+  let watched: RunningCheck[] = [
+    ...skipped.map(asRunning),
+    ...toRun.map((check) => ({
+      check: check.id,
+      state: 'queued' as const,
+      startedAt: null,
+      finishedAt: null,
+    })),
+  ]
+  const watching: RunningNow = {
+    pid: process.pid,
+    commit,
+    by,
+    at: new Date(now()).toISOString(),
+    checks: watched,
+  }
+  let told: Promise<void> = writeRunning(project.root, watching)
+  const tell = (run: CheckRun) => {
+    watched = watched.map((one) => (one.check === run.check ? asRunning(run) : one))
+    // Chained rather than raced: two writes of one file must land in the
+    // order the states happened, or a watcher sees a finished check go back
+    // to running.
+    const next = { ...watching, checks: watched }
+    told = told.then(() => writeRunning(project.root, next))
+  }
   try {
     const ran = await runner.run(project, toRun, {
       commit,
       by,
       signal: controller.signal,
-      onRun: (run) => request.onRun?.(run),
+      onRun: (run) => {
+        tell(run)
+        request.onRun?.(run)
+      },
       onOutput: (check, chunk) => request.onOutput?.(check, chunk),
     })
     const all = covering([...skipped, ...ran], covered)
     await record(project.root, all, request)
     return all
   } finally {
+    await told.catch(() => {})
+    await clearRunning(project.root, watching)
     if (lock && !('held' in lock)) await lock.release()
+  }
+}
+
+function asRunning(run: CheckRun): RunningCheck {
+  return {
+    check: run.check,
+    state: run.state,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt,
   }
 }
 

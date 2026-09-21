@@ -1,6 +1,6 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    █│ checkou…    agent    shell    ▾    ×    work     +              claude-opus-5 ▾     ×   
+ ▾ AGENTS  2            +    █│ stripe-…    agent    shell    ▾    ×    actions     +           claude-opus-5 ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
  ▌ ! stripe-v15      $1.26   █│                                            │ shell  typing here         ⇄     ⇅     ×   
  ▌   wants you to approve…   █│                                            │checkout $ git diff --stat                  

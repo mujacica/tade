@@ -72,9 +72,10 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'what-an-agent-has-done',
     title: 'tade — what an agent has done',
     about:
-      'The work tab beside an agent: its branch, the commits on it and how many carry its task’s ' +
-      'trailer, the pull request it is out for with what CI says, and the project’s own checks ' +
-      'run here — format and types green, tests red with what they printed.',
+      'The ACTIONS tab beside an agent: the commits that carry its own task’s trailer with what ' +
+      'each touched, what is changed and not committed and whose that is, the pull request it is ' +
+      'out for, and the project’s own checks run here — what each ran, how long it took, and ' +
+      'what it counted, with the tests red.',
   },
   {
     file: 'reviews.svg',

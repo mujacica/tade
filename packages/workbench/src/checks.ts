@@ -7,10 +7,12 @@ import {
   latestAt,
   planFor,
   type Runner,
+  type RunningNow,
   readChecks,
   readRuns,
   rollup,
   runChecks,
+  runningIn,
 } from '@tade/checks-core'
 import {
   type ChecksConfig,
@@ -49,6 +51,12 @@ export interface ProjectChecks {
   carried: ReadonlySet<string>
   rollup: ReturnType<typeof rollup>
   rule: ChecksConfig
+  /**
+   * A run going on in this worktree now, whoever started it — this window's
+   * button, an agent's tool call, `tade check` in a terminal. Null when
+   * nothing is running, which includes a window that died holding the file.
+   */
+  running: RunningNow | null
 }
 
 /** What a project checks, and how that stands at a commit. Files only: no processes. */
@@ -83,6 +91,7 @@ export async function checksAt(opts: {
     carried: at.carried ?? new Set(),
     rollup: rollup(plan, runs, at),
     rule,
+    running: await runningIn(opts.worktree),
   }
 }
 

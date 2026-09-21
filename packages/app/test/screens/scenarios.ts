@@ -17,9 +17,10 @@ import {
   showPlan,
   splitPane,
   type TaskSnapshot,
+  toggleCheck,
   toggleDone,
   toggleSection,
-  viewWork,
+  viewActions,
   withProjects,
   withTasks,
   withTerminals,
@@ -63,7 +64,7 @@ import {
   thinking,
   youSaid,
 } from '../../src/transcript.ts'
-import type { Frame } from '../../src/view.ts'
+import type { ActionsView, CheckView, CommitView, Frame } from '../../src/view.ts'
 import {
   editFrom,
   formattedLines,
@@ -1174,42 +1175,262 @@ function mightMean(): SearchEntry[] {
 /** What somebody typed that no letter of matches anything Tade has. */
 const A_SENTENCE = 'stop whoever is doing the stripe upgrade'
 
+/** The commit the checks on the ACTIONS tab are about. */
+const AT_COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
+
+/** One check, as the page draws it: nothing has run unless the scenario says so. */
+function check(id: string, over: Partial<CheckView> = {}): CheckView {
+  return {
+    id,
+    title: id,
+    run: null,
+    state: 'not run',
+    required: true,
+    skip: null,
+    needs: [],
+    summary: null,
+    seconds: null,
+    startedAt: null,
+    at: null,
+    commit: null,
+    carried: false,
+    counts: [],
+    places: [],
+    more: 0,
+    tail: [],
+    ...over,
+  }
+}
+
+const OWN = (over: Partial<CommitView>): CommitView => ({
+  sha: AT_COMMIT,
+  subject: 'move to the stripe v15 payment intents API',
+  at: NOW - 12 * 60_000,
+  task: 'checkout/stripe-v15',
+  files: 6,
+  added: 148,
+  removed: 62,
+  ...over,
+})
+
+/** What a suite prints when four tests fail: the last of it, as the page keeps it. */
+const FAILING_TAIL = [
+  ' ❯ packages/app/test/screens.test.ts:37:5',
+  '      35|   it(‘looks the way it did’, async () => {',
+  '      36|     const plain = drawn.rows.map((row) => stripTerminalSequences(row))',
+  '      37|     await expect(plain.join()).toMatchFileSnapshot(nameOf(scenario))',
+  '        |     ^',
+  '  Snapshots  4 failed',
+  ' Test Files  1 failed | 131 passed | 1 skipped (133)',
+  '      Tests  4 failed | 2072 passed | 3 skipped (2079)',
+]
+
+/**
+ * The page as an agent in the middle of a review sees it: its own commits,
+ * somebody else's beside them, work not committed in a checkout it shares,
+ * and a suite that is red.
+ */
+function actions(): ActionsView {
+  return {
+    task: 'checkout/stripe-v15',
+    branch: 'tade/stripe-v15',
+    base: 'main',
+    ahead: 3,
+    behind: 0,
+    dirty: 3,
+    shared: true,
+    commit: AT_COMMIT,
+    mine: [
+      OWN({}),
+      OWN({
+        sha: '9f0e1d2c3b4a59687778695a4b3c2d1e0f000000',
+        subject: 'keep the old webhook shape working for a release',
+        at: NOW - 60 * 60_000,
+        files: 2,
+        added: 24,
+        removed: 4,
+      }),
+    ],
+    others: [
+      OWN({
+        sha: '77c4ab0998877665544332211aabbccddeeff001',
+        subject: 'a test for the refund path',
+        at: NOW - 2 * 3_600_000,
+        task: 'checkout/refunds',
+        files: 1,
+        added: 31,
+        removed: 0,
+      }),
+      OWN({
+        sha: '5510ee7332211445566778899aabbccddeeff002',
+        subject: 'bump the sdk',
+        at: NOW - 5 * 3_600_000,
+        task: null,
+        files: 2,
+        added: 8,
+        removed: 8,
+      }),
+    ],
+    review: null,
+    checks: [
+      check('format', {
+        run: 'pnpm exec biome ci .',
+        state: 'passed',
+        seconds: 2.1,
+        at: NOW - 13 * 60_000,
+        commit: AT_COMMIT,
+        counts: [
+          { label: 'files checked', count: 493, tone: 'quiet' },
+          { label: 'errors', count: 0, tone: 'bad' },
+        ],
+      }),
+      check('types', {
+        run: 'pnpm exec tsc --noEmit',
+        state: 'passed',
+        seconds: 6.4,
+        at: NOW - 13 * 60_000,
+        commit: AT_COMMIT,
+      }),
+      check('tests', {
+        run: 'pnpm vitest run',
+        state: 'failed',
+        seconds: 64,
+        at: NOW - 12 * 60_000,
+        commit: AT_COMMIT,
+        needs: ['types'],
+        summary: '4 failed | 2072 passed | 3 skipped (2079)',
+        counts: [
+          { label: 'failed', count: 4, tone: 'bad' },
+          { label: 'passed', count: 2072, tone: 'good' },
+          { label: 'skipped', count: 3, tone: 'quiet' },
+        ],
+        places: [
+          {
+            path: 'packages/app/test/screens.test.ts',
+            at: '37:5',
+            note: 'what-an-agent-has-done',
+          },
+          { path: 'src/webhooks.test.ts', at: '18:3', note: 'keeps the old shape' },
+        ],
+        more: 2,
+        tail: FAILING_TAIL,
+      }),
+    ],
+    rollup: 'fail',
+    source: 'from .tade/checks.yaml',
+    adoptable: false,
+    running: null,
+    notes: ['Green here is the commands on this machine; the OS matrix is CI’s to say.'],
+  }
+}
+
+/** The same agent an hour later: everything committed, everything green. */
+function green(): ActionsView {
+  const was = actions()
+  return {
+    ...was,
+    dirty: 0,
+    mine: [
+      ...was.mine,
+      OWN({
+        sha: '3ab77c1009988776655443322110ffeeddcc003',
+        subject: 'name the webhook ids the way the docs do',
+        at: NOW - 3 * 60_000,
+        files: 3,
+        added: 31,
+        removed: 9,
+      }),
+    ],
+    checks: [
+      check('format', {
+        run: 'pnpm exec biome ci .',
+        state: 'passed',
+        seconds: 2.4,
+        at: NOW - 4 * 60_000,
+        commit: AT_COMMIT,
+        counts: [{ label: 'files checked', count: 493, tone: 'quiet' }],
+      }),
+      check('types', {
+        run: 'pnpm exec tsc --noEmit',
+        state: 'passed',
+        seconds: 6.1,
+        at: NOW - 4 * 60_000,
+        commit: '9f0e1d2c3b4a59687778695a4b3c2d1e0f000000',
+        carried: true,
+      }),
+      check('tests', {
+        run: 'pnpm vitest run',
+        state: 'passed',
+        seconds: 148,
+        at: NOW - 2 * 60_000,
+        commit: AT_COMMIT,
+        needs: ['types'],
+        counts: [
+          { label: 'passed', count: 2559, tone: 'good' },
+          { label: 'skipped', count: 3, tone: 'quiet' },
+        ],
+      }),
+    ],
+    rollup: 'pass',
+  }
+}
+
+/** A run going on now, whoever started it. */
+function running(): ActionsView {
+  const was = green()
+  return {
+    ...was,
+    rollup: 'unknown',
+    checks: [
+      { ...(was.checks[0] as CheckView), seconds: 2.2, at: NOW - 80_000 },
+      {
+        ...(was.checks[2] as CheckView),
+        state: 'running',
+        seconds: null,
+        at: null,
+        startedAt: NOW - 62_000,
+        counts: [],
+      },
+      check('types', { run: 'pnpm exec tsc --noEmit', state: 'queued', needs: ['tests'] }),
+    ],
+    running: { since: NOW - 84_000, by: 'checkout/stripe-v15', done: 1, total: 3 },
+  }
+}
+
+/** An agent that has done nothing yet: the page says so, rather than looking green. */
+function nothingYet(): ActionsView {
+  return {
+    ...actions(),
+    branch: null,
+    ahead: 0,
+    dirty: 0,
+    commit: null,
+    mine: [],
+    others: [],
+    checks: [
+      check('format', { run: 'pnpm exec biome ci .' }),
+      check('types', { run: 'pnpm exec tsc --noEmit' }),
+      check('tests', { run: 'pnpm vitest run', needs: ['types'] }),
+    ],
+    rollup: 'unknown',
+    running: null,
+  }
+}
+
+/** The page with one check open on what it printed, scrolled to where it is. */
+function openCheck(state: AppState, task: string, check: string, scroll = 0): AppState {
+  return { ...toggleCheck(state, task, check), actionsScroll: scroll }
+}
+
 export const SCENARIOS: Scenario[] = [
   {
     name: 'what-an-agent-has-done',
     about:
-      'The work tab beside an agent’s screen: its branch, the commits on it and whose they are, the review it is out for with what CI says about it, and how the project’s own checks stand at the commit in hand — run here, before anybody else has to look. The REVIEWS section down the side is every review that is open, from the same poll.',
-    state: viewWork(base(), 'checkout/stripe-v15'),
+      'The ACTIONS tab beside an agent’s screen: the commits that carry its own task’s trailer, kept apart from everybody else’s, with what each touched; what is changed and not committed, and whose that is; the review it is out for; and how the project’s own checks stand at the commit in hand — what each ran, how long it took, and what it counted. The tests are red, and the failing file is on the page. The REVIEWS section down the side is every review that is open, from the same poll.',
+    state: viewActions(base(), 'checkout/stripe-v15'),
     frame: frame({
-      work: {
-        task: 'checkout/stripe-v15',
-        branch: 'tade/stripe-v15',
-        base: 'main',
-        ahead: 3,
-        behind: 0,
-        dirty: 0,
-        commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
-        commits: [
-          {
-            sha: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
-            subject: 'move to the stripe v15 payment intents API',
-            at: NOW - 12 * 60_000,
-            task: 'checkout/stripe-v15',
-          },
-          {
-            sha: '9f0e1d2c3b4a59687778695a4b3c2d1e0f000000',
-            subject: 'keep the old webhook shape working for a release',
-            at: NOW - 60 * 60_000,
-            task: 'checkout/stripe-v15',
-          },
-          {
-            sha: '77c4ab0998877665544332211aabbccddeeff001',
-            subject: 'a test for the refund path',
-            at: NOW - 2 * 3_600_000,
-            task: null,
-          },
-        ],
-        attributed: '2 with this task’s trailer',
+      actions: {
+        ...actions(),
         review: {
           number: '#418',
           title: 'stripe v15',
@@ -1219,20 +1440,6 @@ export const SCENARIOS: Scenario[] = [
             { text: '✗ checks', tone: 'bad' },
           ],
         },
-        checks: [
-          { id: 'format', state: 'passed', summary: null, seconds: 2.1 },
-          { id: 'types', state: 'passed', summary: null, seconds: 6.4 },
-          {
-            id: 'tests',
-            state: 'failed',
-            summary: '8 failed  packages/app/test/view.test.ts',
-            seconds: 64,
-          },
-        ],
-        source: 'from .tade/checks.yaml',
-        adoptable: false,
-        running: false,
-        notes: ['Green here is the commands on this machine; the OS matrix is CI’s to say.'],
       },
       lists: [
         {
@@ -1268,36 +1475,51 @@ export const SCENARIOS: Scenario[] = [
     }),
   },
   {
+    name: 'a-check-that-failed-opened',
+    about:
+      'The failing check opened where it is: what it ran, what it counted, the files it named, and the last of what it printed — read on the page rather than in the conversation, which is where you were going next anyway. The whole log is still one button away.',
+    state: openCheck(viewActions(base(), 'checkout/stripe-v15'), 'checkout/stripe-v15', 'tests', 7),
+    frame: frame({ actions: actions() }),
+  },
+  {
+    name: 'an-agent-that-is-green',
+    about:
+      'The same page with everything green: three commits of its own, nothing outstanding, and every check passed — one of them carried over from the commit before, because the bytes it read are the bytes this commit holds. `unknown` never becomes green by silence, so a page that says green is a page where somebody ran them.',
+    state: viewActions(base(), 'checkout/stripe-v15'),
+    frame: frame({ actions: green() }),
+  },
+  {
+    name: 'checks-running-now',
+    about:
+      'A run watched as it goes: which check is running, how long it has been going, how many are done — written down by whoever started it, so an agent’s own run is watched the same way the button’s is.',
+    state: viewActions(base(), 'checkout/stripe-v15'),
+    frame: frame({ actions: running() }),
+  },
+  {
+    name: 'an-agent-with-nothing-yet',
+    about:
+      'An agent that has not committed anything yet: no commits of its own, nothing changed, and checks nobody has run — said as unknown, which is not the same as fine.',
+    state: viewActions(base(), 'checkout/stripe-v15'),
+    frame: frame({ actions: nothingYet() }),
+  },
+  {
     name: 'checks-read-from-ci',
     about:
       'A project with CI and no manifest of its own. What CI runs is read and shown, and none of it runs here: the row says so, and `Adopt from CI` is the one act that changes it — it writes .tade/checks.yaml, and only then are these checks Tade\u2019s to run.',
-    state: viewWork(base(), 'checkout/stripe-v15'),
+    state: viewActions(base(), 'checkout/stripe-v15'),
     frame: frame({
-      work: {
-        task: 'checkout/stripe-v15',
-        branch: 'tade/stripe-v15',
-        base: 'main',
-        ahead: 3,
-        behind: 0,
-        dirty: 0,
-        commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
-        commits: [],
-        attributed: '',
-        review: null,
+      actions: {
+        ...nothingYet(),
         checks: [
-          { id: 'format', state: 'not run', summary: null, seconds: null },
-          { id: 'tests', state: 'not run', summary: null, seconds: null },
-          {
-            id: 'publish',
-            state: 'not run',
-            summary: 'needs CI: it uses something only the runner knows',
-            seconds: null,
-          },
+          check('format', { run: 'biome ci .' }),
+          check('tests', { run: 'pnpm vitest run' }),
+          check('publish', {
+            run: 'npm publish --provenance',
+            skip: 'needs CI: it uses something only the runner knows',
+          }),
         ],
         source: 'read from .github/workflows/ci.yml \u2014 not adopted, so none of them run here',
         adoptable: true,
-        running: false,
-        notes: ['Green here is the commands on this machine; the OS matrix is CI\u2019s to say.'],
       },
     }),
   },

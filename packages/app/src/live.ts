@@ -1,5 +1,7 @@
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { stripTerminalSequences } from '@earendil-works/pi-tui'
+import { readOutcome, settled } from '@tade/checks-core'
 import {
   type Config,
   type DoneRule,
@@ -42,7 +44,7 @@ import type { PendingApproval } from '@tade/workbench/workers'
 import { type FileEntry, type Listed, marksFrom, treeOf } from './files.ts'
 import type { QueuedView, TaskSnapshot } from './model.ts'
 import { branchOf } from './projects.ts'
-import type { Change, WorkView } from './view.ts'
+import type { ActionsView, Change, CheckView, CommitView } from './view.ts'
 
 // Where the app gets its facts.
 //
@@ -125,6 +127,18 @@ export function changedFrom(stdout: string): { commit: string; task: string; pat
 const BRANCH_MS = 10_000
 /** How often a task's commits and recorded runs are read again, at the most. */
 const WORK_MS = 10_000
+
+/**
+ * And while a run is going: a suite you are watching has to move, and what it
+ * costs is a small file and the records beside it, not a suite of its own.
+ */
+const WORK_RUNNING_MS = 1_000
+
+/** How many lines of a failing check's output the page keeps to show you. */
+const TAIL_LINES = 40
+
+/** How long a look stays quick after somebody starts a run. */
+const HURRY_MS = 30_000
 
 /**
  * Fold what status, the lane registry and the approval queue each know into
@@ -248,19 +262,31 @@ export function changesFrom(nameStatus: string, numstat: string, status = ''): C
 }
 
 /**
- * The commits of a branch, as `git log` with the trailer format hands them
- * back: `<sha>\0<when>\0<subject>\0<Tade-Task trailers>\0` per commit.
+ * The commits of a branch, as `git log` with the trailer format and
+ * `--shortstat` hands them back: a `\x01` before each, then
+ * `<sha>\0<when>\0<subject>\0<Tade-Task trailers>\0`, then what it touched.
+ *
+ * The record separator is what makes the stat line safe to read: a subject
+ * can hold anything, a stat line begins with a space, and without a mark
+ * saying where a commit starts the two run into each other.
  *
  * The trailer is git's own mechanism, which is why attribution survives a
  * squash merge and a machine with no Tade on it. A commit that names no task
  * is unattributed, and that is a first-class answer rather than a guess.
  */
-export function commitsFrom(
-  stdout: string,
-): { sha: string; at: number; subject: string; task: string | null }[] {
-  return stdout.split('\u0000\n').flatMap((entry) => {
-    const [sha, at, subject, trailer] = entry.replace(/^\n/, '').split('\u0000')
+export function commitsFrom(stdout: string): CommitView[] {
+  return stdout.split('\u0001').flatMap((entry) => {
+    if (entry.trim() === '') return []
+    const [head, ...rest] = entry.split('\u0000\n')
+    const [sha, at, subject, trailer] = (head ?? '').split('\u0000')
     if (!sha) return []
+    // ` 3 files changed, 48 insertions(+), 12 deletions(-)` — absent for a
+    // merge and for a commit that changed nothing, which reads as unknown
+    // rather than as zero.
+    const stat =
+      /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/.exec(
+        rest.join('\u0000\n'),
+      )
     return [
       {
         sha,
@@ -269,10 +295,28 @@ export function commitsFrom(
         // Several trailers on one commit is somebody copying a message: the
         // first is the one it was written for.
         task: (trailer ?? '').split(',')[0]?.trim() || null,
+        files: stat?.[1] ? Number(stat[1]) : null,
+        added: stat?.[2] ? Number(stat[2]) : null,
+        removed: stat?.[3] ? Number(stat[3]) : null,
       },
     ]
   })
 }
+
+/**
+ * A line of somebody else's output as a row of the page: no colour, no tabs
+ * and no control bytes. A tab in a row is a row whose width the window and
+ * the terminal disagree about, which is the one thing `draw` may never do.
+ */
+function plainly(line: string): string {
+  return stripTerminalSequences(line).replace(/\t/g, '  ').replace(CONTROL, '')
+}
+
+/** Built from character codes: a control character in a regex literal reads as a typo. */
+const CONTROL = new RegExp(
+  `[${String.fromCharCode(0)}-${String.fromCharCode(31)}${String.fromCharCode(127)}]`,
+  'g',
+)
 
 /** The same tasks, as the resolver wants them. */
 export function knownTasks(snapshots: readonly TaskSnapshot[]): KnownTask[] {
@@ -323,8 +367,10 @@ export class Live {
   private readonly looking = new Set<string>()
   /** The branch each task was started from, as status last saw it. */
   private readonly bases = new Map<string, string>()
-  /** The last look at each task's commits and checks, for the work tab. */
-  private readonly works = new Map<string, { at: number; work: WorkView }>()
+  /** The last look at each task's commits and checks, for the ACTIONS tab. */
+  private readonly works = new Map<string, { at: number; work: ActionsView }>()
+  /** Tasks something was just started in, and until when to look often for it. */
+  private readonly hurry = new Map<string, number>()
   private readonly workLooking = new Set<string>()
   /** Each task's branch and how far ahead of its base, for removing it. */
   private readonly facts = new Map<
@@ -656,21 +702,26 @@ export class Live {
   }
 
   /**
-   * What a task has done, for the work tab: its branch, its commits and whose
-   * they are, and how its project's checks stand at the commit in hand.
+   * What a task has done, for the ACTIONS tab: the commits that carry its own
+   * trailer, what is changed and not committed, and how its project's checks
+   * stand at the commit in hand — including a run going on right now.
    *
    * Answers from the last look at once and looks again in the background,
    * like everything else here: the window draws four times a second and must
-   * never wait on git, or on a file, to do it.
+   * never wait on git, or on a file, to do it. While a run is going the look
+   * comes round faster, because a page you are watching a suite on is a page
+   * that has to move.
    */
-  work(task: string | null, review: WorkView['review'] = null): WorkView | null {
+  actions(task: string | null, review: ActionsView['review'] = null): ActionsView | null {
     if (!task) return null
     const root = this.worktrees.get(task)
     if (!root) return null
     const seen = this.works.get(task)
-    if ((!seen || this.now() - seen.at >= WORK_MS) && !this.workLooking.has(task)) {
+    const expecting = (this.hurry.get(task) ?? 0) > this.now()
+    const every = seen?.work.running || expecting ? WORK_RUNNING_MS : WORK_MS
+    if ((!seen || this.now() - seen.at >= every) && !this.workLooking.has(task)) {
       this.workLooking.add(task)
-      void this.lookAtWork(task, root)
+      void this.lookAtActions(task, root)
         .then((work) => {
           if (!work) return
           this.works.set(task, { at: this.now(), work })
@@ -687,11 +738,21 @@ export class Live {
       ...seen.work,
       ahead: facts?.ahead ?? seen.work.ahead,
       dirty: this.changed.get(task)?.changes.length ?? seen.work.dirty,
+      shared: facts ? facts.workspace === 'checkout' : seen.work.shared,
       review: review ?? seen.work.review,
     }
   }
 
-  private async lookAtWork(task: string, root: string): Promise<WorkView | null> {
+  /**
+   * Something was just started in this task's tree, so look often for a
+   * while: between the button and the run writing anything down there is a
+   * moment, and the ten-second look would spend it saying nothing happened.
+   */
+  hurryUp(task: string): void {
+    this.hurry.set(task, this.now() + HURRY_MS)
+  }
+
+  private async lookAtActions(task: string, root: string): Promise<ActionsView | null> {
     const project = task.split('/')[0] ?? task
     const base = this.bases.get(task) ?? null
     const head = await git(root, ['rev-parse', 'HEAD'])
@@ -700,28 +761,56 @@ export class Live {
     const from = since?.ok ? since.stdout.trim() : null
     // Trailers, so a commit says which task it belongs to wherever it ends
     // up: git's own mechanism, readable in a year by somebody with no Tade.
+    // `--shortstat` for what each touched, which is what makes a commit on
+    // this page worth more than its subject.
     const log = await git(root, [
       'log',
       '--no-color',
       '-n',
       '30',
-      '--format=%H%x00%ct%x00%s%x00%(trailers:key=Tade-Task,valueonly,separator=%x2C)%x00',
+      '--format=%x01%H%x00%ct%x00%s%x00%(trailers:key=Tade-Task,valueonly,separator=%x2C)%x00',
+      '--shortstat',
       ...(from ? [`${from}..HEAD`] : []),
     ])
     const commits = log.ok ? commitsFrom(log.stdout) : []
-    const mine = commits.filter((one) => one.task === task).length
     const stood = await checksAt({ config: this.opts.config, project, worktree: root, commit })
-    const checks = stood.plan.map((check) => {
+    const going = stood.running
+    const checks: CheckView[] = stood.plan.map((check) => {
       const run = stood.at.find((one) => one.check === check.id)
+      const inFlight = going?.checks.find((one) => one.check === check.id)
+      // A run in flight is the truth about now; the record is the truth about
+      // what finished. Neither is guessed from the other.
+      const live = inFlight && !settled(inFlight.state) ? inFlight : null
+      const log = run ? stood.runs.find((one) => one.id === run.id) : undefined
       const seconds =
         run?.startedAt && run.finishedAt
           ? (Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000
           : null
+      const outcome = readOutcome(log?.tail ?? '')
       return {
         id: check.id,
-        state: run?.state ?? 'not run',
-        summary: run?.summary ?? check.skip ?? null,
-        seconds,
+        title: check.title,
+        run: check.run,
+        state: live ? live.state : (run?.state ?? 'not run'),
+        required: check.required,
+        skip: check.skip ?? null,
+        needs: check.needs ?? [],
+        summary: run?.summary ?? null,
+        seconds: live ? null : seconds,
+        startedAt: live?.startedAt ? Date.parse(live.startedAt) : null,
+        at: run?.finishedAt ? Date.parse(run.finishedAt) : null,
+        commit: run?.commit ?? null,
+        carried: run ? stood.carried.has(run.id) : false,
+        counts: outcome.counts,
+        places: outcome.places,
+        more: outcome.more,
+        // Only what failed keeps its tail on the page: nobody opens a green
+        // check to read what it printed, and every row here is a row the
+        // failure below it does not get.
+        tail:
+          log && (log.state === 'failed' || log.state === 'timed out')
+            ? log.tail.split('\n').slice(-TAIL_LINES).map(plainly)
+            : [],
       }
     })
     const notes: string[] = []
@@ -730,6 +819,7 @@ export class Live {
       // letting the two read as the same thing.
       notes.push('Green here is the commands on this machine; the OS matrix is CI’s to say.')
     }
+    const workspace = this.facts.get(task)?.workspace ?? 'checkout'
     return {
       task,
       branch: this.facts.get(task)?.branch ?? null,
@@ -737,16 +827,13 @@ export class Live {
       ahead: this.facts.get(task)?.ahead ?? null,
       behind: null,
       dirty: 0,
+      shared: workspace === 'checkout',
       commit,
-      commits,
-      attributed:
-        commits.length === 0
-          ? ''
-          : mine === commits.length
-            ? 'all with this task’s trailer'
-            : `${mine} with this task’s trailer`,
+      mine: commits.filter((one) => one.task === task),
+      others: commits.filter((one) => one.task !== task),
       review: null,
       checks,
+      rollup: stood.rollup.state,
       source:
         stood.plan.length > 0
           ? stood.manifest.source === 'CI'
@@ -754,7 +841,14 @@ export class Live {
             : `from ${stood.manifest.from ?? stood.manifest.source}`
           : 'No checks configured — adopt what CI runs, or write .tade/checks.yaml.',
       adoptable: stood.manifest.source === 'CI',
-      running: false,
+      running: going
+        ? {
+            since: Date.parse(going.at) || this.now(),
+            by: going.by,
+            done: going.checks.filter((one) => settled(one.state)).length,
+            total: going.checks.length,
+          }
+        : null,
       notes,
     }
   }

@@ -134,13 +134,28 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the agent is told the rule and what happened is written down. Overruling it is an act, not a
   setting — `checks_override`, with a reason, read back out of the journal — and a red run that was
   overruled is still recorded red.
+- **A suite takes minutes, so a run says what it is doing while it is doing it.** `checks.jsonl`
+  holds only what finished; what is going on now is a small file beside it (`running.ts`,
+  `.tade/checks.running.json`) that `runChecks` writes at every state change and takes back when
+  the run ends — so the window draws which check is going, how long it has been going and how many
+  are done, whoever started it: the button, an agent's `checks_run`, or `tade check` in a terminal.
+  The run lock's rule holds here too — a record whose process is gone is not a run — so a window
+  killed mid-suite leaves nothing claiming anything is running. What a run *printed* is read back
+  the same way (`readOutcome`): the counts and the files are in the tail already, and a shape
+  nothing here recognises reads as no counts rather than as an invented one.
+- **What an agent did and whether it holds up is one page** — the ACTIONS tab beside its screen
+  (`actionRows` in `packages/app/src/view.ts`). Its own commits are the ones whose `Tade-Task:`
+  trailer names it, drawn apart from everybody else's rather than counted in a header, and in a
+  shared checkout what is uncommitted is said to be nobody's to attribute rather than claimed as
+  this agent's. A check is what ran, when, against which commit, how long it took and what it
+  counted, with the tail of a failure read on the page — and `unknown` is drawn as `unknown`.
 - **Reading what CI runs is not adopting it.** A project with no manifest has its CI config read
   (`readFromCi`) so the window can say what it checks — and by default (`checks.from_ci: show`) runs
   none of it: a CI config holds releases and deploys beside its tests and nothing can tell which is
   which, and the ids come from step names that change whenever somebody retitles one, which would
   orphan every run recorded under the old name. Every check read that way carries a `skip`, so the
   rollup stays `unknown` rather than going green off a guess. Adoption is the act that changes it —
-  `tade checks adopt`, `checks_propose`, the button on the work tab, all writing the same file the
+  `tade checks adopt`, `checks_propose`, the button on the ACTIONS tab, all writing the same file the
   same way — and what CI does and Tade cannot is named every time rather than dropped. `.tade/checks.yaml`
   is the one file Tade writes into somebody else's repository: it never commits there (`recordAuthored`
   is for `<home>`, and `git add -A` over a shared checkout would sweep up four agents' half-written

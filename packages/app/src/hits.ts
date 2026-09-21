@@ -16,8 +16,8 @@ export type Target =
   | { kind: 'note'; at: string; text: string }
   | { kind: 'lane'; task: string; lane: string }
   /** The tab beside an agent's, showing what it has done rather than its screen. */
-  | { kind: 'pane-tab'; task: string; tab: 'work' }
-  /** A check on the work tab: clicking it shows what it printed. */
+  | { kind: 'pane-tab'; task: string; tab: 'actions' }
+  /** A check on the ACTIONS tab: clicking it opens what it printed, there on the page. */
   | { kind: 'check'; task: string; check: string }
   | { kind: 'project'; project: string }
   | { kind: 'orchestrator' }
@@ -79,7 +79,14 @@ export type Target =
  * conversation. `plan` is the picture of a chain where an agent's screen
  * would be, which only ever moves sideways.
  */
-export type ScrollArea = 'sidebar' | 'panel' | 'transcript' | 'pane' | 'terminal' | 'plan'
+export type ScrollArea =
+  | 'sidebar'
+  | 'panel'
+  | 'transcript'
+  | 'pane'
+  | 'terminal'
+  | 'plan'
+  | 'actions'
 
 export interface Hit {
   /** Inclusive row, zero-based from the top of the window. */

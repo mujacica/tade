@@ -1,0 +1,34 @@
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+ ▌ ! stripe-v15      $1.26   █│                                                                                         
+ ▌   wants you to approve…   █│  no branch yet                                                   nothing committed yet  
+                             █│                                                                                         
+   ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ───────────────────────────────────────────────────────  none yet 
+     working                 █│    No commit carries this task’s trailer yet, so none of these are its own.             
+                             █│  ◌ Nothing changed and not committed.                                                   
+ ▾ CHANGES  3        vs main █│                                                                                         
+  M package.json       +2 −1 █│  CHECKS ──────────────────────────────────────────  no commit to check yet    Run all   
+  A …/webhooks.test.ts   +48 █│  Nothing is committed here yet, and a check is always about a commit.                   
+  M src/webhooks.ts   +12 −4 █│  ◦ format   not run          nobody has run it                                          
+                             █│      pnpm exec biome ci .                                                               
+ ▾ FILES                     █│  ◦ types    not run          nobody has run it                                          
+   ▾ src/                    ▕│      pnpm exec tsc --noEmit                                                             
+       webhooks.test.ts      ▕│  ◦ tests    not run          nobody has run it                                          
+       webhooks.ts           ▕│      pnpm vitest run  (after types)                                                     
+   ▸ test/                   ▕│                                                                                         
+     package.json            ▕│  Green here is the commands on this machine; the OS matrix is CI’s to say.              
+     README.md               ▕│                                                                                         
+                             ▕│                                                                                         
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

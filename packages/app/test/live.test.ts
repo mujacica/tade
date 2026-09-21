@@ -222,15 +222,29 @@ describe('changedFrom', () => {
 })
 
 describe('commitsFrom', () => {
-  const entry = (sha: string, at: number, subject: string, trailers = '') =>
-    `${sha}\u0000${at}\u0000${subject}\u0000${trailers}\u0000`
+  // As `git log --format=%x01… --shortstat` writes it: a record mark, the
+  // fields, then what the commit touched.
+  const entry = (sha: string, at: number, subject: string, trailers = '', stat = '') =>
+    `\u0001${sha}\u0000${at}\u0000${subject}\u0000${trailers}\u0000\n${stat ? `\n ${stat}\n` : ''}`
 
-  it('reads each commit and the task its trailer names', () => {
+  it('reads each commit, the task its trailer names, and what it touched', () => {
     const out = commitsFrom(
       [
-        entry('a1b2c3d', 1_789_000_000, 'move to stripe v15', 'checkout/stripe-v15'),
-        entry('9f0e1d2', 1_788_000_000, 'a commit nobody signed'),
-      ].join('\n'),
+        entry(
+          'a1b2c3d',
+          1_789_000_000,
+          'move to stripe v15',
+          'checkout/stripe-v15',
+          '6 files changed, 148 insertions(+), 62 deletions(-)',
+        ),
+        entry(
+          '9f0e1d2',
+          1_788_000_000,
+          'a commit nobody signed',
+          '',
+          '1 file changed, 3 insertions(+)',
+        ),
+      ].join(''),
     )
     expect(out).toEqual([
       {
@@ -238,15 +252,29 @@ describe('commitsFrom', () => {
         at: 1_789_000_000_000,
         subject: 'move to stripe v15',
         task: 'checkout/stripe-v15',
+        files: 6,
+        added: 148,
+        removed: 62,
       },
       // Unattributed is an answer, not a guess: nothing says whose this is.
-      { sha: '9f0e1d2', at: 1_788_000_000_000, subject: 'a commit nobody signed', task: null },
+      // A commit that deleted nothing says nothing about deletions.
+      {
+        sha: '9f0e1d2',
+        at: 1_788_000_000_000,
+        subject: 'a commit nobody signed',
+        task: null,
+        files: 1,
+        added: 3,
+        removed: null,
+      },
     ])
   })
 
   it('keeps a subject with anything in it, and survives an empty log', () => {
-    const out = commitsFrom(entry('a1b2c3d', 1, 'fix: a "quoted", multi-part | subject'))
-    expect(out[0]?.subject).toBe('fix: a "quoted", multi-part | subject')
+    const out = commitsFrom(entry('a1b2c3d', 1, 'fix: a "quoted", 3 files changed | subject'))
+    expect(out[0]?.subject).toBe('fix: a "quoted", 3 files changed | subject')
+    // A merge has no stat line, and what it touched is unknown rather than nothing.
+    expect(out[0]?.files).toBeNull()
     expect(commitsFrom('')).toEqual([])
   })
 

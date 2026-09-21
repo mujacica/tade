@@ -1,26 +1,26 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    █│ checkout › stri…    agent    shell    work     +     claude-opus-5 ▾     high ▾     ×   
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────
- ▌ ! stripe-v15      $1.26   █│                                                                                         
- ▌   wants you to approve…   █│  branch  tade/stripe-v15  3 ahead · 0 behind main · clean                               
-                             █│  review  #418  stripe v15  draft ✗ checks                                               
-   ⠋ refunds         $0.62   █│          https://github.com/acme/checkout/pull/418                                      
-     working                 █│                                                                                         
-                             █│  COMMITS 3  2 with this task’s trailer                                                  
- ▾ REVIEWS  3                █│  a1b2c3d move to the stripe v15 payment intents API                                     
-  #418  …     draft ✗ checks █│  9f0e1d2 keep the old webhook shape working for a release                               
-  #412  retry refun…   ready █│  77c4ab0 a test for the refund path                                                     
-  #77  bump zod          you █│                                                                                         
-                             ▕│  CHECKS at a1b2c3d                                                            Run all   
- ▾ CHANGES  3        vs main ▕│  ✓ format    passed       2.1s                                                          
-  M package.json       +2 −1 ▕│  ✓ types     passed       6.4s                                                          
-  A …/webhooks.test.ts   +48 ▕│  ✗ tests     failed      64.0s  8 failed  packages/app/test/view.test.ts                
-  M src/webhooks.ts   +12 −4 ▕│                                                                                         
-                             ▕│  Green here is the commands on this machine; the OS matrix is CI’s to say.              
- ▾ FILES                     ▕│                                                                                         
-   ▾ src/                    ▕│                                                                                         
-       webhooks.test.ts      ▕│                                                                                         
+ ▌ ! stripe-v15      $1.26   █│                                                                                        █
+ ▌   wants you to approve…   █│  tade/stripe-v15                                                      3 ahead of main  █
+                             █│  #418 stripe v15                                                       draft ✗ checks  █
+   ⠋ refunds         $0.62   █│                                                                                        █
+     working                 █│  THIS AGENT’S COMMITS ────────────────────────────────────────────────────  2 +172 −66 █
+                             █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
+ ▾ REVIEWS  3                █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
+  #418  …     draft ✗ checks █│  ◌ 3 files not committed     shared checkout — Tade cannot say which are this agent’s  █
+  #412  retry refun…   ready █│                                                                                        █
+  #77  bump zod          you █│  CHECKS ─────────────────────────────────────────────────  red at a1b2c3d    Run all   █
+                             ▕│  ✓ format   passed     2.1s  13m ago                     493 files checked · 0 errors  █
+ ▾ CHANGES  3        vs main ▕│      pnpm exec biome ci .                                                              █
+  M package.json       +2 −1 ▕│  ✓ types    passed     6.4s  13m ago                                                   █
+  A …/webhooks.test.ts   +48 ▕│      pnpm exec tsc --noEmit                                                            █
+  M src/webhooks.ts   +12 −4 ▕│  ✗ tests    failed   1m 04s  12m ago               4 failed · 2072 passed · 3 skipped  █
+                             ▕│      pnpm vitest run  (after types)                                ▾ what it printed   ▕
+ ▾ FILES                     ▕│      packages/app/test/screens.test.ts:37:5  what-an-agent-has-done                    ▕
+   ▾ src/                    ▕│      and 3 more                                                                        ▕
+       webhooks.test.ts      ▕│                                                                                        ▕
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
                                                                                                                        ▕
