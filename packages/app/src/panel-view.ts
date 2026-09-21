@@ -13,24 +13,31 @@ import {
   masked,
   type Priced,
   type Setting,
-  type SettingGroup,
   shownValue,
 } from '@tade/core'
-import type { ParsedDiff } from './diff.ts'
-import type { Change } from './frame.ts'
-import { type Hit, type ScrollArea, sameTarget, type Target } from './hits.ts'
+import { type Hit, sameTarget, type Target } from './hits.ts'
 import { onLine, type Place, placeOf } from './input.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from './keys.ts'
 import { linkedRow } from './links.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from './model.ts'
 import {
+  bar,
+  cap,
+  count,
+  fitTo,
+  pad,
+  padTo,
+  sideWidth,
+  tildeOf,
+  withFocus,
+  wrapTo,
+} from './panels/cells.ts'
+import type { PanelContext, PanelDrawing } from './panels/context.ts'
+import {
   ACCOUNTS,
-  type AccountShown,
   accountActions,
   type BranchPanel,
-  type BranchRow,
   branchChoices,
-  type Choice,
   type CloseDonePanel,
   type ConfirmPanel,
   type ConfirmRemovePanel,
@@ -40,7 +47,6 @@ import {
   type ExtensionEntry,
   type ExtensionSetupPanel,
   type ExtensionsPanel,
-  type ExtensionView,
   type ExtensionViewPanel,
   extensionControls,
   extensionEntries,
@@ -50,36 +56,28 @@ import {
   fileMatches,
   fileSelection,
   listStart,
-  type McpServerOffer,
-  type MenuItem,
   type MenuPanel,
-  type ModelChoice,
   type ModelPanel,
   matchingChoices,
   modelChoices,
   nameFrom,
   noteFacts,
   type OpenProjectPanel,
-  type OpenRow,
-  type Panel,
   type PromptPanel,
   priceCells,
   type QuitPanel,
   type ReloadPanel,
   type SearchPanel,
   type SettingsPanel,
-  type SetupFieldView,
   type SpendPanel,
   setupControls,
   UPDATES,
-  type UpdatesShown,
   updateActions,
   usesDropdown,
   visibleSettings,
-  type WrittenToolView,
   watchControl,
 } from './panels.ts'
-import { BAR, barRows, type Scrolled } from './scrollbar.ts'
+import { BAR, barRows } from './scrollbar.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from './search.ts'
 import type { Look, Skin } from './skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendView } from './spend.ts'
@@ -103,196 +101,16 @@ import {
   type Match,
   markdownLines,
   TAB,
-  type ViewedFile,
 } from './viewer.ts'
 
 // How each panel looks. The model of what a panel holds and what a key does to
 // it is in `panels.ts`; this only draws it, and names each control so a click
 // can find its way back there.
-
-export interface PanelContext {
-  width: number
-  height: number
-  skin: Skin
-  pointer: Pointer
-  /**
-   * Which of the panel's scrollbars is being dragged, so that one is drawn
-   * lit. A panel with two of them — a list and what it is showing — lights
-   * the one in your hand, not both.
-   */
-  scrolling?: ScrollArea | null
-  /** Tade's home, as you would type it: where worktrees are made. */
-  home: string
-  /** A moment with its date, the way the window says one: `Mon 7 Sep 09:00`. */
-  date: (at: number) => string
-  route: { harness: string; model: string | null; provider: string | null } | null
-  /** Where the money went, for the window and grouping the Spend panel is on. */
-  spend: SpendView | null
-  /** The tasks, for giving each spend row its state. */
-  panes: readonly AgentPane[]
-  /** The project you are in: its tasks are named short. */
-  project: string | null
-  /** A task's menu, as it stands. */
-  items: readonly MenuItem[]
-  /** What a task has changed, for the question before removing it. */
-  changes: readonly Change[]
-  /** Commits the task's branch has that its base does not. */
-  ahead: number | null
-  branch: string | null
-  base: string | null
-  /** The file the diff panel is showing, once git has said. */
-  diff: ParsedDiff | null
-  /** Models an agent can be started on. */
-  choices: readonly Choice[]
-  /** Every setting, grouped, as it is now. */
-  settings: readonly SettingGroup[]
-  /** Every account agents can run as, each harness's own sign-in first. */
-  accounts: readonly AccountShown[]
-  /**
-   * What the Updates page knows: what is installed here and, once somebody
-   * has asked, what is current. Null until the page has looked.
-   */
-  updates: UpdatesShown | null
-  /** A check is going: the network half, which only ever runs because it was pressed. */
-  updatesBusy: boolean
-  /**
-   * Whether agents outlive this window — `capabilities.detach`, never the
-   * driver's name. It is what decides whether reloading to pick up a new Tade
-   * stops the work or leaves it running.
-   */
-  lanesSurvive: boolean
-  /** The config file, as you would type its path. */
-  configPath: string
-  /** Whether this terminal reports key releases, which holding to talk needs. */
-  releases: boolean
-  /** Projects over or near their budget today. */
-  budgetWarnings: number
-  /** How loud the microphone is, while it is being tried. */
-  levels: readonly number[]
-  /** The Open project list, with what is known about each row. */
-  openRows: readonly OpenRowView[]
-  /** The folder being browsed, as you would type it. */
-  browsing: string | null
-  /** Your home directory, which paths are shown relative to. */
-  homeDir: string
-  /** What search shows for the query as it stands. */
-  entries: readonly SearchEntry[]
-  /** Search is still looking inside files for the text typed. */
-  searching: boolean
-  /**
-   * The file the viewer is showing, once read: its source coloured line by
-   * line, and — for Markdown — laid out at the width `fileViewSize` gives.
-   */
-  viewing: {
-    file: ViewedFile
-    source: readonly string[]
-    formatted: readonly string[] | null
-    /** The same lines with no colour: what a find looks through and a caret counts in. */
-    text: readonly string[]
-  } | null
-  /** The key you talk with, and how. */
-  talkKey: string
-  talkMode: 'hold' | 'toggle'
-  /** The window's other keys as set: `surfaces.window.keys`. */
-  bindings: Readonly<Record<string, string>>
-  /** Agents that closing would stop. */
-  running: number
-  /** The project's branches, for switching its checkout. */
-  branches: readonly BranchRow[]
-  /** The branch the project's checkout is on. */
-  checkout: string | null
-  /** How many lines of the terminal being searched match. */
-  found: number
-  /** What the terminal being searched is called. */
-  terminalName: string
-  /** The extensions this window runs with. */
-  extensions: readonly ExtensionView[]
-  /** Extensions and servers each harness loads itself, which Tade only lists. */
-  harnessExtensions: readonly { name: string; where: string }[]
-  /** The MCP servers nobody has decided about: the catalogue, as one row. */
-  servers: readonly McpServerOffer[]
-  /** The tools Tade wrote for itself, on or off. */
-  written: readonly WrittenToolView[]
-  /** The extension view being shown, once it has been asked for. */
-  extensionView: { title: string; markdown: string } | null
-  /** The extension being set up: its state, its guide and its fields. */
-  setup: {
-    title: string
-    state: string
-    problem: string | null
-    guide: readonly string[]
-    links: readonly { title: string; url: string }[]
-    fields: readonly SetupFieldView[]
-  } | null
-  /** Where your own extensions go, as you would type it. */
-  extensionsRoot: string
-  /** Models to choose from, for the model panel. */
-  models: readonly ModelChoice[]
-  /** What the model panel is choosing for, as it is called: `the orchestrator`, `agent-1`. */
-  modelTarget: string
-  /** The model it is on now. */
-  currentModel: string | null
-}
-
-export interface OpenRowView {
-  row: OpenRow
-  branch: string | null
-  tasks: number
-  /** When it was last opened, said the way people say it. */
-  when: string | null
-}
-
-/** A panel, and anything that opens out of it and may reach past its edge. */
-export interface PanelDrawing {
-  panel: Drawn
-  /** Drawn over the panel, at a place relative to its top-left corner. */
-  popups: { drawn: Drawn; row: number; col: number }[]
-}
-
-export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
-  switch (panel.kind) {
-    case 'spend':
-      return { panel: spend(panel, ctx), popups: [] }
-    case 'menu':
-      return { panel: menu(panel, ctx), popups: [] }
-    case 'confirm-remove':
-      return { panel: confirmRemove(panel, ctx), popups: [] }
-    case 'close-done':
-      return { panel: closeDone(panel, ctx), popups: [] }
-    case 'diff':
-      return { panel: diff(panel, ctx), popups: [] }
-    case 'settings':
-      return settings(panel, ctx)
-    case 'open-project':
-      return { panel: openProject(panel, ctx), popups: [] }
-    case 'search':
-      return { panel: search(panel, ctx), popups: [] }
-    case 'file':
-      return { panel: fileView(panel, ctx), popups: [] }
-    case 'prompt':
-      return { panel: prompt(panel, ctx), popups: [] }
-    case 'branch':
-      return { panel: branches(panel, ctx), popups: [] }
-    case 'confirm':
-      return { panel: confirm(panel, ctx), popups: [] }
-    case 'find':
-      return { panel: find(panel, ctx), popups: [] }
-    case 'keys':
-      return { panel: keysSheet(ctx), popups: [] }
-    case 'quit':
-      return { panel: quit(panel, ctx), popups: [] }
-    case 'reload':
-      return { panel: reload(panel, ctx), popups: [] }
-    case 'extensions':
-      return { panel: extensions(panel, ctx), popups: [] }
-    case 'extension-setup':
-      return { panel: extensionSetup(panel, ctx), popups: [] }
-    case 'extension-view':
-      return { panel: extensionView(panel, ctx), popups: [] }
-    case 'model':
-      return { panel: models(panel, ctx), popups: [] }
-  }
-}
+//
+// What it is handed and which drawing answers which panel are in
+// `panels/context.ts`; the cells they are all built out of are in
+// `panels/cells.ts`. This file is what is left while the panels move into
+// `panels/<name>/` one at a time, and goes when the last of them has.
 
 /** One price column: room for `$12.50` or `varies`, and the gap before it. */
 const PRICE_CELL = 8
@@ -303,7 +121,7 @@ const PRICE_COLUMNS = PRICE_CELL * 3
  * marked, what each costs is in columns you can run your eye down, and a fixed
  * height so the list does not jump while it narrows.
  */
-function models(panel: ModelPanel, ctx: PanelContext): Drawn {
+export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(120, ctx.width - 4)
   const inner = width - 2
@@ -476,7 +294,7 @@ export type ExtensionFacts = Pick<
  * else: its other seven tools were never on it. So the shape is Settings' —
  * one way of showing a list and a thing in the window, not two.
  */
-function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
+export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const { width, height, side, body, room, listRoom } = extensionsSize(ctx.width, ctx.height)
   const entries = extensionEntries(
@@ -699,32 +517,6 @@ function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     })
   }
   return box('Extensions', rows, width, skin, { corner: 'esc' })
-}
-
-/**
- * A scrollbar's cells for one of the panel's two sides, each with the hit that
- * turns a drag on it back into a line to scroll to. The same bar the rest of
- * the window uses — one thumb, painted cells — so the panel does not grow a
- * scrollbar of its own.
- *
- * Drawn whether or not there is anything to scroll: a column that comes and
- * goes moves everything beside it every time the page changes.
- */
-function bar(
-  view: Scrolled,
-  area: 'panel' | 'panel-side',
-  ctx: PanelContext,
-): { cell: string; target: Target }[] {
-  const held =
-    ctx.scrolling === area ||
-    (ctx.pointer.hover?.kind === 'scrollbar' && ctx.pointer.hover.area === area)
-  const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
-  return barRows(view, ctx.skin, held).map((cell) => ({ cell, target }))
-}
-
-/** `8 tools`, `1 watch`: a count said the way somebody would say it. */
-function count(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`
 }
 
 /** A line of the right-hand side, and whether the control the keyboard is on is on it. */
@@ -1141,7 +933,7 @@ function extensionBody(
  * as tall as the window allows and scrolled with the arrows. It is asked again
  * while it is open, so what it shows stays current.
  */
-function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Drawn {
+export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(110, ctx.width - 4)
   const inner = width - 2
@@ -1176,7 +968,7 @@ function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Drawn {
  * fields to fill in, with what they can be chosen from; and what saving came
  * to — ready, or what is still missing.
  */
-function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): Drawn {
+export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(96, ctx.width - 4)
   const inner = width - 2
@@ -1291,7 +1083,7 @@ function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): Drawn {
   return box(`Set up ${setup.title}`, rows.slice(0, room), width, skin, { corner: 'esc' })
 }
 
-function search(panel: SearchPanel, ctx: PanelContext): Drawn {
+export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(100, ctx.width - 4)
   const inner = width - 2
@@ -1489,7 +1281,7 @@ export function fileBodySize(
   }
 }
 
-function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
+export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const size = fileViewSize(ctx.width, ctx.height)
   const inner = size.width - 2
@@ -1816,7 +1608,7 @@ function visibleCells(text: string): number {
   return [...text].length
 }
 
-function keysSheet(ctx: PanelContext): Drawn {
+export function keysSheet(ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(92, ctx.width - 4)
   const inner = width - 2
@@ -1893,7 +1685,7 @@ function keysSheet(ctx: PanelContext): Drawn {
   return box('Shortcuts', rows, width, skin, { corner: 'esc' })
 }
 
-function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
+export function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(62, ctx.width - 4)
   const inner = width - 2
@@ -1940,7 +1732,7 @@ function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
   return box('Close Tade?', rows, width, skin, { corner: 'esc' })
 }
 
-function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
+export function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(62, ctx.width - 4)
   const inner = width - 2
@@ -1982,7 +1774,7 @@ function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
   return box('Reload Tade?', rows, width, skin, { corner: 'esc' })
 }
 
-function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
+export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(100, ctx.width - 4)
   const inner = width - 2
@@ -2199,10 +1991,6 @@ function crumbsOf(dir: string, home: string): { label: string; path: string }[] 
   ]
 }
 
-function tildeOf(path: string, home: string): string {
-  return home && path.startsWith(home) ? `~${path.slice(home.length)}` : path
-}
-
 // ── Settings ────────────────────────────────────────────────────────────────
 
 /**
@@ -2215,16 +2003,6 @@ const CHOICE_LABELS: Record<string, Record<string, string>> = {
     hold: 'Hold to talk',
     toggle: 'Press to start, press to stop',
   },
-}
-
-/**
- * How wide the list of categories is. Pared back rather than dropped: a panel
- * you cannot change category in is a panel with one category.
- */
-export function sideWidth(inner: number): number {
-  if (inner >= 76) return 24
-  if (inner >= 58) return 18
-  return 16
 }
 
 /** Columns kept blank between a setting's name and its control, at every width. */
@@ -2296,7 +2074,7 @@ function scrolledTo(lines: number, room: number, from: number, to: number): numb
   return Math.max(0, Math.min(from < offset ? from : offset, most))
 }
 
-function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
+export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   const { skin } = ctx
   const width = Math.min(104, Math.max(32, ctx.width - 6))
   const height = Math.max(14, Math.min(28, ctx.height - 4))
@@ -3034,11 +2812,6 @@ function controlOf(setting: Setting): string | null {
   }
 }
 
-function withFocus(pointer: Pointer, id: string | null): Pointer {
-  if (!id || pointer.hover) return pointer
-  return { ...pointer, hover: { kind: 'control', id } }
-}
-
 /** A badge beside a category, when something there is worth a look. */
 function badgeFor(id: string, ctx: PanelContext): ((row: Row) => void) | null {
   const { skin } = ctx
@@ -3239,11 +3012,7 @@ function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
   })
 }
 
-function fitTo(text: string, width: number): string {
-  return fitRow(text, width)
-}
-
-function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
+export function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   // As wide as its longest item and what is said beside it, within reason.
   const width = Math.min(
@@ -3277,7 +3046,7 @@ function menu(panel: MenuPanel, ctx: PanelContext): Drawn {
 }
 
 /** One line asked for: a note, with whether it is about everything, or a branch name. */
-function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
+export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(72, ctx.width - 4)
   const inner = width - 2
@@ -3397,7 +3166,7 @@ function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
 }
 
 /** The project's branches, narrowed by typing, with a new one offered for a name nobody has. */
-function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
+export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(72, ctx.width - 4)
   const inner = width - 2
@@ -3460,7 +3229,7 @@ function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
 }
 
 /** Finding in a terminal: the box, how many, and older and newer. */
-function find(panel: FindPanel, ctx: PanelContext): Drawn {
+export function find(panel: FindPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(58, ctx.width - 4)
   const inner = width - 2
@@ -3482,7 +3251,7 @@ function find(panel: FindPanel, ctx: PanelContext): Drawn {
 }
 
 /** Throwing a file's uncommitted changes away, asked first. */
-function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
+export function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(66, ctx.width - 4)
   const inner = width - 2
@@ -3514,7 +3283,7 @@ function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
   return box('Discard changes?', rows, width, skin, { corner: 'esc' })
 }
 
-function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {
+export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(66, ctx.width - 4)
   const inner = width - 2
@@ -3587,7 +3356,7 @@ function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {
  * Closing every agent that has finished, asked first: what it would close, by
  * name, so a list that is longer than you thought is still your decision.
  */
-function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
+export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(66, ctx.width - 4)
   const inner = width - 2
@@ -3642,7 +3411,7 @@ function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
   })
 }
 
-function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
+export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(96, ctx.width - 4)
   const inner = width - 2
@@ -3725,7 +3494,7 @@ function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
  * rows that ran on many models — and in both cases it is spending the width
  * the name needs to say nothing.
  */
-function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
+export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   const width = Math.min(SPEND_WIDTH, ctx.width - 4)
   const inner = width - 2
@@ -4131,42 +3900,6 @@ export function pricedFooter(view: SpendView | null): string {
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {
   return skin[MARK_TONES[markOf(pane)]]
-}
-
-function pad(text: string, width: number): string {
-  const cut = [...text].slice(0, width).join('')
-  return cut + ' '.repeat(Math.max(0, width - cut.length))
-}
-
-/**
- * As many columns as it is given, with an ellipsis where a word was cut.
- *
- * The difference from `pad` is the whole point: text that stops dead reads as
- * text that ran into what is beside it, which is what it used to do.
- */
-export function cap(text: string, width: number): string {
-  if (width <= 0) return ''
-  if (visibleWidth(text) <= width) return text
-  return `${truncateToWidth(text, Math.max(1, width - 1), '')}…`
-}
-
-/** `cap`, padded out: exactly `width` columns, so what follows starts where it should. */
-function padTo(text: string, width: number): string {
-  const short = cap(text, width)
-  return short + ' '.repeat(Math.max(0, width - visibleWidth(short)))
-}
-
-/**
- * A sentence over at most so many lines, the last one ellipsised: a paragraph
- * that does not fit is shortened where it is read, never past the panel edge.
- */
-function wrapTo(text: string, width: number, lines: number): string[] {
-  if (width <= 0 || lines <= 0 || text.trim() === '') return []
-  const all = wrapTextWithAnsi(text, width)
-  if (all.length <= lines) return all
-  const kept = all.slice(0, lines)
-  kept[lines - 1] = cap(`${kept[lines - 1] ?? ''} ${all.slice(lines).join(' ')}`, width)
-  return kept
 }
 
 function money(usd: number): string {

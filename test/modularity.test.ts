@@ -35,7 +35,7 @@ const BUDGET: Record<string, number> = {
   'packages/app/src/app.ts': 8_700,
   'packages/app/src/live.ts': 1_300,
   'packages/app/src/model.ts': 2_000,
-  'packages/app/src/panel-view.ts': 4_300,
+  'packages/app/src/panel-view.ts': 4_000,
   'packages/app/src/panels.ts': 3_300,
   'packages/app/src/screen.ts': 900,
   'packages/app/test/app.test.ts': 3_000,

@@ -210,13 +210,9 @@ import {
   withTerminals,
   withTranscript,
 } from './model.ts'
-import {
-  extensionsScrollable,
-  fileBodySize,
-  fileViewSize,
-  type OpenRowView,
-  type PanelContext,
-} from './panel-view.ts'
+import { extensionsScrollable, fileBodySize, fileViewSize } from './panel-view.ts'
+import type { OpenRowView, PanelContext } from './panels/context.ts'
+import type { PanelOutcome } from './panels/outcome.ts'
 import {
   ACCOUNTS,
   type AgentOffers,
@@ -265,7 +261,6 @@ import {
   openProjectPanel,
   type Panel,
   type PanelInputs,
-  type PanelOutcome,
   type PromptPanel,
   panelClick,
   panelKey,

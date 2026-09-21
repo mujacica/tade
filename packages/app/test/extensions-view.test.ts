@@ -1,12 +1,8 @@
 import { stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { pressable, type Target } from '../src/hits.ts'
-import {
-  drawPanel,
-  extensionsScrollable,
-  extensionsSize,
-  type PanelContext,
-} from '../src/panel-view.ts'
+import { extensionsScrollable, extensionsSize } from '../src/panel-view.ts'
+import { drawPanel, type PanelContext } from '../src/panels/context.ts'
 import {
   type ExtensionsPanel,
   type ExtensionView,

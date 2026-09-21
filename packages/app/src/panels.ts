@@ -15,6 +15,7 @@ import {
   spanOf,
 } from './input.ts'
 import { normalKey } from './keys.ts'
+import { close, control, type PanelOutcome, stay, typed } from './panels/outcome.ts'
 import { completed, SCOPES, type SearchEntry } from './search.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendWindow } from './spend.ts'
 import {
@@ -1984,17 +1985,6 @@ export function spendPanel(): SpendPanel {
   return { kind: 'spend', window: 'today', by: 'agent', busy: false }
 }
 
-/** What a keystroke or click did: the panel as it now is, and whether to run it. */
-export interface PanelOutcome {
-  panel: Panel | null
-  submit: boolean
-  /** For a menu: which item was chosen. */
-  choice?: string
-}
-
-const stay = (panel: Panel): PanelOutcome => ({ panel, submit: false })
-const close: PanelOutcome = { panel: null, submit: false }
-
 /**
  * A keystroke, while a panel has the keyboard.
  *
@@ -2678,18 +2668,7 @@ function settingsClick(panel: SettingsPanel, control: string, inputs: PanelInput
   }
 }
 
-// ── Open project ────────────────────────────────────────────────────────────
-
-/** A control character: never something a person meant to type. */
-function control(char: string): boolean {
-  const code = char.charCodeAt(0)
-  return code < 32 || code === 127
-}
-
-function typed(data: string, key: string | undefined): string {
-  const text = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
-  return text && ![...text].some(control) ? text : ''
-}
+// ── Open project ──────────────────────────────────────────────────
 
 /** Look in another folder, remembering this one for back. */
 function goTo(panel: OpenProjectPanel, dir: string): OpenProjectPanel {
