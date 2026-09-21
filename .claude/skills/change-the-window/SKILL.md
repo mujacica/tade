@@ -135,9 +135,16 @@ file and cannot be tested.
   in `view.ts`, the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
   block two columns narrower, so they read as the same set without reading as wide as the `+`.
   Short of columns a heading gives up its count first (the list under it is the count), then the
-  small controls, the one nearest the button first (`headingFit`); a destructive one is red only
-  under the pointer, as `Row.icon` is. A control with nothing to act on is not drawn: the eye and
-  the cleanup appear when an agent has finished, and the eye stays while it is hiding one.
+  small controls, the one nearest the button first (`headingFit`) — but where there is no button
+  that reason is gone and the order flips, the count outlasting every control, because a folded
+  section is its heading and nothing else. A destructive one is red only under the pointer, as
+  `Row.icon` is. A control with nothing to act on is not drawn: the eye and the cleanup appear
+  when an agent has finished, and the eye stays while it is hiding one. It is `actions`, a list,
+  and it is worth checking you wrote the `s`: spread conditionally into the literal — the idiom
+  everywhere here — a key `Section` does not have is not a type error, it is a control nobody
+  ever sees, which is how the SMART QUEUE's `plan` and the whole plan view behind it went
+  unreachable for as long as they existed. `test/dead-keys.test.ts` asks that question of every
+  spread in the repository now; a golden screen only answers it for what is already drawn.
 - **A section with nothing in it folds itself away; it never goes missing.** `Section.quiet` says
   the section has nothing to list, and `sectionOpen` reads it: quiet is shut unless you opened it,
   everything else is open unless you folded it. A folded heading still says something — its count,

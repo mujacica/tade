@@ -22,6 +22,7 @@ import {
   markOf,
   noteTyping,
   onEvent,
+  openSchedule,
   parseCommand,
   projectNumber,
   projects,
@@ -40,6 +41,7 @@ import {
   setDictation,
   setListening,
   showOrchestrator,
+  showPlan,
   showTerminal,
   sidebar,
   somethingTyped,
@@ -495,6 +497,21 @@ describe('which project you are in', () => {
   it('puts you on the orchestrator in a project with nothing in it', () => {
     const empty = withProjects(state(), ['checkout', 'search', 'infra'])
     expect(selectProject(empty, 'infra').focused).toBeNull()
+  })
+
+  it('leaves this project’s plan and schedule behind when you go to another', () => {
+    // A plan belongs to the project it is a plan of, exactly as an agent does.
+    // Left open, arriving in an empty project landed on `infra › plan  0
+    // tasks` instead of the orchestrator — and a plan scrolled along opened
+    // the next project's already scrolled.
+    const empty = withProjects(state(), ['checkout', 'search', 'infra'])
+    const open = { ...showPlan(empty), planAcross: 30 }
+    expect(open.showingPlan).toBe(true)
+    const gone = selectProject(open, 'infra')
+    expect(gone.showingPlan).toBe(false)
+    expect(gone.planAcross).toBe(0)
+    expect(gone.focused).toBeNull()
+    expect(selectProject(openSchedule(empty, 'checkout/nightly'), 'infra').schedule).toBeNull()
   })
 })
 

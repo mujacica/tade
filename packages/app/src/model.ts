@@ -417,10 +417,25 @@ export function projects(state: AppState): string[] {
  * Focus follows, because a sidebar listing one project's tasks while the pane
  * shows another project's agent is two answers to "where am I". An empty
  * project puts you on the orchestrator, which is where you would start work.
+ *
+ * What was in front of you instead of an agent goes with it: a plan and a
+ * schedule are as much one project's as an agent is, so arriving in an empty
+ * project used to land on `infra › plan  0 tasks`, which is not the
+ * orchestrator and is not anything anybody asked for — and a plan scrolled
+ * along opened the next one already scrolled.
  */
 export function selectProject(state: AppState, project: string): AppState {
   const first = state.panes.find((pane) => pane.project === project)
-  return { ...state, project, focused: first?.task ?? null, chose: true, scroll: 0 }
+  return {
+    ...state,
+    project,
+    focused: first?.task ?? null,
+    chose: true,
+    scroll: 0,
+    showingPlan: false,
+    planAcross: 0,
+    schedule: null,
+  }
 }
 
 /**

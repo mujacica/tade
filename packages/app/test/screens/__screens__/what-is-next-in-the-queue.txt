@@ -5,7 +5,7 @@
  ▌ ⠋ schema                  █│                                                                                         
  ▌   working                 █│                                                                                         
                              █│                                                                                         
- ▾ SMART QUEUE  4            █│                                                                                         
+ ▾ SMART QUEUE  4      plan  █│                                                                                         
    all   next   timed        █│                                                                                         
                              █│                                                                                         
    ◌ tidy-mailer      next   █│                                                                                         

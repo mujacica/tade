@@ -62,6 +62,12 @@ what its agent will be told — looking is never starting.
 
 ![Queued work opened: the chain it is in drawn as boxes, why each waits, and what its agent will be told](images/queue.svg)
 
+`plan` on the queue's heading steps back from one piece to all of it: the whole plan on one screen,
+a column per step, so you can see what is running now, what runs next, and why — before any of it
+starts.
+
+![The plan: a column per step, a box per task with what it is doing, an arrow for every wait, and the reason for each one under it](images/plan.svg)
+
 When something upstream fails, the work it feeds is **held**, not lost — and Tade says so and asks.
 
 ![Queued work held because what it waited on failed, with the choices: wait for a retry, start anyway, remove](images/queue-held.svg)

@@ -14,6 +14,7 @@ import {
   setHeld,
   setListening,
   setQuestion,
+  showPlan,
   type TaskSnapshot,
   toggleCheck,
   toggleDone,
@@ -1351,6 +1352,38 @@ describe('the smart queue', () => {
     expect(seen.some((row) => row.includes('refund-emails'))).toBe(true)
     expect(seen.join('\n')).not.toBe(rows.join('\n'))
     for (const row of far.rows) expect(visibleWidth(row)).toBe(74)
+  })
+
+  it('offers the plan on its heading, and only where there is a plan', () => {
+    // The whole route into the plan view, held to end to end: the heading
+    // offers `queue-plan`, and `queue-plan` is what shows the plan. It was
+    // built as `action` where `Section` has `actions` — a key a spread let
+    // through unchecked — so the button was never drawn and the view behind
+    // it could not be reached at all.
+    const plan: Target = { kind: 'action', name: 'queue-plan' }
+    const drawn = draw(queued(), frame({ width: 160, height: 40 }))
+    const offered = drawn.hits.find((hit) => sameTarget(hit.target, plan))
+    expect(offered).toBeDefined()
+    // On the heading, where the section it belongs to is.
+    const heading = drawn.rows.findIndex((row) => plain(row).includes('SMART QUEUE'))
+    expect(offered?.row).toBe(heading)
+    expect(plain(drawn.rows[heading] ?? '')).toContain('plan')
+
+    // Pressed, it draws the plan where an agent's screen was.
+    const rows = renderApp(showPlan(queued()), frame({ width: 160, height: 40 })).map(plain)
+    expect(rows.some((row) => row.includes('checkout › plan'))).toBe(true)
+
+    // Work that waits on nothing and that nothing waits on is not a plan, and
+    // then there is nothing to offer.
+    const alone = draw(
+      queued({
+        ...withTasks(withProjects(initialState(), ['checkout']), [
+          { task: 'checkout/docs-typos', state: 'working', lane: 'checkout/docs-typos/agent' },
+        ]),
+      }),
+      frame({ width: 160, height: 40 }),
+    )
+    expect(alone.hits.some((hit) => sameTarget(hit.target, plan))).toBe(false)
   })
 
   it('is there with nothing in it, folded, and its heading says why', () => {

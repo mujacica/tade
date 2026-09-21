@@ -1178,6 +1178,12 @@ function badgeWidth(section: Section, how: Exclude<Badge, false>): number {
  * The two steps of badge matter: hiding the finished agents must never be what
  * takes the count off the heading, or pressing `H` would read as the agents
  * having gone rather than as the list being narrowed.
+ *
+ * Where there is no button that reason is not there either, and the order is
+ * the other way round: the count goes last, after the small controls. A folded
+ * section is its heading and nothing else, so its badge is the only thing left
+ * to say five things are waiting — and `plan` on the SMART QUEUE, drawn where
+ * that count would be, would have a narrow side saying the queue is empty.
  */
 function headingFit(
   label: number,
@@ -1189,14 +1195,21 @@ function headingFit(
   const small = all.filter((action) => action.small)
   const main = all.filter((action) => !action.small)
   const sizes: Array<Exclude<Badge, false>> = ['full', 'short']
-  for (let kept = small.length; kept >= 0; kept--) {
+  /** The columns `kept` of the small controls take, beside the button. */
+  const withKept = (kept: number) => {
     const actions = [...small.slice(0, kept), ...main]
     const room = label + (actions.length > 0 ? 1 + headingWidth(actions, width, skin) : 0)
+    return { actions, room }
+  }
+  for (let kept = small.length; kept >= 0; kept--) {
+    const { actions, room } = withKept(kept)
     for (const how of sizes) {
       const badge = badgeWidth(section, how)
       if (badge > 0 && room + badge <= width) return { count: how, actions }
     }
-    if (room <= width) return { count: false, actions }
+    // With a button on it the count goes here, before the controls beside it;
+    // with none, every control is given up first and the count outlasts them.
+    if (room <= width && (main.length > 0 || kept === 0)) return { count: false, actions }
   }
   for (const how of sizes) {
     const badge = badgeWidth(section, how)
@@ -1672,9 +1685,15 @@ function queueSection(
     count: all,
     banded: true,
     quiet,
-    // The plan it came from, drawn where an agent's screen would be.
+    // The plan it came from, drawn where an agent's screen would be. Small,
+    // because it opens what is already there rather than making another of
+    // something — and because a narrow side gives it up before the count.
     ...(planOf(state).waits.length > 0
-      ? { action: { label: 'plan', target: { kind: 'action', name: 'queue-plan' }, look: 'rest' } }
+      ? {
+          actions: [
+            { label: 'plan', target: { kind: 'action' as const, name: 'queue-plan' }, small: true },
+          ],
+        }
       : {}),
     // Folded with nothing in it, the heading is the only place left to say
     // why there is nothing, so that is what it says.

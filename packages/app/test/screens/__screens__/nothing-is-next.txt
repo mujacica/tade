@@ -8,7 +8,7 @@
    ⠋ bump-mailer             █│    Open its agent   picks the conversation up where it stopped                          
      working                 █│                                                                                         
                              █│                                                                                         
- ▾ SMART QUEUE  2            █│                                                                                         
+ ▾ SMART QUEUE  2      plan  █│                                                                                         
    all   next   timed        █│                                                                                         
                              █│                                                                                         
    nothing is next:          █│                                                                                         

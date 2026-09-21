@@ -127,6 +127,15 @@ export const PICTURES: readonly Picture[] = [
       'then docs — why each waits, and what its agent will be told.',
   },
   {
+    file: 'plan.svg',
+    scenario: 'the-plan',
+    crop: { top: 2, left: 31, width: 89, height: 24 },
+    title: 'tade — the plan',
+    about:
+      'The whole plan at once, from `plan` on the SMART QUEUE: a column per step, a box per task ' +
+      'with what it is doing, an arrow for every wait, and under it the reason for each one.',
+  },
+  {
     file: 'queue-held.svg',
     scenario: 'a-smart-queue',
     crop: { top: 2, left: 29, width: 91, height: 22 },
