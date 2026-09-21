@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import {
@@ -55,7 +55,6 @@ import {
   type Setting,
   type SettingGroup,
   settingsOf,
-  speakable,
   startFrom,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -72,13 +71,7 @@ import {
   settingFrom,
 } from '@tade/extensions-core'
 import { git } from '@tade/status'
-import {
-  type AudioClip,
-  type Recording,
-  slugify,
-  VoiceSurface,
-  type VoiceTerminals,
-} from '@tade/voice-core'
+import { slugify, VoiceSurface, type VoiceTerminals } from '@tade/voice-core'
 import { Speaker } from '@tade/voice-tts'
 import { type AccountView, matchingLines, type Workbench } from '@tade/workbench'
 import { lookAtUpdates, type UpdateLook } from '@tade/workbench/programs'
@@ -355,6 +348,7 @@ import {
   why,
 } from './wire/context.ts'
 import { Notes } from './wire/notes.ts'
+import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 
 // The window: every project down the side, the agent you are watching in the
 // middle, the orchestrator along the bottom.
@@ -414,9 +408,6 @@ const CLIPBOARD_MS = 3_000
  * few enough that the question stays about this person's sentence.
  */
 const MEANT_CHOICES = 24
-
-/** A stuck key must not record until the disk is full. */
-const MAX_SPEECH_MS = 120_000
 
 /** Backspace, and what some terminals send instead. */
 
@@ -1013,7 +1004,6 @@ export class App {
   /** A drag held off the top or bottom of the file: it goes on scrolling until it is let go. */
   private draggingFile: NodeJS.Timeout | null = null
   private screen = ''
-  private recording: Recording | null = null
   /** The diff the diff panel is showing, once git has answered. */
   private diff: ParsedDiff | null = null
   /** The file the viewer is showing, its coloured source, and its Markdown laid out at a width. */
@@ -1068,7 +1058,6 @@ export class App {
   /** The Open project list for the last folder and query, and the branches found for its rows. */
   private openCache: { key: string; rows: OpenRow[]; browsing: string | null } | null = null
   private readonly branches = new Map<string, string | null>()
-  private metering: NodeJS.Timeout | null = null
   /** Where you were last time, applied once the tasks are known. */
   private remembered: RememberedWindow | null = null
   private restored = false
@@ -1102,7 +1091,6 @@ export class App {
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
   private live: Live | null = null
-  private voice: VoiceSurface | null = null
   private timer: NodeJS.Timeout | null = null
   /** When the whole screen was last written over itself. */
   private repaintedAt = 0
@@ -1122,6 +1110,8 @@ export class App {
   private readonly notes: Notes
   /** Adopting a project's checks, running a task's, reading what one printed. */
   private readonly checks: Checks
+  /** Push-to-talk, what is said back, and the mute that is now. */
+  private readonly voice: Voice
 
   private constructor(opts: AppOptions) {
     // Named rather than `this`, because a getter inside an object literal has
@@ -1149,6 +1139,11 @@ export class App {
       },
     }
     this.notes = new Notes(this.wire, { copy: (text) => this.copy(text) })
+    this.voice = new Voice(this.wire, {
+      submit: () => this.submit(),
+      say: (said) => this.say(said),
+      useConfig: (config) => this.useConfig(config),
+    })
     this.checks = new Checks(this.wire, {
       sections: () => this.listSections,
       callId: () => `you-${++this.ranCount}`,
@@ -1205,9 +1200,9 @@ export class App {
       // Said as it streams. The whole message follows its pieces, and only
       // closes them off: said again, every answer was heard twice at once.
       if (this.speakingTurn && event.type === 'delta' && event.text) {
-        this.voice?.speakChunk(event.text)
+        this.voice.speakChunk(event.text)
       } else if (this.speakingTurn && event.type === 'message' && event.text) {
-        this.voice?.speakMessage(event.text)
+        this.voice.speakMessage(event.text)
       }
       this.state = this.anchored(
         withTranscript(this.state, fromThinker(this.state.transcript, event, this.now())),
@@ -1308,7 +1303,7 @@ export class App {
     // the TUI, but whatever was painted before it goes back is a half-window
     // stranded in your scrollback.
     this.terminal.clearScreen()
-    await this.voice?.stop()
+    await this.voice.stop()
     await this.live?.stop()
     this.settle()
   }
@@ -1536,23 +1531,6 @@ export class App {
         group: model.provider,
         ...(price ? { note: price } : {}),
       }
-    })
-  }
-
-  /**
-   * The speaker, as the settings have it now: with spoken replies off, the
-   * sounds still play and the words still appear, but nothing is said.
-   */
-  private muteable(speaker: Speaker): Speaker {
-    return new Proxy(speaker, {
-      get: (target, name, receiver) => {
-        const voice = this.opts.config.surfaces.voice
-        // Muted is silence: not a word, not a sound.
-        if ((name === 'speak' || name === 'earcon') && voice.muted) return async () => {}
-        if (name === 'speak' && !voice.speak) return async () => {}
-        const value = Reflect.get(target, name, receiver)
-        return typeof value === 'function' ? value.bind(target) : value
-      },
     })
   }
 
@@ -2011,38 +1989,40 @@ export class App {
     this.reopenLost()
 
     const attention = this.opts.config.surfaces.voice.attention
-    this.voice = await VoiceSurface.start({
-      tade: this.opts.client,
-      // Yours, where it is a matter of taste. Everything else about what is
-      // worth interrupting you for is the engine's, and not a setting.
-      settings: {
-        ...DEFAULT_ATTENTION.voice,
-        ...(attention.budget === undefined ? {} : { budget: attention.budget }),
-        quiet: parseQuietHours(attention.quiet) ?? DEFAULT_ATTENTION.voice.quiet,
-      },
-      speaker: this.muteable(
-        this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
-      ),
-      vocabulary: async () => vocabulary(live.tasks),
-      status: async (scope) => this.describe(scope),
-      worktreeOf: async (task) => live.worktreeOf(task),
-      show: async (task) => this.show(task),
-      openSettings: async () => this.openSettings(),
-      brief: () => this.brief(),
-      extension: (said) => this.heardByExtension(said),
-      tasks: async () => knownTasks(live.tasks),
-      history: async () => live.history,
-      ask: (text: string) => this.ask(text),
-      terminals: this.voiceTerminals(),
-      ...(this.opts.now ? { now: this.opts.now } : {}),
-      // Typing at an agent is what mutes speech for that task.
-      focusedTask: () => ({ task: this.state.focused, lastInputAt: this.state.lastInputAt }),
-      onTurn: (turn) => {
-        this.state = addTurn(this.state, turn)
-        this.state = setQuestion(this.state, this.voice?.awaiting ?? null)
-        this.draw()
-      },
-    })
+    this.voice.use(
+      await VoiceSurface.start({
+        tade: this.opts.client,
+        // Yours, where it is a matter of taste. Everything else about what is
+        // worth interrupting you for is the engine's, and not a setting.
+        settings: {
+          ...DEFAULT_ATTENTION.voice,
+          ...(attention.budget === undefined ? {} : { budget: attention.budget }),
+          quiet: parseQuietHours(attention.quiet) ?? DEFAULT_ATTENTION.voice.quiet,
+        },
+        speaker: this.voice.muteable(
+          this.opts.speaker ?? (await Speaker.create({ soundDir: join(this.opts.home, 'sounds') })),
+        ),
+        vocabulary: async () => vocabulary(live.tasks),
+        status: async (scope) => this.describe(scope),
+        worktreeOf: async (task) => live.worktreeOf(task),
+        show: async (task) => this.show(task),
+        openSettings: async () => this.openSettings(),
+        brief: () => this.brief(),
+        extension: (said) => this.heardByExtension(said),
+        tasks: async () => knownTasks(live.tasks),
+        history: async () => live.history,
+        ask: (text: string) => this.ask(text),
+        terminals: this.voiceTerminals(),
+        ...(this.opts.now ? { now: this.opts.now } : {}),
+        // Typing at an agent is what mutes speech for that task.
+        focusedTask: () => ({ task: this.state.focused, lastInputAt: this.state.lastInputAt }),
+        onTurn: (turn) => {
+          this.state = addTurn(this.state, turn)
+          this.state = setQuestion(this.state, this.voice.awaiting)
+          this.draw()
+        },
+      }),
+    )
 
     this.tui.addChild(
       new Window(
@@ -2148,10 +2128,10 @@ export class App {
         // What you say goes to the orchestrator, so its tab comes to the front.
         if (this.state.bottom !== ORCHESTRATOR_TAB)
           this.state = { ...this.state, bottom: ORCHESTRATOR_TAB }
-        void this.talkStart()
+        void this.voice.talkStart()
         return { consume: true }
       case 'talk-stop':
-        void this.talkStop()
+        void this.voice.talkStop()
         return { consume: true }
       case 'approve':
         void this.decide(true)
@@ -2610,7 +2590,7 @@ export class App {
         this.openSearch()
         return
       case 'mute':
-        await this.toggleMute()
+        await this.voice.toggleMute()
         return
       case 'attach-clipboard':
         await this.attachClipboard()
@@ -3078,7 +3058,7 @@ export class App {
         }
         if (choice?.startsWith('account:')) await this.accountAction(choice)
         if (choice?.startsWith('updates:')) await this.updateAction(choice)
-        if (choice === 'mic-test') await this.testMicrophone()
+        if (choice === 'mic-test') await this.voice.testMicrophone()
         return
       }
       case 'diff': {
@@ -3764,28 +3744,6 @@ export class App {
             ? 'say or type what to do with it'
             : `say or type what to do with them`,
     }
-    this.draw()
-  }
-
-  /** Mute everything Tade says and plays, or bring it back; kept for next time. */
-  private async toggleMute(): Promise<void> {
-    const muted = !this.opts.config.surfaces.voice.muted
-    try {
-      writeSetting(this.configPath, 'surfaces.voice.muted', muted ? true : undefined)
-    } catch {
-      // Not writable: muted for this window only.
-    }
-    this.useConfig({
-      ...this.opts.config,
-      surfaces: {
-        ...this.opts.config.surfaces,
-        voice: { ...this.opts.config.surfaces.voice, muted },
-      },
-    })
-    this.state = notice(
-      this.state,
-      muted ? 'muted: nothing will be said or played' : 'sound back on',
-    )
     this.draw()
   }
 
@@ -4481,74 +4439,6 @@ export class App {
   }
 
   /**
-   * Push-to-talk. Speech where it is configured and working, the typed line
-   * everywhere else — both end up at `say`, so nothing downstream knows or
-   * cares which one you used.
-   */
-  private async talkStart(): Promise<void> {
-    const recorder = this.opts.recorder
-    if (!recorder) {
-      this.state = setListening(setDictation(this.state, ''), true)
-      this.draw()
-      return
-    }
-    this.state = { ...this.state, talkingSince: this.now() }
-    try {
-      this.recording = await recorder.start({ maxMs: MAX_SPEECH_MS })
-      this.state = { ...setListening(this.state, true), levels: [] }
-      this.listenTo(this.recording)
-    } catch (err) {
-      // Say why, once, then fall back to typing rather than swallowing it.
-      this.state = setListening(setDictation(notice(this.state, why(err)), ''), true)
-    }
-    this.draw()
-  }
-
-  /** Sample how loud the microphone is hearing you, for the meter. */
-  private listenTo(recording: Recording): void {
-    if (!recording.level) return
-    this.metering = setInterval(() => {
-      const level = recording.level?.() ?? 0
-      this.state = { ...this.state, levels: [...this.state.levels, level].slice(-64) }
-      this.draw()
-    }, 100)
-    this.metering.unref?.()
-  }
-
-  private async talkStop(): Promise<void> {
-    const recording = this.recording
-    const transcriber = this.opts.transcriber
-    this.recording = null
-    if (this.metering) clearInterval(this.metering)
-    this.metering = null
-    this.state = { ...this.state, levels: [] }
-    if (!recording || !transcriber) {
-      this.submit()
-      return
-    }
-
-    this.state = { ...setListening(this.state, false), talkingSince: null, hearing: true }
-    this.draw()
-    let clip: AudioClip | null = null
-    try {
-      clip = await recording.stop()
-      // Task and project names are the words a general model gets wrong.
-      const words = vocabulary(this.live?.tasks ?? [])
-      const heard = await transcriber.transcribe(clip, {
-        vocabulary: [...words.tasks, ...words.projects],
-      })
-      this.state = { ...notice(this.state, heard.text ? null : 'nothing heard'), hearing: false }
-      this.draw()
-      this.say(heard.text)
-    } catch (err) {
-      this.state = { ...notice(this.state, why(err)), hearing: false, talkingSince: null }
-      this.draw()
-    } finally {
-      if (clip) rmSync(clip.path, { force: true })
-    }
-  }
-
-  /**
    * Type on the orchestrator's line. pi's own editor takes the keys — the
    * cursor, words, undo, a paste, lines that wrap, ↑ for what was said —
    * so the line behaves as pi's does. Enter sends it; escape stops whatever is
@@ -5220,13 +5110,13 @@ export class App {
       return ''
     } finally {
       this.speakingTurn = false
-      this.voice?.flushSpeech()
+      this.voice.flushSpeech()
     }
   }
 
   /** Everything addressed to Tade arrives here, however it was said. */
   private say(said: string): void {
-    if (said === '' || !this.voice) return
+    if (said === '' || !this.voice.ready) return
     this.rememberSaid(said)
     // Shown the moment it is sent, not once something has answered it. The
     // pictures waiting go with it, and only with it.
@@ -5241,7 +5131,7 @@ export class App {
     void this.voice
       .handle(said)
       .then(() => {
-        this.state = setQuestion(this.state, this.voice?.awaiting ?? null)
+        this.state = setQuestion(this.state, this.voice.awaiting)
         this.draw()
       })
       .catch((err: unknown) => {
@@ -7601,7 +7491,7 @@ export class App {
     // than in the button, so muting from the settings does the same thing.
     if (config.surfaces.voice.muted && !was) {
       this.speakingTurn = false
-      void this.voice?.silence()
+      void this.voice.silence()
     }
   }
 
@@ -7902,44 +7792,6 @@ export class App {
     await this.loadAccounts()
   }
 
-  /**
-   * Listen for three seconds and show what is heard. Nothing is kept: the
-   * point is to find out whether this terminal may use the microphone at all,
-   * before the first time it matters.
-   */
-  private async testMicrophone(): Promise<void> {
-    const recorder = this.opts.recorder
-    const finish = (saved: string | null, error: string | null) => {
-      const panel = this.state.panel
-      if (panel?.kind === 'settings') {
-        this.state = { ...this.state, panel: { ...panel, testing: false, saved, error } }
-      }
-      this.draw()
-    }
-    if (!recorder) {
-      finish(null, 'No recorder is set up. Speech to text needs one: ffmpeg, on most machines.')
-      return
-    }
-    try {
-      const recording = await recorder.start({ maxMs: 5_000 })
-      this.state = { ...this.state, levels: [] }
-      this.listenTo(recording)
-      await new Promise((resolve) => setTimeout(resolve, 3_000))
-      if (this.metering) clearInterval(this.metering)
-      this.metering = null
-      await recording.cancel()
-      const loudest = Math.max(0, ...this.state.levels)
-      finish(
-        loudest > 0.08 ? 'Heard you. The microphone works.' : null,
-        loudest > 0.08
-          ? null
-          : 'Nothing heard. Check that your terminal is allowed to use the microphone.',
-      )
-    } catch (err) {
-      finish(null, why(err))
-    }
-  }
-
   private async loadAccounts(): Promise<void> {
     this.accounts = (await this.opts.accounts?.().catch(() => [])) ?? []
     this.credentials = (await this.opts.credentials?.().catch(() => ({}))) ?? {}
@@ -8018,12 +7870,6 @@ export class App {
   private now(): number {
     return this.opts.now?.() ?? Date.now()
   }
-}
-
-function vocabulary(tasks: readonly { task: string }[]): { tasks: string[]; projects: string[] } {
-  const projects = new Set<string>()
-  for (const task of tasks) projects.add(task.task.split('/')[0] ?? task.task)
-  return { tasks: tasks.map((t) => t.task), projects: [...projects] }
 }
 
 /** A path the way you would type it. */
@@ -8292,16 +8138,6 @@ function imagesTitle(paths: readonly string[]): string {
   const allImages = paths.every((p) => isImagePath(p))
   const noun = paths.length === 1 ? 'file' : allImages ? 'pictures' : 'files'
   return `Send ${paths.length === 1 ? basename(paths[0] ?? '') : `${paths.length} ${noun}`} to`
-}
-
-/**
- * The head of some Markdown, as it would be said: no emphasis, no code marks,
- * no link targets, and never a fence read out as backticks. One line of it,
- * because what an extension answers is a report and this is its headline.
- */
-export function spokenLine(markdown: string): string {
-  const [first = ''] = speakable(markdown).split(/(?<=[.!?])\s+/)
-  return first
 }
 
 /**

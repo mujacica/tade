@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import type { Config } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
@@ -127,6 +128,18 @@ export interface AppOptions {
   mcpServers?: (config: Config) => readonly McpServerShown[]
   now?: () => number
   frameMs?: number
+}
+
+/**
+ * Where the config is, which is one file under `home`.
+ *
+ * Here rather than with the settings subject because eight of the twenty
+ * subjects write a setting of their own — muting, a model, an extension being
+ * turned on — and a second `join(home, …)` anywhere is a second answer to
+ * where Tade's config lives.
+ */
+export function configPathOf(opts: AppOptions): string {
+  return join(opts.home, 'config.yaml')
 }
 
 /** What went wrong, in words. The one reading of an unknown throw there is. */
