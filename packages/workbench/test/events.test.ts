@@ -4,7 +4,7 @@ import type { TadeEvent, Urgency } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
 import { EventIndex } from '../src/event-index.ts'
-import { EventLog, evictLeastUrgent } from '../src/events.ts'
+import { EventLog, EventLogClosedError, evictLeastUrgent } from '../src/events.ts'
 
 function paths() {
   const dir = tmp('tade-events-')
@@ -82,6 +82,30 @@ describe('EventLog', () => {
     expect(scanning.index).toBeNull()
     expect(await scanning.read({ task: 'app/x' })).toEqual(viaIndex)
     await scanning.close()
+  })
+
+  it('refuses an append once it is closed, rather than writing to a shut file', async () => {
+    // A lane that ends while the window is closing appends from a driver's
+    // own callback, with nobody holding the promise — so the file descriptor
+    // saying `EBADF` arrived as an unhandled rejection that took the whole
+    // run down, naming neither the event nor the journal. A closed journal
+    // says so itself, and the file behind it is never written to again.
+    const p = paths()
+    const log = await EventLog.open(p)
+    await log.append({ type: 'lane_exited', lane: 'app/refunds/agent' })
+    await log.close()
+
+    await expect(log.append({ type: 'lane_exited', lane: 'app/search/agent' })).rejects.toThrow(
+      EventLogClosedError,
+    )
+    // And the refusal costs no sequence number, so the one event that was
+    // written is still the last one there is.
+    const lines = readFileSync(p.path, 'utf8').trim().split('\n')
+    expect(lines).toHaveLength(1)
+    const reopened = await EventLog.open({ ...p, indexPath: null })
+    const next = await reopened.append({ type: 'lane_exited', lane: 'app/search/agent' })
+    expect(next.seq).toBe(2)
+    await reopened.close()
   })
 
   it('finds window events written under the name they had before the rename', async () => {

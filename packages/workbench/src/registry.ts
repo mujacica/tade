@@ -404,8 +404,12 @@ export class LaneRegistry {
   }
 
   private release(): void {
+    // Every sample that is waiting, not every lane that is still listed: a
+    // lane can leave the list with a timer still to fire, and that timer
+    // outlived the journal it was going to write to. Taken as a list first,
+    // because flushing one takes it out of the map being read.
+    for (const id of [...this.pending.keys()]) this.flushOutput(id as LaneId)
     for (const id of this.lanes.keys()) {
-      this.flushOutput(id as LaneId)
       for (const un of this.unsubscribes.get(id) ?? []) un()
     }
     this.unsubscribes.clear()
@@ -423,9 +427,15 @@ export class LaneRegistry {
       // It ended while we watched: that is its own doing, not the window's.
       delete record.lost
       this.flushOutput(id)
+      // Nobody is waiting on this, so nobody would catch it either: a lane
+      // that ends while the window is closing has a journal that has already
+      // gone, and an unhandled rejection out of a driver's callback takes the
+      // process down rather than the line it could not write. What is lost is
+      // one `lane_exited` about a lane that is lost too.
       void this.log
         .append({ type: 'lane_exited', lane: id, task: record.task, detail: { code, signal } })
         .then(() => this.save())
+        .catch(() => {})
     })
     this.unsubscribes.set(id, [stopOutput, stopExit])
   }
@@ -451,12 +461,17 @@ export class LaneRegistry {
     clearTimeout(pending.timer)
     this.pending.delete(id)
     const record = this.lanes.get(id)
-    void this.log.append({
-      type: 'output',
-      lane: id,
-      task: record?.task ?? null,
-      detail: { bytes: pending.bytes },
-    })
+    // As above: a byte count nobody awaited, and the journal may have closed
+    // under it — a sample is the least of what is in there, and never worth
+    // the process.
+    void this.log
+      .append({
+        type: 'output',
+        lane: id,
+        task: record?.task ?? null,
+        detail: { bytes: pending.bytes },
+      })
+      .catch(() => {})
   }
 
   private require(id: LaneId): LaneRecord {

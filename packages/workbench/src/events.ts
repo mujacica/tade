@@ -16,6 +16,27 @@ import { EventIndex } from './event-index.ts'
 // events.jsonl is the truth: append-only, one JSON object per line. The SQLite
 // index is derived and rebuilt whenever it disagrees with the file.
 
+/**
+ * What a closed journal answers an append with.
+ *
+ * The window has ended and the file with it, so there is nowhere left to
+ * write and nowhere to say so either — the journal is where saying so would
+ * go. Named, so that whoever is handed it can tell this apart from a disk
+ * that filled up, which is a thing to act on.
+ */
+export class EventLogClosedError extends Error {
+  readonly path: string
+  /** The kind of event that had nowhere to go. */
+  readonly event: string
+
+  constructor(path: string, event: string) {
+    super(`the journal at ${path} is closed: ${event} was not written`)
+    this.name = 'EventLogClosedError'
+    this.path = path
+    this.event = event
+  }
+}
+
 /** Events at least this urgent are fsync'd before `append` resolves. */
 const FSYNC_AT: Urgency = 'notable'
 
@@ -42,6 +63,8 @@ export class EventLog {
   private readonly subs = new Set<Subscriber>()
   private readonly queueLimit: number
   private writes: Promise<unknown> = Promise.resolve()
+  /** Closed: the window is over, and the file behind this is no longer open. */
+  private shut = false
   private seq: number
   readonly path: string
   readonly index: EventIndex | null
@@ -89,6 +112,14 @@ export class EventLog {
   }
 
   async append(input: EventInput): Promise<TadeEvent> {
+    // A closed log is closed, said here rather than found at the file
+    // descriptor. Anything begun before `close` is already in `writes`, which
+    // `close` drains, so the only append that can reach a shut file is one
+    // that started after — and that came back as `EBADF`, an unhandled
+    // rejection raised by the operating system in the middle of a teardown,
+    // with nothing in it to say which event was lost. Refused by name, and
+    // before `seq`, so a refusal leaves no gap in the numbering either.
+    if (this.shut) throw new EventLogClosedError(this.path, input.type)
     const urgency = input.urgency ?? DEFAULT_URGENCY[input.type]
     // seq is assigned synchronously, so ordering never depends on I/O timing.
     const event: TadeEvent = {
@@ -138,6 +169,10 @@ export class EventLog {
   }
 
   async close(): Promise<void> {
+    // Before the drain, not after: an append that arrives while the queue is
+    // being emptied must be refused rather than joining the queue behind the
+    // close, which is the race this whole flag is about.
+    this.shut = true
     await this.writes
     this.subs.clear()
     this.index?.close()
