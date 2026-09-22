@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { loadConfig, Secrets } from '@tade/core'
+import { ConfigSchema, loadConfig, Secrets, settingsOf } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -8,14 +8,18 @@ import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The page opened from its button, a setting saved so the next agent gets it,
-// and a key that goes to the keychain and never to the config.
+// a key that goes to the keychain and never to the config, and a DSN that is
+// neither — an endpoint, drawn as itself, and kept once it is typed.
+
+/** Seventy characters, which is what a Sentry DSN is and what a field is not. */
+const DSN = 'https://0123456789abcdef0123456789abcdef@o447951.ingest.sentry.io/4505'
 
 describe('the window, and its settings', () => {
   let terminal: FakeTerminal
   let client: Workbench
   let repo: Repo
   let home: string
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, newTerminal, click, find } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
     repo = wired.repo
@@ -154,6 +158,90 @@ describe('the window, and its settings', () => {
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('wk_0123456789')
     // Neither as it was pasted, nor read back to you afterwards.
     expect(terminal.written).not.toContain('wk_0123456789')
+  })
+
+  // Three things were wrong with the one field on this page that is neither a
+  // switch nor a list, and the DSN is where all three met: it was drawn as
+  // bullets, it was too long for the field, and clicking away from it lost
+  // what had been pasted while the foot of the page said "Saved as you change
+  // it". What that looks like is a value that resets itself.
+  it('keeps a DSN pasted into Settings, in full, and across a restart', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    const first = await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents run'))
+    const category = find('Telemetry')
+    click(category.col + 1, category.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Send to')),
+    )
+    const field = find('Send to')
+    click(field.col + 42, field.row)
+    terminal.press(asPaste(`${DSN}\n`))
+    // Closed by its own button rather than by enter: leaving a field is what
+    // used to throw it away.
+    const done = find('Done')
+    terminal.written = ''
+    click(done.col + 2, done.row)
+    // The workbench's own copy is the one that decides what is sent, and it
+    // is the last thing a save touches.
+    await until('the DSN to be saved', () => client.config.telemetry.dsn === DSN)
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain(DSN)
+    await until('the page to close', () => !terminal.written.includes('Send to'))
+    await first.stop()
+
+    // A new window on the same home, started the way the binary starts it:
+    // from the file. What was saved is what it opens on.
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    if (!loaded.ok) throw new Error('the config would not load with the DSN in it')
+    terminal = newTerminal()
+    terminal.columns = 140
+    terminal.rows = 50
+    await start({ config: loaded.config })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const again = find('Settings ')
+    click(again.col + 1, again.row)
+    await until('the settings', () => terminal.written.includes('Where agents run'))
+    const telemetry = find('Telemetry')
+    click(telemetry.col + 1, telemetry.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Send to')),
+    )
+    // Drawn as itself, and the whole of it: a DSN is an ingest endpoint, not a
+    // key, and seventy characters you cannot read are seventy characters you
+    // cannot check for a typo.
+    const screen = screenOf(terminal.written)
+    let got = ''
+    for (const row of screen) {
+      for (let len = DSN.length - got.length; len > 2; len--) {
+        const piece = DSN.slice(got.length, got.length + len)
+        if (row.includes(piece)) {
+          got += piece
+          break
+        }
+      }
+    }
+    expect(got).toBe(DSN)
+  })
+
+  it('leaves a key that is a key where keys are kept, and never on the page', async () => {
+    // The audit that came with the DSN: what is genuinely a credential still
+    // behaves like one. A Sentry auth token grants reading an organisation; a
+    // DSN grants sending events to one project and is published in the
+    // JavaScript of every page Sentry watches.
+    const groups = settingsOf(ConfigSchema.parse({}), [
+      { name: 'sentry.token', title: 'Sentry', means: 'a user auth token', from: null },
+    ])
+    const of = (path: string) =>
+      groups.flatMap((group) => group.settings).find((one) => one.path === path)
+    expect(of('secrets.sentry.token')?.kept).toBe('sentry.token')
+    expect(of('secrets.sentry.token')?.secret).toBe(true)
+    expect(of('secrets.sentry.token')?.value).toBe('')
+    expect(of('telemetry.dsn')?.kept).toBeUndefined()
+    expect(of('telemetry.dsn')?.secret).toBeUndefined()
   })
 
   it('keeps a paste wider than the field whole, and the break at the end of it out', async () => {

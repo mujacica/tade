@@ -134,7 +134,7 @@ export function control(
     }
     case 'text': {
       const target = { kind: 'control' as const, id: `edit:${setting.path}` }
-      const width = Math.max(8, Math.min(40, room))
+      const width = fieldWidth(room)
       // A credential is bullets as it is typed and a sentence about where it
       // is when it is not: a key on a screen is a key in a recording.
       if (panel.editing?.path === setting.path) {
@@ -169,6 +169,40 @@ export function control(
       })
       return
   }
+}
+
+/**
+ * How wide a text setting's field is, out of the room its row leaves it.
+ * Forty at the widest, because a field that runs the whole width of a wide
+ * terminal stops reading as a field.
+ */
+export function fieldWidth(room: number): number {
+  return Math.max(8, Math.min(40, room))
+}
+
+/**
+ * A text setting's value in full, where the field drawing it is too narrow to
+ * hold it — and null where it fits, or where it is a credential.
+ *
+ * A Sentry DSN is seventy characters and the field is forty at its widest, so
+ * the field shows the end of it and the beginning is behind an ellipsis: the
+ * public key, which is the half a typo hides in. A value you cannot read is a
+ * value you cannot check, and this is a page of options and values, so what
+ * goes under the setting you are on is the value itself rather than a
+ * sentence about it — the sentence is still what the search box matches on
+ * and still what `tade config` prints.
+ *
+ * Never a credential: one Tade holds is kept where keys are kept and has no
+ * value here at all, and writing one out under a field that draws it as
+ * bullets would undo the whole point of the bullets.
+ */
+export function valueTooWide(setting: Setting, panel: SettingsPanel, room: number): string | null {
+  if (setting.type.kind !== 'text' || setting.secret || setting.kept) return null
+  const text = panel.editing?.path === setting.path ? panel.editing.text : setting.value
+  if (text === '') return null
+  // The caret takes a cell of the field while you are typing in it.
+  const held = fieldWidth(room) - 2 - (panel.editing?.path === setting.path ? 1 : 0)
+  return visibleWidth(text) > held ? text : null
 }
 
 /** The control the keyboard would operate, so it looks the part. */

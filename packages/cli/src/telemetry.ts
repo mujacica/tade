@@ -21,7 +21,13 @@ import { version } from './version.ts'
 // the user's own Sentry project — which is what lets the Sentry extension
 // watch Tade's own issues and hand one to an agent.
 
-/** Where a DSN can be, when it is not in the config file. */
+/**
+ * Where a DSN can be, when it is not in the config file — and it is the
+ * fallback under the setting, never over it. A DSN typed into Settings is the
+ * one that is used: a setting Tade accepts and ignores is worse than one it
+ * does not have, and this is a machine's default for anybody who never typed
+ * one in. The field says as much, its fallback naming the variable.
+ */
 const DSN_ENV = 'TADE_TELEMETRY_DSN'
 
 /** Where Tade itself is, so a frame in its own code is one you could fix. */

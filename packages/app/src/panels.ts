@@ -30,6 +30,7 @@ import { type SearchPanel, searchClick, searchKey } from './panels/search/state.
 import {
   type AccountAction,
   type Choice,
+  DONE,
   type SettingsPanel,
   settingsClick,
   settingsKey,
@@ -182,13 +183,19 @@ export function panelKey(
 /**
  * A click on the window behind a panel: the other way one is dismissed.
  *
- * It throws away exactly what escape throws away, so it asks what escape
- * asks — a file with unsaved edits warns once rather than going. A panel in
- * the middle of something stays, as it does for any key.
+ * It loses exactly what escape loses, so it asks what escape asks — a file
+ * with unsaved edits warns once rather than going, and a settings field is
+ * saved rather than dropped. A panel in the middle of something stays, as it
+ * does for any key.
  */
-export function panelDismiss(panel: Panel): PanelOutcome {
+export function panelDismiss(panel: Panel, inputs: PanelInputs = {}): PanelOutcome {
   if (panel.busy) return stay(panel)
-  return panel.kind === 'file' ? fileDismiss(panel) : close
+  if (panel.kind === 'file') return fileDismiss(panel)
+  // A settings field you have typed in is the other thing a dismiss could
+  // lose, so it is dismissed the way its own Done button is: what is in the
+  // field is saved, and the page goes when that has happened.
+  if (panel.kind === 'settings') return settingsClick(panel, DONE, inputs)
+  return close
 }
 
 /** A click on one of the panel's own controls. */

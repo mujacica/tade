@@ -13,6 +13,7 @@ import {
   optionsOf,
   settingsDropdown,
   spellsOut,
+  valueTooWide,
 } from './control.ts'
 import { ACCOUNTS, accountActions, type SettingsPanel, UPDATES, visibleSettings } from './state.ts'
 import { drawUpdates } from './updates.ts'
@@ -376,18 +377,29 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     // The sentence under a setting, for the one you are on, and what the
     // terminal allows for the talk key, which is not something to guess.
     const talkKey = setting.path === 'surfaces.voice.talk.key'
+    // A value wider than its field is written out here instead of what the
+    // setting means: on a page of options and values, the one you cannot read
+    // is worth more than the sentence you have already read.
+    const wide = valueTooWide(setting, panel, beside ? room : Math.max(4, form - 4))
     if (!listOpen && (focused || (talkKey && panel.search === ''))) {
       const note = talkKey
         ? ctx.releases
           ? { mark: '✓', text: 'hold works here', tone: skin.done }
           : { mark: '▲', text: 'no key releases here — talking toggles', tone: skin.waiting }
-        : { mark: '', text: setting.means, tone: skin.hint }
+        : wide
+          ? { mark: '', text: wide, tone: skin.hint }
+          : { mark: '', text: setting.means, tone: skin.hint }
       // Said under the control where that leaves it room to be read, and
       // under the name where it does not.
       const aligned = 1 + layout.label + GAP
       const indent = !layout.stacked && form - aligned >= 32 ? aligned : 3
       const room = form - indent - 1 - (note.mark ? 2 : 0)
-      wrapTo(note.text, room, 2).forEach((piece, i) => {
+      // A sentence is cut at two lines. A value takes the lines it takes,
+      // because a value cut short is the thing this is here to stop — eight
+      // of them at the outside, which is a seventy-character DSN written out
+      // in a terminal too narrow to be using anyway, and past that `wrapTo`
+      // marks what it left off rather than dropping it quietly.
+      wrapTo(note.text, room, wide && !talkKey ? 8 : 2).forEach((piece, i) => {
         const r = beneath(indent, NO_POINTER)
         if (note.mark) r.text(i === 0 ? note.mark : ' ', note.tone).space()
         lines.push(r.text(piece, skin.hint).build())

@@ -599,6 +599,26 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   credential-shaped is taken out, and the lines around a stack frame are kept only for Tade's own
   files. A reporter never throws and never blocks: a window that crashed while reporting a crash is
   worse than one that reported nothing.
+- **A DSN is an endpoint, and the token is the credential.** `telemetry.dsn` is an ordinary string
+  in `config.yaml`, drawn as itself: Sentry publishes a DSN in the JavaScript of every page it
+  watches, and all one grants is the right to send events to one project. Marked `secret` it got
+  the worst of both — bullets in the field, so seventy characters somebody pasted could not be read
+  back and checked for a typo, and the file all the same, because a credential is the one thing
+  `writeSetting` refuses and this was never kept where keys are kept. `$TADE_TELEMETRY_DSN` is the
+  fallback *under* the setting and never over it, and the field's own fallback says so: a DSN typed
+  into Settings is the one that is used, because a setting Tade accepts and ignores is worse than
+  one it does not have. What is genuinely a credential is Sentry's auth token, the forge token and
+  an extension's key — each `kind: 'secret'`, each in the keychain, each with the environment
+  winning, which is the rule for a key and not for a config value.
+- **Leaving a field saves it; escape is how you throw it away.** The Settings page says "Saved as
+  you change it", and every other control keeps that promise the moment it is pressed — a switch, a
+  radio, an arrow. A field wrote on enter and on nothing else, so clicking Done, the next setting,
+  another category or the window behind the page dropped what had been typed and went on saying
+  "Saved" underneath it; with a masked field nothing on screen said so, which is how a pasted DSN
+  came to look like a value that resets itself. So every way out of a field but escape writes it
+  (`leavingField`, answered once in `settingsClick` rather than in each of a dozen cases), nothing
+  is written when nothing changed, and a write that fails leaves the page open with the reason on
+  it rather than closing over the top of a value that did not save.
 - **A statistic is derived, except the two that cannot be.** What the agents cost, how long they
   ran, how many turns and tool calls they took are all folds over the journal (`spendFrom`,
   `runtimeFrom`, `statsFrom`), because status is a query. Two things are not recoverable by asking

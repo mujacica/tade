@@ -156,7 +156,10 @@ describe('telemetry', () => {
     expect(means['telemetry.agents']).toContain('never a prompt')
     expect(means['telemetry.errors']).toContain('never yours')
     expect(means['telemetry.logs']).toContain('never what was said')
-    expect(means['telemetry.dsn']).toContain('empty sends nothing')
+    expect(means['telemetry.dsn']).toContain('not a key')
+    // Where a DSN comes from when nothing is typed here, said in the one
+    // place somebody would look for it.
+    expect(find('telemetry.dsn').fallback).toContain('$TADE_TELEMETRY_DSN')
   })
 
   it('waits honestly: the reporter is read once, when Tade starts', () => {
@@ -210,13 +213,29 @@ describe('telemetry', () => {
     expect(stepped(find('checks.parallel', { checks: { parallel: 1 } }), -1)).toBe('1')
   })
 
-  it('never repeats the DSN away from the field it is typed into', () => {
+  // A DSN is an ingest endpoint, not a credential: Sentry publishes one in
+  // the JavaScript of every page it watches, and all it grants is the right
+  // to send events to one project. Drawn as bullets it could not be read back
+  // and checked for a typo, which is exactly what somebody pasting seventy
+  // characters into a forty-column field needs to do — and it was being
+  // written into `config.yaml` all the same, because a credential is the one
+  // thing `writeSetting` refuses and this was never kept where keys are kept.
+  it('is the value it is, everywhere a setting is read', () => {
     const dsn = 'https://abc123def456@o4507.ingest.sentry.io/12345'
     const setting = find('telemetry.dsn', { telemetry: { dsn } })
-    expect(setting.secret).toBe(true)
-    // Enough to tell which project it is; never the key that writes to it.
-    expect(shownValue(setting)).toBe('https://…@o4507.ingest.sentry.io/12345')
-    expect(describeSetting(setting)).not.toContain('abc123def456')
+    expect(setting.secret).toBeUndefined()
+    expect(setting.kept).toBeUndefined()
+    expect(setting.value).toBe(dsn)
+    expect(shownValue(setting)).toBe(dsn)
+    expect(describeSetting(setting)).toContain('abc123def456')
+  })
+
+  // The credential in this group is Sentry's auth token, and Tade does not
+  // even hold it: the setting here is the name of the variable it is in.
+  it('keeps the auth token out of the config, as the name of a variable', () => {
+    const token = find('extensions.sentry.token_env')
+    expect(token.secret).toBeUndefined()
+    expect(token.means).toContain('never keeps a copy')
   })
 })
 

@@ -211,11 +211,74 @@ export function writeOf(path: string, value: string): string {
   return `write:${path}\u0000${value}`
 }
 
+/**
+ * Two things to do, in the order they are written: what leaving a field
+ * saves, and then what the click that left it meant.
+ *
+ * One outcome carries one choice, and leaving a field is genuinely two acts —
+ * save this, then go there. Rather than widen the type every panel shares for
+ * the one panel that needs it, the acts are joined by a separator and split
+ * again by whoever carries them out.
+ */
+const ALSO = '\u001e'
+
+/** Closing the page, as an act that can follow a write. */
+export const DONE = 'done'
+
+/** The acts one choice holds, in the order they are to be done. */
+export function actsOf(choice: string): string[] {
+  return choice.split(ALSO)
+}
+
 const settle = (panel: SettingsPanel, path: string, value: string): PanelOutcome => ({
   panel: { ...panel, editing: null, dropdown: null, capture: null, error: null },
   submit: true,
   choice: writeOf(path, value),
 })
+
+/**
+ * Leaving a field saves what is in it.
+ *
+ * The page says "Saved as you change it", and every other control here keeps
+ * that promise the moment it is pressed: a switch, a radio, an arrow. A field
+ * did not — it wrote on enter and on nothing else — so clicking Done, the
+ * next setting, another category, or the window behind the page threw away
+ * what had been typed and went on saying "Saved" underneath it. A pasted
+ * Sentry DSN was the worst of it, because the field was masked and there was
+ * nothing on screen to say it had gone: what that looks like is a value that
+ * resets itself.
+ *
+ * Escape is still how you throw one away. It means "never mind" everywhere
+ * else in the window, and a field you can only leave by saving is a field you
+ * cannot change your mind about.
+ *
+ * Nothing is written when nothing changed, so sitting on a field and clicking
+ * off it is not a save: a live setting would be applied again, and an
+ * extension handed its config again, for a value nobody touched.
+ */
+function leavingField(panel: SettingsPanel, rows: readonly Setting[]): string | null {
+  if (!panel.editing) return null
+  const text = panel.editing.text.trim()
+  const was = rows.find((row) => row.path === panel.editing?.path)
+  if (was && was.value === text) return null
+  return writeOf(panel.editing.path, text)
+}
+
+/**
+ * A click's outcome, with the write that leaving the open field makes in
+ * front of it. Closing the page becomes an act rather than an empty panel:
+ * one that is already gone is one nothing can be submitted from, and a write
+ * that fails should leave the page open with the reason on it.
+ */
+function alsoWriting(panel: SettingsPanel, outcome: PanelOutcome, write: string): PanelOutcome {
+  const after = outcome.panel === null ? DONE : outcome.submit ? outcome.choice : undefined
+  const next = outcome.panel === null ? panel : (outcome.panel as SettingsPanel)
+  return {
+    panel: { ...next, editing: null, saved: null, error: null },
+    submit: true,
+    choice: after === undefined ? write : `${write}${ALSO}${after}`,
+  }
+}
 
 /**
  * What copying takes from the Settings page: the value of the setting the
@@ -539,9 +602,24 @@ export function settingsClick(
   control: string,
   inputs: PanelInputs,
 ): PanelOutcome {
+  const rows = visibleSettings(panel, inputs.settings ?? [])
+  // Every click but one on the field already open is leaving that field, and
+  // leaving a field saves it. Answered once here rather than in each of a
+  // dozen cases below, so the next case anybody adds cannot forget it.
+  const write =
+    panel.editing && control !== `edit:${panel.editing.path}` ? leavingField(panel, rows) : null
+  const outcome = clicked(panel, control, inputs, rows)
+  return write === null ? outcome : alsoWriting(panel, outcome, write)
+}
+
+function clicked(
+  panel: SettingsPanel,
+  control: string,
+  inputs: PanelInputs,
+  rows: readonly Setting[],
+): PanelOutcome {
   const [verb, ...rest] = control.split(':')
   const arg = rest.join(':')
-  const rows = visibleSettings(panel, inputs.settings ?? [])
   const setting = rows.find((row) => row.path === arg.split('=')[0])
   switch (verb) {
     case 'done':
@@ -598,6 +676,9 @@ export function settingsClick(
       return settle(panel, path, stepped(target, Number(delta)))
     }
     case 'edit':
+      // Clicking into the field you are already typing in is not a reason to
+      // start it again: the text you have put there is the text that stays.
+      if (panel.editing?.path === setting?.path) return stay(panel)
       return setting
         ? stay({ ...panel, editing: { path: setting.path, text: setting.value } })
         : stay(panel)

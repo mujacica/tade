@@ -2,7 +2,7 @@
 ━━━╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮━━━
  ▾ │  search settin…  │ Telemetry                                           │   
    │                  │                                                     │───
- ▌ │  Agents          │ Send to                   nothing is sent         ↻ │t s
+ ▌ │  Agents          │ Send to                   $TADE_TELEMETRY_DSN,…   ↻ │t s
  ▌ │  Models          │                                                     │   
    │  Orchestrator    │▌Reporter                 ◉ sentry   ○ none        ↻ │   
    │  Approvals       │▌  sentry sends through Sentry’s own SDK, imported   │   

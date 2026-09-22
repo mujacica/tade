@@ -1,14 +1,18 @@
 import { ConfigSchema, type SecretRow, type SettingGroup, settingsOf } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { asPaste } from '../src/input.ts'
+import type { PanelOutcome } from '../src/panels/outcome.ts'
 import {
+  actsOf,
+  DONE,
   type SettingsPanel,
+  settingsClick,
   settingsKey,
   settingsPanel,
   visibleSettings,
   writeOf,
 } from '../src/panels/settings/state.ts'
-import type { PanelInputs } from '../src/panels.ts'
+import { type PanelInputs, panelDismiss } from '../src/panels.ts'
 
 // What a key does to a field on the Settings page — and above all what a
 // paste does, since a Sentry DSN is seventy characters and an API key is
@@ -117,6 +121,75 @@ describe('pasting into a settings field', () => {
   })
 })
 
+// The page says "Saved as you change it", and every other control on it keeps
+// that promise the moment it is pressed. A field wrote on enter and on nothing
+// else, so every other way out of one — Done, the next setting, another
+// category, the window behind the page — threw away what had been typed and
+// went on saying "Saved" underneath. Pasting a DSN into a masked field was the
+// worst of it: nothing on screen said it had gone, so what it looked like was
+// a value that resets itself.
+describe('leaving a settings field', () => {
+  const clicked = (panel: SettingsPanel, control: string) => settingsClick(panel, control, inputs)
+  /** The acts one press asks for, in order. */
+  const acts = (out: PanelOutcome) => (out.choice === undefined ? [] : actsOf(out.choice))
+
+  it('saves it when the page is closed by its own button', () => {
+    const out = clicked(editing('telemetry.dsn', DSN), 'done')
+    expect(acts(out)).toEqual([writeOf('telemetry.dsn', DSN), DONE])
+    // Not closed here: the page is closed by the act, after the write, so a
+    // write that fails leaves it open with the reason on it.
+    expect(out.panel?.kind).toBe('settings')
+  })
+
+  it('saves it when the click lands on another setting', () => {
+    const out = clicked(editing('telemetry.dsn', DSN), 'edit:telemetry.environment')
+    expect(acts(out)).toEqual([writeOf('telemetry.dsn', DSN)])
+    const panel = out.panel?.kind === 'settings' ? out.panel : null
+    expect(panel?.editing).toBeNull()
+  })
+
+  it('saves it when the click changes category, and when it lands on nothing', () => {
+    for (const control of ['category:voice', 'nothing-in-particular']) {
+      const out = clicked(editing('telemetry.dsn', DSN), control)
+      expect(acts(out), control).toEqual([writeOf('telemetry.dsn', DSN)])
+    }
+  })
+
+  it('saves it, and then does what was clicked, when that is a write of its own', () => {
+    const out = clicked(editing('telemetry.dsn', DSN), 'toggle:telemetry.errors')
+    expect(acts(out)).toEqual([writeOf('telemetry.dsn', DSN), writeOf('telemetry.errors', 'false')])
+  })
+
+  it('saves it when the window behind the page is clicked', () => {
+    const out = panelDismiss(editing('telemetry.dsn', DSN), inputs)
+    expect(acts(out)).toEqual([writeOf('telemetry.dsn', DSN), DONE])
+  })
+
+  it('writes nothing when nothing was changed', () => {
+    // Sitting on a field and clicking off it is not a save: a live setting
+    // would be applied again, and an extension handed its config again, for a
+    // value nobody touched.
+    const was = settingAt('telemetry.environment')?.value ?? ''
+    const out = clicked(editing('telemetry.environment', was), 'done')
+    expect(out.submit).toBe(false)
+    expect(out.panel).toBeNull()
+  })
+
+  it('still throws it away on escape, which is what escape means', () => {
+    // A field you can only leave by saving is a field you cannot change your
+    // mind about, and escape means "never mind" everywhere else in the window.
+    const out = settingsKey(editing('telemetry.dsn', DSN), 'escape', '\x1b', inputs)
+    expect(out.submit).toBe(false)
+    expect(out.panel?.kind === 'settings' ? out.panel.editing : 'gone').toBeNull()
+  })
+
+  it('does not start the field again when you click into the one you are in', () => {
+    const out = clicked(editing('telemetry.dsn', DSN), 'edit:telemetry.dsn')
+    expect(out.submit).toBe(false)
+    expect(out.panel?.kind === 'settings' ? out.panel.editing?.text : null).toBe(DSN)
+  })
+})
+
 describe('pasting into the other two fields on the page', () => {
   it('goes into the search box', () => {
     const panel = after({ ...on('telemetry.dsn'), focus: 'search' }, undefined, asPaste('sentry\n'))
@@ -163,7 +236,7 @@ describe('copying a setting', () => {
     // a screen is not a key in a recording, and a copy is that same key
     // somewhere nobody can see it at all. It is pasted in; nothing reads it
     // back out.
-    for (const path of ['telemetry.dsn', 'secrets.jev.key']) {
+    for (const path of ['secrets.jev.key']) {
       const out = settingsKey(editing(path, 'sk_live_dontcopyme'), 'ctrl+shift+c', '', inputs)
       expect(out.submit).toBe(false)
       expect(out.choice).toBeUndefined()
@@ -173,6 +246,17 @@ describe('copying a setting', () => {
       // must never leave is the choice: that is what the window would copy.
       expect(out.choice ?? '').not.toContain('sk_live')
     }
+  })
+
+  it('copies a DSN, which is an endpoint and not a key', () => {
+    // The one setting that used to be refused here and should not have been.
+    // What it grants is the right to send events to one Sentry project — it
+    // is published in the JavaScript of every page Sentry watches — and it
+    // is seventy characters long, so putting it somewhere it can be read is
+    // most of what anybody wants to do with it.
+    const dsn = 'https://abc123@o4507.ingest.sentry.io/12345'
+    const out = settingsKey(editing('telemetry.dsn', dsn), 'ctrl+shift+c', '', inputs)
+    expect(out).toMatchObject({ submit: true, choice: 'copy:telemetry.dsn' })
   })
 
   it('says a setting is not set rather than copying nothing', () => {

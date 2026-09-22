@@ -3,7 +3,7 @@
  ▾ │  search sett…  │ Telemetry                     │l  
    │                │                               │───
  ▌ │  Agents        │ Send to                     ↻ │   
- ▌ │  Models        │    nothing is sent            │   
+ ▌ │  Models        │    $TADE_TELEMETRY_DSN, or …  │   
    │  Orchestrator  │                               │+12
    │  Approvals     │▌Reporter                    ↻ │   
    │  Checks        │▌  ◉ sentry                    │   

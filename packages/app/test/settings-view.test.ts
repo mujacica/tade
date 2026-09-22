@@ -187,6 +187,27 @@ const drawnAt = (category: string, over: Partial<PanelContext> = {}, panel = pan
 
 const plainRows = (drawn: Drawn) => drawn.rows.map((row) => stripTerminalSequences(row))
 
+/**
+ * What the drawing says of `value`, read across the rows it took: the longest
+ * piece of what is left that each row holds, in order. A value wrapped under
+ * its setting is in the picture in pieces, and this is how a test says the
+ * whole of it arrived and in what order — the rows themselves hold the
+ * sidebar and everything else beside the form.
+ */
+const readAcross = (rows: readonly string[], value: string): string => {
+  let got = ''
+  for (const row of rows) {
+    for (let len = value.length - got.length; len > 2; len--) {
+      const piece = value.slice(got.length, got.length + len)
+      if (row.includes(piece)) {
+        got += piece
+        break
+      }
+    }
+  }
+  return got
+}
+
 /** The widths worth trying: from a terminal nobody should use to a wide one. */
 const WIDTHS = [40, 48, 56, 64, 72, 80, 96, 104, 120, 160]
 
@@ -286,11 +307,13 @@ describe('the settings form at any width', () => {
     for (const row of rows) expect(visibleWidth(row)).toBe(visibleWidth(rows[0] ?? ''))
   })
 
-  it('keeps a pasted value inside its field, drawn from the end the caret is at', () => {
+  it('keeps a pasted value inside its field, and writes the whole of it out under', () => {
     // A Sentry DSN is seventy characters and the field is forty at its widest,
     // so what is pasted is always wider than what draws it. The whole value is
     // what the panel holds; the field shows the end of it, which is where what
-    // you are typing is.
+    // you are typing is — and the whole of it is written out under the setting
+    // you are on, because a value you cannot read is a value you cannot check
+    // for a typo, which is what pasting one into a masked field was.
     const dsn = `https://${'0123456789abcdef'.repeat(2)}@o447951.ingest.sentry.io/4505`
     for (const width of WIDTHS) {
       const drawn = drawnAt(
@@ -301,11 +324,25 @@ describe('the settings form at any width', () => {
       const rows = plainRows(drawn)
       const widths = new Set(rows.map((row) => visibleWidth(row)))
       expect([...widths], `at ${width}`).toHaveLength(1)
-      // Drawn as bullets, never as itself — a masked field takes a paste and
-      // still never draws it back.
-      expect(rows.join('\n'), `at ${width}`).not.toContain('0123456789abcdef')
-      expect(rows.join('\n'), `at ${width}`).not.toContain('ingest.sentry.io')
+      // Nothing of it is lost: every character, in order, across the lines it
+      // took to write it down.
+      expect(readAcross(rows, dsn), `at ${width}`).toBe(dsn)
     }
+  })
+
+  it('writes out a long value for the setting you are on, and no other', () => {
+    const dsn = `https://${'0123456789abcdef'.repeat(2)}@o447951.ingest.sentry.io/4505`
+    const settings = settingsOf(ConfigSchema.parse({ telemetry: { dsn } }))
+    const at = (row: number) =>
+      plainRows(
+        drawnAt('telemetry', { width: 96, height: 30, settings }, panelFor('telemetry', { row })),
+      )
+    // The setting you are on writes its value out; the page is not a wall of
+    // everybody's values, so standing elsewhere leaves the field saying what a
+    // field forty columns wide can say — the end of it, behind an ellipsis.
+    expect(readAcross(at(0), dsn)).toBe(dsn)
+    expect(at(2).join('\n')).not.toContain(dsn.slice(0, 24))
+    expect(at(2).join('\n')).toContain('sentry.io/4505')
   })
 
   it('draws what is pasted into a field that is not a credential', () => {

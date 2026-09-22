@@ -3,9 +3,9 @@
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Telemetry                                                                   │────────
  ▌ ! str│                        │                                                                             │        
- ▌   wan│  Agents                │▌Send to                     nothing is sent                    ↻ on restart │        
+ ▌   wan│  Agents                │▌Send to                     $TADE_TELEMETRY_DSN, or nothing…   ↻ on restart │        
         │  Models                │▌                           a Sentry DSN of yours, from that project’s       │        
-   ⠋ ref│  Orchestrator          │▌                           Client Keys, or $TADE_TELEMETRY_DSN; empty send… │        
+   ⠋ ref│  Orchestrator          │▌                           Client Keys; it is an ingest endpoint, not a key │        
      wor│  Approvals      bypass │                                                                             │        
         │  Checks                │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
  ▸ SMART│  Voice                 │                                                                             │        

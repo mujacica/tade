@@ -53,6 +53,34 @@ it('takes the DSN from the environment, for people who keep it out of files', as
   }
 })
 
+// Which of the two wins, written down, because it is the difference between
+// a variable that is a fallback and a setting Tade accepts and ignores. The
+// setting is the setting: a DSN typed into Settings is the one that is used,
+// and the variable is what a machine that was never typed into falls back to.
+// Said in as many words on the field itself, where its fallback names the
+// variable.
+it('uses what was set here, and the variable only when nothing was', async () => {
+  const other = 'https://zzz999@o2.ingest.sentry.io/9999'
+  process.env.TADE_TELEMETRY_DSN = other
+  try {
+    const sent = sentry()
+    const report = await reporterFor(config({ dsn: DSN }), { sink: sent.sink })
+    report.trouble({ error: new Error('boom'), where: 'a test' })
+    await report.flush(2_000)
+    await report.close()
+    // Which project it went to, read off the envelope Sentry addressed: the
+    // key in front of the `@` of the DSN it was opened on.
+    const keys = sent.sent.flatMap((envelope) => {
+      const [header] = envelope as [{ trace?: { public_key?: string } }]
+      return header.trace?.public_key ? [header.trace.public_key] : []
+    })
+    expect(keys.length).toBeGreaterThan(0)
+    expect(new Set(keys)).toEqual(new Set(['abc123']))
+  } finally {
+    delete process.env.TADE_TELEMETRY_DSN
+  }
+})
+
 it("reports what the journal says about Tade itself, and nothing about anyone's work", async () => {
   const repo = mkrepo()
   const home = tmp('tade-telemetry-')

@@ -566,7 +566,7 @@ export class Mouse {
       return
     }
     if (target.kind === 'dismiss') {
-      this.deps.applyPanel(panelDismiss(panel))
+      this.deps.applyPanel(panelDismiss(panel, this.deps.panelInputs()))
       return
     }
     if (target.kind === 'control') {

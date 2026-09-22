@@ -13,7 +13,13 @@ import {
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { checkTalkKey } from '../keys.ts'
-import { type SettingsPanel, settingsPanel, UPDATES } from '../panels/settings/state.ts'
+import {
+  actsOf,
+  DONE,
+  type SettingsPanel,
+  settingsPanel,
+  UPDATES,
+} from '../panels/settings/state.ts'
 import { writeSetting } from '../settings.ts'
 import {
   type Actions,
@@ -122,26 +128,43 @@ export class Settings implements Subject {
       keys: async () => {
         await this.open('shortcuts')
       },
+      // One press can be two acts — what leaving a field saves, and then what
+      // the click that left it meant — and they are done in the order they
+      // were written. A write that fails stops the ones behind it: the page
+      // stays open with the reason on it rather than closing over the top of
+      // a value that did not save.
       settings: async (panel, choice) => {
-        if (choice?.startsWith('write:')) {
-          const [path, value] = choice.slice('write:'.length).split('\u0000')
-          if (path !== undefined) await this.save(panel, path, value ?? '')
-          return
+        for (const act of choice === undefined ? [] : actsOf(choice)) {
+          await this.act(panel, act)
+          if (this.wire.state.panel?.kind === 'settings' && this.wire.state.panel.error) return
         }
-        if (choice === 'open-file') {
-          this.wire.put({ ...this.wire.state, panel: null })
-          await this.deps.openFile(this.path)
-          return
-        }
-        if (choice?.startsWith('copy:')) {
-          await this.copied(panel, choice.slice('copy:'.length))
-          return
-        }
-        if (choice?.startsWith('account:')) await this.deps.accountAction(choice)
-        if (choice?.startsWith('updates:')) await this.deps.updateAction(choice)
-        if (choice === 'mic-test') await this.deps.testMicrophone()
       },
     }
+  }
+
+  /** One of them: a write, the page closing, or whatever else was pressed. */
+  private async act(panel: SettingsPanel, choice: string): Promise<void> {
+    if (choice === DONE) {
+      this.wire.put({ ...this.wire.state, panel: null })
+      return
+    }
+    if (choice.startsWith('write:')) {
+      const [path, value] = choice.slice('write:'.length).split('\u0000')
+      if (path !== undefined) await this.save(panel, path, value ?? '')
+      return
+    }
+    if (choice === 'open-file') {
+      this.wire.put({ ...this.wire.state, panel: null })
+      await this.deps.openFile(this.path)
+      return
+    }
+    if (choice.startsWith('copy:')) {
+      await this.copied(panel, choice.slice('copy:'.length))
+      return
+    }
+    if (choice.startsWith('account:')) await this.deps.accountAction(choice)
+    if (choice.startsWith('updates:')) await this.deps.updateAction(choice)
+    if (choice === 'mic-test') await this.deps.testMicrophone()
   }
 
   /**

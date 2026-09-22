@@ -616,15 +616,25 @@ export function settingsOf(
       ],
       settings: [
         {
+          // Not a credential, and drawn as itself. A DSN is an ingest
+          // endpoint: Sentry ships one in the JavaScript of every page it
+          // watches, and all it grants is the right to send events to that
+          // one project — no reading, no admin, nothing about the account
+          // behind it. Marked `secret` it got the worst of both: bullets in
+          // the field, so seventy characters somebody pasted could not be
+          // read back and checked for a typo, and `config.yaml` all the same,
+          // because a secret is the one thing `writeSetting` refuses and this
+          // was never kept where keys are kept. The real credential here is
+          // Sentry's auth token, which is `extensions.sentry.token` and is
+          // kept in the keychain.
           path: 'telemetry.dsn',
           title: 'Send to',
           means:
-            'a Sentry DSN of yours, from that project’s Client Keys, or $TADE_TELEMETRY_DSN; empty sends nothing',
+            'a Sentry DSN of yours, from that project’s Client Keys; it is an ingest endpoint, not a key',
           value: config.telemetry.dsn,
-          fallback: 'nothing is sent',
+          fallback: '$TADE_TELEMETRY_DSN, or nothing is sent',
           type: { kind: 'text', placeholder: 'https://…@…ingest.sentry.io/…' },
           live: false,
-          secret: true,
           keywords: ['sentry', 'dsn', 'telemetry'],
         },
         {
@@ -1012,17 +1022,19 @@ export function settingFound(
 
 /**
  * What a setting may be shown as away from the field it is typed into. A
- * credential-shaped one is never repeated: a DSN printed by `tade config`,
- * read back after saving, or scrolled past in a list is a DSN in somebody's
- * scrollback.
+ * credential is never repeated — a key printed by `tade config`, read back
+ * after saving, or scrolled past in a list is a key in somebody's scrollback
+ * — and a credential Tade holds is one it keeps where keys are kept, so it
+ * has no value here to repeat in the first place.
+ *
+ * Which is the whole of the rule now: it used to keep the tail of a DSN so
+ * one project could be told from another, and a DSN is not a credential —
+ * it is an ingest endpoint, drawn as itself in its own field like any other
+ * setting.
  */
 export function shownValue(setting: Setting, value = setting.value): string {
   if (!setting.secret || value === '') return value
-  // Kept readable enough to tell one project from another: everything before
-  // the `@` is the part that is not yours to show.
-  const at = value.indexOf('@')
-  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(value)?.[0] ?? ''
-  return at > 0 ? `${scheme}…@${value.slice(at + 1)}` : '…'
+  return '…'
 }
 
 /** One line per setting, for a list you choose from. */

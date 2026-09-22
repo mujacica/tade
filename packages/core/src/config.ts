@@ -479,8 +479,15 @@ export const ConfigSchema = z
         driver: z.enum(['sentry', 'none']).default('sentry'),
         /**
          * The Sentry project to send to, as a DSN. Empty — the default — sends
-         * nothing at all. `$TADE_TELEMETRY_DSN` does the same without putting
-         * it in a file.
+         * nothing at all, and `$TADE_TELEMETRY_DSN` is what is used then: this
+         * is the setting, the variable is the fallback under it, so a DSN
+         * typed into Settings is never a setting Tade accepts and ignores.
+         *
+         * An ordinary string and not a credential. A DSN is an ingest
+         * endpoint — it is published in the JavaScript of every page Sentry
+         * watches, and grants only the right to send events to one project —
+         * so it lives here, in the file, where it can be read back and
+         * checked. Sentry's auth token is the credential, and is not here.
          */
         dsn: z.string().default(''),
         /** Crashes, and the warnings Tade writes down, as issues to fix. */
@@ -681,10 +688,13 @@ export function writeSetting(
 }
 
 /**
- * The config can hold a credential — `telemetry.dsn` — so it is the owner's
- * alone to read. Writing with `mode` only covers a file that is being made;
- * one that was already there is narrowed here, keeping whatever the owner may
- * do with it and taking away what everybody else could.
+ * The config is one person's, so it is that person's alone to read: where
+ * their projects are, which Sentry they watch, a DSN anybody holding it could
+ * send events to. None of it is a credential — those are kept where keys are
+ * kept — and none of it is any other account on the machine's business
+ * either. Writing with `mode` only covers a file that is being made; one that
+ * was already there is narrowed here, keeping whatever the owner may do with
+ * it and taking away what everybody else could.
  */
 export function ownerOnly(path: string): void {
   try {

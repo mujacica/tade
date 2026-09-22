@@ -3,7 +3,7 @@
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Telemetry                                                                   │────────
  ▌ ! str│                        │                                                                             │        
- ▌   wan│  Agents                │ Send to                     nothing is sent                    ↻ on restart │        
+ ▌   wan│  Agents                │ Send to                     $TADE_TELEMETRY_DSN, or nothing…   ↻ on restart │        
         │  Models                │                                                                             │        
    ⠋ ref│  Orchestrator          │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
      wor│  Approvals      bypass │                                                                             │        
