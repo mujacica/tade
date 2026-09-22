@@ -152,27 +152,36 @@ export function extensionConformance(
       expect(await host.lists(tade)).toEqual(sections)
     })
 
-    it('takes its credentials from the environment and never from the config', async () => {
+    it('takes its credentials from the config, and from the environment first', async () => {
       const declared = (extension.settings ?? []).filter((setting) => setting.kind === 'secret')
       if (declared.length === 0) return
       const host = await load()
       for (const setting of declared) {
         const listed = host.secrets().find((one) => one.key === setting.key)
-        expect(listed).toMatchObject({ name: `${extension.name}.${setting.key}` })
-        // A credential goes in the keychain or Tade's own file. Written into
-        // the config it is not read — and is reported as not read, rather
-        // than sitting in a repository looking as though it works.
+        expect(listed).toMatchObject({ path: `extensions.${extension.name}.${setting.key}` })
+        // A credential is a setting: written into the config it is the one
+        // that is used, drawn back as itself, and never reported as a key
+        // nobody reads.
         const inConfig = await load({
           settings: { ...(options.settings ?? {}), [setting.key]: 'pasted-into-the-config' },
+          // Nothing exported: the environment wins, and what is under test
+          // here is what happens when it has nothing to say.
+          env: {},
         })
-        expect(inConfig.list()[0]?.unknownSettings).toContain(setting.key)
-        // And what the environment says is what is used, whatever is kept.
+        expect(inConfig.list()[0]?.unknownSettings ?? []).not.toContain(setting.key)
+        const written = inConfig.secrets().find((one) => one.key === setting.key)
+        expect(written?.value).toBe('pasted-into-the-config')
+        expect(written?.from).toBe('config.yaml')
+        // And what the environment says is what is used, whatever is written.
         const [variable] = typeof setting.env === 'string' ? [setting.env] : (setting.env ?? [])
         if (!variable) continue
-        const fromEnv = await load({ env: { [variable]: 'from-the-shell' } })
+        const fromEnv = await load({
+          settings: { ...(options.settings ?? {}), [setting.key]: 'pasted-into-the-config' },
+          env: { [variable]: 'from-the-shell' },
+        })
         expect(fromEnv.secrets().find((one) => one.key === setting.key)?.from).toBe(`$${variable}`)
       }
-      // Whatever is listed, none of it is the credential itself.
+      // What the shell holds stays in the shell: it is said as a place.
       expect(JSON.stringify(host.secrets())).not.toContain('from-the-shell')
     })
 

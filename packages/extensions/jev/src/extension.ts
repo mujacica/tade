@@ -305,7 +305,7 @@ export const jevExtension: TadeExtension = {
       env: 'TYPESAFE_API_KEY',
       envFrom: 'key_env',
       means:
-        'the TypeSafe API key. Paste it here and Tade keeps it in the keychain, never in the config; $TYPESAFE_API_KEY still wins when it is set',
+        'the TypeSafe API key. Paste it here and Tade writes it into config.yaml, which only you can read; $TYPESAFE_API_KEY still wins when it is set',
     },
     {
       key: 'judge',
@@ -1219,7 +1219,7 @@ export const jevExtension: TadeExtension = {
         label: 'API key',
         kind: 'secret',
         placeholder: 'paste the key from the console',
-        help: 'kept in the keychain, never in the config; leave empty to keep the one you have',
+        help: 'written into your config as you typed it, so you can check it against the console',
       },
       {
         key: 'model',
@@ -1300,6 +1300,6 @@ function keyGuide(ctx: ExtensionContext): string {
   const variable = keyVariable(ctx)
   const from = keyFrom(ctx)
   return from
-    ? `**Key:** found in ${from}. It is never written to your config, never shown again, and never in the logs.`
-    : `**Key:** create one at console.typesafe.ai/settings/keys and paste it below. Tade keeps it in your keychain — or, where there is none, in a file of its own that only you can read — never in \`config.yaml\`. \`export ${variable}="…"\` in your shell still works and still wins.`
+    ? `**Key:** in use from ${from}. It is written in \`config.yaml\`, which only you can read, and never in the journal or the logs.`
+    : `**Key:** create one at console.typesafe.ai/settings/keys and paste it below. Tade writes it into \`config.yaml\` as you typed it — your own file, \`0600\` — so you can read it back and check it. \`export ${variable}="…"\` in your shell still works and still wins.`
 }

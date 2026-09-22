@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
+import { harnessAccount } from '../src/accounts.ts'
 import { Workbench } from '../src/workbench.ts'
 
 // Accounts over a real workbench: named, made ready, chosen for new agents and
@@ -124,6 +125,22 @@ describe('accounts', () => {
     await client.setAgentAccount({ task: task.id, worktree: task.worktree, account: 'work' })
     const claude = client.planUsage().filter((one) => one.harness === 'claude-code')
     expect(claude.map((one) => one.account).sort()).toEqual([null, 'work'])
+  })
+
+  it('writes an API-key account’s key beside the account, and hands out a command', async () => {
+    await client.addAccount({ name: 'paid', harness: 'claude-code', kind: 'api-key' })
+    expect(client.saveAccountKey('paid', '  sk-ant-0123456789  ')).toBe('config.yaml')
+    // In the config, next to the account it pays for, as it was typed.
+    expect(config().accounts.paid.key).toBe('sk-ant-0123456789')
+    // What the harness is given is still a command that prints it: a key in a
+    // launch line is a key in the process table.
+    const account = harnessAccount(client.config, home, 'paid')
+    expect(account.key).toContain('print-secret.ts')
+    expect(account.key).not.toContain('sk-ant')
+    // And it goes when the account does, because it is one of its fields.
+    await client.removeAccount('paid')
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('sk-ant')
+    expect(() => client.saveAccountKey('paid', 'sk-ant-other')).toThrow(/API key/)
   })
 
   it('takes one away, and nothing is left pointing at it', async () => {

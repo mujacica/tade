@@ -16,7 +16,6 @@ import {
   loadableSkills,
   loadConfig,
   runtimeDir,
-  Secrets,
   type Skill,
   skillAbout,
   skillDirs,
@@ -208,8 +207,6 @@ export async function loadExtensions(opts: {
   fetch?: typeof fetch
   /** Where the settings are, so what used to be in `active/` stays on. */
   configPath?: string
-  /** Where pasted credentials are kept; this home's own unless given. */
-  secrets?: Secrets
   /**
    * The MCP servers, already brokered, for whoever has to end their sessions.
    * One is made from the config when nothing is handed in, so every surface
@@ -233,8 +230,7 @@ export async function loadExtensions(opts: {
   // orchestrator are already handed extensions' tools in their own terms — so
   // this one line reaches pi, Claude Code, Codex and the thing you talk to,
   // without a single adapter knowing MCP exists.
-  const secrets = opts.secrets ?? Secrets.open({ home: opts.home })
-  const mcp = opts.mcp ?? brokerFor({ ...opts, secrets })
+  const mcp = opts.mcp ?? brokerFor(opts)
   return ExtensionHost.load({
     builtin: BUILTIN_EXTENSIONS,
     brokered: mcp.extensions,
@@ -242,9 +238,6 @@ export async function loadExtensions(opts: {
     ...(opts.safe ? { safe: true } : {}),
     config: { extensions: settings, projects: opts.config.projects },
     home: opts.home,
-    // Credentials live with the home, never with the config: one home, one
-    // set of keys, wherever they are being read or pasted from.
-    secrets,
     ...(opts.env ? { env: opts.env } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
     expandHome,
@@ -255,8 +248,8 @@ export async function loadExtensions(opts: {
  * The MCP servers a person has turned on, brokered.
  *
  * Made here so that every surface which loads extensions gets the same ones,
- * and handed the things the warm-up cannot ask an extension for: where
- * credentials are kept, the environment they may already be in, and the
+ * and handed the things the warm-up cannot ask an extension for: the settings
+ * a credential is written in, the environment it may already be in, and the
  * projects — because a server that runs one per project has to be opened in
  * one to be asked what it offers at all.
  */
@@ -265,7 +258,6 @@ export function brokerFor(opts: {
   home: string
   safe?: boolean
   env?: NodeJS.ProcessEnv
-  secrets?: Secrets
   onWarning?: (message: string) => void
 }): Brokered {
   return brokered({
@@ -275,7 +267,7 @@ export function brokerFor(opts: {
       name,
       root: expandHome(project.root),
     })),
-    secrets: opts.secrets ?? Secrets.open({ home: opts.home }),
+    settings: opts.config.extensions,
     ...(opts.env ? { env: opts.env } : {}),
     ...(opts.onWarning ? { onWarning: opts.onWarning } : {}),
     ...(opts.safe ? { safe: true } : {}),

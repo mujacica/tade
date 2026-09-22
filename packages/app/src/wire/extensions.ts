@@ -627,25 +627,19 @@ export class Extensions implements Subject {
       const kept: string[] = []
       for (const field of setup.fields) {
         const typed = panel.values[field.key] ?? ''
-        if (field.kind === 'secret') {
-          // Never into the config. A key goes to the keychain, or to Tade's
-          // own 0600 file, and an empty field that had nothing in it is left
-          // alone rather than forgetting what is already kept.
-          if (typed.trim() === '') continue
-          const saved = host.saveSecret(panel.extension, field.key, typed)
-          kept.push(
-            saved.beaten
-              ? `${field.label} is in ${saved.where}, but ${saved.beaten} is set and wins`
-              : `${field.label} is in ${saved.where}`,
-          )
-          continue
-        }
         const value = settingFrom(typed, field.kind)
         writeSetting(
           configPathOf(this.wire.opts),
           `extensions.${panel.extension}.${field.key}`,
           value as Parameters<typeof writeSetting>[2],
         )
+        // A key is written like every other field. The one thing that cannot
+        // be read off the page is that a variable in the shell still beats it,
+        // so that is what is said: a key kept and not used is the worst of both.
+        if (field.kind === 'secret' && typed.trim() !== '') {
+          const beaten = host.secretBeatenBy(panel.extension, field.key)
+          if (beaten) kept.push(`${field.label} is saved, but ${beaten} is set and wins`)
+        }
       }
       await this.reloadExtensions()
       const now = host.list().find((one) => one.name === panel.extension)
@@ -660,14 +654,6 @@ export class Extensions implements Subject {
         panel: {
           ...panel,
           busy: false,
-          // What was typed is gone from the panel the moment it is kept:
-          // nothing holds a key in memory for the next repaint to draw.
-          values: Object.fromEntries(
-            Object.entries(panel.values).map(([key, value]) => [
-              key,
-              setup.fields.find((one) => one.key === key)?.kind === 'secret' ? '' : value,
-            ]),
-          ),
           error: now?.state === 'ready' ? null : (now?.problem ?? null),
           said: said === '' ? null : said,
         },

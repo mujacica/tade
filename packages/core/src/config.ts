@@ -76,6 +76,13 @@ export const Account = z.strictObject({
   kind: z.enum(['subscription', 'api-key']).default('subscription'),
   /** Start it with your own settings, skills and plugins, rather than bare. */
   share: z.boolean().default(true),
+  /**
+   * For an `api-key` account: the key itself. The harness is given a command
+   * that prints it rather than the key, so it is never in a launch line or in
+   * anybody else's settings file — but it is here, in plain sight, where you
+   * can check it against the one the console shows you.
+   */
+  key: z.string().optional(),
 })
 export type Account = z.infer<typeof Account>
 
@@ -666,13 +673,11 @@ export function writeSetting(
     | Readonly<Record<string, unknown>>
     | undefined,
 ): void {
-  // The config is a file people read out loud, copy between machines and
-  // commit. A credential goes to the keychain or to Tade's own 0600 file
-  // (`Secrets`), and a caller that confuses the two is stopped here rather
-  // than discovered in somebody's repository.
-  if (key === 'secrets' || key.startsWith('secrets.')) {
-    throw new Error(`${key} is a credential: it is kept out of the config, never written to it`)
-  }
+  // A credential is written here like anything else. It used to be refused —
+  // the config was "a file people read out loud" — which sent every key to the
+  // keychain, where it could not be read back, checked or copied. The file is
+  // `0600` and one person's (`ownerOnly`); that, and not a rule here, is what
+  // keeps it theirs.
   let text = ''
   try {
     text = readFileSync(path, 'utf8')
@@ -690,11 +695,11 @@ export function writeSetting(
 /**
  * The config is one person's, so it is that person's alone to read: where
  * their projects are, which Sentry they watch, a DSN anybody holding it could
- * send events to. None of it is a credential — those are kept where keys are
- * kept — and none of it is any other account on the machine's business
- * either. Writing with `mode` only covers a file that is being made; one that
- * was already there is narrowed here, keeping whatever the owner may do with
- * it and taking away what everybody else could.
+ * send events to — and now the keys they pasted in, which is what makes this
+ * the whole of the promise rather than tidiness. Writing with `mode` only
+ * covers a file that is being made; one that was already there is narrowed
+ * here, keeping whatever the owner may do with it and taking away what
+ * everybody else could.
  */
 export function ownerOnly(path: string): void {
   try {

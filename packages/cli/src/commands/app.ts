@@ -12,7 +12,6 @@ import {
   loadConfig,
   modelDetail,
   readiness,
-  Secrets,
   type ThinkingLevel,
   tadeHome,
 } from '@tade/core'
@@ -133,10 +132,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       let warn: (message: string) => Promise<void> = async (message) => {
         io.err(message)
       }
-      // Where keys are kept, opened once: finding out costs a process on
-      // macOS, and everything that reads one — the extensions, the servers,
-      // the page — is asking the same question about the same home.
-      const secrets = Secrets.open({ home })
       // The MCP servers a person has turned on, brokered here rather than
       // inside `loadExtensions` so the window can ask each of them what it
       // offers once it is up, and end their sessions on the way out.
@@ -144,7 +139,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         config: cfg.config,
         home,
         safe,
-        secrets,
         onWarning: (message) => void warn(message),
       })
       const extensions = await loadExtensions({
@@ -152,7 +146,6 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         home,
         safe,
         configPath: cfg.path,
-        secrets,
         mcp,
       })
       loadingExtensions.end()
@@ -313,7 +306,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           // them, with what each offered when anybody last asked. Read again
           // whenever a setting changes, never on the way to a frame.
           mcpServers: (now) =>
-            shownServers(brokerFor({ config: now, home, safe, secrets }).servers, {
+            shownServers(brokerFor({ config: now, home, safe }).servers, {
               home,
               servers: now.mcp.servers,
             }),

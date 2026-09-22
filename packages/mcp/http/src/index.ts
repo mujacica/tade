@@ -27,9 +27,9 @@ import { eventsIn, type Said } from './events.ts'
 //
 // What this transport never does: start anything, write anything, or keep a
 // credential. The one copy it is given goes into the header `auth` names and
-// nowhere else — not into a file, not into a log, not into what the page
-// draws. `ready()` answers from the declaration and the credential it was
-// handed: it never dials, because it is asked on every look at the page.
+// nowhere else — not into a file of its own, not into a log, not into what it
+// says came back. `ready()` answers from the declaration and the credential it
+// was handed: it never dials, because it is asked on every look at the page.
 
 /** How much of a body is read back when a server answers with something that is not a message. */
 const SAID_CAP = 400

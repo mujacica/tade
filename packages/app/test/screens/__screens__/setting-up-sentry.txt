@@ -11,8 +11,8 @@
  ▸ SMART QUE│  Say which Sentry project each of your projects sends to.                                    │            
  ▾ CHANGES  │ Create a token ↗                                                                             │            
   M package.│                                                                                              │            
-  A …/webhoo│ Auth token       ••••••••••••▏                                                               │            
-  M src/webh│                 kept in the keychain; $SENTRY_AUTH_TOKEN wins when it is set                 │            
+  A …/webhoo│ Auth token       sntryu_typed_just_now▏                                                      │            
+  M src/webh│                 written into your config; $SENTRY_AUTH_TOKEN wins when it is set             │            
             │ Organization     acme                                                                        │            
  ▾ FILES    │                 its slug, as in the URL                                                      │            
    ▾ src/   │                   acme     acme-labs                                                         │            

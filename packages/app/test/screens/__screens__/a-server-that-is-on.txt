@@ -17,7 +17,7 @@
  ▾ │                        ▕│ mcp_github_search     Search code                                       search_code ▕│   
    │                        ▕│                                                                                     ▕│   
    │                        ▕│ OPTIONS  Settings…                                                                  ▕│   
-   │                        ▕│ API key             kept in the macOS keychain                                      ▕│   
+   │                        ▕│ API key             tsk_0123456789                                                  ▕│   
    │                        ▕│                                                                                     ▕│   
    │                        ▕│ THE SERVER                                                                          ▕│   
    │                        ▕│ https://api.githubcopilot.com/mcp/                                                  ▕│   

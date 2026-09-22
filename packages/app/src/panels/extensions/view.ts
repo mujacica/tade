@@ -1,5 +1,4 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { masked } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { linkedRow } from '../../links.ts'
 import { BAR } from '../../scrollbar.ts'
@@ -415,14 +414,14 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
         id: `field:${field.key}`,
       })
     } else {
-      // A key is bullets from the first character, here and everywhere else:
-      // what is drawn is what ends up in a screen recording.
-      const shown = field.kind === 'secret' ? masked(value) : value
-      r.field(shown, Math.max(10, inner - label - 4), {
+      // A key is drawn as itself, here and everywhere else: it is in the
+      // config in plain text, and one you cannot read is one you cannot check
+      // against the console that issued it.
+      r.field(value, Math.max(10, inner - label - 4), {
         caret: focused,
         target: { kind: 'control', id: `field:${field.key}` },
         ...(value === '' && field.kind === 'secret' && field.have
-          ? { ghost: `kept — ${field.have}` }
+          ? { ghost: `in use — ${field.have}` }
           : value === '' && field.placeholder
             ? { ghost: field.placeholder }
             : {}),

@@ -114,7 +114,7 @@ export class Machine implements Subject {
           ...this.wire.state,
           panel: {
             ...settingsPanel(ACCOUNTS),
-            saved: `${panel.target}'s key is kept in ${where}.`,
+            saved: `${panel.target}'s key is written in ${where}, beside the account.`,
           },
         })
         await this.loadAccountViews()

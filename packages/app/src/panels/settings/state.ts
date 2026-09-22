@@ -286,24 +286,15 @@ function alsoWriting(panel: SettingsPanel, outcome: PanelOutcome, write: string)
  * editing. The panel only says what to copy — putting it on the clipboard is
  * the window's, as it is for the file editor.
  *
- * Never a credential. A secret is drawn as bullets so that a key on a screen
- * is not a key in a recording, and a copy is that same key somewhere nobody
- * can see it at all — a screen share, a clipboard manager, whatever pastes
- * next. That is deliberate and not an oversight: a key is pasted *in*, and
- * read back out by the thing that needs it, never by a person. So the field
- * says so rather than doing nothing, because a key that silently does nothing
- * reads as broken.
+ * A credential copies like anything else. It refused to, back when a key was
+ * kept somewhere nothing could read it back; now it is a line in a file you
+ * can open, so a rule here protected nothing and made moving a key to a
+ * second machine a retype.
  */
 function copyHere(panel: SettingsPanel, rows: readonly Setting[]): PanelOutcome {
   const path = panel.editing?.path ?? rows[panel.row]?.path
   const setting = rows.find((row) => row.path === path)
   if (!setting) return stay(panel)
-  if (setting.secret || setting.kept)
-    return stay({
-      ...panel,
-      saved: null,
-      error: 'A key is never copied out of Tade. Paste one in; nothing reads it back out.',
-    })
   const value = panel.editing?.text ?? setting.value
   if (value === '') return stay({ ...panel, saved: null, error: `${setting.title} is not set.` })
   // Which setting, never the text of it: the window reads the value back the

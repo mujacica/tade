@@ -276,7 +276,7 @@ export function brokeredConformance(name: string, made: () => readonly TadeExten
       }
     })
 
-    it('declares its credential as a secret, so it is never in the config', () => {
+    it('declares its credential as a secret, so the environment wins over it', () => {
       for (const extension of made()) {
         for (const setting of extension.settings ?? []) {
           expect(setting.kind, `${extension.name}.${setting.key}`).toBe('secret')

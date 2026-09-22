@@ -78,28 +78,18 @@ export interface Setting {
    * happen to say. Searching for the thing you want should find it.
    */
   keywords?: readonly string[]
-  /**
-   * Credential-shaped. It is shown in its own field, where you type it, and
-   * nowhere else: not in a list of settings, not in what is said back to you.
-   */
-  secret?: boolean
-  /**
-   * Not written to the config at all: kept under this name —
-   * `<extension>.<key>` — where Tade keeps credentials, which is the OS
-   * keychain or a file of its own written `0600`. Whoever saves it hands it
-   * to the secret store rather than to `writeSetting`.
-   */
-  kept?: string
 }
 
 /** A credential something asked for, as Settings offers a field for it. */
 export interface SecretRow {
-  /** What it is kept under: `jev.key`. */
-  name: string
+  /** The setting it is: `extensions.jev.key`. */
+  path: string
   /** What to call it: `Jev API key`. */
   title: string
   means: string
-  /** Where the one it has now is (`$TYPESAFE_API_KEY`), or null when there is none. */
+  /** What is written down now, as it is written: a key is drawn as itself. */
+  value: string
+  /** Where the one that is used comes from (`$TYPESAFE_API_KEY`), or null when there is none. */
   from: string | null
   placeholder?: string
   /** The environment variables it is read from first, for saying which wins. */
@@ -121,8 +111,9 @@ export interface SettingGroup {
  * Everything worth putting in front of somebody, grouped as they think of it.
  *
  * `secrets` are the credentials whatever is loaded has asked for — an
- * extension's key, a forge's token. They are settings like any other to
- * whoever draws them, and the one thing that is never in the config.
+ * extension's key, a forge's token. They are settings like any other, in the
+ * config like any other: what is special about them is only that an extension
+ * declares them rather than this table naming them.
  *
  * `levels` is how hard each harness can be told to think, by harness id, as
  * each declares it: offering a level the harness does not have is offering a
@@ -620,13 +611,11 @@ export function settingsOf(
           // endpoint: Sentry ships one in the JavaScript of every page it
           // watches, and all it grants is the right to send events to that
           // one project — no reading, no admin, nothing about the account
-          // behind it. Marked `secret` it got the worst of both: bullets in
-          // the field, so seventy characters somebody pasted could not be
-          // read back and checked for a typo, and `config.yaml` all the same,
-          // because a secret is the one thing `writeSetting` refuses and this
-          // was never kept where keys are kept. The real credential here is
-          // Sentry's auth token, which is `extensions.sentry.token` and is
-          // kept in the keychain.
+          // behind it. Marked `secret` it got bullets in the field, so seventy
+          // characters somebody pasted could not be read back and checked for
+          // a typo. The real credential here is Sentry's auth token, which is
+          // `extensions.sentry.token` — and which is now written in the same
+          // file, in the same plain sight, for the same reason.
           path: 'telemetry.dsn',
           title: 'Send to',
           means:
@@ -795,7 +784,7 @@ export function settingsOf(
             id: 'credentials',
             title: 'Keys and tokens',
             about:
-              'The keys Tade holds for you. Paste one in and it goes to your keychain — or, where there is none, to a file of Tade’s own that only you can read. Never into config.yaml, which people commit, never into the journal, and never drawn back. A variable in your shell still wins over anything pasted.',
+              'The keys Tade holds for you, written into config.yaml as you typed them — a file only you can read. They are shown as themselves so you can check one against the console that issued it. A variable in your shell still wins over anything pasted.',
             keywords: [
               'key',
               'keys',
@@ -803,29 +792,28 @@ export function settingsOf(
               'secret',
               'credential',
               'api key',
-              'keychain',
               'paste',
               'password',
             ],
             settings: secrets.map(
               (secret): Setting => ({
-                path: `secrets.${secret.name}`,
+                path: secret.path,
                 title: secret.title,
                 means: secret.means,
-                // Never what it is: only that there is one, and where.
-                value: '',
-                fallback: secret.from ? `kept — ${secret.from}` : 'not set',
+                value: secret.value,
+                // What is *used*, which is the environment where there is one:
+                // a field that looks empty while an agent authenticates fine is
+                // the question this answers before anybody asks it.
+                fallback: secret.from ? `in use — ${secret.from}` : 'not set',
                 type: { kind: 'text', placeholder: secret.placeholder || 'paste it here' },
                 live: true,
-                secret: true,
-                kept: secret.name,
                 keywords: [
                   'key',
                   'token',
                   'secret',
                   'credential',
                   ...(secret.variables ?? []),
-                  secret.name,
+                  secret.path,
                 ],
               }),
             ),
@@ -1020,26 +1008,9 @@ export function settingFound(
   return words.every((word) => haystack.includes(word.toLowerCase()))
 }
 
-/**
- * What a setting may be shown as away from the field it is typed into. A
- * credential is never repeated — a key printed by `tade config`, read back
- * after saving, or scrolled past in a list is a key in somebody's scrollback
- * — and a credential Tade holds is one it keeps where keys are kept, so it
- * has no value here to repeat in the first place.
- *
- * Which is the whole of the rule now: it used to keep the tail of a DSN so
- * one project could be told from another, and a DSN is not a credential —
- * it is an ingest endpoint, drawn as itself in its own field like any other
- * setting.
- */
-export function shownValue(setting: Setting, value = setting.value): string {
-  if (!setting.secret || value === '') return value
-  return '…'
-}
-
 /** One line per setting, for a list you choose from. */
 export function describeSetting(setting: Setting): string {
-  const shown = setting.value === '' ? `(${setting.fallback})` : shownValue(setting)
+  const shown = setting.value === '' ? `(${setting.fallback})` : setting.value
   return `${setting.title.padEnd(30)} ${shown}`
 }
 

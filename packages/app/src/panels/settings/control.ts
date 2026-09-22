@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { masked, type Setting, shownValue } from '@tade/core'
+import type { Setting } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { checkTalkKey, keyCaps, TALK_SUGGESTIONS } from '../../keys.ts'
 import { box, type Drawn, keysWidth, Row } from '../../ui.ts'
@@ -135,14 +135,13 @@ export function control(
     case 'text': {
       const target = { kind: 'control' as const, id: `edit:${setting.path}` }
       const width = fieldWidth(room)
-      // A credential is bullets as it is typed and a sentence about where it
-      // is when it is not: a key on a screen is a key in a recording.
+      // A key is drawn like every other value. Bullets here meant seventy
+      // pasted characters could not be read back and checked against the
+      // console that issued them, which is what they were for.
       if (panel.editing?.path === setting.path) {
-        const typed = setting.secret ? masked(panel.editing.text) : panel.editing.text
-        row.field(typed, width, { caret: true, target })
+        row.field(panel.editing.text, width, { caret: true, target })
       } else {
-        const shown = setting.secret ? shownValue(setting) : value
-        row.field(shown || setting.fallback, width, { hint: !shown, target })
+        row.field(value || setting.fallback, width, { hint: !value, target })
       }
       return
     }
@@ -192,12 +191,12 @@ export function fieldWidth(room: number): number {
  * sentence about it — the sentence is still what the search box matches on
  * and still what `tade config` prints.
  *
- * Never a credential: one Tade holds is kept where keys are kept and has no
- * value here at all, and writing one out under a field that draws it as
- * bullets would undo the whole point of the bullets.
+ * A credential is one of them. It is a long string in a narrow field, which
+ * is exactly the case this was written for: an API key that cannot be read
+ * back in full is one that cannot be checked for the character that is wrong.
  */
 export function valueTooWide(setting: Setting, panel: SettingsPanel, room: number): string | null {
-  if (setting.type.kind !== 'text' || setting.secret || setting.kept) return null
+  if (setting.type.kind !== 'text') return null
   const text = panel.editing?.path === setting.path ? panel.editing.text : setting.value
   if (text === '') return null
   // The caret takes a cell of the field while you are typing in it.

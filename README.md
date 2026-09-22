@@ -199,7 +199,8 @@ looking at can still reach you — and be answered from where you are.
 Checks, Dependencies, Jev, Reviews, Sentry and Resources ship with Tade; yours go beside them in
 `~/.tade/extensions/`. An extension brings tools the orchestrator and your agents can both call,
 settings and watches. Being there is not being on: one of yours is listed and off until you turn it
-on. Keys are pasted in and kept in your keychain, never in a file you might commit.
+on. Keys are pasted in as text and written into `~/.tade/config.yaml` — your own file, readable
+only by you — so you can read one back and check it.
 
 Every one of them is down the side, searchable by anything it would say — and the one you pick says
 what it is for in the work you actually do, every tool it brings with what each is for, what it

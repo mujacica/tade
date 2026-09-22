@@ -450,7 +450,7 @@ describe('setting Sentry up', () => {
     })
     expect(loaded.list()[0]).toMatchObject({ state: 'needs setup' })
     const setup = loaded.setupOf('sentry')
-    expect(setup?.guide[0]).toContain('found in $SENTRY_AUTH_TOKEN')
+    expect(setup?.guide[0]).toContain('in use from $SENTRY_AUTH_TOKEN')
     expect(setup?.fields.map((field) => field.key)).toEqual([
       'token',
       'org',
@@ -458,8 +458,8 @@ describe('setting Sentry up', () => {
       'url',
       'brief',
     ])
-    // The token is there to paste one in, and says where the one in use is
-    // without ever handing the value back to what draws it.
+    // The token is there to paste one in: nothing is written here, and what
+    // is used is the variable, which is what `have` says.
     expect(setup?.fields[0]).toMatchObject({
       kind: 'secret',
       value: '',

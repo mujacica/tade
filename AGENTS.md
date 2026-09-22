@@ -441,8 +441,9 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **What an extension is for is the extension's to say** (`workflow`), and the page shows it
   unedited. Extensions is the shape Settings has — a search and a list down the side, one of them
   in full beside it — and what that side says is its own words about how it is used, every tool it
-  brings with what each is for, what it offers to watch and what it can be given, with a credential
-  said as a place and never drawn back. A page that says only what something *is* is how an
+  brings with what each is for, what it offers to watch and what it can be given, a credential
+  among them, drawn as itself — except where a variable in the shell beats it, which is said
+  instead, because the value beside it would not be the one in use. A page that says only what something *is* is how an
   extension with eight tools gets taken for the one watch it happens to show: the count in a
   heading is not the list. One that is off or broken is listed with nothing but its name, because
   it was never imported, and the page says that rather than inventing the rest.
@@ -487,7 +488,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   first agent after a restart has the tools. An enabled server with no cache offers none yet and
   says so; a file that will not parse is no cache rather than a throw; nothing is ever written from
   anything but a real answer. `ready()` answers from the declaration, the filesystem and the
-  credential store, never from a `tools/list`.
+  settings, never from a `tools/list`.
 - **The broker is a gate nothing can go around.** A call has to come back into the window, so a
   server's `tools` allow-list, a credential that has gone and a server that was turned off are
   enforced at the moment of the call, whatever a harness thinks it has registered. A server that
@@ -507,7 +508,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Over HTTP the credential travels and nothing else does.** One transport speaks both shapes —
   streamable (every message a POST) and the older stream-and-post-box, registered as `sse`, which
   is a flag rather than something sniffed from an address — and the one copy of the key it is given
-  goes into the header `auth` names, never into a file, a log or anything drawn. A credential the
+  goes into the header `auth` names and nowhere else: not into a file of its own, not into a log. A credential the
   server would not take is said as that rather than as a number. What every transport says and how
   it reads what comes back is one pure file (`packages/mcp/core/src/protocol.ts`), table-tested,
   because two hand-written copies of "what a tool list looks like" drift the first time a server
@@ -573,20 +574,36 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Tade stays light, and proves it.** What the window polls is cheap and shared — one `ps` for
   the whole process table, cached between askers — and anything on a timer or drawn every frame has
   a performance test. The resources extension is how you see what Tade and its agents cost.
+- **Nothing the window runs waits on a child process.** It draws four times a second and answers
+  keys in between, on one thread: a program it waits on stops both, and no key ends that wait.
+  Saving a key used to be `execFileSync('security', …)` — read again on *every frame* while the
+  page was open — so a keychain that wanted a word about it stopped the whole window, and the only
+  way out was killing Tade. So everything in the packages the window loads spawns asynchronously
+  and every wait has a deadline (`inTime`), including the one nobody thinks of as a wait: an
+  extension's `ready()`, which is somebody else's code and is awaited from the Settings page. A
+  standalone script the window never imports is its own process and may be simple; it is named in
+  `test/modularity.test.ts`, which holds the rest to it — a guard, not a habit.
 - **Nothing inherited is written to disk.** A lane's spec keeps only the environment Tade set
   (`withoutInherited`); the rest is everyone's shell environment, tokens included, and a relaunch
   inherits it again. Tade's own files that could hold such things are written `0600`.
-- **A key is pasted in, and kept where keys are kept.** Refusing credentials on principle — a key
-  typed into a wizard is a key in a file — only moved the job to everybody's shell profile, so the
-  worry is answered instead of obeyed: anything that needs one declares a `secret` setting
-  (`kind: 'secret'`, with the environment variable it has always read as `env`), and gets entry,
-  masking and storage for it. What is pasted goes to the OS keychain (`Secrets`,
-  `core/src/secrets.ts`), or to `<home>/secrets.json` written `0600` where there is none — never to
-  `config.yaml`, which `writeSetting` refuses outright, and one written there by hand is reported
-  as not read rather than quietly working. **The environment always wins** (`ctx.secret`), so a
-  machine that exports a variable today behaves exactly as it does. It is never drawn back:
-  bullets in the field, a place rather than a value anywhere else (`masked`, `shownValue`), never
-  in the journal, and taken out of anything telemetry would send.
+- **A key is a setting, written in the config in plain sight.** Anything that needs one declares a
+  `secret` setting (`kind: 'secret'`, with the environment variable it has always read as `env`),
+  and what is pasted is written to `extensions.<name>.<key>` in `config.yaml` — as typed, drawn as
+  itself, copyable — like every other setting, by `writeSetting`, which used to refuse exactly
+  this. An account's API key is `accounts.<name>.key`, the same way. Twice before, the worry about
+  a key in a file was obeyed rather than answered: first by refusing credentials outright, which
+  moved the job to everybody's shell profile, then by the OS keychain, which put it where nobody
+  could look — a pasted key could not be read back and checked for a typo, could not be copied to
+  another machine, and on a Mac whose keychain wanted a word about it could not be written at all
+  without `security` stopping to ask, which is a question put to a window that has stopped drawing.
+  What answers the worry is the file, not the hiding: `config.yaml` lives in `TADE_HOME`, is
+  written `0600` and narrowed to its owner on every write (`ownerOnly`), and is not a project file
+  anybody commits. **The environment always wins** (`ctx.secret`, `findSecret` — one rule, one
+  place), so a machine that exports a variable today behaves exactly as it does, and a field whose
+  variable beats it says so where it is saved. A key is still never in the journal and never in
+  anything telemetry would send. Nothing is kept anywhere else: there is no keychain, no
+  `secrets.json` and no vault to choose between — a key pasted into an older Tade has to be pasted
+  again.
 - **Nothing goes wrong silently.** A refused request, a retry, an extension that threw, a turn
   that ended with nothing said — each reaches the orchestrator's transcript in words someone can act
   on. A conversation that goes quiet is the worst failure it has, because it looks like thinking.
@@ -603,13 +620,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   in `config.yaml`, drawn as itself: Sentry publishes a DSN in the JavaScript of every page it
   watches, and all one grants is the right to send events to one project. Marked `secret` it got
   the worst of both — bullets in the field, so seventy characters somebody pasted could not be read
-  back and checked for a typo, and the file all the same, because a credential is the one thing
-  `writeSetting` refuses and this was never kept where keys are kept. `$TADE_TELEMETRY_DSN` is the
-  fallback *under* the setting and never over it, and the field's own fallback says so: a DSN typed
-  into Settings is the one that is used, because a setting Tade accepts and ignores is worse than
-  one it does not have. What is genuinely a credential is Sentry's auth token, the forge token and
-  an extension's key — each `kind: 'secret'`, each in the keychain, each with the environment
-  winning, which is the rule for a key and not for a config value.
+  back and checked for a typo. `$TADE_TELEMETRY_DSN` is the fallback *under* the setting and never
+  over it, and the field's own fallback says so: a DSN typed into Settings is the one that is used,
+  because a setting Tade accepts and ignores is worse than one it does not have. What is genuinely
+  a credential — Sentry's auth token, the forge token, an extension's key — is `kind: 'secret'` and
+  now lives in the same file, drawn the same way, with the environment winning over it; what still
+  separates the two is that nothing wins over a DSN and that a key is a key.
 - **Leaving a field saves it; escape is how you throw it away.** The Settings page says "Saved as
   you change it", and every other control keeps that promise the moment it is pressed — a switch, a
   radio, an arrow. A field wrote on enter and on nothing else, so clicking Done, the next setting,

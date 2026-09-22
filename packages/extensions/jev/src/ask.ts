@@ -19,8 +19,8 @@ export function judgeName(ctx: ExtensionContext): string {
 
 /**
  * The key: the environment first — `$TYPESAFE_API_KEY`, or whatever `key_env`
- * names — then the one somebody pasted into Tade, which is kept in the OS
- * keychain or a file of Tade's own. Never from the config, which people commit.
+ * names — then the one somebody pasted into Tade, which is written in
+ * `config.yaml` like every other setting.
  */
 export function keyOf(ctx: ExtensionContext): string {
   return ctx.secret('key')?.value ?? ''

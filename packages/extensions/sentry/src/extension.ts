@@ -192,7 +192,7 @@ export const sentryExtension: TadeExtension = {
     'Turns an error into work (sentry_fix): an agent with the stack already in hand.',
     'Lets new errors find you: the new-errors watch starts an agent on each.',
     'Says something back — resolve, ignore, assign — only when you asked for it.',
-    'The token is kept in your keychain, never in `config.yaml`.',
+    'The token is written into `config.yaml`, which only you can read.',
   ],
   root: ROOT,
   settings: [
@@ -202,7 +202,7 @@ export const sentryExtension: TadeExtension = {
       env: ['SENTRY_AUTH_TOKEN', 'SENTRY_TOKEN'],
       envFrom: 'token_env',
       means:
-        'a user auth token (org:read, project:read, event:read, event:write). Paste it here and Tade keeps it in the keychain, never in the config; $SENTRY_AUTH_TOKEN still wins',
+        'a user auth token (org:read, project:read, event:read, event:write). Paste it here and Tade writes it into config.yaml, which only you can read; $SENTRY_AUTH_TOKEN still wins',
     },
     {
       key: 'org',
@@ -617,8 +617,8 @@ export const sentryExtension: TadeExtension = {
     return {
       guide: [
         found.token
-          ? `**Token:** found in ${found.token.from}. It is never written to your config and never shown again.`
-          : `**Token:** create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and paste it below — Tade keeps it in your keychain, never in \`config.yaml\`. Or run \`sentry-cli login\` (it keeps one in \`~/.sentryclirc\`, where Tade reads it), or \`export ${variable}=…\` in your shell, which wins over anything pasted.`,
+          ? `**Token:** in use from ${found.token.from}. A pasted one is written in \`config.yaml\`, which only you can read.`
+          : `**Token:** create a user auth token with the scopes \`org:read\`, \`project:read\`, \`event:read\` and \`event:write\`, and paste it below — Tade writes it into \`config.yaml\`, your own file, where you can read it back. Or run \`sentry-cli login\` (it keeps one in \`~/.sentryclirc\`, where Tade reads it), or \`export ${variable}=…\` in your shell, which wins over anything pasted.`,
         found.org
           ? `**Organization:** ${found.org}.`
           : '**Organization:** type its slug below — the part after `sentry.io/organizations/` — or, with a token, choose from the ones it can see.',
@@ -631,7 +631,7 @@ export const sentryExtension: TadeExtension = {
           label: 'Auth token',
           kind: 'secret',
           placeholder: 'sntryu_…',
-          help: 'kept in the keychain; $SENTRY_AUTH_TOKEN wins when it is set',
+          help: 'written into your config; $SENTRY_AUTH_TOKEN wins when it is set',
         },
         {
           key: 'org',

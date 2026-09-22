@@ -42,8 +42,9 @@ export interface SetupFieldView {
   /** What it offers to choose from, once looked up. */
   choices: readonly string[]
   /**
-   * For a secret: where the key it has now is (`$TYPESAFE_API_KEY`, `the
-   * macOS keychain`), or empty. Never the key itself — nothing draws that.
+   * For a secret: where the one that is used comes from — `$TYPESAFE_API_KEY`
+   * or `config.yaml` — or empty. The value is in `value` like any other
+   * field's; this says which of the two the extension will actually read.
    */
   have?: string
 }

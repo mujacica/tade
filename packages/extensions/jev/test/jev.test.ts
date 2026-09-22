@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { Secrets } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
@@ -75,7 +74,6 @@ function host(options: {
   fetch?: typeof fetch
   /** A fixed instant, or `Date.now` where the fixture's own commits are the clock. */
   now?: number | (() => number)
-  secrets?: Secrets
 }) {
   return ExtensionHost.load({
     builtin: [jevExtension],
@@ -87,7 +85,6 @@ function host(options: {
     env: options.env ?? {},
     fetch: options.fetch ?? offline,
     now: clock(options.now),
-    ...(options.secrets ? { secrets: options.secrets } : {}),
   })
 }
 
@@ -131,26 +128,29 @@ describe('with no key', () => {
 
   it('takes a key pasted into Tade, and still lets the shell win', async () => {
     const home = tmp('tade-jev-')
-    const secrets = Secrets.open({ home, platform: 'linux' })
-    const loaded = await host({ home, env: {}, secrets })
+    const loaded = await host({ home, env: {} })
     expect(loaded.list()[0]).toMatchObject({ state: 'needs setup' })
-    // Pasted — not into the config, which is never read for it.
-    const saved = loaded.saveSecret('jev', 'key', 'tsk_0123456789')
-    expect(saved.where).toContain('secrets.json')
-    await loaded.reconfigure({ jev: {} })
+    // Pasted into the field, which writes it as the setting it is.
+    await loaded.reconfigure({ jev: { key: 'tsk_0123456789' } })
     expect(loaded.list()[0]).toMatchObject({ state: 'ready', problem: null })
     const setup = loaded.setupOf('jev')
-    expect(setup?.guide[0]).toContain('found in')
+    expect(setup?.guide[0]).toContain('in use from config.yaml')
+    // The guide says where it is; the field it is typed into says what it is,
+    // because a key you cannot read is a key you cannot check.
     expect(setup?.guide.join(' ')).not.toContain('tsk_0123456789')
-    expect(setup?.fields[0]).toMatchObject({ key: 'key', kind: 'secret', value: '' })
+    expect(setup?.fields[0]).toMatchObject({
+      key: 'key',
+      kind: 'secret',
+      value: 'tsk_0123456789',
+    })
 
     // And a variable in the shell is what is used, whatever was pasted.
     const exported = await host({
       home,
+      settings: { key: 'tsk_0123456789' },
       env: { TYPESAFE_API_KEY: 'from-the-shell' },
-      secrets,
     })
-    expect(exported.setupOf('jev')?.guide[0]).toContain('found in $TYPESAFE_API_KEY')
+    expect(exported.setupOf('jev')?.guide[0]).toContain('in use from $TYPESAFE_API_KEY')
   })
 
   it('is ready with a judge that asks nobody, which nothing chooses for you', async () => {

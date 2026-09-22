@@ -1,6 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { Secrets } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { extensionConformance } from '../src/conformance.ts'
@@ -79,14 +78,14 @@ const projects = { shop: { root: '/src/shop' } }
 async function host(
   settings: Record<string, unknown> = { city: 'Vienna' },
   extra: Partial<TadeExtension> = {},
-  more: { env?: Record<string, string | undefined>; secrets?: Secrets } = {},
+  more: { env?: Record<string, string | undefined>; readyMs?: number } = {},
 ) {
   return ExtensionHost.load({
     builtin: [weather(extra)],
     config: { extensions: { weather: settings }, projects },
     home: '/home',
     ...(more.env ? { env: more.env } : {}),
-    ...(more.secrets ? { secrets: more.secrets } : {}),
+    ...(more.readyMs === undefined ? {} : { readyMs: more.readyMs }),
   })
 }
 
@@ -677,80 +676,89 @@ describe('changing extensions while the window is open', () => {
 })
 
 describe('a key an extension asks for', () => {
-  const keys = () => Secrets.open({ home: tmp('tade-secrets-'), platform: 'linux' })
-
-  it('is read from the environment first, whatever has been pasted', async () => {
-    const secrets = keys()
-    secrets.set('weather.key', 'pasted')
-    const loaded = await host({ city: 'Vienna' }, withKey(), {
-      secrets,
+  it('is read from the environment first, whatever is written down', async () => {
+    const loaded = await host({ city: 'Vienna', key: 'pasted' }, withKey(), {
       env: { WEATHER_API_KEY: 'from-the-shell' },
     })
     expect(loaded.list()[0]).toMatchObject({ state: 'ready' })
     expect(loaded.setupOf('weather')?.fields[0]).toMatchObject({
       kind: 'secret',
-      // Never the key: the field it is typed into starts empty, and what is
-      // there now is a place.
-      value: '',
+      // What is written, drawn as itself — and which of the two is used.
+      value: 'pasted',
       have: '$WEATHER_API_KEY',
     })
     // And the variable a setting names comes before the declared one.
     const named = await host({ city: 'Vienna', key_env: 'MY_KEY' }, withKey(), {
-      secrets,
       env: { MY_KEY: 'mine', WEATHER_API_KEY: 'theirs' },
     })
     expect(named.setupOf('weather')?.fields[0]?.have).toBe('$MY_KEY')
   })
 
-  it('is kept where Tade keeps keys, and used when the environment has none', async () => {
-    const secrets = keys()
-    const loaded = await host({ city: 'Vienna' }, withKey(), { secrets, env: {} })
+  it('is the setting itself, and works the moment it is written', async () => {
+    const loaded = await host({ city: 'Vienna' }, withKey(), { env: {} })
     expect(loaded.list()[0]).toMatchObject({ state: 'needs setup', problem: 'weather needs a key' })
-    const saved = loaded.saveSecret('weather', 'key', '  wk_0123456789  ')
-    expect(saved.where).toContain('secrets.json')
-    // Nothing else is set: the extension works because the key was pasted.
-    expect(secrets.get('weather.key')).toBe('wk_0123456789')
-    await loaded.reconfigure({ weather: { city: 'Vienna' } })
+    // What a form makes of a pasted key: the value, to write as the setting.
+    expect(settingFrom('  wk_0123456789  ', 'secret')).toBe('wk_0123456789')
+    await loaded.reconfigure({ weather: { city: 'Vienna', key: 'wk_0123456789' } })
     expect(loaded.list()[0]).toMatchObject({ state: 'ready' })
-    expect(loaded.setupOf('weather')?.fields[0]?.have).toContain('secrets.json')
-    // Saved while a variable is set: kept, and told which of the two wins.
+    expect(loaded.setupOf('weather')?.fields[0]?.have).toBe('config.yaml')
+    expect(loaded.secretBeatenBy('weather', 'key')).toBeNull()
+    // Written while a variable is set: saved, and which of the two wins is
+    // the one thing about a key that cannot be read off the page.
     const shadowed = await host({ city: 'Vienna' }, withKey(), {
-      secrets,
       env: { WEATHER_API_KEY: 'from-the-shell' },
     })
-    expect(shadowed.saveSecret('weather', 'key', 'wk_other').beaten).toBe('$WEATHER_API_KEY')
+    expect(shadowed.secretBeatenBy('weather', 'key')).toBe('$WEATHER_API_KEY')
   })
 
-  it('is listed for whoever draws a field for it, without its value', async () => {
-    const secrets = keys()
-    secrets.set('weather.key', 'wk_0123456789')
-    const loaded = await host({ city: 'Vienna' }, withKey(), { secrets, env: {} })
+  it('is listed for whoever draws a field for it, as what it is', async () => {
+    const loaded = await host({ city: 'Vienna', key: 'wk_0123456789' }, withKey(), { env: {} })
     const [declared] = loaded.secrets()
     expect(declared).toMatchObject({
-      name: 'weather.key',
+      path: 'extensions.weather.key',
       extension: 'weather',
       key: 'key',
       label: 'API key',
+      value: 'wk_0123456789',
+      from: 'config.yaml',
       variables: ['WEATHER_API_KEY'],
     })
-    expect(declared?.from).toContain('secrets.json')
-    expect(JSON.stringify(loaded.secrets())).not.toContain('wk_0123456789')
   })
 
-  it('is never read out of the config, and says so when somebody puts it there', async () => {
-    const secrets = keys()
-    const loaded = await host({ city: 'Vienna', key: 'wk_in_the_config' }, withKey(), {
-      secrets,
-      env: {},
-    })
-    // A key in config.yaml is a key in a repository: it is not read, and the
-    // panel says as much rather than letting it look like it works.
-    expect(loaded.list()[0]).toMatchObject({
+  it('does not hang the window when the extension will not say if it works', async () => {
+    // What a key being saved waits on is `ready()`, and an extension is
+    // somebody else's code. One that never answers used to be waited on for
+    // as long as it liked — the window drew, and the page said nothing at
+    // all, which reads exactly like a save that was lost.
+    const never = await host(
+      { city: 'Vienna', key: 'wk_0123456789' },
+      withKey({ ready: () => new Promise<string | null>(() => {}) }) as Partial<TadeExtension>,
+      { readyMs: 50 },
+    )
+    expect(never.list()[0]).toMatchObject({ state: 'needs setup' })
+    expect(never.list()[0]?.problem).toContain('did not say whether it is ready')
+  })
+
+  it('says so when the extension answers by throwing', async () => {
+    const angry = await host(
+      { city: 'Vienna' },
+      withKey({
+        ready: () => {
+          throw new Error('the forecast service would not take that key')
+        },
+      }) as Partial<TadeExtension>,
+    )
+    expect(angry.list()[0]).toMatchObject({
       state: 'needs setup',
-      unknownSettings: ['key'],
+      problem: 'the forecast service would not take that key',
     })
-    // Nor can a form save one there by accident.
-    expect(settingFrom('wk_0123456789', 'secret')).toBeUndefined()
+  })
+
+  it('is not reported as a setting nobody reads', async () => {
+    const loaded = await host({ city: 'Vienna', key: 'wk_in_the_config' }, withKey(), { env: {} })
+    // It used to be: a key in the config was one the keychain would not read.
+    // Now it is the key that is used, and the extension is ready on it.
+    expect(loaded.list()[0]).toMatchObject({ state: 'ready', unknownSettings: [] })
   })
 
   it('refuses to hand an extension a secret it never declared', async () => {

@@ -33,7 +33,6 @@ import {
   runtimeDir,
   type SandboxKind,
   type Schedule,
-  Secrets,
   type StartCondition,
   sinceLastLook,
   spendFrom,
@@ -1891,7 +1890,6 @@ export class Workbench {
       )
     }
     if (account.kind === 'subscription') await adapter.signOut().catch(() => {})
-    else Secrets.open({ home: this.home }).clear(accountKey(name))
     await rm(join(this.home, 'accounts', name), { recursive: true, force: true })
     if (this.config.workers.accounts[account.harness] === name) {
       this.writeConfig(`workers.accounts.${account.harness}`, undefined)
@@ -1976,12 +1974,20 @@ export class Workbench {
     })
   }
 
-  /** Keep an API-key account's key where Tade keeps keys, and say where it went. */
+  /**
+   * Write an API-key account's key into the config, and say where it went.
+   *
+   * The harness is still handed a command that prints it rather than the key
+   * itself — a key in a launch line is a key in the process table — but the
+   * key is here, in plain sight, next to the account it belongs to. Taking
+   * the account away takes it with it: it is one of the account's own fields.
+   */
   saveAccountKey(name: string, key: string): string {
     if (this.config.accounts[name]?.kind !== 'api-key') {
       throw new Error(`${name} is not an account paid for with an API key`)
     }
-    return Secrets.open({ home: this.home }).set(accountKey(name), key)
+    this.writeConfig(accountKey(name), key.trim() === '' ? undefined : key.trim())
+    return 'config.yaml'
   }
 
   /** Write one setting and read the config back, so what was written is what runs. */

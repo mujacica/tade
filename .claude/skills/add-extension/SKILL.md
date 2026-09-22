@@ -57,12 +57,14 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
 - **A credential is a `secret` setting, never a string one.** Declare it once —
   `{ key: 'token', kind: 'secret', env: 'SENTRY_AUTH_TOKEN', envFrom: 'token_env', means: … }` — and
   read it with `ctx.secret('token')`, which answers `{ value, from }` or null. Tade gives you the
-  rest: a masked field in your `setup` (`kind: 'secret'`), a row in Settings › Keys and tokens, and
-  storage in the OS keychain or a `0600` file of its own. The environment wins over what was
-  pasted, so anything that worked before still does; a secret is **never** read from the config, and
-  one written there is listed as not read. Never put a credential in `settings` as a string, never
-  write one with `writeSetting` (it refuses), and never put its value in an answer, a log line or a
-  `ready()` message — say where it came from (`found.from`), which is a place, not a value.
+  rest: a field in your `setup` (`kind: 'secret'`), a row in Settings › Keys and tokens, and the
+  setting written into `config.yaml` under `extensions.<name>.<key>` — in plain text, in a file
+  that is `0600` and one person's, so a pasted key can be read back and checked. What marks it as a
+  secret is that the environment wins over it (so anything that worked before still does) and that
+  you read it through `ctx.secret` rather than out of `ctx.settings`. Never put a credential in
+  `settings` as a string — the field, the Settings row and the environment rule all hang off
+  `kind: 'secret'` — and never put its value in an answer, a log line or a `ready()` message: say
+  where it came from (`found.from`), which is a place, not a value.
 - **Answers are markdown for a reader** — a model or a person. Put URLs in `links` so they are
   written out and clickable; add `linkers` for ids that should open somewhere (Sentry short ids).
 - **Throw with a reason someone can act on.** The host turns it into the tool's failure, which the

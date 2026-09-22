@@ -20,7 +20,7 @@
    │                        ▕│   reads the agents that keep making the same failing call, and says which           █│   
    │                        ▕│                                                                                     █│   
    │                        ▕│ OPTIONS  Settings…                                                                  █│   
-   │                        ▕│ API key             kept in the macOS keychain                                      █│   
+   │                        ▕│ API key             tsk_0123456789                                                  █│   
 ━  │                        ▕│ Version             jev-1.13.0                                                      █│  ━
    │                        ▕│ Projects            not set                                                         █│   
    │                        ▕│ Report at           0.6                                                             █│  ▕

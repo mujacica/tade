@@ -5,7 +5,6 @@ import {
   HARNESS_CHOICES,
   loadConfig,
   parseSetting,
-  type Setting,
   type SettingGroup,
   settingsOf,
   type ThinkingLevel,
@@ -36,9 +35,9 @@ import {
 // A setting Tade accepts and ignores is worse than one it does not have, so
 // every write here reads the config back and uses what loaded: a value the
 // schema refuses is put back as it was, with the reason on the page, rather
-// than left in a file Tade will not open next time. And a credential never
-// goes near the config — it is kept where keys are kept, and what is said
-// back says where it went and never the key.
+// than left in a file Tade will not open next time. A credential goes the
+// same way as everything else — it is a setting — and what is said back says
+// whether a variable in your shell still wins over what you just typed.
 
 /** What this subject needs from the rest of the window. */
 export interface SettingsDeps {
@@ -174,9 +173,10 @@ export class Settings implements Subject {
    */
   rows(): SettingGroup[] {
     const secrets = (this.wire.opts.extensions?.secrets() ?? []).map((one) => ({
-      name: one.name,
+      path: one.path,
       title: `${one.title} ${one.label.toLowerCase()}`,
       means: one.means,
+      value: one.value,
       from: one.from,
       placeholder: one.placeholder,
       variables: one.variables,
@@ -241,15 +241,12 @@ export class Settings implements Subject {
       .flatMap((also) => rows.filter((one) => one.path === also))
       .filter((one) => one.value !== '')
       .map((one) => one.title.toLowerCase())
-    // A credential never goes near the config, so it never goes near the
-    // read-change-write below either: it is kept, and the extension asked
-    // again whether it can work now.
-    if (setting?.kept) {
-      await this.saveKey(panel, setting, value)
-      return
-    }
-    const before = readFileSync(this.path, 'utf8')
+    let before: string | null = null
     try {
+      // Read inside the try: a config that cannot be read at all — a
+      // directory where the file should be, a permission somebody changed —
+      // is a reason on the page, not a throw out of the keyboard handler.
+      before = readFileSync(this.path, 'utf8')
       if (setting?.type.kind === 'key') {
         const check = checkTalkKey(value, setting.type.printable === true)
         if (!check.ok) throw new Error(check.reason)
@@ -277,7 +274,7 @@ export class Settings implements Subject {
       }
       const loaded = await loadConfig(this.path)
       if (!loaded.ok) {
-        writeFileSync(this.path, before)
+        if (before !== null) writeFileSync(this.path, before)
         throw new Error(loaded.issues[0]?.message ?? 'the config would not load with that')
       }
       this.use(loaded.config)
@@ -307,7 +304,7 @@ export class Settings implements Subject {
           ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
-            : `Saved. It applies now.${reset}`
+            : `Saved. It applies now.${reset}${this.aboutKey(path, value)}`
       this.wire.put({ ...this.wire.state, panel: { ...panel, saved: told, error: null } })
     } catch (err) {
       this.wire.put({ ...this.wire.state, panel: { ...panel, saved: null, error: why(err) } })
@@ -320,17 +317,15 @@ export class Settings implements Subject {
    * strip under it: the page is over the window, so a notice down there is a
    * notice nobody watching this field can see.
    *
-   * The refusal is `copyHere`'s and stays there — it is the rule, and it is
-   * tested as one. This end reads the setting again all the same, because a
-   * credential is the one thing worth refusing twice: anything that ever
-   * reached here with a key in it would have put that key on the clipboard,
-   * and nothing can take it off again.
+   * A key copies like anything else now. It is in a file you can open, so a
+   * rule against copying it out of the window protected nothing and made
+   * moving one to a second machine a retype.
    */
   private async copied(panel: SettingsPanel, path: string): Promise<void> {
     const setting = this.rows()
       .flatMap((group) => group.settings)
       .find((one) => one.path === path)
-    if (!setting || setting.secret === true || setting.kept !== undefined) return
+    if (!setting) return
     const value = panel.editing?.path === path ? panel.editing.text : setting.value
     if (value === '') return
     const done = await this.deps.copy(value)
@@ -342,31 +337,22 @@ export class Settings implements Subject {
   }
 
   /**
-   * Keep a key somebody pasted into Settings. It goes where Tade keeps
-   * credentials — never the config — and what is said back says where it
-   * went, whether the environment still beats it, and never the key.
+   * What to say about a credential that has just been written: which variable
+   * beats it, if one does. A key that is saved and not used is the worst of
+   * both, and it is the one thing about a key that cannot be seen on the page.
    */
-  private async saveKey(panel: SettingsPanel, setting: Setting, value: string): Promise<void> {
-    const kept = setting.kept ?? ''
-    const [extension, ...rest] = kept.split('.')
-    try {
-      const host = this.wire.opts.extensions
-      if (!host || !extension || rest.length === 0) throw new Error(`nowhere to keep ${kept}`)
-      const saved = host.saveSecret(extension, rest.join('.'), value)
-      // Its extension may have been waiting on exactly this to be ready, and
-      // where its key is is what the Extensions page says about it.
-      await host.reconfigure(this.wire.opts.config.extensions)
-      this.deps.setupChanged()
-      const told =
-        value.trim() === ''
-          ? `${setting.title} is cleared.`
-          : saved.beaten
-            ? `Saved in ${saved.where} — but ${saved.beaten} is set, and that is what is used.`
-            : `Saved in ${saved.where}. It applies now.`
-      this.wire.put({ ...this.wire.state, panel: { ...panel, saved: told, error: null } })
-    } catch (err) {
-      this.wire.put({ ...this.wire.state, panel: { ...panel, saved: null, error: why(err) } })
-    }
-    this.wire.draw()
+  private aboutKey(path: string, value: string): string {
+    if (!path.startsWith('extensions.') || value.trim() === '') return ''
+    const [, extension, ...rest] = path.split('.')
+    if (!extension || rest.length === 0) return ''
+    const beaten = (() => {
+      try {
+        return this.wire.opts.extensions?.secretBeatenBy(extension, rest.join('.')) ?? null
+      } catch {
+        // Not a declared credential after all: nothing to say about it.
+        return null
+      }
+    })()
+    return beaten ? ` ${beaten} is set, though, and that is what is used.` : ''
   }
 }

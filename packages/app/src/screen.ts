@@ -91,8 +91,6 @@ export interface Prompt {
   fallback: string
   /** Answers are yes/no rather than free text. */
   confirm: boolean
-  /** A credential: drawn as bullets while it is typed, and never said back. */
-  masked?: boolean
 }
 
 export interface Menu {
@@ -416,7 +414,7 @@ function drawQuestion(
     } else {
       // A key is bullets from the first character: what is on the screen of
       // a setup wizard is on the screen of whoever is watching it.
-      const typed = prompt.masked ? '•'.repeat(Math.min(40, [...state.typed].length)) : state.typed
+      const typed = state.typed
       const shown = `${prompt.question}${prompt.fallback.trim() ? ` [${prompt.fallback}]` : ''}: ${typed}`
       body.push(row().space().text(shown, skin.you).build())
       body.push(
@@ -470,11 +468,6 @@ export interface Ui {
   /** Replace the standing context above the question. */
   context(lines: readonly string[]): void
   ask(question: string, fallback?: string): Promise<string>
-  /**
-   * Ask for a credential: typed as bullets, never repeated back, and never
-   * put in the transcript by whoever asked for it.
-   */
-  secret(question: string): Promise<string>
   confirm(question: string, fallback: boolean): Promise<boolean>
   /** Pick one of several. Returns the index. */
   choose(question: string, options: readonly string[]): Promise<number>
@@ -677,19 +670,6 @@ export async function runScreen(
       state = { ...state, prompt: null }
       draw()
       return said.trim() || fallback
-    },
-    async secret(question) {
-      state = {
-        ...state,
-        prompt: { question, fallback: '', confirm: false, masked: true },
-        typed: '',
-      }
-      draw()
-      const said = await waitFor()
-      // Nothing keeps it: not the prompt, not `typed`, not the transcript.
-      state = { ...state, prompt: null, typed: '' }
-      draw()
-      return said.trim()
     },
     async confirm(question, fallback) {
       const prompt = { question, fallback: fallback ? 'y' : 'n', confirm: true }

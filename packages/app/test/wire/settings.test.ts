@@ -1,15 +1,15 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, loadConfig, Secrets, settingsOf } from '@tade/core'
-import { ExtensionHost } from '@tade/extensions-core'
+import { ConfigSchema, loadConfig, settingsOf } from '@tade/core'
+import { ExtensionHost, type TadeExtension } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The page opened from its button, a setting saved so the next agent gets it,
-// a key that goes to the keychain and never to the config, and a DSN that is
-// neither — an endpoint, drawn as itself, and kept once it is typed.
+// a key written into the config as it was pasted, and a DSN, which is not a
+// key at all and is now kept and drawn exactly the same way.
 
 /** Seventy characters, which is what a Sentry DSN is and what a field is not. */
 const DSN = 'https://0123456789abcdef0123456789abcdef@o447951.ingest.sentry.io/4505'
@@ -108,32 +108,27 @@ describe('the window, and its settings', () => {
     )
   })
 
-  it('pastes a key from Settings, into the keychain and not the config', async () => {
+  it('pastes a key from Settings into the config, and reads it back after a restart', async () => {
     terminal.columns = 140
     terminal.rows = 50
-    const secrets = Secrets.open({ home, platform: 'linux' })
+    const weather: TadeExtension = {
+      name: 'weather',
+      title: 'Weather',
+      description: 'Whether it is raining.',
+      settings: [{ key: 'key', kind: 'secret', env: 'WEATHER_API_KEY', means: 'the forecast key' }],
+      ready: (ctx) => (ctx.secret('key') ? null : 'weather needs a key'),
+      setup: () => ({
+        guide: ['Paste the key.'],
+        fields: [{ key: 'key', label: 'API key', kind: 'secret' }],
+      }),
+    }
     const extensions = await ExtensionHost.load({
-      builtin: [
-        {
-          name: 'weather',
-          title: 'Weather',
-          description: 'Whether it is raining.',
-          settings: [
-            { key: 'key', kind: 'secret', env: 'WEATHER_API_KEY', means: 'the forecast key' },
-          ],
-          ready: (ctx) => (ctx.secret('key') ? null : 'weather needs a key'),
-          setup: () => ({
-            guide: ['Paste the key.'],
-            fields: [{ key: 'key', label: 'API key', kind: 'secret' }],
-          }),
-        },
-      ],
+      builtin: [weather],
       config: { extensions: {}, projects: { app: { root: repo.root } } },
       home,
       env: {},
-      secrets,
     })
-    await start({ extensions })
+    const first = await start({ extensions })
     await until('the first frame', () => terminal.written.includes('Settings'))
     const button = find('Settings ')
     click(button.col + 1, button.row)
@@ -150,14 +145,36 @@ describe('the window, and its settings', () => {
     // Pasted, not typed, because that is how a key this long gets into a
     // field at all — and the break at the end of it is the clipboard's:
     // copying a key off a page takes the newline after it too, and it must
-    // neither send the field nor end up in the keychain.
+    // neither send the field nor end up in the value.
     terminal.press(asPaste('wk_0123456789\n'))
     terminal.press('\r')
-    await until('saved', () => terminal.written.includes('Saved in'))
-    expect(secrets.get('weather.key')).toBe('wk_0123456789')
-    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('wk_0123456789')
-    // Neither as it was pasted, nor read back to you afterwards.
-    expect(terminal.written).not.toContain('wk_0123456789')
+    await until('saved', () => terminal.written.includes('applies now'))
+    // In the config, under the setting it is, as it was typed.
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_0123456789')
+    const saved = await loadConfig(join(home, 'config.yaml'))
+    if (!saved.ok) throw new Error('the config would not load with the key in it')
+    expect(saved.config.extensions.weather?.key).toBe('wk_0123456789')
+    await first.stop()
+
+    // And read back: a new window on the same home draws the key it has, so
+    // it can be checked against the console that issued it.
+    terminal = newTerminal()
+    terminal.columns = 140
+    terminal.rows = 50
+    const again = await ExtensionHost.load({
+      builtin: [weather],
+      config: { extensions: saved.config.extensions, projects: { app: { root: repo.root } } },
+      home,
+      env: {},
+    })
+    await start({ config: saved.config, extensions: again })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const reopened = find('Settings ')
+    click(reopened.col + 1, reopened.row)
+    await until('the settings', () => terminal.written.includes('Keys and tokens'))
+    const keys = find('Keys and tokens')
+    click(keys.col + 1, keys.row)
+    await until('the key', () => terminal.written.includes('wk_0123456789'))
   })
 
   // Three things were wrong with the one field on this page that is neither a
@@ -227,21 +244,95 @@ describe('the window, and its settings', () => {
     expect(got).toBe(DSN)
   })
 
-  it('leaves a key that is a key where keys are kept, and never on the page', async () => {
-    // The audit that came with the DSN: what is genuinely a credential still
-    // behaves like one. A Sentry auth token grants reading an organisation; a
-    // DSN grants sending events to one project and is published in the
-    // JavaScript of every page Sentry watches.
+  it('says when a variable in the shell beats the key that was just pasted', async () => {
+    // The one thing about a key that cannot be read off the page: what is
+    // written is not always what is used, and a key kept and not used is the
+    // worst of both.
+    const weather: TadeExtension = {
+      name: 'weather',
+      title: 'Weather',
+      description: 'Whether it is raining.',
+      settings: [{ key: 'key', kind: 'secret', env: 'WEATHER_API_KEY', means: 'the forecast key' }],
+      ready: (ctx) => (ctx.secret('key') ? null : 'weather needs a key'),
+      setup: () => ({
+        guide: ['Paste the key.'],
+        fields: [{ key: 'key', label: 'API key', kind: 'secret' }],
+      }),
+    }
+    terminal.columns = 140
+    terminal.rows = 50
+    const extensions = await ExtensionHost.load({
+      builtin: [weather],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+      env: { WEATHER_API_KEY: 'from-the-shell' },
+    })
+    await start({ extensions })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Keys and tokens'))
+    const category = find('Keys and tokens')
+    click(category.col + 1, category.row)
+    await until('the field', () =>
+      screenOf(terminal.written).some((row) => row.includes('Weather api key')),
+    )
+    const field = find('Weather api key')
+    click(field.col + 30, field.row)
+    terminal.press(asPaste('wk_9876543210\n'))
+    terminal.press('\r')
+    await until('the word about which one wins', () =>
+      screenOf(terminal.written).some((row) => row.includes('$WEATHER_API_KEY is set')),
+    )
+    // Saved all the same: it is what is used the day the variable goes.
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_9876543210')
+  })
+
+  it('says why a key did not save, rather than saying Saved over the top of it', async () => {
+    // The other half of a key being ordinary: it is written to a file, and a
+    // file can refuse. What must never happen is what a keychain that stopped
+    // to ask did — the window quiet and the page saying nothing at all.
+    terminal.columns = 140
+    terminal.rows = 50
+    await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Rules for every agent'))
+    // A directory where the config should be: nothing can read it and nothing
+    // can write it, whoever is running the tests.
+    rmSync(join(home, 'config.yaml'))
+    mkdirSync(join(home, 'config.yaml'))
+    const field = find('Rules for every agent')
+    click(field.col + 42, field.row)
+    terminal.press(asPaste('never force-push\n'))
+    terminal.press('\r')
+    await until('the reason on the page', () =>
+      screenOf(terminal.written).some((row) => row.includes('EISDIR')),
+    )
+    // Still open, on the value that did not save, and never "Saved".
+    expect(screenOf(terminal.written).join('\n')).toContain('Rules for every agent')
+  })
+
+  it('writes a key that is a key to the same file, as the setting it is', async () => {
+    // What the DSN's audit found is now true of both: a Sentry auth token and
+    // a DSN are a line in `config.yaml` each, told apart by what they grant
+    // and by the environment winning over one of them — not by where they are
+    // kept, because there is one place.
     const groups = settingsOf(ConfigSchema.parse({}), [
-      { name: 'sentry.token', title: 'Sentry', means: 'a user auth token', from: null },
+      {
+        path: 'extensions.sentry.token',
+        title: 'Sentry',
+        means: 'a user auth token',
+        value: 'sntrys_kept',
+        from: 'config.yaml',
+      },
     ])
     const of = (path: string) =>
       groups.flatMap((group) => group.settings).find((one) => one.path === path)
-    expect(of('secrets.sentry.token')?.kept).toBe('sentry.token')
-    expect(of('secrets.sentry.token')?.secret).toBe(true)
-    expect(of('secrets.sentry.token')?.value).toBe('')
-    expect(of('telemetry.dsn')?.kept).toBeUndefined()
-    expect(of('telemetry.dsn')?.secret).toBeUndefined()
+    expect(of('extensions.sentry.token')?.value).toBe('sntrys_kept')
+    expect(of('extensions.sentry.token')?.type.kind).toBe('text')
+    expect(of('telemetry.dsn')?.value).toBe('')
   })
 
   it('keeps a paste wider than the field whole, and the break at the end of it out', async () => {

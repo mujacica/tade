@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { extensionEnabled, type Secrets, secretName, whenProblem } from '@tade/core'
+import { extensionEnabled, findSecret, secretPath, whenProblem } from '@tade/core'
 import type {
   Audience,
   BriefItem,
@@ -86,8 +86,8 @@ export interface SetupFieldView {
 
 /** A credential an extension asks for, and where it is now. */
 export interface DeclaredSecret {
-  /** What it is kept under: `jev.key`. */
-  name: string
+  /** The setting it is, in the config: `extensions.jev.key`. */
+  path: string
   extension: string
   /** The extension's title, for saying whose key it is. */
   title: string
@@ -97,7 +97,9 @@ export interface DeclaredSecret {
   means: string
   /** The environment variables it is read from first, in order. */
   variables: readonly string[]
-  /** Where the one it has now is, or null when there is none. */
+  /** What is written in the config, as it is written. A key is drawn as itself. */
+  value: string
+  /** Where the one that is used comes from, or null when there is none. */
   from: string | null
   placeholder: string
 }
@@ -143,17 +145,13 @@ export interface HostOptions {
   }
   home: string
   env?: Readonly<Record<string, string | undefined>>
-  /**
-   * Where the credentials extensions declared as `secret` settings are kept.
-   * Nothing is kept when it is left out, which is what a surface with no home
-   * of its own does: the environment still works, and pasting says it cannot.
-   */
-  secrets?: Secrets
   fetch?: typeof fetch
   exec?: ExtensionContext['exec']
   now?: () => number
   /** How long a tool may run before it is given up on. */
   timeoutMs?: number
+  /** How long an extension has to say whether it is ready. `READY_MS_LIMIT` unless given. */
+  readyMs?: number
   /** Resolve `~` in a project root. */
   expandHome?: (path: string) => string
 }
@@ -267,6 +265,13 @@ const CAUTION_TIMEOUT_MS = 4_000
  * answer already and a later one would move the list under their hands.
  */
 const MEANT_TIMEOUT_MS = 2_500
+/**
+ * `ready()` is declared never to dial, so this is generous — and it is here
+ * because an extension is somebody else's code and this is awaited from the
+ * Settings page, where a key has just been saved. A window that stops
+ * answering is worse than an extension that is called not ready.
+ */
+const READY_MS_LIMIT = 5_000
 
 export class ExtensionHost {
   private readonly entries: Entry[]
@@ -453,9 +458,16 @@ export class ExtensionHost {
       entry.loaded = { ...base, state: 'off', problem: 'turned off' }
       return
     }
-    const needs = await Promise.resolve()
-      .then(() => extension.ready?.(entry.ctx) ?? null)
-      .catch((err: unknown) => why(err))
+    // With a deadline, like everything else Tade waits on. `ready()` is
+    // declared not to dial, but an extension is somebody else's code and this
+    // is awaited from the Settings page: one that never answers would leave a
+    // key that was saved looking like a key that was not.
+    const needs = await inTime(
+      Promise.resolve().then(() => extension.ready?.(entry.ctx) ?? null),
+      this.opts.readyMs ?? READY_MS_LIMIT,
+      `${extension.name} did not say whether it is ready, so it is treated as not`,
+      stopAt(undefined),
+    ).catch((err: unknown) => why(err))
     entry.loaded = needs ? { ...base, state: 'needs setup', problem: needs } : base
   }
 
@@ -507,9 +519,9 @@ export class ExtensionHost {
         placeholder: field.placeholder ?? '',
         kind: field.kind,
         offers: field.choices !== undefined,
-        // A credential is never handed back to what draws it: the field it is
-        // typed into starts empty, and what is there now is said as a place.
-        value: field.kind === 'secret' ? '' : written(entry.ctx.settings[field.key], field.kind),
+        // A credential is drawn like anything else: it is in the config, in
+        // plain text, and a key you cannot read is a key you cannot check.
+        value: written(entry.ctx.settings[field.key], field.kind),
         have: field.kind === 'secret' ? (this.secretHeld(name, field.key)?.from ?? '') : '',
       })),
     }
@@ -530,13 +542,14 @@ export class ExtensionHost {
         if (setting.kind !== 'secret') continue
         const field = setup?.fields?.find((one) => one.key === setting.key)
         out.push({
-          name: secretName(entry.extension.name, setting.key),
+          path: secretPath(entry.extension.name, setting.key),
           extension: entry.extension.name,
           title: entry.extension.title,
           key: setting.key,
           label: field?.label ?? setting.key.replace(/_/g, ' '),
           means: setting.means,
           variables: variablesFor(setting, entry.ctx.settings),
+          value: written(entry.ctx.settings[setting.key], 'text'),
           from: this.secretHeld(entry.extension.name, setting.key)?.from ?? null,
           placeholder: field?.placeholder ?? '',
         })
@@ -546,25 +559,20 @@ export class ExtensionHost {
   }
 
   /**
-   * Keep a credential somebody pasted, or forget it when the field is empty.
-   * It goes to the keychain, or to Tade's own `0600` file — never to the
-   * config — and the answer says where, and whether the environment will go
-   * on winning over it, because a key that is kept and not used is the worst
-   * of both.
+   * The variable that will go on winning over a key somebody has just pasted,
+   * or null. Whoever saves it writes the setting itself — a credential is a
+   * setting like any other now — but only the host knows which variables that
+   * extension reads, and a key that is kept and not used is the worst of both.
    */
-  saveSecret(name: string, key: string, typed: string): { where: string; beaten: string | null } {
+  secretBeatenBy(name: string, key: string): string | null {
     const entry = this.entries.find((one) => one.extension.name === name)
     const setting = entry?.extension.settings?.find(
       (one) => one.key === key && one.kind === 'secret',
     )
     if (!entry || !setting) throw new Error(`${name} has no key called ${key}`)
-    if (!this.opts.secrets) {
-      throw new Error('there is nowhere to keep a key on this machine, so nothing was saved')
-    }
-    const where = this.opts.secrets.set(secretName(name, key), typed)
     const env = this.opts.env ?? process.env
     const beaten = variablesFor(setting, entry.ctx.settings).find((one) => env[one]?.trim())
-    return { where, beaten: beaten ? `$${beaten}` : null }
+    return beaten ? `$${beaten}` : null
   }
 
   /** What a declared secret is now, without its value leaving this object. */
@@ -1170,18 +1178,14 @@ export class ExtensionHost {
             `${name} asked for the secret ${key}, which it does not declare as a secret setting`,
           )
         }
-        const env = opts.env ?? process.env
-        const variables = variablesFor(found, settings)
-        // Nowhere to keep one is not nowhere to read one: the environment is
-        // where every credential came from before any of this, and still wins.
-        if (!opts.secrets) {
-          for (const one of variables) {
-            const value = env[one]
-            if (value?.trim()) return { value: value.trim(), from: `$${one}` }
-          }
-          return null
-        }
-        return opts.secrets.find(secretName(name, key), { env, variables })
+        // The environment first, then the setting itself: one rule, in one
+        // place, so nothing here can disagree with what Settings draws.
+        return findSecret({
+          settings,
+          key,
+          env: opts.env ?? process.env,
+          variables: variablesFor(found, settings),
+        })
       },
       fetch: opts.fetch ?? globalThis.fetch.bind(globalThis),
       exec: opts.exec ?? run,
@@ -1318,16 +1322,12 @@ function unknownSettings(
   extension: TadeExtension,
   settings: Readonly<Record<string, unknown>>,
 ): string[] {
-  // A secret is left out of what is known on purpose. Tade keeps credentials
-  // in the keychain or a file of its own, and never reads one out of the
-  // config — so a key written there is listed as not read rather than sitting
-  // in a file somebody commits under the impression that it works.
-  const known = new Set([
-    'enabled',
-    ...(extension.settings ?? [])
-      .filter((setting) => setting.kind !== 'secret')
-      .map((setting) => setting.key),
-  ])
+  // A secret is one of them: it is written into `extensions.<name>.<key>` like
+  // every other setting, and a key in the config is the key that is used. It
+  // used to be excluded here, so that one written by hand would be reported as
+  // not read — which was true while credentials lived in the keychain, and is
+  // the opposite of true now.
+  const known = new Set(['enabled', ...(extension.settings ?? []).map((setting) => setting.key)])
   return Object.keys(settings).filter((key) => !known.has(key))
 }
 
@@ -1346,7 +1346,6 @@ function variablesFor(
 
 /** A setting as it is typed into its field. */
 function written(value: unknown, kind: 'text' | 'list' | 'map' | 'flag' | 'secret'): string {
-  if (kind === 'secret') return ''
   if (kind === 'flag') return value === true ? 'on' : value === false ? 'off' : ''
   if (value === undefined || value === null) return ''
   if (kind === 'list' && Array.isArray(value)) return value.map(String).join(', ')
@@ -1359,15 +1358,13 @@ function written(value: unknown, kind: 'text' | 'list' | 'map' | 'flag' | 'secre
 }
 
 /**
- * A field as typed, as the setting it becomes. Empty is no setting at all,
- * and a secret is never one: it is kept out of the config altogether, so
- * whoever saves a form hands it to `saveSecret` instead.
+ * A field as typed, as the setting it becomes. Empty is no setting at all —
+ * which for a credential is how one is taken back out.
  */
 export function settingFrom(
   text: string,
   kind: 'text' | 'list' | 'map' | 'flag' | 'secret',
 ): unknown {
-  if (kind === 'secret') return undefined
   const trimmed = text.trim()
   if (trimmed === '') return undefined
   if (kind === 'flag') return trimmed === 'on'

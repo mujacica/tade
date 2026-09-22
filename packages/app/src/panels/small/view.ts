@@ -1,5 +1,5 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import { KEY_BINDINGS, masked } from '@tade/core'
+import { KEY_BINDINGS } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { keyCaps } from '../../keys.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
@@ -221,10 +221,7 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
     row().space().text(panel.label, skin.label).build(),
     row()
       .space()
-      // A key is never drawn as typed: only that something was.
-      .field(panel.purpose === 'account-key' ? masked(panel.text) : panel.text, inner - 2, {
-        caret: true,
-      })
+      .field(panel.text, inner - 2, { caret: true })
       .build(),
   )
   // A field shows the end of what is typed; a note is read whole, under it.

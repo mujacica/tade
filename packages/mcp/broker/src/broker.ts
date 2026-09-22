@@ -1,4 +1,4 @@
-import { type Secrets, secretName } from '@tade/core'
+import { findSecret } from '@tade/core'
 import type {
   ExtensionContext,
   ExtensionTool,
@@ -95,11 +95,12 @@ export interface BrokerOptions {
   /** Where sessions are held, for whoever has to end them. Its own unless given. */
   sessions?: ServerSessions
   /**
-   * Where pasted credentials are kept, for the warm-up — which happens
-   * outside any extension's context and so cannot ask `ctx.secret` for one.
-   * Resolved exactly as an extension's is, the environment first.
+   * The extension settings, for the warm-up — which happens outside any
+   * extension's context and so cannot ask `ctx.secret` for one. A server's
+   * credential is a setting like every other: `extensions.mcp-<name>.key`,
+   * resolved exactly as an extension's is, the environment first.
    */
-  secrets?: Secrets
+  settings?: Readonly<Record<string, Readonly<Record<string, unknown>>>>
   env?: Readonly<Record<string, string | undefined>>
   /**
    * The projects there are, for warming a server that runs one per project:
@@ -275,21 +276,19 @@ function sessionKey(name: string, project: string | undefined): string {
 
 /**
  * The credential, for the warm-up, found exactly as an extension's is: the
- * environment first — a machine that works today goes on working — then
- * wherever Tade keeps what was pasted. Never from the config.
+ * environment first — a machine that works today goes on working — then what
+ * is written under `extensions.mcp-<name>` in the config.
  */
 function credentialOf(server: ServerDeclaration, options: BrokerOptions): string | null {
   if (server.auth === 'none') return null
-  const env = options.env ?? process.env
-  const name = secretName(`mcp-${server.name}`, KEY)
-  if (options.secrets) {
-    return options.secrets.find(name, { env, variables: server.variables })?.value ?? null
-  }
-  for (const variable of server.variables) {
-    const value = env[variable]
-    if (value?.trim()) return value.trim()
-  }
-  return null
+  return (
+    findSecret({
+      settings: options.settings?.[`mcp-${server.name}`],
+      key: KEY,
+      env: options.env ?? process.env,
+      variables: server.variables,
+    })?.value ?? null
+  )
 }
 
 function why(err: unknown): string {
@@ -442,7 +441,7 @@ function extensionFor(opts: {
             {
               key: KEY,
               kind: 'secret' as const,
-              means: `The credential ${name} is reached with. Kept where credentials are kept, never in the config, and whatever the environment says wins.`,
+              means: `The credential ${name} is reached with. Written into config.yaml, which only you can read, and whatever the environment says wins.`,
               ...(declaration.variables.length > 0 ? { env: declaration.variables } : {}),
             },
           ],

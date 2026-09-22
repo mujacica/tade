@@ -180,7 +180,13 @@ function extensionFacts() {
       extensionShown(jevExtension, {
         state: 'ready',
         options: [
-          { key: 'key', label: 'API key', value: '', have: 'the macOS keychain', secret: true },
+          {
+            key: 'key',
+            label: 'API key',
+            value: 'tsk_0123456789',
+            have: 'config.yaml',
+            secret: true,
+          },
           { key: 'model', label: 'Version', value: 'jev-1.13.0', have: '', secret: false },
           { key: 'projects', label: 'Projects', value: '', have: '', secret: false },
           { key: 'report', label: 'Report at', value: '0.6', have: '', secret: false },
@@ -237,7 +243,13 @@ function extensionFacts() {
         ],
         actions: [],
         options: [
-          { key: 'key', label: 'API key', value: '', have: 'the macOS keychain', secret: true },
+          {
+            key: 'key',
+            label: 'API key',
+            value: 'tsk_0123456789',
+            have: 'config.yaml',
+            secret: true,
+          },
         ],
         unknownSettings: [],
         configurable: true,
@@ -495,7 +507,7 @@ export const EXTENSION_SCREENS: Scenario[] = [
   {
     name: 'setting-up-sentry',
     about:
-      'Setting an extension up: why it is not working, a guide in steps, where to get what it needs, and a field for each thing — the key typed in as bullets, kept in the keychain — with what the token can see offered to pick.',
+      'Setting an extension up: why it is not working, a guide in steps, where to get what it needs, and a field for each thing — the key typed in as itself, written into config.yaml — with what the token can see offered to pick.',
     state: {
       ...base(),
       panel: {
@@ -525,10 +537,10 @@ export const EXTENSION_SCREENS: Scenario[] = [
             {
               key: 'token',
               label: 'Auth token',
-              help: 'kept in the keychain; $SENTRY_AUTH_TOKEN wins when it is set',
+              help: 'written into your config; $SENTRY_AUTH_TOKEN wins when it is set',
               placeholder: 'sntryu_…',
-              // A key is typed as bullets and kept out of the config: the
-              // field never draws a character of it, here or anywhere.
+              // A key is typed as itself and written as the setting it is:
+              // one you cannot read is one you cannot check.
               kind: 'secret',
               choices: [],
             },

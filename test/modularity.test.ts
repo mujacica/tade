@@ -36,7 +36,6 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const BUDGET: Record<string, number> = {
   'packages/app/src/live.ts': 1_300,
   'packages/app/src/model.ts': 2_000,
-  'packages/app/src/screen.ts': 900,
   'packages/app/src/wire/extensions.ts': 900,
   'packages/app/test/model.test.ts': 1_100,
   'packages/app/test/panels.test.ts': 1_400,
@@ -329,5 +328,58 @@ describe('pure files stay pure', () => {
           `PURE names ${path}, which this repository does not have.\nDelete its line from ${TABLE}, or point it at where that file went.`,
       ),
     )
+  })
+})
+
+/**
+ * What the window runs in its own process, and so may never block in.
+ *
+ * A window draws four times a second and answers keys in between, on one
+ * thread: a child process it waits on stops both, and there is no key that
+ * ends the wait — which is why a keychain write that stopped to ask a
+ * question came out as a window that had to be killed. `security` was the
+ * one that happened; `git`, `ps`, `lsof` and an extension's own commands are
+ * all one `execFileSync` away from the same morning.
+ *
+ * So: everything in the packages the window loads spawns asynchronously, with
+ * a deadline. A standalone script the window never imports is its own process
+ * and is allowed to be simple — each one is named here, which is also how a
+ * new one becomes a decision rather than a habit.
+ */
+const IN_THE_WINDOW = [
+  'packages/app/src/',
+  'packages/core/src/',
+  'packages/extensions/',
+  'packages/mcp/',
+  'packages/orchestrator/src/',
+  'packages/status/src/',
+  'packages/workbench/src/',
+]
+
+/** Scripts run as their own process, which the window neither imports nor waits on. */
+const ITS_OWN_PROCESS = ['packages/harnesses/claude/src/statusline.ts']
+
+const BLOCKING = /\b(execFileSync|execSync|spawnSync|readlineSync)\s*\(/
+
+describe('nothing the window runs blocks it', () => {
+  it('spawns no child process synchronously', () => {
+    const problems: string[] = []
+    for (const path of tracked()) {
+      if (!IN_THE_WINDOW.some((dir) => path.startsWith(dir))) continue
+      if (path.includes('/test/') || ITS_OWN_PROCESS.includes(path)) continue
+      const text = textOf(path)
+      if (text === null) continue
+      const lines = text.split('\n')
+      const at = lines.findIndex((line) => BLOCKING.test(line))
+      if (at >= 0)
+        problems.push(
+          `${path}:${at + 1} waits on a child process on the thread the window draws on.\n` +
+            'Instead: spawn it asynchronously and give the wait a deadline, the way everything\n' +
+            'else here does. A window that stops answering is worse than the answer being late,\n' +
+            'and a program that stops to ask a question of a window that is not drawing can only\n' +
+            'be got out of by killing Tade.',
+        )
+    }
+    report(problems)
   })
 })

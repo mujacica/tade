@@ -322,8 +322,9 @@ export function extensionBody(
     }
   }
 
-  // What it can be given, and where each one stands. A credential is said as
-  // a place — the keychain, an environment variable — and never drawn back.
+  // What it can be given, and where each one stands. A credential is one of
+  // them, drawn as itself — except where the shell beats it, which is the one
+  // thing about a key that cannot be read off the page.
   if (view.options.length > 0) {
     lines.push(blank(form))
     heading(
@@ -332,19 +333,14 @@ export function extensionBody(
     )
     const named = Math.min(20, Math.max(8, Math.floor(form / 3)))
     for (const option of view.options) {
-      // A credential is said as a place and never as a value; where there is
-      // none, say where one is pasted, because the answer to "how do I give
-      // it my key" must not be "export it in your shell profile".
-      const value = option.secret
-        ? option.have
-          ? option.have.startsWith('$')
-            ? `from ${option.have}`
-            : `kept in ${option.have}`
-          : view.configurable
-            ? 'not set — Set up…'
-            : 'not set'
-        : option.value || 'not set'
-      const set = option.secret ? option.have !== '' : option.value !== ''
+      // A variable in the shell wins over what is written, so where there is
+      // one that is what is said: the value beside it would not be the one in
+      // use. Anything else is what it is, and nothing is a place any more.
+      const value =
+        option.secret && option.have.startsWith('$')
+          ? `from ${option.have}`
+          : option.value || (option.secret && view.configurable ? 'not set — Set up…' : 'not set')
+      const set = option.value !== '' || (option.secret && option.have !== '')
       lines.push(
         row()
           .space()

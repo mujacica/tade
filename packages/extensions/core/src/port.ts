@@ -42,9 +42,11 @@ export interface ExtensionSetting {
   /** What it means, in a sentence: shown wherever the setting is. */
   means: string
   /**
-   * `secret` is a credential: it is never in the config and never drawn back.
-   * You are given entry, masking and storage for it — the OS keychain, or a
-   * file of Tade's own written `0600` — and you read it with `ctx.secret`.
+   * `secret` is a credential — an API key, a token. It is a setting like any
+   * other and is written into `config.yaml`, which is `0600` and one person's;
+   * what marks it is that it is drawn in its own field, that an environment
+   * variable wins over it, and that you read it with `ctx.secret` rather than
+   * out of `ctx.settings`, so the two can never disagree about which is live.
    */
   kind: 'string' | 'boolean' | 'number' | 'list' | 'map' | 'secret'
   /**
@@ -63,7 +65,7 @@ export interface ExtensionSetting {
 /** A credential, and where it came from — the place, never a second copy of the value. */
 export interface SecretFound {
   value: string
-  /** How to say where it came from: `$TYPESAFE_API_KEY`, `the macOS keychain`. */
+  /** How to say where it came from: `$TYPESAFE_API_KEY`, `config.yaml`. */
   from: string
 }
 
@@ -141,8 +143,8 @@ export interface SetupField {
   /**
    * `text` is one value; `list` is values separated by commas; `map` is
    * `name=value` pairs separated by commas, like which Sentry project each of
-   * yours reports to; `flag` is on or off; `secret` is a credential, typed
-   * masked and kept out of the config — declare it as a `secret` setting too.
+   * yours reports to; `flag` is on or off; `secret` is a credential, shown as
+   * itself so it can be checked — declare it as a `secret` setting too.
    */
   kind: 'text' | 'list' | 'map' | 'flag' | 'secret'
   /** Values to offer, looked up when asked: the organizations a token can see. */
@@ -417,8 +419,9 @@ export interface ExtensionContext {
   /**
    * A credential this extension declared as a `secret` setting: from the
    * environment when it is set there — the variables the setting declared,
-   * and the one its `envFrom` setting names — otherwise from where Tade keeps
-   * what was pasted into it. Never from the config, which people commit.
+   * and the one its `envFrom` setting names — otherwise the setting itself,
+   * out of `config.yaml`. Read it here and never out of `ctx.settings`: this
+   * is the one place that knows the environment wins.
    */
   secret(key: string): SecretFound | null
   fetch: typeof fetch

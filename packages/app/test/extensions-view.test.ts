@@ -69,7 +69,7 @@ const jev: ExtensionView = {
     { id: 'review', title: 'Review the latest commits' },
   ],
   options: [
-    { key: 'key', label: 'API key', value: '', have: 'the macOS keychain', secret: true },
+    { key: 'key', label: 'API key', value: 'tsk_0123456789', have: 'config.yaml', secret: true },
     { key: 'model', label: 'Version', value: 'jev-1.13.0', have: '', secret: false },
   ],
   unknownSettings: [],
@@ -373,9 +373,9 @@ describe('the extensions page at any width', () => {
     }
   })
 
-  it('says where a key is, and never what it is', () => {
+  it('says what a key is, and where to put one when there is none', () => {
     const said = wholePage(extensionsPanel('jev'))
-    expect(said).toContain('the macOS keychain')
+    expect(said).toContain('tsk_0123456789')
     // And where there is none, where to put one — not a shell profile.
     const missing = wholePage(extensionsPanel('sentry'))
     expect(missing).toContain('not set — Set up…')

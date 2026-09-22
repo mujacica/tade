@@ -40,8 +40,11 @@ Schema: `ConfigSchema` in `packages/core/src/config.ts` (zod 4).
    - Name the group and the setting the words somebody would search for, and put the rest in
      `keywords`: the panel's search reads `findableBy`, which is the title, the `means`, the key
      itself and those words. A setting nobody can find is a setting nobody has.
-   - `secret: true` for anything credential-shaped: it is shown in its own field and masked
-     everywhere else (`shownValue`), and `config.yaml` is written `0600`.
+   - A credential is not a setting you write here: an extension declares it (`kind: 'secret'`) and
+     Settings › Keys and tokens draws a row per declared one. It is written into `config.yaml`
+     like everything else, as typed — the file is `0600` and one person's — with the environment
+     variable winning over it. Nothing is masked anywhere: a key you cannot read is one you
+     cannot check.
 5. Its `means` sentence is its documentation. The README shows config only for setting up something
    people cannot start without (an extension's organization, say).
 6. `pnpm check`.

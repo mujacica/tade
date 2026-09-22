@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ConfigSchema, Secrets } from '@tade/core'
+import { ConfigSchema } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import { describe, expect, it } from 'vitest'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
@@ -184,11 +184,10 @@ describe('the window, and its extensions', () => {
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('city: Graz')
   })
 
-  it('takes a pasted key, keeps it out of the config, and never draws it', async () => {
+  it('takes a pasted key into the config, in plain sight, and works on it', async () => {
     terminal.columns = 120
     terminal.rows = 50
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
-    const secrets = Secrets.open({ home, platform: 'linux' })
     const extensions = await ExtensionHost.load({
       builtin: [
         {
@@ -208,7 +207,6 @@ describe('the window, and its extensions', () => {
       config: { extensions: {}, projects: { app: { root: repo.root } } },
       home,
       env: {},
-      secrets,
     })
     await start({ extensions })
     await until('the footer', () =>
@@ -225,20 +223,18 @@ describe('the window, and its extensions', () => {
       screenOf(terminal.written).some((row) => row.includes('API key')),
     )
     for (const char of 'wk_0123456789') terminal.press(char)
-    await until('bullets where the key is', () =>
-      screenOf(terminal.written).some((row) => row.includes('•••')),
+    // Drawn as it is typed: a key you cannot read is a key you cannot check
+    // against the console that issued it.
+    await until('the key as it is typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('wk_0123456789')),
     )
-    // Typed, and nowhere on the screen: not as it is typed, not after.
-    expect(terminal.written).not.toContain('wk_0123456789')
     const save = find('Save and check ]')
     click(save.col + 2, save.row)
     await until('ready', () =>
       screenOf(terminal.written).some((row) => row.includes('Weather is ready')),
     )
-    // Kept where keys are kept — and not in the config, which people commit.
-    expect(secrets.get('weather.key')).toBe('wk_0123456789')
-    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('wk_0123456789')
-    expect(terminal.written).not.toContain('wk_0123456789')
+    // Written into the config, under the setting it is.
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('wk_0123456789')
   })
 
   it('keeps what an extension watches in the status bar, and opens its view from there', async () => {

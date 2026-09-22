@@ -26,9 +26,10 @@ import { type PanelInputs, panelDismiss } from '../src/panels.ts'
 
 /** A credential an extension asked for: what the Jev client key is on this page. */
 const CLIENT_KEY: SecretRow = {
-  name: 'jev.key',
+  path: 'extensions.jev.key',
   title: 'Jev client key',
   means: 'what Jev answers questions with',
+  value: '',
   from: null,
 }
 
@@ -99,10 +100,9 @@ describe('pasting into a settings field', () => {
     expect(panel.editing?.text).toBe('my-laptop')
   })
 
-  it('takes one into a credential kept outside the config, and never draws it back', () => {
-    const key = settingAt('secrets.jev.key')
-    expect(key?.kept).toBe('jev.key')
-    const panel = after(editing('secrets.jev.key'), undefined, asPaste('jev_live_9f3c1a\n'))
+  it('takes one into a credential, which is a field like any other', () => {
+    expect(settingAt('extensions.jev.key')?.type.kind).toBe('text')
+    const panel = after(editing('extensions.jev.key'), undefined, asPaste('jev_live_9f3c1a\n'))
     expect(panel.editing?.text).toBe('jev_live_9f3c1a')
   })
 
@@ -231,21 +231,17 @@ describe('copying a setting', () => {
     expect(out).toMatchObject({ submit: true, choice: 'copy:telemetry.environment' })
   })
 
-  it('never copies a credential, and says so rather than doing nothing', () => {
-    // Deliberate, and the whole reason a secret is drawn as bullets: a key on
-    // a screen is not a key in a recording, and a copy is that same key
-    // somewhere nobody can see it at all. It is pasted in; nothing reads it
-    // back out.
-    for (const path of ['secrets.jev.key']) {
-      const out = settingsKey(editing(path, 'sk_live_dontcopyme'), 'ctrl+shift+c', '', inputs)
-      expect(out.submit).toBe(false)
-      expect(out.choice).toBeUndefined()
-      const panel = out.panel?.kind === 'settings' ? out.panel : null
-      expect(panel?.error).toContain('never copied out of Tade')
-      // What is typed stays in the field, where it is drawn as bullets. What
-      // must never leave is the choice: that is what the window would copy.
-      expect(out.choice ?? '').not.toContain('sk_live')
-    }
+  it('copies a credential, which is a line in a file you can already open', () => {
+    // It used to refuse, back when a key was kept where nothing could read it
+    // back. Now it is written in `config.yaml` in plain text, so a rule here
+    // protected nothing and made moving a key to a second machine a retype.
+    const out = settingsKey(
+      editing('extensions.jev.key', 'sk_live_copyme'),
+      'ctrl+shift+c',
+      '',
+      inputs,
+    )
+    expect(out).toMatchObject({ submit: true, choice: 'copy:extensions.jev.key' })
   })
 
   it('copies a DSN, which is an endpoint and not a key', () => {

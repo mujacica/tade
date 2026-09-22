@@ -5,7 +5,6 @@ import {
   type Setting,
   type SettingValue,
   settingsOf,
-  shownValue,
   wantedInstead,
   writeSetting,
 } from '@tade/core'
@@ -46,9 +45,7 @@ export async function editSettings(ui: Ui, path: string): Promise<void> {
     ui.say(
       changed === undefined
         ? `${chosen.setting.title} back to its default (${chosen.setting.fallback})`
-        : // Never read a credential back out loud: it would sit in the
-          // scrollback of whatever terminal this was run in.
-          `${chosen.setting.title} is now ${shownValue(chosen.setting, String(changed))}`,
+        : `${chosen.setting.title} is now ${String(changed)}`,
     )
   }
 }

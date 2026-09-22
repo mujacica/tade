@@ -12,11 +12,11 @@ import {
   type ReadinessFacts,
   readiness,
   resolveCommand,
-  Secrets,
   type Step,
-  secretName,
+  secretPath,
   stringEnv,
   tadeHome,
+  writeSetting,
 } from '@tade/core'
 import { piBinary, usableModels } from '@tade/harnesses-pi'
 import { loadExtensions } from '@tade/orchestrator'
@@ -444,32 +444,32 @@ async function setUpJudge(ui: Ui): Promise<void> {
   }
 
   const variable = 'TYPESAFE_API_KEY'
-  const secrets = Secrets.open({ home: tadeHome() })
+  const configPath = defaultConfigPath()
+  const written = await loadConfig(configPath).then(
+    (loaded) => (loaded.ok ? loaded.config.extensions.jev?.key : undefined),
+    () => undefined,
+  )
   const fromEnv = (process.env[variable] ?? '').trim()
-  let key = fromEnv
-  let where = `$${variable}`
+  let key = fromEnv || (typeof written === 'string' ? written.trim() : '')
+  let where = fromEnv ? `$${variable}` : 'config.yaml'
   if (!key) {
-    // Pasting one is offered here rather than refused on principle. It is
-    // never written to the config: it goes to the keychain, or to a file of
-    // Tade's own that only you can read — and the environment still wins.
-    const kept = secrets.get(secretName('jev', 'key'))
-    if (kept) {
-      key = kept
-      where = secrets.where(secretName('jev', 'key')) ?? 'where Tade keeps keys'
-    } else {
-      ui.say('  Create one at https://console.typesafe.ai/settings/keys — or ask for access at')
-      ui.say('  https://typesafe.ai if you are not in yet.')
-      ui.say(`  Paste it here and Tade keeps it in ${secrets.keeper?.label ?? 'nowhere'}, never`)
-      ui.say(`  in your config. \`export ${variable}="…"\` in your shell works too, and wins.`)
-      const typed = await ui.secret('paste the key (enter to skip)')
-      if (!typed) {
-        ui.say('  skipped — Settings › Extensions › Jev whenever you want it')
-        return
-      }
-      where = secrets.set(secretName('jev', 'key'), typed)
-      key = typed
-      ui.say(`  kept in ${where}`)
+    // Pasting one is offered here rather than refused on principle, and it is
+    // written into your config as you type it: a key you cannot read back is
+    // a key you cannot check. The file is yours alone, and the environment
+    // still wins over what is in it.
+    ui.say('  Create one at https://console.typesafe.ai/settings/keys — or ask for access at')
+    ui.say('  https://typesafe.ai if you are not in yet.')
+    ui.say(`  Paste it here and Tade writes it into ${configPath}, which only you`)
+    ui.say(`  can read. \`export ${variable}="…"\` in your shell works too, and wins.`)
+    const typed = (await ui.ask('paste the key (enter to skip)', '')).trim()
+    if (!typed) {
+      ui.say('  skipped — Settings › Extensions › Jev whenever you want it')
+      return
     }
+    writeSetting(configPath, secretPath('jev', 'key'), typed)
+    key = typed
+    where = 'config.yaml'
+    ui.say(`  written into ${configPath}`)
   }
 
   // One request, and only here: somebody is sitting in front of the screen
@@ -652,7 +652,7 @@ function patchConfig(change: (config: Record<string, unknown>) => void): void {
   writeDifferences(doc, [], before, after)
   mkdirSync(dirname(path), { recursive: true })
   mkdirSync(tadeHome(), { recursive: true })
-  // The file can hold a DSN, so it is the owner's alone to read.
+  // The file holds keys, so it is the owner's alone to read.
   writeFileSync(path, doc.toString(), { mode: 0o600 })
   ownerOnly(path)
 }

@@ -7,9 +7,9 @@ import { dirname, join } from 'node:path'
 //
 // In order: what Tade's config says; the environment sentry-cli reads
 // (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_URL`); a token pasted into Tade,
-// which it keeps in the keychain and never in the config; a `.sentryclirc` in
-// a project or your home; and the login the newer `sentry` CLI keeps. Nothing
-// is ever written back to any of them, and a token is never shown.
+// which is written into the config like every other setting; a `.sentryclirc`
+// in a project or your home; and the login the newer `sentry` CLI keeps.
+// Nothing is ever written back to any of them.
 
 export interface SentryAccess {
   token: string

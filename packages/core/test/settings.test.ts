@@ -7,7 +7,6 @@ import {
   type SettingGroup,
   settingFound,
   settingsOf,
-  shownValue,
   stepped,
 } from '../src/settings.ts'
 
@@ -217,24 +216,18 @@ describe('telemetry', () => {
   // the JavaScript of every page it watches, and all it grants is the right
   // to send events to one project. Drawn as bullets it could not be read back
   // and checked for a typo, which is exactly what somebody pasting seventy
-  // characters into a forty-column field needs to do — and it was being
-  // written into `config.yaml` all the same, because a credential is the one
-  // thing `writeSetting` refuses and this was never kept where keys are kept.
+  // characters into a forty-column field needs to do.
   it('is the value it is, everywhere a setting is read', () => {
     const dsn = 'https://abc123def456@o4507.ingest.sentry.io/12345'
     const setting = find('telemetry.dsn', { telemetry: { dsn } })
-    expect(setting.secret).toBeUndefined()
-    expect(setting.kept).toBeUndefined()
     expect(setting.value).toBe(dsn)
-    expect(shownValue(setting)).toBe(dsn)
     expect(describeSetting(setting)).toContain('abc123def456')
   })
 
-  // The credential in this group is Sentry's auth token, and Tade does not
-  // even hold it: the setting here is the name of the variable it is in.
-  it('keeps the auth token out of the config, as the name of a variable', () => {
+  // Tade does not hold this one at all: the setting here is the name of the
+  // variable Sentry's own token is read from.
+  it('says which variable the read token is in', () => {
     const token = find('extensions.sentry.token_env')
-    expect(token.secret).toBeUndefined()
     expect(token.means).toContain('never keeps a copy')
   })
 })
@@ -242,9 +235,10 @@ describe('telemetry', () => {
 describe('keys and tokens', () => {
   const secrets = [
     {
-      name: 'jev.key',
+      path: 'extensions.jev.key',
       title: 'Jev api key',
       means: 'the TypeSafe API key',
+      value: '',
       from: null,
       placeholder: 'tsk_…',
       variables: ['TYPESAFE_API_KEY'],
@@ -256,29 +250,37 @@ describe('keys and tokens', () => {
     expect(settingsOf(config(), secrets).some((group) => group.id === 'credentials')).toBe(true)
   })
 
-  it('offers a field for one, kept out of the config and never shown', () => {
+  it('is an ordinary setting, written and drawn like any other', () => {
     const [setting] =
       settingsOf(config(), secrets).find((one) => one.id === 'credentials')?.settings ?? []
     if (!setting) throw new Error('no field for the key')
-    expect(setting).toMatchObject({ secret: true, kept: 'jev.key', value: '' })
-    // Nothing is written to the config for it: `kept` says where it goes, and
-    // the path is not a config path at all.
-    expect(setting.path).toBe('secrets.jev.key')
+    // The path is the config path it is written to: there is no second place.
+    expect(setting.path).toBe('extensions.jev.key')
+    expect(setting.type.kind).toBe('text')
     expect(setting.fallback).toBe('not set')
     expect(describeSetting(setting)).toContain('(not set)')
-    // With one kept, it says where — the place, never the key.
+  })
+
+  it('shows the key it has, and says where the one in use comes from', () => {
+    const key = 'tsk_0123456789'
     const [set] =
-      settingsOf(config(), [{ ...secrets[0]!, from: 'the macOS keychain' }]).find(
+      settingsOf(config(), [{ ...secrets[0]!, value: key, from: 'config.yaml' }]).find(
         (one) => one.id === 'credentials',
       )?.settings ?? []
-    expect(set?.fallback).toBe('kept — the macOS keychain')
-    expect(shownValue(set!, 'tsk_0123456789')).not.toContain('tsk_')
+    expect(set?.value).toBe(key)
+    expect(describeSetting(set!)).toContain(key)
+    // The environment beats what is written, so that is what the fallback says.
+    const [beaten] =
+      settingsOf(config(), [{ ...secrets[0]!, value: key, from: '$TYPESAFE_API_KEY' }]).find(
+        (one) => one.id === 'credentials',
+      )?.settings ?? []
+    expect(beaten?.fallback).toBe('in use — $TYPESAFE_API_KEY')
   })
 
   it('is found by what people look for it as', () => {
     const group = settingsOf(config(), secrets).find((one) => one.id === 'credentials')
     if (!group?.settings[0]) throw new Error('no key group')
-    for (const words of [['api', 'key'], ['token'], ['typesafe_api_key'], ['keychain']]) {
+    for (const words of [['api', 'key'], ['token'], ['typesafe_api_key'], ['credential']]) {
       expect(settingFound(group, group.settings[0], words)).toBe(true)
     }
   })
