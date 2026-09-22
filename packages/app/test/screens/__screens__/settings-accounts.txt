@@ -2,23 +2,23 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Accounts                                                                    │────────
- ▌ ! str│                        │ Who each harness's agents run as. Signing in is each harness's own, inside  │        
- ▌   wan│  Agents                │ this window: what you give it goes where it keeps it, never through Tade. ▸ │        
-        │  Models                │ marks the account new agents use; an agent's own menu moves it to another.  │        
-   ⠋ ref│  Orchestrator          │                                                                             │        
-     wor│  Approvals      bypass │ pi                                                                          │        
-        │  Checks                │ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                   │        
- ▸ SMART│  Voice                 │     Sign in again…                                                          │        
- ▾ CHANG│  Window                │   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts,   │        
-  M pack│  Projects           3  │   and you sign in to them inside pi.                                        │        
-  A …/we│  Checks per project    │                                                                             │        
-  M src/│  Budgets           ● 1 │ Claude Code                                                                 │        
-        │  Telemetry             │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
- ▾ FILES│  Shortcuts             │     Sign in again…     Sign out                                             │        
-   ▾ src│▌ Accounts          ● 2 │   work                  ○ not signed in yet                                 │        
-       w│  Updates               │     Sign in…     Use for new agents     Remove                              │        
+ ▌ ! str│                        │                                                                             │        
+ ▌   wan│  Agents                │ pi                                                                          │        
+        │  Models                │ ▸ its own sign-in       ● anthropic, openrouter · 1 agent                   │        
+   ⠋ ref│  Orchestrator          │     Sign in again…                                                          │        
+     wor│  Approvals      bypass │   pi keeps one set of sign-ins, in ~/.pi: its providers are its accounts,   │        
+        │  Checks                │   and you sign in to them inside pi.                                        │        
+ ▸ SMART│  Voice                 │                                                                             │        
+ ▾ CHANG│  Window                │ Claude Code                                                                 │        
+  M pack│  Projects           3  │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
+  A …/we│  Checks per project    │     Sign in again…     Sign out                                             │        
+  M src/│  Budgets           ● 1 │   work                  ○ not signed in yet                                 │        
+        │  Telemetry             │     Sign in…     Use for new agents     Remove                              │        
+ ▾ FILES│  Shortcuts             │                                                                             │        
+   ▾ src│▌ Accounts          ● 2 │     Add an account…     Add an API-key account…                             │        
+       w│  Updates               │                                                                             │        
        w│                        │                                                                             │        
-   ▸ tes│                        │     Add an account…     Add an API-key account…                             │        
+   ▸ tes│                        │                                                                             │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        
 ━   orch│                        │                                                                             │   ▾   ━

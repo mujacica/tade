@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { duration, noRuntime, type Priced, runtimeSays } from '@tade/core'
+import { duration, type Priced } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
@@ -96,7 +96,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     (a, b) => Number(b.kind === 'orchestrator') - Number(a.kind === 'orchestrator'),
   )
   if (entries.length === 0) {
-    rows.push(row().space(3).text('Nothing spent or run in this window.', skin.hint).build())
+    rows.push(row().space(3).text('Nothing in this window.', skin.hint).build())
   }
   // Counted in lines rather than in rows, because a row is one line or three:
   // the panel floats over the work, and every line it grows is a line of the
@@ -157,12 +157,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     used += said.length
   }
   if (unshown > 0) {
-    rows.push(
-      row()
-        .space(3)
-        .text(`${unshown} more row${unshown === 1 ? '' : 's'} not shown.`, skin.hint)
-        .build(),
-    )
+    rows.push(row().space(3).text(`+${unshown} more`, skin.hint).build())
   }
 
   // What a subscription has left, under what it cost: money and a plan are
@@ -179,7 +174,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     (a, b) => Number(b.windows.length > 0) - Number(a.windows.length > 0),
   )
   if (standings.length === 0) {
-    rows.push(row().space(3).text('No harness here has a plan to report.', skin.hint).build())
+    rows.push(row().space(3).text('No plan reported.', skin.hint).build())
   }
   // The panel floats over the work, so the section is bounded — and what it
   // left out is said, because a list that stops without saying so reads as a
@@ -240,12 +235,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     lines += drawn.length
   }
   if (dropped > 0) {
-    rows.push(
-      row()
-        .space(3)
-        .text(`${dropped} more account${dropped === 1 ? '' : 's'} not shown.`, skin.hint)
-        .build(),
-    )
+    rows.push(row().space(3).text(`+${dropped} more`, skin.hint).build())
   }
 
   // What the money bought, beside what it cost: the two numbers are only
@@ -255,7 +245,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   rows.push(row().space().text('PRODUCED', skin.label).build())
   const made = view?.produced
   if (!made || made.commits === 0) {
-    rows.push(row().space(3).text('Nothing committed in this window.', skin.hint).build())
+    rows.push(row().space(3).text('Nothing committed.', skin.hint).build())
   } else {
     const nobody = made.commits - made.attributed
     const line = row().space()
@@ -323,19 +313,21 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     }
     rows.push(line.build())
   }
-  rows.push(blank(inner))
-  // What kind of money this page has been adding up. Priced and estimated are
-  // both real dollars and both go in the total, but never in silence: a
-  // harness that can only estimate says so every turn, and this is where that
-  // reaches whoever is reading the total.
-  for (const line of wrapTo(pricedFooter(view), inner - 1, 2)) {
-    rows.push(row().space().text(line, skin.hint).build())
-  }
-  // And what the runtime column has been adding up, for the same reason the
-  // line above it exists: `13d 3h` on a machine that has been on since
-  // breakfast reads as a bug and is not one, and nothing on this page said so.
-  for (const line of wrapTo(runtimeSays(view?.runtime ?? noRuntime()), inner - 1, 3)) {
-    rows.push(row().space().text(line, skin.hint).build())
+  // What kind of money and what kind of hours this page has been adding, as
+  // marks rather than as paragraphs. Both caveats are real — a total that
+  // silently mixes priced and guessed dollars is the one thing this page may
+  // never draw, and `13d 3h` off a machine that has been on since breakfast
+  // reads as a bug — but each is a few words here and a sentence in `tade
+  // spend`, which is where somebody asks.
+  const foot = spendFooter(view)
+  if (foot) {
+    rows.push(blank(inner))
+    rows.push(
+      row()
+        .space()
+        .text(cap(foot, inner - 1), skin.hint)
+        .build(),
+    )
   }
 
   return box('Spend', rows, width, skin, { corner: 'esc' })
@@ -425,20 +417,25 @@ function pricedMark(priced: Priced): string {
   return priced === 'estimate' || priced === 'mixed' ? '~' : ''
 }
 
-/** What the page says, at the bottom, about the kind of money it has been adding. */
-export function pricedFooter(view: SpendView | null): string {
-  const plan = 'a plan is a share, never money'
-  if (!view || view.priced === 'none') {
-    // Zero dollars from a subscription is not the same as free.
-    return `No harness here reported a price — a subscription bills you, not per token · ${plan}.`
-  }
-  const exact = `${money(view.usdExact)} priced by the harness`
-  const guessed = `${money(view.usdEstimated)} estimated (~)`
-  if (view.priced === 'mixed') return `${money(view.usd)}: ${exact}, ${guessed} · ${plan}.`
-  if (view.priced === 'estimate') {
-    return `${guessed} — this harness cannot price a turn, only guess at it · ${plan}.`
-  }
-  return `${exact}, against its own catalog · ${plan}.`
+/**
+ * The one line under the page: what of the money nobody priced, and what of
+ * the hours was added across runs.
+ *
+ * A mark and a few words each, never the paragraph they used to be. Nothing is
+ * lost by it — `tade spend` says both in full, in `runtimeSays`'s own words,
+ * which is the only place either sentence now lives — and a caveat repeated in
+ * four lines under every figure is one people stop reading. Empty where
+ * neither is true: money everybody priced over a single run needs no footnote
+ * at all.
+ */
+export function spendFooter(view: SpendView | null): string {
+  const said: string[] = []
+  if (!view || view.priced === 'none') said.push('a plan, not money')
+  else if (view.priced === 'mixed') said.push(`~ ${money(view.usdEstimated)} estimated`)
+  else if (view.priced === 'estimate') said.push('~ estimated')
+  const ran = view?.runtime
+  if (ran && ran.runs > 1) said.push(`${duration(ran.ms)} over ${ran.runs} runs`)
+  return said.join('  ·  ')
 }
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {

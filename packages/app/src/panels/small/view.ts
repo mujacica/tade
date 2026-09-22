@@ -120,14 +120,10 @@ export function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
     blank(inner),
     row()
       .space()
-      .text('Agents here run under ')
+      .text('Closing stops them under ')
       .text('pty', skin.busy)
-      .text(', so closing stops them. Their')
+      .text('; they reopen where they were.')
       .build(),
-    row().space().text('conversations are kept, and they open again where they').build(),
-    row().space().text('stopped the next time Tade opens.').build(),
-    blank(inner),
-    row().space().text('Under tmux they would keep working after you close.', skin.hint).build(),
     row()
       .space()
       .text('Settings › Agents › Where agents run', skin.link, { kind: 'control', id: 'where' })
@@ -165,15 +161,12 @@ export function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
       )
       .build(),
     blank(inner),
-    row().space().text('Reload restarts the window with your changes.').build(),
     row()
       .space()
-      .text('Agents here run under ')
+      .text('Reload stops them under ')
       .text('pty', skin.busy)
-      .text(', so reloading stops them. Their')
+      .text('; they reopen where they were.')
       .build(),
-    row().space().text('conversations are kept, and they open again where they').build(),
-    row().space().text('stopped the next time Tade opens.').build(),
     blank(inner),
     row()
       .right((r) =>
@@ -254,21 +247,7 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
         .radio(panel.everywhere, 'About everything', { kind: 'control', id: 'everywhere' })
         .build(),
     )
-    rows.push(
-      row()
-        .space()
-        .text('Kept word for word. Saying "remember …" to Tade does the same.', skin.hint)
-        .build(),
-    )
-  }
-  if (panel.note) {
-    rows.push(blank(inner))
-    rows.push(
-      row()
-        .space()
-        .text('Kept word for word: changing it says it again, in the new words.', skin.hint)
-        .build(),
-    )
+    rows.push(row().space().text('Kept word for word.', skin.hint).build())
   }
   rows.push(
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
@@ -406,8 +385,7 @@ export function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
     blank(inner),
     row().space().text(panel.path, skin.you).build(),
     blank(inner),
-    row().space().text('Its uncommitted changes go back to the last commit. A file').build(),
-    row().space().text('nobody has committed yet is deleted. This cannot be undone.').build(),
+    row().space().text('Back to the last commit — a new file is deleted.').build(),
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
     row()
       .right((r) =>
@@ -472,8 +450,7 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
     rows.push(row().space().text('Nothing in it is unmerged.').build())
   }
   rows.push(blank(inner))
-  rows.push(row().space().text("Removing deletes the worktree and the branch. The agent's").build())
-  rows.push(row().space().text("conversation stays in pi's sessions.").build())
+  rows.push(row().space().text('Deletes the worktree and branch; the conversation stays.').build())
   rows.push(
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
   )
@@ -527,9 +504,8 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
         .build(),
     )
   rows.push(blank(inner))
-  rows.push(row().space().text('Each is stopped and taken off the list, its worktree and').build())
   rows.push(
-    row().space().text("branch with it. Their conversations stay in pi's sessions.").build(),
+    row().space().text('Each stops, with its worktree and branch; conversations stay.').build(),
   )
   rows.push(
     panel.error ? row().space().text(`▲ ${panel.error}`, skin.waiting).build() : blank(inner),
@@ -568,9 +544,9 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   if (!parsed) {
     rows.push(row().space().text('reading the diff…', skin.hint).build())
   } else if (parsed.binary) {
-    rows.push(row().space().text('A binary file: there are no lines to show.', skin.hint).build())
+    rows.push(row().space().text('Binary — no lines to show.', skin.hint).build())
   } else if (parsed.lines.length === 0) {
-    rows.push(row().space().text('No differences from where the task branched.', skin.hint).build())
+    rows.push(row().space().text('No differences from its base.', skin.hint).build())
   } else {
     const numberWidth = String(
       Math.max(...parsed.lines.map((line) => line.new ?? line.old ?? 0)),

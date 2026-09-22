@@ -13,11 +13,11 @@
   M package.json       +2 −│   M src/webhooks.ts                                            │,                          
   A …/webhooks.test.ts   +4│   3 commits on tade/stripe-v15 that main doesn't have          │                           
   M src/webhooks.ts   +12 −│                                                                │                           
-                           │ Removing deletes the worktree and the branch. The agent's      │                           
- ▾ FILES                   │ conversation stays in pi's sessions.                           │                           
-   ▾ src/                  │                                                                │                           
-       webhooks.test.ts    │                                    Keep it     Remove anyway   │───╮                       
-       webhooks.ts         ╰────────────────────────────────────────────────────────────────╯   │                       
+                           │ Deletes the worktree and branch; the conversation stays.       │                           
+ ▾ FILES                   │                                                                │                           
+   ▾ src/                  │                                    Keep it     Remove anyway   │                           
+       webhooks.test.ts    ╰────────────────────────────────────────────────────────────────╯───╮                       
+       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                       
    ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
      package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
      README.md               ▕│                                                                                         

@@ -31,7 +31,7 @@ describe('accounts', () => {
     const all = await client.accounts()
     const pi = all.find((one) => one.harness === 'pi')
     expect(pi).toMatchObject({ name: null, canAdd: false })
-    expect(pi?.why).toContain('providers are its accounts')
+    expect(pi?.why).toContain('one set of sign-ins')
     expect(all.find((one) => one.harness === 'claude-code')).toMatchObject({
       name: null,
       canAdd: true,
@@ -39,7 +39,7 @@ describe('accounts', () => {
       canSignIn: true,
     })
     await expect(client.addAccount({ name: 'two', harness: 'pi' })).rejects.toThrow(
-      /providers are its accounts/,
+      /one set of sign-ins/,
     )
   })
 

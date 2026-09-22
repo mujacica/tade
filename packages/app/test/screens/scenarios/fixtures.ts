@@ -442,7 +442,7 @@ export function actions(): ActionsView {
     source: 'from .tade/checks.yaml',
     adoptable: false,
     running: null,
-    notes: ['Green here is the commands on this machine; the OS matrix is CI’s to say.'],
+    notes: ['on this machine, not CI’s matrix'],
   }
 }
 

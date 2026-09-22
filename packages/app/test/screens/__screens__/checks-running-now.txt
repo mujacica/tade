@@ -9,7 +9,7 @@
      working                 █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
                              █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
  ▸ SMART QUEUE          none █│  ● 3ab77c1 name the webhook ids the way the docs do             3 files +31 −9  3m ago █
- ▾ CHANGES  3        vs main █│  ◌ Nothing changed and not committed.                                                  █
+ ▾ CHANGES  3        vs main █│  ◌ Nothing uncommitted.                                                                █
   M package.json       +2 −1 █│                                                                                        █
   A …/webhooks.test.ts   +48 █│  CHECKS ──────────────────────────────────────────  ██░░░░ 1 of 3 1m 24s    Running…   █
   M src/webhooks.ts   +12 −4 █│  ✓ format   passed     2.2s  1m ago                                 493 files checked  █

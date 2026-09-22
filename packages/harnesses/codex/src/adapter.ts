@@ -248,8 +248,7 @@ export class CodexAdapter implements WorkerAdapter {
         'has no place for pi extensions: their tools and skills still reach it, their own code does not',
       spend:
         'counts tokens but never prices them, so what a Codex agent cost in money is not a number anybody here can honestly give',
-      limits:
-        'writes it down as each turn ends, so there is nothing to show until an agent of it has worked',
+      limits: 'says it as each turn ends, so nothing shows until an agent has worked',
     },
   }
 

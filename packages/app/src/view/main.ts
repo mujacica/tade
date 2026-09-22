@@ -226,7 +226,7 @@ export function renderMain(
         .space(2)
         .button('Open its agent', { kind: 'action', name: 'open-agent' }, 'primary')
         .space()
-        .text('picks the conversation up where it stopped', skin.hint)
+        .text('where it stopped', skin.hint)
         .build(),
     )
   } else if (split) {
@@ -489,7 +489,7 @@ function renderWelcome(
       .space(3)
       .text('Or hold ', skin.hint)
       .keys(voice.keys)
-      .text(' and say what you want done.', skin.hint)
+      .text(' and say what you want.', skin.hint)
       .build(),
   ]
   return stack(rows.slice(0, height))

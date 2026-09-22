@@ -6,19 +6,19 @@
  ▌   wants you to approve…   █│  no branch yet                                                   nothing committed yet  
                              █│                                                                                         
    ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ───────────────────────────────────────────────────────  none yet 
-     working                 █│    No commit carries this task’s trailer yet, so none of these are its own.             
-                             █│  ◌ Nothing changed and not committed.                                                   
- ▸ SMART QUEUE          none █│                                                                                         
- ▾ CHANGES  3        vs main █│  CHECKS ──────────────────────────────────────────  no commit to check yet    Run all   
-  M package.json       +2 −1 █│  Nothing is committed here yet, and a check is always about a commit.                   
-  A …/webhooks.test.ts   +48 █│  ◦ format   not run          nobody has run it                                          
-  M src/webhooks.ts   +12 −4 █│      pnpm exec biome ci .                                                               
-                             ▕│  ◦ types    not run          nobody has run it                                          
- ▾ FILES                     ▕│      pnpm exec tsc --noEmit                                                             
-   ▾ src/                    ▕│  ◦ tests    not run          nobody has run it                                          
-       webhooks.test.ts      ▕│      pnpm vitest run  (after types)                                                     
+     working                 █│  ◌ Nothing uncommitted.                                                                 
+                             █│                                                                                         
+ ▸ SMART QUEUE          none █│  CHECKS ──────────────────────────────────────────  no commit to check yet    Run all   
+ ▾ CHANGES  3        vs main █│  ◦ format   not run          nobody has run it                                          
+  M package.json       +2 −1 █│      pnpm exec biome ci .                                                               
+  A …/webhooks.test.ts   +48 █│  ◦ types    not run          nobody has run it                                          
+  M src/webhooks.ts   +12 −4 █│      pnpm exec tsc --noEmit                                                             
+                             ▕│  ◦ tests    not run          nobody has run it                                          
+ ▾ FILES                     ▕│      pnpm vitest run  (after types)                                                     
+   ▾ src/                    ▕│                                                                                         
+       webhooks.test.ts      ▕│  on this machine, not CI’s matrix                                                       
        webhooks.ts           ▕│                                                                                         
-   ▸ test/                   ▕│  Green here is the commands on this machine; the OS matrix is CI’s to say.              
+   ▸ test/                   ▕│                                                                                         
      package.json            ▕│                                                                                         
      README.md               ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━

@@ -290,19 +290,19 @@ export function updateWith(install: Install): UpdateCommand {
       return { command: `mise upgrade ${install.name}` }
     case 'asdf':
       return {
-        cannot: `asdf installed it, and the plugin it came from is not something Tade can read off the path — \`asdf list\` says which`,
+        cannot: `asdf installed it — \`asdf list\` says from which plugin`,
       }
     case 'nvm':
       return {
-        cannot: `nvm installed it: \`nvm install --lts\` moves Node forward, and every global package moves with it`,
+        cannot: `nvm installed it — \`nvm install --lts\` moves it and everything with it`,
       }
     case 'system':
       return {
-        cannot: `it came with the system, so the system updates it — on macOS that is \`xcode-select --install\`, on Linux your package manager`,
+        cannot: `the system updates it — macOS: \`xcode-select --install\``,
       }
     default:
       return {
-        cannot: `it is a binary on PATH and nothing on this machine claims it, so Tade cannot say how it was installed`,
+        cannot: `a binary on PATH that nothing here claims`,
       }
   }
 }

@@ -10,12 +10,12 @@
               │ New agent                    ctrl   +   n    start one in the project you are in         │              
  ▸ SMART QUEUE│ New terminal                 ctrl   +   t    a terminal in the bottom panel              │              
  ▾ CHANGES  3 │ Open project                 ctrl   +   o    add or go to a repository                   │              
-  M package.js│ Mute                         ctrl   +   m    quiet now, mid-sentence if need be, and ba… │              
-  A …/webhooks│ Extensions                   ctrl   +   shift   +   e    turn them on and off, set them… │              
+  M package.js│ Mute                         ctrl   +   m    quiet now, and back                         │              
+  A …/webhooks│ Extensions                   ctrl   +   shift   +   e    turn them on and off            │              
   M src/webhoo│ Settings                     ctrl   +   ,    this panel                                  │              
-              │ Bottom panel fills window    ctrl   +   shift   +   f    the conversation or terminal t… │              
+              │ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window       │              
  ▾ FILES      │ Shortcuts                    F1    the sheet of every shortcut                           │              
-   ▾ src/     │ Reload                       ctrl   +   shift   +   r    restart the window with your c… │              
+   ▾ src/     │ Reload                       ctrl   +   shift   +   r    restart with your changes       │              
        webhook│ Allow                        a    allow what an agent asks, while one waits              │              
        webhook│ Deny                         d    deny what an agent asks, while one waits               │              
    ▸ test/    │                                                                                          │              

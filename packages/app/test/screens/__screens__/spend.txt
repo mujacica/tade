@@ -14,8 +14,8 @@
   A …/webhooks.tes│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago              │                  
   M src/webhooks.t│                   7d  ███░░░░░░░  31%  resets in 3d                              │                  
                   │ claude-code @rev… 5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago             │                  
- ▾ FILES          │ pi                cannot tell — is never told what a plan has left: it prices    │                  
-   ▾ src/         │                   every turn against its own catalog instead                     │                  
+ ▾ FILES          │ pi                cannot tell — is never told what a plan has left; it prices    │                  
+   ▾ src/         │                   each turn instead                                              │                  
        webhooks.te│                                                                                  │                  
        webhooks.ts│ PRODUCED                                                                         │                  
    ▸ test/        │ 4 commits    +357 −58  16 files  1 unattributed                                  │                  
@@ -26,9 +26,9 @@
                   │ checkout        $1.88 of $5.00 a day        █████░░░░░░░ 38%                     │                 ▕
                   │ search          $0.20                       no budget — set one                  │                 ▕
                   │                                                                                  │                 ▕
-                  │ $2.66: $1.40 priced by the harness, $1.26 estimated (~) · a plan is a share,     │                 ▕
- ❯ what you say   │ never money.                                                                     │                 ▕
-──────────────────│ 2h 5m is 3 runs added together, not elapsed time: agents at once each count their│───────────────── 
- Ask Tade anything│ own hours, and each counts until it stopped, idle time included.                 │trl   +   space   
-──────────────────╰──────────────────────────────────────────────────────────────────────────────────╯──────────────────
+                  │ ~ $1.26 estimated  ·  2h 5m over 3 runs                                          │                 ▕
+ ❯ what you say   ╰──────────────────────────────────────────────────────────────────────────────────╯                 ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute        claude-opus-5 ▾ │ high ▾ │ claude-code 5h █████░ 78% │ 2h 5m │ $2.66 today ▾ 

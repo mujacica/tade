@@ -636,10 +636,10 @@ type QueueHold = 'held' | 'paused' | 'timed' | 'stuck'
 
 /** What each of those is, said the way it would be said out loud. */
 const HOLD_SAYS: Readonly<Record<QueueHold, string>> = {
-  held: 'is held, and needs a decision',
+  held: 'is held',
   paused: 'is paused',
   timed: 'waits for a time',
-  stuck: 'cannot start by itself',
+  stuck: 'cannot start itself',
 }
 
 /** The same, as one word in a list of them. */
@@ -647,7 +647,7 @@ const HOLD_WORDS: Readonly<Record<QueueHold, string>> = {
   held: 'held',
   paused: 'paused',
   timed: 'waiting for a time',
-  stuck: 'unable to start by itself',
+  stuck: 'unable to start itself',
 }
 
 /** Why a piece of queued work is not the front of anything that will start. */

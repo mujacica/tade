@@ -257,14 +257,12 @@ export class PiAdapter implements WorkerAdapter {
     spend: { usd: 'exact', tokens: true, limits: 'none' },
     accounts: false,
     why: {
-      accounts:
-        'keeps one set of sign-ins, in ~/.pi: its providers are its accounts, and you sign in to them inside pi',
+      accounts: 'keeps one set of sign-ins, in ~/.pi: you sign in to its providers inside pi',
       models:
         'runs the models of the providers you are signed in to, and has written no catalog here yet: open pi once and sign in with /login',
       mcp: 'is given tools as an extension it loads, which is how Tade hands it its own',
       spend: "pi prices each turn itself, but does not know how much of a plan's limits is used",
-      limits:
-        'is never told what a plan has left: it prices every turn against its own catalog instead',
+      limits: 'is never told what a plan has left; it prices each turn instead',
     },
   }
 

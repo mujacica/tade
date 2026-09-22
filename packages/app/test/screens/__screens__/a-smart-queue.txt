@@ -4,31 +4,31 @@
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
    ✕ fix-charge              ▕│                                                                                         
      tests failed twice      ▕│  ! Held: fix-charge failed: tests failed twice.                                         
-                             ▕│    It will not start by itself. What should happen?                                     
-   ⠋ bump-mailer             ▕│                                                                                         
-     working                 ▕│    Wait for a retry     Start anyway     Remove                                         
                              ▕│                                                                                         
- ▾ SMART QUEUE  8      plan  ▕│  THE CHAIN IT IS IN                                                                     
-   all   next   timed        ▕│  FIRST                         THIS ONE                      AFTER IT                   
-                             ▕│  ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓      ╭──────────────────────╮   
- ▌ ! add-refunds      held   ▕│  │ ✕ fix-charge         │─────▶┃ ! add-refunds   held ┃─────▶│ ◌ refund-emails      │   
- ▌ │ ◆ fix-charge failed:…   ▕│  │   tests failed twice │      ┃   ◆ fix-charge fail… ┃      │   ◆ after add-refun… │   
-   │                         ▕│  ╰──────────────────────╯      ┗━━━━━━━━━━━━━━━━━━━━━━┛      ╰──────────────────────╯   
+   ⠋ bump-mailer             ▕│    Wait for a retry     Start anyway     Remove                                         
+     working                 ▕│                                                                                         
+                             ▕│  THE CHAIN IT IS IN                                                                     
+ ▾ SMART QUEUE  8      plan  ▕│  FIRST                         THIS ONE                      AFTER IT                   
+   all   next   timed        ▕│  ╭──────────────────────╮      ┏━━━━━━━━━━━━━━━━━━━━━━┓      ╭──────────────────────╮   
+                             ▕│  │ ✕ fix-charge         │─────▶┃ ! add-refunds   held ┃─────▶│ ◌ refund-emails      │   
+ ▌ ! add-refunds      held   ▕│  │   tests failed twice │      ┃   ◆ fix-charge fail… ┃      │   ◆ after add-refun… │   
+ ▌ │ ◆ fix-charge failed:…   ▕│  ╰──────────────────────╯      ┗━━━━━━━━━━━━━━━━━━━━━━┛      ╰──────────────────────╯   
+   │                         ▕│                                                                                         
    ╰─◌ refund-e…  ‖  ×  ≡    ▕│                                                                                         
-       ◆ after add-refund…   ▕│                                                                                         
-                             ▕│  WHY IT WAITS                                                                           
-   ◌ docs-typos       next   ▕│  ✕ fix-charge                                                                           
-     ◆ waiting for room      ▕│  ╰─! add-refunds  after fix-charge                                                      
-                             ▕│    │ both change src/charge.ts                                                          
-   ◷ release-notes   18:00   ▕│    ╰─◌ refund-emails  after add-refunds                                                 
-     ❯ waits for its time    ▕│        it emails what refund() returns                                                  
+       ◆ after add-refund…   ▕│  WHY IT WAITS                                                                           
+                             ▕│  ✕ fix-charge                                                                           
+   ◌ docs-typos       next   ▕│  ╰─! add-refunds  after fix-charge                                                      
+     ◆ waiting for room      ▕│    │ both change src/charge.ts                                                          
+                             ▕│    ╰─◌ refund-emails  after add-refunds                                                 
+   ◷ release-notes   18:00   ▕│        it emails what refund() returns                                                  
+     ❯ waits for its time    ▕│                                                                                         
+                             ▕│  WILL BE TOLD                                                                           
+   ‖ perf-check     paused   ▕│  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
+     ❯ paused                ▕│                                                                                         
+                             ▕│  TOUCHES    src/refunds.ts, src/charge.ts                                               
+   ↻ morning brief   08:45   ▕│  FINISHES   its agent says so                                                           
+     ◆ every weekday at 0…   ▕│  FROM       the orchestrator                                                            
                              ▕│                                                                                         
-   ‖ perf-check     paused   ▕│  WILL BE TOLD                                                                           
-     ❯ paused                ▕│  │ Add partial refunds to the charge flow. Use the ChargeResult type fix-charge adds.   
-                             ▕│                                                                                         
-   ↻ morning brief   08:45   ▕│  TOUCHES    src/refunds.ts, src/charge.ts                                               
-     ◆ every weekday at 0…   ▕│  FINISHES   when its agent says it has finished — the usual choice                      
-                             ▕│  FROM       the orchestrator                                                            
    ↻ deps weekly     09:00   ▕│                                                                                         
      ❯ every Monday at 09…   ▕│                                                                                         
                              ▕│                                                                                         

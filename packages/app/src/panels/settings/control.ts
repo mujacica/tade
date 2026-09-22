@@ -354,11 +354,7 @@ export function capture(panel: SettingsPanel, ctx: PanelContext): Drawn {
       })
   })
   rows.push({ text: suggested.build().text, hits })
-  for (const line of wrapTo(
-    'Never a key that types a character — you have to be able to type a space into your agent.',
-    inner - 2,
-    2,
-  ))
+  for (const line of wrapTo('Not a key that types a character.', inner - 2, 2))
     rows.push(row().space().text(line, skin.hint).build())
   rows.push({ text: ' '.repeat(inner), hits: [] })
   const usable = check?.ok === true

@@ -94,10 +94,9 @@ const UPDATES_SHOWN = {
       },
       version: '2.39.5',
       latest: null,
-      cannotTell: 'Tade cannot ask what is current for something installed as the system’s own',
+      cannotTell: 'cannot ask what is current for the system’s own',
       update: {
-        cannot:
-          'it came with the system, so the system updates it — on macOS that is `xcode-select --install`',
+        cannot: 'the system updates it — macOS: `xcode-select --install`',
       },
       behind: false,
     },

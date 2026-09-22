@@ -300,7 +300,7 @@ describe('the smart queue', () => {
         { task: 'app/working', state: 'working' },
         queued('app/stuck', { kind: 'held', on: 'app/working', because: 'it failed' }),
       ]),
-    ).toBe('nothing is next: stuck is held, and needs a decision')
+    ).toBe('nothing is next: stuck is held')
     // Behind held work is not next: what is at the front is what is stopping it.
     expect(
       says([

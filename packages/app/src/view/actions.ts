@@ -132,16 +132,6 @@ export function actionRows(
     if (added > 0) g.text(` +${added}`, skin.done)
     if (removed > 0) g.text(` −${removed}`, skin.bad)
   })
-  if (view.mine.length === 0) {
-    line(
-      (r) =>
-        r.text(
-          said('No commit carries this task’s trailer yet, so none of these are its own.'),
-          skin.hint,
-        ),
-      4,
-    )
-  }
   for (const commit of view.mine.slice(0, OWN_COMMITS)) {
     line((r) => commitRow(r, commit, now, skin, true))
   }
@@ -152,14 +142,10 @@ export function actionRows(
   // not, which is every shared checkout, and is said rather than counted as
   // its own.
   if (view.dirty === 0) {
-    line((r) =>
-      r.text('◌', skin.chrome).space().text('Nothing changed and not committed.', skin.hint),
-    )
+    line((r) => r.text('◌', skin.chrome).space().text('Nothing uncommitted.', skin.hint))
   } else {
     const files = `${view.dirty} file${view.dirty === 1 ? '' : 's'} not committed`
-    const whose = view.shared
-      ? 'shared checkout — Tade cannot say which are this agent’s'
-      : 'in its own worktree, so all of them are its own'
+    const whose = view.shared ? 'shared checkout — nobody’s to attribute' : 'its own worktree'
     line((r) => {
       r.text('◌', skin.waiting).space().text(files, skin.you)
       r.right((g) => g.text(shortened(whose, Math.max(10, width - 30)), skin.hint).space(2))
@@ -206,18 +192,6 @@ export function actionRows(
   // Said once, where it is the whole answer: absent is not fine, and a page
   // that leaves `unknown` looking like a quiet green is the bug this rule is
   // for. Not said where the row above already explains why nothing has run.
-  if (!going && view.rollup === 'unknown' && view.checks.length > 0 && !view.adoptable) {
-    line((r) =>
-      r.text(
-        said(
-          view.commit
-            ? 'Nobody has run these over this commit, which is not the same as their passing.'
-            : 'Nothing is committed here yet, and a check is always about a commit.',
-        ),
-        skin.hint,
-      ),
-    )
-  }
   for (const check of view.checks) {
     rows.push(...checkRows(check, pane.task, state, now, width, skin, pointer))
   }
@@ -366,7 +340,7 @@ export function checkRows(
   // What it ran at, where that is not the commit in hand: a run carries to a
   // later commit only over the very bytes it read, and is never silent about it.
   if (check.carried && check.commit) {
-    line((r) => r.text(`ran at ${check.commit?.slice(0, 7)}, over these very bytes`, skin.hint))
+    line((r) => r.text(`ran at ${check.commit?.slice(0, 7)}`, skin.hint))
   }
   const places = open ? check.places : check.places.slice(0, 1)
   for (const place of places) {

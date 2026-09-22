@@ -640,13 +640,16 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   (`run_model`, from the supervisor's `started` and `usage` signals — once, and again only when it
   changes), `runtimeFrom` reads it inside the run it is timing, and `modelsSaid` is the fallback for
   a journal written before it. A run nothing ever named is `UNRECORDED`, drawn as *not recorded*.
-- **How long the agents ran is added across them, and says that where it is read.** `13d 3h` off a
-  machine that has been on since breakfast reads as a bug and is not one: twenty agents over an
-  afternoon each ran for the whole of their own afternoon, and a run is wall clock from start to
-  stop, so one that finished at noon and sat in its lane until the window closed counted the wait.
-  Both are true and both are surprising, so `runtimeSays` is the one sentence that says them — in
-  core, because the window and `tade spend` are reading the same fold and may never explain it
-  differently.
+- **How long the agents ran is added across them, and says that in as many words as it takes.**
+  `13d 3h` off a machine that has been on since breakfast reads as a bug and is not one: twenty
+  agents over an afternoon each ran for the whole of their own afternoon, and a run is wall clock
+  from start to stop, so one that finished at noon and sat in its lane until the window closed
+  counted the wait. Both are true and both are surprising, so both are said — `runtimeSays` in core
+  is the one sentence, read by `tade spend`, and the window says the same fact as a clause
+  (`spendFooter`: `2h 5m over 3 runs`, beside `~ $1.26 estimated`). Neither may ever *explain* it
+  differently, and the short one may never be the one that leaves something out: `over 3 runs` is
+  what makes a figure that is not elapsed time readable, which is the whole of what the paragraph
+  was for.
 - **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid
   out from the room there is (`spendColumns`): the figures take what a figure takes, the share
   meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`) and
@@ -807,6 +810,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   runs in `test:smoke`, so a file crossing its line is said at the commit rather than in CI, and every
   failure says what to do about it. `app.ts` reached 8,635 lines because adding the fortieth subject
   to it was never once visibly a decision, and prose does not fail a build.
+- **A surface is options and values; the explanation lives where somebody asks for it.** Every
+  drawn surface — a settings group, a sidebar section, a panel, a footer — is a heading and then
+  controls, and no paragraph. A control whose name says what it is gets no sentence under it; where
+  the *consequence* is not guessable from the name, one short line, and only for the thing you are
+  on. A caveat that is true under every row of a page is a mark or a clause (`~`, `over 3 runs`,
+  `on this machine, not CI's matrix`), never a footnote read four hundred times. What is cut from
+  the drawing is not cut from the program: a setting's `means` is still what the search box matches
+  on and what `tade config` prints, `runtimeSays` still says the whole of it in `tade spend`, a
+  group's `about` is still searchable, and the panel that asks before an act is still where that
+  act's cost is spelled out. So the test of a line is not whether it is true — they were all true —
+  but whether *this* is the surface somebody would be reading it on.
 - **`README.md` is the showcase**, and the source a web page will be built from: a hero, a section per
   feature, each a picture and a line or three, then install and setup — which must stay findable,
   because they are the one thing a README may not lose. Explanations belong where they are used —

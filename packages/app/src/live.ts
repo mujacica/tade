@@ -833,9 +833,10 @@ export class Live {
     })
     const notes: string[] = []
     if (stood.plan.length > 0) {
-      // A tick here means less than a tick in CI, and says so rather than
-      // letting the two read as the same thing.
-      notes.push('Green here is the commands on this machine; the OS matrix is CI’s to say.')
+      // A tick here means less than a tick in CI. Six words of it rather than
+      // a sentence: the caveat is true under every check on every page, and
+      // one that is read four hundred times is one nobody reads.
+      notes.push('on this machine, not CI’s matrix')
     }
     const workspace = this.facts.get(task)?.workspace ?? 'checkout'
     return {
@@ -855,9 +856,9 @@ export class Live {
       source:
         stood.plan.length > 0
           ? stood.manifest.source === 'CI'
-            ? `read from ${stood.manifest.from} — not adopted, so none of them run here`
+            ? `read from ${stood.manifest.from} · not adopted`
             : `from ${stood.manifest.from ?? stood.manifest.source}`
-          : 'No checks configured — adopt what CI runs, or write .tade/checks.yaml.',
+          : 'None configured — adopt what CI runs, or write .tade/checks.yaml.',
       adoptable: stood.manifest.source === 'CI',
       running: going
         ? {

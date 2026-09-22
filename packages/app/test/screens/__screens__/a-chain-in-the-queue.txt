@@ -3,7 +3,7 @@
  ▾ AGENTS  1                  +    ▕│ checkout › client  ◌ waiting                                                      Start now     ‖ Pause     ×   
                                    ▕│─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    ⠋ schema                        ▕│                                                                                                                 
-     working                       ▕│  ◌ Waits on api, then starts by itself.                                                                         
+     working                       ▕│  ◌ Waits on api.                                                                                                
                                    ▕│                                                                                                                 
  ▾ SMART QUEUE  4            plan  ▕│  THE CHAIN IT IS IN                                                                                             
    all   next   timed              ▕│  FIRST                    THEN                     THIS ONE                 AFTER IT                            
@@ -26,7 +26,7 @@
  ▸ GIT                             ▕│  │ Call the new refunds endpoints from the dashboard.                                                           
                                    ▕│                                                                                                                 
                                    ▕│  TOUCHES    src/client/refunds.ts                                                                               
-                                   ▕│  FINISHES   when its agent says it has finished — the usual choice                                              
+                                   ▕│  FINISHES   its agent says so                                                                                   
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                                                       
                                                                                                                                                      ▕

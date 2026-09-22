@@ -240,28 +240,21 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const shown = lines.slice(start, start + room)
 
   // ── the foot ──
+  // Only what is happening. Where an extension of your own goes is said by
+  // `tade extensions --help` and by the folder the page already names beside
+  // one; under every extension there is, it was a line of instructions nobody
+  // was reading.
   const said = panel.said
     ? new Row(told, skin)
         .space()
         .text(cap(panel.said, told - 2), skin.busy)
         .build()
-    : new Row(told, skin)
-        .space()
-        .text(
-          cap(`yours go in ${ctx.extensionsRoot}/<name>/extension.ts, off until you say`, told - 2),
-          skin.hint,
-        )
-        .build()
+    : blank(told)
   // Done is pinned to the foot, which no part of the page scrolls over: a
   // button that reading past the fold takes away is a button that is gone.
   // Said as fully as there is room for, and never cut mid-word: a hint with
   // an ellipsis in it has stopped being a hint.
-  const how =
-    told >= 62
-      ? 'tab moves · ↑↓ reads · enter presses · esc closes'
-      : told >= 44
-        ? 'tab moves · ↑↓ reads · enter presses'
-        : '↑↓ reads · enter presses'
+  const how = told >= 44 ? 'tab moves · ↑↓ reads · enter presses' : '↑↓ · enter'
   const keys = new Row(told, skin, ctx.pointer)
     .space()
     .text(cap(how, told - 12), skin.hint)

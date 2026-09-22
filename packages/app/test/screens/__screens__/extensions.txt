@@ -10,23 +10,23 @@
    │ ✗ standup            ! ▕│   Settings…     What Jev flagged     Review the latest commits     Turn off         █│   
  ▸ │ ● GitHub               ▕│                                                                                     █│   
  ▾ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      █│   
-  M│ · Written by Tade    1 ▕│ · Reviews what agents wrote, when nobody has time to: turn the review watch on and  █│   
-  A│ · MCP servers        4 ▕│   every branch that goes quiet is read against the review pack — injection,         █│   
-  M│ · Harnesses' own     2 ▕│   secrets, swallowed errors, missing tests, whether it did what was asked.          ▕│   
-   │                        ▕│ · Judges anything else in front of you (jev_ask): a diff, an issue list, a failing  ▕│   
- ▾ │                        ▕│   log, something somebody pasted. A few dozen literal questions at once, each       ▕│   
-   │                        ▕│   answered with a probability and no prose.                                         ▕│   
-   │                        ▕│ · Finds the lines that answer a question, in a log, the journal or a file           ▕│   
-   │                        ▕│   (jev_grep) — a filter to read, not an answer.                                     ▕│   
-   │                        ▕│ · Says what it has already flagged (jev_findings), and takes your word for whether  ▕│   
-   │                        ▕│   it was right (jev_verdict): nothing else says whether a question is worth asking  ▕│   
-   │                        ▕│   again.                                                                            ▕│   
-━  │                        ▕│ · Reads things back before somebody guesses: what was actually asked for            ▕│  ━
-   │                        ▕│   (jev_read_request), a plan before Tade keeps it (jev_plan_check), what to do      ▕│   
-   │                        ▕│   first of what is queued (jev_queue_order).                                        ▕│  ▕
-   │                        ▕│ · Answers a sentence typed into search that matched no letters, with which of the   ▕│  ▕
-   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+  M│ · Written by Tade    1 ▕│ · Reads branches that go quiet against the review pack, once its watch is on.       █│   
+  A│ · MCP servers        4 ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something pasted.       █│   
+  M│ · Harnesses' own     2 ▕│ · Reads things back before somebody guesses: a request, a plan, a queue order.      █│   
+   │                        ▕│ · Answers a sentence typed into search that matched no letters.                     █│   
+ ▾ │                        ▕│ · Reads a command the approval rules do not name — only ever asking for more.       █│   
+   │                        ▕│ · May only add caution: never approves, merges, unholds or shortens a review.       █│   
+   │                        ▕│                                                                                     ▕│   
+   │                        ▕│ TOOLS                                                                               ▕│   
+   │                        ▕│ jev_ask               Judge anything against questions you write                    ▕│   
+   │                        ▕│ jev_grep              Grep that reads                                               ▕│   
+   │                        ▕│ jev_review            Read a change against the review pack and say what it flags   ▕│   
+━  │                        ▕│ jev_findings          What the review watch has looked at, what it flagged, what ca…▕│  ━
+   │                        ▕│ jev_verdict           Write down what a finding turned out to be, once somebody has…▕│   
+   │                        ▕│ jev_read_request      A second, independent reading of what some… orchestrator only ▕│  ▕
+   │                        ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only ▕│  ▕
+   │                        ▕│                                                                                      │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

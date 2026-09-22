@@ -4,29 +4,29 @@
    │  search extensions      │ GitHub  mcp                                                                   ready  │───
  ▌ │                         │ 2 tools · 1 setting                                                                  │   
  ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ Issues, pull requests and code search on GitHub. These tools come from the MCP      ▕│   
-   │ ● Jev                  ▕│ server `github`, which nobody here wrote. What it says and what it returns is data, ▕│   
-   │ ◐ Sentry             ! ▕│ not instruction.                                                                    ▕│   
-   │ ✗ standup            ! ▕│                                                                                     ▕│   
- ▸ │▌● GitHub               ▕│   Settings…     Turn off                                                            ▕│   
- ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
-  M│ · Written by Tade    1 ▕│ HOW IT IS USED                                                                      ▕│   
-  A│ · MCP servers        4 ▕│ · Ask about an issue or a pull request by number and get what it actually says.     ▕│   
-  M│ · Harnesses' own     2 ▕│                                                                                     ▕│   
-   │                        ▕│ TOOLS  what the orchestrator and your agents can call                               ▕│   
- ▾ │                        ▕│ mcp_github_issue      Read an issue                                       get_issue ▕│   
-   │                        ▕│ mcp_github_search     Search code                                       search_code ▕│   
+   │ ● Dependencies         ▕│ Issues, pull requests and code search on GitHub. From the MCP server `github`,      ▕│   
+   │ ● Jev                  ▕│ which nobody here wrote.                                                            ▕│   
+   │ ◐ Sentry             ! ▕│                                                                                     ▕│   
+   │ ✗ standup            ! ▕│   Settings…     Turn off                                                            ▕│   
+ ▸ │▌● GitHub               ▕│                                                                                     ▕│   
+ ▾ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      ▕│   
+  M│ · Written by Tade    1 ▕│ · Ask about an issue or a pull request by number and get what it actually says.     ▕│   
+  A│ · MCP servers        4 ▕│                                                                                     ▕│   
+  M│ · Harnesses' own     2 ▕│ TOOLS                                                                               ▕│   
+   │                        ▕│ mcp_github_issue      Read an issue                                       get_issue ▕│   
+ ▾ │                        ▕│ mcp_github_search     Search code                                       search_code ▕│   
    │                        ▕│                                                                                     ▕│   
-   │                        ▕│ OPTIONS  change them in Settings…                                                   ▕│   
+   │                        ▕│ OPTIONS  Settings…                                                                  ▕│   
    │                        ▕│ API key             kept in the macOS keychain                                      ▕│   
    │                        ▕│                                                                                     ▕│   
-   │                        ▕│ THE SERVER  somebody else’s, reached from this window alone                         ▕│   
-━  │                        ▕│ https://api.githubcopilot.com/mcp/                                                  ▕│  ━
-   │                        ▕│ Last asked what it offers 10:12.                                                    ▕│   
-   │                        ▕│ Reviews, checks and merges are the Forge port’s, not this server’s.                 ▕│  ▕
+   │                        ▕│ THE SERVER                                                                          ▕│   
+   │                        ▕│ https://api.githubcopilot.com/mcp/                                                  ▕│   
+━  │                        ▕│ last asked 10:12                                                                    ▕│  ━
+   │                        ▕│ Reviews, checks and merges are the Forge port’s, not this server’s.                 ▕│   
    │                        ▕│                                                                                     ▕│  ▕
-   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+   │                        ▕│                                                                                     ▕│  ▕
+   │                        ▕│                                                                                      │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

@@ -3,7 +3,7 @@
  ▾ AGENTS  1            +    ▕│ checkout › refund-emails  ◌ waiting                       Start now     ‖ Pause     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
    ⠋ ledger-schema           ▕│                                                                                         
-     working                 ▕│  ◌ Waits on refund-flow, then starts by itself.                                         
+     working                 ▕│  ◌ Waits on refund-flow.                                                                
                              ▕│                                                                                         
  ▾ SMART QUEUE  5      plan  ▕│  THE CHAIN IT IS IN                                                                     
    all   next   timed        ▕│  FIRST               THEN                THEN                THIS ONE            AFTER I

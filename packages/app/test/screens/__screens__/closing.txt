@@ -5,19 +5,19 @@
  ▌ ! stripe-v15      $1.26   █│                                                                                         
  ▌   wants you to approve…   █│                                                                                         
                              █│                                                                                         
-   ⠋ refunds         $0.62   ╭─ Close Tade? ──────────────────────────────────────── esc ─╮                             
-     working                 │                                                            │                             
-                             │ 2 agents are running inside this window.                   │                             
- ▸ SMART QUEUE          none │                                                            │                             
- ▾ CHANGES  3        vs main │ Agents here run under pty, so closing stops them. Their    │                             
-  M package.json       +2 −1 │ conversations are kept, and they open again where they     │ed,                          
-  A …/webhooks.test.ts   +48 │ stopped the next time Tade opens.                          │e.                           
+   ⠋ refunds         $0.62   █│                                                                                         
+     working                 ╭─ Close Tade? ──────────────────────────────────────── esc ─╮                             
+                             │                                                            │                             
+ ▸ SMART QUEUE          none │ 2 agents are running inside this window.                   │                             
+ ▾ CHANGES  3        vs main │                                                            │                             
+  M package.json       +2 −1 │ Closing stops them under pty; they reopen where they were. │ed,                          
+  A …/webhooks.test.ts   +48 │ Settings › Agents › Where agents run                       │e.                           
   M src/webhooks.ts   +12 −4 │                                                            │                             
-                             │ Under tmux they would keep working after you close.        │                             
- ▾ FILES                     │ Settings › Agents › Where agents run                       │                             
-   ▾ src/                    │                                                            │                             
-       webhooks.test.ts      │                         Cancel     Stop agents and close   │─────╮                       
-       webhooks.ts           ╰────────────────────────────────────────────────────────────╯     │                       
+                             │                         Cancel     Stop agents and close   │                             
+ ▾ FILES                     ╰────────────────────────────────────────────────────────────╯                             
+   ▾ src/                    ▕│  ▸ bash npm i stripe@15                                                                 
+       webhooks.test.ts      ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+       webhooks.ts           ▕│  │ bash  npm i stripe@15                                        │                       
    ▸ test/                   ▕│  │   Allow once     Deny                                        │                       
      package.json            ▕│  ╰──────────────────────────────────────────────────────────────╯                       
      README.md               ▕│                                                                                         

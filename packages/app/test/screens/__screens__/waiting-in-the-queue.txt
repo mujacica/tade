@@ -3,7 +3,7 @@
  ▾ AGENTS  2            +    ▕│ checkout › refund-emails  ◌ waiting                       Start now     ‖ Pause     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────
    ✕ fix-charge              ▕│                                                                                         
-     tests failed twice      ▕│  ◌ Waits on add-refunds, bump-mailer, then starts by itself.                            
+     tests failed twice      ▕│  ◌ Waits on add-refunds, bump-mailer.                                                   
                              ▕│                                                                                         
    ⠋ bump-mailer             ▕│  THE CHAIN IT IS IN                                                                     
      working                 ▕│  FIRST                         THEN                          THIS ONE                   

@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Voice                                                                       │────────
- ▌ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
- ▌   wan│  Agents                │                                                                             │        
-        │  Models                │▌Push to talk       ctrl   +   space       Change…                           │        
-   ⠋ ref│  Orchestrator          │▌                ✓ Hold works here: this terminal reports releases.          │        
-     wor│  Approvals      bypass │                                                                             │        
-        │  Checks                │ Mode            ◉ Hold to talk   ○ Press to start, press to stop            │        
- ▸ SMART│▌ Voice                 │                                                                             │        
- ▾ CHANG│  Window                │ Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
-  M pack│  Projects           3  │                                                                             │        
-  A …/we│  Checks per project    │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
-  M src/│  Budgets           ● 1 │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
-        │  Telemetry             │                                                                             │        
- ▾ FILES│  Shortcuts             │ Muted           ██── off                                                    │        
-   ▾ src│  Accounts          ● 2 │                                                                             │        
-       w│  Updates               │ Spoken replies  ──██ on                                                     │        
-       w│                        │                                                                             │        
-   ▸ tes│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
-     pac│                        │                                                                             │        
-     REA│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+ ▌ ! str│                        │                                                                             │        
+ ▌   wan│  Agents                │▌Push to talk       ctrl   +   space       Change…                           │        
+        │  Models                │▌                ✓ hold works here                                           │        
+   ⠋ ref│  Orchestrator          │                                                                             │        
+     wor│  Approvals      bypass │ Mode            ◉ Hold to talk   ○ Press to start, press to stop            │        
+        │  Checks                │                                                                             │        
+ ▸ SMART│▌ Voice                 │ Speech to text   whisper · base.en · on this machine  ▾        ↻ on restart │        
+ ▾ CHANG│  Window                │                                                                             │        
+  M pack│  Projects           3  │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
+  A …/we│  Checks per project    │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
+  M src/│  Budgets           ● 1 │                                                                             │        
+        │  Telemetry             │ Muted           ██── off                                                    │        
+ ▾ FILES│  Shortcuts             │                                                                             │        
+   ▾ src│  Accounts          ● 2 │ Spoken replies  ──██ on                                                     │        
+       w│  Updates               │                                                                             │        
+       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+     REA│                        │                                                                             │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │                                                                             │        
         │                        │                                                                             │       ▕

@@ -197,8 +197,7 @@ const SERVERS: McpServerOffer[] = [
 const SERVER_ON: ExtensionView = {
   name: 'mcp-linear',
   title: 'Linear',
-  description:
-    'Issues in Linear. These tools come from the MCP server `linear`, which nobody here wrote.',
+  description: 'Issues in Linear. From the MCP server `linear`, which nobody here wrote.',
   workflow: ['Ask about an issue by its number.'],
   source: 'mcp',
   state: 'ready',
@@ -379,13 +378,13 @@ describe('the extensions page at any width', () => {
     expect(said).toContain('the macOS keychain')
     // And where there is none, where to put one — not a shell profile.
     const missing = wholePage(extensionsPanel('sentry'))
-    expect(missing).toContain('not set — paste one in Set up…')
+    expect(missing).toContain('not set — Set up…')
     expect(missing).toContain('Set up…')
   })
 
   it('says of one that is off that nothing in it has run, rather than inventing the rest', () => {
     const said = wholePage(extensionsPanel('release-notes'))
-    expect(said).toContain('never imports it')
+    expect(said).toContain('never imported')
     expect(said).toContain('Turn on')
     // Broken is listed as broken, with the reason, and stops nothing else.
     const bad = wholePage(extensionsPanel('standup'))
@@ -482,7 +481,11 @@ describe('the extensions page at any width', () => {
     // right-hand side's, and nothing of the page is drawn over them.
     const page = bars.filter((hit) => (hit.target as { area: string }).area === 'panel')
     expect(page.every((hit) => hit.row < foot)).toBe(true)
-    expect(rows[foot - 1]).toContain('yours go in')
+    // The row above Done is the foot's other half, and says nothing while
+    // nothing is happening: a line of instructions drawn under every
+    // extension there is was read once and then never again.
+    const { side } = extensionsSize(120, 24)
+    expect((rows[foot - 1] ?? '').slice(side + 2).replace(/[│\s]/g, '')).toBe('')
     expect(
       scrolled.hits.some((hit) => hit.target.kind === 'control' && hit.target.id === 'close'),
     ).toBe(true)
@@ -555,7 +558,7 @@ describe('the extensions page at any width', () => {
   it('says of a server that is off that it was never connected, and nothing else', () => {
     const over = { extensions: [...EXTENSIONS, SERVER_OFF] }
     const said = wholePage(extensionsPanel('mcp-postgres'), over)
-    expect(said).toContain('never been connected')
+    expect(said).toContain('never connected')
     expect(said).toContain('Turn on')
     expect(said).toContain('npm install --global @modelcontextprotocol/server-postgres')
     // No tools, no version, no "last asked": nothing has asked it anything.
@@ -577,7 +580,9 @@ describe('the extensions page at any width', () => {
     const said = plainRows(drawnAt({ ...extensionsPanel(), search: 'nothing like this' })).join(
       '\n',
     )
-    expect(said).toContain('Nothing matches')
-    expect(said).toContain('Clear the search')
+    // Said once, at the head, in the words that were typed — and not again
+    // underneath it.
+    expect(said).toContain('Nothing matches “nothing like this”')
+    expect(said.match(/Nothing matches/g)).toHaveLength(1)
   })
 })

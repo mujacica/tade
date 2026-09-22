@@ -4,12 +4,12 @@
    │  search extensions      │ Written by Tade                                                                      │───
  ▌ │                         │ 1 tool Tade wrote for itself                                                         │   
  ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ Tools Tade wrote for itself, for the orchestrator to use. One you turn on loads the ▕│   
-   │ ● Jev                  ▕│ next time Tade starts, and a lesson it proposes is a file you read before any of it ▕│   
-   │ ◐ Sentry             ! ▕│ runs.                                                                               ▕│   
-   │ ✗ standup            ! ▕│                                                                                     ▕│   
- ▸ │ ● GitHub               ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
- ▾ │ ○ release-notes        ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
+   │ ● Dependencies         ▕│ Tools Tade wrote for itself. One you turn on loads at the next start.               ▕│   
+   │ ● Jev                  ▕│                                                                                     ▕│   
+   │ ◐ Sentry             ! ▕│ ○ standup-notes  off                                             Read     Turn on   ▕│   
+   │ ✗ standup            ! ▕│   Reads out what each agent did yesterday, because you ask every morning.           ▕│   
+ ▸ │ ● GitHub               ▕│                                                                                     ▕│   
+ ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
   M│▌· Written by Tade    1 ▕│                                                                                     ▕│   
   A│ · MCP servers        4 ▕│                                                                                     ▕│   
   M│ · Harnesses' own     2 ▕│                                                                                     ▕│   
@@ -25,8 +25,8 @@
    │                        ▕│                                                                                     ▕│   
    │                        ▕│                                                                                     ▕│  ▕
    │                        ▕│                                                                                     ▕│  ▕
-   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+   │                        ▕│                                                                                      │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

@@ -83,7 +83,7 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
         .space()
         .text(
           query.scope === 'text' && query.text.length < 3
-            ? 'Type at least three letters to look inside files.'
+            ? 'Three letters to search inside files.'
             : ctx.searching
               ? 'Looking…'
               : 'Nothing matches.',

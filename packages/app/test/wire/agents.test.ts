@@ -96,7 +96,7 @@ describe('the window, starting and ending agents', () => {
     expect(page).not.toContain('tidy the readme')
     // And a project that checks nothing says so, rather than looking fine.
     expect(page).toContain('CHECKS')
-    expect(page).toContain('No checks configured')
+    expect(page).toContain('None configured')
   }, 30_000)
 
   it("opens an agent's menu with a right-click, listing what can be done", async () => {

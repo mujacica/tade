@@ -150,7 +150,7 @@ describe('how a program got onto this machine', () => {
     const install = installOf({ path: '/Users/x/bin/tmux', realPath: '/Users/x/bin/tmux' })
     expect(install.manager).toBe('path')
     const update = updateWith(install)
-    expect(update).toMatchObject({ cannot: expect.stringContaining('cannot say') })
+    expect(update).toMatchObject({ cannot: expect.stringContaining('nothing here claims') })
   })
 
   it('names the version manager where one owns the runtime itself', () => {

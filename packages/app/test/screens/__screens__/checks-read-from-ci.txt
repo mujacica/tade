@@ -6,19 +6,19 @@
  ▌   wants you to approve…   █│  no branch yet                                                   nothing committed yet  
                              █│                                                                                         
    ⠋ refunds         $0.62   █│  THIS AGENT’S COMMITS ───────────────────────────────────────────────────────  none yet 
-     working                 █│    No commit carries this task’s trailer yet, so none of these are its own.             
-                             █│  ◌ Nothing changed and not committed.                                                   
- ▸ SMART QUEUE          none █│                                                                                         
- ▾ CHANGES  3        vs main █│  CHECKS ──────────────────────────  no commit to check yet   Adopt from CI    Run all   
-  M package.json       +2 −1 █│  read from .github/workflows/ci.yml — not adopted, so none of them run here             
-  A …/webhooks.test.ts   +48 █│  ◦ format   not run          nobody has run it                                          
-  M src/webhooks.ts   +12 −4 █│      biome ci .                                                                         
-                             ▕│  ◦ tests    not run          nobody has run it                                          
- ▾ FILES                     ▕│      pnpm vitest run                                                                    
-   ▾ src/                    ▕│  ◦ publish  not run          cannot run here                                            
-       webhooks.test.ts      ▕│      needs CI: it uses something only the runner knows                                  
-       webhooks.ts           ▕│                                                                                         
-   ▸ test/                   ▕│  Green here is the commands on this machine; the OS matrix is CI’s to say.              
+     working                 █│  ◌ Nothing uncommitted.                                                                 
+                             █│                                                                                         
+ ▸ SMART QUEUE          none █│  CHECKS ──────────────────────────  no commit to check yet   Adopt from CI    Run all   
+ ▾ CHANGES  3        vs main █│  read from .github/workflows/ci.yml · not adopted                                       
+  M package.json       +2 −1 █│  ◦ format   not run          nobody has run it                                          
+  A …/webhooks.test.ts   +48 █│      biome ci .                                                                         
+  M src/webhooks.ts   +12 −4 █│  ◦ tests    not run          nobody has run it                                          
+                             ▕│      pnpm vitest run                                                                    
+ ▾ FILES                     ▕│  ◦ publish  not run          cannot run here                                            
+   ▾ src/                    ▕│      needs CI: it uses something only the runner knows                                  
+       webhooks.test.ts      ▕│                                                                                         
+       webhooks.ts           ▕│  on this machine, not CI’s matrix                                                       
+   ▸ test/                   ▕│                                                                                         
      package.json            ▕│                                                                                         
      README.md               ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━

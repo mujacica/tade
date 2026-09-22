@@ -12,7 +12,7 @@
  ▾ CHANGES  3        vs │  The staging key rotates on the 1st▏                                 │                        
   M package.json       +│                                                                      │                        
   A …/webhooks.test.ts  │ ◉ About checkout   ○ About everything                                │                        
-  M src/webhooks.ts   +1│ Kept word for word. Saying "remember …" to Tade does the same.       │                        
+  M src/webhooks.ts   +1│ Kept word for word.                                                  │                        
                         │                                                                      │                        
  ▾ FILES                │                                             Cancel     Save note ⏎   │                        
    ▾ src/               ╰──────────────────────────────────────────────────────────────────────╯                        

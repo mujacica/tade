@@ -140,7 +140,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     })
   }
 
-  // ── the head of the form: what this group is, and what it is about ──
+  // ── the head of the form: the heading, and then the settings ──
   const group = ctx.settings.find((g) => g.id === panel.category)
   const title = panel.search
     ? `Matching “${panel.search}”`
@@ -149,23 +149,17 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       : panel.category === UPDATES
         ? 'Updates'
         : (group?.title ?? '')
-  const about = panel.search
-    ? 'Every setting whose name or meaning has those words.'
-    : panel.category === ACCOUNTS
-      ? "Who each harness's agents run as. Signing in is each harness's own, inside this window: what you give it goes where it keeps it, never through Tade. ▸ marks the account new agents use; an agent's own menu moves it to another."
-      : panel.category === UPDATES
-        ? 'The programs Tade runs, and Tade itself: what is here, how it got here — which is what decides how it moves forward — and what is current. Asking what is current is the one thing here that reaches the network, and it happens when you press it. Nothing installs anything: the exact command is here to read, and running it opens a terminal you can watch.'
-        : (group?.about ?? '')
   const head: { text: string; hits: Hit[] }[] = [
     new Row(form, skin)
       .space()
       .text(cap(title, form - 2), skin.brand)
       .build(),
   ]
-  // What the group is about, kept inside the panel: broken over lines rather
-  // than cut off mid-word at whatever width the window happens to be.
-  for (const line of wrapTo(about, form - 2, height >= 22 ? 3 : 2))
-    head.push(new Row(form, skin).space().text(line, skin.hint).build())
+  // A heading and then the settings. What a group is about is still written
+  // down — `about` is half of what the search box matches on, and `tade
+  // config` reads it — but three lines of prose over every page, saying what
+  // the heading and the controls under it already say, is the paragraph this
+  // panel was asked to stop drawing.
   head.push(blank(form))
 
   // ── the form ──
@@ -274,7 +268,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       body.push(
         new Row(form, skin)
           .space()
-          .text(cap('Asking each harness who it is signed in as…', form - 2), skin.hint)
+          .text(cap('Asking each harness…', form - 2), skin.hint)
           .build(),
       )
   } else if (panel.category === UPDATES && !panel.search) {
@@ -385,12 +379,8 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     if (!listOpen && (focused || (talkKey && panel.search === ''))) {
       const note = talkKey
         ? ctx.releases
-          ? { mark: '✓', text: 'Hold works here: this terminal reports releases.', tone: skin.done }
-          : {
-              mark: '▲',
-              text: "This terminal can't report releases, so talking toggles.",
-              tone: skin.waiting,
-            }
+          ? { mark: '✓', text: 'hold works here', tone: skin.done }
+          : { mark: '▲', text: 'no key releases here — talking toggles', tone: skin.waiting }
         : { mark: '', text: setting.means, tone: skin.hint }
       // Said under the control where that leaves it room to be read, and
       // under the name where it does not.

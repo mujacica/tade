@@ -152,12 +152,9 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       row()
         .space()
         .text('▲ ', skin.waiting)
-        .text(
-          `${chosen.kind === 'here' ? 'This folder' : chosen.name} isn't a git repository. Agents work in git worktrees,`,
-        )
+        .text(`${chosen.kind === 'here' ? 'This folder' : chosen.name} isn't a git repository.`)
         .build(),
     )
-    notice.push(row().space(3).text('so Tade needs one before it can start work there.').build())
     notice.push(
       row()
         .space(3)
@@ -198,12 +195,7 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   )
-  rows.push(
-    row()
-      .space()
-      .text('click to choose · click again or → to go in · ← up · enter opens', skin.hint)
-      .build(),
-  )
+  rows.push(row().space().text('→ in · ← up · enter opens', skin.hint).build())
   return box('Open a project', rows, width, skin, { corner: 'esc' })
 }
 

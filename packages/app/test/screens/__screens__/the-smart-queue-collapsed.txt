@@ -5,7 +5,7 @@
  ▌ ✕ fix-charge              ▕│                                                                                         
  ▌   tests failed twice      ▕│  Its last run failed.                                                                   
                              ▕│                                                                                         
-   ⠋ bump-mailer             ▕│    Open its agent   picks the conversation up where it stopped                          
+   ⠋ bump-mailer             ▕│    Open its agent   where it stopped                                                    
      working                 ▕│                                                                                         
                              ▕│                                                                                         
  ▸ SMART QUEUE  5      plan  ▕│                                                                                         

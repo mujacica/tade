@@ -10,23 +10,23 @@
    │ ✗ standup            ! ▕│ ▲ no Sentry token: set $SENTRY_AUTH_TOKEN to a user auth token (org:read,           █│   
  ▸ │ ● GitHub               ▕│   project:read, event:read, event:write), or log in with sentry-cli                 █│   
  ▾ │ ○ release-notes        ▕│                                                                                     █│   
-  M│ · Written by Tade    1 ▕│ Not read: extensions.sentry.orgg — a typo, most likely.                             █│   
+  M│ · Written by Tade    1 ▕│ Not read: extensions.sentry.orgg                                                    █│   
   A│ · MCP servers        4 ▕│                                                                                     █│   
   M│ · Harnesses' own     2 ▕│   Set up…     Turn off                                                              █│   
    │                        ▕│                                                                                     █│   
- ▾ │                        ▕│ HOW IT IS USED                                                                      ▕│   
-   │                        ▕│ · Says what is breaking in production: what is unresolved or new (sentry_issues),   ▕│   
-   │                        ▕│   one issue with its stack and events (sentry_issue), a request across services     ▕│   
-   │                        ▕│   (sentry_trace), how often and since when (sentry_stats).                          ▕│   
-   │                        ▕│ · Turns an error into work (sentry_fix): an agent in its own worktree with the      ▕│   
-   │                        ▕│   issue, the stack and the trace already written into its context — not a link      ▕│   
-   │                        ▕│   somebody has to go and open.                                                      ▕│   
-━  │                        ▕│ · Lets new errors find you: the new-errors watch looks every hour for issues first  ▕│  ━
-   │                        ▕│   seen since its last look and starts an agent on each. What was already there      ▕│   
-   │                        ▕│   when you turned it on is not new.                                                 ▕│  ▕
-   │                        ▕│ · Says something back to Sentry — resolving, ignoring, assigning — only when        ▕│  ▕
-   │                        ▕│ yours go in ~/.tade/extensions/<name>/extension.ts, off until you say                │  ▕
-   │                        ▕│ tab moves · ↑↓ reads · enter presses · esc closes                            Done    │  ▕
+ ▾ │                        ▕│ HOW IT IS USED                                                                      █│   
+   │                        ▕│ · Says what is breaking in production (sentry_issues, sentry_issue, sentry_trace).  █│   
+   │                        ▕│ · Turns an error into work (sentry_fix): an agent with the stack already in hand.   █│   
+   │                        ▕│ · Lets new errors find you: the new-errors watch starts an agent on each.           ▕│   
+   │                        ▕│ · Says something back — resolve, ignore, assign — only when you asked for it.       ▕│   
+   │                        ▕│ · The token is kept in your keychain, never in `config.yaml`.                       ▕│   
+   │                        ▕│                                                                                     ▕│   
+━  │                        ▕│ TOOLS                                                                               ▕│  ━
+   │                        ▕│ sentry_issues         List a project's Sentry issues                                ▕│   
+   │                        ▕│ sentry_issue          Everything Sentry knows about one issue                       ▕│  ▕
+   │                        ▕│ sentry_events         Query Sentry's Explore data                                   ▕│  ▕
+   │                        ▕│                                                                                      │  ▕
+   │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

@@ -119,7 +119,7 @@ export function findingsReport(
   lines.push('')
   lines.push(
     looks.length === 0 && week.length === 0
-      ? 'Nothing has been read yet. The review watch is off until somebody turns it on (tade_schedule, jev.review), and jev_review reads a change on demand.'
+      ? 'Nothing read yet — the review watch is off, and jev_review reads on demand.'
       : `${looks.length} look${looks.length === 1 ? '' : 's'} · ${week.length} change${week.length === 1 ? '' : 's'} read · ${raised} flagged · ${centsSaid(spent)}`,
   )
   const trouble = looks.filter((look) => look.problem)
@@ -148,10 +148,6 @@ export function findingsReport(
     for (const [id, row] of [...byQuestion].sort((a, b) => b[1].fired - a[1].fired)) {
       lines.push(`| ${id} | ${row.fired} | ${row.confirmed} | ${row.wrong} |`)
     }
-    lines.push('')
-    lines.push(
-      'A question that never fires should be deleted, and one that is always wrong should be rewritten: both are in questions.ts.',
-    )
   }
 
   const buckets = calibration(reviews)
@@ -167,8 +163,6 @@ export function findingsReport(
         `| ${bucket.from.toFixed(1)}–${bucket.to.toFixed(1)} | ${bucket.judged} | ${bucket.confirmed} |`,
       )
     }
-    lines.push('')
-    lines.push('Whether a number means what it says is ours to measure: nobody has published it.')
   }
 
   const open = findings.filter((finding) => !verdictFor(finding, reviews))
@@ -188,9 +182,7 @@ export function findingsReport(
     }
     if (open.length > 0) {
       lines.push('')
-      lines.push(
-        `${open.length} finding(s) with nothing recorded about whether they were right. Reading one and saying so with jev_verdict is what makes the table above worth anything.`,
-      )
+      lines.push(`${open.length} finding(s) with no verdict yet — jev_verdict records one.`)
     }
   }
   return lines.join('\n')

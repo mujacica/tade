@@ -116,11 +116,10 @@ export const depsExtension: TadeExtension = {
   description:
     'Finds what a project depends on that is out of date, vulnerable or deprecated, and updates it in an agent’s worktree.',
   workflow: [
-    'Looks before anything is touched (deps_check): what is behind and by how much, what OSV knows about it, what is deprecated — against npm, PyPI, crates.io and Go modules. It changes nothing.',
-    'Hands the update to an agent rather than doing it here (deps_update): its own worktree, manifests already changed, the old report in its context. It installs, tests, reads the changelogs of the majors and fixes what broke.',
-    'Moves an agent’s own worktree forward: called by one, the same tool updates the manifests where it works and says which install and which tests come next.',
-    'Watches for what became dangerous overnight: the vulnerable-dependencies watch checks against OSV once a day and starts an agent per advisory — offered, and off until you turn it on in a project.',
-    'Ranges and ceilings you wrote are left as written, and anything under `ignore` is never reported or updated.',
+    'Looks and changes nothing (deps_check): behind, vulnerable or deprecated.',
+    'Hands the update to an agent in its own worktree (deps_update).',
+    'Watches OSV once a day, where you turn the watch on.',
+    'Ranges you wrote stay as written; anything under `ignore` is left alone.',
   ],
   root: ROOT,
   settings: [
@@ -232,8 +231,7 @@ export const depsExtension: TadeExtension = {
     {
       id: 'vulnerabilities',
       title: 'Vulnerable dependencies',
-      means:
-        'Checks what a project depends on against OSV, and starts an agent on each package with a known vulnerability to move it forward, install, test and commit.',
+      means: 'checks against OSV, and starts an agent per vulnerable package',
       every: '1d',
       input: object({
         level: oneOf(

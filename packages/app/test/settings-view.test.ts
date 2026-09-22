@@ -64,7 +64,7 @@ const LOOK = {
       },
       version: '2.39.5',
       latest: null,
-      cannotTell: 'Tade cannot ask what is current for something installed as the system’s own',
+      cannotTell: 'cannot ask what is current for the system’s own',
       update: { cannot: 'it came with the system, so the system updates it' },
       behind: false,
     },
@@ -269,14 +269,19 @@ describe('the settings form at any width', () => {
     expect(new Set(switches.map((hit) => hit.to - hit.from)).size).toBe(1)
   })
 
-  it('keeps what a group is about inside the panel, however long it is', () => {
+  it('puts the group heading over its settings, with no paragraph between', () => {
     const drawn = drawnAt('telemetry', { width: 80, height: 26 })
     const rows = plainRows(drawn)
     const said = rows
-      .slice(2, 6)
+      .slice(1, 6)
       .map((row) => row.trim())
       .join(' ')
-    expect(said).toContain('Tade reporting its own trouble')
+    // The heading, then the first setting. What the group is about is still
+    // written down — it is half of what the search box matches on — and is
+    // not three lines of prose over every page.
+    expect(said).toContain('Telemetry')
+    expect(said).not.toContain('Tade reporting its own trouble')
+    expect(said).toContain('Send to')
     // Cut where it has to be, and never past the edge.
     for (const row of rows) expect(visibleWidth(row)).toBe(visibleWidth(rows[0] ?? ''))
   })
@@ -420,7 +425,7 @@ describe('the Updates page', () => {
     const shown = flow(drawPanel(panelFor('updates'), context()).panel)
     expect(shown).toContain('Check for updates')
     // Nothing has been read yet, and the page says that rather than an empty list.
-    expect(shown).toContain('Reading what is installed')
+    expect(shown).toContain('reading this machine')
   })
 
   it('says which Tade is running, what is newer, and the command that gets it', () => {
@@ -432,16 +437,15 @@ describe('the Updates page', () => {
     expect(shown).toContain('Reload Tade')
   })
 
-  it('says what reloading costs, in the words of the driver that is running', () => {
-    // Under a driver whose lanes are the window's own children, reloading
-    // stops them, and how many there are is said.
+  it('offers Reload without explaining it: the panel that asks does that', () => {
+    // What reloading costs is said at the moment of reloading, by the panel
+    // that asks — and that panel opens exactly when reloading would stop
+    // something. Said here too, under a button nobody has pressed, it was
+    // four lines of prose for everybody who came to read a version number.
     const inside = shownAt({ lanesSurvive: false, running: 3 })
-    expect(inside).toContain('3 agents running inside it stop with it')
-    expect(inside).toContain('queued work and schedules all survive')
-    // Where lanes outlive the window, it does not — and it must not say so.
-    const outside = shownAt({ lanesSurvive: true, running: 3 })
-    expect(outside).toContain('go on working')
-    expect(outside).not.toContain('stop with it')
+    expect(inside).toContain('Reload Tade')
+    expect(inside).not.toContain('stop with it')
+    expect(inside).not.toContain('queued work and schedules all survive')
   })
 
   it('says how a program got here, because that is what decides how it moves forward', () => {
@@ -465,7 +469,7 @@ describe('the Updates page', () => {
     // otherwise the programs after the last button could not be reached.
     const shown = shownAt({}, panelFor('updates', { focus: 'form', row: 4 }))
     expect(shown).toContain('tmux')
-    expect(shown).toContain('Nothing Tade is set up to use needs it')
+    expect(shown).toContain('nothing here needs it')
     expect(shown).toContain('not installed')
   })
 

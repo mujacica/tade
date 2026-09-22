@@ -44,12 +44,11 @@ export type DoneRule = (typeof DONE_RULES)[number]
 
 /** What each rule means, in the words the orchestrator is offered them in. */
 export const DONE_RULE_MEANS: Readonly<Record<DoneRule, string>> = {
-  said: 'when its agent says it has finished — the usual choice',
-  idle: 'when its agent ends a turn with nothing waiting on anyone — small jobs done in one go',
-  committed:
-    'when its agent has stopped with its work committed and nothing uncommitted (worktree mode)',
-  merged: 'when its branch is merged into the base branch (worktree mode)',
-  manual: 'only when someone marks it finished',
+  said: 'its agent says so',
+  idle: 'its agent ends a turn with nothing waiting',
+  committed: 'its agent stops with everything committed',
+  merged: 'its branch is merged into the base',
+  manual: 'somebody marks it finished',
 }
 
 /**

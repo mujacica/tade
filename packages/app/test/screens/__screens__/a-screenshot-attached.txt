@@ -5,7 +5,7 @@
    ! stripe-v15      $1.26   █│                                                                                         
      wants you to approve…   █│     + New agent     Open project                                                        
                              █│                                                                                         
-   ⠋ refunds         $0.62   █│   Or hold    ctrl   +   space   and say what you want done.                             
+   ⠋ refunds         $0.62   █│   Or hold    ctrl   +   space   and say what you want.                                  
      working                 █│                                                                                         
                              █│                                                                                         
  ▸ SMART QUEUE          none █│                                                                                         

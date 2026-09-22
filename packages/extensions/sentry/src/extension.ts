@@ -188,11 +188,11 @@ export const sentryExtension: TadeExtension = {
   description:
     'Reads the errors, traces, logs and metrics your projects send to Sentry, and hands fixes to agents.',
   workflow: [
-    'Says what is breaking in production: what is unresolved or new (sentry_issues), one issue with its stack and events (sentry_issue), a request across services (sentry_trace), how often and since when (sentry_stats).',
-    'Turns an error into work (sentry_fix): an agent in its own worktree with the issue, the stack and the trace already written into its context — not a link somebody has to go and open.',
-    'Lets new errors find you: the new-errors watch looks every hour for issues first seen since its last look and starts an agent on each. What was already there when you turned it on is not new.',
-    'Says something back to Sentry — resolving, ignoring, assigning — only when somebody asked for exactly that: it changes something outside the project, so it is the orchestrator’s alone.',
-    'The token is pasted in and kept in your keychain, never in `config.yaml`; `$SENTRY_AUTH_TOKEN` still wins where it is set.',
+    'Says what is breaking in production (sentry_issues, sentry_issue, sentry_trace).',
+    'Turns an error into work (sentry_fix): an agent with the stack already in hand.',
+    'Lets new errors find you: the new-errors watch starts an agent on each.',
+    'Says something back — resolve, ignore, assign — only when you asked for it.',
+    'The token is kept in your keychain, never in `config.yaml`.',
   ],
   root: ROOT,
   settings: [
@@ -489,8 +489,7 @@ export const sentryExtension: TadeExtension = {
     {
       id: 'new-errors',
       title: 'New Sentry errors',
-      means:
-        'Looks for issues first seen in Sentry since its last look, and starts an agent on each with everything Sentry knows, to find the cause, fix it and test it.',
+      means: 'starts an agent on each issue first seen since its last look',
       every: '1h',
       input: object({
         query: string(

@@ -2,29 +2,29 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Updates                                                                     │────────
- ▌ ! str│                        │ The programs Tade runs, and Tade itself: what is here, how it got here —    │        
- ▌   wan│  Agents                │ which is what decides how it moves forward — and what is current. Asking    │        
-        │  Models                │ what is current is the one thing here that reaches the network, and it hap… │        
+ ▌ ! str│                        │                                                                             │        
+ ▌   wan│  Agents                │     Check for updates                                                       │        
+        │  Models                │   checked just now                                                          │        
    ⠋ ref│  Orchestrator          │                                                                             │        
-     wor│  Approvals      bypass │     Check for updates                                                       │        
-        │  Checks                │   Checked just now. Nothing was asked of anybody until you pressed it.      │        
- ▸ SMART│  Voice                 │                                                                             │        
- ▾ CHANG│  Window                │ Tade                                                                        │        
-  M pack│  Projects           3  │   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                     │        
-  A …/we│  Checks per project    │   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1               │        
-  M src/│  Budgets           ● 1 │   git -C ~/src/tade pull --ff-only && pnpm install                          │        
-        │  Telemetry             │     Update Tade…     Reload Tade…                                           │        
- ▾ FILES│  Shortcuts             │   Reloading restarts the window, and the 2 agents running inside it stop    │        
-   ▾ src│  Accounts          ● 2 │   with it — their conversations are kept, and they open again where they    │        
-       w│▌ Updates           ● 2 │   stopped. Worktrees, branches, the journal, queued work and schedules all  │        
-       w│                        │   survive.                                                                  │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │ Programs it runs                                                            │        
-     REA│                        │   git             2.39.5      · cannot tell                                 │        
-━   orch│                        │                   the system’s own · /usr/bin/git                           │   ▾   ━
-        │                        │                   Tade: every reading of a project’s state, and every       │        
-        │                        │                   commit an agent makes                                     │       ▕
-        │                        │                   Tade cannot ask what is current for something installed   │       ▕
+     wor│  Approvals      bypass │ Tade                                                                        │        
+        │  Checks                │   0.1.0 · main · f8d73e1 · a git checkout at ~/src/tade                     │        
+ ▸ SMART│  Voice                 │   ● origin/main is at 1a2b3c4 and this checkout is on f8d73e1               │        
+ ▾ CHANG│  Window                │   git -C ~/src/tade pull --ff-only && pnpm install                          │        
+  M pack│  Projects           3  │     Update Tade…     Reload Tade…                                           │        
+  A …/we│  Checks per project    │                                                                             │        
+  M src/│  Budgets           ● 1 │ Programs it runs                                                            │        
+        │  Telemetry             │   git             2.39.5      · cannot tell                                 │        
+ ▾ FILES│  Shortcuts             │                   the system’s own · /usr/bin/git                           │        
+   ▾ src│  Accounts          ● 2 │                   no command · the system updates it — macOS: `xcode-select │        
+       w│▌ Updates           ● 2 │                   --install`                                                │        
+       w│                        │                                                                             │        
+   ▸ tes│                        │   tmux            —           ▲ not installed                               │        
+     pac│                        │                   nothing here needs it                                     │        
+     REA│                        │                   no command · nothing on your PATH answers to `tmux`       │        
+━   orch│                        │                                                                             │   ▾   ━
+        │                        │   pi              0.85.1      · cannot tell                                 │        
+        │                        │                   shipped with Tade · ~/src/tade/node_modules/@earendil-wo… │       ▕
+        │                        │                   no command · it comes with Tade, so updating Tade is what │       ▕
         │                        │ ● Saved as you change it.                                                   │       ▕
         │                        │                                                 Open config.yaml     Done   │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕

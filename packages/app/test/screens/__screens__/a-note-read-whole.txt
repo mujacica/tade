@@ -14,10 +14,10 @@
  ▾ NOTES  4             │ NOTE                                                                 │                        
                         │  refunds go through the ledger service, never the gateway▏           │                        
    the staging key      │                                                                      │                        
-   rotates on the 1st   │ Kept word for word: changing it says it again, in the new words.     │                        
-                        │                                                                      │                        
-   Pin dependencies     │   Forget     Copy     Headline…             Cancel     Save note ⏎   │╮                       
-   we pin major versions╰──────────────────────────────────────────────────────────────────────╯│                       
+   rotates on the 1st   │   Forget     Copy     Headline…             Cancel     Save note ⏎   │                        
+                        ╰──────────────────────────────────────────────────────────────────────╯                        
+   Pin dependencies          ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
+   we pin major versions     ▕│  │ bash  npm i stripe@15                                        │                       
                              ▕│  │   Allow once     Deny                                        │                       
    Refunds via the ledger    ▕│  ╰──────────────────────────────────────────────────────────────╯                       
    refunds go through…       ▕│                                                                                         

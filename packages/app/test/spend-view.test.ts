@@ -385,13 +385,15 @@ describe('a long name at any width', () => {
     }
   })
 
-  it('marks estimated money where it is read and says the split at the bottom', () => {
+  it('marks estimated money where it is read, and says how much at the foot', () => {
     const rows = drawn('harness', 96).join('\n')
     // The estimating harness's row carries the mark; the pricing one does not.
     expect(rows).toMatch(/~\$0\.50/)
     expect(rows).toMatch(/[^~]\$2\.00/)
-    expect(rows).toContain('$2.00 priced by the harness')
-    expect(rows).toContain('$0.50 estimated (~)')
+    // And the foot is the mark and the figure, not the paragraph it was:
+    // `tade spend` says the whole of it, which is where somebody asks.
+    expect(rows).toContain('~ $0.50 estimated')
+    expect(rows).not.toContain('priced by the harness')
   })
 })
 

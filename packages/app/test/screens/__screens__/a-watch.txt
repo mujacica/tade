@@ -6,8 +6,8 @@
      tests failed twice      █│  Every hour, it looks with sentry.new-errors, and starts work on what it finds.         
                              █│                                                                                         
    ⠋ bump-mailer             █│  NEXT       Mon 14 Sep 10:00 · Mon 14 Sep 11:00 · Mon 14 Sep 12:00                      
-     working                 █│  IF MISSED  runs once when Tade next opens                                              
-                             █│  AT MOST    2 agents from one look; the rest wait for the next                          
+     working                 █│  IF MISSED  runs once when Tade opens                                                   
+                             █│  AT MOST    2 agents a look                                                             
    ⠋ fix-checkout-3e         █│  FROM       sentry · turned on by you                                                   
      working                 █│                                                                                         
                              █│  FOUND                                                                                  

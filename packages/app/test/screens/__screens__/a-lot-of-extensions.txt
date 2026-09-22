@@ -8,11 +8,11 @@
    │ ● changelog            ▕│                                                                 █│   
    │ ● linear               █│   Open folder     Turn off                                      █│   
    │ ● oncall               █│                                                                 █│   
- ▸ │ ● postgres             █│ TOOLS  what the orchestrator and your agents can call           █│   
+ ▸ │ ● postgres             █│ TOOLS                                                           █│   
  ▾ │▌● screenshots          █│ screenshots_run      Takes a picture of the … orchestrator only █│   
 ━  │ ● translations         █│                                                                 ▕│  ━
-   │ · Written by Tade    1 █│ yours go in ~/.tade/extensions/<name>/extension.ts, off until …  │   
-   │ · MCP servers        4 ▕│ tab moves · ↑↓ reads · enter presses · esc closes        Done    │  ▕
+   │ · Written by Tade    1 █│                                                                  │   
+   │ · MCP servers        4 ▕│ tab moves · ↑↓ reads · enter presses                     Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                              type, or hold    ctrl   +   space   

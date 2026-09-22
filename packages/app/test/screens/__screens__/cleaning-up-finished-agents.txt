@@ -11,11 +11,11 @@
    ✓ Send an email when a… │   ✓ refund-emails                                              │                           
      finished              │   ✓ webhook-retries                                            │                           
                            │                                                                │,                          
-   ✓ webhook-retries       │ Each is stopped and taken off the list, its worktree and       │                           
-     finished · Retries a… │ branch with it. Their conversations stay in pi's sessions.     │                           
-                           │                                                                │                           
- ▸ SMART QUEUE          non│                                        Keep them     Close 2   │                           
- ▾ CHANGES  3        vs mai╰────────────────────────────────────────────────────────────────╯                           
+   ✓ webhook-retries       │ Each stops, with its worktree and branch; conversations stay.  │                           
+     finished · Retries a… │                                                                │                           
+                           │                                        Keep them     Close 2   │                           
+ ▸ SMART QUEUE          non╰────────────────────────────────────────────────────────────────╯                           
+ ▾ CHANGES  3        vs main ▕│  ▸ bash npm i stripe@15                                                                 
   M package.json       +2 −1 ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
   A …/webhooks.test.ts   +48 ▕│  │ bash  npm i stripe@15                                        │                       
   M src/webhooks.ts   +12 −4 ▕│  │   Allow once     Deny                                        │                       

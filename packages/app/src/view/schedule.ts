@@ -175,14 +175,14 @@ export function renderSchedule(
         ? one.next.map(clock).join(' · ')
         : 'nothing left to run',
   )
-  fact('IF MISSED', one.missed === 'once' ? 'runs once when Tade next opens' : 'skipped')
+  fact('IF MISSED', one.missed === 'once' ? 'runs once when Tade opens' : 'skipped')
   const from = askedBy(one.by)
   const who = (name: string) =>
     name === 'you' ? 'you' : name === 'orchestrator' ? 'the orchestrator' : name
   const watch = one.watch
   if (watch) {
     const acts = watch.found === 'agent' ? (watch.most === 1 ? 'agent' : 'agents') : 'told'
-    fact('AT MOST', `${watch.most} ${acts} from one look; the rest wait for the next`)
+    fact('AT MOST', `${watch.most} ${acts} a look`)
   }
   fact(
     'FROM',
@@ -235,7 +235,7 @@ export function renderSchedule(
       line((r) => {
         r.text(clock(each.due).padEnd(18), skin.hint)
         if (!each.ran) {
-          r.text(`skipped ${each.missed} missed while Tade was closed`, skin.faded)
+          r.text(`skipped ${each.missed} missed`, skin.faded)
           return
         }
         const task = each.task ? state.panes.find((pane) => pane.task === each.task) : null

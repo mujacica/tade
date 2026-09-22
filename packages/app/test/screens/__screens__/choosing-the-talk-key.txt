@@ -2,25 +2,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Voice                                                                       │────────
- ▌ ! str│                        │ How you talk to Tade, and how it talks back.                                │        
+ ▌ ! str│                        │                                                                             │        
  ▌   wan│  Agents            ╭─ Push to talk ─────────────────────────────────────── esc ─╮                    │        
         │  Models            │                                                            │                    │        
-   ⠋ ref│  Orchestrator      │            Press the keys you want to hold to talk.        │ releases.          │        
-     wor│  Approvals      byp│                                                            │                    │        
-        │  Checks            │                        ctrl   +   r                        │ to stop            │        
- ▸ SMART│▌ Voice             │                                                            │                    │        
- ▾ CHANG│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │       ↻ on restart │        
-  M pack│  Projects          │   While Tade holds it, your agents never see it.           │                    │        
-  A …/we│  Checks per project│                                                            │       ↻ on restart │        
+   ⠋ ref│  Orchestrator      │            Press the keys you want to hold to talk.        │                    │        
+     wor│  Approvals      byp│                                                            │ to stop            │        
+        │  Checks            │                        ctrl   +   r                        │                    │        
+ ▸ SMART│▌ Voice             │                                                            │       ↻ on restart │        
+ ▾ CHANG│  Window            │ ▲ Pi and most shells search history with ctrl+r.           │                    │        
+  M pack│  Projects          │   While Tade holds it, your agents never see it.           │       ↻ on restart │        
+  A …/we│  Checks per project│                                                            │                    │        
   M src/│  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
-        │  Telemetry         │ Never a key that types a character — you have to be able   │                    │        
- ▾ FILES│  Shortcuts         │ to type a space into your agent.                           │                    │        
-   ▾ src│  Accounts          │                                                            │                    │        
-       w│  Updates           │                        Try another     Use ctrl+r anyway   │                    │        
-       w│                    ╰────────────────────────────────────────────────────────────╯                    │        
-   ▸ tes│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
-     pac│                        │                                                                             │        
-     REA│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+        │  Telemetry         │ Not a key that types a character.                          │                    │        
+ ▾ FILES│  Shortcuts         │                                                            │                    │        
+   ▾ src│  Accounts          │                        Try another     Use ctrl+r anyway   │                    │        
+       w│  Updates           ╰────────────────────────────────────────────────────────────╯                    │        
+       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
+     REA│                        │                                                                             │        
 ━   orch│                        │                                                                             │   ▾   ━
         │                        │                                                                             │        
         │                        │                                                                             │       ▕

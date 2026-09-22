@@ -165,8 +165,7 @@ export function settingsOf(
         {
           path: 'agents.workspace',
           title: 'Where agents work',
-          means:
-            'checkout: all of them in the project’s checkout, on its branch, at once; worktree: each in a worktree and branch of its own',
+          means: 'checkout: all in the project’s own checkout at once; worktree: one each',
           value: config.agents.workspace,
           fallback: 'checkout',
           type: { kind: 'choice', options: [...AGENT_WORKSPACES] },
@@ -176,7 +175,7 @@ export function settingsOf(
           path: 'agents.commit',
           title: 'When agents commit',
           means:
-            'own-files: their own files when done; when-done: everything when done; as-you-go: small commits; never: you commit',
+            'own-files: its own files; when-done: everything; as-you-go: small ones; never: you',
           value: config.agents.commit,
           fallback: 'own-files',
           type: { kind: 'choice', options: [...COMMIT_RULES] },
@@ -266,8 +265,7 @@ export function settingsOf(
         {
           path: 'orchestrator.harness',
           title: 'Harness',
-          means:
-            'the program you talk through: pi, or Claude Code on the account it is signed in to. The conversation is the harness’s own, so each keeps its own',
+          means: 'the program you talk through; each harness keeps its own conversation',
           value: config.orchestrator.harness,
           fallback: 'pi',
           type: { kind: 'choice', options: [...HARNESS_IDS] },
@@ -332,8 +330,7 @@ export function settingsOf(
         {
           path: 'checks.before',
           title: 'Needed before',
-          means:
-            'when a push or commit needs a green run behind it. Only an agent working under policy approvals can actually be held; everyone else is told, and what happened is written down',
+          means: 'when a push or commit needs a green run behind it',
           value: config.checks.before,
           fallback: 'push',
           type: { kind: 'choice', options: ['off', 'commit', 'push', 'commit and push'] },
@@ -342,8 +339,7 @@ export function settingsOf(
         {
           path: 'checks.on_red',
           title: 'When one is red',
-          means:
-            'hold it and hand back what failed, tell the person and let it through, or only write it down',
+          means: 'hold and hand back what failed, tell the person, or only write it down',
           value: config.checks.on_red,
           fallback: 'hold',
           type: { kind: 'choice', options: ['hold', 'tell', 'note'] },
@@ -352,8 +348,7 @@ export function settingsOf(
         {
           path: 'checks.parallel',
           title: 'At once',
-          means:
-            'how many checks may run at once here; one that needs the machine to itself still runs alone',
+          means: 'how many checks may run at once here',
           value: String(config.checks.parallel),
           fallback: '2',
           type: { kind: 'number' },
@@ -363,7 +358,7 @@ export function settingsOf(
           path: 'checks.from_ci',
           title: 'Checks read from CI',
           means:
-            'what to do with the commands a project runs in CI when it has no .tade/checks.yaml: show them without running them, run them here too, or ignore them. `tade checks adopt` turns them into a manifest, which is what makes them ours to run',
+            'a project’s CI commands, where it has no manifest: shown, run here too, or ignored',
           value: config.checks.from_ci,
           fallback: 'show',
           type: { kind: 'choice', options: ['show', 'run', 'off'] },
@@ -442,8 +437,7 @@ export function settingsOf(
         {
           path: 'surfaces.voice.muted',
           title: 'Muted',
-          means:
-            'no speech and no sounds at all, cutting off whatever is being said; the conversation still shows everything',
+          means: 'no speech and no sounds; the conversation still shows everything',
           value: String(voice.muted),
           fallback: 'false',
           type: { kind: 'flag' },
@@ -461,8 +455,7 @@ export function settingsOf(
         {
           path: 'surfaces.voice.attention.budget',
           title: 'Interruptions',
-          means:
-            'spoken interruptions an hour; beyond this, things wait and come back as one sentence',
+          means: 'spoken interruptions an hour; beyond it they wait and come back as one',
           value: voice.attention.budget === undefined ? '' : String(voice.attention.budget),
           fallback: '6',
           type: { kind: 'number', unit: 'an hour, at most' },
@@ -936,27 +929,27 @@ export const KEY_BINDINGS: readonly {
   {
     key: 'mute',
     title: 'Mute',
-    means: 'quiet now, mid-sentence if need be, and back',
+    means: 'quiet now, and back',
     fallback: 'ctrl+m',
   },
   {
     key: 'extensions',
     title: 'Extensions',
-    means: 'turn them on and off, set them up',
+    means: 'turn them on and off',
     fallback: 'ctrl+shift+e',
   },
   { key: 'settings', title: 'Settings', means: 'this panel', fallback: 'ctrl+,' },
   {
     key: 'fill_bottom',
     title: 'Bottom panel fills window',
-    means: 'the conversation or terminal takes the window',
+    means: 'it takes the whole window',
     fallback: 'ctrl+shift+f',
   },
   { key: 'keys_sheet', title: 'Shortcuts', means: 'the sheet of every shortcut', fallback: 'f1' },
   {
     key: 'reload',
     title: 'Reload',
-    means: 'restart the window with your changes',
+    means: 'restart with your changes',
     fallback: 'ctrl+shift+r',
   },
   {

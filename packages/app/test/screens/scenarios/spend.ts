@@ -71,7 +71,7 @@ const plans: PlanSource[] = [
     harness: 'pi',
     account: null,
     can: 'none',
-    why: 'is never told what a plan has left: it prices every turn against its own catalog instead',
+    why: 'is never told what a plan has left; it prices each turn instead',
     said: null,
   },
 ]

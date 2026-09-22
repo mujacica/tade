@@ -104,7 +104,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
         .text(
           why
             ? `${ctx.modelsFrom?.harness} ${why}`
-            : `No model like that among the ones ${ctx.modelsFrom?.harness ?? 'this harness'} runs.`,
+            : `No model like that in ${ctx.modelsFrom?.harness ?? 'this harness'}.`,
           why ? skin.waiting : skin.hint,
         )
         .build(),

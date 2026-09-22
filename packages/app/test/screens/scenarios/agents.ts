@@ -140,7 +140,7 @@ export const AGENT_SCREENS: Scenario[] = [
             skip: 'needs CI: it uses something only the runner knows',
           }),
         ],
-        source: 'read from .github/workflows/ci.yml \u2014 not adopted, so none of them run here',
+        source: 'read from .github/workflows/ci.yml · not adopted',
         adoptable: true,
       },
     }),

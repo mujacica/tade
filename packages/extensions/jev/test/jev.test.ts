@@ -468,7 +468,7 @@ describe('the record', () => {
 
   it('keeps what it is asked to keep, and answers with nothing when nothing was read', () => {
     const record = { reviews: [], looks: [], findings: [], finished: new Set<string>(), now: NOW }
-    expect(findingsReport(record)).toMatch(/Nothing has been read yet/)
+    expect(findingsReport(record)).toMatch(/Nothing read yet/)
     expect(statusLine(record).text).toBe('0 read · 0 flagged')
   })
 })

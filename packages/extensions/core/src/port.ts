@@ -456,6 +456,11 @@ export interface TadeExtension {
    * extension *is* leaves everybody believing it does whatever its one watch
    * does. A workflow is not a feature list: say what somebody is doing when
    * this happens, and what it gets them.
+   *
+   * **One short line each**, under about 80 characters, because these are read
+   * as a list and a list of paragraphs is a list nobody finishes. The caveat,
+   * the second clause and the aside belong in the tool's own description,
+   * where whoever is choosing it reads them.
    */
   workflow?: readonly string[]
   /** Its own folder, for the harness pieces it ships. */

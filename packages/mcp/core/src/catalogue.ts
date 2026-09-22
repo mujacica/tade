@@ -89,7 +89,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     url: 'https://mcp.sentry.dev/mcp',
     auth: 'bearer',
     variables: ['SENTRY_MCP_TOKEN', 'SENTRY_AUTH_TOKEN'],
-    note: 'Beside the Sentry extension, which is a different thing: that one is `sentry`, this one is `mcp-sentry`.',
+    note: 'Not the Sentry extension: that one is `sentry`, this is `mcp-sentry`.',
   },
   {
     name: 'context7',
@@ -129,7 +129,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     url: 'https://your-grafana/api/plugins/grafana-mcp-app/resources/mcp',
     auth: 'bearer',
     variables: ['GRAFANA_API_KEY', 'GRAFANA_TOKEN'],
-    note: 'Its address is your own Grafana, so the URL here is a shape to fill in rather than somewhere to reach.',
+    note: 'The URL here is a shape to fill in with your own Grafana.',
   },
   {
     name: 'cloudflare',
@@ -143,7 +143,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     url: 'https://observability.mcp.cloudflare.com/sse',
     auth: 'bearer',
     variables: ['CLOUDFLARE_API_TOKEN'],
-    note: 'Cloudflare runs a server per product; this is the observability one, and the others are declared the same way.',
+    note: 'Cloudflare runs a server per product; this is the observability one.',
   },
   {
     name: 'slack',
@@ -157,7 +157,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     url: 'https://slack.com/api/mcp',
     auth: 'bearer',
     variables: ['SLACK_MCP_TOKEN', 'SLACK_BOT_TOKEN'],
-    note: 'Posting is outward-facing: worth narrowing with `tools` to the calls you meant to allow.',
+    note: 'Posting is outward-facing: narrow it with `tools`.',
   },
   {
     name: 'postgres',
@@ -176,7 +176,7 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     authName: 'DATABASE_URL',
     variables: ['DATABASE_URL'],
     install: 'npm install --global @modelcontextprotocol/server-postgres',
-    note: 'Its credential is a connection string, kept where credentials are kept and never in the config.',
+    note: 'Its credential is a connection string, kept where credentials are kept.',
   },
   {
     name: 'sqlite',

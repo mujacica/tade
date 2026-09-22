@@ -16,24 +16,19 @@
      │ │ kind_fixture    │ 1     │ 0         │ 1              │                                                   │     
  ▾ FI│ └─────────────────┴───────┴───────────┴────────────────┘                                                   │     
    ▾ │                                                                                                            │     
-     │ A question that never fires should be deleted, and one that is always wrong should be rewritten: both are  │     
-     │ in questions.ts.                                                                                           │     
-   ▸ │                                                                                                            │     
      │ Calibration                                                                                                │     
      │                                                                                                            │     
-     │ ┌─────────────┬─────────┬───────────┐                                                                      │     
- ▸ NO│ │ probability │ flagged │ confirmed │                                                                      │     
- ▾ GI│ ├─────────────┼─────────┼───────────┤                                                                      │     
-   re│ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
-   br│ ├─────────────┼─────────┼───────────┤                                                                      │     
-   fr│ │ 0.7–0.8     │ 1       │ 1         │                                                                      │     
-   wo│ ├─────────────┼─────────┼───────────┤                                                                      │     
-   pa│ │ 0.8–0.9     │ 1       │ 0         │                                                                      │     
-     │ └─────────────┴─────────┴───────────┘                                                                      │     
-     │                                                                                                            │     
-     │ Whether a number means what it says is ours to measure: nobody has published it.                           │     
-     │                                                                                                            │     
-     │ What it found                                                                                              │     
+   ▸ │ ┌─────────────┬─────────┬───────────┐                                                                      │     
+     │ │ probability │ flagged │ confirmed │                                                                      │     
+     │ ├─────────────┼─────────┼───────────┤                                                                      │     
+     │ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
+ ▸ NO│ ├─────────────┼─────────┼───────────┤                                                                      │     
+ ▾ GI│ │ 0.7–0.8     │ 1       │ 1         │                                                                      │     
+   re│ ├─────────────┼─────────┼───────────┤                                                                      │     
+   br│ │ 0.8–0.9     │ 1       │ 0         │                                                                      │     
+   fr│ └─────────────┴─────────┴───────────┘                                                                      │     
+   wo│                                                                                                            │     
+   pa│ What it found                                                                                              │     
      │                                                                                                            │     
      │ - checkout/stripe-v15:error_swallowed — Does this change catch an error and carry on without reporting it  │     
      │   anywhere?                                                                                                │     
@@ -45,9 +40,14 @@
      │ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving than │     
      │   a real project would be?                                                                                 │     
      │   told orchestrator · false positive: the fixture is deliberately small; the real one is built by mkrepo   │     
+     │                                                                                                            │     
+     │ 1 finding(s) with no verdict yet — jev_verdict records one.                                                │     
+     │                                                                                                            │     
+     │                                                                                                            │     
+     │                                                                                                            │     
 ━   o│                                                                                                            │▾   ━
-     │ 1 finding(s) with nothing recorded about whether they were right. Reading one and saying so with           │     
-     │ jev_verdict is what makes the table above worth anything.                                                  │    ▕
+     │                                                                                                            │     
+     │                                                                                                            │    ▕
      │                                                                                                            │    ▕
      │                                                                                                            │    ▕
      │ kept current while open                                                                            Close   │    ▕

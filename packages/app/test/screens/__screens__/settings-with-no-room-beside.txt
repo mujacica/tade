@@ -1,19 +1,19 @@
    T A D E      checkout    search    infra      +      
 ━━━╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮━━━
  ▾ │  search sett…  │ Telemetry                     │l  
-   │                │ Tade reporting its own        │───
- ▌ │  Agents        │ trouble to a Sentry project … │   
- ▌ │  Models        │                               │   
-   │  Orchestrator  │ Send to                     ↻ │+12
-   │  Approvals     │    nothing is sent            │   
-   │  Checks        │                               │   
-   │  Voice         │▌Reporter                    ↻ │   
- ▸ │  Window        │▌  ◉ sentry                    │   
- ▾ │  Projects   3  │▌  ○ none                      │   
-  M│  Checks per p… │▌  sentry sends through        │   
-━  │  Budgets   ● 1 │▌  Sentry’s own SDK, imported… │  ━
-   │▌ Telemetry     │                               │   
-   │  Shortcuts     │ Crashes and warnings        ↻ │  ▕
+   │                │                               │───
+ ▌ │  Agents        │ Send to                     ↻ │   
+ ▌ │  Models        │    nothing is sent            │   
+   │  Orchestrator  │                               │+12
+   │  Approvals     │▌Reporter                    ↻ │   
+   │  Checks        │▌  ◉ sentry                    │   
+   │  Voice         │▌  ○ none                      │   
+ ▸ │  Window        │▌  sentry sends through        │   
+ ▾ │  Projects   3  │▌  Sentry’s own SDK, imported… │   
+  M│  Checks per p… │                               │   
+━  │  Budgets   ● 1 │ Crashes and warnings        ↻ │  ━
+   │▌ Telemetry     │   ──██ on                     │   
+   │  Shortcuts     │                               │  ▕
    │  Accounts  ● 2 │ ● Saved as you change it.     │  ▕
  ❯ │  Updates       │                        Done   │d ▕
 ───╰────────────────────────────────────────────────╯── 

@@ -18,7 +18,7 @@ import { type ExtensionEntry, watchControl } from './state.ts'
  * The catalogue ships none of these, which is why this only ever appears
  * beside one a person wrote themselves.
  */
-export const FETCHES = 'This fetches code from the network every time it starts.'
+export const FETCHES = 'fetches code from the network at every start'
 
 /** What the Extensions panel draws from, and nothing more: the app counts lines with it too. */
 export type ExtensionFacts = Pick<
@@ -90,25 +90,17 @@ export function extensionBody(
   }
 
   if (!here) {
-    lines.push(
-      row()
-        .space()
-        .text(
-          facts.extensions.length === 0
-            ? 'No extensions are loaded.'
-            : 'Nothing here matches. Clear the search to see them all.',
-          skin.hint,
-        )
-        .build(),
-    )
+    // Nothing loaded is worth saying; nothing matched is already said at the
+    // head, in the words that were typed, and saying it twice on one page is
+    // how a page comes to read as padded.
+    if (facts.extensions.length === 0) {
+      lines.push(row().space().text('No extensions are loaded.', skin.hint).build())
+    }
     return lines
   }
 
   if (here.kind === 'written') {
-    wrap(
-      'Tools Tade wrote for itself, for the orchestrator to use. One you turn on loads the next time Tade starts, and a lesson it proposes is a file you read before any of it runs.',
-      1,
-    )
+    wrap('Tools Tade wrote for itself. One you turn on loads at the next start.', 1)
     lines.push(blank(form))
     for (const tool of facts.written) {
       const title = row()
@@ -139,10 +131,7 @@ export function extensionBody(
   }
 
   if (here.kind === 'harness') {
-    wrap(
-      'What each harness loads by itself, in every agent: its own extensions, its own skills, its own MCP servers. Tade lists these and nothing more — they are not its to turn on, off or configure, and their tools are not Tade’s.',
-      1,
-    )
+    wrap('What each harness loads by itself. Listed only — not Tade’s to change.', 1)
     lines.push(blank(form))
     for (const piece of facts.harnessExtensions) {
       lines.push(row().space().text(piece.name).text(`  ${piece.where}`, skin.hint).build())
@@ -151,10 +140,7 @@ export function extensionBody(
   }
 
   if (here.kind === 'servers') {
-    wrap(
-      'Tool servers Tade knows about, none of them on. A server is somebody else’s code with tools your agents will call, so turning one on is yours alone — and then its tools are handed to every agent and to the orchestrator, named by Tade, through this window.',
-      1,
-    )
+    wrap('Tool servers Tade knows about, none of them on. Turning one on is yours.', 1)
     for (const server of facts.servers) {
       lines.push(blank(form))
       const title = row()
@@ -180,7 +166,7 @@ export function extensionBody(
       wrap(server.how, 3, skin.hint)
       if (server.needs) wrap(server.needs, 3, skin.waiting)
       if (server.fetches) wrap(FETCHES, 3, skin.waiting)
-      if (server.install) wrap(`to install: ${server.install}`, 3, skin.hint)
+      if (server.install) wrap(`install: ${server.install}`, 3, skin.hint)
       if (server.note) wrap(server.note, 3, skin.hint)
     }
     return lines
@@ -208,15 +194,15 @@ export function extensionBody(
     lines.push(blank(form))
     wrap(
       view.source === 'yours'
-        ? 'Turned off, so Tade lists it and never imports it — nothing in it has run. Turning it on takes effect the next time Tade starts, and only then can it say more than this.'
-        : 'Turned off. Turning it on takes effect the next time Tade starts.',
+        ? 'Off, so it was never imported — there is nothing more to say until it is on.'
+        : 'Off. Turning it on takes effect at the next start.',
       1,
     )
   }
   if (view.unknownSettings.length > 0) {
     lines.push(blank(form))
     wrap(
-      `Not read: extensions.${view.name}.${view.unknownSettings.join(`, extensions.${view.name}.`)} — a typo, most likely.`,
+      `Not read: extensions.${view.name}.${view.unknownSettings.join(`, extensions.${view.name}.`)}`,
       1,
       skin.bad,
     )
@@ -275,7 +261,7 @@ export function extensionBody(
   // one thing.
   if (view.tools.length > 0) {
     lines.push(blank(form))
-    heading('TOOLS', 'what the orchestrator and your agents can call')
+    heading('TOOLS')
     const named = Math.min(22, Math.max(10, Math.floor(form / 3)))
     for (const tool of view.tools) {
       // Who may call it, said only where it is not both: anything that changes
@@ -304,7 +290,7 @@ export function extensionBody(
   const watches = view.state === 'broken' ? [] : view.watches
   if (watches.length > 0) {
     lines.push(blank(form))
-    heading('WATCHES', 'offered; nothing is watched until you turn one on')
+    heading('WATCHES', 'none on until you turn one on')
     for (const watch of watches) {
       const id = watchControl(view.name, watch)
       const every = `  every ${watch.every}`
@@ -342,9 +328,7 @@ export function extensionBody(
     lines.push(blank(form))
     heading(
       'OPTIONS',
-      view.configurable
-        ? `change them in ${view.state === 'needs setup' ? 'Set up…' : 'Settings…'}`
-        : '',
+      view.configurable ? (view.state === 'needs setup' ? 'Set up…' : 'Settings…') : '',
     )
     const named = Math.min(20, Math.max(8, Math.floor(form / 3)))
     for (const option of view.options) {
@@ -357,7 +341,7 @@ export function extensionBody(
             ? `from ${option.have}`
             : `kept in ${option.have}`
           : view.configurable
-            ? 'not set — paste one in Set up…'
+            ? 'not set — Set up…'
             : 'not set'
         : option.value || 'not set'
       const set = option.secret ? option.have !== '' : option.value !== ''
@@ -376,7 +360,7 @@ export function extensionBody(
   // server that is off was never connected, so there is none of it to say.
   if (view.server) {
     lines.push(blank(form))
-    heading('THE SERVER', 'somebody else’s, reached from this window alone')
+    heading('THE SERVER')
     wrap(view.server.how, 1, skin.hint)
     // When it was asked, as a person reads a time — and as it was written
     // down where that cannot be read, rather than a guess at what it meant.
@@ -385,14 +369,14 @@ export function extensionBody(
     wrap(
       view.server.on
         ? asked
-          ? `Last asked what it offers ${asked}.`
-          : 'Nothing has asked it what it offers yet.'
-        : 'Off, so it has never been connected and there is nothing else to say about it.',
+          ? `last asked ${asked}`
+          : 'never asked what it offers'
+        : 'off — never connected',
       1,
       skin.hint,
     )
     if (view.server.fetches) wrap(FETCHES, 1, skin.waiting)
-    if (view.server.install) wrap(`to install: ${view.server.install}`, 1, skin.hint)
+    if (view.server.install) wrap(`install: ${view.server.install}`, 1, skin.hint)
     if (view.server.note) wrap(view.server.note, 1, skin.hint)
     for (const dropped of view.server.dropped) {
       wrap(`${dropped.name} is not offered: ${dropped.why}`, 1, skin.waiting)

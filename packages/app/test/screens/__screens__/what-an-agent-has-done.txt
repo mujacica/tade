@@ -9,7 +9,7 @@
      working                 █│  THIS AGENT’S COMMITS ────────────────────────────────────────────────────  2 +172 −66 █
                              █│  ● a1b2c3d move to the stripe v15 payment intents API        6 files +148 −62  12m ago █
  ▸ SMART QUEUE          none █│  ● 9f0e1d2 keep the old webhook shape working for a release     2 files +24 −4  1h ago █
- ▾ REVIEWS  3                █│  ◌ 3 files not committed     shared checkout — Tade cannot say which are this agent’s  █
+ ▾ REVIEWS  3                █│  ◌ 3 files not committed                      shared checkout — nobody’s to attribute  █
   #418  …     draft ✗ checks █│                                                                                        █
   #412  retry refun…   ready █│  CHECKS ─────────────────────────────────────────────────  red at a1b2c3d    Run all   █
   #77  bump zod          you ▕│  ✓ format   passed     2.1s  13m ago                     493 files checked · 0 errors  █

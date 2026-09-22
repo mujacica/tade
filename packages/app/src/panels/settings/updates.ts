@@ -64,16 +64,13 @@ export function drawUpdates(
   const command = (update: { command: string } | { cannot: string }, indent = 3) =>
     'command' in update
       ? say(update.command, skin.busy, indent, 2)
-      : say(`No command: ${update.cannot}.`, skin.hint, indent, 3)
+      : say(`no command · ${update.cannot}`, skin.hint, indent, 2)
 
   putButtons(['updates:check'], 'primary')
-  say(
-    look === null
-      ? 'Reading what is installed on this machine…'
-      : look.asked
-        ? 'Checked just now. Nothing was asked of anybody until you pressed it.'
-        : 'Nothing has been asked of the network yet — this is what is installed here.',
-  )
+  // Whether the network has been asked, in as many words as that takes. That
+  // it is only ever asked on a press is the button's own promise, and belongs
+  // in `tade update --help` rather than under every visit to this page.
+  say(look === null ? 'reading this machine…' : look.asked ? 'checked just now' : 'not asked yet')
   body.push(blank(form))
   if (look === null) return
 
@@ -94,22 +91,13 @@ export function drawUpdates(
   if (tade.newer) say(`● ${tade.newer}`, skin.waiting)
   else if (!look.asked) say('')
   else if (tade.cannotTell) say(`· ${tade.cannotTell}`, skin.hint)
-  else say('✓ This is the newest there is.', skin.done)
+  else say('✓ newest there is', skin.done)
   command(tade.update)
   putButtons(['updates:update:tade', 'updates:reload'], 'attention')
-  // What reloading costs is the driver's answer, never the driver's name:
-  // where lanes outlive the window, restarting it stops nothing.
-  const kept = 'Worktrees, branches, the journal, queued work and schedules all survive.'
-  say(
-    ctx.lanesSurvive
-      ? `Reloading restarts the window; agents run outside it and go on working. ${kept}`
-      : ctx.running > 0
-        ? `Reloading restarts the window, and the ${ctx.running} agent${ctx.running === 1 ? '' : 's'} running inside it stop with it — their conversations are kept, and they open again where they stopped. ${kept}`
-        : `Reloading restarts the window. Agents run inside it here, so any at work would stop; there are none. ${kept}`,
-    skin.hint,
-    3,
-    4,
-  )
+  // What reloading costs is said at the moment of reloading, by the panel that
+  // asks — and that panel opens exactly when it would stop something. Four
+  // lines of it here, under a button nobody has pressed, is the explanation
+  // shown to everybody who came to read a version number.
   body.push(blank(form))
 
   // ── the programs it runs ──
@@ -123,7 +111,7 @@ export function drawUpdates(
     const version = program.version ?? (program.install ? 'no version' : '—')
     const mark = !program.install
       ? {
-          text: program.need.optional ? '○ not installed, and optional' : '▲ not installed',
+          text: program.need.optional ? '○ not installed · optional' : '▲ not installed',
           tone: program.need.optional ? skin.hint : skin.waiting,
         }
       : !look.asked
@@ -163,16 +151,22 @@ export function drawUpdates(
           .build(),
       )
     }
-    say(
-      program.need.needed.map((one) => `${one.what}: ${one.why}`).join(' · '),
-      skin.hint,
-      under,
-      2,
-    )
-    if (!program.need.inUse) say('Nothing Tade is set up to use needs it.', skin.hint, under, 1)
-    if (look.asked && program.cannotTell && program.install) {
-      say(program.cannotTell, skin.hint, under, 2)
+    // Who needs it and why nobody could say what is current are both read
+    // under the one program you are on. Said under all of them, a page of
+    // seven versions is a page of twenty lines of prose — and the row already
+    // says `cannot tell` in the two words that matter.
+    if (focused === rowId) {
+      say(
+        program.need.needed.map((one) => `${one.what}: ${one.why}`).join(' · '),
+        skin.hint,
+        under,
+        2,
+      )
+      if (look.asked && program.cannotTell && program.install) {
+        say(program.cannotTell, skin.hint, under, 2)
+      }
     }
+    if (!program.need.inUse) say('nothing here needs it', skin.hint, under, 1)
     // The exact command is always on the page, whether or not anything has
     // been asked: what a button would run is read before it is pressed.
     command(program.update, under)

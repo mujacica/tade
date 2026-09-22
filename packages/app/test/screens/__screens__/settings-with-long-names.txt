@@ -2,29 +2,29 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
         │  search settings       │ Telemetry                                                                   │────────
- ▌ ! str│                        │ Tade reporting its own trouble to a Sentry project of yours, and reading    │        
- ▌   wan│  Agents                │ that Sentry back. Never your work: what may be sent is an allow-list —      │        
-        │  Models                │ names, counts and Tade’s own words, with paths scrubbed to ~.               │        
-   ⠋ ref│  Orchestrator          │                                                                             │        
-     wor│  Approvals      bypass │ Send to                     nothing is sent                    ↻ on restart │        
-        │  Checks                │                                                                             │        
- ▸ SMART│  Voice                 │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
- ▾ CHANG│  Window                │                                                                             │        
-  M pack│  Projects           3  │▌Crashes and warnings       ──██ on                             ↻ on restart │        
-  A …/we│  Checks per project    │▌                           Tade’s crashes and warnings as issues, with      │        
-  M src/│  Budgets           ● 1 │▌                           source lines from its files, never yours         │        
-        │▌ Telemetry             │                                                                             │        
- ▾ FILES│  Shortcuts             │ What happened around them  ──██ on                             ↻ on restart │        
-   ▾ src│  Accounts          ● 2 │                                                                             │        
-       w│  Updates               │ Numbers                    ──██ on                             ↻ on restart │        
-       w│                        │                                                                             │        
-   ▸ tes│                        │ What agents do             ──██ on                             ↻ on restart │        
-     pac│                        │                                                                             │        
-     REA│                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
-━   orch│                        │                                                                             │   ▾   ━
-        │                        │ Which Tade this is          laptop                             ↻ on restart │        
+ ▌ ! str│                        │                                                                             │        
+ ▌   wan│  Agents                │ Send to                     nothing is sent                    ↻ on restart │        
+        │  Models                │                                                                             │        
+   ⠋ ref│  Orchestrator          │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
+     wor│  Approvals      bypass │                                                                             │        
+        │  Checks                │▌Crashes and warnings       ──██ on                             ↻ on restart │        
+ ▸ SMART│  Voice                 │▌                           Tade’s crashes and warnings as issues, with      │        
+ ▾ CHANG│  Window                │▌                           source lines from its files, never yours         │        
+  M pack│  Projects           3  │                                                                             │        
+  A …/we│  Checks per project    │ What happened around them  ──██ on                             ↻ on restart │        
+  M src/│  Budgets           ● 1 │                                                                             │        
+        │▌ Telemetry             │ Numbers                    ──██ on                             ↻ on restart │        
+ ▾ FILES│  Shortcuts             │                                                                             │        
+   ▾ src│  Accounts          ● 2 │ What agents do             ──██ on                             ↻ on restart │        
+       w│  Updates               │                                                                             │        
+       w│                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+   ▸ tes│                        │                                                                             │        
+     pac│                        │ Which Tade this is          laptop                             ↻ on restart │        
+     REA│                        │                                                                             │        
+━   orch│                        │ Read Sentry back           ──██ on                             ↻ on restart │   ▾   ━
+        │                        │                                                                             │        
+        │                        │ Sentry organization         $SENTRY_ORG, or sentry-cli’s default            │       ▕
         │                        │                                                                             │       ▕
-        │                        │ Read Sentry back           ──██ on                             ↻ on restart │       ▕
         │                        │ ● Saved as you change it.                                                   │       ▕
         │                        │                                                 Open config.yaml     Done   │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕

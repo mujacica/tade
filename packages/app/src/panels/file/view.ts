@@ -123,10 +123,7 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
     rows.push(
       new Row(inner, skin)
         .space(2)
-        .text(
-          file.error ?? `A binary file, ${bytes(file.size)}. Open it in its own app to see it.`,
-          skin.hint,
-        )
+        .text(file.error ?? `Binary, ${bytes(file.size)}.`, skin.hint)
         .build(),
     )
   } else {

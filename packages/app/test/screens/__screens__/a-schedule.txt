@@ -10,7 +10,7 @@
                              ▕│  │ changed.                                                                             
  ▾ SMART QUEUE  8      plan  ▕│                                                                                         
    all   next   timed        ▕│  NEXT       Mon 14 Sep 09:00 · Mon 21 Sep 09:00 · Mon 28 Sep 09:00                      
-                             ▕│  IF MISSED  runs once when Tade next opens                                              
+                             ▕│  IF MISSED  runs once when Tade opens                                                   
    ◷ release-notes   18:00   ▕│  FROM       you · “every monday morning update our dependencies”                        
      ❯ waits for its time    ▕│                                                                                         
                              ▕│  RUNS                                                                                   

@@ -108,6 +108,6 @@ describe('the model picker', () => {
   it('says it is the harness’s list that has nothing like what was typed', () => {
     // Which is a different thing from a harness that could not say at all.
     const rows = drawn(pi, 'opus').join('\n')
-    expect(rows).toContain('No model like that among the ones pi runs.')
+    expect(rows).toContain('No model like that in pi.')
   })
 })

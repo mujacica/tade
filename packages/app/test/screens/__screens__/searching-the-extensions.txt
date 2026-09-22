@@ -7,7 +7,7 @@
    │                  ▕│ Finds what a project depends on that is out of    █│   
    │                  ▕│ date, vulnerable or deprecated, and updates it in █│   
    │                  ▕│ an agent’s worktree.                              █│   
-   │                  ▕│                                                   ▕│╮  
+   │                  ▕│                                                   █│╮  
  ▸ │                  ▕│   Settings…     Check dependencies                ▕││  
  ▾ │                  ▕│                                                   ▕││  
   M│                  ▕│   Update dependencies (minor)                     ▕│╯  
@@ -15,7 +15,7 @@
 ━  │                  ▕│   Update dependencies (major)     Turn off        ▕│  ━
    │                  ▕│                                                   ▕│   
    │                  ▕│ HOW IT IS USED                                    ▕│  ▕
-   │                  ▕│ yours go in ~/.tade/extensions/<name>/extension.…  │  ▕
+   │                  ▕│                                                    │  ▕
    │                  ▕│ tab moves · ↑↓ reads · enter presses       Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────── 

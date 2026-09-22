@@ -510,7 +510,7 @@ export function renderPlan(
     rows.push(r.build())
   }
   if (tasks.length === 0) {
-    line((r) => r.text('Nothing here waits on anything: there is no plan to draw.', skin.hint))
+    line((r) => r.text('Nothing here waits on anything.', skin.hint))
   }
 
   const boxes = planBoxes(tasks, frame, skin, null)
@@ -663,7 +663,6 @@ export function renderQueued(
           .space()
           .text(said(`Held: ${because}.`), skin.you),
       )
-      line((r) => r.space(2).text('It will not start by itself. What should happen?', skin.hint))
       rows.push(blank(width))
       line((r) =>
         r
@@ -685,17 +684,12 @@ export function renderQueued(
         r
           .text('◌', skin.hint)
           .space()
-          .text(said(`Waits on ${on.join(', ')}, then starts by itself.`)),
+          .text(said(`Waits on ${on.join(', ')}.`)),
       )
       break
     }
     case 'ready':
-      line((r) =>
-        r
-          .text('◌', skin.busy)
-          .space()
-          .text(said(`Starts as soon as ${pane.project} has room for another agent.`)),
-      )
+      line((r) => r.text('◌', skin.busy).space().text(said('Waiting for room.')))
       break
     case 'scheduled': {
       const at = queued.state.at
@@ -708,9 +702,7 @@ export function renderQueued(
       break
     }
     case 'paused':
-      line((r) =>
-        r.text('‖', skin.faded).space().text(said('Paused: it starts when you resume it.')),
-      )
+      line((r) => r.text('‖', skin.faded).space().text(said('Paused.')))
       break
   }
 
@@ -759,7 +751,7 @@ export function renderQueued(
           .space(2)
         // What it waits on may itself be waiting: then that is what it is doing.
         const now = !other
-          ? 'not there any more'
+          ? 'gone'
           : other.queued
             ? queueSays({ ...other, queued: other.queued })
             : doing(other)

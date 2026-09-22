@@ -357,7 +357,7 @@ export async function askWhatIsCurrent(
             : ['npm', 'pnpm', 'yarn', 'bun', 'volta'].includes(install.manager)
               ? await npmLatest(install.name, options)
               : {
-                  cannot: `Tade cannot ask what is current for something installed as ${install.said}`,
+                  cannot: `cannot ask what is current for ${install.said}`,
                 }
       if ('cannot' in answer) return { ...look, latest: null, cannotTell: answer.cannot }
       // What the package says about itself beats what the program prints:

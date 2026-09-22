@@ -1,20 +1,20 @@
    T A D E      checkout    search    infra      +           ctrl   +   space   
 ━━━╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮━━━
  ▾ │  search settin…  │ Telemetry                                           │   
-   │                  │ Tade reporting its own trouble to a Sentry project  │───
- ▌ │  Agents          │ of yours, and reading that Sentry back. Never your… │t s
+   │                  │                                                     │───
+ ▌ │  Agents          │ Send to                   nothing is sent         ↻ │t s
  ▌ │  Models          │                                                     │   
-   │  Orchestrator    │ Send to                   nothing is sent         ↻ │   
-   │  Approvals       │                                                     │   
-   │  Checks          │▌Reporter                 ◉ sentry   ○ none        ↻ │   
-   │  Voice           │▌  sentry sends through Sentry’s own SDK, imported   │╮  
- ▸ │  Window          │▌  only when there is a DSN; none sends nothing      ││  
+   │  Orchestrator    │▌Reporter                 ◉ sentry   ○ none        ↻ │   
+   │  Approvals       │▌  sentry sends through Sentry’s own SDK, imported   │   
+   │  Checks          │▌  only when there is a DSN; none sends nothing      │   
+   │  Voice           │                                                     │╮  
+ ▸ │  Window          │ Crashes and warnings     ──██ on                  ↻ ││  
  ▾ │  Projects     3  │                                                     ││  
-  M│  Checks per pro… │ Crashes and warnings     ──██ on                  ↻ │╯  
+  M│  Checks per pro… │ What happened around t…  ──██ on                  ↻ │╯  
   A│  Budgets     ● 1 │                                                     │   
-━  │▌ Telemetry       │ What happened around t…  ──██ on                  ↻ │  ━
+━  │▌ Telemetry       │ Numbers                  ──██ on                  ↻ │  ━
    │  Shortcuts       │                                                     │   
-   │  Accounts    ● 2 │ Numbers                  ──██ on                  ↻ │  ▕
+   │  Accounts    ● 2 │ What agents do           ──██ on                  ↻ │  ▕
    │  Updates         │                                                     │  ▕
    │                  │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕

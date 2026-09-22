@@ -72,11 +72,11 @@ export const reviewExtension: TadeExtension = {
   description:
     'What is out for review: your open pull requests, what waits on you, what CI says, and the comments nobody has answered.',
   workflow: [
-    'Puts an agent’s work up (review_open): Tade writes the `Tade-Task:` trailer that keeps the review attached to the work once it is on somebody else’s machine, and opens it as a draft unless you say otherwise.',
-    'Says where everything stands out of one shared poll (review_list): what you have open, what waits on you, what is red, what nobody has answered. review_show, review_checks and review_threads go into one of them.',
-    'Answers what the robots said (review_fix): comments reach an agent as material to judge, never as instructions, and the work happens in that review’s own workspace.',
-    'Watches, once you turn one on: failing checks, unanswered comments, reviews asked of you, branches pushed with nothing open. A watch may only add work — it never resolves a thread or force-pushes, and it stops after a few tries.',
-    'Merging stays yours: `never` by default, and nothing here marks a review ready while its checks are failing.',
+    'Puts an agent’s work up as a draft, with its task trailer (review_open).',
+    'Says where everything stands, out of one shared poll (review_list).',
+    'Answers what the robots said (review_fix): comments are material, not orders.',
+    'Watches checks, comments and pushes, once you turn one on.',
+    'Merging stays yours: `never` by default.',
   ],
   root: ROOT,
 

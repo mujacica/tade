@@ -290,14 +290,12 @@ export const jevExtension: TadeExtension = {
   description:
     'Asks a judge bounded questions about diffs, logs, requests, plans and queues: probabilities to act on, never verdicts and never prose.',
   workflow: [
-    'Reviews what agents wrote, when nobody has time to: turn the review watch on and every branch that goes quiet is read against the review pack — injection, secrets, swallowed errors, missing tests, whether it did what was asked.',
-    'Judges anything else in front of you (jev_ask): a diff, an issue list, a failing log, something somebody pasted. A few dozen literal questions at once, each answered with a probability and no prose.',
-    'Finds the lines that answer a question, in a log, the journal or a file (jev_grep) — a filter to read, not an answer.',
-    'Says what it has already flagged (jev_findings), and takes your word for whether it was right (jev_verdict): nothing else says whether a question is worth asking again.',
-    'Reads things back before somebody guesses: what was actually asked for (jev_read_request), a plan before Tade keeps it (jev_plan_check), what to do first of what is queued (jev_queue_order).',
-    'Answers a sentence typed into search that matched no letters, with which of the things already listed it might mean.',
-    'Reads a command an agent is held at that the approval rules do not name — only ever making Tade ask you for more, never less, and nothing at all under bypass.',
-    'It may only add caution: it never approves, merges, unholds or shortens a review, and it is never the reason anybody is given.',
+    'Reads branches that go quiet against the review pack, once its watch is on.',
+    'Judges anything in front of you (jev_ask): a diff, a log, something pasted.',
+    'Reads things back before somebody guesses: a request, a plan, a queue order.',
+    'Answers a sentence typed into search that matched no letters.',
+    'Reads a command the approval rules do not name — only ever asking for more.',
+    'May only add caution: never approves, merges, unholds or shortens a review.',
   ],
   root: ROOT,
   settings: [
@@ -920,8 +918,7 @@ export const jevExtension: TadeExtension = {
     {
       id: 'review',
       title: 'Review what agents change',
-      means:
-        'When an agent’s branch stops moving, reads its whole diff against what it branched from — injection, secrets, permissions, swallowed errors, missing tests, whether it did what was asked, and this repository’s own rules — and reports what it flags, for somebody who can explain it to read. It never blocks a commit, approves one, or closes anything.',
+      means: 'reads a branch that has stopped moving against its base, and reports what it flags',
       every: '10m',
       input: object({
         threshold: number('report at or above this probability; the setting unless said'),
@@ -999,8 +996,7 @@ export const jevExtension: TadeExtension = {
     {
       id: 'circles',
       title: 'Agents going in circles',
-      means:
-        'Looks at what each agent in this project has been doing — the same call made again and again with the same failure, turns that end badly one after another — and reads the ones that are going round to see whether it is a loop or a method. What it finds is said, with which agent and what it keeps trying. It never stops an agent, never steers one and never starts one: what to do about it is yours.',
+      means: 'reads the agents that keep making the same failing call, and says which',
       every: '10m',
       // There is nothing to start work on: the work is already going, and
       // badly. This is for telling somebody.

@@ -5,7 +5,7 @@
  ▌ ✓ pagination      $0.20   █│                                                                                         
  ▌   finished                █│  Ready for review, and no agent is running.                                             
                              █│                                                                                         
- ▸ SMART QUEUE          none █│    Open its agent   picks the conversation up where it stopped                          
+ ▸ SMART QUEUE          none █│    Open its agent   where it stopped                                                    
  ▾ CHANGES           vs main █│                                                                                         
    nothing changed           █│                                                                                         
                              █│                                                                                         
