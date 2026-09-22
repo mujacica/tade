@@ -355,6 +355,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   wraps. The drawing is the editor's too — the selection is laid over the rows it drew, placed in
   the text by matching them (`rowStarts`), because a second description of how it wraps would be
   right until the day it was not.
+- **What is on that line is the orchestrator's, not the focus's.** Moving to an agent, a terminal,
+  a panel or a picture's question changes where the keyboard is and may never change what is
+  half-written at Tade — the same rule escape obeys, broken from the other side. So the text lives
+  in `orchestratorDraft` whether or not the line is open, `dictation` being null says only that it
+  is closed, and `leaveLine` and `openLine` (`model.ts`) are the only two doors: one keeps what was
+  on it, the other puts it back. A rule that each of a dozen call sites has to remember is a rule
+  half of them forgot, which is what "switching focus removes the things we typed" was. The editor
+  is not emptied either — a closed line is simply not drawn (`input` in `wire/keyboard.ts`), so the
+  caret and the selection are where they were left too. A panel is the one text a click may throw
+  away, because dismissing one is an act rather than a focus moving; the file you have open is not,
+  and `panelDismiss` asks what escape asks before it loses an unsaved edit.
 - **The file you have open selects out of that same model, because two of them would drift.** A
   word is the same run of letters in a file as on the line, shift and an arrow reach the same way,
   and what a second press takes is not something anybody should have to learn twice — so `input.ts`

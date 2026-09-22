@@ -1,3 +1,4 @@
+import { THINKING_LEVELS } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
 import type { ThinkerEvent } from '../../src/transcript.ts'
@@ -118,6 +119,45 @@ describe('the window, taking a keystroke', () => {
     expect(asked).toHaveLength(2)
   })
 
+  it('leaves the caret where it was when focus goes to an agent and comes back', async () => {
+    const asked: string[] = []
+    await start({
+      thinker: {
+        ask: async (text: string) => {
+          asked.push(text)
+          return 'ok'
+        },
+      },
+    })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+
+    terminal.press('\x00') // opens the line you type into
+    for (const char of 'why refunds slow') terminal.press(char)
+    // Left, back to in front of "refunds": where the missing word goes.
+    for (let i = 0; i < 'refunds slow'.length; i++) terminal.press('\x1b[D')
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('why refunds slow')),
+    )
+
+    // Away and back. The line is not drawn meanwhile and is not emptied
+    // either: the words, the caret and what is selected on them are the
+    // orchestrator's, not the focus's.
+    terminal.press('\t')
+    await until('the line to close', () =>
+      screenOf(terminal.written).every((row) => !row.includes('why refunds slow')),
+    )
+    terminal.press('\x1b[Z') // shift+tab, back to the orchestrator
+    await until('the line, back as it was', () =>
+      screenOf(terminal.written).some((row) => row.includes('why refunds slow')),
+    )
+
+    // Typed where the caret was left, not at the end of the line.
+    for (const char of 'is ') terminal.press(char)
+    terminal.press('\r')
+    await until('the question', () => asked.length === 1)
+    expect(asked).toEqual(['why is refunds slow'])
+  })
+
   it('stops the orchestrator on escape, and leaves what you typed alone', async () => {
     const stops: number[] = []
     const listeners: Array<(event: ThinkerEvent) => void> = []
@@ -130,6 +170,7 @@ describe('the window, taking a keystroke', () => {
         offers: {
           harness: 'pi',
           interrupt: { shown: true, support: 'live', note: null },
+          levels: THINKING_LEVELS,
         },
         interrupt: async () => {
           stops.push(1)
@@ -174,6 +215,7 @@ describe('the window, taking a keystroke', () => {
         offers: {
           harness: 'codex',
           interrupt: { shown: false, support: 'none', note: 'runs a turn to the end' },
+          levels: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
         },
         ask: () => new Promise<string>(() => {}),
       },

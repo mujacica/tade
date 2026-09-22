@@ -71,6 +71,28 @@ describe('the window, under the pointer', () => {
     expect(screenOf(terminal.written).join('\n')).not.toContain('Nothing is running')
   })
 
+  it('keeps what was half-written at the orchestrator while focus is elsewhere', async () => {
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const strip = find('orchestrator')
+    click(strip.col + 2, strip.row)
+    await until('the line to open', () => terminal.written.includes('here'))
+    for (const char of 'why is refunds slow') terminal.press(char)
+    await until('what was typed', () =>
+      screenOf(terminal.written).some((row) => row.includes('why is refunds slow')),
+    )
+    // Off to an agent: the line closes, and the words on it are not the
+    // window's to throw away.
+    terminal.press('\t')
+    await until('the line to close', () =>
+      screenOf(terminal.written).every((row) => !row.includes('why is refunds slow')),
+    )
+    click(strip.col + 2, strip.row)
+    await until('the half-written line, exactly where it was left', () =>
+      screenOf(terminal.written).some((row) => row.includes('why is refunds slow')),
+    )
+  })
+
   it('moves the sidebar edge where it is dragged, and remembers it', async () => {
     terminal.columns = 120
     terminal.rows = 40

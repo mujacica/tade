@@ -13,8 +13,10 @@ import {
 import {
   activeTerminal,
   focusTask,
+  leaveLine,
   notice,
   ORCHESTRATOR_TAB,
+  openLine,
   removeAttachment,
   shownName,
 } from '../model.ts'
@@ -169,23 +171,12 @@ export class Images implements Subject {
       }
       // Pasted the way the terminal would have: the agent reads the picture
       // from its path, and you finish the sentence at its prompt.
-      this.wire.put({
-        ...focusTask(this.wire.state, id),
-        keyboard: 'pane',
-        dictation: null,
-        orchestratorDraft: this.wire.state.dictation ?? this.wire.state.orchestratorDraft,
-      })
+      this.wire.put({ ...leaveLine(focusTask(this.wire.state, id)), keyboard: 'pane' })
       await this.wire.opts.client
         .write(pane.lane as LaneId, asPaste(paths.join(' ')))
         .catch((err) => this.wire.put(notice(this.wire.state, why(err))))
     } else if (kind === 'terminal') {
-      this.wire.put({
-        ...this.wire.state,
-        bottom: id,
-        keyboard: 'terminal',
-        dictation: null,
-        orchestratorDraft: this.wire.state.dictation ?? this.wire.state.orchestratorDraft,
-      })
+      this.wire.put({ ...leaveLine(this.wire.state), bottom: id, keyboard: 'terminal' })
       await this.wire.opts.client
         .write(id as LaneId, paths.map(shellQuote).join(' '))
         .catch((err) => this.wire.put(notice(this.wire.state, why(err))))
@@ -198,10 +189,9 @@ export class Images implements Subject {
   attach(paths: readonly string[]): void {
     const readable = paths.filter((path) => readImage(path) !== null)
     this.wire.put({
-      ...this.wire.state,
+      ...openLine(this.wire.state),
       attached: [...new Set([...this.wire.state.attached, ...paths])],
       bottom: ORCHESTRATOR_TAB,
-      dictation: this.wire.state.dictation ?? '',
       notice:
         readable.length < paths.length
           ? `${paths.length - readable.length} could not be read as a picture: over 20 MB, or not an image`

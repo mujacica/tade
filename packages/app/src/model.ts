@@ -232,7 +232,11 @@ export interface AppState {
   keyboard: 'pane' | 'terminal'
   /** Sizes you dragged the dividers to, over the ones the config gives. */
   sizes: { sidebarWidth?: number; stripHeight?: number }
-  /** Text saved from the orchestrator line when focus moves away, restored on refocus. */
+  /**
+   * What is on the orchestrator's line, open or not: it belongs to the
+   * orchestrator rather than to the focus, so moving away keeps it and coming
+   * back finds it. `leaveLine` and `openLine` are the only two doors.
+   */
   orchestratorDraft: string
   /** A divider being dragged. */
   resizing: 'sidebar' | 'bottom' | 'split' | 'terminal-split' | null
@@ -919,15 +923,9 @@ export function focusBy(state: AppState, delta: number): AppState {
   const at = ring.indexOf(here)
   const next = ((((at < 0 ? 0 : at) + delta) % ring.length) + ring.length) % ring.length
   const focused = ring[next] ?? null
-  if (focused === null) return { ...state, dictation: state.dictation ?? state.orchestratorDraft }
+  if (focused === null) return openLine(state)
   const project = state.panes.find((pane) => pane.task === focused)?.project ?? state.project
-  return {
-    ...state,
-    focused,
-    project,
-    dictation: null,
-    orchestratorDraft: state.dictation ?? state.orchestratorDraft,
-  }
+  return { ...leaveLine(state), focused, project }
 }
 
 /** What an agent is shown as: what its work is called, once it has said, else its name. */
@@ -1187,11 +1185,9 @@ export function activeTerminal(state: AppState): TerminalTab | null {
 export function showTerminal(state: AppState, id: string): AppState {
   if (!state.terminals.some((terminal) => terminal.id === id)) return state
   return {
-    ...state,
+    ...leaveLine(state),
     bottom: id,
     keyboard: 'terminal',
-    dictation: null,
-    orchestratorDraft: state.dictation ?? state.orchestratorDraft,
     bottomMode: state.bottomMode === 'min' ? 'open' : state.bottomMode,
   }
 }
@@ -1199,10 +1195,9 @@ export function showTerminal(state: AppState, id: string): AppState {
 /** The orchestrator's tab in front, its line open to type on. */
 export function showOrchestrator(state: AppState): AppState {
   return {
-    ...state,
+    ...openLine(state),
     bottom: ORCHESTRATOR_TAB,
     keyboard: 'pane',
-    dictation: state.dictation ?? state.orchestratorDraft,
     bottomMode: state.bottomMode === 'min' ? 'open' : state.bottomMode,
   }
 }
@@ -1530,9 +1525,42 @@ export function setQuestion(state: AppState, question: AppState['question']): Ap
   return { ...state, question }
 }
 
-/** Open, extend or close the dictation line. */
+/**
+ * Open, extend or close the dictation line.
+ *
+ * Closing it goes through `leaveLine`, so what was half-written is kept
+ * whoever closes it — the one thing a window may never throw away.
+ */
 export function setDictation(state: AppState, dictation: string | null): AppState {
+  if (dictation === null) return leaveLine(state)
   return { ...state, dictation }
+}
+
+/**
+ * Leave the orchestrator's line, keeping what is on it.
+ *
+ * What you typed at Tade is the orchestrator's, not the focus's: moving to an
+ * agent, a terminal, a picture's question or anywhere else may change where
+ * the keyboard is and may never change what is on the line. So the text lives
+ * in `orchestratorDraft` whether or not the line is open, and `dictation`
+ * being null says only that it is closed.
+ *
+ * This and `openLine` are the only two doors, because a half-written message
+ * lost on the way to an agent is the same bug from the other side as one lost
+ * to escape — and a rule each of a dozen call sites has to remember is a rule
+ * half of them forgot.
+ */
+export function leaveLine(state: AppState): AppState {
+  return {
+    ...state,
+    dictation: null,
+    orchestratorDraft: state.dictation ?? state.orchestratorDraft,
+  }
+}
+
+/** Open the orchestrator's line, on whatever was last left on it. */
+export function openLine(state: AppState): AppState {
+  return { ...state, dictation: state.dictation ?? state.orchestratorDraft }
 }
 
 /** The line a search finds: the newest that contains it, or older ones for each ctrl+r again. */

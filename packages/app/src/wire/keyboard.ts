@@ -31,9 +31,11 @@ import {
   focusBy,
   focusNumber,
   keyAction,
+  leaveLine,
   matchActions,
   notice,
   ORCHESTRATOR_TAB,
+  openLine,
   projectNumber,
   searchKey,
   setDictation,
@@ -212,7 +214,7 @@ export class Keyboard implements Subject {
         this.wire.state.dictation !== null ||
         (this.wire.state.focused === null && !activeTerminal(this.wire.state))
       ) {
-        if (this.wire.state.dictation === null) this.wire.put(setDictation(this.wire.state, ''))
+        this.wire.put(openLine(this.wire.state))
         this.sync()
         // Pasted over a selection, as typing over one: it replaces it.
         this.removeSelection()
@@ -280,11 +282,8 @@ export class Keyboard implements Subject {
         this.deps.openSearch()
         return { consume: true }
       case 'orchestrator':
-        this.wire.put({
-          ...this.wire.state,
-          bottom: ORCHESTRATOR_TAB,
-          dictation: this.wire.state.dictation ?? '',
-        })
+        // Back to the line, on whatever was left on it.
+        this.wire.put({ ...openLine(this.wire.state), bottom: ORCHESTRATOR_TAB })
         this.wire.draw()
         return { consume: true }
       case 'run':
@@ -315,7 +314,7 @@ export class Keyboard implements Subject {
       case 'leave-line':
         // Only ever reached with nothing on the line, so nothing is lost.
         this.anchor = null
-        this.wire.put(setListening(setDictation(this.wire.state, null), false))
+        this.wire.put(setListening(leaveLine(this.wire.state), false))
         this.wire.draw()
         return { consume: true }
       case 'discard':
@@ -349,7 +348,7 @@ export class Keyboard implements Subject {
       this.wire.state.focused === null &&
       (printable(data) || ['up', 'ctrl+r'].includes(parseKey(data) ?? ''))
     ) {
-      this.wire.put(setDictation(this.wire.state, ''))
+      this.wire.put(openLine(this.wire.state))
       this.sync()
       this.type(data)
       return { consume: true }
@@ -694,8 +693,12 @@ export class Keyboard implements Subject {
   }
 
   input(width: number): Pick<Frame, 'input'> {
-    this.sync()
+    // A closed line is not drawn and is not emptied: the editor keeps the
+    // text, the caret and what is selected on it, so coming back finds the
+    // half-written message exactly where it was left. Syncing a closed line
+    // would set it to '', which is the window throwing your words away.
     if (this.wire.state.dictation === null) return {}
+    this.sync()
     this.editor.focused = true
     this.editor.borderColor = this.deps.skin.signal
     const drawn = this.editor.render(width)
@@ -710,7 +713,7 @@ export class Keyboard implements Subject {
     return { input: { lines: [drawn[0] ?? '', ...lit, ...drawn.slice(body.length + 1)] } }
   }
 
-  /** The editor holds what the state says the line holds. */
+  /** The editor holds what an open line says it holds; a closed one is left alone. */
   private sync(): void {
     const wanted = this.wire.state.dictation ?? ''
     if (this.editor.getText() === wanted) return

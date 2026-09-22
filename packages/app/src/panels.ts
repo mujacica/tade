@@ -21,10 +21,10 @@ import {
   type McpServerOffer,
   type WrittenToolView,
 } from './panels/extensions/state.ts'
-import { type FilePanel, fileClick, fileKey } from './panels/file/state.ts'
+import { type FilePanel, fileClick, fileDismiss, fileKey } from './panels/file/state.ts'
 import { type MenuItem, type MenuPanel, menuClick, menuKey } from './panels/menu/state.ts'
 import { type ModelChoice, type ModelPanel, modelClick, modelKey } from './panels/models/state.ts'
-import type { PanelOutcome } from './panels/outcome.ts'
+import { close, type PanelOutcome, stay } from './panels/outcome.ts'
 import { type OpenProjectPanel, type OpenRow, openClick, openKey } from './panels/project/state.ts'
 import { type SearchPanel, searchClick, searchKey } from './panels/search/state.ts'
 import {
@@ -177,6 +177,18 @@ export function panelKey(
   if (panel.kind === 'confirm-remove') return confirmKey(panel, key)
   if (panel.kind === 'close-done') return confirmKey(panel, key)
   return diffKey(panel, key)
+}
+
+/**
+ * A click on the window behind a panel: the other way one is dismissed.
+ *
+ * It throws away exactly what escape throws away, so it asks what escape
+ * asks — a file with unsaved edits warns once rather than going. A panel in
+ * the middle of something stays, as it does for any key.
+ */
+export function panelDismiss(panel: Panel): PanelOutcome {
+  if (panel.busy) return stay(panel)
+  return panel.kind === 'file' ? fileDismiss(panel) : close
 }
 
 /** A click on one of the panel's own controls. */

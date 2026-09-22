@@ -20,9 +20,11 @@ import {
   initialState,
   keyAction,
   laneShown,
+  leaveLine,
   markOf,
   noteTyping,
   onEvent,
+  openLine,
   openSchedule,
   parseCommand,
   projectNumber,
@@ -888,6 +890,29 @@ describe('the orchestrator draft', () => {
     const retyped = { ...back, dictation: 'second draft' }
     const awayAgain = focusBy(retyped, 1)
     expect(awayAgain.orchestratorDraft).toBe('second draft')
+  })
+
+  it('is kept by every way of leaving the line, and found by every way back', () => {
+    // The two doors, and nothing else: whoever closes the line keeps what was
+    // on it, and whoever opens it gets it back. A way out that forgot to save
+    // or a way in that started empty is a half-written message thrown away,
+    // which is the one thing the window may never do.
+    const typed = { ...state(), dictation: 'why is refunds slow' }
+    for (const leave of [leaveLine, (one: AppState) => setDictation(one, null)]) {
+      const away = leave(typed)
+      expect(away.dictation).toBeNull()
+      expect(away.orchestratorDraft).toBe('why is refunds slow')
+      expect(openLine(away).dictation).toBe('why is refunds slow')
+      expect(showOrchestrator(away).dictation).toBe('why is refunds slow')
+    }
+  })
+
+  it('leaves an open line alone when it is opened again', () => {
+    const typed = { ...state(), dictation: 'half a sentence', orchestratorDraft: 'older' }
+    expect(openLine(typed).dictation).toBe('half a sentence')
+    // Emptied on purpose — ctrl+c, or a message sent — is not a draft to
+    // restore: only a line that was closed has one.
+    expect(openLine({ ...typed, dictation: '' }).dictation).toBe('')
   })
 })
 

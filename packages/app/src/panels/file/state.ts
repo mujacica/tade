@@ -301,6 +301,18 @@ function pastedText(data: string): string | null {
 }
 
 /**
+ * A click on the window behind the panel, which closes it without a key.
+ *
+ * It throws away exactly what escape throws away, so it asks what escape
+ * asks: a file with something unsaved in it warns once rather than going.
+ * A click landing off the edge of a panel is far more often a miss than a
+ * decision, and nothing here can put an edit back.
+ */
+export function fileDismiss(panel: FilePanel): PanelOutcome {
+  return panel.edit?.dirty && !panel.warned ? stay(warn(panel)) : close
+}
+
+/**
  * Asked once before what was typed is thrown away. Nothing here can put an
  * edit back, so the second press is the one that loses it.
  */

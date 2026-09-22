@@ -4,7 +4,7 @@ import type { AudioClip, Recording, VoiceSurface, VoiceTerminals } from '@tade/v
 import type { Speaker } from '@tade/voice-tts'
 import type { Frame } from '../frame.ts'
 import { keyCaps } from '../keys.ts'
-import { activeTerminal, notice, setDictation, setListening } from '../model.ts'
+import { activeTerminal, notice, openLine, setListening } from '../model.ts'
 import { writeSetting } from '../settings.ts'
 import { type Actions, configPathOf, type Subject, type Wiring, why } from './context.ts'
 
@@ -242,7 +242,9 @@ export class Voice implements Subject {
   async talkStart(): Promise<void> {
     const recorder = this.wire.opts.recorder
     if (!recorder) {
-      this.wire.put(setListening(setDictation(this.wire.state, ''), true))
+      // Nothing to record with, so the line is what you talk on — opened on
+      // whatever was already half-written there.
+      this.wire.put(setListening(openLine(this.wire.state), true))
       this.wire.draw()
       return
     }
@@ -253,7 +255,7 @@ export class Voice implements Subject {
       this.listenTo(this.recording)
     } catch (err) {
       // Say why, once, then fall back to typing rather than swallowing it.
-      this.wire.put(setListening(setDictation(notice(this.wire.state, why(err)), ''), true))
+      this.wire.put(setListening(openLine(notice(this.wire.state, why(err))), true))
     }
     this.wire.draw()
   }

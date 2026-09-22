@@ -52,7 +52,7 @@ import {
   promptPanel,
 } from '../src/panels/small/state.ts'
 import { spendPanel } from '../src/panels/spend/state.ts'
-import { type Panel, panelClick, panelKey } from '../src/panels.ts'
+import { type Panel, panelClick, panelDismiss, panelKey } from '../src/panels.ts'
 import type { SearchEntry } from '../src/search.ts'
 import { spendView } from '../src/spend.ts'
 
@@ -431,9 +431,15 @@ describe('typing into a file', () => {
     // The same for the two ways out that are clicks.
     expect(panelClick(typed, 'close', inputs).panel).toMatchObject({ warned: true })
     expect(panelClick(typed, 'editor', inputs)).toMatchObject({ submit: false })
+    // And for the third: a click on the window behind it, which is a miss far
+    // more often than it is a decision.
+    expect(panelDismiss(typed).panel).toMatchObject({ warned: true })
+    expect(panelDismiss(panelDismiss(typed).panel as FilePanel).panel).toBeNull()
     // Nothing typed, nothing to ask about.
     const put = clicked(filePanel('/r/a.ts'), 0, 0)
     expect(panelKey(put, 'escape', '\x1b', inputs).panel).toBeNull()
+    expect(panelDismiss(put).panel).toBeNull()
+    expect(panelDismiss(searchPanel('refunds')).panel).toBeNull()
   })
 
   it('takes a paste as the lines it is', () => {

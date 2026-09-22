@@ -9,12 +9,13 @@ import {
   dropAgent,
   focusTask,
   grabBar,
+  leaveLine,
   ORCHESTRATOR_TAB,
+  openLine,
   resizeTo,
   scrollBarTo,
   scrollBy,
   selectProject,
-  setDictation,
   showOrchestrator,
   showTerminal,
   splitRatio,
@@ -27,7 +28,7 @@ import {
 import { type FilePanel, fileSelection, scrollFile } from '../panels/file/state.ts'
 import type { MenuSubject } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
-import { type PanelInputs, panelClick, panelKey } from '../panels.ts'
+import { type PanelInputs, panelClick, panelDismiss, panelKey } from '../panels.ts'
 import { Painted, type PointerEvent } from '../pointer.ts'
 import { noteRecent } from '../projects.ts'
 import { pointerSequence } from '../skin.ts'
@@ -497,21 +498,18 @@ export class Mouse {
         )
         break
       case 'terminal':
-        // Clicking into a terminal is choosing to type there — in the half clicked.
+        // Clicking into a terminal is choosing to type there — in the half
+        // clicked. What was half-written at the orchestrator stays on its line.
         this.wire.put({
-          ...this.wire.state,
+          ...leaveLine(this.wire.state),
           keyboard: 'terminal',
-          dictation: null,
-          orchestratorDraft: this.wire.state.dictation ?? this.wire.state.orchestratorDraft,
           splitFocus: target.side === 'split',
         })
         break
       case 'pane':
         this.wire.put({
-          ...this.wire.state,
+          ...leaveLine(this.wire.state),
           keyboard: 'pane',
-          dictation: null,
-          orchestratorDraft: this.wire.state.dictation ?? this.wire.state.orchestratorDraft,
           splitFocus: target.side === 'split',
         })
         break
@@ -519,9 +517,10 @@ export class Mouse {
         this.wire.put(toggleFolder(this.wire.state, target.path))
         break
       case 'orchestrator':
-        // The keyboard goes to the orchestrator's line; the agent you were
-        // watching stays in view behind it, a click away.
-        if (this.wire.state.dictation === null) this.wire.put(setDictation(this.wire.state, ''))
+        // The keyboard goes to the orchestrator's line, on whatever was left
+        // on it; the agent you were watching stays in view behind it, a click
+        // away.
+        this.wire.put(openLine(this.wire.state))
         break
       case 'input': {
         // A click in what you have typed puts the caret there, as it does in
@@ -563,11 +562,14 @@ export class Mouse {
       return
     }
     if (target.kind === 'dismiss') {
-      this.wire.put({ ...this.wire.state, panel: panel.busy ? panel : null })
-    } else if (target.kind === 'control') {
+      this.deps.applyPanel(panelDismiss(panel))
+      return
+    }
+    if (target.kind === 'control') {
       this.deps.applyPanel(panelClick(panel, target.id, this.deps.panelInputs()))
       return
-    } else if (target.kind === 'action') {
+    }
+    if (target.kind === 'action') {
       // A link inside a panel leads somewhere else: the panel gives way to it.
       this.wire.put({ ...this.wire.state, panel: null })
       this.deps.run(target.name)
