@@ -45,9 +45,23 @@ Schema: `ConfigSchema` in `packages/core/src/config.ts` (zod 4).
      like everything else, as typed — the file is `0600` and one person's — with the environment
      variable winning over it. Nothing is masked anywhere: a key you cannot read is one you
      cannot check.
-5. Its `means` sentence is its documentation. The README shows config only for setting up something
+5. Decide how far the orchestrator's arm reaches into it — `settingReach` in
+   `packages/core/src/reach.ts`. Anything unnamed there is `asked`: changeable only when the
+   person's own words name that setting, which is the right default for an ordinary key and the
+   wrong one for a key that **widens what an agent may do, hands a third party tools or a
+   credential, changes who is asked, or changes where Tade sends something**. Such a key goes in
+   a `never` *subtree* — never as a lone entry, because the point of a subtree is that the next
+   key added under it is refused without anybody remembering to come back here. A whole new
+   *section* of the schema fails `packages/core/test/reach.test.ts` until somebody has decided
+   which side of the line it is on: that failure is the conversation, not an obstacle to it.
+   - The other half of the decision is whether a person can say the setting's name. The check is
+     `namedBy`, which reads the setting's path, its title as a phrase, its `keywords` and its
+     path segments — so `keywords` that are the words somebody would actually say is what keeps
+     a legitimate request from being refused. It is the same list the panel's search reads, so
+     this costs nothing extra.
+6. Its `means` sentence is its documentation. The README shows config only for setting up something
    people cannot start without (an extension's organization, say).
-6. `pnpm check`.
+7. `pnpm check`.
 
 Writing config: always edit the YAML **document** (`parseDocument`, `setIn`, `deleteIn`), never
 `parse` then `stringify` — that drops every comment in a file somebody wrote by hand.

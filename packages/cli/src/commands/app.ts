@@ -196,6 +196,10 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       let handOff: NonNullable<ToolHostOptions['handOff']> = async () => ({ note: '', images: [] })
       // The queue is the window's to run, and the window comes up after this.
       let queue: ReturnType<App['queueTools']> | null = null
+      // The config is the window's too: a setting written has to be read back
+      // and used everywhere that holds one, and the boundary saying what the
+      // orchestrator may touch is checked there rather than in its own process.
+      let settings: ReturnType<App['configTools']> | null = null
       const opening = () => new Error('Tade is still opening: ask again in a moment')
       const tools = await ToolHost.listen({
         tade: client,
@@ -218,6 +222,24 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           schedule: async (req) => {
             if (!queue) throw opening()
             return queue.schedule(req)
+          },
+        },
+        config: {
+          settings: async (find) => {
+            if (!settings) throw opening()
+            return settings.settings(find)
+          },
+          change: async (req) => {
+            if (!settings) throw opening()
+            return settings.change(req)
+          },
+          openProject: async (req) => {
+            if (!settings) throw opening()
+            return settings.openProject(req)
+          },
+          closeProject: async (req) => {
+            if (!settings) throw opening()
+            return settings.closeProject(req)
           },
         },
         status: () =>
@@ -327,6 +349,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
         // Files you attached go to the agents the orchestrator starts in answer.
         handOff = (cwd) => app.handOff(cwd)
         queue = app.queueTools()
+        settings = app.configTools()
 
         // The orchestrator is a model in another process and takes a few
         // seconds to come up. The window does not wait for it: an empty

@@ -187,6 +187,21 @@ export function why(err: unknown): string {
 }
 
 /** What every subject of the window may reach, and nothing more. */
+/**
+ * The last things the person themselves said, verbatim, newest among them.
+ *
+ * What a person typed or spoke is journalled as `said` and nothing else ever
+ * writes there — so this is the one list in Tade that text an agent read can
+ * never get into, which is what makes it worth checking against before acting
+ * on somebody's behalf. Bounded because "they said it" has to mean lately.
+ */
+export async function saidLately(wire: Wiring, most: number): Promise<string[]> {
+  const events = await wire.opts.client.events({ types: ['said'], limit: most }).catch(() => [])
+  return events.flatMap((event) =>
+    typeof event.detail.text === 'string' ? [event.detail.text] : [],
+  )
+}
+
 export interface Wiring {
   /** What the window was opened with: the workbench, the config, the callbacks. */
   readonly opts: AppOptions

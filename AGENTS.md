@@ -172,6 +172,42 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   document so the comments survive, and it refuses a draft rather than leaving a broken file to be
   found by hand. It is the orchestrator's and a person's, never an agent's: an agent judged by
   these checks does not get a tool that rewrites its own gate.
+- **Tade configures itself, and how far its own arm reaches is a rule rather than a promise.**
+  The orchestrator reads what Tade is set up with and changes some of it (`tade_settings`,
+  `tade_setting_change`, `tade_project_open`, `tade_project_close`), through the same
+  `settingsOf`, `parseSetting` and `writeSetting` the Settings page goes through — one write path,
+  so a value the schema refuses is still put back as it was. What differs is that it is ungated and
+  reads attacker-controlled text all day, so the question is never whether it can be trusted but
+  **what the worst a sentence it read can do is** — which is a property of the setting, and is
+  decided in one pure function (`settingReach`, `core/src/reach.ts`) and enforced in the window,
+  never in the tool: a rule that lives where the model lives is a rule the model can be talked out
+  of. Three answers and no fourth. **`never`** is everything that widens what an agent may do,
+  hands a third party tools or a credential, changes who is asked, or changes where Tade sends
+  something — `approvals`, `accounts` and `workers.accounts`, a route's `sandbox`, the whole of
+  `extensions` and `mcp`, `orchestrator.extensions`, `telemetry.dsn`, and a project's `root`. Each
+  is a **subtree** and not a key, which is what makes a key added to one of them refused on the day
+  it is added, by somebody who never read this file. **`asked`** is the default and nearly
+  everything else: the person's own words have to name that setting, checked against the journal's
+  `said` lines (`namedBy`), which is a real barrier rather than a formality because `said` is what
+  a person typed or spoke and nothing an agent read can ever get into it — a page can tell a model
+  to turn the checks off, it cannot put "turn the checks off" in somebody's mouth. It is honest
+  about what it holds: an ordinary word matches loosely, other wording is refused outright, and
+  both are the safe direction, because it may only ever refuse. **`open`** is the three window
+  sizes, where the worst case is something the person is looking at. Every change writes
+  `config_changed` — the path, what it was, what it is now, who asked, and their words — because
+  a change nobody watched has to be one somebody can find and undo; a credential is said as `set`
+  or `not set` there and is never read back by any tool, the way it is never in the journal
+  anywhere else.
+- **Closing a project and forgetting its work are not the same act, and Tade only offers the
+  first.** `tade_project_close` takes `projects.<name>` out of the config and does nothing else:
+  the folder, every commit, branch and worktree, everything under `.tade/` and the journal all
+  stay, and opening the same path again brings all of it back — which is why closing is
+  reversible and is said so when it happens. There is no tool that removes a worktree, deletes a
+  branch or deletes a folder, and asking explicitly does not produce one: that is a person with
+  git in a terminal. A project with an agent still running in it is refused, naming them. Opening
+  is the same door the picker uses (`openAt`) — a repository Tade has, one on disk it does not, or
+  one that is not there yet, made and `git init`ed only where it was asked for — and it never
+  repoints a project it already has, because moving a root moves where every agent in it works.
 - **Everything else Tade writes under a project is ignored, and the manifest is the exception.**
   A task file is one person's, `checks.jsonl` rotates and dies with the worktree it ran in, an
   attachment is a pasted screenshot, a lock holds a pid — none of it means anything on another

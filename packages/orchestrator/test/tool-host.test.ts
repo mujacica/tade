@@ -250,3 +250,79 @@ describe('putting work on a clock', () => {
     ).toMatch(/when is not a rule/)
   })
 })
+
+describe('changing how Tade is set up', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('hands each act to the window, with what it was given', async () => {
+    const path = join(tmp('tade-tools-'), 'tools.sock')
+    const asked: Record<string, unknown>[] = []
+    host = await ToolHost.listen({
+      tade: {} as Workbench,
+      path,
+      config: {
+        settings: async (find) => {
+          asked.push({ settings: find })
+          return 'agents.commit = own-files'
+        },
+        change: async (req) => {
+          asked.push({ change: req })
+          // The boundary lives in the window, so a refusal reaches the model
+          // as a tool that failed rather than as an answer it can argue with.
+          if (req.path.startsWith('approvals.')) throw new Error('not mine to change')
+          return 'Saved.'
+        },
+        openProject: async (req) => {
+          asked.push({ open: req })
+          return 'Opened payments.'
+        },
+        closeProject: async (req) => {
+          asked.push({ close: req })
+          return 'Closed payments.'
+        },
+      },
+    })
+    expect((await call(path, 'config/settings', { find: 'commit' })).result).toContain(
+      'agents.commit',
+    )
+    expect(
+      (
+        await call(path, 'config/change', {
+          path: 'agents.commit',
+          value: 'as-you-go',
+          said: 'commit as you go',
+        })
+      ).result,
+    ).toBe('Saved.')
+    expect(
+      (await call(path, 'config/change', { path: 'approvals.mode', value: 'bypass' })).error
+        ?.message,
+    ).toMatch(/not mine to change/)
+    expect(
+      (await call(path, 'project/open', { path: '~/src/payments', create: true })).result,
+    ).toBe('Opened payments.')
+    expect(
+      (await call(path, 'project/close', { project: 'payments', said: 'close payments' })).result,
+    ).toBe('Closed payments.')
+    expect(asked).toEqual([
+      { settings: 'commit' },
+      { change: { path: 'agents.commit', value: 'as-you-go', said: 'commit as you go' } },
+      { change: { path: 'approvals.mode', value: 'bypass', said: '' } },
+      { open: { path: '~/src/payments', create: true } },
+      { close: { project: 'payments', said: 'close payments' } },
+    ])
+  })
+
+  it('says there is nothing to configure with when no window is holding the config', async () => {
+    const path = join(tmp('tade-tools-'), 'tools.sock')
+    host = await ToolHost.listen({ tade: {} as Workbench, path })
+    for (const method of ['config/settings', 'config/change', 'project/open', 'project/close']) {
+      expect((await call(path, method, {})).error?.message, method).toMatch(/window open/)
+    }
+  })
+})

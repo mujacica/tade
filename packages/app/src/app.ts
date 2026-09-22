@@ -50,12 +50,12 @@ import { Machine } from './wire/machine.ts'
 import { Mouse } from './wire/mouse.ts'
 import { Notes } from './wire/notes.ts'
 import { Orchestrator } from './wire/orchestrator.ts'
-import { Projects } from './wire/projects.ts'
+import { Projects, type ProjectTools } from './wire/projects.ts'
 import { Queue, type QueueTools } from './wire/queue.ts'
 import { Routes } from './wire/routes.ts'
 import { Schedules, scheduleIdOf } from './wire/schedules.ts'
 import { Search } from './wire/search.ts'
-import { Settings } from './wire/settings.ts'
+import { Settings, type SettingTools } from './wire/settings.ts'
 import { Spend } from './wire/spend.ts'
 import { spokenLine, Voice, vocabulary } from './wire/voice.ts'
 import { Window } from './wire/window.ts'
@@ -737,6 +737,11 @@ export class App {
   /** What the orchestrator's queue tools do, answered from this window. */
   queueTools(): QueueTools {
     return this.queue.tools()
+  }
+
+  /** What the orchestrator's settings and project tools do, from this window. */
+  configTools(): SettingTools & ProjectTools {
+    return { ...this.settings.tools(), ...this.projects.tools() }
   }
 
   private draw(): void {

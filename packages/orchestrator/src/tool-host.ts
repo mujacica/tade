@@ -73,6 +73,22 @@ export interface ToolHostOptions {
       missed?: 'once' | 'skip'
     }): Promise<string>
   }
+  /**
+   * Changing what Tade has been told: reading the settings it offers, writing
+   * one back, and opening or closing a project.
+   *
+   * The window's, not the workbench's, and for the same reason the queue is:
+   * a setting written has to be read back, checked against the schema and used
+   * everywhere that holds a config — the window, the workbench, the extension
+   * host — and only the window can do that. Where the boundary refuses, it
+   * throws with what a person would do instead, which is what the model reads.
+   */
+  config?: {
+    settings(find: string): Promise<string>
+    change(req: { path: string; value: string; said: string }): Promise<string>
+    openProject(req: { path: string; name?: string; create: boolean }): Promise<string>
+    closeProject(req: { project: string; said: string }): Promise<string>
+  }
   /** Runs the orchestrator's extension tools. Without it, it has none. */
   extensions?: (call: {
     tool: string
@@ -167,6 +183,24 @@ export class ToolHost {
           ...(missed ? { missed } : {}),
         })
       },
+      'config/settings': async (p) => configOf(opts).settings(p.find ? String(p.find) : ''),
+      'config/change': async (p) =>
+        configOf(opts).change({
+          path: String(p.path ?? ''),
+          value: String(p.value ?? ''),
+          said: String(p.said ?? ''),
+        }),
+      'project/open': async (p) =>
+        configOf(opts).openProject({
+          path: String(p.path ?? ''),
+          ...(p.name ? { name: String(p.name) } : {}),
+          create: p.create === true,
+        }),
+      'project/close': async (p) =>
+        configOf(opts).closeProject({
+          project: String(p.project ?? ''),
+          said: String(p.said ?? ''),
+        }),
       'status/read': async () => {
         if (!opts.status) throw new Error('this Tade has no window to ask')
         return opts.status()
@@ -358,6 +392,15 @@ function reply(socket: Socket, message: unknown): void {
 }
 
 /** Links as a model sent them: only the ones with somewhere to go. */
+/** What changes the config, or why there is nothing to change it with. */
+function configOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['config']> {
+  if (!opts.config)
+    throw new Error(
+      'changing how Tade is set up needs the Tade window open, which is what holds the config',
+    )
+  return opts.config
+}
+
 /** The window's queue, or why there is none to use. */
 function queueOf(opts: ToolHostOptions): NonNullable<ToolHostOptions['queue']> {
   if (!opts.queue) throw new Error('queued work needs the Tade window open, which starts it')

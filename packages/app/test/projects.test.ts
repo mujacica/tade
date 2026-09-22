@@ -19,6 +19,7 @@ import {
   isPath,
   listFolders,
   makeFolder,
+  neverInitialise,
   noteRecent,
   readRecents,
   recentProjects,
@@ -148,6 +149,29 @@ describe('the Open project panel', () => {
     const typed = panelKey(at('/src'), undefined, 'pay', { rows }).panel
     expect(typed).toMatchObject({ query: 'pay', dir: '/src' })
     expect(panelKey(at('/src/pay'), 'backspace', '', { rows }).panel).toMatchObject({ dir: '/src' })
+  })
+})
+
+describe('somewhere too wide to make a repository of', () => {
+  // Fabricated paths and a fabricated home: the rule is pure so that testing
+  // it never needs the machine the suite is running on to have a `~` worth
+  // risking.
+  const home = '/Users/someone'
+
+  it('refuses a whole home and the top of a disk', () => {
+    for (const path of [home, `${home}/`, '/', '']) {
+      expect(neverInitialise(path, home), path).toBe(true)
+    }
+  })
+
+  it('allows anywhere inside either, which is where repositories live', () => {
+    for (const path of [`${home}/src/pay`, `${home}/pay`, '/srv/pay', '/opt'])
+      expect(neverInitialise(path, home), path).toBe(false)
+  })
+
+  it('is about this home, not the word home', () => {
+    expect(neverInitialise('/home/other', home)).toBe(false)
+    expect(neverInitialise('/Users/someone-else', home)).toBe(false)
   })
 })
 

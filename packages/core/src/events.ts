@@ -100,6 +100,16 @@ export const EventType = z.enum([
    * than mysterious.
    */
   'ignore_written',
+  /**
+   * What Tade has been told was changed: a setting written, a project opened
+   * or closed. What it was before is in the line, because the config is one
+   * file that is rewritten in place and nothing else remembers — so a change
+   * made through a tool, by somebody who was not at the keyboard, is a line
+   * anybody can read and undo rather than a value that is simply different
+   * now. Who asked is on it, and where their own words were what allowed it,
+   * so are they.
+   */
+  'config_changed',
   // you
   /** A line you said or typed to Tade, verbatim: what up and ctrl+r bring back. */
   'said',
@@ -162,6 +172,10 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // itself is already in `git status` and in the diff, which is where somebody
   // sees it; what this line adds is who put it there.
   ignore_written: 'routine',
+  // Notable, unlike the other things written down once: the rest are facts
+  // being recorded, and this is somebody changing how Tade behaves. A person
+  // who did not make the change is the one who most needs to see it.
+  config_changed: 'notable',
   said: 'routine',
   tade_opened: 'notable',
   tade_closing: 'notable',

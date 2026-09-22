@@ -143,6 +143,29 @@ export function makeFolder(path: string): void {
   mkdirSync(path, { recursive: true })
 }
 
+/**
+ * Whether making a git repository here is something Tade will never do.
+ *
+ * Somebody's whole home, or the top of a disk. Everywhere else `git init` is
+ * their own business and Tade takes them at their word — but a `.git` at `~`
+ * changes how every tool on the machine behaves from then on, and the path
+ * that asks for one can arrive as text: the orchestrator reads review
+ * comments, tool descriptions and pages all day, and this is the one outcome
+ * that closing the project again would not undo.
+ *
+ * Refused however it was asked for, and not only of the orchestrator. The ask
+ * is what cannot be trusted, and a person who genuinely meant it has `git
+ * init` in a terminal — where they would at least have typed it.
+ *
+ * Pure, and takes the home rather than reading it, so it is tested against
+ * paths nobody's machine has to have.
+ */
+export function neverInitialise(path: string, home: string): boolean {
+  const trimmed = path.replace(/\/+$/, '')
+  const at = home.replace(/\/+$/, '')
+  return trimmed === '' || trimmed === at || dirname(trimmed) === trimmed
+}
+
 /** Whether a folder is the top of a git repository. */
 export function isRepo(path: string): boolean {
   try {

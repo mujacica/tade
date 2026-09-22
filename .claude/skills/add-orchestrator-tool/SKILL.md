@@ -41,6 +41,17 @@ these: it is an extension (see `add-extension`), which agents can use too and th
   carried out; its description must keep it to that, never to the model approving its own work.
 - The orchestrator runs **unsupervised** (`supervise: false`): its own tool calls are not gated, so
   a tool that does something irreversible needs to be as careful as the gate would have been.
+- **A tool that changes Tade itself is held to a boundary, and the boundary is not in the tool.**
+  The orchestrator reads attacker-controlled text all day, so anything that could widen what an
+  agent may do, hand a third party tools or a credential, change who is asked, or change where
+  Tade sends something is `never` its to write — see `settingReach` in `packages/core/src/reach.ts`
+  and the invariant in AGENTS.md. Most of the rest needs the person's own words, checked against
+  the journal's `said` lines rather than against an argument the tool was passed. Both checks live
+  in the window (`wire/settings.ts`, `wire/projects.ts`): a rule that runs inside the model's own
+  process is a rule the model can be talked out of. Say the limit in the tool's description too,
+  in the words of the refusal — a limit a model only learns by being refused costs a turn every
+  time — and write the change down (`config_changed`) with what it was before, so somebody who was
+  not watching can find it and undo it.
 
 ## Steps
 
