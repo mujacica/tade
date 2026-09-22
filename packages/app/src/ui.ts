@@ -230,12 +230,22 @@ export class Row {
     return this.put(`${mark} ${said}`, 2 + visibleWidth(label), target)
   }
 
-  /** A share of something, in whole cells. */
-  meter(share: number, cells: number, tone: (text: string) => string = this.skin.busy): this {
+  /**
+   * A share of something, in whole cells. Given a target it belongs to the
+   * control around it — a meter you can point at but not click is a hole in
+   * the middle of the thing it is part of.
+   */
+  meter(
+    share: number,
+    cells: number,
+    tone: (text: string) => string = this.skin.busy,
+    target?: Target,
+  ): this {
     const filled = Math.max(0, Math.min(cells, Math.round(share * cells)))
     return this.put(
       `${tone('█'.repeat(filled))}${this.skin.chrome('░'.repeat(cells - filled))}`,
       cells,
+      target,
     )
   }
 

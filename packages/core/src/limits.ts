@@ -107,37 +107,60 @@ function running(window: PlanWindow, now: number): boolean {
   return window.resetsAt > now
 }
 
-/** One window of one account: what a single line about a plan says. */
-export interface TightestWindow {
+/**
+ * One account's plan as a strip draws it: every window it named that is still
+ * running, and which of them is closest to full.
+ *
+ * One account and not the fullest window of each, because a session window of
+ * one sign-in beside the week of another is two answers to one question. The
+ * account is the one with the fullest window anywhere — the one about to stop
+ * somebody working — and the windows are in the order the harness named them,
+ * which is the session first and the longer one after it.
+ */
+export interface TightestPlan {
   harness: string
   account: string | null
-  window: PlanWindow
+  /** Its running windows, in the harness's own order. Never empty. */
+  windows: readonly PlanWindow[]
+  /** The fullest of them: the one kept where there is only room for one. */
+  tightest: PlanWindow
   /** When the harness said it. */
   at: number
 }
 
+/** The account closest to running out, and everything it said about itself. */
+export function tightestPlan(standings: readonly PlanStanding[]): TightestPlan | null {
+  const found = fullest(standings)
+  if (found === null) return null
+  const { standing, window } = found
+  return {
+    harness: standing.harness,
+    account: standing.account,
+    windows: standing.windows,
+    tightest: window,
+    at: standing.at,
+  }
+}
+
 /**
- * The window closest to full across every account that could say — the one
- * about to stop somebody working, which is the only one worth a line in a
- * strip that has room for one.
+ * The fullest window across every account that could say, and the standing it
+ * belongs to. One search, so which window is tightest and whose plan it is can
+ * never be two different answers.
  */
-export function tightestWindow(standings: readonly PlanStanding[]): TightestWindow | null {
-  let worst: TightestWindow | null = null
+function fullest(
+  standings: readonly PlanStanding[],
+): { standing: PlanStanding & { at: number }; window: PlanWindow } | null {
+  let worst: { standing: PlanStanding & { at: number }; window: PlanWindow } | null = null
   for (const standing of standings) {
-    if (standing.at === null) continue
+    const at = standing.at
+    if (at === null) continue
     for (const window of standing.windows) {
-      const one = {
-        harness: standing.harness,
-        account: standing.account,
-        window,
-        at: standing.at,
-      }
       if (
         worst === null ||
         window.used > worst.window.used ||
         (window.used === worst.window.used && resetFirst(window, worst.window))
       ) {
-        worst = one
+        worst = { standing: { ...standing, at }, window }
       }
     }
   }

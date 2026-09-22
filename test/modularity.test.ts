@@ -40,7 +40,7 @@ const BUDGET: Record<string, number> = {
   'packages/app/src/wire/extensions.ts': 900,
   'packages/app/test/model.test.ts': 1_100,
   'packages/app/test/panels.test.ts': 1_400,
-  'packages/app/test/view.test.ts': 1_500,
+  'packages/app/test/view.test.ts': 1_400,
   // `settingsOf` is one long table. Split by category into
   // `settings/{agents,window,voice,queue,checks,telemetry,keys}.ts`, each
   // exporting one `SettingGroup` and `settingsOf` composing them — mechanical,

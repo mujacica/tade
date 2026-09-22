@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  type PlanSource,
-  planLabel,
-  planStandings,
-  resetsIn,
-  tightestWindow,
-} from '../src/limits.ts'
+import { type PlanSource, planLabel, planStandings, resetsIn, tightestPlan } from '../src/limits.ts'
 
 // What a plan has left is the only figure that means anything on a
 // subscription, and the only one that is dangerous to get wrong: a percentage
@@ -123,9 +117,9 @@ describe('how a plan stands', () => {
   })
 })
 
-describe('the one window worth a line', () => {
-  it('is the fullest across every account that could say', () => {
-    const tight = tightestWindow(
+describe('the one plan worth a line', () => {
+  it('is the account with the fullest window across every one that could say', () => {
+    const tight = tightestPlan(
       planStandings(
         [
           source(),
@@ -146,11 +140,40 @@ describe('the one window worth a line', () => {
     )
     expect(tight?.harness).toBe('codex')
     expect(tight?.account).toBe('work')
-    expect(tight?.window.used).toBe(91)
+    expect(tight?.tightest.used).toBe(91)
+  })
+
+  it('brings that account\u2019s other windows with it, in the order it named them', () => {
+    const tight = tightestPlan(planStandings([source()], NOW))
+    // One account's, never the fullest of each: a session window of one
+    // sign-in beside the week of another is two answers to one question.
+    expect(tight?.windows.map((one) => one.label)).toEqual(['5h', '7d'])
+    expect(tight?.tightest.label).toBe('5h')
+  })
+
+  it('leaves out a window that has already started over', () => {
+    const tight = tightestPlan(
+      planStandings(
+        [
+          source({
+            said: {
+              at: NOW - HOUR,
+              windows: [
+                { label: '5h', used: 62, resetsAt: NOW - 60_000 },
+                { label: '7d', used: 18, resetsAt: NOW + 40 * HOUR },
+              ],
+            },
+          }),
+        ],
+        NOW,
+      ),
+    )
+    expect(tight?.windows.map((one) => one.label)).toEqual(['7d'])
+    expect(tight?.tightest.label).toBe('7d')
   })
 
   it('prefers the one that comes back soonest when two are as full as each other', () => {
-    const tight = tightestWindow(
+    const tight = tightestPlan(
       planStandings(
         [
           source({
@@ -166,12 +189,12 @@ describe('the one window worth a line', () => {
         NOW,
       ),
     )
-    expect(tight?.window.label).toBe('5h')
+    expect(tight?.tightest.label).toBe('5h')
   })
 
   it('is nothing at all when nobody could say', () => {
-    expect(tightestWindow(planStandings([source({ said: null })], NOW))).toBeNull()
-    expect(tightestWindow([])).toBeNull()
+    expect(tightestPlan(planStandings([source({ said: null })], NOW))).toBeNull()
+    expect(tightestPlan([])).toBeNull()
   })
 })
 

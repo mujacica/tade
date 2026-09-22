@@ -632,6 +632,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   started over — a percentage belonging to a window that is gone looks exactly like one that is
   true, which is the one way this could be worse than saying nothing. Nothing here asks anybody
   anything: the window draws it on its own beat, so `limits()` reads what the harness already holds.
+  What is used of a window is drawn as a bar, the way the context meter draws how much of a context
+  is gone, because it is the same kind of figure: on the Spend page a row per window per account,
+  and in the strip the windows of **one** account — `tightestPlan`, the account with the fullest
+  window anywhere, which is the one about to stop somebody working. One account and not the fullest
+  window of each, since one sign-in's session beside another's week is two answers to one question.
+  Short of room the strip gives up its trimmings before the controls beside it — when each window
+  comes back, then the window that is not the tightest, and the bars themselves last — because both
+  are said again one click away on the page it opens, and the model and how hard it thinks are said
+  nowhere else.
 - **An agent's turn is the work of a model, and is timed as one.** The supervisor sees a turn start,
   the tools it calls and what it cost, so that is where it is timed (`agentTurns`): a
   `gen_ai.invoke_agent` span per turn with `gen_ai.execute_tool` spans inside it, the model and the

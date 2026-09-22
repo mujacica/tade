@@ -1,5 +1,5 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
-import { duration, planLabel, resetsIn, tightestWindow } from '@tade/core'
+import { duration, type PlanWindow, planLabel, resetsIn, tightestPlan } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
 import { type AppState, ORCHESTRATOR_TAB, terminalsOf } from '../model.ts'
@@ -32,6 +32,17 @@ export const BUTTONS: readonly { label: string; action: string }[] = [
   { label: 'Settings', action: 'settings' },
   { label: 'Mute', action: 'mute' },
 ]
+
+/**
+ * Columns a plan window's bar takes. The context meter's own width, because it
+ * is the same kind of figure drawn the same way — how much of something is
+ * gone — and two meters of different widths in one window read as two
+ * different kinds of thing.
+ */
+const PLAN_CELLS = 6
+
+/** How full a window is, 0 to 1. A service reporting past its own 100 draws full, never over. */
+const share = (window: PlanWindow) => Math.min(1, Math.max(0, window.used) / 100)
 
 /**
  * The bottom panel's row of tabs, drawn on its top edge: the orchestrator,
@@ -237,10 +248,11 @@ export function renderFoot(
   // it: the two halves of the same question.
   const ran = spend?.runtime && spend.runtime.ms > 0 ? spend.runtime : null
   // What a subscription has left, which is the only figure that means anything
-  // when nothing is priced. The fullest window across every account: the one
-  // about to stop somebody working. Nothing at all when no harness has said —
-  // the reason is on the Spend page, and a strip is no place for a sentence.
-  const plan = tightestWindow(frame.plan ?? [])
+  // when nothing is priced. One account — the one with the fullest window
+  // anywhere, which is the one about to stop somebody working — and every
+  // window it named. Nothing at all when no harness has said: the reason is on
+  // the Spend page, and a strip is no place for a sentence.
+  const plan = tightestPlan(frame.plan ?? [])
   // Everything here is clickable, and says so under the pointer the way a
   // link does: lit and underlined, rather than a block of background that
   // would read as a button in a strip that has none.
@@ -252,10 +264,13 @@ export function renderFoot(
   //
   // What a plan has left is the last figure of all, because where a
   // subscription pays for the work it is the only one that says anything: the
-  // dollars beside it are an estimate of something nobody is charged. When
-  // even it is too wide, when it comes back goes before the share does — a
-  // share with no reset beside it is still true, and the page it opens says
-  // the rest.
+  // dollars beside it are an estimate of something nobody is charged. But its
+  // trimmings go early, before the controls beside them: when each window
+  // comes back, and then the window that is not the tightest. Both are said
+  // again on the page this opens, where the model and how hard it thinks are
+  // not said anywhere else — and a control you can no longer click costs more
+  // than a figure that is one click away. What is left of it gives up its bars
+  // last of all: a percent with no bar is still the figure.
   const full = {
     model: true,
     account: true,
@@ -263,15 +278,19 @@ export function renderFoot(
     tokens: true,
     runtime: true,
     plan: true,
+    both: true,
+    bars: true,
     reset: true,
   }
   const shed: Array<keyof typeof full> = [
     'account',
     'tokens',
+    'reset',
+    'both',
     'thinking',
     'model',
-    'reset',
     'runtime',
+    'bars',
     'plan',
   ]
   // Each try is the one before it with one more thing given up, so the order
@@ -309,17 +328,30 @@ export function renderFoot(
     // different currencies and there is no rate between them. It opens the
     // same overview, where the windows are listed account by account.
     if (plan && show.plan) {
-      // Without a clock there is no "in two hours" to say, only the share.
-      const left = frame.now === undefined ? null : resetsIn(plan.window, frame.now)
-      const used = Math.round(plan.window.used)
-      const tone = used >= 90 ? skin.bad : used >= 75 ? skin.waiting : skin.hint
       // Whose plan, only where more than one account has one to speak of: with
       // a single sign-in the name is noise, and with two the figure is a
       // riddle without it.
       const whose = (frame.plan ?? []).filter((one) => one.windows.length > 0).length > 1
       if (whose) r.text(`${planLabel(plan)} `, money, target)
-      r.text(`${plan.window.label} ${used}%`, lit(target, tone), target)
-      if (left !== null && show.reset) r.text(` ↻ ${duration(left)}`, money, target)
+      // A bar each, the way the context meter says how much of a window is
+      // gone: the session first and the longer one after it, in the order the
+      // harness named them. Short of room it is the fullest alone — the one
+      // about to stop somebody working.
+      const windows = show.both ? plan.windows : [plan.tightest]
+      windows.forEach((window, at) => {
+        if (at > 0) r.text(' · ', skin.chrome, target)
+        const used = Math.round(window.used)
+        // The Spend page's own thresholds and the Spend page's own colours:
+        // this is the same figure drawn smaller, and two rules for when a
+        // plan is worrying would disagree the day one of them moved.
+        const tone = used >= 90 ? skin.bad : used >= 75 ? skin.waiting : skin.done
+        r.text(`${window.label} `, money, target)
+        if (show.bars) r.meter(share(window), PLAN_CELLS, lit(target, tone), target).space()
+        r.text(`${used}%`, lit(target, tone), target)
+        // Without a clock there is no "in two hours" to say, only the share.
+        const left = frame.now === undefined ? null : resetsIn(window, frame.now)
+        if (left !== null && show.reset) r.text(` ↻ ${duration(left)}`, money, target)
+      })
       r.text(' │ ', skin.chrome, target)
     }
     if (spent && show.tokens) {
