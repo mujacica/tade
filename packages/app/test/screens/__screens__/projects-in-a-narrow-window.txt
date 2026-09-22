@@ -1,0 +1,28 @@
+   T A D E      checkout !    search ●    infra !    docs ✓      +          ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2        +    █│ refunds    agent    actions     +               claude-opus-5 ▾     ×   
+                         █│─────────────────────────────────────────────────────────────────────────
+   ! stripe-v15  $1.26   █│                                                                         
+     wants you to app…   █│                                                                         
+                         █│                                                                         
+ ▌ ⠋ refunds     $0.62   █│                                                                         
+ ▌   working             █│                                                                         
+                         ▕│                                                                         
+ ▸ SMART QUEUE      none ▕│                                                                         
+ ▾ CHANGES  3    vs main ▕│  ● Upgrading stripe to v15. The webhook signature API changed,          
+  M package.json   +2 −1 ▕│    so src/webhooks.ts needs the new constructEvent signature.           
+  A …bhooks.test.ts  +48 ▕│                                                                         
+  M …webhooks.ts  +12 −4 ▕│  ▸ Read src/webhooks.ts                                                 
+                         ▕│  ▸ Edit src/webhooks.ts  +12 −4                                         
+ ▾ FILES                 ▕│  ▸ bash npm i stripe@15                                                 
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                    
+                                                                                                   ▕
+                                                                                                   ▕
+                                                                                                   ▕
+                                                                                                   ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                              ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                              type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute     claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

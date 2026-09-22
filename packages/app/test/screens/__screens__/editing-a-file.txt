@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━╭─ File ───────────────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│ ~/src/checkout/src/webhooks.ts  typescript · 15 lines · 1 KB  ● not saved                                        │  
   │──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│──

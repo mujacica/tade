@@ -148,6 +148,14 @@ regions in a cycle now.
   removing is in its menu. Closing every agent that has finished at once is the cleanup beside
   AGENTS (`close-done`), which always asks and names what it would close — a button that empties
   the list without a word is one nobody presses twice.
+- **The row along the top is one ladder, both ends of it.** `view/top.ts` draws the wordmark, a tab
+  per project and the `+` at the left, and what wants you, what is working, search and the talk key
+  at the right — and `LADDER` is the single ordered list of how much of each is drawn, richest
+  first, with both ends measured (a probe `Row` per end, the left memoised per detail level) before
+  a step is taken. Two ladders would fit the two ends of one row against each other. Adding
+  anything here means adding a field to `Fits` and a step to `LADDER`, never a width check of your
+  own. A tab's marks are `projectStandings`, one fold over the panes, and the talk key is the one
+  thing that may never be given up.
 - **A section's heading holds a set of controls, and the main one is a button.** `Section.actions`
   (`view/rows.ts`, fitted in `view/sidebar.ts`), the button last: the small ones are chips (`Row.chip`, `skin.chip`) — the same
   block two columns narrower, so they read as the same set without reading as wide as the `+`.

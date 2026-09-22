@@ -1,7 +1,16 @@
 import type { Frame } from '../frame.ts'
 import { sameTarget, type Target } from '../hits.ts'
 import { keyCaps } from '../keys.ts'
-import { type AppState, markOf, projects, shownName, spinner } from '../model.ts'
+import {
+  type AgentMark,
+  type AgentPane,
+  type AppState,
+  markGlyph,
+  markOf,
+  projects,
+  shownName,
+  spinner,
+} from '../model.ts'
 import type { Skin } from '../skin.ts'
 import { blank, box, type Drawn, type Pointer, Row, stack } from '../ui.ts'
 import { clock } from './text.ts'
@@ -11,6 +20,12 @@ import { clock } from './text.ts'
 //
 // A card for an agent you are not looking at appears here rather than in its
 // own pane, because the point of it is that you are somewhere else.
+//
+// A tab says what is happening in its project, because the project you are
+// *not* looking at is the one a row of plain names says nothing about: two of
+// them, and a spinner at the right belongs to neither as far as anyone can
+// tell. So each tab carries the same marks the agent list does, counted, and
+// the figures at the right say whose they are.
 
 /**
  * An agent you are not looking at needs you: a card under the tabs, answerable
@@ -73,6 +88,219 @@ export function toastFor(
   return card
 }
 
+/**
+ * What a project tab counts: every mark an agent can have, and queued work,
+ * which is not an agent yet and so has no mark of its own.
+ */
+export type ProjectMark = AgentMark | 'queued'
+
+/**
+ * The order a project's marks are read in, and the order a tab short of room
+ * gives them up in: what a decision is waiting on, then what went wrong, then
+ * what is going, then what has not started, then what is sitting there.
+ *
+ * `done` is not in it: a tab says what is *not* finished, and says `✓` when
+ * nothing is left. A count of what is finished beside a count of what is not
+ * is two numbers to subtract in your head, four times a second.
+ */
+const MARKS: readonly ProjectMark[] = [
+  'needs-you',
+  'failed',
+  'working',
+  'queued',
+  'idle',
+  'stopped',
+  'parked',
+]
+
+/** What is happening in one project, as its tab says it. */
+export interface ProjectStanding {
+  /** How many of each. A mark with none of something is not drawn at all. */
+  counts: Readonly<Record<ProjectMark, number>>
+  /** Everything in it that is not finished, of every kind. */
+  outstanding: number
+  /**
+   * Something here finished and nothing is left: the answer to "is everything
+   * I asked for done in there?", which is the question a tab is here to save
+   * you switching to ask.
+   */
+  settled: boolean
+}
+
+const noneYet = (): Record<ProjectMark, number> => ({
+  working: 0,
+  idle: 0,
+  'needs-you': 0,
+  failed: 0,
+  done: 0,
+  stopped: 0,
+  parked: 0,
+  queued: 0,
+})
+
+/**
+ * What is happening in every project, in one pass over the panes.
+ *
+ * Derived and never kept: the panes are what status last said, so a tally held
+ * anywhere would be a second answer to a question `deriveState` has already
+ * answered, and wrong the moment an agent finished. One pass because this is
+ * drawn every frame, for every project, whether or not you are in it.
+ */
+export function projectStandings(state: AppState): Map<string, ProjectStanding> {
+  const tallies = new Map<string, Record<ProjectMark, number>>()
+  for (const pane of state.panes) {
+    const tally = tallies.get(pane.project) ?? noneYet()
+    tallies.set(pane.project, tally)
+    tally[projectMark(pane)] += 1
+  }
+  const standings = new Map<string, ProjectStanding>()
+  for (const [project, counts] of tallies) {
+    let outstanding = 0
+    for (const mark of MARKS) outstanding += counts[mark]
+    standings.set(project, {
+      counts,
+      outstanding,
+      settled: outstanding === 0 && counts.done > 0,
+    })
+  }
+  return standings
+}
+
+/**
+ * What one task counts as. Queued work is what `markOf` cannot answer for — it
+ * reads as stopped, which is why the queue draws its own glyph — so it is
+ * named here: held, somebody has to decide about it, which is what `!` means
+ * everywhere else and what `markOf` already says; paused, it has been set
+ * aside, which is what `‖` means; otherwise it has not started.
+ */
+function projectMark(pane: AgentPane): ProjectMark {
+  const mark = markOf(pane)
+  if (!pane.queued || mark === 'needs-you') return mark
+  return pane.queued.state.kind === 'paused' ? 'parked' : 'queued'
+}
+
+/** How much a project tab says about what is happening in it. */
+type TabDetail = 'counts' | 'marks' | 'busiest' | 'none'
+
+/**
+ * A tab's label: the project, then what is not finished in it, `✓` where
+ * nothing is left, and the name alone where nothing has been asked of it yet.
+ *
+ * The marks go inside the tab rather than beside it, which costs them their
+ * colour — a tab is a painted block. That is the trade worth making: whose a
+ * mark is, is the whole of what this change is for, and a glyph outside the
+ * block that belongs to the tab on its left as much as the one on its right
+ * would be the spinner problem again, one tab along. Shape carries the meaning
+ * anyway, which is why every mark has a shape of its own.
+ */
+function tabLabel(
+  project: string,
+  standing: ProjectStanding | undefined,
+  detail: TabDetail,
+  now: number,
+): string {
+  if (standing === undefined || detail === 'none') return project
+  const says = tabSays(standing, detail, now)
+  return says === '' ? project : `${project} ${says}`
+}
+
+/**
+ * What a tab says beside its name, in the detail there is room for: every mark
+ * with its count, the marks alone, or the first of them — which is the most
+ * urgent, because `MARKS` is in that order.
+ *
+ * One of something is the glyph on its own. `!1` and `!` say the same thing
+ * and one of them costs a column in every tab; a number earns its place where
+ * it is a number you could not have guessed.
+ */
+function tabSays(standing: ProjectStanding, detail: TabDetail, now: number): string {
+  if (standing.settled) return detail === 'counts' ? counted('✓', standing.counts.done) : '✓'
+  const present = MARKS.filter((mark) => standing.counts[mark] > 0)
+  const first = present[0]
+  if (first === undefined) return ''
+  if (detail === 'busiest') return markGlyph(first, now)
+  if (detail === 'marks') return present.map((mark) => markGlyph(mark, now)).join('')
+  return present.map((mark) => counted(markGlyph(mark, now), standing.counts[mark])).join(' ')
+}
+
+const counted = (glyph: string, how: number): string => (how === 1 ? glyph : `${glyph}${how}`)
+
+/**
+ * Whose the figures at the right are.
+ *
+ * They are everybody's — `next-waiting` goes to the agent that wants you
+ * wherever it is — and a total nobody can place is exactly the spinner this
+ * started as. So with more than one project open it is said: the project,
+ * where everything counted is in one of them, and how many otherwise. The
+ * clause that makes a figure readable, the way `over 3 runs` does.
+ *
+ * It is not a step of the ladder, which is the point: a figure is drawn with
+ * its clause or it is not drawn. What a narrow window gives up is the total —
+ * the tabs are still counting, an inch to the left, and each of those says
+ * whose it is by being on it.
+ */
+function whose(
+  standings: Map<string, ProjectStanding>,
+  marks: readonly ProjectMark[],
+): string | null {
+  const named: string[] = []
+  for (const [project, standing] of standings)
+    if (marks.some((mark) => standing.counts[mark] > 0)) named.push(project)
+  const only = named[0]
+  if (only === undefined) return null
+  return named.length === 1 ? `in ${only}` : `in ${named.length} projects`
+}
+
+/** How much of the right-hand group is drawn: the fraction, the counts alone, or none. */
+type Counts = 'full' | 'short' | 'waiting' | 'none'
+
+/** Which marks a step of `Counts` actually counts, which is what the clause is about. */
+const countedBy = (counts: Counts): readonly ProjectMark[] =>
+  counts === 'waiting' ? ['needs-you'] : ['needs-you', 'working']
+
+interface Fits {
+  tabs: TabDetail
+  search: boolean
+  counts: Counts
+  word: boolean
+}
+
+/**
+ * Room for the caps and nothing else. Dropping the word is the last thing left
+ * to drop, and it is the caps that say what to press — a bar that gave up the
+ * talk key to keep the word `talk` would have it backwards.
+ */
+const LAST: Fits = { tabs: 'none', search: false, counts: 'none', word: false }
+
+/**
+ * Everything along the top, in the order it gives ground.
+ *
+ * The talk key is the one thing here that must survive a narrow terminal;
+ * search is next. The counts shorten, then go, and the very last thing to go
+ * is the word beside the caps — never the caps.
+ *
+ * The tabs are in the same ladder, and their marks outlive the total at the
+ * right: the total is a sum of them, and a sum nobody can place is what sent
+ * somebody looking at this row in the first place. So the tabs say it for one
+ * project each, all the way down to a single glyph, and the total is what a
+ * narrow window does without. One ladder and not two, because two would fit
+ * the two ends of one row against each other.
+ */
+const LADDER: readonly Fits[] = [
+  { tabs: 'counts', search: true, counts: 'full', word: true },
+  { tabs: 'counts', search: true, counts: 'short', word: true },
+  { tabs: 'counts', search: true, counts: 'waiting', word: true },
+  { tabs: 'marks', search: true, counts: 'waiting', word: true },
+  // Giving up search buys the working count back, as it always did: down here
+  // the counts are worth more than a key that has a shortcut of its own.
+  { tabs: 'marks', search: false, counts: 'short', word: true },
+  { tabs: 'marks', search: false, counts: 'waiting', word: true },
+  { tabs: 'busiest', search: false, counts: 'waiting', word: true },
+  { tabs: 'busiest', search: false, counts: 'none', word: true },
+  { tabs: 'none', search: false, counts: 'none', word: true },
+  LAST,
+]
+
 export function renderTop(
   state: AppState,
   frame: Frame,
@@ -80,36 +308,60 @@ export function renderTop(
   skin: Skin,
   pointer: Pointer,
 ): Drawn {
-  const row = new Row(width, skin, pointer).space().mark('TADE').space(2)
-  for (const project of projects(state)) {
-    row.tab(project, { kind: 'project', project }, project === state.project)
+  const now = frame.now ?? 0
+  const standings = projectStandings(state)
+  const open = projects(state)
+  // One project is never ambiguous, and is never told whose its own figures
+  // are: the clause would be a caveat on something nobody could misread.
+  const many = open.length > 1
+  // The same marks the list shows: an agent idle at its prompt is not waiting
+  // on you. Added up out of the standings rather than counted again, so the
+  // total at the right and the marks on the tabs can never disagree.
+  let waiting = 0
+  let working = 0
+  for (const standing of standings.values()) {
+    waiting += standing.counts['needs-you']
+    working += standing.counts.working
   }
-  row.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
 
-  // The same marks the list shows: an agent idle at its prompt is not waiting on you.
-  const waiting = state.panes.filter((pane) => markOf(pane) === 'needs-you').length
-  const working = state.panes.filter((pane) => markOf(pane) === 'working').length
-  // The talk key is the one thing here that must survive a narrow terminal;
-  // search is next, then what waits on you. The counts shorten, then go, first,
-  // and the very last thing to go is the word beside the caps — never the caps.
-  type Counts = 'full' | 'short' | 'waiting' | 'none'
-  interface Fits {
-    search: boolean
-    counts: Counts
-    word: boolean
+  // The wordmark, a tab per project, then the `+`. Built as a function of how
+  // much a tab says, because what fits is decided by trying, and neither end
+  // of the row can be measured without the other.
+  const left = (tabs: TabDetail) => (r: Row) => {
+    r.space().mark('TADE').space(2)
+    for (const project of open)
+      r.tab(
+        tabLabel(project, standings.get(project), tabs, now),
+        { kind: 'project', project },
+        project === state.project,
+      )
+    r.space().button(' + ', { kind: 'action', name: 'open-project' }, 'add')
   }
+  // Four widths at most, and the ladder asks for them ten times.
+  const measured: Partial<Record<TabDetail, number>> = {}
+  const leftWidth = (tabs: TabDetail): number => {
+    const already = measured[tabs]
+    if (already !== undefined) return already
+    const probe = new Row(width, skin)
+    left(tabs)(probe)
+    measured[tabs] = probe.used
+    return probe.used
+  }
+
   const right = (show: Fits) => (r: Row) => {
     if (waiting > 0 && show.counts !== 'none') {
       const label = show.counts === 'full' ? `! ${waiting} waiting` : `! ${waiting}`
       r.text(label, skin.waiting, { kind: 'action', name: 'next-waiting' }).space(2)
     }
     if (working > 0 && (show.counts === 'full' || show.counts === 'short')) {
-      const turning = spinner(frame.now ?? 0)
+      const turning = spinner(now)
       r.text(
         show.counts === 'full' ? `${turning} ${working} working` : `${turning} ${working}`,
         skin.busy,
       ).space(3)
     }
+    const said = many && show.counts !== 'none' ? whose(standings, countedBy(show.counts)) : null
+    if (said !== null) r.text(said, skin.hint).space(3)
     // Search, beside talking: the two keys that work from anywhere.
     if (show.search) {
       const search: Target = { kind: 'action', name: 'search' }
@@ -119,24 +371,16 @@ export function renderTop(
     talkChip(r, state, frame, skin, show.word)
     r.space()
   }
-  const tries: Fits[] = [
-    { search: true, counts: 'full', word: true },
-    { search: true, counts: 'short', word: true },
-    { search: true, counts: 'waiting', word: true },
-    { search: false, counts: 'short', word: true },
-    { search: false, counts: 'waiting', word: true },
-    { search: false, counts: 'none', word: true },
-    // Room for the caps and nothing else. Dropping the word is the last thing
-    // left to drop, and it is the caps that say what to press — a bar that
-    // gave up the talk key to keep the word `talk` would have it backwards.
-    { search: false, counts: 'none', word: false },
-  ]
-  const fits = tries.find((show) => {
-    const probe = new Row(width, skin)
-    right(show)(probe)
-    return row.used + 1 + probe.used <= width
-  })
-  row.right(right(fits ?? { search: false, counts: 'none', word: false }))
+
+  const fits =
+    LADDER.find((show) => {
+      const probe = new Row(width, skin)
+      right(show)(probe)
+      return leftWidth(show.tabs) + 1 + probe.used <= width
+    }) ?? LAST
+  const row = new Row(width, skin, pointer)
+  left(fits.tabs)(row)
+  row.right(right(fits))
   return stack([row.build(), { text: skin.chrome('━'.repeat(width)), hits: [] }])
 }
 

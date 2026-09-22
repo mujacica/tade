@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +                       ! 1  ⠋ 1   ✕ muted     ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra      +    ! 1  ⠋ 1   in checkout   ✕ muted     ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────

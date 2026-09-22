@@ -300,6 +300,16 @@ export const PICTURES: readonly Picture[] = [
       'the plan is used, and what can be done to each.',
   },
   {
+    file: 'project-tabs.svg',
+    scenario: 'what-each-project-is-doing',
+    crop: { top: 0, height: 3 },
+    about:
+      'The tabs along the top, each saying what is happening in its own project: checkout with an ' +
+      'agent working and one waiting on you, search with an agent idle, infra holding queued work ' +
+      'and two more waiting their turn, and docs finished. The figures at the right are ' +
+      'everybody’s, and say which projects they come from.',
+  },
+  {
     file: 'projects.svg',
     scenario: 'another-project-needs-you',
     crop: { top: 0, height: 9 },

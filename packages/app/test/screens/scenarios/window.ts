@@ -1,3 +1,4 @@
+import { IDLE_REASON } from '@tade/core'
 import {
   focusTask,
   initialState,
@@ -26,6 +27,64 @@ import { agentScreen, base, frame, NOW, type Scenario, tasks, utcDate } from './
 // What is here is the chrome rather than any one subject — where the panes
 // are, what the pointer lights, what a first open looks like, and what the
 // window does with no room.
+
+/**
+ * Four projects in four different states: one with agents at work, one whose
+ * agent went quiet without anybody saying it was finished, one holding queued
+ * work somebody has to decide about, and one where everything asked for is
+ * done. What the tabs along the top are for.
+ */
+const inFourProjects = () =>
+  withTasks(withProjects(initialState(), ['checkout', 'search', 'infra', 'docs']), [
+    ...tasks.slice(0, 2),
+    { task: 'search/rankings', state: 'blocked', reason: IDLE_REASON },
+    {
+      task: 'infra/rotate-keys',
+      state: 'queued',
+      by: 'orchestrator',
+      queued: {
+        state: {
+          kind: 'held',
+          on: 'infra/bump-node',
+          because: 'infra/bump-node failed: the image no longer builds',
+        },
+        after: [{ task: 'infra/bump-node', why: 'both change the Dockerfile' }],
+        prompt: 'Rotate the deploy keys and put the new ones in the secret store.',
+        touches: ['deploy/'],
+        at: null,
+      },
+    },
+    {
+      task: 'infra/tidy-logs',
+      state: 'queued',
+      by: 'orchestrator',
+      queued: {
+        state: { kind: 'waiting', on: ['infra/rotate-keys'] },
+        after: [{ task: 'infra/rotate-keys', why: 'it writes the log shipper’s key' }],
+        prompt: 'Drop the log lines nobody reads.',
+        touches: ['deploy/logs.ts'],
+        at: null,
+      },
+    },
+    {
+      task: 'infra/prune-images',
+      state: 'queued',
+      queued: {
+        state: { kind: 'ready' },
+        after: [],
+        prompt: 'Prune the images nothing runs any more.',
+        touches: [],
+        at: null,
+      },
+    },
+    { task: 'docs/api-reference', state: 'merged' },
+    {
+      task: 'docs/readme-pictures',
+      state: 'blocked',
+      reason: IDLE_REASON,
+      finished: { by: 'agent', summary: 'The pictures are redrawn and committed' },
+    },
+  ])
 
 export const WINDOW_SCREENS: Scenario[] = [
   {
@@ -404,6 +463,26 @@ export const WINDOW_SCREENS: Scenario[] = [
       toasts: [{ task: 'search/pagination', at: NOW - 12_000 }],
     },
     frame: frame(),
+  },
+  {
+    name: 'what-each-project-is-doing',
+    about:
+      'Four projects, and each tab says what is happening in its own: checkout has an agent working ' +
+      'and one waiting on you, search has an agent idle at its prompt with nobody having said it ' +
+      'is done, infra has queued work held and two more waiting their turn, and docs is finished — ' +
+      'which is the whole of "is everything I asked for done in there?", answered without going there. ' +
+      'The figures at the right are everybody’s, and say so.',
+    state: focusTask(inFourProjects(), 'checkout/refunds'),
+    frame: frame({ width: 160, height: 34 }),
+  },
+  {
+    name: 'projects-in-a-narrow-window',
+    about:
+      'The same four projects with no room for any of it: each tab keeps the one mark that matters ' +
+      'most in it, and the total at the right goes, because a figure nobody can place is worse than ' +
+      'no figure at all.',
+    state: focusTask(inFourProjects(), 'checkout/refunds'),
+    frame: frame({ width: 100, height: 28 }),
   },
   {
     name: 'voice-off',

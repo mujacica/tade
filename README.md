@@ -189,8 +189,15 @@ or forget it.
 
 ## Many projects, many tasks
 
-Projects along the top, agents running in all of them at once. An agent in a project you are not
-looking at can still reach you — and be answered from where you are.
+Projects along the top, agents running in all of them at once. Each tab says what is happening in
+its own — what is working, what wants you, what is queued, and `✓` where everything you asked for in
+there is done — so the project you are not looking at is not the one you have to guess about. The
+figures at the right are everybody's, and say whose.
+
+![The tabs along the top, each saying what is happening in its own project](images/project-tabs.svg)
+
+An agent in a project you are not looking at can still reach you — and be answered from where you
+are.
 
 ![Projects along the top, and an agent in another project asking for approval](images/projects.svg)
 

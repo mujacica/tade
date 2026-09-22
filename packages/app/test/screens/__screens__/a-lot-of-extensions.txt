@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +            ! 1  ⠋ 1      ctrl   +   space   talk 
+   T A D E      checkout !    search ✓    infra      +                      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────── esc ─╮   
    │  search extensions      │ screenshots  yours                                        ready  │───

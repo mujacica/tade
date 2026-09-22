@@ -493,8 +493,15 @@ describe('the focused agent', () => {
   })
 
   it('says when it is waiting on you, by the mark the list uses for it', () => {
-    const text = renderApp(state(), frame()).join('\n')
-    expect(text).toContain('! 1')
+    const text = renderApp(state(), frame({ width: 160 })).join('\n')
+    expect(text).toContain('! 1 waiting')
+  })
+
+  it('says which project it is waiting in, where there is no room for the total', () => {
+    // The tab carries its own project's mark, which is the answer a total at
+    // the right cannot give — so that is what a narrow window keeps.
+    const text = plain(renderApp(state(), frame()).join('\n'))
+    expect(text).toContain('checkout !')
   })
 })
 

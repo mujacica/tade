@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +    ! 1 waiting  ⠋ 1 working      ctrl   +   k   search    ● TX 0:04  
+   T A D E      checkout ! ⠋    search ✓    infra      +      ! 1  in checkout      ctrl   +   k   search    ● TX 0:04  
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                              █│─────────────────────────────────────────────────────────────────────────────────────────

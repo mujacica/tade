@@ -1775,9 +1775,13 @@ export function spinner(now: number): string {
  * The one character that shows what an agent is doing, by its shape as well
  * as its colour: colour is decoration, and eight dots in five colours are eight
  * identical dots to anyone who cannot tell the colours apart. Working turns.
+ *
+ * Queued work is not an agent and has no mark of its own — `markOf` reads it
+ * as stopped — so it is named here beside them: the project tabs count it, and
+ * two drawings of one vocabulary drift apart.
  */
-export function glyph(pane: Marked, now = 0): string {
-  switch (markOf(pane)) {
+export function markGlyph(mark: AgentMark | 'queued', now = 0): string {
+  switch (mark) {
     case 'working':
       return spinner(now)
     case 'idle':
@@ -1790,9 +1794,15 @@ export function glyph(pane: Marked, now = 0): string {
       return '✓'
     case 'parked':
       return '‖'
+    case 'queued':
+      return '◌'
     default:
       return '○'
   }
+}
+
+export function glyph(pane: Marked, now = 0): string {
+  return markGlyph(markOf(pane), now)
 }
 
 export function paneTitle(pane: AgentPane): string {

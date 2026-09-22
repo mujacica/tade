@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━╭─ Model for stripe-v15 ───────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│  ▏type to narrow: opus, kimi, openrouter…                                                                        │  
   │ stripe-v15 is on its default model, in codex                                                                     │──

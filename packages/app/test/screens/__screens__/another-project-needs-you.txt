@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout ⠋    search !    infra      +            ! 1  ⠋ 1   in 2 projects      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  1            +    █│ checkout › refunds    agent    acti╭─ ● search › pagination ────────────────────── × ─╮ 
                              █│────────────────────────────────────│ wants approval                               12s │─

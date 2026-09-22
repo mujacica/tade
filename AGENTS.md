@@ -292,6 +292,25 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   Why it waits is drawn as that same tree (`drawWhy`), never as a list of edges sorted by name: the
   reasons hang off the waits they explain, wrapped rather than cut, and the lines that join them are
   the queue's own (`treeStems`), because two drawings of one relationship drift apart.
+- **A project tab says what is happening in its project, and a figure that cannot be placed is not
+  drawn.** Two projects and two plain names said nothing at all — which of them the spinner at the
+  right belonged to least of all — so each tab carries the marks the agent list carries
+  (`projectStandings`, `view/top.ts`): what wants you, what failed, what is working, what is queued,
+  what is sitting there, in that order, and `✓` where something finished and nothing is left, which
+  is the whole of "is everything I asked for done in there?" answered without going there. It is a
+  fold over the panes on every look and a tally nobody keeps — status is a query, and a count held
+  anywhere would be wrong the moment an agent finished. The marks go *inside* the tab, which costs
+  them their colour, because whose a mark is, is the entire point and a glyph outside the block
+  belongs to the tab on its left as much as the one on its right; every mark has a shape of its own
+  (`markGlyph`, beside `glyph`) for the same reason. The figures at the right stay everybody's —
+  `next-waiting` goes to the agent that wants you wherever it is — so with more than one project
+  open they say whose in a clause, the project where everything counted is in one and how many
+  otherwise, the way `over 3 runs` makes a figure readable. That clause is not a step of the
+  ladder: a total is drawn with it or it is not drawn, and short of room what a narrow window gives
+  up is the total, since the tabs are still counting an inch to the left. Everything along the top
+  gives ground in one ladder (`LADDER`) — the tabs from counts to marks to the one that matters most
+  to nothing, the total from words to figures to nothing — because two ladders would fit the two
+  ends of one row against each other.
 - **A column is a priority, and a pane out of room scrolls rather than folds.** Every drawing of
   the queue puts a piece in the column its depth in the resolved tree gives it (`treeStems`), so
   work that can run side by side lines up under work that can run side by side, however long the

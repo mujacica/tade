@@ -1,4 +1,4 @@
-   T A D E      checkout      +        ! 1 waiting  ⠋ 1 working      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout ! ✕ ⠋ ◌3 ‖      +             ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    ▕│ checkout › refund-emails  ◌ waiting                       Start now     ‖ Pause     ×   
                              ▕│─────────────────────────────────────────────────────────────────────────────────────────

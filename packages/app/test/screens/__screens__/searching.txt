@@ -1,4 +1,4 @@
-   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+   T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
  ▾ AGENTS │ ⌕ webhook▏                                                                                       │▾     ×   
           │     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
