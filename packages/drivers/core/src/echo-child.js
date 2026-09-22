@@ -40,6 +40,22 @@ process.stdin.on('data', (chunk) => {
       process.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h')
       process.stdout.write('\x1b[2J\x1b[Hown screen\r\n')
     }
+    // Repaint the whole screen in place, every row of it, leaving nothing
+    // blank at the bottom — which is what a program that draws its own
+    // interface does between one keystroke and the next, and what a program
+    // that only ever *appends* never does. A fixture whose own screen left
+    // its last row empty was kinder than Claude Code, whose bottom row always
+    // says something, and a window that stopped reading such a lane looked
+    // right in every test there was.
+    const repainting = line.startsWith('repaint ')
+    if (repainting) {
+      const said = line.slice('repaint '.length)
+      const rows = process.stdout.rows ?? 24
+      process.stdout.write('\x1b[2J')
+      for (let row = 1; row <= rows; row++) {
+        process.stdout.write(`\x1b[${row};1H${said} on row ${row}`)
+      }
+    }
     // The same, without asking for the mouse: nobody can scroll this at all.
     if (line === 'quiet') {
       process.stdout.write('\x1b[?1049h\x1b[2J\x1b[Hown screen, no mouse\r\n')
@@ -49,7 +65,10 @@ process.stdin.on('data', (chunk) => {
     // shows up as a band of colour nobody drew.
     if (line === 'gap')
       process.stdout.write('\x1b[48;5;238mone\x1b[0m        \x1b[48;5;238mtwo\x1b[0m\r\n')
-    if (line.length > 0) process.stdout.write(`got:${line}\r\n`)
+    // Never after a repaint: a line printed under one would scroll the screen
+    // and leave its bottom row blank, which is the very thing it is here to
+    // avoid.
+    if (line.length > 0 && !repainting) process.stdout.write(`got:${line}\r\n`)
     // A prompt, and no newline after it: this is where a shell leaves the
     // cursor, and the only way to ask for it on purpose.
     if (line === 'prompt') process.stdout.write('$ ')

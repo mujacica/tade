@@ -101,8 +101,12 @@ export interface MouseDeps {
   openMenu(subject: MenuSubject, at: { x: number; y: number }): void
   /** A named action, as a button would run it. */
   run(action: string): void
-  /** A lane was scrolled: cut what is held to where it now is, and look again soon. */
-  reslice(area: 'pane' | 'terminal'): void
+  /**
+   * A lane was scrolled: cut what is held to where it now is. True when the
+   * lines held reached that far, which is what says whether the driver has to
+   * be asked at all.
+   */
+  reslice(area: 'pane' | 'terminal'): boolean
   soonTick(): void
   /** A lane that answers the wheel itself was turned in, so the window does not. */
   turnedInLane(event: Extract<PointerEvent, { kind: 'wheel' }>): boolean
@@ -214,9 +218,11 @@ export class Mouse {
           // A lane's screen is read from the driver, so the wheel would leave
           // the text where it was until the next look while the bar beside it
           // had already moved. Cut the lines we hold to where it now is, and
-          // ask for more only when it has gone past them.
-          this.deps.reslice(event.area)
-          this.deps.soonTick()
+          // ask for more only when it has gone past them — which is what the
+          // cut says, and the only reason to go to the driver at all. Asking
+          // anyway cost a screen read a notch in two lanes, 81 ms of a 735 ms
+          // flick spent finding out that nothing had changed.
+          if (!this.deps.reslice(event.area)) this.deps.soonTick()
         }
         return true
       }
@@ -228,8 +234,7 @@ export class Mouse {
         // A screen scrolled back is read further back than it is tall: ask for
         // the lines now rather than at the next beat.
         if (event.bar.area === 'pane' || event.bar.area === 'terminal') {
-          this.deps.reslice(event.bar.area)
-          this.deps.soonTick()
+          if (!this.deps.reslice(event.bar.area)) this.deps.soonTick()
         }
         return true
       case 'drag': {
@@ -239,8 +244,7 @@ export class Mouse {
           if (bar.area === 'pane' || bar.area === 'terminal') {
             // As the wheel does: the text goes with the thumb rather than a
             // look behind it, and what the held lines cannot reach is asked for.
-            this.deps.reslice(bar.area)
-            this.deps.soonTick()
+            if (!this.deps.reslice(bar.area)) this.deps.soonTick()
           }
           return true
         }

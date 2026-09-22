@@ -277,11 +277,21 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   flick off the end bought a handful of notches that did nothing on the way back. Nothing lays a
   region out again to answer a notch: the scrollbar hit already carries `total` and `shown`
   because a drag needs them (`reachOf`), and counting a conversation instead cost two milliseconds
-  a notch. What a notch is worth is the wheel's (`scroll.ts`): a terminal reports a notch and
-  never says whether the hand is on a wheel or a trackpad, so the rate is read — one arriving
-  alone is a detent and moves `NOTCH` rows, one inside a run is a line of a drag and moves the
-  lines the terminal already counted. A terminal grid moves by whole cells and that is the
-  ceiling: even, in step and predictable, never sub-cell.
+  a notch. **How much is in view is the rows the region drew, never the room it was given** — a
+  pane is the one place the two differ, because an approval card sits at the bottom of the agent's
+  own screen and takes five rows off it (`rowsRead` and `carded` in `view/lane.ts`, read by the
+  drawing and by the look). Sized from the pane instead, a screen with more lines in it than fit
+  reported everything in view and answered the wheel with nothing at all — and only while the
+  agent was waiting on you, which is what made it look intermittent.
+  What a notch is worth is the wheel's (`scroll.ts`): a terminal reports a notch and never says
+  whether the hand is on a wheel or a trackpad, so the rate is read — and as a **ramp, never a
+  step**. A step put the line at `RUN_MS`, a fifth of a second, so an ordinary mouse wheel fell on
+  the trackpad side of it and moved one row a detent while the same wheel turned slowly moved
+  three: four notches of one even turn came out `3, 1, 1, 1`. Between `DRAG_MS` (a finger
+  travelling) and `RUN_MS` (a detent on its own) it slides, and what rounding leaves over is
+  carried to the next notch (`Wheel`), so a run of them is even and adds up to exactly what the
+  hand asked for. A terminal grid moves by whole cells and that is the ceiling: even, in step and
+  predictable, never sub-cell.
 - **A lane that took the whole screen scrolls itself, and the wheel is handed to it.** A program
   on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no scrollback for
   anybody else to move: the lines that went past were never kept, so a window scrolling it has
@@ -304,7 +314,18 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   the lines are held with how deep the lane was when they were read (`HeldLines`) and the screen
   is cut out of them (`cutFrom`); only the bottom is asked for again. That is also what puts the
   text and the bar beside it on the same frame: the wheel cuts, where it used to move a number and
-  leave the text until the next look.
+  leave the text until the next look. **And a cut that reached is the whole answer**: what a notch
+  changed is where the window is looking, not what the lane holds, so there is nothing to ask the
+  driver at all (`reslice` says whether it reached; only false asks for a look). Asking anyway
+  cost a screen read a notch in every lane in front of you — 81 ms of a 735 ms flick spent being
+  told that nothing had changed.
+  **Lines are only held where the scrolling is the window's** (`keeping`), because that is the
+  only place the fact they rest on is true. A program on the alternate screen repaints every row
+  in place and never gets any deeper, so the depth the held lines are keyed by never moves: every
+  look found the lines it already had, and the pane froze on the first screen it ever read. That
+  is what "the Claude pane does not scroll" was once the notch was reaching the program — it
+  scrolled, and the window went on drawing a photograph of it. Nothing is lost by not holding
+  them: such a lane has no scrollback to ask for, so a capture is one screen.
 - **Schedules are told, like notes, and run only while a window is open.** Each is a rule and what
   to do each time, in `<home>/schedules.jsonl` — append-only, every change a line saying who made
   it. When one last ran is the journal's (`schedule_fired`), so what is due is `dueNow` of the rule,

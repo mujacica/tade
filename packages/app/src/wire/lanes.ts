@@ -22,9 +22,10 @@ import { laneMenuItems, terminalMenuItems } from '../panels/menu/state.ts'
 import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
-import { cutFrom, type HeldLines } from '../scroll.ts'
+import { cutFrom, type HeldLines, keeping } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
+import { carded, rowsRead } from '../view/lane.ts'
 import {
   type Actions,
   type Menus,
@@ -183,13 +184,11 @@ export class Lanes implements Subject {
         this.wire.put({ ...this.wire.state, paneScroll: 0 })
         // Back to the newest line, and the text goes there with the bar: the
         // lines held may already reach it, and the look catches up if not.
-        this.reslice('pane')
-        this.deps.soonTick()
+        if (!this.reslice('pane')) this.deps.soonTick()
       },
       'terminal-end': () => {
         this.wire.put({ ...this.wire.state, terminalScroll: 0 })
-        this.reslice('terminal')
-        this.deps.soonTick()
+        if (!this.reslice('terminal')) this.deps.soonTick()
       },
       // `split:<task>:swap|turn|close`, and the task is what is between.
       'split:': (rest) => {
@@ -392,6 +391,11 @@ export class Lanes implements Subject {
     const split = pane ? splitShown(this.wire.state, pane) : null
     const halves = halvesOf(this.paneSize(split !== null), split)
     const size = halves.first
+    // The lane is made the size of the pane, because that is the terminal the
+    // program thinks it is drawing for. What is *read back* is the rows the
+    // pane shows, which an approval card takes five off — the clamp here and
+    // the bar in the drawing have to be counting the same rows, or the look
+    // pulls the view back five rows after the wheel has moved it.
     if (lane) await this.fitLane(lane, size)
     this.watch(lane)
     if (split) {
@@ -403,7 +407,11 @@ export class Lanes implements Subject {
         this.wire.draw()
       }
     }
-    return { lane, split: split !== null, rows: size.rows }
+    return {
+      lane,
+      split: split !== null,
+      rows: this.laneRows('pane'),
+    }
   }
 
   /**
@@ -472,7 +480,8 @@ export class Lanes implements Subject {
       return ''
     }
     const which = SCROLL_OF[area]
-    const at = (area === 'pane' ? this.paneView : this.terminalView)?.lines ?? 0
+    const view = area === 'pane' ? this.paneView : this.terminalView
+    const at = view?.lines ?? 0
     // Never further back than there is to read: the wheel is clamped against
     // what the last frame drew, and this is the same clamp against what the
     // driver says now, for a lane that shrank or was relaunched under us.
@@ -480,7 +489,7 @@ export class Lanes implements Subject {
     if (at > 0 && this.wire.state[which] > most)
       this.wire.put({ ...this.wire.state, [which]: most })
     const back = this.wire.state[which]
-    const held = this.held.get(area)
+    const held = keeping(view) ? this.held.get(area) : undefined
     if (held?.lane === lane && at >= held.at) {
       const cut = cutFrom(held, rows, back, at)
       if (cut !== null) return cut
@@ -495,7 +504,8 @@ export class Lanes implements Subject {
     // says which lines they are. A lane with no depth of its own — half of a
     // split — has only its capture to count from.
     const read = { lane, lines, at: Math.max(at, lines.length), asked }
-    this.held.set(area, read)
+    if (keeping(view)) this.held.set(area, read)
+    else this.held.delete(area)
     return cutFrom(read, rows, back, read.at) ?? lines.slice(-rows).join('\n')
   }
 
@@ -535,12 +545,16 @@ export class Lanes implements Subject {
 
   /**
    * Cut the lines already held to where the wheel has just put them, so the
-   * text moves on the same frame as the bar beside it. What it cannot reach
-   * waits for the look the wheel asked for, a few milliseconds behind.
+   * text moves on the same frame as the bar beside it. True when they reached
+   * that far, and then there is nothing to ask the driver: what a notch
+   * changed is where the window is looking, not what the lane holds. False is
+   * the only reason to go and look, and asking anyway cost a screen read a
+   * notch in every lane in front of you — 81 ms of a 735 ms flick spent being
+   * told that nothing had changed.
    */
-  reslice(area: 'pane' | 'terminal'): void {
+  reslice(area: 'pane' | 'terminal'): boolean {
     const held = this.held.get(area)
-    if (!held) return
+    if (!held) return false
     const view = area === 'pane' ? this.paneView : this.terminalView
     const cut = cutFrom(
       held,
@@ -548,9 +562,10 @@ export class Lanes implements Subject {
       this.wire.state[SCROLL_OF[area]],
       view?.lines ?? held.at,
     )
-    if (cut === null) return
+    if (cut === null) return false
     if (area === 'pane') this.screen = cut
     else this.terminalScreen = cut
+    return true
   }
 
   /** How many rows of a lane are on screen: what a capture is cut to. */
@@ -558,7 +573,12 @@ export class Lanes implements Subject {
     if (area === 'pane') {
       const pane = this.wire.state.panes.find((p) => p.task === this.wire.state.focused)
       const split = pane ? splitShown(this.wire.state, pane) : null
-      return halvesOf(this.paneSize(split !== null), split).first.rows
+      const rows = halvesOf(this.paneSize(split !== null), split).first.rows
+      const lane = pane ? laneShown(this.wire.state, pane) : null
+      // Exactly the lines the pane shows, counted as the drawing counts them:
+      // the clamp below and the bar it draws have to agree about where the end
+      // is, or the top of a scrollback springs back a row under every notch.
+      return rowsRead(rows, !split && carded(pane, lane), !split && this.wire.state.paneScroll > 0)
     }
     const layout = resolveLayout(this.deps.layout(), {
       width: this.deps.size().columns,

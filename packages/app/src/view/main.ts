@@ -15,7 +15,7 @@ import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { blank, box, type Drawn, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { actionRows } from './actions.ts'
-import { blockAt, scrolledBar, typingIn } from './lane.ts'
+import { blockAt, carded, rowsRead, scrolledBar, typingIn } from './lane.ts'
 import { renderPlan, renderQueued } from './queue.ts'
 import { barBeside } from './rows.ts'
 import { renderSchedule } from './schedule.ts'
@@ -176,6 +176,15 @@ export function renderMain(
   // measured against the lane sizes the window asked the driver for.
   const lane = shown && !split ? (frame.paneScreen ?? null) : null
   const body = lane ? width - BAR : width
+  // An approval card sits at the bottom of the agent's own screen, so the
+  // screen is drawn in fewer rows than the pane has. Asked once, because the
+  // drawing and the bar beside it have to be counting the same rows.
+  const carding = carded(pane, shown)
+  // Scrolled away from its newest line, the screen's last row says so and is a
+  // way back to it — a row of the pane, not a line of the lane.
+  const back = state.paneScroll > 0 && shown !== null && !split && !work
+  // Lines of the lane in view: the pane, less the card, less that row.
+  const inView = rowsRead(room, carding, back)
   if (work) {
     // Laid out in the room there is, then windowed: a page longer than its
     // pane scrolls, with a bar beside it, rather than losing its end.
@@ -245,7 +254,7 @@ export function renderMain(
             // The agent's half ends above its approval card, exactly as the
             // whole pane does when there is no split: a screen drawn under
             // one is a sentence the card is sitting on.
-            pane.approval && kindOf(shown) === 'agent' ? Math.max(1, h - APPROVAL_ROWS - 1) : h,
+            rowsRead(h, carding),
             skin,
             pointer,
             frame.linkers,
@@ -278,20 +287,18 @@ export function renderMain(
     )
   } else if (state.paneScroll > 0) {
     // Scrolled back: exactly the lines asked for, and a way back to the newest.
-    const lines = frame.screen.split('\n').slice(-(room - 1))
-    for (let gap = room - 1 - lines.length; gap > 0; gap--) rows.push(blank(body))
+    const lines = frame.screen.split('\n').slice(-inView)
+    for (let gap = inView - lines.length; gap > 0; gap--) rows.push(blank(body))
     for (const line of lines) rows.push(linkedRow(line, body, skin, pointer, frame.linkers))
     rows.push(scrolledBar(state.paneScroll, 'pane-end', body, skin, pointer))
   } else {
     const kind = pane.lanes.find((one) => one.id === shown)?.kind
-    // An approval card sits at the bottom; the conversation ends above it.
-    const reading = kind === 'agent' && pane.approval ? Math.max(1, room - APPROVAL_ROWS - 1) : room
     rows.push(
       ...laneLines(
         frame.screen,
         kind ?? 'shell',
         body,
-        reading,
+        inView,
         skin,
         pointer,
         frame.linkers,
@@ -313,6 +320,10 @@ export function renderMain(
 
   while (rows.length < height) rows.push(blank(lane ? body : width))
   if (lane) {
+    // The track runs the whole height of the pane; what is *in view* is the
+    // rows the screen was drawn in, which an approval card takes five off.
+    // Two different numbers, and saying the second one as the first is what
+    // made a pane with more lines than fit answer the wheel with nothing.
     const seen = Math.max(0, height - 2)
     rows.splice(
       2,
@@ -320,9 +331,9 @@ export function renderMain(
       ...barBeside(
         rows.slice(2, 2 + seen),
         {
-          total: Math.max(lane.lines, seen),
-          shown: seen,
-          offset: Math.max(0, lane.lines - seen - state.paneScroll),
+          total: Math.max(lane.lines, inView),
+          shown: inView,
+          offset: Math.max(0, lane.lines - inView - state.paneScroll),
           rows: seen,
         },
         'pane',
@@ -400,9 +411,6 @@ function underTargets(
     })),
   )
 }
-
-/** How tall the approval card is: its border and two rows. */
-const APPROVAL_ROWS = 4
 
 /** A waiting approval, where the agent asked for it, answerable by click. */
 function withApproval(

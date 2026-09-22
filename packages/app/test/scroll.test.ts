@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { toCells } from '../scripts/terminal.ts'
 import type { Hit } from '../src/hits.ts'
-import { scrollBy } from '../src/model.ts'
+import { resolveLayout } from '../src/layout.ts'
+import { type AppState, scrollBy } from '../src/model.ts'
 import {
   cutFrom,
+  DRAG_MS,
   endOf,
   NOTCH,
   RUN_MS,
@@ -11,6 +14,7 @@ import {
   Wheel,
   wheelRows,
 } from '../src/scroll.ts'
+import { rowsRead } from '../src/view/lane.ts'
 import { draw } from '../src/view.ts'
 import { SCENARIOS } from './screens/scenarios.ts'
 
@@ -23,14 +27,33 @@ describe('how far a notch goes', () => {
     expect(wheelRows(-1, RUN_MS)).toBe(-NOTCH)
   })
 
-  it('moves the lines the terminal counted when they arrive in a run', () => {
+  it('moves a row when the notches arrive as fast as a finger does', () => {
     // A finger on a trackpad reports a notch a line, a hundred times a second,
-    // and the terminal has already turned the pixels into lines with the
-    // settings of the machine it is on. Doing that sum again on top is the
-    // jump people feel.
+    // and giving each of those a detent's worth is how a flick crossed the
+    // screen three times over.
     expect(wheelRows(1, 0)).toBe(1)
-    expect(wheelRows(1, RUN_MS - 1)).toBe(1)
+    expect(wheelRows(1, DRAG_MS)).toBe(1)
     expect(wheelRows(-1, 8)).toBe(-1)
+  })
+
+  it('ramps between the two rather than stepping, because a hand is neither', () => {
+    // The step was the jank. It put the line at `RUN_MS` — a fifth of a second
+    // — so an ordinary mouse wheel, whose detents arrive fifty to a hundred
+    // milliseconds apart, was read as a finger and moved one row a detent,
+    // while the same wheel turned slowly moved three. Either side of the line,
+    // one report's jitter changed the step threefold.
+    const at = (since: number) => wheelRows(1, since)
+    expect(at(RUN_MS - 1)).toBeGreaterThan(at(DRAG_MS + 1))
+    expect(at(RUN_MS - 1)).toBeCloseTo(NOTCH, 1)
+    // Never backwards: later is always at least as far as sooner.
+    let last = 0
+    for (let since = 0; since <= RUN_MS + 40; since += 4) {
+      expect(at(since)).toBeGreaterThanOrEqual(last)
+      last = at(since)
+    }
+    // And a wheel's own pace lands between the two, rather than at one end.
+    expect(at(60)).toBeGreaterThan(1.5)
+    expect(at(60)).toBeLessThan(NOTCH)
   })
 
   it('keeps what the terminal said about how big a notch was', () => {
@@ -41,7 +64,12 @@ describe('how far a notch goes', () => {
   })
 
   it('never turns a notch into nothing', () => {
+    const wheel = new Wheel()
     for (const since of [0, 50, 5_000]) expect(Math.abs(wheelRows(1, since))).toBeGreaterThan(0)
+    // Nor after rounding: whatever the arithmetic comes to, a notch that
+    // arrived moves at least the row it asked for, either way.
+    for (let i = 0; i < 40; i++) expect(wheel.rows('sidebar', 1, i * 7)).toBeGreaterThan(0)
+    for (let i = 0; i < 40; i++) expect(wheel.rows('sidebar', -1, 500 + i * 7)).toBeLessThan(0)
   })
 })
 
@@ -53,6 +81,38 @@ describe('a wheel', () => {
     expect(wheel.rows('pane', 1, 1_020)).toBe(1)
     // A hand that stopped and started again is a new movement.
     expect(wheel.rows('pane', 1, 1_020 + RUN_MS)).toBe(NOTCH)
+  })
+
+  it('carries what a notch could not spend, so a run of them is even', () => {
+    // A wheel turned evenly at its own pace: every notch the same distance
+    // apart, so every one of them has to be worth the same. Deciding each on
+    // its own would give all 1s or all 2s; carried, they alternate and add up
+    // to exactly what the hand asked for.
+    const wheel = new Wheel()
+    const each: number[] = []
+    for (let i = 1; i <= 12; i++) each.push(wheel.rows('sidebar', 1, 1_000 + i * 60))
+    const want = wheelRows(1, 60) * 11 + NOTCH
+    expect(each.reduce((all, one) => all + one, 0)).toBeCloseTo(want, 0)
+    // None of them is a jump: a run of one step size, give or take the cell
+    // the grid rounds to.
+    for (const one of each.slice(1)) expect(Math.abs(one - 2)).toBeLessThanOrEqual(1)
+  })
+
+  it('drops what it was carrying when the hand turns back the other way', () => {
+    // Momentum has a direction: rows owed downward are not rows owed upward,
+    // and a turn back that spent them would overshoot by however far the last
+    // run happened to stop short.
+    const turnedBack = new Wheel()
+    for (let i = 1; i <= 3; i++) turnedBack.rows('sidebar', 1, 1_000 + i * 50)
+    const straight = new Wheel()
+    straight.rows('sidebar', -1, 1_000)
+    const back: number[] = []
+    const same: number[] = []
+    for (let i = 1; i <= 6; i++) {
+      back.push(turnedBack.rows('sidebar', -1, 1_150 + i * 50))
+      same.push(straight.rows('sidebar', -1, 1_000 + i * 50))
+    }
+    expect(back).toEqual(same)
   })
 
   it('starts again when the pointer moves to another region', () => {
@@ -135,6 +195,108 @@ describe('cutting a screen out of the lines already held', () => {
     expect(cutFrom(held, 2, 10, 103)).toBe(['line 91', 'line 92'].join('\n'))
     // And once it wants a line that arrived after the read, it has to ask.
     expect(cutFrom(held, 2, 0, 103)).toBeNull()
+  })
+})
+
+// How far a region goes is read off its bar, so the bar has to be measured
+// against the rows the region actually drew. A pane is the one place those two
+// differ: an approval card sits at the bottom of the agent's own screen and
+// takes five rows off it, and the bar was being drawn from the pane's height
+// — so a screen with more lines in it than fit said everything was in view and
+// the wheel over it did nothing at all. It is only wrong while the agent is
+// waiting on you, which is what made it look intermittent.
+describe('a pane with an approval card over it', () => {
+  const carded = SCENARIOS.find((one) => one.name === 'watching-an-agent')
+  if (!carded) throw new Error('the scenario is gone')
+  /** The same window with the card taken away, which is the only difference. */
+  const uncarded = {
+    ...carded.state,
+    panes: carded.state.panes.map((pane) =>
+      pane.task === carded.state.focused ? { ...pane, approval: null } : pane,
+    ),
+  }
+  const at = (state: AppState, lines: number) => {
+    const frame = { ...carded.frame, paneScreen: { lines, cursor: { back: 0, column: 0 } } }
+    const hits = draw(state, frame).hits
+    const rows = hits.filter(
+      (hit) => hit.target.kind === 'scroll' && hit.target.area === 'pane',
+    ).length
+    return { reach: reachOf(hits, 'pane'), rows }
+  }
+
+  it('says how much of the screen the card leaves in view, not how tall the pane is', () => {
+    const withCard = at(carded.state, 1_000)
+    const without = at(uncarded, 1_000)
+    // The bar counts exactly the rows the screen was drawn in — which is what
+    // the wheel lands on, and is five fewer than the pane has to give.
+    expect(withCard.reach.shown).toBe(withCard.rows)
+    expect(without.reach.shown).toBe(without.rows)
+    expect(withCard.reach.shown).toBe(rowsRead(without.reach.shown, true))
+    expect(withCard.reach.shown).toBeLessThan(without.reach.shown)
+  })
+
+  it('counts the row that says how far back it is as a row of the pane', () => {
+    // Scrolled away from its newest line, the last row of the screen says so
+    // and takes you back there. It is a row of the pane and not a line of the
+    // lane, so one fewer line is in view — and left out of the count, the bar
+    // said the end was a row further than the look would allow, so the top of
+    // a scrollback answered every notch by springing back a row.
+    const atNewest = at(carded.state, 1_000)
+    const scrolled = at({ ...carded.state, paneScroll: 5 }, 1_000)
+    expect(scrolled.reach.shown).toBe(atNewest.reach.shown - 1)
+    expect(endOf(scrolled.reach)).toBe(1_000 - scrolled.reach.shown)
+  })
+
+  it('scrolls when there is more of the screen than the card leaves room for', () => {
+    const shown = at(carded.state, 1_000).reach.shown
+    // Exactly what fits: nothing to scroll, and the wheel is honest about it.
+    expect(scrollable(at(carded.state, shown).reach)).toBe(false)
+    // One line more than fits, and every line up to a whole pane's worth —
+    // which is the band the card's own height used to swallow, so a screen
+    // with plenty to read said there was nothing and the wheel did nothing.
+    for (const lines of [shown + 1, shown + 3, shown + 5, shown + 20]) {
+      expect(scrollable(at(carded.state, lines).reach), `${lines} lines`).toBe(true)
+      expect(endOf(at(carded.state, lines).reach)).toBe(lines - shown)
+    }
+  })
+})
+
+// The side and the agent's screen share a row — the window is regions beside
+// each other, not one flow of text — and the renderer diffs whole rows. So a
+// notch over the side rewrites every row of the body, the agent's half
+// included, which is the erase and repaint that reads as the harness rows
+// blinking. Nothing can be done about the rewrite from here; what can be held
+// is that it is only ever a rewrite of the same cells, never a change to them.
+describe('scrolling the side', () => {
+  it('never changes a single cell of what is drawn beside it', () => {
+    for (const scenario of SCENARIOS) {
+      const before = draw(scenario.state, scenario.frame)
+      const reach = reachOf(before.hits, 'sidebar')
+      const moved = scrollBy(scenario.state, 'sidebar', NOTCH, reach)
+      if (moved === scenario.state) continue
+      const after = draw(moved, scenario.frame)
+      const { sidebarWidth, mainWidth } = resolveLayout(
+        {
+          ...scenario.frame.layout,
+          ...scenario.state.sizes,
+          bottom: scenario.state.bottomMode,
+        },
+        scenario.frame,
+      )
+      // In cells, not in bytes: a slice of a row carries in whatever paint
+      // was live at the column it starts on, which is the side's, and that
+      // says nothing about what the cell after it ends up looking like.
+      const beside = (rows: readonly string[], row: number) =>
+        toCells(rows[row] ?? '')
+          .slice(sidebarWidth + 1, sidebarWidth + 1 + mainWidth)
+          .map((cell) => `${cell.ch}|${cell.fg}|${cell.bg}|${cell.bold}`)
+          .join(' ')
+      for (let row = 0; row < before.rows.length; row++) {
+        expect(beside(after.rows, row), `${scenario.name}, row ${row}`).toBe(
+          beside(before.rows, row),
+        )
+      }
+    }
   })
 })
 

@@ -114,6 +114,86 @@ describe('the window, and the lanes in it', () => {
     )
   }, 20_000)
 
+  // And what it draws in answer has to be read back, which is the other half
+  // of handing it the wheel. A lane that paints its own screen was read once
+  // and never again: the lines held are keyed by how deep the lane is, and a
+  // program that repaints in place never gets any deeper — so every look
+  // found the lines it already had and the pane froze on the first screen it
+  // ever read. Which is what "the Claude pane does not scroll" was, once the
+  // notch was reaching the program: it scrolled, and the window went on
+  // drawing a photograph of it.
+  it('keeps reading a lane that paints its own screen, because it holds nothing', async () => {
+    const opened = await client.openTerminal({ project: 'app' })
+    await client.write(opened.id, `${process.execPath} ${ECHO_CHILD}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until('the child running', () =>
+      screenOf(terminal.written).some((row) => row.includes('ready')),
+    )
+    await client.write(opened.id, 'screen\r')
+    await until('it to take the screen', () =>
+      screenOf(terminal.written).some((row) => row.includes('own screen')),
+    )
+    // `repaint` fills every row of it, the bottom one included — which is
+    // what a screen a program draws for itself looks like, and what the
+    // fixture used to be too kind to do.
+    await client.write(opened.id, 'repaint first\r')
+    await until('the first painting', () =>
+      screenOf(terminal.written).some((row) => row.includes('first on row')),
+    )
+    await client.write(opened.id, 'repaint second\r')
+    await until(
+      'the second painting',
+      () => screenOf(terminal.written).some((row) => row.includes('second on row')),
+      5_000,
+    )
+  }, 20_000)
+
+  // A notch over a lane the window scrolls changes where the window is
+  // looking, not what the lane holds — so as long as the lines already held
+  // reach that far there is nothing to ask the driver at all. Asking anyway
+  // cost a screen read a notch, in every lane in front of you: 81 ms of a
+  // 735 ms flick spent being told that nothing had changed.
+  it('asks the driver for nothing while a flick stays inside the lines it holds', async () => {
+    const opened = await client.openTerminal({ project: 'app' })
+    const printing = 'i=1; while [ $i -le 400 ]; do echo "printed line $i"; i=$((i+1)); done'
+    await client.write(opened.id, `${printing}\r`)
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until(
+      'the terminal in front',
+      () => screenOf(terminal.written).some((row) => row.includes('printed line 400')),
+      20_000,
+    )
+    const shell = screenOf(terminal.written).findIndex((row) => row.includes('printed line 400'))
+    // One notch first, so the lines behind the screen have been sent for.
+    terminal.press(`\x1b[<64;10;${shell + 1}M`)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+
+    let asked = 0
+    const capture = client.capture.bind(client)
+    client.capture = (lane, lines, styled) => {
+      asked++
+      return capture(lane, lines, styled)
+    }
+    const screen = client.screen.bind(client)
+    client.screen = (lane) => {
+      asked++
+      return screen(lane)
+    }
+    for (let i = 0; i < 30; i++) {
+      terminal.press(`\x1b[<64;10;${shell + 1}M`)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    // The beat of the window itself is 250 ms, so a flick of a third of a
+    // second is one or two looks. Thirty notches used to be thirty.
+    expect(asked).toBeLessThan(8)
+  }, 40_000)
+
   it('opens a terminal from the + beside the orchestrator, and types into it', async () => {
     await start()
     await until('the tabs', () =>
