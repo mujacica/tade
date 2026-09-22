@@ -1,3 +1,4 @@
+import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import { toCells } from '../scripts/terminal.ts'
 import type { Hit } from '../src/hits.ts'
@@ -258,6 +259,83 @@ describe('a pane with an approval card over it', () => {
       expect(scrollable(at(carded.state, lines).reach), `${lines} lines`).toBe(true)
       expect(endOf(at(carded.state, lines).reach)).toBe(lines - shown)
     }
+  })
+})
+
+// A program that took the whole screen keeps no scrollback for anybody else,
+// and asked for the mouse so it can answer the wheel itself. So the window has
+// none of the three numbers a bar is drawn from — how much there is, how much
+// is in view, where in it you are — and what it drew instead was an empty
+// track, which is indistinguishable from a bar that is broken. That is what
+// was reported: the Claude pane scrolls, and the wheel on the side of it says
+// nothing at all.
+describe('a pane whose program scrolls itself', () => {
+  const scenario = SCENARIOS.find((one) => one.name === 'watching-an-agent')
+  if (!scenario) throw new Error('the scenario is gone')
+  /** The same window, differing only in what the driver says about the lane. */
+  const shown = (scrolling: 'window' | 'lane' | 'nobody' | undefined, lines = 1_000) => {
+    const paneScreen = {
+      lines,
+      cursor: { back: 0, column: 0 },
+      ...(scrolling ? { scrolling } : {}),
+    }
+    const drawn = draw(scenario.state, { ...scenario.frame, paneScreen })
+    const on = (kind: 'scrollbar' | 'scroll') =>
+      drawn.hits.filter((hit) => hit.target.kind === kind && hit.target.area === 'pane')
+    return {
+      bars: on('scrollbar'),
+      wheels: on('scroll'),
+      reach: reachOf(drawn.hits, 'pane'),
+      /** The last column of the rows the pane's own column is drawn on. */
+      gutter: (rows: readonly number[]) =>
+        rows.map((row) => stripTerminalSequences(drawn.rows[row] ?? '').slice(-1)).join(''),
+    }
+  }
+  // Where the column is: the rows the bar is drawn on when it is a bar. The
+  // pane is laid out the same way whoever is scrolling — only the column in
+  // it differs — so this is where to read all three.
+  const column = shown('window').bars.map((hit) => hit.row)
+
+  it('draws a mark rather than a bar, and never a thumb', () => {
+    expect(shown('lane').gutter(column)).toBe('┆'.repeat(column.length))
+    // Which is what the bar it replaces was doing with these numbers: `lines`
+    // is the height of the screen and the card takes five rows off what is in
+    // view, so the two differed and a thumb appeared — true about the capture,
+    // and nothing to do with where the program is in its own conversation.
+    expect(shown('window').gutter(column)).toMatch(/█/)
+  })
+
+  it('is not a handle: nothing to light, nothing to drag, nothing a key can move', () => {
+    const lane = shown('lane')
+    expect(lane.bars).toEqual([])
+    // `reachOf` is what every key and every drag asks how far a region goes,
+    // and it reads the bar. No bar, nowhere to go — so nothing anywhere else
+    // has to know about this.
+    expect(scrollable(lane.reach)).toBe(false)
+    expect(scrollBy(scenario.state, 'pane', 5, lane.reach)).toBe(scenario.state)
+  })
+
+  it('still takes the wheel, because the lane is the one that answers it', () => {
+    // The column is the window's and the notch is the lane's: every row of the
+    // screen still says the wheel over it belongs to the pane, which is what
+    // hands it to the program.
+    expect(shown('lane').wheels.length).toBeGreaterThan(0)
+    expect(shown('lane').wheels.length).toBe(shown('window').wheels.length)
+  })
+
+  it('says nothing scrolls where the program wants no mouse either', () => {
+    const none = shown('nobody')
+    // The plain track every region that does not scroll already draws — not
+    // the lane's mark, which would promise scrolling that cannot happen.
+    expect(none.gutter(column)).toBe('▕'.repeat(column.length))
+    expect(none.bars).toEqual([])
+  })
+
+  it('is the bar it always was until a driver says otherwise', () => {
+    // Unknown reads as the window's, as it does everywhere else: that is what
+    // a lane is until the program in it does something about its screen.
+    expect(shown(undefined).gutter(column)).toBe(shown('window').gutter(column))
+    expect(shown(undefined).bars).toEqual(shown('window').bars)
   })
 })
 

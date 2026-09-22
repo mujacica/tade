@@ -307,6 +307,19 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   characters typed into it. And the wheel is swallowed wherever it lands, scrollable or not —
   Tade draws exactly one screen and never scrolls one, so a notch handed back is the terminal
   library moving a viewport of its own, which is the window sliding under you.
+  **And such a lane gets a mark down its side rather than a bar**, because a bar is drawn from
+  three numbers — how much there is, how much is in view, where in it you are — and the window has
+  none of them: the program keeps its own history and answers the wheel itself. Drawn as one
+  anyway, `lines` is the height of the screen and the screen is what is in view, so it came out an
+  empty track that looks exactly like a bar that is broken — which is how it was reported — and
+  with an approval card over the pane the two differed by five rows and a thumb appeared, saying
+  something true about the capture and nothing about where the program is in its conversation. So
+  `gutterBeside` reads `LaneScreen.scrolling` and draws the column from it: the bar where the
+  scrolling is the window's, a dashed rule the whole height (`scrollElsewhere`) where it is the
+  lane's — never a thumb, because a thumb is never the whole track — and the plain track where it
+  is nobody's, which is what every region that does not scroll already draws. Neither mark is ever
+  given a hit, so neither lights, neither can be dragged, and `reachOf` finds nowhere to go, which
+  is what keeps the keys honest too: a handle that moves nothing is worse than no handle.
 - **A lane's screen is read once and cut, not read again per notch.** A capture costs what it asks
   for, so reading `rows + scroll` lines back on every look cost a millisecond per two hundred
   lines scrolled, four times a second, for lines that had not changed since the agent printed

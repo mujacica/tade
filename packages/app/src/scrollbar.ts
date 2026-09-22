@@ -93,6 +93,34 @@ export function barRows(view: Scrolled, skin: Skin, lit: boolean): string[] {
 }
 
 /**
+ * The same column beside something the window is *not* scrolling: what a
+ * region whose program took the screen for itself gets instead of a bar.
+ *
+ * A bar is drawn from three numbers — how much there is, how much is in view,
+ * where in it you are — and a program on the alternate screen keeps none of
+ * them anywhere the window can read. What scrolled off was never kept, the
+ * wheel is handed to the program and it moves its own conversation, so every
+ * one of those numbers would be invented. Which is what the empty track was:
+ * `lines` is the height of the screen and the screen is what is in view, so
+ * the bar had nothing to draw and looked exactly like one that is broken —
+ * and with an approval card over the pane the two numbers differed by five
+ * rows, so a thumb appeared, saying something true about the capture and
+ * nothing at all about where the program is in its own history.
+ *
+ * So: `lane` — it scrolls, elsewhere — is a dashed rule the whole height,
+ * which cannot be read as a thumb, because a thumb is never the whole track.
+ * `nobody` — it took the screen and does not want the mouse — is the plain
+ * track every region that does not scroll already draws, because nothing here
+ * scrolls either. Neither is ever given a hit, so neither lights under the
+ * pointer and neither can be dragged: a handle that moves nothing is worse
+ * than no handle.
+ */
+export function gutterRows(rows: number, skin: Skin, whose: 'lane' | 'nobody'): string[] {
+  const cell = whose === 'lane' ? skin.scrollElsewhere() : skin.scrollTrack()
+  return Array.from({ length: Math.max(0, rows) }, () => cell)
+}
+
+/**
  * The same bar lying down: one row, a cell per column of the track, for a pane
  * whose content is wider than it is. Drawn only where there is something to
  * scroll to — a bar along the bottom of a pane that fits says there is more to

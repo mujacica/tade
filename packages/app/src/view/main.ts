@@ -17,7 +17,7 @@ import { blank, box, type Drawn, overlay, type Pointer, Row, stack } from '../ui
 import { actionRows } from './actions.ts'
 import { blockAt, carded, rowsRead, scrolledBar, typingIn } from './lane.ts'
 import { renderPlan, renderQueued } from './queue.ts'
-import { barBeside } from './rows.ts'
+import { barBeside, gutterBeside } from './rows.ts'
 import { renderSchedule } from './schedule.ts'
 import { belowFirst, besideFirst, splitView } from './split.ts'
 import { shortened, shortModel } from './text.ts'
@@ -328,8 +328,12 @@ export function renderMain(
     rows.splice(
       2,
       seen,
-      ...barBeside(
+      // A bar where the lines are the window's to move, and a mark where the
+      // program in the lane moves its own — read off the lane, never off what
+      // was launched into it.
+      ...gutterBeside(
         rows.slice(2, 2 + seen),
+        lane.scrolling ?? 'window',
         {
           total: Math.max(lane.lines, inView),
           shown: inView,

@@ -1030,6 +1030,30 @@ describe('the bar down the right of what scrolls', () => {
     expect(stripTerminalSequences(row ?? '').slice(0, 3)).toBe('$  ')
   })
 
+  it('marks a terminal whose program took the screen, and offers no bar on it', () => {
+    // A shell with an editor open in it is an agent drawing its own
+    // conversation: what scrolled off was never kept, the program answers the
+    // wheel itself, and the panel says so in the same column the pane does.
+    const terminals = {
+      ...withTerminals(state(), [{ id: 'checkout/terminals/1', project: 'checkout', name: 'x' }]),
+      bottom: 'checkout/terminals/1',
+      keyboard: 'terminal' as const,
+    }
+    const drawn = draw(terminals, {
+      ...tall(),
+      terminal: {
+        screen: '~/src/checkout/src/refunds.ts\n  1 export function refund() {',
+        view: { lines: 400, cursor: { back: 0, column: 2 }, scrolling: 'lane' },
+      },
+    })
+    expect(
+      drawn.hits.filter((hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'terminal'),
+    ).toEqual([])
+    const marked = drawn.rows.filter((row) => plain(row)[99] === '\u2506')
+    expect(marked.length).toBeGreaterThan(0)
+    expect(drawn.rows.every((row) => plain(row)[99] !== '\u2588')).toBe(true)
+  })
+
   it('draws no cursor where typing would not go there', () => {
     const terminals = {
       ...withTerminals(state(), [{ id: 'checkout/terminals/1', project: 'checkout', name: 'x' }]),

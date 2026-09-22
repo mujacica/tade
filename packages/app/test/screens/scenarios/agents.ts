@@ -44,6 +44,33 @@ function openCheck(state: AppState, task: string, check: string, scroll = 0): Ap
   return { ...toggleCheck(state, task, check), actionsScroll: scroll }
 }
 
+/**
+ * A program that draws its own conversation on the alternate screen: every
+ * row of it repainted in place, the scrollback its own and nobody else's.
+ * What the window has of it is exactly this, and never a line more.
+ */
+const alternateScreen = [
+  '╭──────────────────────────────────────────────────────────────╮',
+  '│ ✻ Refund emails                                              │',
+  '╰──────────────────────────────────────────────────────────────╯',
+  '',
+  '> the ledger is the only place a refund is final',
+  '',
+  '● I read src/refunds.ts and src/ledger.ts. The gateway call is',
+  '  fire-and-forget, so a refund that fails there is still marked',
+  '  refunded in our own table.',
+  '  ⎿ Read src/refunds.ts (212 lines)',
+  '  ⎿ Read src/ledger.ts (96 lines)',
+  '',
+  '● Moving the write behind the ledger’s acknowledgement.',
+  '  ⎿ Edit src/refunds.ts  +18 −6',
+  '',
+  '╭──────────────────────────────────────────────────────────────╮',
+  '│ >                                                            │',
+  '╰──────────────────────────────────────────────────────────────╯',
+  '  ? for shortcuts',
+].join('\n')
+
 export const AGENT_SCREENS: Scenario[] = [
   {
     name: 'what-an-agent-has-done',
@@ -237,6 +264,23 @@ export const AGENT_SCREENS: Scenario[] = [
     about: 'An agent that is not running: one button opens it again.',
     state: focusTask(base(), 'search/pagination'),
     frame: frame({ screen: '', changes: [] }),
+  },
+  {
+    name: 'a-pane-that-scrolls-itself',
+    about:
+      'An agent whose program took the whole screen and answers the wheel itself: the column down its right is a dashed rule rather than a bar, because the window cannot say how much there is, how much is in view, or where in it you are — and a thumb drawn from numbers nobody has is the one thing worse than no thumb. It is not a handle either: nothing lights on it and nothing can be dragged.',
+    state: focusTask(base(), 'checkout/refunds'),
+    // What such a lane really reports: its screen is all there is — nothing
+    // scrolled off was kept — so `lines` is the rows it was drawn in, and the
+    // driver says the scrolling is the lane's. Kinder numbers here (a deep
+    // scrollback the program does not have) would draw a bar that works in a
+    // picture and never on a machine.
+    frame: frame({
+      screen: alternateScreen,
+      paneScreen: { lines: 19, cursor: { back: 0, column: 2 }, scrolling: 'lane' },
+      route: { harness: 'claude', model: 'claude-opus-5', provider: 'anthropic' },
+      vitals: { model: 'claude-opus-5', thinking: 'high', contextPercent: 41 },
+    }),
   },
   {
     name: 'the-finished-agents-hidden',

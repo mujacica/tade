@@ -1,6 +1,13 @@
 import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
-import { barAcross, barRows, offsetAt, type Scrolled, thumbOf } from '../src/scrollbar.ts'
+import {
+  barAcross,
+  barRows,
+  gutterRows,
+  offsetAt,
+  type Scrolled,
+  thumbOf,
+} from '../src/scrollbar.ts'
 import { COLOUR, PLAIN } from '../src/skin.ts'
 
 // The bar has one job a person checks by eye and one they check by hand: that
@@ -110,6 +117,51 @@ describe('the bar itself', () => {
     // The same rows, a brighter cell: taking hold of it must not move it.
     expect(thumbOfBar(held)).not.toEqual(thumbOfBar(rest))
     expect(thumbOfBar(held)).toHaveLength(thumbOfBar(rest).length)
+  })
+})
+
+// A region the window is not scrolling gets the same column and no bar in it.
+// Both halves of that matter: the column stays, because one that comes and
+// goes reflows everything beside it, and what is in it may not be read as a
+// thumb — a thumb is a claim about where you are, and here there is nobody to
+// ask. A pane whose program took the screen drew an empty track, which looks
+// exactly like a bar that is broken; with an approval card over it the two
+// numbers differed and a thumb appeared, saying something about the capture
+// and nothing about where the program is in its own conversation.
+describe('the column beside something that scrolls itself', () => {
+  it('is exactly as many rows as it was given, each one column wide', () => {
+    for (const whose of ['lane', 'nobody'] as const) {
+      const rows = gutterRows(10, PLAIN, whose)
+      expect(rows).toHaveLength(10)
+      for (const row of rows) expect(row).toHaveLength(1)
+    }
+  })
+
+  it('is the very same cell all the way down, so it can never read as a thumb', () => {
+    for (const skin of [PLAIN, COLOUR]) {
+      for (const whose of ['lane', 'nobody'] as const) {
+        expect(new Set(gutterRows(24, skin, whose)).size).toBe(1)
+      }
+    }
+  })
+
+  it('says the lane scrolls itself in a mark that is not the track and not the thumb', () => {
+    const [mark] = gutterRows(1, PLAIN, 'lane')
+    expect(mark).toBe('┆')
+    expect(mark).not.toBe(PLAIN.scrollTrack())
+    expect(mark).not.toBe(PLAIN.scrollThumb(false))
+    // Painted like the bar beside it rather than ink on the window's own
+    // ground: the gutter is one column whoever is scrolling.
+    const ground = new RegExp(`${String.fromCharCode(27)}\\[48;5;\\d+m`)
+    expect(gutterRows(1, COLOUR, 'lane')[0]).toMatch(ground)
+    expect(gutterRows(1, COLOUR, 'lane')[0]).not.toBe(COLOUR.scrollTrack())
+  })
+
+  it('says nothing at all where nothing scrolls: the plain track, as anywhere else', () => {
+    expect(gutterRows(6, PLAIN, 'nobody')).toEqual(
+      barRows(view({ total: 3 }), PLAIN, false).slice(0, 6),
+    )
+    expect(gutterRows(1, COLOUR, 'nobody')[0]).toBe(COLOUR.scrollTrack())
   })
 })
 

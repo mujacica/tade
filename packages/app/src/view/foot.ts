@@ -7,7 +7,7 @@ import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 import { blockAt, scrolledBar, typingIn } from './lane.ts'
-import { barBeside } from './rows.ts'
+import { gutterBeside } from './rows.ts'
 import { dollars, shortModel, tokens } from './text.ts'
 
 // Along the bottom: the orchestrator and the terminals on tabs, the few
@@ -188,11 +188,15 @@ export function terminalBody(opts: {
   // The bar last, over the click map: dragging it is not clicking into the
   // terminal, and a press that did both would scroll and steal the keyboard.
   const seen = rows.length
-  const drawn = barBeside(
+  const drawn = gutterBeside(
     rows.map((text, i) => ({
       text,
       hits: hits.filter((hit) => hit.row === i).map((hit) => ({ ...hit, row: 0 })),
     })),
+    // A shell with an editor open in it is an agent drawing its own
+    // conversation: the lane says whose the scrolling is, and this column
+    // says the same thing the pane's does about it.
+    view.scrolling ?? 'window',
     {
       total: Math.max(view.lines, seen),
       shown: seen,

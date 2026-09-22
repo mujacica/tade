@@ -1,7 +1,8 @@
+import type { LaneScrolling } from '@tade/drivers-core'
 import type { Hit, ScrollArea, Target } from '../hits.ts'
 import { rowHit, shift } from '../hits.ts'
 import { type AgentPane, type AppState, MARK_TONES, markOf } from '../model.ts'
-import { barRows, type Scrolled } from '../scrollbar.ts'
+import { barRows, gutterRows, type Scrolled } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
 import { blank, fit, type Pointer, Row } from '../ui.ts'
 import { shortened } from './text.ts'
@@ -188,6 +189,35 @@ export function barBeside(
   return Array.from({ length: view.rows }, (_, i) => ({
     text: `${fit(rows[i]?.text ?? '', width)}${bar[i] ?? ' '}`,
     hits: [...(rows[i]?.hits ?? []), { row: 0, from: width, to: width, target }],
+  }))
+}
+
+/**
+ * The same column beside a lane's screen, drawn from whose the scrolling is.
+ *
+ * One function, because the agent's pane and the terminal along the bottom
+ * are the same situation and a second reading of it would drift: a shell with
+ * an editor open in it is a program that took the screen exactly as an agent
+ * that draws its own conversation is, and neither is known by what was
+ * launched into it. `window` — which is what a lane is until its driver says
+ * otherwise — is the bar it has always been, numbers, handle and all; the
+ * other two are a mark, and never a hit, so nothing about them says they can
+ * be taken hold of.
+ */
+export function gutterBeside(
+  rows: readonly { text: string; hits: Hit[] }[],
+  whose: LaneScrolling,
+  view: Scrolled,
+  area: ScrollArea,
+  width: number,
+  state: AppState,
+  skin: Skin,
+): { text: string; hits: Hit[] }[] {
+  if (whose === 'window') return barBeside(rows, view, area, width, state, skin)
+  const cells = gutterRows(view.rows, skin, whose)
+  return Array.from({ length: view.rows }, (_, i) => ({
+    text: `${fit(rows[i]?.text ?? '', width)}${cells[i] ?? ' '}`,
+    hits: [...(rows[i]?.hits ?? [])],
   }))
 }
 

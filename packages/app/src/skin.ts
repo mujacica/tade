@@ -162,6 +162,18 @@ export interface Skin {
   scrollTrack(): string
   scrollThumb(lit: boolean): string
 
+  /**
+   * One cell of the same column beside something that scrolls *itself*: the
+   * track's own ground, with a dashed rule on it rather than a thumb.
+   *
+   * A thumb is a claim about where you are, and here there is nobody to ask —
+   * so the column says the one thing that is true, which is that this is not
+   * a bar the window is driving. Dashed rather than solid, and never lit,
+   * because nothing here can be taken hold of. Exactly one column, like the
+   * two above it: the gutter is the same gutter whoever is scrolling.
+   */
+  scrollElsewhere(): string
+
   /** A whole row laid on the selection colour, resets and all. */
   selected(row: string): string
   /** A whole row under the pointer: a shade lighter than the ground, and less than selected. */
@@ -488,6 +500,9 @@ export const PLAIN: Skin = {
   // for the thumb.
   scrollTrack: () => '▕',
   scrollThumb: () => '█',
+  // The same rule, dashed: what a bar looks like where there is no thumb to
+  // draw and never will be.
+  scrollElsewhere: () => '┆',
   button: (label) => `[ ${label} ]`,
   // A chip that is on has to say so in its shape here, because the colour that
   // says it elsewhere is gone: `<H>` switched on against `[H]` at rest, the
@@ -548,6 +563,13 @@ export const COLOUR: Skin = {
   // said out loud — a handle you have taken hold of should say so.
   scrollTrack: () => solid(GREY.raised, '▕'),
   scrollThumb: (lit) => solid(lit ? GREY.quiet : GREY.chrome, '█'),
+  // The track's own ground with a dashed rule over it: the same column,
+  // visibly not a handle. The ink is the grey things are said quietly in
+  // rather than the thumb's, because a thumb is a filled cell and this is a
+  // few strokes of one — at the thumb's tone the dashes all but disappear,
+  // and a mark too faint to notice is a bar that looks broken, which is the
+  // thing this is here to stop being.
+  scrollElsewhere: () => `${bg(GREY.raised)}${fg(GREY.quiet)}┆${RESET}`,
   button: (label, look, lit) => block(label, (lit === true ? LIT[look] : undefined) ?? LOOKS[look]),
   chip: (label, look, lit) =>
     block(label, (lit === true ? LIT[look] : undefined) ?? LOOKS[look], ' '),

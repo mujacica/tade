@@ -1,0 +1,34 @@
+   T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2            +    █│ checkout › refunds    agent    actions     +         claude-opus-5 ▾     high ▾     ×   
+                             █│─────────────────────────────────────────────────────────────────────────────────────────
+   ! stripe-v15      $1.26   █│╭──────────────────────────────────────────────────────────────╮                        ┆
+     wants you to approve…   █││ ✻ Refund emails                                              │                        ┆
+                             █│╰──────────────────────────────────────────────────────────────╯                        ┆
+ ▌ ⠋ refunds         $0.62   █│                                                                                        ┆
+ ▌   working                 █│> the ledger is the only place a refund is final                                        ┆
+                             █│                                                                                        ┆
+ ▸ SMART QUEUE          none █│● I read src/refunds.ts and src/ledger.ts. The gateway call is                          ┆
+ ▾ CHANGES  3        vs main █│  fire-and-forget, so a refund that fails there is still marked                         ┆
+  M package.json       +2 −1 █│  refunded in our own table.                                                            ┆
+  A …/webhooks.test.ts   +48 █│  ⎿ Read src/refunds.ts (212 lines)                                                     ┆
+  M src/webhooks.ts   +12 −4 █│  ⎿ Read src/ledger.ts (96 lines)                                                       ┆
+                             ▕│                                                                                        ┆
+ ▾ FILES                     ▕│● Moving the write behind the ledger’s acknowledgement.                                 ┆
+   ▾ src/                    ▕│  ⎿ Edit src/refunds.ts  +18 −6                                                         ┆
+       webhooks.test.ts      ▕│                                                                                        ┆
+       webhooks.ts           ▕│╭──────────────────────────────────────────────────────────────╮                        ┆
+   ▸ test/                   ▕││ >                                                            │                        ┆
+     package.json            ▕│╰──────────────────────────────────────────────────────────────╯                        ┆
+     README.md               ▕│  ? for shortcuts                                                                       ┆
+━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+                                                                                                                        
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ Ask Tade anything                                                                  type, or hold    ctrl   +   space   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
