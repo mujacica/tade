@@ -48,7 +48,16 @@ export interface PtyDriverOptions {
 interface Lane {
   handle: LaneHandle
   pty: IPty
-  term: XTerm
+  /**
+   * The emulator, while there is one: a closed lane lets go of it.
+   *
+   * A screen buffer is the largest thing Tade holds — ten thousand lines at
+   * the window's width is thirty megabytes of typed arrays per lane — and
+   * `dispose()` does not give it back, because the buffer stays reachable
+   * from the terminal object. A lane that closed can never be captured
+   * again (`live` throws first), so the reference is what has to go.
+   */
+  term: XTerm | null
   outputs: Set<LaneOutputListener>
   exits: Set<LaneExitListener>
   replay: Buffer[]
@@ -187,18 +196,20 @@ export class PtyDriver implements WorkspaceDriver {
     // screen where it was, to be read.
     if (previous && !previous.closed) {
       previous.closed = true
-      previous.term.dispose()
-      previous.outputs.clear()
-      previous.exits.clear()
+      release(previous)
     }
     this.lanes.set(spec.id, lane)
 
     pty.onData((data) => {
+      // Read off the lane rather than off the local: a closed lane has let
+      // its emulator go, and a closure holding the old one would keep every
+      // byte of it reachable for as long as the pty object lives.
+      if (lane.closed || !lane.term) return
       const buf = Buffer.from(data, 'utf8')
       lane.handle.lastOutputAt = Date.now()
       lane.encoding = encodingAfter(lane.tail + data, lane.encoding)
       lane.tail = data.slice(-TAIL)
-      term.write(data)
+      lane.term.write(data)
       lane.replay.push(buf)
       lane.replayBytes += buf.byteLength
       while (lane.replayBytes > this.opts.replayBytes && lane.replay.length > 1) {
@@ -310,9 +321,7 @@ export class PtyDriver implements WorkspaceDriver {
     } catch {
       // already gone
     }
-    lane.term.dispose()
-    lane.outputs.clear()
-    lane.exits.clear()
+    release(lane)
   }
 
   onOutput(id: LaneId, listener: LaneOutputListener, opts: { replay?: boolean } = {}): Unsubscribe {
@@ -352,11 +361,19 @@ export class PtyDriver implements WorkspaceDriver {
     this.lanes.clear()
   }
 
-  private live(id: LaneId): Lane {
+  /**
+   * The lane under an id, with the emulator it still has.
+   *
+   * A closed lane is kept — its id stays taken until something opens it
+   * again, and asking about one is `LaneClosedError` rather than a lane that
+   * was never there — but it has let go of everything heavy, so the narrowed
+   * type is what says the two facts are the same fact.
+   */
+  private live(id: LaneId): Lane & { term: XTerm } {
     const lane = this.lanes.get(id)
     if (!lane) throw new LaneNotFoundError(id)
-    if (lane.closed) throw new LaneClosedError(id)
-    return lane
+    if (lane.closed || !lane.term) throw new LaneClosedError(id)
+    return lane as Lane & { term: XTerm }
   }
 }
 
@@ -376,17 +393,29 @@ async function settled(term: XTerm, ms = FRAME_WAIT_MS): Promise<void> {
   const deadline = Date.now() + ms
   for (;;) {
     const left = Math.max(0, deadline - Date.now())
-    // A lane closed meanwhile never answers: the wait is bounded either way.
-    await Promise.race([
-      new Promise<void>((resolve) => {
-        try {
-          term.write('', resolve)
-        } catch {
-          resolve()
-        }
-      }),
-      new Promise((resolve) => setTimeout(resolve, left)),
-    ])
+    // The deadline is taken back the moment the parse wins the race, which is
+    // nearly every time. Left to expire on its own it is a timer and a closure
+    // per capture — and a capture is two of these per lane, several times a
+    // second, every one of them sitting in the timer list for the fifty
+    // milliseconds it takes to find out nobody needed it.
+    let late: NodeJS.Timeout | null = null
+    try {
+      // A lane closed meanwhile never answers: the wait is bounded either way.
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          try {
+            term.write('', resolve)
+          } catch {
+            resolve()
+          }
+        }),
+        new Promise((resolve) => {
+          late = setTimeout(resolve, left)
+        }),
+      ])
+    } finally {
+      if (late) clearTimeout(late)
+    }
     if (Date.now() >= deadline || !term.modes.synchronizedOutputMode) return
     await new Promise((resolve) => setTimeout(resolve, 2))
   }
@@ -446,6 +475,23 @@ const TAIL = 64
  * into a regular expression is usually somebody's mistake, and lint says so.
  */
 const PRIVATE_MODE = new RegExp(`${String.fromCharCode(27)}\\[\\?([0-9;]+)([hl])`, 'g')
+
+/**
+ * Everything a closed lane can never be asked for again.
+ *
+ * The record itself stays, so the id reads as closed rather than as missing,
+ * and so `open` can tell a lane it is replacing from one that was never
+ * there. What goes is what costs: the screen buffer, and the bytes kept to
+ * replay to a subscriber that will never arrive now.
+ */
+function release(lane: Lane): void {
+  lane.term?.dispose()
+  lane.term = null
+  lane.replay = []
+  lane.replayBytes = 0
+  lane.outputs.clear()
+  lane.exits.clear()
+}
 
 function safely(fn: () => void): void {
   try {

@@ -197,6 +197,25 @@ export function keeping(view: { scrolling?: LaneScrolling } | null): boolean {
 }
 
 /**
+ * Whether a view `back` lines up is clear of a live screen `live` tall, and so
+ * may be answered out of lines read before.
+ *
+ * `keeping` is this question about the alternate screen. This is the same
+ * question about the normal one, and it has the same answer for the same
+ * reason: a program rewriting the rows it is already on leaves the lane no
+ * deeper, so the lines held of those rows are a photograph of them, and every
+ * look finds the lines it already had. Above the live screen the rows have
+ * scrolled off, nothing can reach them again, and that is the part worth
+ * holding — which is the whole of what holding them was for.
+ *
+ * Not a rare shape, and not only agents: it is every progress bar, every
+ * spinner, every `npm install` in a terminal lane.
+ */
+export function settledAbove(back: number, live: number): boolean {
+  return back >= live
+}
+
+/**
  * The rows to draw out of what is held, or nothing when they are not all in
  * there. `back` is how far above the newest line the screen ends, and `at` is
  * how many lines the lane has now — grown since the read, if the agent has

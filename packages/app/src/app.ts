@@ -25,6 +25,7 @@ import {
   withTasks,
   withTerminals,
 } from './model.ts'
+import { FRAME_MS, lookWait, REPAINT_MS, SLOW_LOOK_MS } from './pace.ts'
 import { pointerSequence, pointerShapes, type Skin, skinFor } from './skin.ts'
 import { Router } from './wire/actions.ts'
 import { Agents } from './wire/agents.ts'
@@ -67,20 +68,6 @@ import { Window } from './wire/window.ts'
 // how it looks is in `view.ts`, and where the facts come from is in `live.ts`,
 // so all three can be tested without a terminal.
 
-/** How often a lane's screen is re-read when nothing has said it changed. */
-const FRAME_MS = 250
-
-/** How soon after a lane prints something it is looked at again. */
-const LOOK_SOON_MS = 8
-
-/** How long a screen the terminal wiped on its own stays dark, at most. */
-const REPAINT_MS = 2_000
-/**
- * A look at the tasks slower than this is worth knowing about: the window
- * looks every couple of seconds, so one this slow is already late for the next.
- */
-const SLOW_LOOK_MS = 2_000
-
 // `Thinker`, `WorkerImageFile` and `AppOptions` live in `wire/context.ts`,
 // with the `Wiring` the subjects are handed: what the window was opened with
 // is the first thing every one of them reaches for. Re-exported here so
@@ -98,6 +85,8 @@ export class App {
   private looking = false
   private lookAgain = false
   private soon: NodeJS.Timeout | null = null
+  /** When the last look started, by the real clock, as `tick` times one. */
+  private lookedAt = 0
   private live: Live | null = null
   private timer: NodeJS.Timeout | null = null
   /** When the whole screen was last written over itself. */
@@ -655,9 +644,9 @@ export class App {
   /**
    * Look again, one look at a time. Looks overlapping could finish out of
    * order, and a slow one finishing last would put back the screen the fast
-   * one had just replaced: a line blinking between two states, text from one
-   * frame interleaved with the next. Asked again while looking, it looks once
-   * more when it is done.
+   * one had just replaced: a line blinking, text from one frame interleaved
+   * with the next. Asked again while looking, it asks the way everything else
+   * asks — starting one here was a look the instant the last ended, no delay.
    */
   private async tick(): Promise<void> {
     if (this.stopped) return
@@ -669,6 +658,7 @@ export class App {
     // Timed by the clock, not the app's: how long a look really took is the
     // question, and a test's clock stands still.
     const started = Date.now()
+    this.lookedAt = started
     try {
       await this.look()
     } finally {
@@ -693,7 +683,7 @@ export class App {
     }
     if (this.lookAgain) {
       this.lookAgain = false
-      void this.tick()
+      this.soonTick()
     }
   }
 
@@ -723,10 +713,13 @@ export class App {
    */
   private soonTick(): void {
     if (this.soon || this.stopped) return
-    this.soon = setTimeout(() => {
-      this.soon = null
-      void this.tick()
-    }, LOOK_SOON_MS)
+    this.soon = setTimeout(
+      () => {
+        this.soon = null
+        void this.tick()
+      },
+      lookWait(Date.now() - this.lookedAt),
+    )
   }
 
   /** Start whatever queued work is ready, and say what is held. */

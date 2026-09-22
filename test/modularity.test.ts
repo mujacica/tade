@@ -256,6 +256,7 @@ describe('app.ts is wiring', () => {
  */
 const PURE = [
   'packages/app/src/frame.ts',
+  'packages/app/src/pace.ts',
   'packages/app/src/hits.ts',
   'packages/app/src/layout.ts',
   'packages/app/src/model.ts',

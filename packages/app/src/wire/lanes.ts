@@ -22,7 +22,7 @@ import { laneMenuItems, terminalMenuItems } from '../panels/menu/state.ts'
 import { findPanel, promptPanel } from '../panels/small/state.ts'
 import type { PointerEvent } from '../pointer.ts'
 import { initialRouter, pending, type RouterState, route } from '../router.ts'
-import { cutFrom, type HeldLines, keeping } from '../scroll.ts'
+import { cutFrom, type HeldLines, keeping, settledAbove } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { carded, rowsRead } from '../view/lane.ts'
@@ -124,8 +124,8 @@ export class Lanes implements Subject {
   private splitTerminalScreen = ''
   /** The lanes in front — the agent's, and the terminal's — watched so they redraw as they print. */
   private readonly watching = new Map<'pane' | 'terminal', { lane: string; stop: () => void }>()
-  /** The size each lane was last made, so resizing happens once per change. */
-  private readonly fitted = new Map<string, string>()
+  /** How each lane was last sized — once per change; its height, what may be rewritten. */
+  private readonly fitted = new Map<string, { cols: number; rows: number }>()
   /** A terminal's scrollback, read for finding in it. */
   private findText: { id: string; lines: string[] } | null = null
   private router: RouterState = initialRouter()
@@ -468,7 +468,10 @@ export class Lanes implements Subject {
    * appends, it never rewrites what it printed an hour ago. So a screen read
    * two thousand lines back is read once, and the wheel moving through it is
    * an array slice. What still has to be asked every look is the bottom,
-   * where the agent is typing, and that is the cheap end.
+   * where the agent is typing, and that is the cheap end — which is what
+   * `settledAbove` holds this to. Answering the bottom from held lines too, a
+   * lane repainting in place never gets deeper, so the pane froze on the first
+   * screen ever read of it and drew that for as long as you watched.
    */
   private async laneScreen(
     area: 'pane' | 'terminal',
@@ -489,7 +492,7 @@ export class Lanes implements Subject {
     if (at > 0 && this.wire.state[which] > most)
       this.wire.put({ ...this.wire.state, [which]: most })
     const back = this.wire.state[which]
-    const held = keeping(view) ? this.held.get(area) : undefined
+    const held = keeping(view) && this.settled(lane, back) ? this.held.get(area) : undefined
     if (held?.lane === lane && at >= held.at) {
       const cut = cutFrom(held, rows, back, at)
       if (cut !== null) return cut
@@ -555,6 +558,8 @@ export class Lanes implements Subject {
   reslice(area: 'pane' | 'terminal'): boolean {
     const held = this.held.get(area)
     if (!held) return false
+    // A notch onto the live screen is answered by reading it, not from held.
+    if (!this.settled(held.lane, this.wire.state[SCROLL_OF[area]])) return false
     const view = area === 'pane' ? this.paneView : this.terminalView
     const cut = cutFrom(
       held,
@@ -566,6 +571,12 @@ export class Lanes implements Subject {
     if (area === 'pane') this.screen = cut
     else this.terminalScreen = cut
     return true
+  }
+
+  /** `settledAbove`, against the screen this lane was actually made. */
+  private settled(lane: string, back: number): boolean {
+    const live = this.fitted.get(lane)?.rows
+    return live === undefined ? false : settledAbove(back, live)
   }
 
   /** How many rows of a lane are on screen: what a capture is cut to. */
@@ -777,9 +788,9 @@ export class Lanes implements Subject {
    * so the pane decides, once per size, not every frame.
    */
   private async fitLane(lane: string, size: { cols: number; rows: number }): Promise<void> {
-    const want = `${size.cols}x${size.rows}`
-    if (this.fitted.get(lane) === want) return
-    this.fitted.set(lane, want)
+    const was = this.fitted.get(lane)
+    if (was?.cols === size.cols && was.rows === size.rows) return
+    this.fitted.set(lane, { cols: size.cols, rows: size.rows })
     await this.wire.opts.client.resize(lane as LaneId, size.cols, size.rows).catch(() => {
       // A lane that just ended cannot be resized; the next tick will not ask.
     })
