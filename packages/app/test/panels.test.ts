@@ -1,6 +1,7 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
+import { listStart } from '../src/panels/cells.ts'
 import {
   extensionSetupPanel,
   extensionViewPanel,
@@ -14,7 +15,6 @@ import {
   extensionEntries,
   extensionsPanel,
   HARNESS,
-  listStart,
   toolSummary,
   WRITTEN,
   watchControl,

@@ -5,17 +5,11 @@ import { linkedRow } from '../../links.ts'
 import { BAR } from '../../scrollbar.ts'
 import { blank, box, type Drawn, NO_POINTER, Row } from '../../ui.ts'
 import { markdownLines } from '../../viewer.ts'
-import { bar, cap, count, fitTo, sideWidth, withFocus } from '../cells.ts'
+import { bar, cap, count, fitTo, listStart, sideWidth, withFocus } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
 import { type ExtensionFacts, extensionBody } from './body.ts'
 import { type ExtensionSetupPanel, type ExtensionViewPanel, setupControls } from './setup.ts'
-import {
-  chosenEntry,
-  type ExtensionsPanel,
-  extensionControls,
-  extensionEntries,
-  listStart,
-} from './state.ts'
+import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries } from './state.ts'
 
 // What the Extensions page looks like: the list down the side, one of them in
 // full beside it, and the two panels that open out of it. What it says about

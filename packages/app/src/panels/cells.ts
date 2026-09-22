@@ -32,6 +32,22 @@ export function bar(
   return barRows(view, ctx.skin, held).map((cell) => ({ cell, target }))
 }
 
+/**
+ * The first row of a list to draw: where it was scrolled to, moved as far as
+ * it must to keep the row you are on in view.
+ *
+ * Which is the whole rule, in one place: whoever scrolls reads where they
+ * like, and the keyboard moving the choice brings the list back to it —
+ * because a choice you cannot see is a choice you did not make.
+ */
+export function listStart(scroll: number, total: number, room: number, chosen: number): number {
+  const most = Math.max(0, total - room)
+  let from = Math.max(0, Math.min(scroll, most))
+  if (chosen >= from + room) from = Math.min(most, chosen - room + 1)
+  if (chosen < from) from = chosen
+  return Math.max(0, Math.min(from, most))
+}
+
 /** `8 tools`, `1 watch`: a count said the way somebody would say it. */
 export function count(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`

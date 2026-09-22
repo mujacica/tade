@@ -4,26 +4,26 @@
                      ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮─────────────────────
  ▌ ! stripe-v15      │   ‹    ›    ↑    ~ / src                          ▏filter, or a path       │                     
  ▌   wants you to app│                                                                            │                     
-                     │ RECENT                                                                    ▕│                     
-   ⠋ refunds         │ ● checkout     ~/src/checkout              2h ago                         ▕│                     
-     working         │ ● tade         ~/tade                      4 days ago                     ▕│                     
-                     │ FOLDERS                                                                   ▕│                     
- ▸ SMART QUEUE       │ ◆ this folder                              no git                         ▕│                     
- ▾ CHANGES  3        │▌▸ payments/                                git · main                   › ▕│                     
-  M package.json     │ ▸ payroll/                                 no git                       › ▕│                     
-  A …/webhooks.test.t│ ▸ search/                                  git · main                   › ▕│                     
-  M src/webhooks.ts  │                                                                           ▕│                     
-                     │                                                                           ▕│                     
- ▾ FILES             │                                                                           ▕│                     
-   ▾ src/            │                                                                           ▕│                     
-       webhooks.test.│                                                                           ▕│                     
-       webhooks.ts   │                                                                           ▕│                     
-   ▸ test/           │                                                                           ▕│                     
-     package.json    │                                                                           ▕│                     
+                     │ ▸ edge-cache/                                no git                     › ▕│                     
+   ⠋ refunds         │ ▸ fulfilment/                                no git                     › ▕│                     
+     working         │ ▸ gateway/                                   git · main                 › ▕│                     
+                     │ ▸ identity/                                  no git                     › ▕│                     
+ ▸ SMART QUEUE       │ ▸ invoices/                                  no git                     › ▕│                     
+ ▾ CHANGES  3        │ ▸ ledger/                                    git · main                 › ▕│                     
+  M package.json     │ ▸ mailer/                                    no git                     › █│                     
+  A …/webhooks.test.t│▌▸ notifications/                             no git                     › █│                     
+  M src/webhooks.ts  │ ▸ onboarding/                                git · main                 › █│                     
+                     │ ▸ payments/                                  no git                     › █│                     
+ ▾ FILES             │ ▸ payroll/                                   no git                     › █│                     
+   ▾ src/            │ ▸ pricing/                                   git · main                 › █│                     
+       webhooks.test.│ ▸ refunds/                                   no git                     › █│                     
+       webhooks.ts   │ ▸ reporting/                                 no git                     › █│                     
+   ▸ test/           │ ▸ search/                                    git · main                 › █│                     
+     package.json    │ ▸ shipping/                                  no git                     › ▕│                     
      README.md       │                                                                            │                     
-━   orchestrator     │                                                                            │━━━━━━━   ⤢     ▾   ━
-                     │                                                                            │                     
-                     │ Name   payments                           Cancel     Open ~/src/payments   │                    ▕
+━   orchestrator     │ ▲ notifications has no git.                                                │━━━━━━━   ⤢     ▾   ━
+                     │   ■ git init, committing what's there                                      │                     
+                     │ Name   notifications                 Cancel     Open ~/src/notifications   │                    ▕
                      │ → in · ← up · tab completes · enter opens                                  │                    ▕
                      ╰────────────────────────────────────────────────────────────────────────────╯                    ▕
                                                                                                                        ▕

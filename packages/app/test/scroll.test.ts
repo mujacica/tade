@@ -324,3 +324,38 @@ describe('what a notch costs', () => {
     }
   })
 })
+
+// The project picker was the last region in the window scrolling its own way,
+// and its own way was nothing at all: it kept no offset, drew no bar, and the
+// wheel over it fell through to the branch that presses the down key — so a
+// notch moved what was *chosen*, wrapping from the last row back to the first.
+describe('the project picker', () => {
+  const listed = SCENARIOS.find((one) => one.name === 'open-project-a-long-list')
+  if (!listed) throw new Error('the scenario is gone')
+  const hits = draw(listed.state, listed.frame).hits
+  const reach = reachOf(hits, 'panel')
+
+  it('says how far it goes on the bar beside it, like every other region', () => {
+    expect(scrollable(reach)).toBe(true)
+    // What the bar says is in view is exactly the rows the list drew — one
+    // cell of bar beside each of them — and never the room the panel took.
+    const cells = hits.filter(
+      (hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'panel',
+    ).length
+    expect(reach.shown).toBe(cells)
+    expect(reach.total).toBeGreaterThan(reach.shown)
+  })
+
+  it('answers a notch by moving what is in view, never what is chosen', () => {
+    const top = { ...listed.state, panel: { ...listed.state.panel, scroll: 0 } } as AppState
+    const moved = scrollBy(top, 'panel', NOTCH, reach)
+    expect(moved.panel).toMatchObject({ kind: 'open-project', index: 14, scroll: NOTCH })
+  })
+
+  it('stops at both ends rather than counting on past them', () => {
+    const end = scrollBy(listed.state, 'panel', 999, reach)
+    expect(end.panel && 'scroll' in end.panel ? end.panel.scroll : null).toBe(endOf(reach))
+    const top = scrollBy(end, 'panel', -999, reach)
+    expect(top.panel && 'scroll' in top.panel ? top.panel.scroll : null).toBe(0)
+  })
+})

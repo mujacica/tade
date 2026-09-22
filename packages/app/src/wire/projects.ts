@@ -14,13 +14,16 @@ import {
   ago,
   branchOf,
   browsing,
+  expand,
   initialise,
   isPath,
   isRepo,
   listFolders,
+  makeFolder,
   noteRecent,
   readRecents,
   recentProjects,
+  whatIsAt,
 } from '../projects.ts'
 import { addProject } from '../settings.ts'
 import {
@@ -92,9 +95,14 @@ export class Projects implements Subject {
   }
 
   /**
-   * The Open project list: the folder being looked in and the folders in it,
-   * then the recent projects. Typing narrows both; a typed path looks in that
-   * path instead.
+   * The Open project list: the projects Tade already knows, then the folder
+   * being looked in and the folders in it — and, where what was typed is a
+   * path nothing is at, the offer to make it.
+   *
+   * The recent ones come first because opening a project you have is what
+   * this panel is mostly for. A typed path leaves them out altogether: a
+   * query that says where to look is not a query about them, and matching
+   * every one of them against it put a dozen rows above the folder asked for.
    */
   private rowsFor(panel: OpenProjectPanel): OpenRowView[] {
     const key = `${panel.dir}\x00${panel.query}`
@@ -113,25 +121,32 @@ export class Projects implements Subject {
           path: folder.path,
           git: folder.git !== null,
         }))
-      const here = {
-        kind: 'here' as const,
-        name: basename(dir) || dir,
-        path: dir,
-        git: isRepo(dir),
-      }
-      const recent = recentProjects(
-        readRecents(this.wire.opts.home),
-        this.wire.opts.config.projects,
-      )
-        .filter((entry) => matches(`${entry.name} ${entry.root}`))
-        .slice(0, 12)
-        .map((entry) => ({
-          kind: 'recent' as const,
-          name: entry.name,
-          path: expandHome(entry.root),
-          git: true,
-        }))
-      this.cache = { key, rows: [here, ...folders, ...recent], browsing: dir }
+      // The folder being looked in, where it is one: a path typed a character
+      // at a time is a folder that does not exist yet for most of the typing.
+      const here =
+        whatIsAt(dir) === 'folder'
+          ? [{ kind: 'here' as const, name: basename(dir) || dir, path: dir, git: isRepo(dir) }]
+          : []
+      // Somewhere to work that is not there yet. Offered only where nothing at
+      // all is at the path — a file in the way is not a folder to create, and
+      // nothing here ever writes over what somebody already has.
+      const full = path ? expand(panel.query, panel.dir) : ''
+      const fresh =
+        path && basename(full) !== '' && whatIsAt(full) === 'nothing'
+          ? [{ kind: 'new' as const, name: basename(full), path: full, git: false }]
+          : []
+      const recent = path
+        ? []
+        : recentProjects(readRecents(this.wire.opts.home), this.wire.opts.config.projects)
+            .filter((entry) => matches(`${entry.name} ${entry.root}`))
+            .slice(0, 12)
+            .map((entry) => ({
+              kind: 'recent' as const,
+              name: entry.name,
+              path: expandHome(entry.root),
+              git: true,
+            }))
+      this.cache = { key, rows: [...recent, ...fresh, ...here, ...folders], browsing: dir }
       for (const row of this.cache.rows) {
         if (row.git && !this.branches.has(row.path)) {
           this.branches.set(row.path, null)
@@ -158,8 +173,15 @@ export class Projects implements Subject {
   }
 
   /**
-   * Open what was chosen: go to a project Tade knows, or add a folder as one —
-   * making it a repository first if it is not, and you said to.
+   * Open what was chosen: go to a project Tade knows, or make a folder into
+   * one — creating it where it is not there yet, and making it a repository
+   * where it is not one.
+   *
+   * What is true at this moment decides, never what the row said when it was
+   * drawn: a folder can appear under us while somebody is typing a name for
+   * it, and one that has turned up with git already in it is opened rather
+   * than initialised. Nothing here writes over anything — the folder is only
+   * made where nothing at all is at the path.
    */
   private async open(panel: OpenProjectPanel): Promise<void> {
     const chosen = this.rowsFor(panel)[panel.index]?.row
@@ -178,8 +200,14 @@ export class Projects implements Subject {
     if (this.wire.opts.config.projects[name])
       return fail(`There is already a project called ${name}. Choose another name.`)
     try {
-      if (!chosen.git) {
-        if (!panel.init)
+      const there = whatIsAt(chosen.path)
+      if (there === 'something') return fail(`${tilde(chosen.path)} is not a folder.`)
+      if (there === 'nothing') makeFolder(chosen.path)
+      if (!isRepo(chosen.path)) {
+        // The tick box is the choice about a folder that is already there and
+        // has things in it. A folder Tade has just made has nothing to commit
+        // and no choice to offer: git is what Tade needs to work at all.
+        if (there === 'folder' && !panel.init)
           return fail('Tade needs git to start work here. Tick git init, or choose another folder.')
         await initialise(chosen.path)
       }

@@ -8,7 +8,7 @@ import {
   thinkingMenuItems,
 } from '../../../src/panels/menu/state.ts'
 import { modelPanel } from '../../../src/panels/models/state.ts'
-import { openProjectPanel } from '../../../src/panels/project/state.ts'
+import { type OpenRowView, openProjectPanel } from '../../../src/panels/project/state.ts'
 import {
   closeDonePanel,
   confirmRemovePanel,
@@ -22,6 +22,70 @@ import { base, finished, frame, type Scenario, utcDate } from './fixtures.ts'
 // A menu is opened on one thing — an agent, a file, a change, a branch — and
 // a panel is a page you are taken to and come back from. They are together
 // because they are the same act: something you asked for, over everything else.
+
+/** A row of the Open project list, as the window would have found it. */
+const folder = (
+  kind: 'here' | 'folder' | 'new',
+  path: string,
+  name: string,
+  git: boolean,
+): OpenRowView => ({
+  row: { kind, name, path, git },
+  branch: git ? 'main' : null,
+  tasks: 0,
+  when: null,
+})
+
+/** The projects Tade already knows, which head the list. */
+const recents = (): OpenRowView[] => [
+  {
+    row: { kind: 'recent', name: 'checkout', path: '/Users/me/src/checkout', git: true },
+    branch: 'main',
+    tasks: 3,
+    when: '2h ago',
+  },
+  {
+    row: { kind: 'recent', name: 'tade', path: '/Users/me/tade', git: true },
+    branch: 'main',
+    tasks: 0,
+    when: '4 days ago',
+  },
+]
+
+/** The folder being looked in and what is in it. */
+const here = (): OpenRowView[] => [
+  ...recents(),
+  folder('here', '/Users/me/src', 'src', false),
+  folder('folder', '/Users/me/src/payments', 'payments', true),
+  folder('folder', '/Users/me/src/payroll', 'payroll', false),
+  folder('folder', '/Users/me/src/search', 'search', true),
+]
+
+/** More folders than any list has room for. */
+const MANY = [
+  'analytics',
+  'billing',
+  'checkout',
+  'dashboard',
+  'edge-cache',
+  'fulfilment',
+  'gateway',
+  'identity',
+  'invoices',
+  'ledger',
+  'mailer',
+  'notifications',
+  'onboarding',
+  'payments',
+  'payroll',
+  'pricing',
+  'refunds',
+  'reporting',
+  'search',
+  'shipping',
+  'subscriptions',
+  'webhooks',
+]
 
 export const PANEL_SCREENS: Scenario[] = [
   {
@@ -238,56 +302,70 @@ export const PANEL_SCREENS: Scenario[] = [
   {
     name: 'open-project',
     about:
-      'Opening a project: a folder browser from home, recent projects beside it, git offered where there is none.',
+      'Opening a project: one list of the projects Tade knows and the folders it is looking in, git offered where there is none.',
     state: {
       ...base(),
       panel: {
         ...openProjectPanel('/Users/me/src'),
         back: ['/Users/me'],
-        index: 2,
+        index: 3,
       },
+    },
+    frame: frame({ panel: { browsing: '/Users/me/src', homeDir: '/Users/me', openRows: here() } }),
+  },
+  {
+    name: 'open-project-as-it-opens',
+    about:
+      'The picker as it opens: nothing typed, nothing chosen, and the projects you have at the top of the list.',
+    state: { ...base(), panel: openProjectPanel('/Users/me') },
+    frame: frame({
+      panel: {
+        browsing: '/Users/me',
+        homeDir: '/Users/me',
+        openRows: [
+          ...recents(),
+          folder('here', '/Users/me', 'me', false),
+          folder('folder', '/Users/me/Documents', 'Documents', false),
+          folder('folder', '/Users/me/src', 'src', false),
+          folder('folder', '/Users/me/tade', 'tade', true),
+        ],
+      },
+    }),
+  },
+  {
+    name: 'open-project-a-folder-to-make',
+    about:
+      'A path typed that is not there: the offer to make it, git it and open it, chosen and named.',
+    state: {
+      ...base(),
+      panel: { ...openProjectPanel('/Users/me/src'), query: '~/src/refunds-api', index: 0 },
     },
     frame: frame({
       panel: {
         browsing: '/Users/me/src',
         homeDir: '/Users/me',
         openRows: [
-          {
-            row: { kind: 'here', name: 'src', path: '/Users/me/src', git: false },
-            branch: null,
-            tasks: 0,
-            when: null,
-          },
-          {
-            row: { kind: 'folder', name: 'payments', path: '/Users/me/src/payments', git: true },
-            branch: 'main',
-            tasks: 0,
-            when: null,
-          },
-          {
-            row: { kind: 'folder', name: 'payroll', path: '/Users/me/src/payroll', git: false },
-            branch: null,
-            tasks: 0,
-            when: null,
-          },
-          {
-            row: { kind: 'folder', name: 'search', path: '/Users/me/src/search', git: true },
-            branch: 'main',
-            tasks: 0,
-            when: null,
-          },
-          {
-            row: { kind: 'recent', name: 'checkout', path: '/Users/me/src/checkout', git: true },
-            branch: 'main',
-            tasks: 3,
-            when: '2h ago',
-          },
-          {
-            row: { kind: 'recent', name: 'tade', path: '/Users/me/tade', git: true },
-            branch: 'main',
-            tasks: 0,
-            when: '4 days ago',
-          },
+          folder('new', '/Users/me/src/refunds-api', 'refunds-api', false),
+          folder('here', '/Users/me/src', 'src', false),
+        ],
+      },
+    }),
+  },
+  {
+    name: 'open-project-a-long-list',
+    about: 'More folders than fit: the list scrolls on its own bar, like everything else.',
+    state: {
+      ...base(),
+      panel: { ...openProjectPanel('/Users/me/src'), index: 14, scroll: 9 },
+    },
+    frame: frame({
+      panel: {
+        browsing: '/Users/me/src',
+        homeDir: '/Users/me',
+        openRows: [
+          ...recents(),
+          folder('here', '/Users/me/src', 'src', false),
+          ...MANY.map((name, i) => folder('folder', `/Users/me/src/${name}`, name, i % 3 === 0)),
         ],
       },
     }),

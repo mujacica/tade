@@ -1,6 +1,7 @@
 // Type-only, so the pure panel model never loads the extension host behind it.
 import type { LoadedExtension } from '@tade/extensions-core'
 import type { PanelInputs } from '../../panels.ts'
+import { listStart } from '../cells.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The extensions this window runs with, the servers it brokers, and setting
@@ -346,22 +347,6 @@ function matchesSearch(text: string, search: string): boolean {
   if (words.length === 0) return true
   const haystack = text.toLowerCase()
   return words.every((word) => haystack.includes(word))
-}
-
-/**
- * The first row of a list to draw: where it was scrolled to, moved as far as
- * it must to keep the row you are on in view.
- *
- * Which is the whole rule, in one place: whoever scrolls reads where they
- * like, and the keyboard moving the choice brings the list back to it —
- * because a choice you cannot see is a choice you did not make.
- */
-export function listStart(scroll: number, total: number, room: number, chosen: number): number {
-  const most = Math.max(0, total - room)
-  let from = Math.max(0, Math.min(scroll, most))
-  if (chosen >= from + room) from = Math.min(most, chosen - room + 1)
-  if (chosen < from) from = chosen
-  return Math.max(0, Math.min(from, most))
 }
 
 /** Which entry the panel is on: what was chosen, or the first one there is. */

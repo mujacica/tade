@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import { git } from '@tade/status'
@@ -114,6 +114,33 @@ export function listFolders(dir: string, prefix: string, limit = 30): Folder[] {
       const path = join(dir, name)
       return { name, path, git: isRepo(path) ? { branch: null } : null }
     })
+}
+
+/**
+ * What is at a path: a folder to work in, something else in the way, or
+ * nothing at all — which is the one case Tade may make a folder in.
+ *
+ * One answer rather than two predicates, because the three cases are what the
+ * decision actually is: a file where a project was typed must fail loudly
+ * rather than be offered as a folder to create.
+ */
+export function whatIsAt(path: string): 'folder' | 'something' | 'nothing' {
+  try {
+    return statSync(path).isDirectory() ? 'folder' : 'something'
+  } catch {
+    return 'nothing'
+  }
+}
+
+/**
+ * Make a folder to work in, and the folders above it that are missing.
+ *
+ * Only ever called for a path nothing is at — `recursive` is what makes the
+ * parents, and it is also what makes this refuse a path with a file at it
+ * rather than write over one.
+ */
+export function makeFolder(path: string): void {
+  mkdirSync(path, { recursive: true })
 }
 
 /** Whether a folder is the top of a git repository. */

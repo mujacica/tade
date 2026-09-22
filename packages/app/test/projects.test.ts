@@ -1,20 +1,28 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { git } from '@tade/status'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { nameFrom, openProjectPanel } from '../src/panels/project/state.ts'
+import {
+  completedQuery,
+  nameFrom,
+  type OpenRow,
+  openProjectPanel,
+} from '../src/panels/project/state.ts'
 import { panelClick, panelKey } from '../src/panels.ts'
 import {
   ago,
   branchOf,
   browsing,
+  expand,
   initialise,
   isPath,
   listFolders,
+  makeFolder,
   noteRecent,
   readRecents,
   recentProjects,
+  whatIsAt,
 } from '../src/projects.ts'
 
 // Finding a project to open, against a real disk and real git.
@@ -140,5 +148,149 @@ describe('the Open project panel', () => {
     const typed = panelKey(at('/src'), undefined, 'pay', { rows }).panel
     expect(typed).toMatchObject({ query: 'pay', dir: '/src' })
     expect(panelKey(at('/src/pay'), 'backspace', '', { rows }).panel).toMatchObject({ dir: '/src' })
+  })
+})
+
+describe('a folder that is not there yet', () => {
+  it('tells a folder from something in the way from nothing at all', () => {
+    const root = tmp('tade-there-')
+    mkdirSync(join(root, 'payroll'))
+    writeFileSync(join(root, 'notes.txt'), 'not a folder')
+    expect(whatIsAt(join(root, 'payroll'))).toBe('folder')
+    expect(whatIsAt(join(root, 'notes.txt'))).toBe('something')
+    expect(whatIsAt(join(root, 'nowhere'))).toBe('nothing')
+  })
+
+  it('is made, git inited and ready for an agent to branch from', async () => {
+    const root = tmp('tade-make-')
+    const path = join(root, 'deep', 'refunds-api')
+    makeFolder(path)
+    await initialise(path)
+    expect(whatIsAt(path)).toBe('folder')
+    expect(await branchOf(path)).toBe('main')
+    expect(nameFrom(path)).toBe('refunds-api')
+  })
+
+  it('leaves what is already there exactly as it was', () => {
+    const root = tmp('tade-keep-')
+    const path = join(root, 'payroll')
+    mkdirSync(path)
+    writeFileSync(join(path, 'README.md'), '# payroll\n')
+    makeFolder(path)
+    expect(readFileSync(join(path, 'README.md'), 'utf8')).toBe('# payroll\n')
+  })
+
+  it('expands what was typed the way the list does', () => {
+    const root = tmp('tade-expand-')
+    expect(expand(`${root}/refunds-api`, '/')).toBe(join(root, 'refunds-api'))
+    expect(browsing(`${root}/refunds-api`, '/').dir).toBe(root)
+  })
+})
+
+describe('finishing a path with tab', () => {
+  const folders = (...names: string[]): OpenRow[] =>
+    names.map((name) => ({ kind: 'folder', name, path: `/src/${name}`, git: false }))
+  const at = (query: string) => ({ ...openProjectPanel('/src'), query })
+
+  it('adds what every folder that could be meant shares', () => {
+    expect(completedQuery(at('~/src/p'), folders('payments', 'payroll'))).toBe('~/src/pay')
+    expect(completedQuery(at('~/src/payr'), folders('payments', 'payroll'))).toBe('~/src/payroll')
+    expect(completedQuery(at('~/src/payr'), folders('payroll'))).toBe('~/src/payroll')
+    expect(completedQuery(at('~/src/'), folders('payments'))).toBe('~/src/payments')
+    // Everything they share is already typed: there is nothing to add, so tab
+    // is free to be the key that moves between the fields.
+    expect(completedQuery(at('~/src/pay'), folders('payments', 'payroll'))).toBeNull()
+  })
+
+  it('finishes in the disk’s own spelling, not the one that was typed', () => {
+    // `~/src/Pay` + the rest of `payments` would be `~/src/Payments`, which on
+    // a case-sensitive disk opens nothing at all.
+    expect(completedQuery(at('~/src/Pay'), folders('payments'))).toBe('~/src/payments')
+  })
+
+  it('has nothing to say about a name being matched against the list', () => {
+    expect(completedQuery(at('pay'), folders('payments'))).toBeNull()
+    expect(completedQuery(at('~/src/payroll'), folders('payroll'))).toBeNull()
+    expect(completedQuery(at('~/src/zz'), folders('payments'))).toBeNull()
+  })
+})
+
+describe('the Open project keys', () => {
+  const rows: OpenRow[] = [
+    { kind: 'recent', name: 'tade', path: '/me/tade', git: true },
+    { kind: 'here', name: 'src', path: '/src', git: false },
+    { kind: 'folder', name: 'payments', path: '/src/payments', git: true },
+  ]
+  const at = (over: Partial<ReturnType<typeof openProjectPanel>> = {}) => ({
+    ...openProjectPanel('/src'),
+    ...over,
+  })
+
+  it('never wraps round the ends, because the wheel used to press these keys', () => {
+    expect(panelKey(at({ index: 2 }), 'down', '', { rows }).panel).toMatchObject({ index: 2 })
+    expect(panelKey(at({ index: 0 }), 'up', '', { rows }).panel).toMatchObject({ index: 0 })
+    // From nothing chosen, either end is a sensible place to start.
+    expect(panelKey(at(), 'down', '', { rows }).panel).toMatchObject({ index: 0 })
+    expect(panelKey(at(), 'up', '', { rows }).panel).toMatchObject({ index: 2 })
+  })
+
+  it('goes to either end', () => {
+    expect(panelKey(at({ index: 2 }), 'home', '', { rows }).panel).toMatchObject({ index: 0 })
+    expect(panelKey(at({ index: 0 }), 'end', '', { rows }).panel).toMatchObject({ index: 2 })
+  })
+
+  it('still looks around from the tick box, which used to swallow every key', () => {
+    const panel = at({ index: 1, field: 'init' })
+    expect(panelKey(panel, 'down', '', { rows }).panel).toMatchObject({ index: 2, field: 'init' })
+    expect(panelKey(panel, 'space', ' ', { rows }).panel).toMatchObject({ init: false })
+  })
+
+  it('clears a field with ctrl+u, as the settings fields do', () => {
+    expect(panelKey(at({ query: '~/src/pay' }), 'ctrl+u', '', { rows }).panel).toMatchObject({
+      query: '',
+    })
+    expect(
+      panelKey(at({ index: 2, field: 'name', name: 'payments' }), 'ctrl+u', '', { rows }).panel,
+    ).toMatchObject({ name: '' })
+  })
+
+  it('takes a pasted path whole, markers and trailing newline and all', () => {
+    const pasted = panelKey(at(), undefined, '\x1b[200~/Users/me/src/pay\n\x1b[201~', { rows })
+    expect(pasted.panel).toMatchObject({ query: '/Users/me/src/pay' })
+  })
+
+  it('completes the path on tab, and moves between the fields once it cannot', () => {
+    const completed = panelKey(at({ query: '~/src/pay' }), 'tab', '\t', {
+      rows: [{ kind: 'folder', name: 'payments', path: '/src/payments', git: false }],
+    })
+    expect(completed.panel).toMatchObject({ query: '~/src/payments', field: 'query' })
+    expect(panelKey(at({ index: 0 }), 'tab', '\t', { rows }).panel).toMatchObject({ field: 'name' })
+  })
+
+  it('offers a folder that is not there as a row like any other', () => {
+    const fresh: OpenRow[] = [
+      { kind: 'new', name: 'refunds-api', path: '/src/refunds-api', git: false },
+    ]
+    const chosen = panelKey(at({ query: '~/src/refunds-api' }), 'down', '', { rows: fresh }).panel
+    expect(chosen).toMatchObject({ index: 0 })
+    const outcome = chosen ? panelKey(chosen, 'enter', '\r', { rows: fresh }) : null
+    expect(outcome?.submit).toBe(true)
+    // There is nothing in it to commit, so it never asks about committing it:
+    // tab goes straight past the tick box.
+    expect(chosen ? panelKey(chosen, 'tab', '\t', { rows: fresh }).panel : null).toMatchObject({
+      field: 'name',
+    })
+  })
+
+  it('has nothing to go into where a folder is not there yet', () => {
+    const fresh: OpenRow[] = [
+      { kind: 'new', name: 'refunds-api', path: '/src/refunds-api', git: false },
+    ]
+    expect(panelKey(at({ index: 0 }), 'right', '', { rows: fresh }).panel).toMatchObject({
+      dir: '/src',
+    })
+    expect(panelClick(at({ index: 0 }), 'into:0', { rows: fresh }).panel).toMatchObject({
+      dir: '/src',
+    })
   })
 })

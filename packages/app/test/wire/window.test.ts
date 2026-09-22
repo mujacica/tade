@@ -74,6 +74,19 @@ describe('the window, remembering itself', () => {
       terminal.written = ''
       click(folder.col, folder.row)
       await until('the folder to be opened', () => terminal.written.includes('no folders here'))
+
+      // Somewhere to work that is not there yet: typed as a path, offered as a
+      // row, and named from its own last segment. What pressing it does to the
+      // disk is `a folder that is not there yet` in projects.test.ts — here it
+      // is that the offer reaches the screen at all, which is what somebody
+      // who knows where they want to work could not do before.
+      terminal.written = ''
+      terminal.press(`${folders}/refunds-api`)
+      await until('the offer to make it', () => terminal.written.includes('create · git init'))
+      terminal.written = ''
+      terminal.press('\x1b[B')
+      await until('it to be chosen', () => terminal.written.includes('Create '))
+      expect(terminal.written).toContain('refunds-api')
     } finally {
       process.env.HOME = was
     }
