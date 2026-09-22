@@ -14,7 +14,7 @@ describe('the window, and the lanes in it', () => {
     client = wired.client
   })
 
-  it('scrolls a terminal with the wheel, by the lines the terminal counted', async () => {
+  it('scrolls a terminal with the wheel, a line a notch in a run and never past the end', async () => {
     const opened = await client.openTerminal({ project: 'app' })
     // Enough printed that there is scrollback to read back through.
     // Counted in the shell rather than with `seq`, which is one more program
@@ -45,10 +45,39 @@ describe('the window, and the lanes in it', () => {
       return seen.length === 0 ? 0 : Math.max(...seen)
     }
 
+    /**
+     * Where a flick came to rest, rather than where it was passing through.
+     *
+     * Notches are answered one at a time, and the ones that reach above the
+     * lines the window holds are answered by asking the driver, which lands a
+     * frame or two later. `until` answers on the first look that passes, so
+     * that look can be a screen the notches behind it are about to move
+     * again — which is what read as a notch that did nothing on the way back.
+     * Only a screen that has stopped moving, and stopped where it was going,
+     * says where a flick ended.
+     */
+    const rested = async (what: string, there: (line: number) => boolean) => {
+      let was = -1
+      let quiet = 0
+      await until(
+        what,
+        () => {
+          const now = newest()
+          quiet = now === was ? quiet + 1 : 0
+          was = now
+          return quiet >= 20 && there(now)
+        },
+        20_000,
+      )
+      return was
+    }
+
     // Twenty notches of the wheel up, as a terminal in SGR mouse mode sends
-    // them. Arriving in a run they are a finger on a trackpad, which reports
-    // a notch a line — so they are worth twenty-odd lines, not the sixty that
-    // three rows a notch used to make of them.
+    // them. What a terminal reports is a notch and nothing else — pi-tui
+    // counts every one of them as one line — so how far one goes is the
+    // rate's to say, and arriving in a run this fast they are a finger
+    // travelling: a line each, twenty-odd lines, not the sixty that three
+    // rows a notch used to make of them.
     const wheelUp = `\x1b[<64;10;${shell + 1}M`
     for (let i = 0; i < 20; i++) terminal.press(wheelUp)
     await until('the terminal scrolled back', () => newest() < 400)
@@ -72,11 +101,12 @@ describe('the window, and the lanes in it', () => {
     expect(reads).toBeLessThan(2)
 
     // And it stops at the oldest line there is rather than counting on past
-    // it: an offset that ran off the end used to buy a handful of notches
-    // that did nothing on the way back.
+    // it: every notch is clamped to what the last frame said the region
+    // reaches, so nine hundred of them leave nothing owed at the top — and
+    // one notch the other way moves straight away rather than spending a
+    // handful that do nothing.
     for (let i = 0; i < 900; i++) terminal.press(wheelUp)
-    await until('the oldest line there is', () => newest() < 20)
-    const top = newest()
+    const top = await rested('the oldest line there is', (line) => line < 20)
     terminal.press(`\x1b[<65;10;${shell + 1}M`)
     await until('one notch down moving straight away', () => newest() > top)
   }, 30_000)

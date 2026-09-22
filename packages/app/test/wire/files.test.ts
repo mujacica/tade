@@ -69,9 +69,14 @@ describe('the window, and the file you have open', () => {
     const file = find('README.md')
     terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}M`)
     terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}m`)
-    await until('the menu', () => terminal.written.includes('Reveal in Finder'))
+    // Waited for by something every machine draws: the item this test is
+    // about is named for what will open it, so it says `Reveal in Finder`
+    // only where there is a Finder. Waiting for that wording waited for ever
+    // on Linux — where the menu was already up, saying `Show in its folder` —
+    // and a wait that times out says nothing about why.
+    await until('the menu', () => terminal.written.includes('Copy relative path'))
 
-    const item = find('Reveal in Finder')
+    const item = find(process.platform === 'darwin' ? 'Reveal in Finder' : 'Show in its folder')
     click(item.col + 2, item.row)
     await until('the opener it would have run', () => opened.length > 0)
     // FILES resolves against the agent's worktree, so this is the very path

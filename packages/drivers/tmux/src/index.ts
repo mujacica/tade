@@ -645,6 +645,16 @@ export class TmuxDriver implements WorkspaceDriver {
    * exit code nobody knows, where 3.7 and macOS never showed a gap at all.
    * So the pane says *that* it ended, the status says *what with*, and a lane
    * is not reported exited on the first of those alone.
+   *
+   * And sometimes there is no second thing coming, because tmux never waited
+   * on the child at all: on that same 3.4, under load, the command is left a
+   * zombie of tmux's own and nothing ever looks at it again — eleven runs in
+   * sixty, measured, and no amount of waiting changed one of them. A pane
+   * that has died and said nothing is therefore *told to look again*
+   * (`lookAgain`), which in every one of those eleven produced the status on
+   * the next poll. tmux still does the waiting and tmux still says what it
+   * found; all this does is say there is something to wait on. The grace
+   * below stays the last word, for an end that is genuinely unanswerable.
    */
   private async reap(): Promise<void> {
     const live = [...this.lanes.values()].filter((l) => !l.closed && !l.exited)
@@ -655,13 +665,21 @@ export class TmuxDriver implements WorkspaceDriver {
       '-t',
       this.opts.session,
       '-F',
-      ['#{window_id}', '#{pane_dead}', '#{pane_dead_status}', '#{pane_dead_signal}'].join(FIELD),
+      // The server's own pid rides along on every row, so telling it to look
+      // again costs nothing: asking for it separately would be a process per
+      // poll, forty times a second, to learn a number that never changes.
+      ['#{window_id}', '#{pane_dead}', '#{pane_dead_status}', '#{pane_dead_signal}', '#{pid}'].join(
+        FIELD,
+      ),
     ]).catch(() => '')
 
     const dead = new Map<string, { told: boolean; code: number | null; signal: number | null }>()
+    let server: number | null = null
     for (const row of rows.split('\n')) {
-      const [window, isDead, status = '', signal = ''] = row.split(FIELD)
-      if (!window || isDead !== '1') continue
+      const [window, isDead, status = '', signal = '', pid = ''] = row.split(FIELD)
+      if (!window) continue
+      server ??= serverPid(pid)
+      if (isDead !== '1') continue
       // One of the two is how tmux says it: a command that exited has a
       // status and no signal, one that was killed has a signal and no status,
       // and one that has not been waited on yet has neither.
@@ -673,6 +691,8 @@ export class TmuxDriver implements WorkspaceDriver {
     }
 
     const now = Date.now()
+    /** Something ended and tmux has not said how: it may not have looked. */
+    let unsaid = false
     for (const lane of live) {
       const end = dead.get(lane.window)
       if (!end) continue
@@ -682,7 +702,10 @@ export class TmuxDriver implements WorkspaceDriver {
       // unanswered, and a lane that says it is still running for the rest of
       // the window is worse than one that says it ended without saying how,
       // which is what a null code has always meant here.
-      if (!end.told && now - lane.deadAt < STATUS_GRACE_MS) continue
+      if (!end.told && now - lane.deadAt < STATUS_GRACE_MS) {
+        unsaid = true
+        continue
+      }
       // Whatever it printed on the way out still counts.
       this.drain(lane)
       lane.exited = true
@@ -692,6 +715,7 @@ export class TmuxDriver implements WorkspaceDriver {
       const event = { code: end.code, signal: end.signal }
       for (const listener of lane.exits) safely(() => listener(event))
     }
+    if (unsaid && server !== null) lookAgain(server)
   }
 
   /** Read a lane's output file between two offsets. Missing is not an error. */
@@ -770,6 +794,34 @@ function parseSpec(json: string): LaneSpec | null {
   } catch {
     // Someone else's window, or a spec from a version that wrote it differently.
     return null
+  }
+}
+
+/** Which process the tmux server is, as every row of a format says it. */
+function serverPid(pid: string): number | null {
+  const n = Number(pid)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
+/**
+ * Tell a tmux server there is a child to wait on.
+ *
+ * Not a kill, and not a way of ending anything: SIGCHLD is the signal the
+ * kernel sends when a child has changed state, and what tmux does with one
+ * is wait on whatever is waitable and write down how each of them ended. So
+ * this can only ever make tmux *look*; what it finds, and what it then says
+ * about it, stays tmux's own answer, which is the whole point of sending it
+ * rather than assuming what it would have said.
+ *
+ * One syscall, and ours to make: the server is the one Tade started, or the
+ * one it adopted, and either is this user's. Gone or not ours to signal is
+ * no answer either way, and the grace is what answers then.
+ */
+function lookAgain(server: number): void {
+  try {
+    process.kill(server, 'SIGCHLD')
+  } catch {
+    // Nothing to tell, or nobody we may tell. Either way, not an error here.
   }
 }
 

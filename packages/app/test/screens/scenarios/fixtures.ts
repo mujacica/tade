@@ -80,6 +80,24 @@ export const finished = (): AppState =>
     'checkout/stripe-v15',
   )
 
+/** Times said in UTC, so the screens do not change with the machine's time zone. */
+export const utcClock = (at: number) => new Date(at).toISOString().slice(11, 16)
+
+/** Dates said in UTC, the way the window says them. */
+export const utcDate = (at: number) => {
+  const time = new Date(at)
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getUTCDay()] ?? ''
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${day} ${time.getUTCDate()} ${month[time.getUTCMonth()] ?? ''} ${utcClock(at)}`
+}
+
+/**
+ * A window drawn in UTC, because a golden read off the machine's clock is a
+ * golden that only holds where it was written: `last asked 10:12` here and
+ * `08:12` on a runner, with nothing in the diff to say that is what happened.
+ * Said here rather than in each scenario, because a rule every one of them
+ * has to remember is a rule one of them forgot.
+ */
 export const frame = (over: Partial<Frame> = {}): Frame => ({
   width: 120,
   height: 34,
@@ -169,19 +187,10 @@ export const frame = (over: Partial<Frame> = {}): Frame => ({
   },
   vitals: { model: 'anthropic/claude-opus-5', thinking: 'high', contextPercent: 41 },
   voice: { keys: ['ctrl', 'space'], available: true },
+  clock: utcClock,
+  date: utcDate,
   ...over,
 })
-
-/** Times said in UTC, so the screens do not change with the machine's time zone. */
-export const utcClock = (at: number) => new Date(at).toISOString().slice(11, 16)
-
-/** Dates said in UTC, the way the window says them. */
-export const utcDate = (at: number) => {
-  const time = new Date(at)
-  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.getUTCDay()] ?? ''
-  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${day} ${time.getUTCDate()} ${month[time.getUTCMonth()] ?? ''} ${utcClock(at)}`
-}
 
 let seq = 0
 
