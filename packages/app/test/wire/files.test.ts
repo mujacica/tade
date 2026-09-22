@@ -8,7 +8,7 @@ import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from '
 describe('the window, and the file you have open', () => {
   let terminal: FakeTerminal
   let repo: Repo
-  const { start, click, find } = windowUnderTest((wired) => {
+  const { start, click, find, opened } = windowUnderTest((wired) => {
     terminal = wired.terminal
     repo = wired.repo
   })
@@ -54,6 +54,36 @@ describe('the window, and the file you have open', () => {
       () => readFileSync(path, 'utf8') === 'export const rate = 10\nexport const other = 2\n',
     )
     await until('it to say so', () => terminal.written.includes('Saved ledger.ts'))
+  }, 30_000)
+
+  it('says what it would open rather than opening it on the machine', async () => {
+    // The bug this is about: `Reveal in Finder` really spawned `open`, so a
+    // fixture worktree kept appearing on the screen of whoever ran the checks.
+    // The window is handed an opener that records instead, and what it would
+    // have run is the assertion — which says more than a spawn offscreen did.
+    terminal.rows = 60
+    await start()
+    await until('the files', () =>
+      screenOf(terminal.written).some((row) => row.includes('README.md')),
+    )
+    const file = find('README.md')
+    terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}M`)
+    terminal.press(`\x1b[<2;${file.col + 2};${file.row + 1}m`)
+    await until('the menu', () => terminal.written.includes('Reveal in Finder'))
+
+    const item = find('Reveal in Finder')
+    click(item.col + 2, item.row)
+    await until('the opener it would have run', () => opened.length > 0)
+    // FILES resolves against the agent's worktree, so this is the very path
+    // that kept opening: `app-refunds`, the fixture worktree of the task the
+    // window is focused on.
+    const worktree = join(repo.root, '..', 'worktrees', 'app-refunds')
+    // Only Finder picks the file out; elsewhere the folder is what opens.
+    expect(opened).toEqual([
+      process.platform === 'darwin'
+        ? { command: 'open', args: ['-R', join(worktree, 'README.md')] }
+        : { command: 'xdg-open', args: [worktree] },
+    ])
   }, 30_000)
 
   it("opens a file's menu with a right-click in FILES", async () => {

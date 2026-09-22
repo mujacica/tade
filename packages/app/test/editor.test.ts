@@ -5,6 +5,7 @@ import {
   findOpenable,
   openerFor,
   openerForLink,
+  openerForReveal,
 } from '../src/editor.ts'
 
 // Opening what you click. Which editor, with what arguments, and what on a
@@ -82,6 +83,21 @@ describe('opening a place', () => {
   it('opens links with what the system opens links with', () => {
     expect(openerForLink('https://example.com', 'darwin').command).toBe('open')
     expect(openerForLink('https://example.com', 'linux').command).toBe('xdg-open')
+  })
+
+  it('reveals a file in the folder it is in, picked out where the manager can', () => {
+    expect(openerForReveal('/src/app/webhooks.ts', false, 'darwin')).toEqual({
+      kind: 'detached',
+      command: 'open',
+      args: ['-R', '/src/app/webhooks.ts'],
+    })
+    // Nothing on Linux selects a file, so the folder is the honest answer.
+    expect(openerForReveal('/src/app/webhooks.ts', false, 'linux').args).toEqual(['/src/app'])
+  })
+
+  it('reveals a folder as itself, since there is nothing to pick out of it', () => {
+    expect(openerForReveal('/src/app', true, 'darwin').args).toEqual(['/src/app'])
+    expect(openerForReveal('/src/app', true, 'linux').args).toEqual(['/src/app'])
   })
 })
 

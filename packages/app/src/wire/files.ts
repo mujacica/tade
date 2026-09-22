@@ -1,8 +1,15 @@
-import { basename, dirname, isAbsolute, resolve } from 'node:path'
+import { basename, isAbsolute, resolve } from 'node:path'
 import { expandHome, type LaneId } from '@tade/core'
 import { git } from '@tade/status'
 import { type ParsedDiff, parseDiff } from '../diff.ts'
-import { chooseEditor, launch, openerFor, openerForLink } from '../editor.ts'
+import {
+  chooseEditor,
+  launch,
+  type Open,
+  openerFor,
+  openerForLink,
+  openerForReveal,
+} from '../editor.ts'
 import type { Frame } from '../frame.ts'
 import { focusTask, notice, shownName, toggleFolder, viewLane } from '../model.ts'
 import { type FilePanel, filePanel, savedFile } from '../panels/file/state.ts'
@@ -89,6 +96,16 @@ export class Files implements Subject {
   constructor(wire: Wiring, deps: FilesDeps) {
     this.wire = wire
     this.deps = deps
+  }
+
+  /**
+   * How an opener is actually started: the machine's own unless the window was
+   * given another. Read here rather than imported at each of the three call
+   * sites, so there is one answer to "what happens when Tade reaches the
+   * desktop" and a test can be handed a different one.
+   */
+  private get open(): Open {
+    return this.wire.opts.open ?? launch
   }
 
   /**
@@ -365,7 +382,7 @@ export class Files implements Subject {
       return
     }
     try {
-      await launch(opener)
+      await this.open(opener)
       this.wire.put(
         notice(this.wire.state, `opened ${where} in ${editor === 'system' ? 'its app' : editor}`),
       )
@@ -465,7 +482,7 @@ export class Files implements Subject {
   async openLink(url: string): Promise<void> {
     try {
       const opener = openerForLink(url)
-      if (opener.kind === 'detached') await launch(opener)
+      if (opener.kind === 'detached') await this.open(opener)
       this.wire.put(notice(this.wire.state, `opened ${url}`))
     } catch (err) {
       this.wire.put(notice(this.wire.state, why(err)))
@@ -648,15 +665,7 @@ export class Files implements Subject {
   /** Reveal a file in the system's file manager. */
   async reveal(path: string, folder: boolean): Promise<void> {
     try {
-      if (process.platform === 'darwin') {
-        await launch({ kind: 'detached', command: 'open', args: folder ? [path] : ['-R', path] })
-      } else {
-        await launch({
-          kind: 'detached',
-          command: 'xdg-open',
-          args: [folder ? path : dirname(path)],
-        })
-      }
+      await this.open(openerForReveal(path, folder))
     } catch (err) {
       this.wire.put(notice(this.wire.state, why(err)))
       this.wire.draw()

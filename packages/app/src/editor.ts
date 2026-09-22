@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { dirname } from 'node:path'
 import type { EditorName } from '@tade/core'
 
 // Opening what you click: a file at a line in your editor, or a link in your
@@ -142,6 +143,24 @@ export function openerForLink(url: string, platform: NodeJS.Platform = process.p
   return systemOpen(url, platform)
 }
 
+/**
+ * A file shown in the system's file manager: the folder itself, or the folder
+ * with the file picked out in it where the manager can do that. Here rather
+ * than beside the caller so that every command that hands a path to the
+ * desktop is built in one file — which is what the guard holds the repository
+ * to, and what makes each of them answerable without a machine.
+ */
+export function openerForReveal(
+  path: string,
+  folder: boolean,
+  platform: NodeJS.Platform = process.platform,
+): Extract<Opener, { kind: 'detached' }> {
+  // Finder picks the file out of its folder; elsewhere the folder is the answer.
+  if (platform === 'darwin')
+    return { kind: 'detached', command: 'open', args: folder ? [path] : ['-R', path] }
+  return { kind: 'detached', command: 'xdg-open', args: [folder ? path : dirname(path)] }
+}
+
 function systemOpen(target: string, platform: NodeJS.Platform): Opener {
   if (platform === 'darwin') return { kind: 'detached', command: 'open', args: [target] }
   if (platform === 'win32')
@@ -153,6 +172,18 @@ function escapeVim(path: string): string {
   // Spaces, backslashes, bars and quotes end or change an ex command.
   return path.replace(/[ \\|"]/g, (char) => `\\${char}`)
 }
+
+/**
+ * How a detached opener is actually started.
+ *
+ * A seam rather than a direct call, because this is the one place the window
+ * reaches past itself and onto the machine — and a test suite may never do
+ * that. `launch` is the machine's own; the window's tests are handed one that
+ * records the command and its arguments instead, which is the better
+ * assertion anyway: what *would* have opened, rather than the hope that
+ * something did offscreen.
+ */
+export type Open = (opener: Extract<Opener, { kind: 'detached' }>) => Promise<void>
 
 /**
  * Start a detached opener and let it go. Resolves once it has started or

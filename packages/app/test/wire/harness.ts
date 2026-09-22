@@ -132,6 +132,14 @@ export interface Wired {
   readonly client: Workbench
   readonly terminal: FakeTerminal
   /**
+   * Every opener the window would have handed to the desktop, in order: your
+   * editor, your browser, your file manager. Nothing is spawned — a suite that
+   * opened Finder on somebody's machine is what this exists to prevent — and
+   * asserting the command and its arguments says more than a spawn offscreen
+   * ever did.
+   */
+  readonly opened: { command: string; args: readonly string[] }[]
+  /**
    * Start the window over that world. The last one started is stopped after the
    * test; a test that opens a second window stops the first one itself.
    */
@@ -169,6 +177,7 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
   let client: Workbench
   let terminal: FakeTerminal
   let app: App | null = null
+  const opened: { command: string; args: readonly string[] }[] = []
 
   const wired: Wired = {
     get repo() {
@@ -182,6 +191,9 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     },
     get terminal() {
       return terminal
+    },
+    get opened() {
+      return opened
     },
 
     async start(over: Partial<AppOptions> = {}): Promise<App> {
@@ -201,6 +213,11 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
         frameMs: 50,
         // Never the machine's own clipboard: what a developer copied is not a test's to read.
         clipboard: { state: async () => null, image: async () => null },
+        // Never the machine's own desktop either: what would have opened is
+        // recorded for the test to read, and nothing is spawned.
+        open: async (opener) => {
+          opened.push({ command: opener.command, args: opener.args })
+        },
         ...over,
       })
       return app
@@ -254,6 +271,9 @@ export function windowUnderTest(bind?: (wired: Wired) => void): Wired {
     writeFileSync(join(home, 'config.yaml'), `projects:\n  app:\n    root: ${repo.root}\n`)
     client = await Workbench.open({ home })
     terminal = new FakeTerminal()
+    // Emptied rather than replaced, so a test that took the array off the
+    // harness once still holds the one being written to.
+    opened.length = 0
     bind?.(wired)
   })
 

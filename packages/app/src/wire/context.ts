@@ -8,6 +8,7 @@ import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
 import type { Workbench } from '@tade/workbench'
+import type { Open } from '../editor.ts'
 import type { Frame } from '../frame.ts'
 import type { clipboardImage, clipboardState } from '../images.ts'
 import type { Live } from '../live.ts'
@@ -73,6 +74,13 @@ export interface AppOptions {
     state: typeof clipboardState
     image: typeof clipboardImage
   }
+  /**
+   * How a file, a link or a folder is handed to the desktop — your editor,
+   * your browser, your file manager. The machine's own unless given, for the
+   * same reason `clipboard` is: a test suite may never reach the machine it
+   * runs on, and one that opens Finder is worse than one that opens a socket.
+   */
+  open?: Open
   /** Tade's state directory, where generated earcons are kept. */
   home: string
   cwd?: string
