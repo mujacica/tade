@@ -52,7 +52,9 @@ function refusals(opts: Options): string[] {
   if (opts.dry) return wrong
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'])
   if (branch !== 'main') wrong.push(`on ${branch}, and a release is cut from main`)
-  const dirty = git(['status', '--porcelain=v2', '--untracked-files=no'])
+  // v1 rather than v2: this is read by somebody, and `1 .M N... 100644 …` is
+  // a line nobody can see a path in.
+  const dirty = git(['status', '--porcelain=v1', '--untracked-files=no'])
   if (dirty !== '')
     wrong.push(
       'there are changes that are not committed. A release commits the changelog and the\n' +

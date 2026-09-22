@@ -603,7 +603,8 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   on disk, every relative path and every `tade-sh/…` specifier answered, a `bin` with a shebang, and
   a dependency imported by something that ships and declared by nobody. `vitest` is the only thing
   dropped, and only because the conformance suites that import it do not ship.
-  **A release is deliberate and rehearsable.** Nothing publishes on a push to main: `pnpm release
+  **A release is deliberate and rehearsable**, and the recipe is the `cut-a-release` skill.
+  Nothing publishes on a push to main: `pnpm release
   <version>` writes the changelog, stamps the version, commits `Release <version>` and tags — then
   `git push --follow-tags` is the one act that reaches anybody, and the tag is what starts
   `.github/workflows/release.yml`. That workflow **calls `ci.yml`** rather than keeping a second copy
