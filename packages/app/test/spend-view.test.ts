@@ -32,7 +32,7 @@ const usage = (over: Partial<TadeEvent> & { detail?: Record<string, unknown> } =
   }) as TadeEvent
 
 const run = (
-  type: 'run_started' | 'run_exited',
+  type: 'run_started' | 'run_exited' | 'run_model',
   over: Partial<TadeEvent> & { detail?: Record<string, unknown> } = {},
 ): TadeEvent =>
   ({
@@ -175,13 +175,14 @@ const inside = (row: string) =>
 const WIDTHS = [48, 56, 64, 72, 80, 96, 120, 160]
 
 describe('grouping what it cost', () => {
-  it('tells three rows of one model apart by harness, sign-in and provider', () => {
-    // By model they are three rows and always will be: three different bills.
-    expect(
-      viewBy('model')
-        .rows.map((row) => row.label)
-        .sort(),
-    ).toEqual(['anthropic/claude-opus-5', 'claude-opus-5', 'openrouter/anthropic/claude-opus-5'])
+  it('tells three routes to one model apart by harness, sign-in and provider', () => {
+    // One model, so one row: `claude-opus-5`, `anthropic/claude-opus-5` and
+    // `openrouter/anthropic/claude-opus-5` are the same weights spelled by
+    // three harnesses, and added up by the string one agent became three.
+    expect(viewBy('model').rows.map((row) => [row.label, row.usd])).toEqual([
+      ['claude-opus-5', 2.5],
+    ])
+    // What differs is the route, and that is what the three facets below say.
 
     const harness = viewBy('harness').rows
     expect(harness.map((row) => [row.label, row.usd])).toEqual([
@@ -227,6 +228,66 @@ describe('grouping what it cost', () => {
     expect(row?.note).toBe("the harness's own sign-in")
   })
 
+  it('puts an agent\u2019s hours and its money in the same row', () => {
+    // The shape of the journal this was reported from: money written under
+    // every spelling there is, runs timed under a fourth, and 86 of 161 runs
+    // that named no model at all. It drew four model rows, one carrying
+    // 742.8M tokens and another 12d 8h of runtime with 17M beside it, and an
+    // `unknown` row holding 18h 48m of nobody's hours.
+    const hour = 3_600_000
+    const ran = (id: string, over: Record<string, unknown> = {}) => [
+      run('run_started', { run: id, task: `checkout/${id}`, ...over }),
+      run('run_exited', {
+        run: id,
+        task: `checkout/${id}`,
+        ts: new Date(NOW - hour).toISOString(),
+      }),
+    ]
+    const spent = (id: string, model: string | undefined) =>
+      usage({ run: id, task: `checkout/${id}`, detail: { model, tokens: 1000, usd: 1 } })
+    const runs = [
+      // Asked for one spelling, billed under another: one agent, one row.
+      ...ran('r1', {
+        ts: new Date(NOW - 3 * hour).toISOString(),
+        detail: { model: 'anthropic/claude-opus-5' },
+      }),
+      // Nothing asked for — pi picks by what you are signed in to — and what
+      // it picked said so before it did any work.
+      ...ran('r2', { ts: new Date(NOW - 3 * hour).toISOString() }),
+      run('run_model', {
+        run: 'r2',
+        task: 'checkout/r2',
+        ts: new Date(NOW - 3 * hour).toISOString(),
+        detail: { model: 'claude-opus-5', modelId: 'openrouter/anthropic/claude-opus-5' },
+      }),
+      // And one nothing ever said anything about.
+      ...ran('r3', { ts: new Date(NOW - 3 * hour).toISOString() }),
+    ]
+    const view = spendView(
+      [spent('r1', 'claude-opus-5'), spent('r2', 'openrouter/anthropic/claude-opus-5')],
+      {
+        window: 'today',
+        by: 'model',
+        now: NOW,
+        openedAt: NOW - 4 * hour,
+        projects: ['checkout'],
+        budgets: {},
+        runs,
+      },
+    )
+    expect(view.rows.map((row) => row.label)).toEqual(['claude-opus-5', 'not recorded'])
+    const [model, nobody] = view.rows
+    // One row holding both halves of both agents, rather than four holding one
+    // half each.
+    expect(model?.tokens).toBe(2000)
+    expect(model?.runtime?.ms).toBe(4 * hour)
+    expect(model?.runtime?.runs).toBe(2)
+    // What is genuinely unknown stays unknown, and says which it is.
+    expect(nobody?.runtime?.ms).toBe(2 * hour)
+    expect(nobody?.tokens).toBe(0)
+    expect(nobody?.note).toBe('no model was written down for these runs')
+  })
+
   it('keeps priced money apart from estimated, on the row and in the total', () => {
     const view = viewBy('harness')
     expect(view.rows.find((row) => row.label === 'pi')?.priced).toBe('exact')
@@ -238,7 +299,14 @@ describe('grouping what it cost', () => {
 })
 
 describe('a long name at any width', () => {
-  const LONGEST = 'openrouter/anthropic/claude-opus-5'
+  /**
+   * The longest name this table draws, which is a task's: a model is one row
+   * under its own name now, so `openrouter/anthropic/claude-opus-5` is never
+   * a label — but a name is still the one column that cannot be abbreviated
+   * without lying, and an agent's is as long as somebody's title.
+   */
+  const LONGEST = 'checkout/orchestrator-extension-tools-gap'
+  const LONG_NAMES: TadeEvent[] = [usage({ run: 'r9', task: LONGEST })]
 
   it('never draws a box wider than the terminal', () => {
     for (const width of WIDTHS) {
@@ -250,7 +318,7 @@ describe('a long name at any width', () => {
 
   it('shows the whole of the longest name, or says it cut it', () => {
     for (const width of WIDTHS) {
-      const rows = drawn('model', width)
+      const rows = drawn('agent', width, LONG_NAMES)
       const whole = rows.some((row) => row.includes(LONGEST))
       // Not shown whole means shown in pieces — wrapped onto a second line —
       // and past that ellipsised, which says so. What may never happen is a
@@ -264,7 +332,7 @@ describe('a long name at any width', () => {
     for (const width of WIDTHS) {
       // The tokens column is the first figure after the name. Every row that
       // has one has at least one clear column before it.
-      for (const row of drawn('model', width)) {
+      for (const row of drawn('agent', width, LONG_NAMES)) {
         const at = row.search(/\d+k|\d+\.\d+M/)
         if (at <= 0) continue
         expect(row.slice(Math.max(0, at - 1), at), `at ${width}: ${row}`).toBe(' ')
@@ -290,12 +358,15 @@ describe('a long name at any width', () => {
   })
 
   it('wraps a name onto a second line before it ellipsises one', () => {
-    expect(nameLines(LONGEST, null, 20)).toEqual([
+    // Its own string: this is the wrapper, not the table, and what it has to
+    // hold is that two lines are tried before anything is thrown away.
+    const name = 'openrouter/anthropic/claude-opus-5'
+    expect(nameLines(name, null, 20)).toEqual([
       { text: 'openrouter/anthropic', note: false },
       { text: '/claude-opus-5', note: false },
     ])
     // Past two lines it is cut, and the cut is marked.
-    const tiny = nameLines(LONGEST, null, 8)
+    const tiny = nameLines(name, null, 8)
     expect(tiny).toHaveLength(2)
     expect(tiny.at(-1)?.text.endsWith('…')).toBe(true)
     // A note is its own line, in its own tone: `not recorded` is not an agent.

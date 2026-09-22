@@ -587,10 +587,34 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   router. The name is never parsed for it: `anthropic/claude-opus-5` reached through OpenRouter is
   a real route, and a guess would file it under Anthropic and look certain. `UNRECORDED` is always
   an allowed answer and is drawn as *not recorded*, never as a model called `unknown`.
-- **A run is timed by what it turned out to be on.** A route asks for `anthropic/claude-opus-5` and
-  Claude Code answers `claude-opus-5`, so runtime taken from `run_started` alone lands on a
-  different model row from the money — one agent drawn as two. `modelsSaid` is what its own usage
-  reported, and `runtimeFrom` takes that over what was asked for.
+- **A model has one name, and the routing in front of it is not part of it.** One model is spelled
+  as many ways as there are ways of reaching it — `claude-opus-5` from Claude Code,
+  `anthropic/claude-opus-5` from a route against an API key, `openrouter/anthropic/claude-opus-5`
+  from pi through a router — so added up by the string one agent becomes four rows, which is what
+  the Spend page was doing with an agent's hours in one and its money in another. `modelIdentity`
+  (`core/src/spend.ts`) is the one rule: the **model is the last segment**, everything in front of
+  it is routing, and the routing is kept rather than thrown away — `id` is the spelling that reaches
+  it again, which is what starting an agent back up on it needs, and `provider` is what somebody
+  wrote down and is never read out of the name. Everything that writes a model into an event writes
+  it the same way (`modelDetail`: the name, and `modelId` only where they differ), and everything
+  that reads one reads `modelIn` — so a journal full of the old spellings folds into the same rows
+  rather than needing a migration nothing could write.
+- **A run is timed by what it turned out to be on, and says so itself.** A route asks for
+  `anthropic/claude-opus-5` and Claude Code answers `claude-opus-5`, so runtime taken from
+  `run_started` alone lands on a different model row from the money — one agent drawn as two. And a
+  route that asks for nothing leaves `run_started` with nothing to record at all: pi picks by what
+  you are signed in to, which was 86 of the 161 runs in the journal this was found in, every hour of
+  them attributed to nobody. So the harness saying which model it opened on is written down
+  (`run_model`, from the supervisor's `started` and `usage` signals — once, and again only when it
+  changes), `runtimeFrom` reads it inside the run it is timing, and `modelsSaid` is the fallback for
+  a journal written before it. A run nothing ever named is `UNRECORDED`, drawn as *not recorded*.
+- **How long the agents ran is added across them, and says that where it is read.** `13d 3h` off a
+  machine that has been on since breakfast reads as a bug and is not one: twenty agents over an
+  afternoon each ran for the whole of their own afternoon, and a run is wall clock from start to
+  stop, so one that finished at noon and sat in its lane until the window closed counted the wait.
+  Both are true and both are surprising, so `runtimeSays` is the one sentence that says them — in
+  core, because the window and `tade spend` are reading the same fold and may never explain it
+  differently.
 - **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid
   out from the room there is (`spendColumns`): the figures take what a figure takes, the share
   meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`) and

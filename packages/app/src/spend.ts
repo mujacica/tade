@@ -3,6 +3,7 @@ import {
   type BudgetVerdict,
   type CheckTally,
   checkBudget,
+  modelIn,
   modelsSaid,
   noSpend,
   type PlanSource,
@@ -43,12 +44,13 @@ export type SpendWindow = 'today' | 'window' | 'week'
 /**
  * The six ways of asking where it went.
  *
- * The last three are what tell three rows of one model apart. `claude-opus-5`
- * on a subscription, `anthropic/claude-opus-5` through an API key and
- * `openrouter/anthropic/claude-opus-5` through a router are the same weights
- * reached three ways, and the difference that matters — what it cost, whose
- * key paid, which plan it ate — is the harness, the sign-in and the provider,
- * not the string.
+ * `claude-opus-5` on a subscription, `anthropic/claude-opus-5` through an API
+ * key and `openrouter/anthropic/claude-opus-5` through a router are the same
+ * weights reached three ways, so Model is **one** row for all three
+ * (`modelIdentity`) and the last three facets are what tell the three ways
+ * apart. Which is the whole point of having them: what cost what, whose key
+ * paid and which plan it ate are facts about the route, and were never
+ * readable off the string.
  */
 export type SpendBy = 'agent' | 'project' | 'model' | 'harness' | 'account' | 'provider'
 
@@ -421,14 +423,17 @@ function shareOf(spent: { tokens: number; usd: number }, budget: Budget): number
   return shares.length === 0 ? null : Math.max(...shares)
 }
 
-/** The model each task last reported, and the orchestrator's under `null`. */
+/**
+ * The model each task last reported, and the orchestrator's under `null` — by
+ * the model's own name, which is the name its row in the Model view has.
+ */
 function lastModels(usage: readonly TadeEvent[]): Map<string | null, string> {
   const models = new Map<string | null, string>()
   for (const event of usage) {
-    const model = event.detail.model
-    if (typeof model !== 'string' || model === '') continue
-    if (event.task) models.set(event.task, model)
-    else if (event.detail.by === 'orchestrator') models.set(null, model)
+    const { name } = modelIn(event)
+    if (name === UNRECORDED) continue
+    if (event.task) models.set(event.task, name)
+    else if (event.detail.by === 'orchestrator') models.set(null, name)
   }
   return models
 }

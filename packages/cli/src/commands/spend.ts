@@ -10,6 +10,7 @@ import {
   type Runtime,
   runFactsFrom,
   runtimeFrom,
+  runtimeSays,
   type Spend,
   STATS_EVENTS,
   spendFrom,
@@ -190,6 +191,11 @@ export function registerSpend(program: Command, io: Io): void {
       }
       io.out('')
       io.out(pricedSays(report.total))
+      // And what the runtime column has been adding up: `13d 3h` off a machine
+      // that has been on since breakfast reads as a bug and is not one, and a
+      // figure nobody can defend is one nobody looks at twice.
+      const says = runtimeSays(ran.total)
+      if (says) io.out(says)
     })
 }
 

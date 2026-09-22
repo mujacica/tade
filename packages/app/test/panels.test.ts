@@ -268,9 +268,11 @@ describe('the Spend panel', () => {
       expect(view('project', runs).rows.find((r) => r.label === 'search')?.runtime?.ms).toBe(
         30 * 60_000,
       )
-      expect(
-        view('model', runs).rows.find((r) => r.label === 'anthropic/claude-sonnet-5')?.runtime?.ms,
-      ).toBe(30 * 60_000)
+      // Under the model's own name: `anthropic/claude-sonnet-5` is how the
+      // route reached it, and the row is the model rather than the route.
+      expect(view('model', runs).rows.find((r) => r.label === 'claude-sonnet-5')?.runtime?.ms).toBe(
+        30 * 60_000,
+      )
     })
 
     it('has run for no time when no runs were read', () => {

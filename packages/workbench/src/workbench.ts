@@ -18,6 +18,8 @@ import {
   type HarnessId,
   type LaneId,
   loadConfig,
+  modelDetail,
+  modelIn,
   type Note,
   noSpend,
   type Plan,
@@ -40,6 +42,7 @@ import {
   type TaskId,
   THINKING_LEVELS,
   type ThinkingLevel,
+  UNRECORDED,
   type Unsubscribe,
   writeSetting,
 } from '@tade/core'
@@ -537,8 +540,9 @@ export class Workbench {
         detail: {
           ...missing,
           // What it last ran on, so the spend lands on a model rather than on
-          // the bucket for nothing recorded.
-          ...(session.model ? { model: session.model } : {}),
+          // the bucket for nothing recorded — written the one way every other
+          // writer writes it, or money found later would be a row of its own.
+          ...modelDetail(session.model),
           priced: this.adapterFor(harness, lane.account).capabilities.spend.usd,
           // And whose it was: the lane says which harness and which sign-in,
           // so money found later is filed exactly where the live turns were.
@@ -2345,13 +2349,24 @@ export class Workbench {
     return { id: route.model, ...(route.provider ? { provider: route.provider } : {}) }
   }
 
-  /** The model a task's agent last ran on, as it reported what it spent. */
+  /**
+   * The model a task's agent last ran on, as it said when it opened and again
+   * as it reported what it spent.
+   *
+   * The *spelling* is what is wanted here and not the model's own name: this
+   * is handed back to a harness to start an agent on, and a bare
+   * `claude-opus-5` is offered by several providers — pi refuses to guess
+   * between them, which is an agent that exits before reading a word.
+   */
   private async lastModelOf(task: string): Promise<WorkerModel | undefined> {
-    const spent = await this.log.read({ types: ['usage'] }).catch(() => [])
-    const model = spent.findLast(
-      (event) => event.task === task && typeof event.detail?.model === 'string',
-    )?.detail?.model
-    return typeof model === 'string' && model ? { id: model } : undefined
+    const said = await this.log.read({ types: ['usage', 'run_model'] }).catch(() => [])
+    const last = said.findLast((event) => event.task === task && modelIn(event).name !== UNRECORDED)
+    if (!last) return undefined
+    // The spelling alone, never the provider beside it: the spelling already
+    // carries whatever route it was reached by — that is what makes it a
+    // spelling and not a name — and handing a harness both would ask it for
+    // `openrouter/openrouter/anthropic/claude-opus-5`.
+    return { id: modelIn(last).id }
   }
 
   /**

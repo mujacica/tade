@@ -620,6 +620,73 @@ describe('WorkerSupervisor', () => {
     await until(() => supervisor.turnOf('r1') === 'unknown')
   })
 
+  describe('one name for the model, wherever it is written', () => {
+    it('writes the model down the moment the harness says which it is', async () => {
+      // A run started with nothing asked for: pi picks by what you are signed
+      // in to, so `run_started` names no model — 86 of the 161 runs in the
+      // journal this was written from — and every hour they ran was time
+      // attributed to nothing until this.
+      const { log, adapter } = await setup('bypass')
+      close = () => log.close()
+      expect((await logged(log, 'run_started'))[0]?.detail.model).toBeUndefined()
+
+      adapter.emit('r1', {
+        type: 'started',
+        sessionId: null,
+        model: 'openrouter/anthropic/claude-opus-5',
+      })
+      await until(async () => (await logged(log, 'run_model')).length > 0)
+      const [said] = await logged(log, 'run_model')
+      // Its own name, and the spelling that reaches it again beside it.
+      expect(said?.detail).toEqual({
+        model: 'claude-opus-5',
+        modelId: 'openrouter/anthropic/claude-opus-5',
+      })
+      expect(said?.run).toBe('r1')
+      expect(said?.task).toBe('app/refunds')
+    })
+
+    it('says it once, and again only when it changes', async () => {
+      const { log, adapter } = await setup('bypass')
+      close = () => log.close()
+      const say = (model: string) => adapter.emit('r1', { type: 'started', sessionId: null, model })
+      // The same model spelled two ways is the same model, and writes no line.
+      say('openrouter/anthropic/claude-opus-5')
+      say('claude-opus-5')
+      await until(async () => (await logged(log, 'run_model')).length > 0)
+      say('openrouter/moonshotai/kimi-k2.6')
+      await until(async () => (await logged(log, 'run_model')).length > 1)
+      expect((await logged(log, 'run_model')).map((one) => one.detail.model)).toEqual([
+        'claude-opus-5',
+        'kimi-k2.6',
+      ])
+    })
+
+    it('spells it in a usage event exactly as it spells it in a run', async () => {
+      // The whole of the bug: timed under one spelling and priced under
+      // another, one agent was two model rows that never ran together.
+      const { log, adapter } = await setup('bypass')
+      close = () => log.close()
+      adapter.emit('r1', {
+        type: 'usage',
+        model: 'openrouter/anthropic/claude-opus-5',
+        input: 10,
+        output: 5,
+        cacheRead: 0,
+        cacheWrite: 0,
+        tokens: 15,
+        usd: 0.1,
+      })
+      await until(async () => (await logged(log, 'usage')).length > 0)
+      const spent = (await logged(log, 'usage'))[0]
+      const said = (await logged(log, 'run_model'))[0]
+      expect(spent?.detail.model).toBe('claude-opus-5')
+      expect(spent?.detail.modelId).toBe('openrouter/anthropic/claude-opus-5')
+      expect(said?.detail.model).toBe(spent?.detail.model)
+      expect(said?.detail.modelId).toBe(spent?.detail.modelId)
+    })
+  })
+
   it('writes down an agent saying its task is finished, in its words', async () => {
     const { log, adapter } = await setup('bypass')
     close = () => log.close()

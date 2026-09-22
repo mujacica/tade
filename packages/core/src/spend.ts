@@ -32,6 +32,71 @@ import type { TadeEvent } from './events.ts'
 export const UNRECORDED = ''
 
 /**
+ * What a model is called, and how it was reached.
+ *
+ * One model has as many spellings as there are ways of reaching it. Claude
+ * Code reports `claude-opus-5`; a route configured against an API key asks for
+ * `anthropic/claude-opus-5`; pi reaching the same weights through OpenRouter
+ * says `openrouter/anthropic/claude-opus-5`. Added up by the string, one agent
+ * becomes three rows — which is what the Spend page was doing, with the hours
+ * of an agent in one row and its money in another.
+ *
+ * So the model is the **last segment and nothing else**: everything in front
+ * of it is routing — the provider, and the namespace that provider files the
+ * model under. The routing is not thrown away, it is the other two fields; and
+ * the provider is never read out of the name, because `anthropic/claude-opus-5`
+ * reached through OpenRouter is a real route on a real machine and a guess
+ * would file that spend under Anthropic and look certain about it.
+ */
+export interface ModelIdentity {
+  /** The model itself, as its maker names it: `claude-opus-5`, `kimi-k2.6`. */
+  name: string
+  /** The spelling that reaches it again: `anthropic/claude-opus-5` to OpenRouter. */
+  id: string
+  /** The provider it was reached through, where anybody wrote one down. */
+  provider: string
+}
+
+/**
+ * A model, however it was spelled, as the one identity everything files it
+ * under. Pure and total: anything that is not a name at all is `UNRECORDED`,
+ * which is drawn as *not recorded* rather than as a model of that name.
+ */
+export function modelIdentity(said: unknown, provider?: unknown): ModelIdentity {
+  const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+  const id = text(said)
+  const route = text(provider)
+  // The last segment exactly as it falls out, so `anthropic/` is a namespace
+  // with nothing after it — not recorded — rather than a model called
+  // `anthropic`. A doubled slash inside one is still only routing.
+  const name = id.split('/').at(-1) ?? ''
+  return { name: name || UNRECORDED, id: name ? id : UNRECORDED, provider: route }
+}
+
+/**
+ * What one event says it ran on. `modelId` first, which is the spelling that
+ * reaches the model again, then `model`, which is its own name — and in a
+ * journal written before those were two fields, the whole spelling.
+ */
+export function modelIn(event: TadeEvent): ModelIdentity {
+  const id = event.detail.modelId
+  const said = typeof id === 'string' && id !== '' ? id : event.detail.model
+  return modelIdentity(said, event.detail.provider)
+}
+
+/**
+ * A model as journal detail, written the same way by everything that writes
+ * one: the model's own name, and — only where they differ — the spelling that
+ * reaches it again. Nothing at all for nothing said, because absent is what
+ * *not recorded* looks like and a key holding `null` reads as a model.
+ */
+export function modelDetail(said: unknown): Record<string, unknown> {
+  const { name, id } = modelIdentity(said)
+  if (name === UNRECORDED) return {}
+  return { model: name, ...(id === name ? {} : { modelId: id }) }
+}
+
+/**
  * How the money in a bucket was arrived at, as the harnesses that reported it
  * declared: priced against a catalog, estimated, both, or none reported at all.
  */
@@ -165,13 +230,22 @@ export function runFactsFrom(events: readonly TadeEvent[]): Map<string, RunFacts
   return facts
 }
 
-/** What each run last said it was actually running on, as its usage reported it. */
+/**
+ * What each run last said it was actually running on: `run_model`, written the
+ * moment its harness said so, and its usage, which said it again every turn.
+ *
+ * A run id is a task's agent (`<task>/agent`) and is used again every time
+ * that agent is opened, so this is the last thing *any* run under that id said
+ * — the best a journal written before `run_model` existed can do, and why
+ * `runtimeFrom` prefers a `run_model` it sees inside the run it is timing.
+ */
 export function modelsSaid(events: readonly TadeEvent[]): Map<string, string> {
   const models = new Map<string, string>()
   for (const event of events) {
-    if (event.type !== 'usage' || !event.run) continue
-    const model = event.detail.model
-    if (typeof model === 'string' && model !== '') models.set(event.run, model)
+    if (!event.run) continue
+    if (event.type !== 'usage' && event.type !== 'run_model') continue
+    const { name } = modelIn(event)
+    if (name !== UNRECORDED) models.set(event.run, name)
   }
   return models
 }
@@ -225,7 +299,10 @@ export function spendFrom(
     if (Number.isFinite(at) && at < window.since) continue
 
     const project = (event.task ?? '').split('/')[0] || 'elsewhere'
-    const model = modelOf(event)
+    // The model's own name, whichever of its spellings this event was written
+    // with: three rows of one model is the confusion the facets below exist to
+    // answer, and it can only be answered if the model itself is one row.
+    const model = modelIn(event).name
     const task = event.task ?? ''
     // What the event itself says, then what its run said. Never a guess from
     // the model's name: the id and the route are different facts.
@@ -250,12 +327,6 @@ export function spendFrom(
     for (const bucket of buckets) add(bucket, event)
   }
   return report
-}
-
-/** What this event says it ran on, or the bucket for nothing said. */
-function modelOf(event: TadeEvent): string {
-  const model = event.detail.model
-  return typeof model === 'string' && model !== '' ? model : UNRECORDED
 }
 
 /** The bucket for this key, made on first sight. */

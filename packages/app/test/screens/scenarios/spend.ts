@@ -100,8 +100,9 @@ export const SPEND_SCREENS: Scenario[] = [
   {
     name: 'spend-by-model',
     about:
-      'The Spend panel grouped by model, where the same model reached three ways is three rows: ' +
-      'a Claude Code subscription, an API key and a router, each with its own bill.',
+      'The Spend panel grouped by model, where the same model reached three ways — a Claude Code ' +
+      'subscription, an API key and a router — is one row under the model\u2019s own name, and the ' +
+      'groupings beside it are what tell the three bills apart.',
     state: { ...base(), panel: { ...spendPanel(), by: 'model' as const } },
     frame: frame({
       plan: planStandings(plans, NOW),

@@ -1,5 +1,5 @@
 import { type ReadableEventType, type TadeEvent, typeNow } from './events.ts'
-import { accountBucket, type RunFacts, runFactsOf, UNRECORDED } from './spend.ts'
+import { accountBucket, modelIn, type RunFacts, runFactsOf, UNRECORDED } from './spend.ts'
 
 // How long the agents have been running, which is the other half of what they
 // cost.
@@ -67,6 +67,10 @@ const OPEN_RUN_CEILING = 24 * 60 * 60 * 1000
  */
 export const RUNTIME_EVENTS: readonly ReadableEventType[] = [
   'run_started',
+  // What it turned out to be on, which is what it is timed by. One or two
+  // lines per run, so reading them costs nothing next to the usage stream —
+  // and without them a run that never billed is an hour attributed to nothing.
+  'run_model',
   'run_exited',
   'lane_exited',
   'task_removed',
@@ -97,7 +101,12 @@ export interface RuntimeWindow {
    * (`modelsSaid`). A route asks for `anthropic/claude-opus-5` and Claude Code
    * answers `claude-opus-5`, so a run timed by what was *asked for* lands on a
    * different model row from the money it spent — one agent, drawn as two.
-   * What it said it ran on wins; what was asked for is the fallback.
+   *
+   * For a journal written before `run_model` existed, which is the only thing
+   * this is still for: a run id is a task's agent and is used again every time
+   * that agent is opened, so the best this can say is what the last run under
+   * that id said. A `run_model` seen inside the run being timed is better and
+   * wins over it; what was asked for is the fallback under both.
    */
   said?: ReadonlyMap<string, string>
 }
@@ -107,7 +116,11 @@ export interface RuntimeReport {
   total: Runtime
   byProject: Record<string, Runtime>
   byTask: Record<string, Runtime>
-  /** What it ran on: what its usage said, or what `run_started` asked for. */
+  /**
+   * What it ran on, by the model's own name (`modelIdentity`) so its hours and
+   * its money are one row: what it said while it ran, then what its usage
+   * said, then what `run_started` asked for.
+   */
   byModel: Record<string, Runtime>
   /** The harness it ran in, as `run_started` recorded it. */
   byHarness: Record<string, Runtime>
@@ -191,6 +204,15 @@ export function runtimeFrom(events: readonly TadeEvent[], window: RuntimeWindow)
         }
         break
       }
+      case 'run_model': {
+        // What it turned out to be on, said while this run was open — so a run
+        // id used again by the next agent of the same task cannot lend this one
+        // its model, which is the most `said` can do for an older journal.
+        const run = open.get(keyOf(event))
+        const { name } = modelIn(event)
+        if (run && name !== UNRECORDED) run.model = name
+        break
+      }
       case 'run_exited':
         // By run id, and by task for an exit that lost it: a run left open
         // would otherwise count to now for ever.
@@ -234,19 +256,45 @@ function closeLane(open: Map<string, Open>, lane: string, close: (key: string) =
 }
 
 /**
- * What the run said it would be on, or the bucket for nothing said — which is
- * where an agent whose `run_started` recorded no model puts its hours. Drawn
+ * What the run said it would be on, folded to the model's own name — so the
+ * hours of `anthropic/claude-opus-5` and the money of `claude-opus-5` land on
+ * one row rather than on two models that never ran together.
+ *
+ * `UNRECORDED` where the start named nothing, which is where an agent started
+ * before its harness had said puts its hours until a `run_model` says. Drawn
  * as *not recorded*, never as a model called `unknown`.
  */
 function modelOf(event: TadeEvent): string {
-  const model = event.detail.model
-  return typeof model === 'string' && model !== '' ? model : UNRECORDED
+  return modelIn(event).name
 }
 
 function into(buckets: Record<string, Runtime>, key: string): Runtime {
   const found = buckets[key] ?? noRuntime()
   buckets[key] = found
   return found
+}
+
+/**
+ * What a runtime total means, said rather than left to be worked out.
+ *
+ * `13d 3h` off a machine that has been on for a day and a half reads as a bug,
+ * and it is not one: twenty agents over an afternoon is legitimately more than
+ * a week, because each of them ran for the whole of its own afternoon. And a
+ * run is wall clock from start to stop, so an agent that finished in twenty
+ * minutes and sat in its lane until somebody closed the window counted every
+ * hour of the wait — which is the honest answer to "how long was it running",
+ * and the wrong answer to a question nobody asked it.
+ *
+ * So both are said, in one sentence, wherever the figure is: the number is
+ * defensible and the reading of it was not. One sentence and not two, and said
+ * by core rather than by each surface, because the window and `tade spend` are
+ * reading the same fold and may never explain it differently.
+ */
+export function runtimeSays(runtime: Runtime): string {
+  if (runtime.ms <= 0) return ''
+  const counts = 'counts until it stopped, idle time included'
+  if (runtime.runs <= 1) return `${duration(runtime.ms)} is one run, and a run ${counts}.`
+  return `${duration(runtime.ms)} is ${runtime.runs} runs added together, not elapsed time: agents at once each count their own hours, and each ${counts}.`
 }
 
 /**

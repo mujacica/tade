@@ -1,5 +1,5 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
-import { duration, type Priced } from '@tade/core'
+import { duration, noRuntime, type Priced, runtimeSays } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
@@ -329,6 +329,12 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   // harness that can only estimate says so every turn, and this is where that
   // reaches whoever is reading the total.
   for (const line of wrapTo(pricedFooter(view), inner - 1, 2)) {
+    rows.push(row().space().text(line, skin.hint).build())
+  }
+  // And what the runtime column has been adding up, for the same reason the
+  // line above it exists: `13d 3h` on a machine that has been on since
+  // breakfast reads as a bug and is not one, and nothing on this page said so.
+  for (const line of wrapTo(runtimeSays(view?.runtime ?? noRuntime()), inner - 1, 3)) {
     rows.push(row().space().text(line, skin.hint).build())
   }
 

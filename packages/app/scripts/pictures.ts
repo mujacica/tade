@@ -246,9 +246,9 @@ export const PICTURES: readonly Picture[] = [
     scenario: 'spend-by-model',
     crop: 'panel',
     about:
-      'The same morning grouped by model: one model reached three ways is three rows — a Claude ' +
-      'Code subscription, an API key and a router — each name shown whole, and the groupings ' +
-      'beside it for harness, sign-in and provider.',
+      'The same morning grouped by model: one model reached three ways — a Claude Code ' +
+      'subscription, an API key and a router — is one row, its hours and its money in the same ' +
+      'place, with the groupings beside it for harness, sign-in and provider.',
   },
   {
     file: 'resources.svg',

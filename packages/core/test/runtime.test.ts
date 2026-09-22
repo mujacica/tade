@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReadableEventType, TadeEvent } from '../src/events.ts'
-import { duration, noRuntime, runtimeFrom } from '../src/runtime.ts'
-import { startOfToday, UNRECORDED } from '../src/spend.ts'
+import { duration, noRuntime, runtimeFrom, runtimeSays } from '../src/runtime.ts'
+import { modelsSaid, startOfToday, UNRECORDED } from '../src/spend.ts'
 
 // Runtime is a query, like every other status: the journal says when an agent
 // started and when it ended, and the clock says the rest. Nothing keeps a
@@ -354,13 +354,137 @@ describe('what the hours were spent on', () => {
     const report = runtimeFrom(runs, { now: NOW, said: new Map([['r1', 'claude-opus-5']]) })
     expect(report.byModel['claude-opus-5']?.ms).toBe(10 * MINUTE)
     expect(report.byModel['anthropic/claude-opus-5']).toBeUndefined()
-    // And with nothing said, what was asked for is still the honest answer.
-    expect(runtimeFrom(runs, { now: NOW }).byModel['anthropic/claude-opus-5']?.ms).toBe(10 * MINUTE)
+    // And with nothing said, what was asked for is still the honest answer —
+    // under the model's own name, because that is the only name it has.
+    expect(runtimeFrom(runs, { now: NOW }).byModel['claude-opus-5']?.ms).toBe(10 * MINUTE)
   })
 
   it('says nothing recorded for a run that named no harness', () => {
     const report = runtimeFrom([event('run_started', { ts: at(10) }), exited(0)], { now: NOW })
     expect(report.byHarness[UNRECORDED]?.ms).toBe(10 * MINUTE)
     expect(report.byProvider[UNRECORDED]?.ms).toBe(10 * MINUTE)
+  })
+})
+
+// The other half of the same bug: the journal this was written from had 86 of
+// its 161 runs recording no model at all — every one of them pi, which picks
+// by what you are signed in to, so there was nothing to record at the start.
+// Their hours went to the bucket for nothing recorded while their money went
+// to a model row, and the two halves of one agent were never in one place.
+describe('a run is timed by what it turned out to be on', () => {
+  it('takes what it said while it ran over what it was asked for', () => {
+    // A route asks for `anthropic/claude-opus-5` and Claude Code answers
+    // `claude-opus-5`: one model, and it must be one row.
+    const report = runtimeFrom(
+      [
+        started(30, { detail: { model: 'anthropic/claude-opus-5' } }),
+        event('run_model', { ts: at(29), detail: { model: 'claude-opus-5' } }),
+        exited(10),
+      ],
+      { now: NOW },
+    )
+    expect(report.byModel['claude-opus-5']?.ms).toBe(20 * MINUTE)
+    expect(Object.keys(report.byModel)).toEqual(['claude-opus-5'])
+  })
+
+  it('gives a run started with no model the one its harness said', () => {
+    // pi with nothing configured: `run_started` names nothing, and what it
+    // picked arrives before its first turn.
+    const report = runtimeFrom(
+      [
+        event('run_started', { ts: at(30) }),
+        event('run_model', {
+          ts: at(29),
+          detail: { model: 'kimi-k2.6', modelId: 'openrouter/moonshotai/kimi-k2.6' },
+        }),
+        exited(10),
+      ],
+      { now: NOW },
+    )
+    expect(report.byModel['kimi-k2.6']?.ms).toBe(20 * MINUTE)
+    expect(report.byModel[UNRECORDED]).toBeUndefined()
+  })
+
+  it('folds every spelling of one model into the row its money is in', () => {
+    const report = runtimeFrom(
+      [
+        started(60, { run: 'r1', detail: { model: 'claude-opus-5' } }),
+        exited(50, { run: 'r1' }),
+        started(40, { run: 'r2', detail: { model: 'anthropic/claude-opus-5' } }),
+        exited(30, { run: 'r2' }),
+        started(20, { run: 'r3', detail: { model: 'openrouter/anthropic/claude-opus-5' } }),
+        exited(10, { run: 'r3' }),
+      ],
+      { now: NOW },
+    )
+    expect(Object.keys(report.byModel)).toEqual(['claude-opus-5'])
+    expect(report.byModel['claude-opus-5']?.ms).toBe(30 * MINUTE)
+    expect(report.byModel['claude-opus-5']?.runs).toBe(3)
+  })
+
+  it('never lends one run the model of the next run under its id', () => {
+    // A run id is a task's agent and is used again every time it is opened, so
+    // `said` can only say what the last of them said. A `run_model` seen
+    // inside the run being timed is evidence about that run and wins.
+    const journal = [
+      event('run_started', { ts: at(60) }),
+      event('run_model', { ts: at(59), detail: { model: 'kimi-k2.6' } }),
+      exited(50),
+      event('run_started', { ts: at(40) }),
+      event('run_model', { ts: at(39), detail: { model: 'claude-opus-5' } }),
+      exited(30),
+    ]
+    const report = runtimeFrom(journal, { now: NOW, said: modelsSaid(journal) })
+    expect(report.byModel['kimi-k2.6']?.ms).toBe(10 * MINUTE)
+    expect(report.byModel['claude-opus-5']?.ms).toBe(10 * MINUTE)
+  })
+
+  it('still reads a journal written before any run said', () => {
+    // Nothing but usage to go on, which is all an older journal has: the run
+    // is timed by what its turns were priced at rather than by nothing.
+    const usage = event('usage', { ts: at(20), detail: { model: 'openrouter/kimi-k2.6' } })
+    const report = runtimeFrom([event('run_started', { ts: at(30) }), exited(10)], {
+      now: NOW,
+      said: modelsSaid([usage]),
+    })
+    expect(report.byModel['kimi-k2.6']?.ms).toBe(20 * MINUTE)
+  })
+
+  it('leaves a run nothing ever said about as not recorded', () => {
+    // 32 of the 86 are this: pi runs that opened and never took a turn, so
+    // nothing anywhere ever named a model. Not a model called `unknown`.
+    const report = runtimeFrom([event('run_started', { ts: at(30) }), exited(10)], { now: NOW })
+    expect(report.byModel[UNRECORDED]?.ms).toBe(20 * MINUTE)
+    expect(report.byModel.unknown).toBeUndefined()
+  })
+
+  it('ignores a model said for a run that is not open', () => {
+    const report = runtimeFrom(
+      [event('run_model', { ts: at(40), detail: { model: 'kimi-k2.6' } }), started(30), exited(10)],
+      { now: NOW },
+    )
+    expect(report.byModel['claude-opus-5']?.ms).toBe(20 * MINUTE)
+    expect(report.byModel['kimi-k2.6']).toBeUndefined()
+  })
+})
+
+describe('runtimeSays', () => {
+  it('says nothing when nothing ran', () => {
+    expect(runtimeSays(noRuntime())).toBe('')
+  })
+
+  it('says that many runs were added together, and that waiting is in it', () => {
+    // `13d 3h` off a machine that has been on since breakfast reads as a bug
+    // and is not one — and nothing on the page said so.
+    const said = runtimeSays({ ms: 13 * 24 * 60 * MINUTE, runs: 53, running: true })
+    expect(said).toContain('13d')
+    expect(said).toContain('53 runs added together')
+    expect(said).toContain('idle time included')
+  })
+
+  it('does not say runs were added together when there was one', () => {
+    const said = runtimeSays({ ms: 90 * MINUTE, runs: 1, running: false })
+    expect(said).toContain('1h 30m is one run')
+    expect(said).not.toContain('added together')
   })
 })

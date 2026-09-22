@@ -4,6 +4,8 @@ import {
   type ApprovalSettings,
   type Caution,
   decideApproval,
+  modelDetail,
+  modelIdentity,
   type SandboxKind,
   type TaskId,
   type ThinkingLevel,
@@ -145,6 +147,12 @@ interface RunState {
    * that can only ever say *not recorded* about the work already done.
    */
   facts: { harness: string; account: string | null; provider: string | null }
+  /**
+   * The model it last said it was on, by its own name — so `run_model` is
+   * written when that changes and not once a turn. Null until anybody has
+   * said, which is what a run started with no model asked for looks like.
+   */
+  model: string | null
   stop: () => void
 }
 
@@ -299,6 +307,7 @@ export class WorkerSupervisor {
         task: request.task,
         worktree: request.cwd,
         facts: factsOf(request, adapter.id),
+        model: modelAsked(request),
         stop,
       })
       return handle
@@ -342,7 +351,15 @@ export class WorkerSupervisor {
       throw err
     }
     const facts = factsOf(request, adapter.id)
-    this.runs.set(run, { handle, adapter, task: request.task, worktree, facts, stop })
+    this.runs.set(run, {
+      handle,
+      adapter,
+      task: request.task,
+      worktree,
+      facts,
+      model: modelAsked(request),
+      stop,
+    })
     await this.log.append({
       type: 'run_started',
       task: request.task,
@@ -350,7 +367,13 @@ export class WorkerSupervisor {
       detail: {
         cwd: request.cwd,
         adapter: adapter.id,
-        model: request.model?.id ?? null,
+        // The model by its own name, and the spelling that reaches it again
+        // where they differ — written exactly as `usage` and `run_model`
+        // write it, because a run timed under one spelling and priced under
+        // another is one agent drawn as two models that never ran together.
+        // Nothing at all when nothing was asked for: pi picks by what you are
+        // signed in to, and what it picked arrives as `run_model`.
+        ...modelDetail(request.model?.id),
         // Which sign-in and which provider, beside which harness: three rows
         // that are one model reached three ways are only ever told apart by
         // these, and a model id is not one of them — `anthropic/claude-opus-5`
@@ -581,6 +604,10 @@ export class WorkerSupervisor {
         // end the turn it happened in.
         if (!this.turns.has(run)) this.turns.set(run, 'idle')
         if (task) this.noteVitals(task, signal)
+        // And this is where a run that was started with no model asked for
+        // finally has one: before its first turn, and before anything it does
+        // could ever have cost money.
+        await this.noteModel(run, state, signal.model)
         return
       case 'context':
         if (task) this.noteVitals(task, signal)
@@ -593,7 +620,13 @@ export class WorkerSupervisor {
         return
       case 'usage':
         if (task && signal.model) this.noteVitals(task, { type: 'started', model: signal.model })
+        // Before anything is awaited: the turn this belongs to ends in the
+        // signal after it, and a span that has already closed takes no tokens.
         this.timing.usage(run, signal)
+        // A harness that says what a turn cost without ever having said what
+        // it opened on still says which model it is billing for, so the model
+        // is written down here too — once, and again only if it changes.
+        await this.noteModel(run, state, signal.model)
         // What the turn cost, as the harness priced it. The journal is where
         // spend is read back from, so it goes in whether or not anyone asked.
         await this.log.append({
@@ -601,7 +634,7 @@ export class WorkerSupervisor {
           task,
           run,
           detail: {
-            model: signal.model,
+            ...modelDetail(signal.model),
             input: signal.input,
             output: signal.output,
             cacheRead: signal.cacheRead,
@@ -690,6 +723,35 @@ export class WorkerSupervisor {
    */
   vitals(task: string): RunVitals | null {
     return this.vitalsByTask.get(task) ?? null
+  }
+
+  /**
+   * What a run turned out to be on, written down the first time its harness
+   * says so and again whenever it changes.
+   *
+   * `run_started` can only record what was *asked* for, and a route that asks
+   * for nothing — pi picks by what you are signed in to — leaves it with
+   * nothing to record: 86 of the 161 runs in the journal this was written from
+   * named no model, and every hour they ran was time attributed to nothing.
+   * Compared by the model's own name rather than by the spelling, so a harness
+   * answering `claude-opus-5` to a route that asked for
+   * `anthropic/claude-opus-5` is the same model and writes no line.
+   */
+  private async noteModel(
+    run: RunId,
+    state: RunState | undefined,
+    said: string | null,
+  ): Promise<void> {
+    if (!state) return
+    const { name } = modelIdentity(said)
+    if (!name || name === state.model) return
+    state.model = name
+    await this.log.append({
+      type: 'run_model',
+      task: state.task,
+      run,
+      detail: modelDetail(said),
+    })
   }
 
   private noteVitals(
@@ -1016,6 +1078,14 @@ function factsOf(request: StartRunRequest, fallback: string): RunState['facts'] 
     account: request.account ?? parts.account,
     provider: request.model?.provider ?? null,
   }
+}
+
+/**
+ * The model a run was asked to start on, by its own name — what `run_started`
+ * records, and so what a `run_model` has to differ from to be worth writing.
+ */
+function modelAsked(request: StartRunRequest): string | null {
+  return modelIdentity(request.model?.id).name || null
 }
 
 /** The run's facts as journal detail, leaving out what nobody recorded. */

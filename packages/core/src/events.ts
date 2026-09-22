@@ -52,6 +52,19 @@ export const EventType = z.enum([
   'watch_found',
   // agents
   'run_started',
+  /**
+   * What a run turned out to be on, the moment its harness said so.
+   *
+   * `run_started` can only record what was *asked* for, and with nothing asked
+   * for there is nothing to ask for: pi picks by what you are signed in to, so
+   * 86 of the 161 runs in the journal this was written from named no model at
+   * all and every hour they ran was time attributed to nothing. A harness says
+   * which model it opened on before it does any work, and a run that never
+   * bills says it and nothing else — so this is the only place it can be, and
+   * a fact not written down when it was true is a question nobody can answer
+   * later.
+   */
+  'run_model',
   'run_exited',
   'tool_call',
   'permission_request',
@@ -119,6 +132,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   watch_checked: 'routine',
   watch_found: 'notable',
   run_started: 'notable',
+  // Routine rather than trace, for the reason `usage` is: it is read back out
+  // of the journal to be added up, and trace is the first thing dropped when a
+  // subscriber falls behind — which here would mean an agent's hours going to
+  // the bucket for nothing recorded, silently.
+  run_model: 'routine',
   run_exited: 'notable',
   tool_call: 'routine',
   permission_request: 'blocking',

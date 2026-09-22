@@ -1,4 +1,4 @@
-import type { TadeEvent } from '@tade/core'
+import { modelIn, type TadeEvent, UNRECORDED } from '@tade/core'
 import type { FromEvent, Level, Measure } from './port.ts'
 
 // What may be sent, worked out in pure functions: where a DSN points, what a
@@ -179,6 +179,8 @@ function count(detail: Readonly<Record<string, unknown>>, key: string): number |
  * belongs.
  */
 const DIMENSIONS: Readonly<Record<string, readonly string[]>> = {
+  // `model` and not `modelId`: the name is the model, the spelling is the
+  // route, and a series per route is what `provider` is for.
   run_started: ['adapter', 'model', 'approvals'],
   turn_done: ['status'],
   tool_call: ['tool', 'tier', 'approved'],
@@ -299,7 +301,10 @@ export function fromEvent(event: TadeEvent, home: string): FromEvent {
     const tokens = Number(event.detail.tokens ?? 0)
     const cost = Number(event.detail.usd ?? 0)
     const by = typeof event.detail.by === 'string' ? event.detail.by : 'agent'
-    const model = typeof event.detail.model === 'string' ? event.detail.model : ''
+    // The model's own name, not the spelling it was reached by: a dimension is
+    // a series, and one model spelled three ways is three of them.
+    const said = modelIn(event).name
+    const model = said === UNRECORDED ? '' : said
     // Whether the money is priced or guessed. A harness declares which it can
     // do (`spend.usd`), and the two must never add up into one figure without
     // saying so: pi prices each turn against its own catalog, Claude Code

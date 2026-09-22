@@ -75,8 +75,9 @@ describe('accounting for a closed window', () => {
     expect(spend.byTask['app/refunds']?.tokens).toBe(1_200)
     expect(spend.byTask['app/refunds']?.usd).toBeCloseTo(0.42)
     expect(spend.total.hasCost).toBe(true)
-    // On the model it ran on, not on "unknown".
-    expect(spend.byModel['openrouter/moonshotai/kimi-k2.6']?.tokens).toBe(1_200)
+    // On the model it ran on, not on "unknown" — by its own name, which is
+    // the row the money of every other route to it is already in.
+    expect(spend.byModel['kimi-k2.6']?.tokens).toBe(1_200)
   })
 
   it('does not charge the same tokens twice on the next open', async () => {

@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { TadeEvent } from '../src/events.ts'
 import {
   checkBudget,
+  modelDetail,
+  modelIdentity,
+  modelIn,
   modelsSaid,
   noSpend,
   pricedOf,
@@ -243,5 +246,93 @@ describe('priced or guessed', () => {
     const report = spendFrom([usage({ detail: { usd: 0, priced: 'estimate' } })], { since: 0 })
     expect(pricedOf(report.total)).toBe('none')
     expect(report.total.hasCost).toBe(false)
+  })
+})
+
+// One model has as many spellings as there are ways of reaching it, and the
+// journal is full of all of them: the one this was written from had
+// `claude-opus-5` 9,846 times, `openrouter/anthropic/claude-opus-5` 5,858,
+// `anthropic/claude-opus-5` 256 and `openrouter/moonshotai/kimi-k2.6` 12 —
+// two models, spelled four ways, drawn as four rows.
+describe('one name for one model', () => {
+  it('reads the model out of every spelling of it', () => {
+    for (const said of [
+      'claude-opus-5',
+      'anthropic/claude-opus-5',
+      'openrouter/anthropic/claude-opus-5',
+    ]) {
+      expect(modelIdentity(said).name).toBe('claude-opus-5')
+    }
+    expect(modelIdentity('openrouter/moonshotai/kimi-k2.6').name).toBe('kimi-k2.6')
+  })
+
+  it('keeps the spelling that reaches it again, which is not its name', () => {
+    // Handed back to a harness to start an agent on: a bare `claude-opus-5` is
+    // offered by several providers and pi refuses to guess between them.
+    const found = modelIdentity('anthropic/claude-opus-5', 'openrouter')
+    expect(found.id).toBe('anthropic/claude-opus-5')
+    expect(found.provider).toBe('openrouter')
+  })
+
+  it('never reads the provider out of the name', () => {
+    // `anthropic/claude-opus-5` reached through OpenRouter is a real route on
+    // a real machine, and a guess would file that spend under Anthropic.
+    expect(modelIdentity('anthropic/claude-opus-5').provider).toBe(UNRECORDED)
+  })
+
+  it('says nothing recorded rather than inventing a model of that name', () => {
+    for (const said of [undefined, null, '', '   ', 42, 'anthropic/']) {
+      expect(modelIdentity(said).name).toBe(UNRECORDED)
+    }
+  })
+
+  it('writes the name, and the spelling only where they differ', () => {
+    expect(modelDetail('claude-opus-5')).toEqual({ model: 'claude-opus-5' })
+    expect(modelDetail('openrouter/anthropic/claude-opus-5')).toEqual({
+      model: 'claude-opus-5',
+      modelId: 'openrouter/anthropic/claude-opus-5',
+    })
+    // Absent, not null: a key holding nothing reads as a model called nothing.
+    expect(modelDetail(null)).toEqual({})
+  })
+
+  it('reads an event written either way', () => {
+    // A journal is years long: the old events hold the whole spelling under
+    // `model`, and the new ones hold the name there and the spelling beside it.
+    expect(modelIn(usage({ detail: { model: 'openrouter/anthropic/claude-opus-5' } })).name).toBe(
+      'claude-opus-5',
+    )
+    const now = usage({
+      detail: { model: 'claude-opus-5', modelId: 'openrouter/anthropic/claude-opus-5' },
+    })
+    expect(modelIn(now).name).toBe('claude-opus-5')
+    expect(modelIn(now).id).toBe('openrouter/anthropic/claude-opus-5')
+  })
+
+  it('adds every spelling of one model into one row', () => {
+    const report = spendFrom(
+      [
+        usage({ detail: { model: 'claude-opus-5', tokens: 100, usd: 1 } }),
+        usage({ detail: { model: 'anthropic/claude-opus-5', tokens: 100, usd: 1 } }),
+        usage({ detail: { model: 'openrouter/anthropic/claude-opus-5', tokens: 100, usd: 1 } }),
+        usage({ detail: { model: 'openrouter/moonshotai/kimi-k2.6', tokens: 10, usd: 0.1 } }),
+      ],
+      { since: 0 },
+    )
+    expect(Object.keys(report.byModel).sort()).toEqual(['claude-opus-5', 'kimi-k2.6'])
+    expect(report.byModel['claude-opus-5']?.tokens).toBe(300)
+    expect(report.byModel['claude-opus-5']?.usd).toBeCloseTo(3)
+  })
+
+  it('folds what a run said it was on, however the run said it', () => {
+    const said = modelsSaid([
+      usage({ run: 'r1', detail: { model: 'openrouter/anthropic/claude-opus-5' } }),
+      usage({ run: 'r2', type: 'run_model', detail: { model: 'kimi-k2.6' } }),
+      // Nothing said is not a model called nothing: it leaves no entry at all.
+      usage({ run: 'r3', detail: { model: '' } }),
+    ])
+    expect(said.get('r1')).toBe('claude-opus-5')
+    expect(said.get('r2')).toBe('kimi-k2.6')
+    expect(said.has('r3')).toBe(false)
   })
 })

@@ -10,6 +10,7 @@ import {
   historyFrom,
   isReady,
   loadConfig,
+  modelDetail,
   readiness,
   Secrets,
   type ThinkingLevel,
@@ -360,9 +361,17 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               queue: await queue?.describe().catch(() => ''),
               safe,
               extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
-              onUsage: (usage) => {
+              onUsage: ({ model, ...usage }) => {
                 void client.log
-                  .append({ type: 'usage', task: null, detail: { by: 'orchestrator', ...usage } })
+                  .append({
+                    type: 'usage',
+                    task: null,
+                    // The model written the one way everything writes it: what
+                    // the orchestrator costs is the same question as what an
+                    // agent costs, and a second spelling of one model here is
+                    // a second row of it on the Spend page.
+                    detail: { by: 'orchestrator', ...usage, ...modelDetail(model) },
+                  })
                   .catch(() => {})
               },
             })
