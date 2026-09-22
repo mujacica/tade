@@ -252,9 +252,17 @@ plan, and a queue that needs an order.
 
 It may only ever add caution — it never approves, merges, closes, unholds or shortens anything — and
 what reaches you is a sentence Tade wrote, never a number. Every question it asks and every threshold
-is one file you can argue with, every finding keeps the version that answered, and what you made of
+is one file you can argue with, every finding keeps the version that answered, and what was made of
 a finding is kept beside it, so a question that never fires can be deleted and one that is always
 wrong can be rewritten.
+
+That last part is a loop, and who says what in it is the whole of it. The agent whose change was
+flagged gets the question in the judge's own words — material to judge, never an instruction — and
+answers it: it fixed the cause, or the finding is not real and why. That is its **account**, not a
+verdict; an agent marking its own work a false positive is the defendant grading the exam. The
+**verdict** is yours or the orchestrator's, and it has to name what in the change decided it. What
+nobody answered is swept up and put in front of you, and nothing becomes a false positive by
+getting old.
 
 ![What Jev has read this week, each question by how often it was right, and every finding with what became of it](images/jev.svg)
 
