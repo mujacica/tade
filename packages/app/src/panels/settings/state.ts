@@ -1,8 +1,9 @@
 import { type Setting, type SettingGroup, settingFound, stepped } from '@tade/core'
 // Type-only, so the pure panel model never loads the driver stack behind it.
 import type { UpdateLook as UpdatesShown } from '@tade/workbench/programs'
+import { normalKey } from '../../keys.ts'
 import type { PanelInputs } from '../../panels.ts'
-import { close, control, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 export type { UpdatesShown }
 
@@ -216,6 +217,38 @@ const settle = (panel: SettingsPanel, path: string, value: string): PanelOutcome
   choice: writeOf(path, value),
 })
 
+/**
+ * What copying takes from the Settings page: the value of the setting the
+ * keyboard is on, or what has been typed into it where it is open for
+ * editing. The panel only says what to copy — putting it on the clipboard is
+ * the window's, as it is for the file editor.
+ *
+ * Never a credential. A secret is drawn as bullets so that a key on a screen
+ * is not a key in a recording, and a copy is that same key somewhere nobody
+ * can see it at all — a screen share, a clipboard manager, whatever pastes
+ * next. That is deliberate and not an oversight: a key is pasted *in*, and
+ * read back out by the thing that needs it, never by a person. So the field
+ * says so rather than doing nothing, because a key that silently does nothing
+ * reads as broken.
+ */
+function copyHere(panel: SettingsPanel, rows: readonly Setting[]): PanelOutcome {
+  const path = panel.editing?.path ?? rows[panel.row]?.path
+  const setting = rows.find((row) => row.path === path)
+  if (!setting) return stay(panel)
+  if (setting.secret || setting.kept)
+    return stay({
+      ...panel,
+      saved: null,
+      error: 'A key is never copied out of Tade. Paste one in; nothing reads it back out.',
+    })
+  const value = panel.editing?.text ?? setting.value
+  if (value === '') return stay({ ...panel, saved: null, error: `${setting.title} is not set.` })
+  // Which setting, never the text of it: the window reads the value back the
+  // same way this did, so the one place that decides a value may be copied is
+  // also the last place that could have carried one somewhere it should not go.
+  return { panel: { ...panel, saved: null, error: null }, submit: true, choice: `copy:${path}` }
+}
+
 export function settingsKey(
   panel: SettingsPanel,
   key: string | undefined,
@@ -233,6 +266,16 @@ export function settingsKey(
       return settle(panel, panel.capture.path, panel.capture.key)
     if (key && key !== 'enter') return stay({ ...panel, capture: { ...panel.capture, key } })
     return stay(panel)
+  }
+
+  // Copying, after the capture above because while a key is being chosen every
+  // key is the one being chosen. With its modifiers in one order, because a
+  // terminal reports them in its own — and the same two keys the file editor
+  // copies with, since a window that copies differently in each of its panels
+  // is a window you have to learn twice.
+  if (key !== undefined) {
+    const named = normalKey(key)
+    if (named === 'ctrl+shift+c' || named === 'super+c') return copyHere(panel, rows)
   }
 
   if (panel.dropdown) {
@@ -261,8 +304,8 @@ export function settingsKey(
         },
       })
     }
-    const text = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
-    if (text && ![...text].some(control)) {
+    const text = typed(data, key)
+    if (text) {
       return stay({
         ...panel,
         dropdown: { ...panel.dropdown, query: panel.dropdown.query + text, index: 0 },
@@ -281,8 +324,12 @@ export function settingsKey(
       })
     }
     if (key === 'ctrl+u') return stay({ ...panel, editing: { ...panel.editing, text: '' } })
-    const text = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
-    if (text && ![...text].some(control)) {
+    // A paste is text like any other here — `typed` reads the markers a
+    // terminal wraps one in, so a key too long to type arrives whole, and the
+    // break at the end of a copied line neither submits the field nor puts a
+    // second line in one that has room for one.
+    const text = typed(data, key)
+    if (text) {
       return stay({ ...panel, editing: { ...panel.editing, text: panel.editing.text + text } })
     }
     return stay(panel)
@@ -294,9 +341,8 @@ export function settingsKey(
     }
     if (key === 'backspace')
       return stay({ ...panel, search: [...panel.search].slice(0, -1).join(''), row: 0 })
-    const text = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
-    if (text && ![...text].some(control))
-      return stay({ ...panel, search: panel.search + text, row: 0 })
+    const text = typed(data, key)
+    if (text) return stay({ ...panel, search: panel.search + text, row: 0 })
     return stay(panel)
   }
 

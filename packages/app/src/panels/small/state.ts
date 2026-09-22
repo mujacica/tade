@@ -1,4 +1,4 @@
-import { close, control, type PanelOutcome, stay, typed } from '../outcome.ts'
+import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The panels that are one question each.
 //
@@ -306,10 +306,8 @@ export function promptKey(panel: PromptPanel, key: string | undefined, data: str
     return stay({ ...panel, everywhere: !panel.everywhere })
   if (key === 'backspace') return stay({ ...panel, text: [...panel.text].slice(0, -1).join('') })
   if (key === 'ctrl+u') return stay({ ...panel, text: '' })
-  const text = data.startsWith('\x1b')
-    ? ''
-    : [...data].map((char) => (control(char) ? ' ' : char)).join('')
   if (key === 'space') return stay({ ...panel, text: `${panel.text} `, error: null })
+  const text = typed(data, key)
   // Branch names have no spaces, so a space typed into one is a dash.
   const branch = panel.purpose === 'new-branch' || panel.purpose === 'rename-branch'
   const typedText = branch ? text.replace(/\s/g, '-') : text

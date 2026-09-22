@@ -4,6 +4,7 @@ import { loadConfig, Secrets } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
+import { asPaste } from '../../src/input.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
 // The page opened from its button, a setting saved so the next agent gets it,
@@ -142,12 +143,36 @@ describe('the window, and its settings', () => {
     )
     const field = find('Weather api key')
     click(field.col + 30, field.row)
-    for (const char of 'wk_0123456789') terminal.press(char)
+    // Pasted, not typed, because that is how a key this long gets into a
+    // field at all — and the break at the end of it is the clipboard's:
+    // copying a key off a page takes the newline after it too, and it must
+    // neither send the field nor end up in the keychain.
+    terminal.press(asPaste('wk_0123456789\n'))
     terminal.press('\r')
     await until('saved', () => terminal.written.includes('Saved in'))
     expect(secrets.get('weather.key')).toBe('wk_0123456789')
     expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('wk_0123456789')
-    // Neither as it was typed, nor read back to you afterwards.
+    // Neither as it was pasted, nor read back to you afterwards.
     expect(terminal.written).not.toContain('wk_0123456789')
+  })
+
+  it('keeps a paste wider than the field whole, and the break at the end of it out', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    await start()
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Rules for every agent'))
+    const field = find('Rules for every agent')
+    click(field.col + 42, field.row)
+    // Two lines pasted into a field with room for one: they arrive as the one
+    // line they have to be, rather than as nothing at all.
+    const rules = `Never force-push. ${'Read the guide before editing. '.repeat(3)}`.trim()
+    terminal.press(asPaste(`${rules.replace('guide before', 'guide\n  before')}\n`))
+    terminal.press('\r')
+    await until('saved', () => terminal.written.includes('applies now'))
+    expect(client.config.agents.instructions).toBe(rules)
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).toContain('Never force-push.')
   })
 })

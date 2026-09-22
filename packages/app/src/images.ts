@@ -26,20 +26,10 @@ const TYPES: Readonly<Record<string, string>> = {
 /** A model will not take more than this in one picture, and a terminal should not carry it. */
 export const IMAGE_MAX_BYTES = 20 * 1024 * 1024
 
-const PASTE_START = '\x1b[200~'
-const PASTE_END = '\x1b[201~'
-
-/** The text of a bracketed paste, or null when this is not one. */
-export function pasted(data: string): string | null {
-  if (!data.startsWith(PASTE_START)) return null
-  const end = data.lastIndexOf(PASTE_END)
-  return data.slice(PASTE_START.length, end < 0 ? undefined : end)
-}
-
-/** Text wrapped the way a terminal wraps a paste, for a program that asked for them. */
-export function asPaste(text: string): string {
-  return `${PASTE_START}${text}${PASTE_END}`
-}
+// What a paste looks like is the editing model's (`input.ts`), and one
+// decoder answers for all of it: the two that used to live here and in the
+// file editor already disagreed about which end marker ends a paste.
+export { asPaste, pastedText as pasted } from './input.ts'
 
 export function isImagePath(path: string): boolean {
   return TYPES[extname(path).toLowerCase()] !== undefined

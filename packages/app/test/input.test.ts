@@ -1,6 +1,7 @@
 import { Editor, stripTerminalSequences, visibleWidth } from '@earendil-works/pi-tui'
 import { describe, expect, it } from 'vitest'
 import {
+  asPaste,
   caretOf,
   cellsOf,
   clickedSpan,
@@ -9,6 +10,7 @@ import {
   lineKey,
   offsetOf,
   onLine,
+  pastedText,
   placeOf,
   putCaret,
   rowStarts,
@@ -24,6 +26,28 @@ import { COLOUR, PLAIN } from '../src/skin.ts'
 // of it is arithmetic over a string: what a second click takes, what a key
 // does to what is selected, which lines of the file it runs through and which
 // cells of a drawn row it covers. None of it needs a terminal.
+
+describe('a paste', () => {
+  it('is what is between the markers, and nothing when it is a keystroke', () => {
+    expect(pastedText(asPaste('wk_0123456789'))).toBe('wk_0123456789')
+    expect(pastedText(asPaste(''))).toBe('')
+    expect(pastedText('h')).toBeNull()
+    // Every key a field has no meaning for begins with an escape too, which is
+    // exactly why the markers have to be read before the escape is.
+    expect(pastedText('\x1b[C')).toBeNull()
+  })
+
+  it('keeps its newlines, because what to do with them is the field\u2019s', () => {
+    expect(pastedText(asPaste('one\ntwo\n'))).toBe('one\ntwo\n')
+  })
+
+  it('is what arrived when its end has not, rather than nothing', () => {
+    // The terminal gathers the pieces of a long paste and hands the window one
+    // whole string, so this is a terminal misbehaving — and half a key that
+    // can be seen and fixed beats a field that stayed empty.
+    expect(pastedText(`\x1b[200~${'k'.repeat(64)}`)).toBe('k'.repeat(64))
+  })
+})
 
 describe('a selection', () => {
   it('reads the same whichever way it was made, and is nothing when it covers nothing', () => {

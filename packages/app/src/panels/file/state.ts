@@ -3,6 +3,7 @@ import {
   type LineKey,
   lineKey,
   offsetOf,
+  pastedText,
   placeOf,
   type Span,
   spanOf,
@@ -289,15 +290,6 @@ function movedIn(
   const anchor = panel.anchor ?? offsetOf(edit.lines, { line: edit.row, col: edit.column })
   const moved = editKey(edit, motionKey(what), body)
   return moved ? typedInto({ ...panel, anchor }, moved, body) : { ...panel, anchor }
-}
-
-/** What was pasted, out of the markers a terminal wraps a paste in. */
-function pastedText(data: string): string | null {
-  const open = '\x1b[200~'
-  const shut = '\x1b[201~'
-  if (!data.startsWith(open)) return null
-  const end = data.indexOf(shut)
-  return data.slice(open.length, end < 0 ? undefined : end)
 }
 
 /**

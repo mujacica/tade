@@ -11,6 +11,7 @@ import type { LaneId } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { filePaths, imagePaths, pasted } from '../images.ts'
 import {
+  asPaste,
   caretOf,
   clickedSpan,
   cutSpan,
@@ -219,7 +220,7 @@ export class Keyboard implements Subject {
         // Pasted over a selection, as typing over one: it replaces it.
         this.removeSelection()
         // As pi takes a paste: a long one becomes a marker, sent in full.
-        this.editor.handleInput(`\x1b[200~${paste}\x1b[201~`)
+        this.editor.handleInput(asPaste(paste))
         this.wire.put(setDictation(this.wire.state, this.editor.getText()))
         this.wire.draw()
         return { consume: true }

@@ -54,6 +54,8 @@ export interface SettingsDeps {
   testMicrophone(): Promise<void>
   /** Open a file in your editor: the config, from the button that says where it is. */
   openFile(path: string): Promise<void>
+  /** Put a setting's value on the clipboard. Never a credential — `copyHere` refuses those. */
+  copy(text: string): Promise<boolean>
   /**
    * Whether this terminal reports key releases, which is what holding a key
    * needs. Both pages here say so rather than promising a key that will not
@@ -129,6 +131,10 @@ export class Settings implements Subject {
         if (choice === 'open-file') {
           this.wire.put({ ...this.wire.state, panel: null })
           await this.deps.openFile(this.path)
+          return
+        }
+        if (choice?.startsWith('copy:')) {
+          await this.copied(panel, choice.slice('copy:'.length))
           return
         }
         if (choice?.startsWith('account:')) await this.deps.accountAction(choice)
@@ -283,6 +289,32 @@ export class Settings implements Subject {
     } catch (err) {
       this.wire.put({ ...this.wire.state, panel: { ...panel, saved: null, error: why(err) } })
     }
+    this.wire.draw()
+  }
+
+  /**
+   * A setting's value on the clipboard, said in the panel rather than in the
+   * strip under it: the page is over the window, so a notice down there is a
+   * notice nobody watching this field can see.
+   *
+   * The refusal is `copyHere`'s and stays there — it is the rule, and it is
+   * tested as one. This end reads the setting again all the same, because a
+   * credential is the one thing worth refusing twice: anything that ever
+   * reached here with a key in it would have put that key on the clipboard,
+   * and nothing can take it off again.
+   */
+  private async copied(panel: SettingsPanel, path: string): Promise<void> {
+    const setting = this.rows()
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === path)
+    if (!setting || setting.secret === true || setting.kept !== undefined) return
+    const value = panel.editing?.path === path ? panel.editing.text : setting.value
+    if (value === '') return
+    const done = await this.deps.copy(value)
+    this.wire.put({
+      ...this.wire.state,
+      panel: { ...panel, saved: done ? 'Copied.' : null, error: done ? null : 'Could not copy.' },
+    })
     this.wire.draw()
   }
 

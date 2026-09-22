@@ -281,6 +281,39 @@ describe('the settings form at any width', () => {
     for (const row of rows) expect(visibleWidth(row)).toBe(visibleWidth(rows[0] ?? ''))
   })
 
+  it('keeps a pasted value inside its field, drawn from the end the caret is at', () => {
+    // A Sentry DSN is seventy characters and the field is forty at its widest,
+    // so what is pasted is always wider than what draws it. The whole value is
+    // what the panel holds; the field shows the end of it, which is where what
+    // you are typing is.
+    const dsn = `https://${'0123456789abcdef'.repeat(2)}@o447951.ingest.sentry.io/4505`
+    for (const width of WIDTHS) {
+      const drawn = drawnAt(
+        'telemetry',
+        { width, height: 30 },
+        panelFor('telemetry', { editing: { path: 'telemetry.dsn', text: dsn } }),
+      )
+      const rows = plainRows(drawn)
+      const widths = new Set(rows.map((row) => visibleWidth(row)))
+      expect([...widths], `at ${width}`).toHaveLength(1)
+      // Drawn as bullets, never as itself — a masked field takes a paste and
+      // still never draws it back.
+      expect(rows.join('\n'), `at ${width}`).not.toContain('0123456789abcdef')
+      expect(rows.join('\n'), `at ${width}`).not.toContain('ingest.sentry.io')
+    }
+  })
+
+  it('draws what is pasted into a field that is not a credential', () => {
+    const drawn = drawnAt(
+      'telemetry',
+      { width: 120, height: 30 },
+      panelFor('telemetry', {
+        editing: { path: 'telemetry.environment', text: 'a-very-long-environment-name' },
+      }),
+    )
+    expect(plainRows(drawn).join('\n')).toContain('a-very-long-environment-name')
+  })
+
   it('follows the row you are on through a group longer than the panel', () => {
     const shortcuts = GROUPS.find((group) => group.id === 'shortcuts')
     if (!shortcuts) throw new Error('no shortcuts group')

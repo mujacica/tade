@@ -1,4 +1,4 @@
-import { close, control, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // Choosing a model: what there is to choose from, what each costs, and what
 // typing narrows it to. The drawing is beside this in `view.ts`.
@@ -89,8 +89,8 @@ export function modelKey(
   }
   if (key === 'backspace') return stay({ ...panel, query: panel.query.slice(0, -1), index: 0 })
   if (key === 'space') return stay({ ...panel, query: `${panel.query} `, index: 0 })
-  const typed = data.startsWith('\x1b') ? '' : [...data].filter((char) => !control(char)).join('')
-  if (typed) return stay({ ...panel, query: panel.query + typed, index: 0, error: null })
+  const text = typed(data, key)
+  if (text) return stay({ ...panel, query: panel.query + text, index: 0, error: null })
   return stay(panel)
 }
 

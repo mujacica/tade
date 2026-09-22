@@ -1,7 +1,7 @@
 // Type-only, so the pure panel model never loads the extension host behind it.
 import type { LoadedExtension } from '@tade/extensions-core'
 import type { PanelInputs } from '../../panels.ts'
-import { close, control, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The extensions this window runs with, the servers it brokers, and setting
 // one up.
@@ -503,12 +503,12 @@ export function extensionsKey(
         scroll: 0,
         following: true,
       })
-    const typed = key === 'space' ? ' ' : data.startsWith('\x1b') ? '' : data
-    if (typed && ![...typed].some(control))
+    const text = typed(data, key)
+    if (text)
       // What was chosen may not be in the list any more, so the first match is.
       return stay({
         ...panel,
-        search: panel.search + typed,
+        search: panel.search + text,
         chosen: null,
         index: 0,
         scroll: 0,

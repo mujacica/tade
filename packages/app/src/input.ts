@@ -193,6 +193,43 @@ export function clickedSpan(text: string, at: number, clicks: number): Span {
   return { from: at, to: at }
 }
 
+// A paste is not typing, and a terminal says so.
+//
+// Bracketed paste mode (`\x1b[?2004h`, which the window turns on) wraps
+// everything pasted in two markers, so a program can tell a key from text
+// somebody put on the clipboard. Every field in Tade has to know that, because
+// what arrives is one string beginning with an escape — and a field that drops
+// anything beginning with an escape drops the whole paste, which is what
+// pasting a Sentry DSN into Settings did.
+//
+// Here, with the rest of what a key or a click means to text, because there
+// were three copies of this: two decoders that already disagreed about which
+// end marker ends a paste, and one filter that threw pastes away.
+
+const PASTE_START = '\x1b[200~'
+const PASTE_END = '\x1b[201~'
+
+/**
+ * The text of a paste, or null when this is not one.
+ *
+ * The first end marker ends it: a terminal takes the markers out of what it is
+ * pasting, so one inside a paste is not something that arrives. A paste whose
+ * end has not arrived at all is what did arrive rather than nothing — the
+ * terminal gathers the pieces of a long paste and hands the window one whole
+ * string (pi-tui's stdin buffer does this), so a paste without its end marker
+ * is a terminal misbehaving, and half a key beats none of it.
+ */
+export function pastedText(data: string): string | null {
+  if (!data.startsWith(PASTE_START)) return null
+  const end = data.indexOf(PASTE_END, PASTE_START.length)
+  return data.slice(PASTE_START.length, end < 0 ? undefined : end)
+}
+
+/** Text wrapped the way a terminal wraps a paste, for a program that asked for them. */
+export function asPaste(text: string): string {
+  return `${PASTE_START}${text}${PASTE_END}`
+}
+
 /** What a keystroke means to a line with a selection in it. */
 export type LineKey =
   | { do: 'select all' }

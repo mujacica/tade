@@ -1,4 +1,4 @@
-import { close, control, type PanelOutcome, stay } from '../outcome.ts'
+import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The two panels that open out of the Extensions page: setting an extension
 // up — the guide and the fields — and the page an extension writes about
@@ -103,8 +103,12 @@ export function setupKey(
       return stay(setValue(panel, field.key, [...value].slice(0, -1).join('')))
     if (key === 'ctrl+u') return stay(setValue(panel, field.key, ''))
     if (key === 'space') return stay(setValue(panel, field.key, `${value} `))
-    const typed = data.startsWith('\x1b') ? '' : [...data].filter((char) => !control(char)).join('')
-    if (typed) return stay(setValue(panel, field.key, value + typed))
+    // A credential is pasted in far more often than it is typed — this is
+    // where a Sentry DSN and a client key arrive — so `typed` reads the
+    // markers a terminal wraps a paste in, and the break at the end of a
+    // copied line is the clipboard's rather than part of the key.
+    const text = typed(data, key)
+    if (text) return stay(setValue(panel, field.key, value + text))
   }
   return stay(panel)
 }

@@ -246,6 +246,7 @@ export class App {
       updateAction: (choice) => this.machine.updateAction(choice),
       testMicrophone: () => this.voice.testMicrophone(),
       openFile: (path) => this.files.openPlace({ path }),
+      copy: (text) => copyText(text, (data) => this.terminal.write(data)),
       releases: () => kittyActive(this.terminal),
     })
     this.images = new Images(this.wire, {
