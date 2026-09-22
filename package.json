@@ -1,7 +1,17 @@
 {
   "name": "tade",
+  "version": "0.0.0",
   "private": true,
+  "description": "A voice-first control room for running coding agents on your own machine.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mujacica/tade.git"
+  },
+  "homepage": "https://github.com/mujacica/tade#readme",
+  "bugs": {
+    "url": "https://github.com/mujacica/tade/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@10.27.0",
   "engines": {
@@ -16,11 +26,15 @@
     "tade": "node packages/cli/src/bin.ts",
     "link:global": "cd packages/cli && pnpm link --global",
     "unlink:global": "pnpm uninstall -g @tade/cli",
-    "postinstall": "node scripts/fix-pty-permissions.mjs && node scripts/install-hooks.mjs",
+    "postinstall": "node scripts/fix-pty-permissions.mjs",
+    "prepare": "node scripts/install-hooks.mjs",
     "hooks": "node scripts/install-hooks.mjs --force",
     "test:smoke": "vitest run packages/core/test test/checks-manifest.test.ts test/lint-rules.test.ts test/modularity.test.ts test/own-files.test.ts",
     "screens": "node packages/app/scripts/screens.ts",
-    "notices": "node scripts/notices.ts"
+    "notices": "node scripts/notices.ts",
+    "changelog": "node scripts/release/changelog.ts",
+    "stage": "node scripts/release/stage.ts",
+    "release": "node scripts/release/release.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

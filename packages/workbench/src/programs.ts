@@ -210,19 +210,24 @@ function packageAbove(path: string): { name: string; version?: string; dir: stri
 export function whereIs(
   command: string,
   env: NodeJS.ProcessEnv,
-  opts: { at?: string; within?: string } = {},
+  opts: { at?: string; within?: string | null } = {},
 ): Install | null {
   const path = opts.at ?? resolveCommand(command, stringEnv(env))
   if (!path || !existsSync(path)) return null
   const realPath = real(path)
   // Both sides followed, or a home under a symlinked folder — /tmp on a Mac,
   // most obviously — makes everything look like somebody else's.
-  const within = real(opts.within ?? tadeRoot())
+  //
+  // `within: null` is for the one program nothing can be inside the tree of:
+  // `tade` itself, which lives in its own package and would otherwise report
+  // as shipped with Tade, which is a sentence about a harness rather than an
+  // answer to how Tade got here.
+  const within = opts.within === null ? null : real(opts.within ?? tadeRoot())
   return installOf({
     path,
     realPath,
     package: packageAbove(realPath),
-    withinTade: realPath.startsWith(`${within}/`),
+    withinTade: within !== null && realPath.startsWith(`${within}/`),
   })
 }
 
@@ -374,11 +379,22 @@ export async function askWhatIsCurrent(
   )
 }
 
-/** The repository or package Tade itself is running out of. */
+/**
+ * The repository or package Tade itself is running out of.
+ *
+ * Recognised by what is under it rather than by what it is called, because it
+ * is called two things: the checkout is `tade`, and the published package is
+ * `tade-sh`, which is the name npm had free. Both hold the CLI at the same
+ * path, and the tarball keeps this file at the same depth below it, so one
+ * rule answers for both and a rename of either cannot quietly break it.
+ */
+const CLI = join('packages', 'cli', 'src')
+
 function tadeRoot(): string {
   let dir = dirname(fileURLToPath(import.meta.url))
   for (let up = 0; up < 8; up++) {
     if (existsSync(join(dir, '.git'))) return dir
+    if (existsSync(join(dir, CLI, 'bin.ts')) || existsSync(join(dir, CLI, 'bin.js'))) return dir
     try {
       const read = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { name?: unknown }
       if (read.name === 'tade') return dir
@@ -432,7 +448,7 @@ export async function lookAtTade(options: AskOptions & { ask?: boolean } = {}): 
   const version = versionAt(root)
   const env = options.env ?? process.env
   if (!existsSync(join(root, '.git'))) {
-    const install = whereIs('tade', env)
+    const install = whereIs('tade', env, { within: null })
     const base: TadeLook = {
       version,
       from: 'install',

@@ -9,7 +9,6 @@
     "./conformance": "./src/conformance.ts"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.1",
     "@sentry/node": "^10.74.0",
     "@tade/core": "workspace:*",
     "vitest": "^5.0.0"

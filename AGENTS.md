@@ -36,6 +36,7 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - Relative imports use the `.ts` extension: `import { x } from './x.ts'`.
 - Erasable syntax only: no `enum`, `namespace`, or constructor parameter properties.
 - Type-only imports use `import type`.
+- The published tarball is the one place this is not true, and why is an invariant below.
 
 ## The four rules
 
@@ -578,6 +579,49 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   says that and nothing else. `tade mcp list | add | enable | disable | probe` is the same answer
   from a terminal, and only `probe` dials; `tade extensions enable <a server>` refuses and says
   which command it is.
+- **One package goes out, it is called `tade-sh`, and the command is still `tade`.** Thirty-eight
+  workspace packages, every one of them `private`, ship as a single npm package — `tade` was taken,
+  `tade-sh` is what the account has. The tarball keeps the `packages/<name>/src/` shape it has here,
+  the root manifest declares one `exports` entry per package **generated from that package's own**
+  (so a subpath added tomorrow is answered tomorrow, and `./conformance` is the one key dropped),
+  and `@tade/core` is rewritten to `tade-sh/core`, which Node answers by self-reference against the
+  nearest package scope. That is why the staged tree has **no nested `package.json`**: one would
+  become that scope and every cross-package import would stop resolving — which is also why
+  `version()` reads the root manifest three levels up, the same three in both layouts.
+  **The types come off at publish, and that is not a build step.** Node refuses, deliberately, to
+  strip types from any file under a `node_modules` path, and `npm i -g` puts the package under one —
+  so a tarball of `.ts` would be a tarball that cannot run, with no flag to ask otherwise. So
+  `scripts/release/stage.ts` runs Node's own `stripTypeScriptTypes` in `strip` mode, where types
+  become whitespace: every line of the published package is at the line it is at here, and a stack
+  trace a user sends back reads against this source. Nothing in the repository was rewritten to make
+  that work and `pnpm tade` still runs the `.ts`. Two rules do the rewriting and no others — a
+  `@tade/…` specifier, and a relative path ending `.ts`, which is not only the imports: `new
+  URL('./hook.ts', import.meta.url)` is how Claude Code, Codex and pi are told which file to run. A
+  bare `'extension.ts'` is left alone, because that one names a file in somebody's own
+  `~/.tade/extensions`, which is not in the tarball and not under `node_modules`.
+  Staging refuses rather than ships: no TypeScript left, no second manifest, every `exports` target
+  on disk, every relative path and every `tade-sh/…` specifier answered, a `bin` with a shebang, and
+  a dependency imported by something that ships and declared by nobody. `vitest` is the only thing
+  dropped, and only because the conformance suites that import it do not ship.
+  **A release is deliberate and rehearsable.** Nothing publishes on a push to main: `pnpm release
+  <version>` writes the changelog, stamps the version, commits `Release <version>` and tags — then
+  `git push --follow-tags` is the one act that reaches anybody, and the tag is what starts
+  `.github/workflows/release.yml`. That workflow **calls `ci.yml`** rather than keeping a second copy
+  of the gate, packs this same tree, installs the tarball on both systems and runs the `tade` inside
+  it, and only then publishes — over OIDC, with provenance, so there is no npm token in this
+  repository and there must never be one. `pnpm release <version> --dry-run` is all of that except
+  the four writes, the install included, because the first publish cannot be taken back.
+- **What a user needs on install and what a contributor needs are two scripts.** `postinstall` is
+  `fix-pty-permissions` and nothing else: node-pty's prebuilt `spawn-helper` comes out of a tarball
+  without its executable bit, and every lane then fails with `posix_spawnp failed.` and no other
+  word — so the pty driver's `available()` and `open()` both say which file and what to type, and
+  `helperProblem` is where that sentence lives. `install-hooks` is `prepare`, which runs for this
+  repository and for a git install and never for somebody installing the published package: pointing
+  a stranger's git at hooks in a repository of theirs is not Tade's business. A dependency that did
+  not load at all is caught once, in `bin.ts`, and answered by `nativeTrouble` — which names the
+  module, what the machine said, the toolchain a build needs and the two commands that approve an
+  install script a package manager held rather than ran. A relative file that is missing is Tade's
+  own bug and is never dressed up as somebody's install problem.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
 - **What Tade needs of the machine is declared by whoever needs it.** Every driver, harness and

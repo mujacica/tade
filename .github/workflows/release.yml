@@ -1,0 +1,183 @@
+# What happens when a tag is pushed, and what a rehearsal does instead.
+#
+# Deliberate on purpose: nothing here runs on a push to main. A release is
+# `pnpm release <version>` on somebody's machine, which writes the changelog,
+# stamps the version, commits and tags — and then `git push --follow-tags`,
+# which is the one act that reaches anybody else.
+#
+# Run it from the Actions tab instead and it rehearses: the same gate, the same
+# tarball, the same notes, uploaded as artifacts and published nowhere. The
+# first publish cannot be taken back, so there is a way to do all of it except
+# the last step.
+#
+# It is not generated. `.github/workflows/ci.yml` is — from `.tade/checks.yaml`,
+# which is the one list of what this project checks — and this calls that file
+# rather than keeping a second copy of the gate.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to rehearse, e.g. 0.2.0 (nothing is published)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Never cancel a release in flight: half a publish is the one state npm has no
+# way back from.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # `pnpm check` on both systems, with the suite alone on the machine, exactly
+  # as every pull request gets it. Nothing below starts until this is green.
+  gate:
+    uses: ./.github/workflows/ci.yml
+
+  pack:
+    needs: gate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Every tag, because the changelog is grouped by release and a
+          # shallow clone has no history to group.
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      # No `pnpm install` on purpose: staging the package reads the workspace
+      # off disk and runs `git ls-files`, and nothing else. If this job ever
+      # needs dependencies, something has grown a build step.
+      # Nothing from the event is ever written into a shell line. An input and
+      # a ref name are somebody's text, and a `run:` block with `${{ }}` in it
+      # is that text becoming the script; through the environment it stays an
+      # argument. Same rule everywhere below.
+      - id: version
+        name: version
+        env:
+          EVENT: ${{ github.event_name }}
+          ASKED: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            declared=$(node -p "require('./package.json').version")
+            if [ "$version" != "$declared" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match package.json ($declared)."
+              echo "::error::\`pnpm release\` stamps both; this tag was made some other way."
+              exit 1
+            fi
+          else
+            version="$ASKED"
+          fi
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::$version is not a version: 0.2.0, or 0.2.0-rc.1"; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version" >> "$GITHUB_STEP_SUMMARY"
+      - name: changelog and notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          node scripts/release/changelog.ts --version "$VERSION" --notes dist/notes.md
+      - id: pack
+        name: stage and pack
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node scripts/release/stage.ts --version "$VERSION"
+          cd dist/package
+          name=$(npm pack --silent --pack-destination ..)
+          echo "tarball=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tade-sh
+          path: |
+            dist/*.tgz
+            dist/notes.md
+          if-no-files-found: error
+
+  # The one thing the gate cannot tell us: whether the package runs anywhere
+  # but here. Installed from the tarball into a directory that has never seen
+  # this repository, on both systems, and asked to do something.
+  smoke:
+    needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: tade-sh
+      - name: install it and run it
+        env:
+          VERSION: ${{ needs.pack.outputs.version }}
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          OS: ${{ matrix.os }}
+          TADE_NO_GH: '1'
+        run: |
+          mkdir -p smoke/home
+          npm install --no-audit --no-fund --silent --prefix smoke "./$TARBALL"
+          export TADE_HOME="$PWD/smoke/home"
+          tade=./smoke/node_modules/.bin/tade
+          said=$("$tade" --version)
+          [ "$said" = "$VERSION" ] || { echo "::error::installed tade says $said, not $VERSION"; exit 1; }
+          # Answering at all means every one of the packages resolved through
+          # the generated exports map; `--help` draws every command, and
+          # `status` is the one that reads git, the journal and the processes.
+          "$tade" --help > /dev/null
+          "$tade" status --json > /dev/null
+          echo "tade $said ran from the tarball on $OS" >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    needs: [pack, smoke]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      # The GitHub release, and the tarball attached to it.
+      contents: write
+      # Trusted publishing: npm takes a short-lived token from GitHub for this
+      # workflow on this repository, and signs the provenance with it. There is
+      # no NPM_TOKEN anywhere in this repository, and there must never be one.
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      # Node 22 ships npm 10, which cannot do trusted publishing at all.
+      - run: npm install -g npm@latest
+      - uses: actions/download-artifact@v4
+        with:
+          name: tade-sh
+      - name: publish to npm
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+        run: npm publish --provenance --access public "./$TARBALL"
+      - name: the release on GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            "./$TARBALL"

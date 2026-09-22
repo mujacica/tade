@@ -20,6 +20,7 @@ import {
   wheelBytes,
 } from '@tade/drivers-core'
 import { type IPty, spawn } from 'node-pty'
+import { helperAt, helperProblem } from './helper.ts'
 
 // @xterm/headless is CommonJS with no ESM named exports.
 const { Terminal } = createRequire(import.meta.url)(
@@ -110,9 +111,15 @@ export class PtyDriver implements WorkspaceDriver {
     }
   }
 
-  /** Node and a pseudo-terminal, which is to say: always. */
+  /**
+   * Node and a pseudo-terminal, which is to say: always, as long as node-pty's
+   * helper can actually be run. It is the one thing about this driver a
+   * machine can get wrong, and it is worth saying before a lane is opened
+   * rather than as five words out of the native layer afterwards.
+   */
   async available(): Promise<Availability> {
-    return { ok: true }
+    const problem = helperProblem(helperAt())
+    return problem === null ? { ok: true } : { ok: false, reason: problem }
   }
 
   async open(spec: LaneSpec): Promise<LaneHandle> {
@@ -132,13 +139,21 @@ export class PtyDriver implements WorkspaceDriver {
 
     const cols = spec.cols ?? DEFAULTS.cols
     const rows = spec.rows ?? DEFAULTS.rows
-    const pty = spawn(command, spec.args, {
-      name: env.TERM ?? 'xterm-256color',
-      cwd: spec.cwd,
-      cols,
-      rows,
-      env,
-    })
+    let pty: IPty
+    try {
+      pty = spawn(command, spec.args, {
+        name: env.TERM ?? 'xterm-256color',
+        cwd: spec.cwd,
+        cols,
+        rows,
+        env,
+      })
+    } catch (error) {
+      // `available()` says this too, and nothing is obliged to have asked it.
+      const problem = helperProblem(helperAt())
+      if (problem === null) throw error
+      throw new Error(problem, { cause: error })
+    }
     const term = new Terminal({
       cols,
       rows,

@@ -7,15 +7,27 @@ repositories, a queue that knows what waits for what, and every file, diff, term
 front of you while it happens.
 
 ```sh
-git clone <this repository> tade && cd tade
-pnpm install
-pnpm run link:global    # puts `tade` on your PATH
-tade                    # the window; the first time, a short setup
+npm install -g tade-sh   # the package is `tade-sh`; the command it installs is `tade`
+tade                     # the window; the first time, a short setup
 ```
 
-Needs Node ≥ 22.19, pnpm 10 and git — there is no build step, so `tade` always runs the code you
-have and `git pull` is the upgrade. Optional: tmux (agents that outlive the window), whisper.cpp and
-ffmpeg (speech), `gh` (pull request state).
+Needs Node ≥ 22.19 and git. Two of the things Tade is built on are native — node-pty, which is
+every terminal it opens, and better-sqlite3 — and they arrive prebuilt on macOS and are compiled on
+Linux, which needs python3 and a C++ toolchain (`build-essential`, or `gcc-c++ make python3`).
+Installing with pnpm, add `pnpm approve-builds -g`: pnpm 10 holds a dependency's install scripts
+until you say so, and an unbuilt node-pty is a Tade that cannot open a terminal. Optional: tmux
+(agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh` (pull request state).
+
+From a checkout, which is how you change Tade:
+
+```sh
+git clone https://github.com/mujacica/tade && cd tade
+pnpm install
+pnpm run link:global    # puts `tade` on your PATH
+```
+
+There is no build step — Node runs the TypeScript — so `tade` always runs the code you have and
+`git pull` is the upgrade.
 
 ![Tade: a project with nothing running, a request typed to the orchestrator, the orchestrator calling its tools, an agent at work asking for approval, and the brief](images/tade.svg)
 
