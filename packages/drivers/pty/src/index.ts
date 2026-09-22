@@ -9,9 +9,12 @@ import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneOutputListener,
+  type LanePointing,
   type LaneScreen,
   type LaneScrolling,
   type LaneSpec,
+  type PointerReport,
+  pointerBytes,
   UnsupportedCapabilityError,
   type WheelEncoding,
   type WheelTurn,
@@ -264,6 +267,7 @@ export class PtyDriver implements WorkspaceDriver {
       lines: last + 1,
       cursor: { back: last - (buffer.baseY + buffer.cursorY), column: buffer.cursorX },
       scrolling: scrollingOf(buffer.type, lane.term.modes.mouseTrackingMode),
+      pointing: pointingOf(lane.term.modes.mouseTrackingMode),
     }
   }
 
@@ -273,6 +277,16 @@ export class PtyDriver implements WorkspaceDriver {
     // cannot read as a pointer it reads as somebody typing.
     if (lane.term.modes.mouseTrackingMode === 'none') return
     const bytes = wheelBytes(turn, lane.encoding)
+    if (bytes.length > 0) await this.write(id, bytes)
+  }
+
+  async point(id: LaneId, report: PointerReport): Promise<void> {
+    const lane = this.live(id)
+    // As the wheel does, and for the same reason: only ever as much as the
+    // program asked for. `pointerBytes` is where that is decided, so a lane
+    // that wants presses and no movement is answered the same way by every
+    // driver rather than by whichever one remembered to check.
+    const bytes = pointerBytes(report, lane.encoding, pointingOf(lane.term.modes.mouseTrackingMode))
     if (bytes.length > 0) await this.write(id, bytes)
   }
 
@@ -457,6 +471,23 @@ function scrollingOf(
  * on, and the one thing here worth reading; a program that turns it off
  * again is back to the encoding every terminal has always understood.
  */
+/**
+ * How much of the pointer the program has asked for, in the window's words
+ * rather than the emulator's.
+ *
+ * The old `x10` asked for presses and not even releases; it is read as
+ * `press` and told about both, because a program that does not want a release
+ * report drops one and nothing this decade asks for that mode at all —
+ * whereas a `press` that lost its release would leave a button held down for
+ * ever.
+ */
+function pointingOf(mouse: import('@xterm/headless').IModes['mouseTrackingMode']): LanePointing {
+  if (mouse === 'none') return 'nobody'
+  // `drag` is movement with a button held; `any` is every movement, which is
+  // more than the window ever sends and so is handed over as the same thing.
+  return mouse === 'drag' || mouse === 'any' ? 'drag' : 'press'
+}
+
 function encodingAfter(data: string, was: WheelEncoding): WheelEncoding {
   let now = was
   for (const [, params, set] of data.matchAll(PRIVATE_MODE)) {

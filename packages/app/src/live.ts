@@ -34,7 +34,7 @@ import {
   watchedFrom,
   workedFrom,
 } from '@tade/core'
-import type { LaneScreen, WheelTurn } from '@tade/drivers-core'
+import type { LaneScreen, PointerReport, WheelTurn } from '@tade/drivers-core'
 import { collectStatus, git } from '@tade/status'
 import { terminalsFrom, type Workbench } from '@tade/workbench'
 import { checksAt } from '@tade/workbench/checks'
@@ -1036,6 +1036,21 @@ export class Live {
     if (!lane) return
     try {
       await this.opts.client.wheel(lane as never, turn)
+    } catch {
+      // As `capture` does: a lane that just exited is not news.
+    }
+  }
+
+  /**
+   * Tell a lane what the pointer did, for a program that answers it itself.
+   * How much of it that program actually hears is the driver's, from what it
+   * asked for; a lane that went away while we pressed is not an error worth
+   * showing.
+   */
+  async point(lane: string | null, report: PointerReport): Promise<void> {
+    if (!lane) return
+    try {
+      await this.opts.client.point(lane as never, report)
     } catch {
       // As `capture` does: a lane that just exited is not news.
     }

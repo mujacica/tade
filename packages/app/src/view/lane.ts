@@ -4,6 +4,7 @@ import {
   stripTerminalSequences,
   visibleWidth,
 } from '@earendil-works/pi-tui'
+import type { LaneView } from '../frame.ts'
 import type { Hit } from '../hits.ts'
 import type { AgentPane, AppState } from '../model.ts'
 import type { Skin } from '../skin.ts'
@@ -110,4 +111,55 @@ export function rowsRead(body: number, carded: boolean, back = false): number {
 export function carded(pane: AgentPane | undefined, lane: string | null): boolean {
   if (!pane?.approval) return false
   return pane.lanes.find((one) => one.id === lane)?.kind === 'agent'
+}
+
+/**
+ * Whether what the pointer does inside a lane's screen is the lane's.
+ *
+ * Two things have to be true, and they are two different facts about the
+ * lane. It has to have **taken the whole screen** (`scrolling`), because only
+ * then are the rows the window drew the rows the program thinks it has —
+ * anything else is a conversation drawn bottom-anchored into a region that is
+ * not its screen, and a report about the wrong row is worse than none. And it
+ * has to have **asked for the mouse** (`pointing`), because bytes a program
+ * did not ask for it reads as somebody typing.
+ *
+ * The third is the window's own: it has to have the keyboard. An unfocused
+ * pane answers a click the way it always has — by taking the keyboard — so
+ * one click always lands in Tade, whatever the program in the lane thinks,
+ * and nobody can be shut out of their own window. `typing` is that, passed in
+ * rather than worked out here, so the block where typing lands and the cell a
+ * press goes to can never disagree about which lane is in front.
+ */
+export function pointedIn(view: LaneView | null | undefined, typing: boolean): boolean {
+  if (!view || !typing) return false
+  return view.scrolling === 'lane' && view.pointing !== undefined && view.pointing !== 'nobody'
+}
+
+/**
+ * Where a region's rows are in the program's own screen: the row the first of
+ * them is, and how many of them hold a row of it at all.
+ *
+ * A lane is made the size of the pane and then read back in however many rows
+ * are left for it — an approval card takes five — so what is on show is the
+ * *bottom* of its screen and the top of it is behind the card. A report is
+ * about the program's screen, so the rows are counted there: drawn row 0
+ * under a card is row five of the lane, and a click told otherwise lands five
+ * rows above what was pressed.
+ *
+ * `lines` is how far down the lane's screen the last row with anything on it
+ * is, which is what the driver reports and the last row a capture returns. So
+ * both of the two ways a region and a screen can be out of step are the one
+ * subtraction: a screen taller than the room for it hides its top rows, and
+ * one shorter leaves rows of the region holding no row of it.
+ *
+ * Which of the region's rows those are is the drawing's own to say and not
+ * this: a pane anchors an agent's screen to its bottom and the panel along
+ * the bottom anchors a terminal's to its top, so one counts back from the end
+ * and the other forward from the start — of the same `rows` rows, at the same
+ * `from`.
+ */
+export function screenRows(lines: number, shown: number): { from: number; rows: number } {
+  const rows = Math.max(0, Math.min(Math.trunc(lines), Math.trunc(shown)))
+  return { from: Math.max(0, Math.trunc(lines) - rows), rows }
 }

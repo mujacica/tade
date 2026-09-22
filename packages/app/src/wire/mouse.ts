@@ -226,6 +226,16 @@ export class Mouse {
         }
         return true
       }
+      case 'point':
+        // Straight to the lane, and nothing here changes: the window keeps no
+        // idea of what it did with it, which would be a second description of
+        // somebody else's screen. How much of it the program hears is the
+        // driver's, from what it asked for at the moment of the call. Not
+        // through a dep as the wheel is, because nothing is decided here —
+        // which lane and which of its cells was the drawing's to say.
+        void this.wire.live?.point(event.lane, event.report)
+        this.deps.soonTick()
+        return false
       case 'grab':
         this.wire.put({ ...this.wire.state, resizing: event.edge })
         return true

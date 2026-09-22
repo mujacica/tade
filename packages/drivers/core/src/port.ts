@@ -1,4 +1,5 @@
 import type { LaneId, RequiredProgram, Unsubscribe } from '@tade/core'
+import type { LanePointing, PointerReport } from './pointer.ts'
 
 // The WorkspaceDriver port: what decides where a process physically lives.
 // It is deliberately NOT the thing that decides where you look at it.
@@ -111,6 +112,16 @@ export interface LaneScreen {
   cursor: { back: number; column: number }
   /** Whose the scrolling is, as the program in the lane has left it. */
   scrolling: LaneScrolling
+  /**
+   * How much of the pointer the program in the lane has asked for.
+   *
+   * Apart from `scrolling`, because they are two questions and one lane can
+   * answer them differently: a program that prints its conversation keeps
+   * every line it printed — so the scrolling is the window's — and may still
+   * want the click that opens one of them. Read off the lane, never off what
+   * was launched into it.
+   */
+  pointing: LanePointing
 }
 
 /**
@@ -166,6 +177,16 @@ export interface WorkspaceDriver {
    * `UnsupportedCapabilityError` where `capabilities.pointer` is false.
    */
   wheel(lane: LaneId, turn: WheelTurn): Promise<void>
+  /**
+   * Tell a lane what the pointer did — pressed, moved with a button held,
+   * let go — for a program that asked for it.
+   *
+   * Only ever as much as it asked for: one that never asked is sent nothing,
+   * and one that asked only about presses is sent no movement, because bytes
+   * it cannot read as a pointer it reads as somebody typing. Throws
+   * `UnsupportedCapabilityError` where `capabilities.pointer` is false.
+   */
+  point(lane: LaneId, report: PointerReport): Promise<void>
   resize(lane: LaneId, cols: number, rows: number): Promise<void>
   focus(lane: LaneId): Promise<void>
   setTitle(lane: LaneId, title: string): Promise<void>

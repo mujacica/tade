@@ -553,6 +553,8 @@ export function testWorkspaceDriver(
       await driver.write(s.id, line('quiet'))
       await waitFor(s.id, 'own screen, no mouse')
       await until(async () => (await driver.screen(s.id)).scrolling === 'nobody')
+      // And nothing the pointer does over it is its either.
+      expect((await driver.screen(s.id)).pointing).toBe('nobody')
     })
 
     // The whole point of knowing whose the scrolling is: handing it over.
@@ -579,6 +581,86 @@ export function testWorkspaceDriver(
       await until(async () => (await capture(s.id)).split('saw:<').length - 1 === 3)
       // Zero-based here, one-based on the wire, and up is the first button.
       expect(await capture(s.id)).toContain('saw:<64;5;3M')
+    })
+
+    // Whose the scrolling is and how much of the pointer a lane wants are two
+    // questions, and one lane answers them differently: an agent that prints
+    // its conversation keeps every line of it — the scrolling is the window's
+    // — and still wants the click that opens one.
+    it('says how much of the pointer the program asked for', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      // A program that never asked. Nothing the pointer does is its.
+      expect((await driver.screen(s.id)).pointing).toBe('nobody')
+
+      // One that asked about movement as well as presses: it selects for
+      // itself, so a drag over it is its own.
+      //
+      // Unless this driver cannot hand a lane the pointer at all, and then it
+      // must say nobody wants it however loudly the program asks. A window
+      // told otherwise hands over every click in that pane, `point` throws
+      // where `capabilities.pointer` is false, and what a person sees is a
+      // control that does nothing for ever with nothing anywhere saying why.
+      await driver.write(s.id, line('screen'))
+      await waitFor(s.id, 'own screen')
+      const wanted = driver.capabilities.pointer ? 'drag' : 'nobody'
+      await until(async () => (await driver.screen(s.id)).pointing === wanted)
+    })
+
+    // The whole point of knowing how much of the pointer a lane wants: a
+    // control it drew that a person can press.
+    it('tells a lane what the pointer did, and only as much as it asked for', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      const press = { did: 'press', button: 'left', column: 4, row: 2 } as const
+      if (!driver.capabilities.pointer) {
+        await expect(driver.point(s.id, press)).rejects.toThrow()
+        return
+      }
+      // Nothing at all to a program that never asked: what it cannot read as
+      // a pointer it reads as somebody typing at it.
+      await driver.point(s.id, press)
+      await driver.write(s.id, line('mark'))
+      await waitFor(s.id, 'got:mark')
+      expect(await capture(s.id)).not.toContain('saw:<')
+
+      await driver.write(s.id, line('screen'))
+      await waitFor(s.id, 'own screen')
+      await until(async () => (await driver.screen(s.id)).pointing === 'drag')
+      // Pressed, dragged, let go. Zero-based here, one-based on the wire;
+      // movement counts 32 above the button it is holding, and a release says
+      // which button it was, which is the whole reason a program asks to be
+      // told in this encoding rather than the old one.
+      await driver.point(s.id, press)
+      await until(async () => (await capture(s.id)).includes('saw:<0;5;3M'))
+      await driver.point(s.id, { did: 'drag', button: 'left', column: 6, row: 3 })
+      await until(async () => (await capture(s.id)).includes('saw:<32;7;4M'))
+      await driver.point(s.id, { did: 'release', button: 'left', column: 6, row: 3 })
+      await until(async () => (await capture(s.id)).includes('saw:<0;7;4m'))
+    })
+
+    it('says a program that asked only about presses wants no movement, and sends it none', async () => {
+      const s = spec()
+      await driver.open(s)
+      await waitFor(s.id, 'ready')
+      await driver.write(s.id, line('presses'))
+      await waitFor(s.id, 'presses only')
+      if (!driver.capabilities.pointer) {
+        expect((await driver.screen(s.id)).pointing).toBe('nobody')
+        return
+      }
+      await until(async () => (await driver.screen(s.id)).pointing === 'press')
+      // The press and the release reach it; the drag between them does not,
+      // because it never asked and would read the report as typing.
+      await driver.point(s.id, { did: 'press', button: 'left', column: 1, row: 1 })
+      await driver.point(s.id, { did: 'drag', button: 'left', column: 2, row: 1 })
+      await driver.point(s.id, { did: 'release', button: 'left', column: 2, row: 1 })
+      await until(async () => (await capture(s.id)).includes('saw:<0;3;2m'))
+      const said = await capture(s.id)
+      expect(said).toContain('saw:<0;2;2M')
+      expect(said).not.toContain('saw:<32;')
     })
 
     // Closing Tade and opening it again is the ordinary case, not the

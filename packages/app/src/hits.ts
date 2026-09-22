@@ -60,6 +60,19 @@ export type Target =
   | { kind: 'caret'; line: number }
   /** A file the task changed: clicking it shows the change. */
   | { kind: 'change'; task: string; path: string }
+  /**
+   * A cell of a lane's own screen, on a lane that took the whole screen, asked
+   * for the mouse and has the keyboard: what the pointer does here is the
+   * program's, not the window's.
+   *
+   * It carries what only the drawing knows — which lane, which row of *that
+   * program's* screen the first of these rows is, and whether it asked to be
+   * told about movement as well as presses, which is what decides whether a
+   * drag over it selects here or there. The same reason `scrollbar` carries
+   * its numbers: a press has to be turned back into something the region
+   * understands, and the drawing is the only thing that knows the sums.
+   */
+  | { kind: 'screen'; lane: string; from: number; drags: boolean }
   /** A link on an agent's screen. */
   | { kind: 'link'; url: string }
   /** A file reference on an agent's screen, maybe at a line. */
@@ -172,6 +185,9 @@ export function pressable(target: Target | null): boolean {
     target.kind !== 'caret' &&
     target.kind !== 'terminal' &&
     target.kind !== 'pane' &&
+    // A program draws its own controls and the window cannot tell which cell
+    // is one, so a hand over all of it would be a lie about every other cell.
+    target.kind !== 'screen' &&
     target.kind !== 'divider'
   )
 }

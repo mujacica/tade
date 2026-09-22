@@ -56,6 +56,13 @@ process.stdin.on('data', (chunk) => {
         process.stdout.write(`\x1b[${row};1H${said} on row ${row}`)
       }
     }
+    // Take the screen and ask only about presses — the narrower of the two
+    // ways a program can ask for the mouse, and the one a window may not send
+    // movement to: 1000 and no 1002 or 1003.
+    if (line === 'presses') {
+      process.stdout.write('\x1b[?1049h\x1b[?1000h\x1b[?1006h')
+      process.stdout.write('\x1b[2J\x1b[Hown screen, presses only\r\n')
+    }
     // The same, without asking for the mouse: nobody can scroll this at all.
     if (line === 'quiet') {
       process.stdout.write('\x1b[?1049h\x1b[2J\x1b[Hown screen, no mouse\r\n')

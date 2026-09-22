@@ -75,7 +75,8 @@ function same(a: LaneView | null, b: LaneView | null): boolean {
     a.lines === b.lines &&
     a.cursor.back === b.cursor.back &&
     a.cursor.column === b.cursor.column &&
-    a.scrolling === b.scrolling
+    a.scrolling === b.scrolling &&
+    a.pointing === b.pointing
   )
 }
 

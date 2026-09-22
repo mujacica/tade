@@ -7,6 +7,7 @@ import {
   LaneNotFoundError,
   type LaneScreen,
   type LaneSpec,
+  type PointerReport,
   type WheelTurn,
   type WorkspaceDriver,
 } from '@tade/drivers-core'
@@ -338,6 +339,12 @@ export class LaneRegistry {
   async wheel(id: LaneId, turn: WheelTurn): Promise<void> {
     this.requireAlive(id)
     await this.driver.wheel(id, turn)
+  }
+
+  /** Tell a lane what the pointer did, for a program that answers it itself. */
+  async point(id: LaneId, report: PointerReport): Promise<void> {
+    this.requireAlive(id)
+    await this.driver.point(id, report)
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

@@ -46,6 +46,7 @@ import {
 } from '@tade/core'
 import type {
   LaneScreen,
+  PointerReport,
   WheelTurn,
   WorkspaceCapabilities,
   WorkspaceDriver,
@@ -780,6 +781,11 @@ export class Workbench {
   /** Turn the wheel over a lane whose program scrolls itself. */
   wheel(lane: LaneId, turn: WheelTurn): Promise<void> {
     return this.registry.wheel(lane, turn)
+  }
+
+  /** Tell a lane what the pointer did, for a program that answers it itself. */
+  point(lane: LaneId, report: PointerReport): Promise<void> {
+    return this.registry.point(lane, report)
   }
 
   resize(lane: LaneId, cols: number, rows: number): Promise<void> {

@@ -13,9 +13,9 @@ import {
 } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
-import { blank, box, type Drawn, overlay, type Pointer, Row, stack } from '../ui.ts'
+import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { actionRows } from './actions.ts'
-import { blockAt, carded, rowsRead, scrolledBar, typingIn } from './lane.ts'
+import { blockAt, carded, pointedIn, rowsRead, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { renderPlan, renderQueued } from './queue.ts'
 import { barBeside, gutterBeside } from './rows.ts'
 import { renderSchedule } from './schedule.ts'
@@ -185,6 +185,10 @@ export function renderMain(
   const back = state.paneScroll > 0 && shown !== null && !split && !work
   // Lines of the lane in view: the pane, less the card, less that row.
   const inView = rowsRead(room, carding, back)
+  // Whether the pointer inside this screen is the program's. Never on a
+  // screen scrolled back: what is drawn then is not the screen the program
+  // has, so there is no row of it to name.
+  const pointed = !back && state.paneScroll === 0 && pointedIn(lane, typingIn(state) === 'pane')
   if (work) {
     // Laid out in the room there is, then windowed: a page longer than its
     // pane scrolls, with a bar beside it, rather than losing its end.
@@ -293,6 +297,7 @@ export function renderMain(
     rows.push(scrolledBar(state.paneScroll, 'pane-end', body, skin, pointer))
   } else {
     const kind = pane.lanes.find((one) => one.id === shown)?.kind
+    const from = rows.length
     rows.push(
       ...laneLines(
         frame.screen,
@@ -301,11 +306,33 @@ export function renderMain(
         inView,
         skin,
         pointer,
-        frame.linkers,
+        // A lane that answers the pointer itself gets none of Tade's own
+        // reading of its text: a path that lights up under the pointer and
+        // then hands the click to the program is a worse lie than not
+        // offering it, and on such a lane the program's own meaning for that
+        // cell is the one that counts.
+        pointed ? null : frame.linkers,
         // The block where what you type lands, on the lane the keyboard is on.
         lane && typingIn(state) === 'pane' ? lane.cursor : null,
       ),
     )
+    if (pointed && lane && shown) {
+      const screen = screenRows(lane.lines, inView)
+      const target: Target = {
+        kind: 'screen',
+        lane: shown,
+        from: screen.from,
+        drags: lane.pointing === 'drag',
+      }
+      // The last of the region's rows, because an agent's screen is drawn
+      // anchored to the bottom of it. Last in each row's hits, so it wins: on
+      // this lane every cell the program drew is the program's. Only the ones
+      // it drew — the column the bar or the mark takes, the header above and
+      // the card below are Tade's, and none of them are in this range.
+      for (let i = inView - screen.rows; i < inView; i++) {
+        rows[from + i]?.hits.push(rowHit(0, body, target))
+      }
+    }
   }
   // Anywhere on the agent's screen gives it the keyboard back, and the wheel
   // scrolls back through what it said. A split pane says which half it was.
@@ -379,7 +406,14 @@ function laneLines(
   rows: number,
   skin: Skin,
   pointer: Pointer,
-  linkers: Frame['linkers'],
+  /**
+   * What to read the lane's text for, or `null` to read it for nothing at
+   * all — which is what a lane that answers the pointer itself gets, because
+   * Tade's own recognition of a path in it is not something it may then take
+   * the click for. `[]` is not that: the paths and the URLs are found whether
+   * or not an extension adds a way of reading one.
+   */
+  linkers: Frame['linkers'] | null,
   cursor: LaneView['cursor'] | null = null,
 ): { text: string; hits: Hit[] }[] {
   const lines = screen.split('\n')
@@ -391,7 +425,13 @@ function laneLines(
   // Which row the last line captured ended on: what the cursor is counted
   // back from, and the one thing the two anchorings above disagree about.
   const last = kind === 'agent' ? rows - 1 : Math.min(lines.length, rows) - 1
-  for (const line of lines.slice(-rows)) out.push(linkedRow(line, width, skin, pointer, linkers))
+  for (const line of lines.slice(-rows)) {
+    out.push(
+      linkers === null
+        ? { text: fit(line, width), hits: [] }
+        : linkedRow(line, width, skin, pointer, linkers),
+    )
+  }
   while (out.length < rows) out.push(blank(width))
   if (cursor) blockAt(out, last - cursor.back, cursor.column, width, skin)
   return out

@@ -19,9 +19,12 @@ import {
   type LaneHandle,
   LaneNotFoundError,
   type LaneOutputListener,
+  type LanePointing,
   type LaneScreen,
   type LaneScrolling,
   type LaneSpec,
+  type PointerReport,
+  pointerBytes,
   type WheelEncoding,
   type WheelTurn,
   type WorkspaceCapabilities,
@@ -126,7 +129,8 @@ const FIELD = '|'
  */
 const PANE_FORMAT =
   '#{cursor_x} #{cursor_y} #{pane_height} #{alternate_on} ' +
-  '#{mouse_any_flag} #{mouse_button_flag} #{mouse_standard_flag} #{mouse_sgr_flag}'
+  '#{mouse_any_flag} #{mouse_button_flag} #{mouse_standard_flag} #{mouse_sgr_flag} ' +
+  '#{mouse_all_flag}'
 
 /** What `PANE_FORMAT` came back with. */
 interface Pane {
@@ -137,20 +141,28 @@ interface Pane {
   own: boolean
   /** It asked for the mouse, in any of the ways there are to ask. */
   mouse: boolean
+  /**
+   * It asked to be told about movement, not only about presses. Never
+   * `mouse_any_flag`, which is tmux's word for "in any of the mouse modes"
+   * rather than for mode 1003 — that one is `mouse_all_flag`, and read the
+   * other way it says a pane that asked only about presses wants movement
+   * too, which is a program typed at rather than pointed at.
+   */
+  drag: boolean
   encoding: WheelEncoding
 }
 
 function readPane(said: string): Pane {
-  const [x = 0, y = 0, height = 0, alternate = 0, any = 0, button = 0, standard = 0, sgr = 0] = said
-    .trim()
-    .split(/\s+/)
-    .map(Number)
+  const fields = said.trim().split(/\s+/).map(Number)
+  const [x = 0, y = 0, height = 0, alternate = 0, any = 0, button = 0] = fields
+  const [standard = 0, sgr = 0, all = 0] = fields.slice(6)
   return {
     x,
     y,
     height,
     own: alternate === 1,
     mouse: any === 1 || button === 1 || standard === 1,
+    drag: button === 1 || all === 1,
     encoding: sgr === 1 ? 'sgr' : 'legacy',
   }
 }
@@ -165,6 +177,18 @@ function readPane(said: string): Pane {
 function scrollingOf(pane: Pane): LaneScrolling {
   if (!pane.own) return 'window'
   return pane.mouse ? 'lane' : 'nobody'
+}
+
+/**
+ * How much of the pointer the pane's program has asked for. tmux keeps a flag
+ * per way of asking, so this is a reading of its answer rather than a guess:
+ * the standard flag is presses, and either of the other two is movement with
+ * a button held — `any` asks for movement with none, which the window never
+ * sends and so is handed over as the same thing.
+ */
+function pointingOf(pane: Pane): LanePointing {
+  if (pane.drag) return 'drag'
+  return pane.mouse ? 'press' : 'nobody'
 }
 
 export class TmuxDriver implements WorkspaceDriver {
@@ -361,9 +385,10 @@ export class TmuxDriver implements WorkspaceDriver {
     while (all.length > 0 && all.at(-1)?.trim() === '') all.pop()
     const pane = readPane(where)
     const scrolling = scrollingOf(pane)
+    const pointing = pointingOf(pane)
     const { x, y, height } = pane
     if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(height) || height <= 0) {
-      return { lines: all.length, cursor: { back: 0, column: 0 }, scrolling }
+      return { lines: all.length, cursor: { back: 0, column: 0 }, scrolling, pointing }
     }
     // Where the visible screen starts in what was captured: everything above
     // it is scrollback, and the cursor's row is counted from there.
@@ -372,20 +397,32 @@ export class TmuxDriver implements WorkspaceDriver {
       lines: all.length,
       cursor: { back: all.length - 1 - (top + y), column: x },
       scrolling,
+      pointing,
     }
   }
 
   async wheel(id: LaneId, turn: WheelTurn): Promise<void> {
-    const lane = this.live(id)
-    // Asked again rather than remembered from the last look: a program that
-    // has just let go of the mouse would otherwise be typed at, and what it
-    // wants is one short answer from tmux away.
-    const pane = readPane(
-      await this.tmux(['display-message', '-p', '-t', lane.window, PANE_FORMAT]),
-    )
+    const pane = await this.paneNow(id)
     if (!pane.mouse) return
     const bytes = wheelBytes(turn, pane.encoding)
     if (bytes.length > 0) await this.write(id, bytes)
+  }
+
+  async point(id: LaneId, report: PointerReport): Promise<void> {
+    const pane = await this.paneNow(id)
+    const bytes = pointerBytes(report, pane.encoding, pointingOf(pane))
+    if (bytes.length > 0) await this.write(id, bytes)
+  }
+
+  /**
+   * What the pane is like right now, for the two calls that answer the
+   * pointer. Asked again rather than remembered from the last look: a program
+   * that has just let go of the mouse would otherwise be typed at, and what
+   * it wants is one short answer from tmux away.
+   */
+  private async paneNow(id: LaneId): Promise<Pane> {
+    const lane = this.live(id)
+    return readPane(await this.tmux(['display-message', '-p', '-t', lane.window, PANE_FORMAT]))
   }
 
   async resize(id: LaneId, cols: number, rows: number): Promise<void> {

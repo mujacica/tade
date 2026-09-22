@@ -1,5 +1,5 @@
 import type { PlanStanding, Runtime } from '@tade/core'
-import type { LaneScrolling } from '@tade/drivers-core'
+import type { LanePointing, LaneScrolling } from '@tade/drivers-core'
 import type { FileEntry } from './files.ts'
 import type { LayoutPrefs } from './layout.ts'
 import type { Linker } from './links.ts'
@@ -45,6 +45,12 @@ export interface LaneView {
    * otherwise.
    */
   scrolling?: LaneScrolling
+  /**
+   * How much of the pointer the program in it asked for, as the driver found
+   * it. Absent where nothing has said yet, which reads as nobody's, because
+   * that is what every lane was until one asked.
+   */
+  pointing?: LanePointing
 }
 
 /** A row an extension keeps in the sidebar, as the window draws it. */

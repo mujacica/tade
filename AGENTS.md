@@ -396,6 +396,33 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   is nobody's, which is what every region that does not scroll already draws. Neither mark is ever
   given a hit, so neither lights, neither can be dragged, and `reachOf` finds nowhere to go, which
   is what keeps the keys honest too: a handle that moves nothing is worse than no handle.
+- **And such a lane is clicked in, which means the window stops using that region.** A program
+  that draws its own interface draws its own controls, and nothing in a capture says which cell is
+  one — so the only way to press the close on Claude Code's files-changed panel is for the bytes to
+  reach the program. But then Tade cannot also use those cells for its click-to-focus, its
+  drag-to-select and its reading of the paths in the text, and a click that goes to the wrong one
+  feels broken in both directions. So the split is one sentence: **Tade keeps the cells it drew and
+  the lane gets the cells it drew**, and a pane that has not got the keyboard answers a click the
+  way it always has, by taking it — which is what makes sure one click always lands in Tade and
+  nobody can be shut out of their own window. What Tade drew is the header, the column down the
+  side, the approval card, the divider, the tabs; what the lane drew is its screen, `place` and
+  `link` included, so on such a lane Tade's own recognition of a path *steps aside* rather than
+  winning the cell (`laneLines` is handed `null` for its linkers, which is not `[]`): a path that
+  lights up under the pointer and then hands the click to the program is a worse lie than not
+  offering it. Two declared facts and no guess: it has to have taken the screen
+  (`LaneScreen.scrolling`), because only then are the rows the window drew the rows the program
+  thinks it has, and it has to have asked for the mouse (`LaneScreen.pointing` — `nobody`,
+  `press`, `drag`, apart from `scrolling` because one lane answers the two differently). `drag` is
+  what decides **how you select**: a program that asked about movement selects for itself and
+  copies the way it copies, and one that asked only about presses keeps Tade's drag, which is why
+  the level is a level and not a flag. A program that asked to be told about movement with no
+  button held is `drag` too — the window never sends that, because the pointer crosses a pane far
+  faster than the window draws and its own hover is made of those same moves. `pointedIn` and
+  `screenRows` (`view/lane.ts`, beside `rowsRead`) are the one reading of all of it, because the
+  rows a region draws are not the rows the program has: a lane is made the size of its pane and
+  then read back in what is left, so under an approval card drawn row 0 is row five of the lane and
+  a press told otherwise lands five rows above what was pressed. Nothing is remembered about what
+  the program did with it; what it draws in answer is read on the next look, as the wheel's is.
 - **A lane's screen is read once and cut, not read again per notch.** A capture costs what it asks
   for, so reading `rows + scroll` lines back on every look cost a millisecond per two hundred
   lines scrolled, four times a second, for lines that had not changed since the agent printed

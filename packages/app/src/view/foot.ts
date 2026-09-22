@@ -2,11 +2,11 @@ import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { duration, type PlanWindow, planLabel, resetsIn, tightestPlan } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
-import { type AppState, ORCHESTRATOR_TAB, terminalsOf } from '../model.ts'
+import { type AppState, activeTerminal, ORCHESTRATOR_TAB, terminalsOf } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
-import { blockAt, scrolledBar, typingIn } from './lane.ts'
+import { blockAt, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { gutterBeside } from './rows.ts'
 import { dollars, shortModel, tokens } from './text.ts'
 
@@ -164,6 +164,27 @@ export function terminalBody(opts: {
   } else {
     const lines = (terminal?.screen ?? '').split('\n')
     for (const line of lines.slice(-room)) rows.push(fit(line, width))
+    // A shell with a program in it that answers the pointer itself: the cells
+    // it drew are its own, exactly as an agent's pane hands its over. Read
+    // from the same `typingIn` the cursor block below reads, so the two can
+    // never disagree about which lane is in front.
+    // Which lane this is, read the way the look reads it: the terminal in
+    // front. A split's second half never gets here — it is handed no state,
+    // and so no bar and no pointer either.
+    const id = opts.state ? activeTerminal(opts.state)?.id : null
+    if (view && id && pointedIn(view, !!opts.state && typingIn(opts.state) === 'terminal')) {
+      const screen = screenRows(view.lines, room)
+      const target: Target = {
+        kind: 'screen',
+        lane: id,
+        from: screen.from,
+        drags: view.pointing === 'drag',
+      }
+      // The first of the region's rows, because a terminal's screen is drawn
+      // from the top of it down. Pushed before the region's own hits are
+      // taken aside, which is what puts them back last and so on top.
+      for (let i = 0; i < screen.rows; i++) hits.push(rowHit(i, width, target))
+    }
     // The block where what you type lands, where this is where it goes.
     if (view && opts.state && typingIn(opts.state) === 'terminal') {
       const paint = rows.map((text) => ({ text, hits: [] }))

@@ -57,11 +57,20 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   it also asked for the mouse and `nobody` when it did not, and `window` for everything that
   prints. Read it off the lane, never off what the lane was launched with — a shell becomes an
   editor the moment somebody types one.
-- **`wheel()` hands a notch to a program that asked for the mouse**, and `capabilities.pointer`
-  says whether you can. Encode with `wheelBytes` rather than by hand, and send nothing at all to a
-  program that never asked: bytes it cannot read as a pointer are characters typed into it. Your
-  backend has to be able to say which encoding was asked for (tmux `#{mouse_sgr_flag}`; the pty
-  driver watches the mode go past in the output), because the two are not interchangeable.
+  `screen()` also says **how much of the pointer the program asked for** (`pointing`): `nobody`
+  where it never asked, `press` where it wants presses and releases, `drag` where it wants movement
+  with a button held too. Apart from `scrolling`, because one lane answers the two differently — a
+  program that prints its conversation keeps every line and may still want the click that opens
+  one. A backend that reports "in any of the mouse modes" is not reporting "wants movement": tmux's
+  `#{mouse_any_flag}` is the first, and `#{mouse_button_flag}`/`#{mouse_all_flag}` are the second.
+- **`wheel()` hands a notch to a program that asked for the mouse, and `point()` hands it a press,
+  a drag or a release**, both behind `capabilities.pointer`. Encode with `wheelBytes` and
+  `pointerBytes` rather than by hand — `pointerBytes` is also where "only as much as it asked for"
+  is decided, so a lane that wants presses and no movement is answered the same way by every driver
+  instead of by whichever one remembered to check. Send nothing at all to a program that never
+  asked: bytes it cannot read as a pointer are characters typed into it. Your backend has to be
+  able to say which encoding was asked for (tmux `#{mouse_sgr_flag}`; the pty driver watches the
+  mode go past in the output), because the two are not interchangeable.
 - **`attachCommand` must always return something that works.** It is the escape hatch that lets a
   human see a lane whatever the backend is.
 - **`detach()` lets go, `shutdown()` ends it.** Closing Tade calls `detach`, and under a driver

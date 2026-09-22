@@ -6,6 +6,7 @@ import {
   type TuiMouseEventResult,
   visibleWidth,
 } from '@earendil-works/pi-tui'
+import type { PointerReport } from '@tade/drivers-core'
 import type { Frame } from './frame.ts'
 import {
   extentOf,
@@ -102,6 +103,14 @@ export type PointerEvent =
        */
       at: { column: number; row: number }
     }
+  /**
+   * The pointer over a lane that answers it itself — pressed, dragged with a
+   * button held, let go — in that lane's own cells, never the window's.
+   *
+   * The window keeps nothing about it: whatever the program draws in answer
+   * is read back on the next look, like everything else it draws.
+   */
+  | { kind: 'point'; lane: string; report: PointerReport }
   /** A divider taken hold of, dragged to a cell, and let go. */
   | { kind: 'grab'; edge: 'sidebar' | 'bottom' | 'split' | 'terminal-split' }
   /** A scrollbar taken hold of: what it was drawn from, where its track is, and where it was pressed. */
@@ -207,6 +216,24 @@ export class Painted implements Component {
     within: { from: number; to: number } | null
   } | null = null
   /**
+   * A press inside a lane that answers the pointer itself: everything until
+   * it is let go goes there too, wherever the pointer wanders. Kept with the
+   * cells the region was drawn in, so a drag that leaves it is clamped to its
+   * edge rather than reported as a cell of somebody else's screen — which is
+   * what a terminal does with a pointer dragged off its own window.
+   */
+  private pointed: {
+    lane: string
+    drags: boolean
+    /** Columns of the window the lane's own screen was drawn across. */
+    from: number
+    to: number
+    /** Where the region starts down the window, and the lane's own row there. */
+    top: number
+    rows: number
+    at: number
+  } | null = null
+  /**
    * A press on the line you type on: every drag until it is let go is
    * selecting text in it, not dragging a selection across the window.
    */
@@ -260,6 +287,19 @@ export class Painted implements Component {
           return {
             handled: true,
             render: this.onPointer({ kind: 'reorder', task: this.held.task, to }),
+          }
+        }
+        // A press inside a lane that answers the pointer goes on being that
+        // lane's until it is let go, wherever the pointer wanders — and only
+        // where it asked to be told about movement. One that asked only
+        // about presses is told nothing here, and the window does not select
+        // over it either: the press was its, and half a drag reported to
+        // nobody is neither.
+        if (event.type === 'drag' && this.pointed) {
+          if (!this.pointed.drags) return { handled: true, render: false }
+          return {
+            handled: true,
+            render: this.onPointer(this.reportOf('drag', event)),
           }
         }
         // Dragging in the line you type on takes the selection with it, and
@@ -326,7 +366,7 @@ export class Painted implements Component {
         }
         // A right-click is a click the moment it is pressed: the terminal
         // reports no click for it, and a menu should not wait for a release.
-        if (event.button === 'right' && target) {
+        if (event.button === 'right' && target && target.kind !== 'screen') {
           this.onPointer({
             kind: 'click',
             target,
@@ -337,6 +377,27 @@ export class Painted implements Component {
             clicks: 1,
           })
           return { handled: true }
+        }
+        // A cell of a lane that answers the pointer itself. Before the
+        // buttons below, because there are none here to find: every cell of
+        // it was drawn by the program, and what Tade drew around it — the
+        // header, the bar or the mark down its side, the approval card — is
+        // not in this range at all. Held, so the drag and the release that
+        // follow go to the same lane even if the pointer leaves it.
+        if (target?.kind === 'screen') {
+          this.held = null
+          this.selection = null
+          this.selectingInput = null
+          this.selectingFile = null
+          this.pointed = {
+            lane: target.lane,
+            drags: target.drags,
+            from: box?.from ?? 0,
+            to: box?.to ?? 0,
+            ...extentOf(this.hits, target),
+            at: target.from,
+          }
+          return { capture: true, render: this.onPointer(this.reportOf('press', event)) }
         }
         if (event.button !== 'left') return undefined
         // The line you type on takes its own selection, so a press in it puts
@@ -398,6 +459,13 @@ export class Painted implements Component {
       case 'release': {
         this.dragging = false
         this.held = null
+        // The lane it was pressed in hears about it first and alone: a
+        // release it never gets is a button it thinks is still down.
+        if (this.pointed) {
+          const said = this.reportOf('release', event)
+          this.pointed = null
+          return { handled: true, render: this.onPointer(said) }
+        }
         if (this.selectingInput?.dragged) this.onPointer({ kind: 'selected' })
         this.selectingInput = null
         // Only a drag copies, as on the line you type on: a shift+click and a
@@ -414,6 +482,10 @@ export class Painted implements Component {
         return { handled: true, render: this.onPointer({ kind: 'release' }) || chosen !== null }
       }
       case 'click':
+        // A terminal makes one out of the press and the release it already
+        // reported, and both of those have gone to the lane: passed on here
+        // as well it would be the same click twice.
+        if (target?.kind === 'screen') return { handled: true, render: false }
         if (!target || (event.button !== 'left' && event.button !== 'right')) return undefined
         this.onPointer({
           kind: 'click',
@@ -458,6 +530,38 @@ export class Painted implements Component {
       }
       default:
         return undefined
+    }
+  }
+
+  /**
+   * What the pointer did, in the cells of the lane it was pressed in.
+   *
+   * Clamped to the region the press started in, because that is the whole of
+   * the screen the program has: a drag let out over the sidebar is a pointer
+   * dragged off the edge of its window, which every terminal reports as the
+   * edge rather than as somewhere it cannot see.
+   */
+  private reportOf(
+    did: 'press' | 'drag' | 'release',
+    event: TuiMouseEvent,
+  ): Extract<PointerEvent, { kind: 'point' }> {
+    const held = this.pointed
+    const at = held ?? { lane: '', from: 0, to: 0, top: 0, rows: 1, at: 0 }
+    const column = Math.min(Math.max(event.x, at.from), at.to) - at.from
+    const row =
+      at.at + Math.min(Math.max(event.y, at.top), at.top + Math.max(0, at.rows - 1)) - at.top
+    return {
+      kind: 'point',
+      lane: at.lane,
+      report: {
+        did,
+        button: event.button === 'none' ? 'left' : event.button,
+        column,
+        row,
+        shift: event.shift,
+        alt: event.alt,
+        ctrl: event.ctrl,
+      },
     }
   }
 
