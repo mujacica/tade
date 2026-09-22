@@ -250,6 +250,35 @@ export function modelsSaid(events: readonly TadeEvent[]): Map<string, string> {
   return models
 }
 
+/**
+ * The spelling a task's agent last ran on in one harness, for starting it
+ * back up on the model its conversation was on.
+ *
+ * The *spelling* and not the model's own name: this is handed to a harness,
+ * and a bare `claude-opus-5` is offered by several providers — pi refuses to
+ * guess between them, which is an agent that exits before reading a word.
+ *
+ * In one harness, because a model is the harness's own. A task moved from
+ * Claude Code to pi and back would otherwise be handed the model of the
+ * harness it is no longer in: a name that means nothing there. A line written
+ * before runs said which harness they were in is taken as it always was —
+ * nothing else can be done with it, and it is what the journal has.
+ */
+export function modelLastRunOn(
+  events: readonly TadeEvent[],
+  task: string,
+  harness: string,
+): string | undefined {
+  const last = events.findLast((event) => {
+    if (event.task !== task) return false
+    if (event.type !== 'usage' && event.type !== 'run_model') return false
+    if (modelIn(event).name === UNRECORDED) return false
+    const ran = event.detail.harness
+    return typeof ran !== 'string' || ran === harness
+  })
+  return last ? modelIn(last).id : undefined
+}
+
 export interface SpendWindow {
   /** Only events at or after this. */
   since: number

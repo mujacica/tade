@@ -21,7 +21,7 @@ import { installedServers as claudeServers } from '@tade/harnesses-claude/instal
 import { installedServers as codexServers } from '@tade/harnesses-codex/installed'
 import { piBinary } from '@tade/harnesses-pi/adapter'
 import { installedPieces } from '@tade/harnesses-pi/installed'
-import { credentials, findModel, usableModels } from '@tade/harnesses-pi/models'
+import { credentials } from '@tade/harnesses-pi/models'
 import { shownServers } from '@tade/mcp-broker'
 import {
   brokerFor,
@@ -238,18 +238,16 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           }),
         orchestratorModel: async (said) => {
           // Among what the orchestrator's own harness offers, and kept for
-          // the next start either way.
-          const chosen = orchestrator
-            ? await orchestrator.resolveModel(said)
-            : await (async () => {
-                const found = findModel(said, await usableModels())
-                if (!found.ok) throw new Error(found.reason)
-                return { provider: found.provider, id: found.id }
-              })()
+          // the next start either way. Only its own: a model is resolved by
+          // the harness it is for, so with nobody there to ask, the honest
+          // answer is that there is nobody there to ask — pi's catalog is
+          // not Claude Code's or Codex's to answer out of.
+          if (!orchestrator) throw opening()
+          const chosen = await orchestrator.resolveModel(said)
           keepOrchestratorModel(chosen)
           // A harness that takes a model only when it starts is started again
           // on it, on the same conversation.
-          if (orchestrator && orchestrator.capabilities.model !== 'live') await restartThinker()
+          if (orchestrator.capabilities.model !== 'live') await restartThinker()
           return chosen
         },
         extensions: async (call) =>
@@ -278,14 +276,24 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
           cwd: process.cwd(),
           ...(canHear ? { recorder, transcriber } : {}),
           report,
-          // What an agent can be started on: the models you are signed in to.
-          models: () => usableModels(),
+          // What an agent can be started on is its harness's to say, and the
+          // workbench holds the adapters: nothing here knows which harness it
+          // is, which is the whole point of asking one.
           // Signed in, or a key: which one is paying, said beside the model.
           credentials: () => credentials(),
           signIn: () => ({ command: process.execPath, args: [piBinary()] }),
           restartThinker: () => restartThinker(),
           // The orchestrator's own harness may offer other models than agents'.
-          orchestratorModels: async () => (await orchestrator?.models()) ?? [],
+          // Before it is up there is nobody to ask, which is said rather than
+          // answered with somebody else's list.
+          orchestratorModels: async () =>
+            orchestrator
+              ? await orchestrator.models()
+              : {
+                  harness: cfg.config.orchestrator.harness,
+                  models: [],
+                  why: 'is still starting: ask again in a moment',
+                },
           reloadWindow: async () => {
             shouldReload = true
             await app.stop()

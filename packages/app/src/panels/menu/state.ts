@@ -274,19 +274,27 @@ export interface ThinkerOffers {
   harness: string
   /** Stopping the turn it is on, leaving the conversation. */
   interrupt: Offer
+  /**
+   * The levels its harness can be told to think at, least to most. Its own,
+   * like an agent's: pi thinks at `off` and Claude Code does not, and a level
+   * offered that the harness has to take away again is a choice that was
+   * never real.
+   */
+  levels: readonly string[]
 }
 
 export function thinkerOffers(harness: string, capabilities: WorkerCapabilities): ThinkerOffers {
   const abort = offer(capabilities, 'abort', capabilities.abort)
+  const levels = capabilities.thinkingLevels
   // Only `live` is an interruption. `idle` waits for the turn to end and
   // `restart` starts the agent again — either would be a key that looks like
   // it stopped something and did not, so they are declined here with the
   // harness's own sentence rather than offered as a stop.
-  if (abort.support === 'live') return { harness, interrupt: abort }
+  if (abort.support === 'live') return { harness, interrupt: abort, levels }
   // The harness's own sentence where it wrote one — every `why` is written to
   // follow the harness's name — and a plain one where it did not.
   const why = capabilities.why.abort ?? 'cannot stop a turn once it has started'
-  return { harness, interrupt: { ...abort, shown: false, note: why } }
+  return { harness, interrupt: { ...abort, shown: false, note: why }, levels }
 }
 
 export function agentOffers(harness: string, capabilities: WorkerCapabilities): AgentOffers {

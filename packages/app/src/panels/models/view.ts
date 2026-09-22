@@ -15,6 +15,11 @@ const PRICE_COLUMNS = PRICE_CELL * 3
  * Choosing a model: typing narrows by provider, id or name, the one in use is
  * marked, what each costs is in columns you can run your eye down, and a fixed
  * height so the list does not jump while it narrows.
+ *
+ * Every model on it is one the harness it is for can run, and the list says
+ * whose it is. A harness that could not say has no list, and then the panel
+ * says its sentence instead of showing somebody else's models — one chosen
+ * from another harness's catalog is a name that fails at the next launch.
  */
 export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
@@ -44,6 +49,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       .space()
       .text(`${ctx.modelTarget} is on `, skin.hint)
       .text(ctx.currentModel ?? 'its default model', skin.busy)
+      .text(ctx.modelsFrom ? `, in ${ctx.modelsFrom.harness}` : '', skin.hint)
       .build(),
     blank(inner),
   ]
@@ -86,13 +92,24 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'control', id: `row:${at}` } }],
     })
   })
-  if (choices.length === 0)
+  if (choices.length === 0) {
+    // Nothing to choose between is two different things: nothing this harness
+    // runs matches what was typed, or the harness could not say what it runs
+    // at all — and then it is the harness's own sentence, never a fallback to
+    // another harness's list.
+    const why = ctx.models.length === 0 ? (ctx.modelsFrom?.why ?? null) : null
     rows.push(
       new Row(inner, skin)
         .space()
-        .text('No model like that among the ones you can use.', skin.hint)
+        .text(
+          why
+            ? `${ctx.modelsFrom?.harness} ${why}`
+            : `No model like that among the ones ${ctx.modelsFrom?.harness ?? 'this harness'} runs.`,
+          why ? skin.waiting : skin.hint,
+        )
         .build(),
     )
+  }
   for (let gap = room - Math.min(room, Math.max(1, choices.length)); gap > 0; gap--)
     rows.push(blank(inner))
   rows.push(
@@ -106,7 +123,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       .text(
         panel.busy
           ? 'Switching…'
-          : `↑↓ choose · enter switches · ${choices.length} of ${ctx.models.length}`,
+          : `↑↓ choose · enter switches · ${choices.length} of ${ctx.models.length}${ctx.modelsFrom ? ` in ${ctx.modelsFrom.harness}` : ''}`,
         skin.hint,
       )
       .right((r) => r.button('Cancel', { kind: 'control', id: 'cancel' }).space())

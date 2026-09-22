@@ -238,6 +238,8 @@ export class CodexAdapter implements WorkerAdapter {
     why: {
       model:
         'takes a model only when it starts, so changing it starts the agent again, keeping the conversation',
+      models:
+        'names its own models (codex debug models), and the codex on this machine did not answer',
       thinking:
         'takes how hard to think only when it starts, so changing it starts the agent again, keeping the conversation',
       rename: 'renames a thread only between turns, so a new name waits for the turn to end',

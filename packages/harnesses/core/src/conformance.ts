@@ -3,6 +3,7 @@ import { declarationProblems, LIMITS_SUPPORT, type TaskId, THINKING_LEVELS } fro
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   type HarnessFeature,
+  modelsOffered,
   SUPPORT,
   WORKER_ENV,
   type WorkerAdapter,
@@ -181,6 +182,15 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
         const found = await one.resolveModel('surely-not-a-model-anyone-offers')
         if (!found.ok) expect(found.reason.length).toBeGreaterThan(0)
+      })
+
+      it('says in its own words when it cannot say which models it runs', async () => {
+        // Nothing may fall back to another harness's list, so an empty answer
+        // has to carry a sentence instead — and a list has to carry none.
+        const offered = await modelsOffered(await adapter())
+        expect(offered.harness).toBe((await adapter()).id)
+        expect(offered.why === null).toBe(offered.models.length > 0)
+        if (offered.why !== null) expect(offered.why.trim().length).toBeGreaterThan(0)
       })
 
       it('names where a contained agent must write with absolute paths', async () => {

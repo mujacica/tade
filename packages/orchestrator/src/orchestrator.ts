@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url'
 import type { Config, Note, SkillActivity, TadeEvent, ThinkingLevel, Unsubscribe } from '@tade/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
 import {
-  type HarnessModel,
+  type HarnessModels,
+  modelsOffered,
   WORKER_ENV,
   type WorkerAdapter,
   type WorkerCapabilities,
@@ -130,8 +131,6 @@ export interface OrchestratorOptions {
   /** Supplied so the same facts always compose the same prompt. */
   now?: number
   model?: WorkerModel
-  /** The models you can use, to settle which one a configured name means. Read from the harness unless given. */
-  models?: () => Promise<HarnessModel[]>
   /**
    * What extensions add: the tools it may call (run by the window), what it is
    * told about them, and harness-native pieces they ship.
@@ -404,9 +403,13 @@ export class Orchestrator {
     await this.adapter.prompt(ORCHESTRATOR_RUN, text, [], { whenBusy: 'queue' })
   }
 
-  /** What it could run on, as its own harness offers them. */
-  models(): Promise<HarnessModel[]> {
-    return this.adapter.models().catch(() => [])
+  /**
+   * What it could run on, as its own harness offers them — never another
+   * harness's: its model is resolved by the harness it talks through, and an
+   * empty answer comes back with that harness's own words for why.
+   */
+  models(): Promise<HarnessModels> {
+    return modelsOffered(this.adapter)
   }
 
   /** A model said the way people say it, among its harness's. Throws what to ask. */

@@ -49,6 +49,51 @@ describe('what there is to change', () => {
   })
 })
 
+describe('a model and a level belong to a harness', () => {
+  it('says which harness each model setting is for', () => {
+    // Which harness is part of the question: the list a picker offers is the
+    // models that harness runs, and no others.
+    expect(find('workers.routes.default.model').type).toEqual({ kind: 'model', harness: 'pi' })
+    expect(
+      find('workers.routes.default.model', {
+        workers: { routes: { default: { harness: 'codex' } } },
+      }).type,
+    ).toEqual({ kind: 'model', harness: 'codex' })
+    expect(find('orchestrator.model', { orchestrator: { harness: 'claude-code' } }).type).toEqual({
+      kind: 'model',
+      harness: 'claude-code',
+    })
+  })
+
+  it('offers the levels the harness thinks at, and every level where nobody said', () => {
+    const levels = { pi: ['off', 'low', 'high'], 'claude-code': ['low', 'max'] } as const
+    const of = (path: string, over: Record<string, unknown>) => {
+      const found = settingsOf(config(over), [], levels)
+        .flatMap((group) => group.settings)
+        .find((setting) => setting.path === path)
+      return found?.type
+    }
+    expect(of('workers.routes.default.thinking', {})).toEqual({
+      kind: 'choice',
+      options: ['off', 'low', 'high'],
+    })
+    // The orchestrator is a harness choice like any other, and Claude Code
+    // does not think at `off`: offering it is offering a choice that is
+    // quietly taken away.
+    expect(of('orchestrator.thinking', { orchestrator: { harness: 'claude-code' } })).toEqual({
+      kind: 'choice',
+      options: ['low', 'max'],
+    })
+    // Nobody said what codex thinks at, so it is offered all of them, as the
+    // window always did.
+    expect(
+      of('workers.routes.default.thinking', {
+        workers: { routes: { default: { harness: 'codex' } } },
+      }),
+    ).toMatchObject({ options: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] })
+  })
+})
+
 describe('telemetry', () => {
   const group = (over: Record<string, unknown> = {}): SettingGroup => {
     const found = settingsOf(config(over)).find((one) => one.id === 'telemetry')

@@ -6,6 +6,7 @@ import {
   resolveRoute,
   THINKING_LEVELS,
 } from '@tade/core'
+import type { HarnessModels } from '@tade/harnesses-core'
 import type { Frame } from '../frame.ts'
 import { notice, ORCHESTRATOR_TAB, shownName, type TaskSnapshot } from '../model.ts'
 import {
@@ -47,6 +48,12 @@ import {
 // What each harness offers is learned in the background rather than waited on:
 // absent means "not known yet", which offers everything, as the window always
 // did.
+//
+// Models are the exception, and deliberately: a picker is only ever a list of
+// what one harness runs, asked of that harness. There is no everybody's list
+// to fall back to — a model of another harness is no model at all here — so a
+// harness that cannot say comes back with its own sentence and the picker
+// says that instead.
 
 /** What this subject needs from the rest of the window. */
 export interface RoutesDeps {
@@ -75,13 +82,19 @@ export class Routes implements Subject {
    * which offers everything, as the window always did.
    */
   private readonly offersByTask = new Map<string, AgentOffers>()
-  /** The models an agent can be started on, once they have been read. */
-  private modelChoices: ModelChoice[] = []
   /**
-   * The models the open picker offers, when it is for one agent: its
-   * harness's, which are not the orchestrator's or another harness's.
+   * What each harness offers to run, by harness id, as it last answered.
+   * Asked of the harness itself and kept apart harness by harness: there is
+   * no list of everybody's models, because there is no harness that could run
+   * one.
    */
-  private pickerModels: ModelChoice[] | null = null
+  private readonly offered = new Map<string, HarnessModels>()
+  /**
+   * What the open picker offers: the models of the one harness it is choosing
+   * for, asked when it was opened — with that harness's own words where it
+   * had none to offer.
+   */
+  private picker: HarnessModels | null = null
 
   constructor(wire: Wiring, deps: RoutesDeps) {
     this.wire = wire
@@ -123,6 +136,8 @@ export class Routes implements Subject {
     const pane = this.wire.state.panes.find((one) => one.task === panel.for)
     return {
       models: this.offeredModels(),
+      // Whose models these are, and its own sentence where there are none.
+      modelsFrom: this.picker,
       modelTarget:
         panel.for === 'orchestrator' ? 'the orchestrator' : pane ? shownName(pane) : panel.for,
       currentModel:
@@ -171,8 +186,7 @@ export class Routes implements Subject {
       },
       thinking: {
         title: () => 'Thinking',
-        items: (subject) =>
-          thinkingMenuItems(subject.current, this.offersFor(subject.task)?.levels),
+        items: (subject) => thinkingMenuItems(subject.current, this.levelsFor(subject.task)),
         choose: (subject, item) => this.chooseThinking(subject.task, item),
       },
     }
@@ -201,10 +215,22 @@ export class Routes implements Subject {
       row: orchestrator ? Math.max(0, this.deps.size().rows - 2) : 3,
       col: Math.max(0, this.deps.size().columns - 30),
     })
-    // The keyboard starts on the level it is at.
-    const index = Math.max(0, THINKING_LEVELS.indexOf((current ?? '') as never))
+    // The keyboard starts on the level it is at, among the levels offered.
+    const index = Math.max(0, (this.levelsFor(task) ?? THINKING_LEVELS).indexOf(current ?? ''))
     this.wire.put({ ...this.wire.state, panel: { ...menu, index } })
     this.wire.draw()
+  }
+
+  /**
+   * How hard this one can be told to think, as its own harness declares it.
+   * The orchestrator answers for itself — it is a harness choice like any
+   * other, and not every harness has every level. Nothing known yet offers
+   * them all, as the window always did.
+   */
+  private levelsFor(task: string): readonly string[] | undefined {
+    return task === ORCHESTRATOR_TAB
+      ? this.wire.opts.thinker?.offers?.levels
+      : this.offersFor(task)?.levels
   }
 
   /** Which account an agent runs as, asked of its harness first so the menu marks the one it is on. */
@@ -223,17 +249,24 @@ export class Routes implements Subject {
     this.wire.draw()
   }
 
-  /** Models an agent can start on, as choices grouped by provider. */
+  /**
+   * Models a setting can be set to, as choices grouped by provider, each
+   * marked with the harness that runs it — so a list for one harness's model
+   * setting never shows another harness's.
+   */
   private choices(): Choice[] {
-    return this.models().map((model) => {
-      const price = priceSaid(model)
-      return {
-        value: model.id,
-        label: model.id.split('/').slice(1).join('/') || model.id,
-        group: model.provider,
-        ...(price ? { note: price } : {}),
-      }
-    })
+    return [...this.offered.values()].flatMap((offered) =>
+      offered.models.map((model) => {
+        const price = priceSaid(model)
+        return {
+          value: model.id,
+          label: model.id.split('/').slice(1).join('/') || model.id,
+          group: model.provider,
+          harness: offered.harness,
+          ...(price ? { note: price } : {}),
+        }
+      }),
+    )
   }
 
   /**
@@ -257,14 +290,18 @@ export class Routes implements Subject {
     )
   }
 
-  /** Every model new agents may start on, as last read. */
+  /**
+   * Every model any harness that has been asked offers. For reading a
+   * provider off a name and for search — never for offering a choice, which
+   * is always one harness's.
+   */
   models(): readonly ModelChoice[] {
-    return this.modelChoices
+    return [...this.offered.values()].flatMap((offered) => [...offered.models])
   }
 
-  /** What the open picker offers: one agent's harness's models, or all of them. */
+  /** What the open picker offers: the models of the harness it is for, and nothing else. */
   offeredModels(): readonly ModelChoice[] {
-    return this.pickerModels ?? this.modelChoices
+    return this.picker?.models ?? []
   }
 
   /** What this agent's harness lets a person ask of it, or nothing when it is not known yet. */
@@ -272,9 +309,38 @@ export class Routes implements Subject {
     return this.offersByTask.get(task) ?? null
   }
 
-  /** Read the models again, after something that could have changed them. */
+  /**
+   * Ask again what the harnesses in play run: the one new agents start in and
+   * the one the orchestrator talks through, which are the two Settings offers
+   * a model for. Only those — asking a harness costs what asking it costs
+   * (Codex runs a program to answer), and a catalog nobody is choosing from
+   * is one nobody needed.
+   */
   async refreshModels(): Promise<void> {
-    this.modelChoices = (await this.wire.opts.models?.().catch(() => [])) ?? this.modelChoices
+    const config = this.wire.opts.config
+    const harnesses = new Set([resolveRoute(config).harness, config.orchestrator.harness])
+    // Side by side: asking one harness is a program run (Codex), and two of
+    // them one after the other is that wait twice over.
+    await Promise.all([...harnesses].map((harness) => this.learnModels(harness)))
+  }
+
+  /**
+   * What one harness runs, asked of it and written down. What comes back is
+   * kept under the harness that answered, so the next question about that
+   * harness is answered without asking again — and a harness that could not
+   * be asked keeps whatever it last said rather than emptying.
+   */
+  private async learnModels(harness: string): Promise<HarnessModels> {
+    const ask = this.wire.opts.models ?? ((id: string) => this.wire.opts.client.harnessModels(id))
+    const asked = await ask(harness).catch(() => null)
+    const offered = asked ??
+      this.offered.get(harness) ?? {
+        harness,
+        models: [],
+        why: 'could not be asked which models it runs',
+      }
+    this.offered.set(offered.harness, offered)
+    return offered
   }
 
   /** How hard an agent thinks from its next turn, and new agents from their first. */
@@ -383,19 +449,37 @@ export class Routes implements Subject {
     this.wire.draw()
   }
 
+  /**
+   * What a picker may offer: the models of the one harness it is choosing for,
+   * asked of that harness — the orchestrator's own, or the agent's, on the
+   * account it runs as.
+   *
+   * There is no everybody's list behind this and there must not be: a model
+   * of another harness is no model at all here, and offering one is offering
+   * a choice that fails at the next launch. Where the harness itself cannot
+   * be reached, its own words come back instead, from the harness the agent
+   * is in either way.
+   */
+  private async modelsFor(target: string): Promise<HarnessModels> {
+    if (target === 'orchestrator') {
+      const asked = await this.wire.opts.orchestratorModels?.().catch(() => null)
+      if (asked) this.offered.set(asked.harness, asked)
+      return asked ?? (await this.learnModels(this.wire.opts.config.orchestrator.harness))
+    }
+    const worktree = this.wire.live?.worktreeOf(target)
+    const asked = worktree
+      ? await this.wire.opts.client.agentModels(target, worktree).catch(() => null)
+      : null
+    if (asked) this.offered.set(asked.harness, asked)
+    // Nowhere to ask about this agent in particular: its harness is known all
+    // the same, and what that harness runs is the same answer.
+    return asked ?? (await this.learnModels(this.harnessShown(target)))
+  }
+
   /** Choose a model for the orchestrator, or for one agent's session. */
   async openModels(target: string): Promise<void> {
-    if (this.modelChoices.length === 0) {
-      this.modelChoices = (await this.wire.opts.models?.().catch(() => [])) ?? []
-    }
-    const worktree = target === 'orchestrator' ? null : this.wire.live?.worktreeOf(target)
-    this.pickerModels =
-      target === 'orchestrator'
-        ? ((await this.wire.opts.orchestratorModels?.().catch(() => null)) ?? null)
-        : worktree
-          ? await this.wire.opts.client.agentModels(target, worktree).catch(() => null)
-          : null
-    const offered = this.pickerModels ?? this.modelChoices
+    const offered = await this.modelsFor(target)
+    this.picker = offered
     // Starting on the one in use, so enter is a no-op and ↑↓ is "the one next to it".
     const current =
       target === 'orchestrator'
@@ -404,7 +488,7 @@ export class Routes implements Subject {
     const index = current
       ? Math.max(
           0,
-          offered.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
+          offered.models.findIndex((one) => one.id === current || one.id.endsWith(`/${current}`)),
         )
       : 0
     this.wire.put({ ...this.wire.state, panel: { ...modelPanel(target), index } })

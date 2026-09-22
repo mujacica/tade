@@ -5,6 +5,7 @@ import {
   EDITORS,
   HARNESS_IDS,
   THINKING_LEVELS,
+  type ThinkingLevel,
 } from './config.ts'
 
 // The settings a person actually changes, and what each one means.
@@ -48,8 +49,12 @@ export type SettingKind =
   | { kind: 'flag' }
   /** A key or combination, chosen by pressing it. */
   | { kind: 'key'; printable?: boolean }
-  /** A model from the harness's catalog, as `provider/id`. */
-  | { kind: 'model' }
+  /**
+   * A model from one harness's catalog, as `provider/id`. Which harness is
+   * part of the question: a model is chosen per harness and never handed
+   * across, so a list is only ever the models `harness` itself runs.
+   */
+  | { kind: 'model'; harness: string }
 
 export interface Setting {
   /** Dotted path into the config, which is also how it is written back. */
@@ -118,8 +123,18 @@ export interface SettingGroup {
  * `secrets` are the credentials whatever is loaded has asked for — an
  * extension's key, a forge's token. They are settings like any other to
  * whoever draws them, and the one thing that is never in the config.
+ *
+ * `levels` is how hard each harness can be told to think, by harness id, as
+ * each declares it: offering a level the harness does not have is offering a
+ * choice that is quietly taken away — pi thinks at `off`, Claude Code does
+ * not. A harness nobody said anything about is offered all of them, as it
+ * always was.
  */
-export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): SettingGroup[] {
+export function settingsOf(
+  config: Config,
+  secrets: readonly SecretRow[] = [],
+  levels: Readonly<Record<string, readonly ThinkingLevel[]>> = {},
+): SettingGroup[] {
   const voice = config.surfaces.voice
   // `…/ggml-base.en.bin` is the base.en model: the name people know it by.
   const whisperModel =
@@ -130,6 +145,10 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
       .replace(/\.bin$/, '') ?? 'base.en'
   const window = config.surfaces.window
   const route = config.workers.routes[config.workers.default]
+  // Each side of the model question asks its own harness, and says which.
+  const agentHarness = route?.harness ?? 'pi'
+  const thinkerHarness = config.orchestrator.harness
+  const thinksAt = (harness: string): readonly ThinkingLevel[] => levels[harness] ?? THINKING_LEVELS
   const projects = Object.entries(config.projects)
   // The Sentry extension's own settings, shown beside the reporting ones:
   // where Tade sends its trouble and where it reads it back are one decision,
@@ -216,7 +235,7 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
               : route.model
             : '',
           fallback: 'the harness decides',
-          type: { kind: 'model' },
+          type: { kind: 'model', harness: agentHarness },
           live: true,
         },
         {
@@ -225,7 +244,7 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
           means: 'how hard new agents think; each agent can be changed from its pane',
           value: route?.thinking ?? '',
           fallback: 'the harness decides',
-          type: { kind: 'choice', options: [...THINKING_LEVELS] },
+          type: { kind: 'choice', options: [...thinksAt(agentHarness)] },
           live: true,
         },
         {
@@ -265,7 +284,7 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
               : config.orchestrator.model
             : '',
           fallback: 'the harness decides',
-          type: { kind: 'model' },
+          type: { kind: 'model', harness: thinkerHarness },
           live: false,
         },
         {
@@ -274,7 +293,7 @@ export function settingsOf(config: Config, secrets: readonly SecretRow[] = []): 
           means: 'how hard it thinks before it answers; it moves from its next reply',
           value: config.orchestrator.thinking ?? '',
           fallback: 'the harness decides',
-          type: { kind: 'choice', options: [...THINKING_LEVELS] },
+          type: { kind: 'choice', options: [...thinksAt(thinkerHarness)] },
           live: true,
         },
         {

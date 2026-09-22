@@ -19,7 +19,7 @@ import {
   type LaneId,
   loadConfig,
   modelDetail,
-  modelIn,
+  modelLastRunOn,
   type Note,
   noSpend,
   type Plan,
@@ -42,7 +42,6 @@ import {
   type TaskId,
   THINKING_LEVELS,
   type ThinkingLevel,
-  UNRECORDED,
   type Unsubscribe,
   writeSetting,
 } from '@tade/core'
@@ -54,7 +53,8 @@ import type {
 } from '@tade/drivers-core'
 import {
   type HarnessAccount,
-  type HarnessModel,
+  type HarnessModels,
+  modelsOffered,
   noHarnessSpend,
   offer,
   type PermissionDecision,
@@ -1555,7 +1555,7 @@ export class Workbench {
       req.model ??
       (keeps
         ? undefined
-        : ((resuming ? await this.lastModelOf(req.task) : undefined) ??
+        : ((resuming ? await this.lastModelOf(req.task, harness) : undefined) ??
           this.modelFor(req.task, harness)))
     const spec = {
       run: lane as RunId,
@@ -1745,7 +1745,16 @@ export class Workbench {
    */
   private async accountOf(task: string, cwd: string, harness: string): Promise<string | undefined> {
     const own = await this.taskAccount(cwd, task)
-    const chosen = own ?? this.config.workers.accounts[harness as HarnessId]
+    if (!own) return this.accountUsing(harness)
+    return this.config.accounts[own]?.harness === harness ? own : undefined
+  }
+
+  /**
+   * The account a harness's new agents run as: the one chosen for it, when it
+   * is that harness's own. An account belongs to one harness.
+   */
+  private accountUsing(harness: string): string | undefined {
+    const chosen = this.config.workers.accounts[harness as HarnessId]
     if (!chosen) return undefined
     return this.config.accounts[chosen]?.harness === harness ? chosen : undefined
   }
@@ -2086,11 +2095,41 @@ export class Workbench {
     return model
   }
 
-  /** The models a task's agent could run on, as its harness offers them. */
-  async agentModels(task: string, cwd: string): Promise<HarnessModel[]> {
-    return this.adapterFor(await this.harnessOf(task, cwd))
-      .models()
-      .catch(() => [])
+  /**
+   * The models a task's agent could run on: its own harness's, on the account
+   * it runs as — a model is reached through a sign-in, and another account's
+   * catalog is not this agent's. An empty answer carries the harness's own
+   * words rather than anybody else's list.
+   */
+  async agentModels(task: string, cwd: string): Promise<HarnessModels> {
+    const harness = await this.harnessOf(task, cwd)
+    return modelsOffered(this.adapterFor(harness, await this.accountOf(task, cwd, harness)))
+  }
+
+  /**
+   * What one harness offers to run, on the account its new agents use: for
+   * choosing a model before there is any agent to ask, which is what Settings
+   * and the orchestrator's own picker do.
+   */
+  async harnessModels(harness: string): Promise<HarnessModels> {
+    try {
+      return await modelsOffered(this.adapterFor(harness, this.accountUsing(harness)))
+    } catch {
+      return { harness, models: [], why: 'is not a harness Tade runs' }
+    }
+  }
+
+  /**
+   * What a harness can do, as it declares it, before any agent runs in it:
+   * what a surface offering a choice for a harness nobody has started yet is
+   * drawn by. Null for one Tade does not run.
+   */
+  capabilitiesOf(harness: string): WorkerCapabilities | null {
+    try {
+      return this.adapterFor(harness).capabilities
+    } catch {
+      return null
+    }
   }
 
   /** A model said for a task's agent, among what its harness offers. Throws what to ask. */
@@ -2358,15 +2397,14 @@ export class Workbench {
    * `claude-opus-5` is offered by several providers — pi refuses to guess
    * between them, which is an agent that exits before reading a word.
    */
-  private async lastModelOf(task: string): Promise<WorkerModel | undefined> {
+  private async lastModelOf(task: string, harness: string): Promise<WorkerModel | undefined> {
     const said = await this.log.read({ types: ['usage', 'run_model'] }).catch(() => [])
-    const last = said.findLast((event) => event.task === task && modelIn(event).name !== UNRECORDED)
-    if (!last) return undefined
+    const id = modelLastRunOn(said, task, harness)
     // The spelling alone, never the provider beside it: the spelling already
     // carries whatever route it was reached by — that is what makes it a
     // spelling and not a name — and handing a harness both would ask it for
     // `openrouter/openrouter/anthropic/claude-opus-5`.
-    return { id: modelIn(last).id }
+    return id ? { id } : undefined
   }
 
   /**

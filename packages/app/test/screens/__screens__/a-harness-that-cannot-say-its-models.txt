@@ -1,14 +1,14 @@
    T A D E      checkout    search    infra      +     ! 1  ⠋ 1      ctrl   +   k   search      ctrl   +   space   talk 
-━━╭─ Model for the orchestrator ─────────────────────────────────────────────────────────────────────────────── esc ─╮━━
+━━╭─ Model for stripe-v15 ───────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
  ▾│  ▏type to narrow: opus, kimi, openrouter…                                                                        │  
-  │ the orchestrator is on openrouter/anthropic/claude-opus-5, in pi                                                 │──
+  │ stripe-v15 is on its default model, in codex                                                                     │──
  ▌│                                                                                                                  │  
- ▌│                                                in     out  cached   $ per 1M tokens                              │  
-  │  ● anthropic/claude-opus-5                     $5     $25   $0.50   Claude Opus 5 · openrouter                   │  
-  │▌   anthropic/claude-sonnet-5                   $3     $15   $0.30   Claude Sonnet 5 · openrouter                 │  
-  │    moonshotai/kimi-k2.6                     $0.95      $4   $0.16   Kimi K2.6 · openrouter                       │  
-  │    nvidia/nemotron-3-super-120b-a12b:free    free                   Nemotron 3 Super (free) · openrouter         │  
- ▸│    claude-opus-5                               $5     $25   $0.50   Claude Opus 5 · anthropic                    │  
+ ▌│ codex names its own models (codex debug models), and the codex on this machine did not answer                    │  
+  │                                                                                                                  │  
+  │                                                                                                                  │  
+  │                                                                                                                  │  
+  │                                                                                                                  │  
+ ▸│                                                                                                                  │  
  ▾│                                                                                                                  │  
   │                                                                                                                  │  
   │                                                                                                                  │  
@@ -26,9 +26,9 @@
   │                                                                                                                  │ ▕
   │                                                                                                                  │ ▕
   │                                                                                                                  │ ▕
-  │                                                                                                                  │ ▕
- ❯│ ↑↓ choose · enter switches · 5 of 5 in pi                                                               Cancel   │ ▕
-──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯─ 
+  │ ↑↓ choose · enter switches · 0 of 0 in codex                                                            Cancel   │ ▕
+ ❯╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 

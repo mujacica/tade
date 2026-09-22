@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import {
   type Config,
+  clearedByHarness,
+  HARNESS_CHOICES,
   loadConfig,
   parseSetting,
   type Setting,
@@ -150,7 +152,14 @@ export class Settings implements Subject {
       placeholder: one.placeholder,
       variables: one.variables,
     }))
-    return settingsOf(this.wire.opts.config, secrets)
+    // What each harness can be told to think at, as it declares it: a level
+    // one of them does not have is never offered for it.
+    const levels: Record<string, readonly ThinkingLevel[]> = {}
+    for (const harness of HARNESS_CHOICES) {
+      const can = this.wire.opts.client.capabilitiesOf(harness.id)
+      if (can) levels[harness.id] = can.thinkingLevels
+    }
+    return settingsOf(this.wire.opts.config, secrets, levels)
   }
 
   /** Where the config is, for the page that says so and the button that opens it. */
@@ -192,9 +201,17 @@ export class Settings implements Subject {
    * in a file Tade will not open next time.
    */
   async save(panel: SettingsPanel, path: string, value: string): Promise<void> {
-    const setting = this.rows()
-      .flatMap((group) => group.settings)
-      .find((one) => one.path === path)
+    const rows = this.rows().flatMap((group) => group.settings)
+    const setting = rows.find((one) => one.path === path)
+    // What choosing this harness clears — read before the write, because
+    // after it there is nothing left to read. Only where it actually changes
+    // hands: choosing the harness you are already on is not a new choice, and
+    // may not quietly take your model away.
+    const clearable = (setting?.value ?? '') === value ? [] : clearedByHarness(path)
+    const clearing = clearable
+      .flatMap((also) => rows.filter((one) => one.path === also))
+      .filter((one) => one.value !== '')
+      .map((one) => one.title.toLowerCase())
     // A credential never goes near the config, so it never goes near the
     // read-change-write below either: it is kept, and the extension asked
     // again whether it can work now.
@@ -224,6 +241,10 @@ export class Settings implements Subject {
             `${setting?.title ?? path} needs ${setting ? wantedInstead(setting) : 'a usable value'}.`,
           )
         writeSetting(this.path, path, typed)
+        // Choosing a harness resets what was chosen for the one before it: a
+        // model belongs to the harness it was chosen in, and unset is the
+        // harness deciding, which is where this sat before anybody chose.
+        for (const also of clearable) writeSetting(this.path, also, undefined)
       }
       const loaded = await loadConfig(this.path)
       if (!loaded.ok) {
@@ -245,12 +266,19 @@ export class Settings implements Subject {
         path === 'orchestrator.thinking' && loaded.config.orchestrator.thinking
           ? await this.deps.tellThinking(loaded.config.orchestrator.thinking)
           : null
+      // A model is chosen per harness, so choosing a harness puts the model
+      // back to whatever that harness decides — said, because a choice that
+      // disappears without a word reads as a bug.
+      const reset =
+        clearing.length > 0
+          ? ` The ${clearing.join(' and ')} ${clearing.length === 1 ? 'is' : 'are'} cleared: ${value || 'the harness'} decides.`
+          : ''
       const told =
         setting?.live === false
-          ? `Saved. ${setting.title} applies when Tade next starts.`
+          ? `Saved. ${setting.title} applies when Tade next starts.${reset}`
           : trouble
             ? `Saved. It applies when the orchestrator next starts: ${trouble}`
-            : 'Saved. It applies now.'
+            : `Saved. It applies now.${reset}`
       this.wire.put({ ...this.wire.state, panel: { ...panel, saved: told, error: null } })
     } catch (err) {
       this.wire.put({ ...this.wire.state, panel: { ...panel, saved: null, error: why(err) } })

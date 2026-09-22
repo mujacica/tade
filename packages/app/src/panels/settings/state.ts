@@ -23,6 +23,12 @@ export interface Choice {
   note?: string
   /** Why it cannot be picked yet. */
   off?: string
+  /**
+   * The harness that runs it, for a choice that is one harness's own. A model
+   * setting only ever offers the models of the harness it is for: one chosen
+   * for another harness is a name that harness never heard of.
+   */
+  harness?: string
 }
 
 /** The choices matching what was typed: every word, in any order. */
@@ -167,9 +173,17 @@ export function visibleSettings(panel: SettingsPanel, groups: readonly SettingGr
   return groups.find((group) => group.id === panel.category)?.settings ?? []
 }
 
-/** Choices a setting offers in a list: its own options, or the model catalog. */
+/**
+ * Choices a setting offers in a list: its own options, or the models of the
+ * harness whose model it is — never another harness's, and never a list
+ * gathered across them. A model that came back with no harness on it was
+ * offered before anybody asked which: it is left in, as it always was.
+ */
 export function choicesFor(setting: Setting, models: readonly Choice[]): Choice[] {
-  if (setting.type.kind === 'model') return [...models]
+  if (setting.type.kind === 'model') {
+    const harness = setting.type.harness
+    return models.filter((model) => model.harness === undefined || model.harness === harness)
+  }
   if (setting.type.kind === 'choice') {
     const about = setting.type.about ?? {}
     return setting.type.options.map((option) => ({

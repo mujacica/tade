@@ -750,7 +750,8 @@ export class WorkerSupervisor {
       type: 'run_model',
       task: state.task,
       run,
-      detail: modelDetail(said),
+      // With the harness that ran it, as on `usage`: a model is its harness's own.
+      detail: { ...modelDetail(said), ...factsDetail(this.runs.get(run)?.facts) },
     })
   }
 

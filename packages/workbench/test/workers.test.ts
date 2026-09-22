@@ -637,10 +637,13 @@ describe('WorkerSupervisor', () => {
       })
       await until(async () => (await logged(log, 'run_model')).length > 0)
       const [said] = await logged(log, 'run_model')
-      // Its own name, and the spelling that reaches it again beside it.
+      // Its own name, the spelling that reaches it again beside it, and the
+      // harness that ran it: a model belongs to its harness, and one read
+      // back without it is a name nobody can hand anywhere.
       expect(said?.detail).toEqual({
         model: 'claude-opus-5',
         modelId: 'openrouter/anthropic/claude-opus-5',
+        harness: 'fake',
       })
       expect(said?.run).toBe('r1')
       expect(said?.task).toBe('app/refunds')

@@ -5,6 +5,7 @@ import {
   modelDetail,
   modelIdentity,
   modelIn,
+  modelLastRunOn,
   modelsSaid,
   noSpend,
   pricedOf,
@@ -322,6 +323,39 @@ describe('one name for one model', () => {
     expect(Object.keys(report.byModel).sort()).toEqual(['claude-opus-5', 'kimi-k2.6'])
     expect(report.byModel['claude-opus-5']?.tokens).toBe(300)
     expect(report.byModel['claude-opus-5']?.usd).toBeCloseTo(3)
+  })
+
+  it('gives back the last model one harness ran a task on, and never another’s', () => {
+    const events = [
+      usage({ type: 'run_model', detail: { model: 'kimi-k2.6', harness: 'pi' } }),
+      usage({
+        type: 'run_model',
+        detail: {
+          model: 'claude-opus-5',
+          modelId: 'anthropic/claude-opus-5',
+          harness: 'claude-code',
+        },
+      }),
+    ]
+    // The spelling that reaches it again, which is what a harness is handed.
+    expect(modelLastRunOn(events, 'checkout/refunds', 'claude-code')).toBe(
+      'anthropic/claude-opus-5',
+    )
+    // Moved back to pi, it is pi's last model — a Claude Code alias would be
+    // a name pi never heard of, which is an agent that exits before reading
+    // a word.
+    expect(modelLastRunOn(events, 'checkout/refunds', 'pi')).toBe('kimi-k2.6')
+    // Another task's model is not this one's, and nothing said is nothing.
+    expect(modelLastRunOn(events, 'checkout/search', 'pi')).toBeUndefined()
+    expect(
+      modelLastRunOn([usage({ detail: { model: '', harness: 'pi' } })], 'checkout/refunds', 'pi'),
+    ).toBeUndefined()
+  })
+
+  it('takes a line written before runs said which harness they were in', () => {
+    // Nothing else can be done with it, and it is what the journal has.
+    const old = [usage({ detail: { model: 'openrouter/anthropic/claude-opus-5' } })]
+    expect(modelLastRunOn(old, 'checkout/refunds', 'pi')).toBe('openrouter/anthropic/claude-opus-5')
   })
 
   it('folds what a run said it was on, however the run said it', () => {

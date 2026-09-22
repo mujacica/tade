@@ -173,14 +173,22 @@ describe('the window, talking to the orchestrator', () => {
         projects: { app: { root: repo.root } },
         orchestrator: { provider: 'openrouter', model: 'anthropic/claude-opus-5' },
       }),
-      models: async () => [
-        { id: 'openrouter/anthropic/claude-opus-5', provider: 'openrouter', name: 'Claude Opus 5' },
-        ...Array.from({ length: 40 }, (_, i) => ({
-          id: `openrouter/vendor/model-${i}`,
-          provider: 'openrouter',
-          name: `Model ${i}`,
-        })),
-      ],
+      models: async (harness) => ({
+        harness,
+        models: [
+          {
+            id: 'openrouter/anthropic/claude-opus-5',
+            provider: 'openrouter',
+            name: 'Claude Opus 5',
+          },
+          ...Array.from({ length: 40 }, (_, i) => ({
+            id: `openrouter/vendor/model-${i}`,
+            provider: 'openrouter',
+            name: `Model ${i}`,
+          })),
+        ],
+        why: null,
+      }),
     })
     await until(
       'the model in the footer',
@@ -199,6 +207,75 @@ describe('the window, talking to the orchestrator', () => {
     await until('scrolled down the list', () =>
       screenOf(terminal.written).some((row) => row.includes('model-35')),
     )
+  })
+
+  it('offers the models its own harness runs, and never another harness’s', async () => {
+    terminal.columns = 140
+    await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        orchestrator: { harness: 'claude-code' },
+      }),
+      // What the orchestrator's harness answers, and what agents' answers:
+      // two different harnesses, two different catalogs.
+      orchestratorModels: async () => ({
+        harness: 'claude-code',
+        models: [{ id: 'anthropic/opus', provider: 'anthropic', name: 'Claude Opus' }],
+        why: null,
+      }),
+      models: async (harness) => ({
+        harness,
+        models: [
+          { id: 'openrouter/moonshotai/kimi-k2.6', provider: 'openrouter', name: 'Kimi K2.6' },
+        ],
+        why: null,
+      }),
+    })
+    await until('the strip', () => screenOf(terminal.written).at(-1)?.includes('▾') ?? false)
+    const chip = find('no model ▾')
+    terminal.written = ''
+    click(chip.col + 1, chip.row)
+    await until('the picker', () =>
+      screenOf(terminal.written).some((row) => row.includes('Model for the orchestrator')),
+    )
+    const shown = screenOf(terminal.written).join('\n')
+    expect(shown).toContain('opus')
+    expect(shown).toContain('1 of 1 in claude-code')
+    // pi's catalog is not the orchestrator's to offer: choosing from it would
+    // hand Claude Code a name it never heard of.
+    expect(shown).not.toContain('moonshotai')
+  })
+
+  it('says why in the harness’s own words when it has no models to offer', async () => {
+    terminal.columns = 140
+    await start({
+      config: ConfigSchema.parse({
+        projects: { app: { root: repo.root } },
+        orchestrator: { harness: 'codex' },
+      }),
+      orchestratorModels: async () => ({
+        harness: 'codex',
+        models: [],
+        why: 'names its own models, and the codex on this machine did not answer',
+      }),
+      models: async (harness) => ({
+        harness,
+        models: [
+          { id: 'openrouter/moonshotai/kimi-k2.6', provider: 'openrouter', name: 'Kimi K2.6' },
+        ],
+        why: null,
+      }),
+    })
+    await until('the strip', () => screenOf(terminal.written).at(-1)?.includes('▾') ?? false)
+    const chip = find('no model ▾')
+    terminal.written = ''
+    click(chip.col + 1, chip.row)
+    await until('the picker', () =>
+      screenOf(terminal.written).some((row) => row.includes('Model for the orchestrator')),
+    )
+    const shown = screenOf(terminal.written).join('\n')
+    expect(shown).toContain('codex names its own models')
+    expect(shown).not.toContain('moonshotai')
   })
 
   it('shows the orchestrator working, and why a tool it used failed', async () => {

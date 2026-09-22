@@ -62,7 +62,9 @@ export const EventType = z.enum([
    * which model it opened on before it does any work, and a run that never
    * bills says it and nothing else — so this is the only place it can be, and
    * a fact not written down when it was true is a question nobody can answer
-   * later.
+   * later. Which harness, sign-in and provider it was on rides along with it,
+   * as it does on `usage`: a model is the harness's own, and one read back
+   * without the harness that ran it is a name nobody can hand anywhere.
    */
   'run_model',
   'run_exited',

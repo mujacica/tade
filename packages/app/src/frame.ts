@@ -326,6 +326,7 @@ export interface Frame {
       | 'servers'
       | 'extensionsRoot'
       | 'models'
+      | 'modelsFrom'
       | 'modelTarget'
       | 'currentModel'
       | 'written'

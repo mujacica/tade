@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { Terminal } from '@earendil-works/pi-tui'
 import type { Config } from '@tade/core'
 import type { ExtensionHost, ExtensionWorkbench } from '@tade/extensions-core'
+import type { HarnessModels } from '@tade/harnesses-core'
 import type { Reporter } from '@tade/telemetry'
 import type { Recorder, Transcriber } from '@tade/voice-core'
 import type { Speaker } from '@tade/voice-tts'
@@ -13,7 +14,6 @@ import type { Live } from '../live.ts'
 import { type AppState, notice } from '../model.ts'
 import type { McpServerShown } from '../panels/extensions/state.ts'
 import type { MenuItem, MenuSubject, ThinkerOffers } from '../panels/menu/state.ts'
-import type { ModelChoice } from '../panels/models/state.ts'
 import type { PromptPanel } from '../panels/small/state.ts'
 import type { Panel, PanelInputs } from '../panels.ts'
 import type { ThinkerEvent } from '../transcript.ts'
@@ -87,10 +87,11 @@ export interface AppOptions {
    */
   thinker?: Thinker
   /**
-   * The models an agent can be started on, from the harness's own catalog.
-   * Passed in, so the window does not have to know which harness it is.
+   * What one harness offers to run, asked of that harness: never a list
+   * gathered across them, because no harness could run one. The workbench
+   * answers this unless something else is given.
    */
-  models?: () => Promise<{ id: string; provider: string; name: string }[]>
+  models?: (harness: string) => Promise<HarnessModels>
   /** How each provider with credentials is paid for: signed in, or a key. */
   credentials?: () => Promise<Record<string, 'signed-in' | 'api-key' | 'env-key'>>
   /** The command that runs the harness interactively, for signing in. */
@@ -109,8 +110,8 @@ export interface AppOptions {
    * conversation. Without it, a new model applies when Tade next starts.
    */
   restartThinker?: () => Promise<void>
-  /** What the orchestrator could run on, as its own harness offers them. */
-  orchestratorModels?: () => Promise<ModelChoice[]>
+  /** What the orchestrator could run on, as its own harness offers them, and nobody else's. */
+  orchestratorModels?: () => Promise<HarnessModels>
   /**
    * Restart the window with the same arguments so changes can be tried live.
    * The callback should stop the app, release the home lock, and re-exec.

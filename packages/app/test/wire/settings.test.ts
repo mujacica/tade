@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { Secrets } from '@tade/core'
+import { loadConfig, Secrets } from '@tade/core'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
@@ -43,6 +43,64 @@ describe('the window, and its settings', () => {
     await until('saved', () => terminal.written.includes('applies now'))
     // The workbench's own copy is the one that decides where a task is made.
     expect(client.config.agents.workspace).toBe('worktree')
+  })
+
+  it('clears the model when the harness is reselected, so the new one decides', async () => {
+    terminal.columns = 140
+    terminal.rows = 50
+    // In the file as well as in the window: a setting is written by reading
+    // that file, changing it and writing it back, so what is only in memory
+    // is not what is being cleared.
+    const yaml = [
+      'projects:',
+      '  app:',
+      `    root: ${repo.root}`,
+      'workers:',
+      '  routes:',
+      '    default:',
+      '      harness: pi',
+      '      provider: openrouter',
+      '      model: anthropic/claude-opus-5',
+      '',
+    ].join('\n')
+    writeFileSync(join(home, 'config.yaml'), yaml)
+    const loaded = await loadConfig(join(home, 'config.yaml'))
+    if (!loaded.ok) throw new Error('the test config would not load')
+    await start({ config: loaded.config })
+    await until('the first frame', () => terminal.written.includes('Settings'))
+    const button = find('Settings ')
+    click(button.col + 1, button.row)
+    await until('the settings', () => terminal.written.includes('Where agents run'))
+    const models = find('Models')
+    click(models.col + 1, models.row)
+    await until('the agent model', () =>
+      screenOf(terminal.written).some((row) => row.includes('Agent harness')),
+    )
+    // Choosing the harness it is already on is not a new choice, and may not
+    // quietly take the model away.
+    const same = find('◉ pi')
+    // Found while the whole screen is still in the buffer: what is written
+    // after it is cleared is only what changed.
+    const harness = find('claude-code')
+    terminal.written = ''
+    click(same.col + 2, same.row)
+    await until('saved', () => terminal.written.includes('Saved'))
+    expect(client.config.workers.routes.default?.model).toBe('anthropic/claude-opus-5')
+
+    terminal.written = ''
+    click(harness.col + 1, harness.row)
+    await until('saved', () => terminal.written.includes('Saved'))
+    // A model chosen for pi is not Claude Code's to start on, and `routeIn`
+    // reads a route's own model as its own harness's — so it goes, and the
+    // harness decides until somebody chooses again.
+    expect(client.config.workers.routes.default?.harness).toBe('claude-code')
+    expect(client.config.workers.routes.default?.model).toBeUndefined()
+    expect(client.config.workers.routes.default?.provider).toBeUndefined()
+    expect(readFileSync(join(home, 'config.yaml'), 'utf8')).not.toContain('claude-opus-5')
+    // Said, because a choice that disappears without a word reads as a bug.
+    expect(screenOf(terminal.written).join('\n')).toContain(
+      'The agent model is cleared: claude-code decides.',
+    )
   })
 
   it('pastes a key from Settings, into the keychain and not the config', async () => {

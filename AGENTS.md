@@ -674,7 +674,20 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   name is never used twice**: a new agent given an old one's name would carry on its conversation.
 - **A model is chosen per harness.** A route's model is for its own harness; what new agents of
   another harness start on is kept beside it (`workers.routes.<route>.harnesses.<harness>`), and a
-  model is always resolved by the harness it is for (`resolveModel`) — never handed across.
+  model is always resolved by the harness it is for (`resolveModel`) — never handed across. So a
+  picker only ever offers what one harness runs, asked of that harness (`modelsOffered`,
+  `agentModels`, `harnessModels`, `Orchestrator.models`), on the account it runs as, since a model
+  is reached through a sign-in. There is no everybody's list to fall back on: one that could not
+  say comes back with the sentence it declared for exactly that (`why.models`) and the window says
+  it in place of a list, because a model of another harness is a name that fails at the next
+  launch. Which harness a setting's model is for is part of the question (`{ kind: 'model',
+  harness }`), and how hard a thing can be told to think is its harness's too — the orchestrator
+  is a harness choice like any other, and pi thinks at `off` where Claude Code does not.
+  **Choosing a harness clears what was chosen for the one before it** (`clearedByHarness`): model,
+  provider and thinking level go back to unset, which is the harness deciding. Carrying them
+  across is how a route ends up asking for something that does not exist there — and the same rule
+  reaches backwards, so a run resumed in one harness is only ever told what *that* harness ran it
+  on (`modelLastRunOn`).
 - **Agents work where `agents.workspace` says.** `checkout` (the default): every agent in the
   project's own checkout, on its branch, at once, each task a folder under `.tade/tasks/<name>`;
   its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it

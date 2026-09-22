@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { ConfigSchema } from '../src/config.ts'
-import { orchestratorRoute, resolveRoute, routeIn, UnknownRouteError } from '../src/routes.ts'
+import {
+  clearedByHarness,
+  orchestratorRoute,
+  resolveRoute,
+  routeIn,
+  UnknownRouteError,
+} from '../src/routes.ts'
 
 const config = (yaml: Record<string, unknown>) => ConfigSchema.parse(yaml)
 
@@ -102,6 +108,38 @@ describe('routeIn', () => {
     expect(() =>
       ConfigSchema.parse({ workers: { routes: { default: { harnesses: { nope: {} } } } } }),
     ).toThrow()
+  })
+})
+
+describe('clearedByHarness', () => {
+  it("clears a route's own model, provider and thinking level", () => {
+    // `routeIn` reads a route's own model as its own harness's, so leaving it
+    // there would hand the harness just chosen the model of the one before it.
+    expect(clearedByHarness('workers.routes.cheap.harness')).toEqual([
+      'workers.routes.cheap.provider',
+      'workers.routes.cheap.model',
+      'workers.routes.cheap.thinking',
+    ])
+  })
+
+  it("clears the orchestrator's own, which are chosen the same way", () => {
+    expect(clearedByHarness('orchestrator.harness')).toEqual([
+      'orchestrator.provider',
+      'orchestrator.model',
+      'orchestrator.thinking',
+    ])
+  })
+
+  it('clears nothing for anything that is not a harness', () => {
+    for (const path of [
+      'workers.routes.cheap.model',
+      'workers.routes.cheap.harnesses.codex.model',
+      'orchestrator.model',
+      'workers.default',
+      '',
+    ]) {
+      expect(clearedByHarness(path)).toEqual([])
+    }
   })
 })
 

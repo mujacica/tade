@@ -77,8 +77,28 @@ export const PANEL_SCREENS: Scenario[] = [
             price: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
           },
         ],
+        // Whose models these are. Every one of them is a model pi runs: a
+        // picker is one harness's list, asked of that harness.
+        modelsFrom: { harness: 'pi', why: null },
         modelTarget: 'the orchestrator',
         currentModel: 'openrouter/anthropic/claude-opus-5',
+      },
+    }),
+  },
+  {
+    name: 'a-harness-that-cannot-say-its-models',
+    about:
+      'Choosing a model for an agent whose harness could not say what it runs: its own sentence, and no list — another harness’s models are names this one never heard of.',
+    state: { ...base(), panel: modelPanel('checkout/stripe-v15') },
+    frame: frame({
+      panel: {
+        models: [],
+        modelsFrom: {
+          harness: 'codex',
+          why: 'names its own models (codex debug models), and the codex on this machine did not answer',
+        },
+        modelTarget: 'stripe-v15',
+        currentModel: null,
       },
     }),
   },

@@ -147,6 +147,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     servers: extra.servers ?? [],
     extensionsRoot: extra.extensionsRoot ?? '~/.tade/extensions',
     models: extra.models ?? [],
+    modelsFrom: extra.modelsFrom ?? null,
     modelTarget: extra.modelTarget ?? 'the orchestrator',
     currentModel: extra.currentModel ?? null,
     written: extra.written ?? [],

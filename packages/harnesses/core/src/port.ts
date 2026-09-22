@@ -361,6 +361,8 @@ export type HarnessFeature =
   | 'queue'
   | 'abort'
   | 'model'
+  /** Saying which models it runs at all, which is what a picker offers. */
+  | 'models'
   | 'thinking'
   | 'rename'
   | 'images'
@@ -506,6 +508,41 @@ export interface HarnessModel {
   price?: ModelPrice
   /** How many tokens it can hold, where the harness says. */
   contextWindow?: number
+}
+
+/**
+ * What one harness offers to run, asked of it: never a list gathered from
+ * anywhere else.
+ *
+ * A model is resolved by the harness it is for and never handed across, so
+ * "none" here is an answer about *this* harness — and the honest thing to
+ * show then is why, not somebody else's catalog. `harness` is on it because
+ * whoever draws the list says whose it is.
+ */
+export interface HarnessModels {
+  /** The harness that was asked, as the registry names it. */
+  harness: string
+  models: readonly HarnessModel[]
+  /**
+   * Why there are none, in the harness's own words — written to follow the
+   * harness's name, as every `why` is. Null when it offered some.
+   */
+  why: string | null
+}
+
+/**
+ * Ask a harness what it runs. It never throws: one that cannot say comes back
+ * with nothing and the sentence it declared for exactly that (`why.models`),
+ * which is what a person reads in place of a list.
+ */
+export async function modelsOffered(adapter: WorkerAdapter): Promise<HarnessModels> {
+  const models = await adapter.models().catch(() => [])
+  if (models.length > 0) return { harness: adapter.id, models, why: null }
+  return {
+    harness: adapter.id,
+    models: [],
+    why: adapter.capabilities.why.models ?? 'could not say which models it runs',
+  }
 }
 
 /** A model someone named, found among what a harness offers — or what to ask them. */

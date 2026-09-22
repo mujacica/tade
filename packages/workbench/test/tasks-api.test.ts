@@ -152,6 +152,38 @@ describe('task and run RPC', () => {
     ).toContain('harness: pi')
   })
 
+  it('offers the models of the harness a task runs in, and nobody else’s', async () => {
+    const task = await client.createTask({ project: 'app', slug: 'refunds', intent: INTENT })
+    const pi = await client.agentModels(task.id, task.worktree)
+    expect(pi.harness).toBe('pi')
+    // Either a list, or the harness's own words for why there is none —
+    // never a fallback to what some other harness runs.
+    expect(pi.why === null).toBe(pi.models.length > 0)
+
+    // Claude Code names the model lines it runs itself, and they are not
+    // pi's to offer.
+    const claude = await client.harnessModels('claude-code')
+    expect(claude).toMatchObject({ harness: 'claude-code', why: null })
+    expect(claude.models.length).toBeGreaterThan(0)
+    for (const model of claude.models) expect(model.provider).toBe('anthropic')
+
+    // And a task moved to that harness is offered exactly those.
+    await client.setAgentHarness({
+      task: task.id,
+      worktree: task.worktree,
+      harness: 'claude-code',
+    })
+    expect(await client.agentModels(task.id, task.worktree)).toEqual(claude)
+  })
+
+  it('says a harness it does not run has no models, rather than offering someone’s', async () => {
+    expect(await client.harnessModels('nope')).toEqual({
+      harness: 'nope',
+      models: [],
+      why: 'is not a harness Tade runs',
+    })
+  })
+
   it('refuses a project it has never heard of', async () => {
     await expect(client.createTask({ project: 'nope', slug: 'x', intent: 'y' })).rejects.toThrow(
       /unknown project/,

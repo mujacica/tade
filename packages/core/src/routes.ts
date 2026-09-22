@@ -60,6 +60,29 @@ export function routeIn(
   return route.harnesses?.[harness as keyof NonNullable<typeof route.harnesses>] ?? {}
 }
 
+/**
+ * What choosing a harness clears, as config paths to unset.
+ *
+ * A model and a thinking level are chosen per harness and never handed across
+ * — `routeIn` reads a route's own model as its own harness's — so a route
+ * switched from pi to Claude Code would otherwise hand Claude Code whatever
+ * was picked for pi: a name that harness never heard of. Reset means unset,
+ * which is the harness deciding, and is exactly where a route sits before
+ * anybody has chosen anything. What was chosen for another harness under the
+ * same route (`harnesses.<id>`) is untouched: it was never this harness's.
+ *
+ * Nothing for a path that is not a harness.
+ */
+export function clearedByHarness(path: string): string[] {
+  if (path === 'orchestrator.harness') {
+    return ['orchestrator.provider', 'orchestrator.model', 'orchestrator.thinking']
+  }
+  const route = /^workers\.routes\.([^.]+)\.harness$/.exec(path)
+  if (!route?.[1]) return []
+  const at = `workers.routes.${route[1]}`
+  return [`${at}.provider`, `${at}.model`, `${at}.thinking`]
+}
+
 /** The route the orchestrator itself runs on. */
 export function orchestratorRoute(config: Config): ResolvedRoute {
   const { harness, provider, model, thinking } = config.orchestrator
