@@ -49,8 +49,16 @@ const BUDGET: Record<string, number> = {
   'packages/drivers/tmux/src/index.ts': 900,
   'packages/extensions/core/src/host.ts': 1_500,
   'packages/extensions/core/test/host.test.ts': 1_000,
-  'packages/extensions/jev/src/extension.ts': 1_400,
-  'packages/extensions/jev/test/jev.test.ts': 1_100,
+  // The three tools that close a finding have left, to `verdicts.ts` beside
+  // the rule they enforce, and what let them go was moving the one thing every
+  // tool here shares — the `project` parameter, beside `allowed` in `ask.ts`,
+  // which already answers "which project may this call be about". The same cut
+  // is there for the three that read something back before somebody guesses:
+  // `jev_read_request`, `jev_plan_check` and `jev_queue_order` are one subject
+  // (advising, never deciding), ~230 lines, and they now need nothing from
+  // this file.
+  'packages/extensions/jev/src/extension.ts': 1_250,
+  'packages/extensions/jev/test/jev.test.ts': 1_000,
   'packages/extensions/review/src/extension.ts': 1_200,
   'packages/harnesses/claude/src/adapter.ts': 1_600,
   'packages/harnesses/codex/src/adapter.ts': 1_700,

@@ -1,6 +1,6 @@
 import { checksExtension } from '@tade/extension-checks'
 import { depsExtension } from '@tade/extension-deps'
-import { findingsReport, jevExtension } from '@tade/extension-jev'
+import { findingsReport, jevExtension, RUBRIC } from '@tade/extension-jev'
 import { chart, type Group, History, type Proc, sampleOf } from '@tade/extension-resources'
 import { sentryExtension } from '@tade/extension-sentry'
 import type { TadeExtension } from '@tade/extensions-core'
@@ -330,29 +330,40 @@ function extensionFacts() {
  * a picture of one.
  */
 function jevFindings(): string {
+  const said = (at: number) => new Date(NOW - at).toISOString()
   const review = (
     at: number,
     unit: string,
     answers: Record<string, number>,
     raised: string[],
-    verdict: Record<
-      string,
-      { was: 'confirmed' | 'false positive'; by: string; said: string; at: string }
-    > = {},
+    answered: {
+      account?: Record<string, { did: 'fixed' | 'not real'; by: string; said: string; at: string }>
+      verdict?: Record<
+        string,
+        { was: 'confirmed' | 'false positive'; by: string; said: string; at: string; cited: string }
+      >
+    } = {},
   ) => ({
-    at: new Date(NOW - at).toISOString(),
+    at: said(at),
     project: 'checkout',
     unit,
     tasks: [unit],
     base: 'main',
     head: 'a1b2c3d',
     version: 'jev-1.13.0',
+    rubric: RUBRIC,
     files: 7,
     requests: 16,
     cost_usd: 0.004,
     answers,
+    where: Object.fromEntries(raised.map((id) => [id, 'src/webhook.ts'])),
     raised,
-    verdict,
+    account: Object.fromEntries(
+      Object.entries(answered.account ?? {}).map(([id, one]) => [id, { ...one, rubric: RUBRIC }]),
+    ),
+    verdict: Object.fromEntries(
+      Object.entries(answered.verdict ?? {}).map(([id, one]) => [id, { ...one, rubric: RUBRIC }]),
+    ),
   })
   return findingsReport({
     reviews: [
@@ -362,11 +373,24 @@ function jevFindings(): string {
         { shell_injection: 0.04, test_missing: 0.88, error_swallowed: 0.71, severity: 1.6 },
         ['test_missing', 'error_swallowed'],
         {
-          error_swallowed: {
-            was: 'confirmed',
-            by: 'you',
-            said: 'the webhook handler swallows a parse error and returns 200',
-            at: new Date(NOW - 30 * 60_000).toISOString(),
+          verdict: {
+            error_swallowed: {
+              was: 'confirmed',
+              by: 'you',
+              said: 'src/webhook.ts catches the parse error and still returns 200',
+              at: said(30 * 60_000),
+              cited: 'src/webhook.ts',
+            },
+          },
+          // Answered by the agent that wrote it and by nobody else yet: the
+          // gap the sweep is for, drawn as the page draws it.
+          account: {
+            test_missing: {
+              did: 'not real',
+              by: 'checkout/stripe-v15',
+              said: 'the new branch is covered by the contract tests in test/stripe.test.ts',
+              at: said(35 * 60_000),
+            },
           },
         },
       ),
@@ -376,11 +400,14 @@ function jevFindings(): string {
         { secret_committed: 0.02, test_missing: 0.64, kind_fixture: 0.66 },
         ['test_missing', 'kind_fixture'],
         {
-          kind_fixture: {
-            was: 'false positive',
-            by: 'you',
-            said: 'the fixture is deliberately small; the real one is built by mkrepo',
-            at: new Date(NOW - 5 * 3_600_000).toISOString(),
+          verdict: {
+            kind_fixture: {
+              was: 'false positive',
+              by: 'you',
+              said: 'the fixture in test/fixtures/refunds.ts is small on purpose',
+              at: said(5 * 3_600_000),
+              cited: 'test/fixtures/refunds.ts',
+            },
           },
         },
       ),

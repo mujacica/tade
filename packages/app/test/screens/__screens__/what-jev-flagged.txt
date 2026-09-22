@@ -4,50 +4,50 @@
      │                                                                                                            │─────
  ▌ ! │ 2 looks · 3 changes read · 4 flagged · $0.01                                                               │     
  ▌   │                                                                                                            │     
-     │ By question                                                                                                │     
+     │ Waiting on a verdict                                                                                       │     
    ⠋ │                                                                                                            │     
-     │ ┌─────────────────┬───────┬───────────┬────────────────┐                                                   │     
-     │ │ question        │ fired │ confirmed │ false positive │                                                   │     
- ▸ SM│ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
- ▾ CH│ │ test_missing    │ 2     │ 0         │ 0              │                                                   │     
-  M p│ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
-  A …│ │ error_swallowed │ 1     │ 1         │ 0              │                                                   │     
-  M s│ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
-     │ │ kind_fixture    │ 1     │ 0         │ 1              │                                                   │     
- ▾ FI│ └─────────────────┴───────┴───────────┴────────────────┘                                                   │     
-   ▾ │                                                                                                            │     
-     │ Calibration                                                                                                │     
+     │ 2 of 4 finding(s) have no verdict, 1 of them with an agent's account already. The oldest has waited 6h.    │     
      │                                                                                                            │     
-   ▸ │ ┌─────────────┬─────────┬───────────┐                                                                      │     
-     │ │ probability │ flagged │ confirmed │                                                                      │     
+ ▸ SM│ Nothing here becomes a false positive by getting old: jev_verdict is the only thing that closes one, it is │     
+ ▾ CH│ never an agent’s to give about its own change, and its sentence has to cite what in the change decided it. │     
+  M p│                                                                                                            │     
+  A …│ By question                                                                                                │     
+  M s│                                                                                                            │     
+     │ ┌─────────────────┬───────┬───────────┬────────────────┐                                                   │     
+ ▾ FI│ │ question        │ fired │ confirmed │ false positive │                                                   │     
+   ▾ │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+     │ │ test_missing    │ 2     │ 0         │ 0              │                                                   │     
+     │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+   ▸ │ │ error_swallowed │ 1     │ 1         │ 0              │                                                   │     
+     │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+     │ │ kind_fixture    │ 1     │ 0         │ 1              │                                                   │     
+     │ └─────────────────┴───────┴───────────┴────────────────┘                                                   │     
+ ▸ NO│                                                                                                            │     
+ ▾ GI│ Calibration                                                                                                │     
+   re│                                                                                                            │     
+   br│ ┌─────────────┬─────────┬───────────┐                                                                      │     
+   fr│ │ probability │ flagged │ confirmed │                                                                      │     
+   wo│ ├─────────────┼─────────┼───────────┤                                                                      │     
+   pa│ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
      │ ├─────────────┼─────────┼───────────┤                                                                      │     
-     │ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
- ▸ NO│ ├─────────────┼─────────┼───────────┤                                                                      │     
- ▾ GI│ │ 0.7–0.8     │ 1       │ 1         │                                                                      │     
-   re│ ├─────────────┼─────────┼───────────┤                                                                      │     
-   br│ │ 0.8–0.9     │ 1       │ 0         │                                                                      │     
-   fr│ └─────────────┴─────────┴───────────┘                                                                      │     
-   wo│                                                                                                            │     
-   pa│ What it found                                                                                              │     
+     │ │ 0.7–0.8     │ 1       │ 1         │                                                                      │     
+     │ ├─────────────┼─────────┼───────────┤                                                                      │     
+     │ │ 0.8–0.9     │ 1       │ 0         │                                                                      │     
+     │ └─────────────┴─────────┴───────────┘                                                                      │     
+     │                                                                                                            │     
+     │ What it found                                                                                              │     
      │                                                                                                            │     
      │ - checkout/stripe-v15:error_swallowed — Does this change catch an error and carry on without reporting it  │     
      │   anywhere?                                                                                                │     
-     │   checkout/fix-swallowed-error, going · confirmed: the webhook handler swallows a parse error and returns  │     
-     │   200                                                                                                      │     
+     │   checkout/fix-swallowed-error, going · confirmed: src/webhook.ts catches the parse error and still        │     
+     │   returns 200                                                                                              │     
      │ - checkout/stripe-v15:test_missing — Does this change alter what the program does without adding or        │     
      │   changing a test that covers it?                                                                          │     
-     │   told orchestrator                                                                                        │     
-     │ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving than │     
+     │   told orchestrator · its agent: not real — the new branch is covered by the contract tests in             │     
+     │   test/stripe.test.ts                                                                                      │     
+━   o│ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving than │▾   ━
      │   a real project would be?                                                                                 │     
-     │   told orchestrator · false positive: the fixture is deliberately small; the real one is built by mkrepo   │     
-     │                                                                                                            │     
-     │ 1 finding(s) with no verdict yet — jev_verdict records one.                                                │     
-     │                                                                                                            │     
-     │                                                                                                            │     
-     │                                                                                                            │     
-━   o│                                                                                                            │▾   ━
-     │                                                                                                            │     
-     │                                                                                                            │    ▕
+     │   told orchestrator · false positive: the fixture in test/fixtures/refunds.ts is small on purpose          │    ▕
      │                                                                                                            │    ▕
      │                                                                                                            │    ▕
      │ kept current while open                                                                            Close   │    ▕

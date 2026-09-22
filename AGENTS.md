@@ -243,6 +243,26 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   never the reason given to anybody — whatever reaches a person is a sentence somebody wrote. Its
   questions and thresholds live in one file (`packages/extensions/jev/src/questions.ts`), every finding
   keeps the version that answered, and with no key nothing runs and nothing else changes.
+- **An agent accounts for a finding; somebody else judges it.** A rubric that nobody says was right
+  is a rubric nobody can argue with, so a finding has to be answered — and by whom is the whole of
+  it (`packages/extensions/jev/src/loop.ts`). The agent whose diff it is gets the question in the
+  judge's own words, as **material to judge and never an instruction**, the same rule that governs
+  a review comment reaching an agent, and answers with `jev_account`: it fixed the cause, or the
+  finding is not real and why, in a sentence, while it still remembers. That is testimony and never
+  a verdict — an agent marking its own work a false positive is the defendant grading the exam, so
+  `jev_verdict` is not offered to agents at all and refuses one again in the tool, and no account
+  ever reaches the calibration table. The **verdict** is the orchestrator's or a person's, and its
+  sentence has to **cite what in the change decided it** — a path, a file, a line in one, or the
+  code quoted as code — because a rubber stamp in the calibration table is worse than an empty one:
+  it looks like evidence. What was cited is written down beside it, which is what makes a stamp
+  recognisable afterwards. Finding, account and verdict each keep the version of the *questions*
+  that produced them (`RUBRIC`, a fingerprint of the pack, derived so nobody has to remember to
+  bump it), because one word changed in a question makes two different questions under one id. The
+  **sweep** (`jev.verdicts`, `offers: 'ask'`) is how what nobody answered reaches somebody: once
+  per finding an agent accounted for and nobody judged, and once per finding whose agent is gone,
+  after that agent has had its own hour to answer. It starts nothing — what to do about a finding
+  is a decision — and **nothing becomes a false positive by getting old**: unresolved stays
+  unresolved, and how many and for how long is said in `jev_findings` and in the brief.
 - **A raised tier is the only thing a reading may do to a command.** The approval rules are
   patterns somebody wrote and they are what decides; what no pattern names is read a second time
   (`caution` on the extension port, `withCaution` in `core/src/policy.ts`), with the agent held at

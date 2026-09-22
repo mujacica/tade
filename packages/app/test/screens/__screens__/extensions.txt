@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │  search extensions      │ Jev  built-in                                                                 ready  │───
- ▌ │                         │ 8 tools · 2 watches · 5 settings                                                     │   
+ ▌ │                         │ 9 tools · 3 watches · 5 settings                                                     │   
  ▌ │ ● Checks               ▕│                                                                                      │   
    │ ● Dependencies         ▕│ Asks a judge bounded questions about diffs, logs, requests, plans and queues:       █│   
    │▌● Jev                  ▕│ probabilities to act on, never verdicts and never prose.                            █│   
@@ -11,20 +11,20 @@
  ▸ │ ● GitHub               ▕│                                                                                     █│   
  ▾ │ ○ release-notes        ▕│ HOW IT IS USED                                                                      █│   
   M│ · Written by Tade    1 ▕│ · Reads branches that go quiet against the review pack, once its watch is on.       █│   
-  A│ · MCP servers        4 ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something pasted.       █│   
-  M│ · Harnesses' own     2 ▕│ · Reads things back before somebody guesses: a request, a plan, a queue order.      █│   
-   │                        ▕│ · Answers a sentence typed into search that matched no letters.                     █│   
- ▾ │                        ▕│ · Reads a command the approval rules do not name — only ever asking for more.       █│   
-   │                        ▕│ · May only add caution: never approves, merges, unholds or shortens a review.       █│   
+  A│ · MCP servers        4 ▕│ · Hands what it flagged to the agent that wrote it, which answers with              █│   
+  M│ · Harnesses' own     2 ▕│   jev_account.                                                                      █│   
+   │                        ▕│ · Sweeps what nobody answered to the orchestrator, which writes the verdict         █│   
+ ▾ │                        ▕│   (jev_verdict).                                                                    ▕│   
+   │                        ▕│ · Judges anything in front of you (jev_ask): a diff, a log, something pasted.       ▕│   
+   │                        ▕│ · Reads things back before somebody guesses: a request, a plan, a queue order.      ▕│   
+   │                        ▕│ · Answers a sentence typed into search that matched no letters.                     ▕│   
+   │                        ▕│ · Reads a command the approval rules do not name — only ever asking for more.       ▕│   
+   │                        ▕│ · May only add caution: never approves, merges, unholds or shortens a review.       ▕│   
    │                        ▕│                                                                                     ▕│   
-   │                        ▕│ TOOLS                                                                               ▕│   
+━  │                        ▕│ TOOLS                                                                               ▕│  ━
    │                        ▕│ jev_ask               Judge anything against questions you write                    ▕│   
-   │                        ▕│ jev_grep              Grep that reads                                               ▕│   
-   │                        ▕│ jev_review            Read a change against the review pack and say what it flags   ▕│   
-━  │                        ▕│ jev_findings          What the review watch has looked at, what it flagged, what ca…▕│  ━
-   │                        ▕│ jev_verdict           Write down what a finding turned out to be, once somebody has…▕│   
-   │                        ▕│ jev_read_request      A second, independent reading of what some… orchestrator only ▕│  ▕
-   │                        ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only ▕│  ▕
+   │                        ▕│ jev_grep              Grep that reads                                               ▕│  ▕
+   │                        ▕│ jev_review            Read a change against the review pack and say what it flags   ▕│  ▕
    │                        ▕│                                                                                      │  ▕
    │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕

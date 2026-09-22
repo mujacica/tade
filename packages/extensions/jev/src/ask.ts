@@ -1,4 +1,4 @@
-import type { ExtensionContext, ProjectRef } from '@tade/extensions-core'
+import { type ExtensionContext, type ProjectRef, string } from '@tade/extensions-core'
 import type { Judge, Judgement, Question } from '@tade/judges-core'
 import { makeJudge } from '@tade/workbench/judges'
 import { ACT, BUDGET, REPORT } from './questions.ts'
@@ -10,6 +10,23 @@ import { ACT, BUDGET, REPORT } from './questions.ts'
 // a bad day cannot run away. The judge is taken by name — never constructed at
 // a call site — which is what lets the same rubric be answered by TypeSafe, by
 // a table in a test, or by whatever answers next.
+
+/**
+ * The project a call is about, as every tool that takes one asks for it. Here
+ * beside `allowed`, which is the rule about the same thing: one place that
+ * says which project a call may be about, and one sentence describing it.
+ */
+export const project = string(
+  'project name, as configured; the one you are in when there is only one',
+)
+
+/** How far back something goes, as it is said: `24h`, `7d`, `30m`. */
+export function periodMs(said: unknown, fallback: number): number {
+  const match = /^(\d+)\s*([mhdw])$/.exec(String(said ?? '').trim())
+  if (!match) return fallback
+  const size = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 }[match[2] ?? 'h'] ?? 0
+  return Number(match[1]) * size
+}
 
 /** Which judge answers, as the settings say. */
 export function judgeName(ctx: ExtensionContext): string {

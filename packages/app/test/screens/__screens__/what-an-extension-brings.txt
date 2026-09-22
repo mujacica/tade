@@ -2,29 +2,29 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ ╭─ Extensions ───────────────────────────────────────────────────────────────────────────────────────────── esc ─╮   
    │  search extensions      │ Jev  built-in                                                                 ready  │───
- ▌ │                         │ 8 tools · 2 watches · 5 settings                                                     │   
+ ▌ │                         │ 9 tools · 3 watches · 5 settings                                                     │   
  ▌ │ ● Checks               ▕│                                                                                      │   
-   │ ● Dependencies         ▕│ jev_grep              Grep that reads                                               ▕│   
-   │ ● Jev                  ▕│ jev_review            Read a change against the review pack and say what it flags   ▕│   
-   │ ◐ Sentry             ! ▕│ jev_findings          What the review watch has looked at, what it flagged, what ca…▕│   
-   │ ✗ standup            ! ▕│ jev_verdict           Write down what a finding turned out to be, once somebody has…▕│   
- ▸ │ ● GitHub               ▕│ jev_read_request      A second, independent reading of what some… orchestrator only ▕│   
- ▾ │ ○ release-notes        ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only ▕│   
-  M│ · Written by Tade    1 ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only ▕│   
-  A│ · MCP servers        4 ▕│                                                                                     ▕│   
-  M│ · Harnesses' own     2 ▕│ WATCHES  none on until you turn one on                                              ▕│   
-   │                        ▕│ ◎ Review what agents change  every 10m                             Watch checkout   █│   
- ▾ │                        ▕│   reads a branch that has stopped moving against its base, and reports what it      █│   
-   │                        ▕│   flags                                                                             █│   
-   │                        ▕│ ◎ Agents going in circles  every 10m                               Watch checkout   █│   
+   │ ● Dependencies         ▕│ jev_account           Say what you found when you read something Jev flagged about …▕│   
+   │ ● Jev                  ▕│ jev_verdict           Write down what a finding turned out to be… orchestrator only ▕│   
+   │ ◐ Sentry             ! ▕│ jev_read_request      A second, independent reading of what some… orchestrator only ▕│   
+   │ ✗ standup            ! ▕│ jev_plan_check        Read a plan before you keep it, and say wh… orchestrator only ▕│   
+ ▸ │ ● GitHub               ▕│ jev_queue_order       Suggest what should come first out of what… orchestrator only ▕│   
+ ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
+  M│ · Written by Tade    1 ▕│ WATCHES  none on until you turn one on                                              ▕│   
+  A│ · MCP servers        4 ▕│ ◎ Review what agents change  every 10m                             Watch checkout   ▕│   
+  M│ · Harnesses' own     2 ▕│   reads a branch that has stopped moving against its base, and reports what it      ▕│   
+   │                        ▕│   flags                                                                             ▕│   
+ ▾ │                        ▕│ ◎ Agents going in circles  every 10m                               Watch checkout   ▕│   
    │                        ▕│   reads the agents that keep making the same failing call, and says which           █│   
+   │                        ▕│ ◎ Findings nobody has answered  every 1h                           Watch checkout   █│   
+   │                        ▕│   looks for findings an agent has accounted for and nobody has judged, and ones     █│   
+   │                        ▕│   whose agent is gone                                                               █│   
    │                        ▕│                                                                                     █│   
    │                        ▕│ OPTIONS  Settings…                                                                  █│   
-   │                        ▕│ API key             tsk_0123456789                                                  █│   
-━  │                        ▕│ Version             jev-1.13.0                                                      █│  ━
-   │                        ▕│ Projects            not set                                                         █│   
+━  │                        ▕│ API key             tsk_0123456789                                                  █│  ━
+   │                        ▕│ Version             jev-1.13.0                                                      █│   
+   │                        ▕│ Projects            not set                                                         █│  ▕
    │                        ▕│ Report at           0.6                                                             █│  ▕
-   │                        ▕│ Act at              0.85                                                            █│  ▕
    │                        ▕│                                                                                      │  ▕
    │                        ▕│ tab moves · ↑↓ reads · enter presses                                         Done    │  ▕
  ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕

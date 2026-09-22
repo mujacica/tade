@@ -130,6 +130,48 @@ export function reviewQuestions(only?: readonly string[] | null): Question[] {
   return [...wanted, SEVERITY_QUESTION]
 }
 
+/**
+ * The version of the rubric itself, which is a different fact from the version
+ * of whatever answered it.
+ *
+ * A finding, the account the agent who wrote the change gives for it, and the
+ * verdict somebody else writes afterwards are three records made days apart,
+ * and the only thing that makes them comparable later is knowing all three
+ * were about the same question *as it was worded then*. Change one word here
+ * and the calibration table is adding up two different questions under one id.
+ *
+ * Derived, never written by hand: a number somebody has to remember to bump is
+ * wrong by the second release. Sorted by id, so moving a question inside this
+ * file is not a new rubric while changing one word in it is.
+ */
+export const RUBRIC: string = rubricOf([
+  ...HAZARDS,
+  ...HOUSE,
+  DID_WHAT_WAS_ASKED,
+  SEVERITY_QUESTION,
+])
+
+/** A fingerprint of a pack of questions: their ids, their words, their answers. */
+export function rubricOf(questions: readonly Question[]): string {
+  const words = questions
+    .map((one) => `${one.id}\u0000${one.ask}\u0000${answersOf(one)}`)
+    .sort()
+    .join('\n')
+  // FNV-1a, written out: nothing is being hidden behind this, so it wants no
+  // crypto and no import — it is a fingerprint for telling two rubrics apart.
+  let digest = 0x811c9dc5
+  for (let at = 0; at < words.length; at++) {
+    digest = Math.imul(digest ^ words.charCodeAt(at), 0x01000193)
+  }
+  return `q-${(digest >>> 0).toString(16).padStart(8, '0')}`
+}
+
+function answersOf(question: Question): string {
+  if (question.kind === 'pick') return Object.keys(question.options).sort().join(',')
+  if (question.kind === 'rate') return question.levels.join(',')
+  return ''
+}
+
 // ── Reading a command ───────────────────────────────────────────────────────
 //
 // What the approval rules do not name. Those rules are patterns somebody

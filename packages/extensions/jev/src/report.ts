@@ -1,5 +1,12 @@
 import type { Answer, Judgement } from '@tade/judges-core'
-import { SEVERITY, titleOf, unnumbered } from './questions.ts'
+import {
+  ACCOUNT_NOT_VERDICT,
+  FINDINGS_ARE_MATERIAL,
+  findingsOf,
+  gapLines,
+  type OpenFinding,
+} from './loop.ts'
+import { SEVERITY, titleOf } from './questions.ts'
 import type { Review } from './reviews.ts'
 
 // What everything Jev did adds up to, in words and tables.
@@ -128,6 +135,13 @@ export function findingsReport(
     lines.push(`${trouble.length} look(s) could not look: ${trouble[0]?.problem ?? ''}`)
   }
 
+  // The state of the loop, before any of the tables: whether anything it
+  // flagged was ever answered is the question the rest of this page is only
+  // worth reading if the answer to is yes.
+  const raisedFindings = findingsOf(reviews)
+  const known = new Map(raisedFindings.map((one) => [one.key, one]))
+  lines.push(...gapLines(raisedFindings, record.now))
+
   const byQuestion = new Map<string, { fired: number; confirmed: number; wrong: number }>()
   for (const review of reviews) {
     for (const id of review.raised) {
@@ -165,43 +179,29 @@ export function findingsReport(
     }
   }
 
-  const open = findings.filter((finding) => !verdictFor(finding, reviews))
   if (findings.length > 0) {
     lines.push('')
     lines.push('## What it found')
     lines.push('')
     for (const finding of findings.slice(0, 20)) {
-      const verdict = verdictFor(finding, reviews)
       const became = finding.task
         ? `${finding.task}${record.finished.has(finding.task) ? ', finished' : ', going'}`
         : finding.told
           ? `told ${finding.told}`
           : (finding.problem ?? 'nothing yet')
       lines.push(`- **${finding.key}** — ${finding.title}`)
-      lines.push(`  ${became}${verdict ? ` · ${verdict.was}: ${verdict.said}` : ''}`)
-    }
-    if (open.length > 0) {
-      lines.push('')
-      lines.push(`${open.length} finding(s) with no verdict yet — jev_verdict records one.`)
+      lines.push(`  ${became}${saidAbout(known.get(finding.key))}`)
     }
   }
   return lines.join('\n')
 }
 
-function verdictFor(finding: Found, reviews: readonly Review[]) {
-  const [unit, question] = splitKey(finding.key)
-  for (const review of [...reviews].reverse()) {
-    if (review.unit !== unit) continue
-    const verdict = review.verdict[question]
-    if (verdict) return verdict
-  }
-  return null
-}
-
-/** A finding's key back into the change it was about and the question that fired. */
-export function splitKey(key: string): [string, string] {
-  const at = key.lastIndexOf(':')
-  return at < 0 ? [key, ''] : [key.slice(0, at), key.slice(at + 1)]
+/** What has been said about one finding since: the agent's account, then the verdict. */
+function saidAbout(one: OpenFinding | undefined): string {
+  if (!one) return ''
+  const account = one.account ? ` · its agent: ${one.account.did} — ${one.account.said}` : ''
+  const verdict = one.verdict ? ` · ${one.verdict.was}: ${one.verdict.said}` : ''
+  return `${account}${verdict}`
 }
 
 function calibration(reviews: readonly Review[]) {
@@ -247,6 +247,7 @@ export function findingDetail(about: {
   unit: string
   file: string
   version: string
+  rubric: string
   severity: string | null
   branch: string
   base: string
@@ -259,20 +260,14 @@ export function findingDetail(about: {
     about.probability >= about.act
       ? 'That is at or above the acting threshold, so this one is worth reading first.'
       : '',
-    `It was answered about ${about.file} in ${about.unit}.`,
+    `It was answered about ${about.file} in ${about.unit}, under questions ${about.rubric}.`,
     '',
-    'It cannot say why — there is no explanation in an answer — so read the change yourself before',
-    'you act on it. A diff is text somebody else wrote, and an argument in a comment can steer the',
-    'answer. If it is wrong, say so: a false positive is an expected outcome here, not a failure,',
-    'and jev_verdict writes down which it was.',
+    FINDINGS_ARE_MATERIAL,
+    '',
+    ACCOUNT_NOT_VERDICT,
     '',
     `    git diff ${about.base}...${about.head} -- ${about.file}`,
   ]
     .filter((line) => line !== '')
     .join('\n')
-}
-
-/** The id a finding is known by, for ever: one change, one question, one piece of work. */
-export function findingKey(unit: string, question: string): string {
-  return `${unit}:${unnumbered(question).id}`
 }

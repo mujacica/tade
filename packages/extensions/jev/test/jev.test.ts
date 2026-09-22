@@ -1,99 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { ExtensionHost } from '@tade/extensions-core'
 import { extensionConformance } from '@tade/extensions-core/conformance'
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { circlingIn } from '../src/circles.ts'
 import { jevExtension } from '../src/extension.ts'
-import { reviewQuestions } from '../src/questions.ts'
+import { shorten } from '../src/loop.ts'
+import { RUBRIC, reviewQuestions } from '../src/questions.ts'
 import { findingsReport, statusLine } from '../src/report.ts'
-import { shorten } from '../src/review.ts'
 import { readReviews } from '../src/reviews.ts'
+import { host, NOW, offline, typesafe } from './harness.ts'
 
 // Jev, answered here the way TypeSafe answers, or by a table. Nothing reaches
 // the network: what is under test is what Tade asks, what it makes of the
 // answer, and — the half that matters most — that with no key none of it runs
 // and nothing else changes.
-
-const NOW = Date.parse('2026-09-20T09:00:00Z')
-
-/** A TypeSafe that answers exactly what a test tells it to, and 0.02 otherwise. */
-function typesafe(answers: Record<string, number>, seen?: unknown[]): typeof fetch {
-  return (async (_input: string | URL | Request, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body)) as {
-      state: unknown
-      questions: Record<string, { type: string; criteria?: unknown }>
-    }
-    seen?.push(body)
-    return Response.json({
-      model: 'jev-1.13.0',
-      usage: { input_tokens: 500 },
-      answers: Object.fromEntries(
-        Object.entries(body.questions).map(([id, question]) => {
-          if (question.type === 'noul') return [id, { type: 'noul', noul: answers[id] ?? 0.02 }]
-          if (question.type === 'choice') {
-            const options = Object.keys((question.criteria ?? {}) as Record<string, unknown>)
-            return [
-              id,
-              {
-                type: 'choice',
-                choice: options[0],
-                probabilities: Object.fromEntries(
-                  options.map((one, at) => [one, at === 0 ? 0.9 : 0.1]),
-                ),
-                confidence: 0.8,
-              },
-            ]
-          }
-          const levels = (question.criteria ?? []) as string[]
-          return [
-            id,
-            {
-              type: 'score',
-              score: answers[id] ?? 1,
-              probabilities: Object.fromEntries(levels.map((level) => [level, 1 / levels.length])),
-              confidence: 0.5,
-            },
-          ]
-        }),
-      ),
-    })
-  }) as typeof fetch
-}
-
-const offline: typeof fetch = async (input) => {
-  throw new Error(`it reached the network: ${String(input)}`)
-}
-
-function host(options: {
-  home: string
-  projects?: Record<string, { root: string }>
-  settings?: Record<string, unknown>
-  env?: Record<string, string | undefined>
-  fetch?: typeof fetch
-  /** A fixed instant, or `Date.now` where the fixture's own commits are the clock. */
-  now?: number | (() => number)
-}) {
-  return ExtensionHost.load({
-    builtin: [jevExtension],
-    config: {
-      extensions: { jev: options.settings ?? {} },
-      projects: options.projects ?? {},
-    },
-    home: options.home,
-    env: options.env ?? {},
-    fetch: options.fetch ?? offline,
-    now: clock(options.now),
-  })
-}
-
-/** A fixed instant, a live clock, or the default — always as something to call. */
-function clock(now: number | (() => number) | undefined): () => number {
-  if (typeof now === 'function') return now
-  const at = now ?? NOW
-  return () => at
-}
 
 const asked = { caller: { kind: 'orchestrator' } as const }
 
@@ -454,7 +375,7 @@ describe('the record', () => {
       {
         finding: 'shop/add-refunds:test_missing',
         was: 'confirmed',
-        said: 'the refund path has no test at all',
+        said: 'src/refund.ts adds a refund path with no test at all',
       },
       asked,
     )
@@ -462,7 +383,15 @@ describe('the record', () => {
     expect(after.text).toMatch(/\| test_missing \| 1 \| 1 \| 0 \|/)
     expect(after.text).toMatch(/## Calibration/)
     await expect(
-      loaded.call('jev_verdict', { finding: 'shop/nothing:test_missing', was: 'confirmed' }, asked),
+      loaded.call(
+        'jev_verdict',
+        {
+          finding: 'shop/nothing:test_missing',
+          was: 'confirmed',
+          said: 'src/nothing.ts has no test',
+        },
+        asked,
+      ),
     ).rejects.toThrow(/nothing was read/)
   })
 
@@ -636,11 +565,14 @@ describe('what the window shows', () => {
       base: 'a'.repeat(40),
       head: 'b'.repeat(40),
       version: 'jev-1.13.0',
+      rubric: RUBRIC,
       files: 12,
       requests: 3,
       cost_usd: 0.0011,
       answers: { test_missing: 0.7, shell_injection: 0.1 },
+      where: { test_missing: 'src/thing.ts' },
       raised: ['test_missing'],
+      account: {},
       verdict: {},
     }))
     const record = { reviews, looks: [], findings: [], finished: new Set<string>(), now: NOW }
