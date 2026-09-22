@@ -106,7 +106,8 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'terminals',
     about:
-      'Terminals along the bottom: a tab each beside the orchestrator, the one in front typed into.',
+      'Terminals along the bottom: a tab each beside the orchestrator, the one in front typed ' +
+      'into. Every tab carries its close and its menu, pointed at or not.',
     state: {
       ...withTerminals(base(), [
         { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
@@ -344,8 +345,8 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'pointing-at-a-terminal-tab',
     about:
-      "A terminal's tab under the pointer: its close and its menu appear, in room that was " +
-      'kept for them, so no tab moves as the pointer crosses the row.',
+      "A terminal's tab under the pointer: the tab lights, and the close and menu that were " +
+      'already beside it stay as they were, so no tab moves as the pointer crosses the row.',
     state: {
       ...withTerminals(base(), [
         { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },
@@ -358,8 +359,9 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'pointing-at-a-terminal-tabs-close',
     about:
-      "The pointer on a terminal tab's own close: the close is lit and the tab is still lit " +
-      'behind it, because a tab and its buttons are one thing to point at.',
+      "The pointer on a terminal tab's own close: the close is lit in the colour of what it " +
+      'does and the tab is still lit behind it, because a tab and its buttons are one thing to ' +
+      'point at.',
     state: {
       ...withTerminals(base(), [
         { id: 'checkout/terminals/1', project: 'checkout', name: 'tests' },

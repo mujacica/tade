@@ -7,7 +7,7 @@ import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
 import { blockAt, scrolledBar, typingIn } from './lane.ts'
-import { barBeside, STRIP_ICONS } from './rows.ts'
+import { barBeside } from './rows.ts'
 import { dollars, shortModel, tokens } from './text.ts'
 
 // Along the bottom: the orchestrator and the terminals on tabs, the few
@@ -68,18 +68,22 @@ export function bottomTabs(
     const target: Target = { kind: 'bottom-tab', tab: terminal.id }
     const menu: Target = { kind: 'menu', subject: { kind: 'terminal', id: terminal.id } }
     const close: Target = { kind: 'action', name: `close-terminal:${terminal.id}` }
-    // A tab and the two buttons beside it are one thing to point at: they are
-    // drawn while the pointer is anywhere in it, and the tab stays lit while
-    // it is on them, so reaching for a close is never leaving the tab.
+    // A tab and the two buttons beside it are one thing to point at: the tab
+    // stays lit while the pointer is on them, so reaching for a close is never
+    // leaving the tab, and each of them lights under the pointer on its own.
     //
-    // Their room is kept whether they are drawn or not. These tabs sit in a
-    // row you sweep along, so room taken on hover would slide every tab after
-    // it out from under the pointer that summoned it — and this row has the
-    // room to spare, since what is to the right of the tabs is the rule.
-    const pointed = pointingIn(state.hover, [target, menu, close])
-    row.space().tab(terminal.name, target, on, pointed)
-    if (pointed) row.icon('×', close, 'danger').icon('≡', menu)
-    else row.space(STRIP_ICONS)
+    // They are always drawn, because they cost nothing to leave there and a
+    // button that appears on arrival costs the two things a button is for.
+    // It cannot be seen before it is needed, so the only way to learn a
+    // terminal closes from its tab is to have already pointed at the tab; and
+    // it cannot be reached except through the tab, since the columns it will
+    // occupy are nobody's until it is drawn in them — the pointer crossing the
+    // row from the right passes over its close without ever finding it. The
+    // room was kept for them either way, so nothing is paid for keeping them:
+    // these tabs sit in a row you sweep along, and columns taken on hover
+    // would slide every tab after them out from under the pointer.
+    row.space().tab(terminal.name, target, on, pointingIn(state.hover, [target, menu, close]))
+    row.icon('×', close, 'danger').icon('≡', menu)
   }
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
 

@@ -766,10 +766,14 @@ describe('the bottom panel and its handles', () => {
     const menu: Target = { kind: 'menu', subject: { kind: 'terminal', id: 'checkout/terminals/1' } }
     const other: Target = { kind: 'bottom-tab', tab: 'checkout/terminals/2' }
 
-    // Nobody pointing: the buttons are not drawn, so they cannot be pressed.
+    // Nobody pointing: the buttons are there anyway, drawn and pressable, so
+    // reaching for one never has to go through the tab to find it.
     const away = at(null)
-    expect(away.box(close)).toBe(null)
-    expect(away.box(menu)).toBe(null)
+    expect(away.box(close)).not.toBe(null)
+    expect(away.box(menu)).not.toBe(null)
+    expect(away.text).toContain(COLOUR.icon('×', 'rest'))
+    expect(away.text).toContain(COLOUR.icon('≡', 'rest'))
+    expect(away.text).toContain(COLOUR.tabbed('tests', false, false))
 
     // On the tab, on its close, on its menu: the same three are there either
     // way, and the tab is lit under all three.
@@ -779,11 +783,20 @@ describe('the bottom panel and its handles', () => {
       expect(here.box(menu)).not.toBe(null)
       // Lit, whichever of the three it is on: a tab at rest has no ground.
       expect(here.text).toContain(COLOUR.tabbed('tests', false, true))
-      expect(away.text).toContain(COLOUR.tabbed('tests', false, false))
-      // Nothing moved: the room the buttons take was kept while they were away.
+      // Nothing moved: pointing at a tab takes no room it did not already have.
       expect(here.box(other)?.from).toBe(away.box(other)?.from)
       expect(here.box(tab)?.from).toBe(away.box(tab)?.from)
+      expect(here.box(close)?.from).toBe(away.box(close)?.from)
+      expect(here.box(menu)?.from).toBe(away.box(menu)?.from)
     }
+
+    // And each button answers the pointer on its own, on top of that: the
+    // close in the colour of what it does, the menu in the ordinary lit one,
+    // and neither of them lit by the pointer being on the other.
+    expect(at(close).text).toContain(COLOUR.icon('×', 'danger'))
+    expect(at(close).text).not.toContain(COLOUR.icon('≡', 'hover'))
+    expect(at(menu).text).toContain(COLOUR.icon('≡', 'hover'))
+    expect(at(menu).text).not.toContain(COLOUR.icon('×', 'danger'))
   })
 
   it('folds to its tabs and fills the window when asked', () => {

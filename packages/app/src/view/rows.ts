@@ -94,13 +94,6 @@ export const TAB_EDGES = 4
 /** Two glyph buttons at the end of a tab, `×` and `≡`, and the room after them. */
 export const TAB_ICONS = 7
 
-/**
- * The same two at the end of a tab in a row of tabs, where the gap after them
- * belongs to the next tab: a tab block ends in two columns of its own padding,
- * so a glyph button needs nothing put in front of it.
- */
-export const STRIP_ICONS = 6
-
 /** Three glyph buttons at the end of a queued tab — pause, remove, menu — and the room after them. */
 export const QUEUE_ICONS = 10
 
