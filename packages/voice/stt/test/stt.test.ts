@@ -70,6 +70,113 @@ describe('the OpenAI-compatible engine', () => {
     }
   })
 
+  it('sends the key as a bearer header, and nowhere else', async () => {
+    // A credential travels in the one header and is never in the body, the
+    // URL, or anything that gets logged.
+    // Collected rather than assigned, as above: a closure assignment is not
+    // something the typechecker can follow.
+    const urls: string[] = []
+    const headers: Array<Record<string, string>> = []
+    const bodies: FormData[] = []
+    const transcriber = new OpenAiTranscriber({
+      apiKey: 'sk-secret',
+      fetch: async (url, init) => {
+        urls.push(String(url))
+        headers.push((init?.headers ?? {}) as Record<string, string>)
+        bodies.push((init?.body ?? new FormData()) as FormData)
+        return new Response(JSON.stringify({ text: 'hi' }), { status: 200 })
+      },
+    })
+    const clip = silentClip()
+    try {
+      await transcriber.transcribe(clip, { vocabulary: ['app/refunds'] })
+      expect(headers[0]?.authorization).toBe('Bearer sk-secret')
+      expect(urls[0]).not.toContain('sk-secret')
+      for (const [, value] of bodies[0]?.entries() ?? []) {
+        if (typeof value === 'string') expect(value).not.toContain('sk-secret')
+      }
+    } finally {
+      rmSync(clip.path, { force: true })
+    }
+  })
+
+  it('takes the language from the call over the one it was built with', async () => {
+    const sent: FormData[] = []
+    const transcriber = new OpenAiTranscriber({
+      apiKey: 'k',
+      language: 'en',
+      fetch: async (_url, init) => {
+        sent.push((init?.body ?? new FormData()) as FormData)
+        return new Response(JSON.stringify({ text: 'bonjour' }), { status: 200 })
+      },
+    })
+    const clip = silentClip()
+    try {
+      await transcriber.transcribe(clip, { language: 'fr' })
+      expect(sent[0]?.get('language')).toBe('fr')
+    } finally {
+      rmSync(clip.path, { force: true })
+    }
+  })
+
+  it('gives up before sending anything when the caller already has', async () => {
+    let asked = 0
+    const transcriber = new OpenAiTranscriber({
+      apiKey: 'k',
+      fetch: async () => {
+        asked += 1
+        return new Response('{}', { status: 200 })
+      },
+    })
+    const controller = new AbortController()
+    controller.abort()
+    const clip = silentClip()
+    try {
+      await expect(transcriber.transcribe(clip, { signal: controller.signal })).rejects.toThrow()
+      expect(asked).toBe(0)
+    } finally {
+      rmSync(clip.path, { force: true })
+    }
+  })
+
+  it('hears nothing where the endpoint answered with nothing', async () => {
+    const transcriber = new OpenAiTranscriber({
+      apiKey: 'k',
+      fetch: async () => new Response(JSON.stringify({}), { status: 200 }),
+    })
+    const clip = silentClip()
+    try {
+      // Silence is nothing said, not an undefined read out as a word.
+      expect((await transcriber.transcribe(clip)).text).toBe('')
+    } finally {
+      rmSync(clip.path, { force: true })
+    }
+  })
+
+  it('reads the key from the variable its preset names', async () => {
+    expect(await new OpenAiTranscriber({ preset: 'groq', env: {} }).available()).toEqual({
+      ok: false,
+      reason: 'GROQ_API_KEY is not set',
+    })
+    expect(
+      await new OpenAiTranscriber({ preset: 'groq', env: { GROQ_API_KEY: 'k' } }).available(),
+    ).toEqual({ ok: true })
+  })
+
+  it('never reaches the network to answer whether it can run', async () => {
+    // Asked on every push-to-talk, so it may only ever read the environment.
+    let asked = 0
+    const transcriber = new OpenAiTranscriber({
+      env: { OPENAI_API_KEY: 'k' },
+      fetch: async () => {
+        asked += 1
+        return new Response('{}', { status: 200 })
+      },
+    })
+    await transcriber.available()
+    expect(asked).toBe(0)
+  })
+
   it('points at Groq when asked to', async () => {
     let url = ''
     const transcriber = makeTranscriber({ driver: 'groq' })
@@ -92,38 +199,9 @@ describe('the OpenAI-compatible engine', () => {
   })
 })
 
-describe('the local engine', () => {
-  it('explains what is missing instead of just failing', async () => {
-    const transcriber = new WhisperCppTranscriber({ binary: '/nonexistent/whisper' })
-    const availability = await transcriber.available()
-    expect(availability.ok).toBe(false)
-    if (!availability.ok) expect(availability.reason).toMatch(/not installed/)
-  })
+// The local engine has a file of its own: `whisper.test.ts`.
 
-  it('looks for its model where Tade keeps them', async () => {
-    const transcriber = new WhisperCppTranscriber({
-      binary: process.execPath,
-      model: '/nonexistent/model.bin',
-    })
-    const availability = await transcriber.available()
-    expect(availability.ok).toBe(false)
-    if (!availability.ok) expect(availability.reason).toMatch(/no model at/)
-  })
-})
-
-describe('the recorder', () => {
-  it('says so where there is no way to record', async () => {
-    const recorder = new FfmpegRecorder({ platform: 'win32' })
-    const availability = await recorder.available()
-    expect(availability.ok).toBe(false)
-    if (!availability.ok) expect(availability.reason).toMatch(/win32/)
-  })
-
-  it('refuses to start rather than pretending to record', async () => {
-    const recorder = new FfmpegRecorder({ binary: '/nonexistent/ffmpeg' })
-    await expect(recorder.start()).rejects.toThrow(/unavailable/)
-  })
-})
+// The recorder has a file of its own: `recorder.test.ts`.
 
 describe('the registry', () => {
   it('is how a name in a config becomes something that listens', () => {

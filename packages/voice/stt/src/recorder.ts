@@ -23,12 +23,22 @@ const DEFAULTS = { sampleRate: 16_000, maxMs: 120_000 }
 /** A WAV header and nothing else: what ffmpeg leaves if it captured nothing. */
 const EMPTY_WAV = 44
 
+/**
+ * How the capture process is started. Injected so a test can hold the whole
+ * recording to its contract — the arguments, stopping, cancelling, and a
+ * device that goes away halfway through — without opening a microphone, which
+ * is what `test/no-gui.ts` refuses outright.
+ */
+export type SpawnCapture = typeof spawn
+
 export interface FfmpegOptions {
   binary?: string
   /** Input device in the platform's own terms. macOS numbers them. */
   device?: string
   platform?: NodeJS.Platform
   env?: NodeJS.ProcessEnv
+  /** Overrides how the capture is started. The default really opens the device. */
+  spawn?: SpawnCapture
 }
 
 interface Input {
@@ -41,11 +51,13 @@ export class FfmpegRecorder implements Recorder {
   private readonly opts: FfmpegOptions
   private readonly env: Record<string, string>
   private readonly platform: NodeJS.Platform
+  private readonly spawn: SpawnCapture
 
   constructor(opts: FfmpegOptions = {}) {
     this.opts = opts
     this.env = stringEnv(opts.env ?? process.env)
     this.platform = opts.platform ?? process.platform
+    this.spawn = opts.spawn ?? spawn
   }
 
   private binary(): string | null {
@@ -88,7 +100,7 @@ export class FfmpegRecorder implements Recorder {
     const sampleRate = opts.sampleRate ?? DEFAULTS.sampleRate
     const dir = mkdtempSync(join(tmpdir(), 'tade-speech-'))
     const path = join(dir, 'speech.wav')
-    const child = spawn(
+    const child = this.spawn(
       binary,
       [
         '-hide_banner',

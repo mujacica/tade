@@ -1,3 +1,4 @@
+import type { Recorder, Recording } from '@tade/voice-core'
 import { ScriptedRecorder, ScriptedTranscriber } from '@tade/voice-stt'
 import { Speaker } from '@tade/voice-tts'
 import { describe, expect, it } from 'vitest'
@@ -52,6 +53,59 @@ describe('the window, listening', () => {
     terminal.press('\x00')
     // No recorder configured, so ctrl+space opens the line you can type into.
     await until('the dictation line', () => terminal.written.includes('◉'))
+  })
+
+  it('says why, rather than going quiet, when the device disappears', async () => {
+    // A microphone unplugged, taken by another program, or never permitted:
+    // the recorder throws on the way out and the words are simply gone.
+    let started = 0
+    const recorder: Recorder = {
+      id: 'broken',
+      available: async () => ({ ok: true }),
+      start: async (): Promise<Recording> => {
+        started += 1
+        return {
+          stop: async () => {
+            throw new Error('device disconnected')
+          },
+          cancel: async () => {},
+        }
+      },
+    }
+    await start({ transcriber: new ScriptedTranscriber(['never heard']), recorder })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+
+    terminal.press('\x00')
+    await until('recording to start', () => started === 1)
+    terminal.press('\x00')
+    // A conversation that goes quiet is the worst failure it has.
+    await until('the reason on screen', () => terminal.written.includes('device disconnected'))
+  })
+
+  it('says so when it heard nothing at all', async () => {
+    const transcriber = new ScriptedTranscriber([''])
+    const recorder = new ScriptedRecorder()
+    await start({ transcriber, recorder })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.written = ''
+
+    terminal.press('\x00')
+    await until('recording to start', () => recorder.started.length === 1)
+    terminal.press('\x00')
+    await until('it to say so', () => terminal.written.includes('nothing heard'))
+  })
+
+  it('caps how long one press may record for', async () => {
+    const recorder = new ScriptedRecorder()
+    await start({ transcriber: new ScriptedTranscriber(['hi']), recorder })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+
+    terminal.press('\x00')
+    await until('recording to start', () => recorder.started.length === 1)
+    // A stuck key must not record until the disk is full.
+    expect(recorder.started[0]?.maxMs).toBeGreaterThan(0)
+    terminal.press('\x00')
   })
 
   it('goes quiet the moment you mute it, mid-sentence', async () => {

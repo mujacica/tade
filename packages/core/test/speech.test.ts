@@ -77,6 +77,54 @@ describe('speakable', () => {
     expect(speakable('```\ncode\n```')).toBe('')
     expect(speakable('---')).toBe('')
   })
+
+  it('closes each fence with its own marker, never with the other kind', () => {
+    // A tilde fence inside a backtick one is content, not the closing half.
+    const answer = ['It prints:', '```', 'a ~~~ b', '```', 'and then stops.'].join('\n')
+    expect(speakable(answer)).toBe('It prints: and then stops.')
+  })
+
+  it('drops only the fence nobody closed, not the ones somebody did', () => {
+    const answer = [
+      'First:',
+      '```',
+      'one()',
+      '```',
+      'then:',
+      '```',
+      'two()', // nobody ever closes this one
+    ].join('\n')
+    expect(speakable(answer)).toBe('First: then:')
+  })
+
+  it('says a quote, a numbered step and a checkbox as their words', () => {
+    expect(speakable('> It said no.')).toBe('It said no.')
+    expect(speakable('1. Park it\n2. Start the other')).toBe('Park it. Start the other')
+    expect(speakable('- [x] done\n- [ ] not yet')).toBe('done. not yet')
+  })
+
+  it('never reads a URL out, in any of the three ways they are written', () => {
+    expect(speakable('See https://ci.example.com/42 for the run.')).toBe('See for the run.')
+    expect(speakable('See <https://ci.example.com/42>.')).toBe('See.')
+    expect(speakable('A picture: ![the graph](graph.png)')).toBe('A picture:')
+  })
+
+  it('says inline code that is a path as its file, however deep the path', () => {
+    expect(speakable('It is in `src/state.ts` now.')).toBe('It is in state.ts now.')
+    const deep = 'a/very/deeply/nested/directory/somewhere/else/entirely/state.ts'
+    expect(speakable(`It is in \`${deep}\` now.`)).toBe('It is in state.ts now.')
+
+    // It is the *file* that has to be worth hearing: past forty characters of
+    // one, it is a thing to look at rather than a thing to say.
+    const shouted = `${'a-very-long-generated-file-name'.repeat(2)}.ts`
+    expect(speakable(`It is in \`src/${shouted}\` now.`)).toBe('It is in now.')
+  })
+
+  it('joins lines into one breath, so a heading does not run into the line under it', () => {
+    expect(speakable('## What I found\nTwo failures')).toBe('What I found. Two failures')
+    // A line that already ends in punctuation is not given a second full stop.
+    expect(speakable('What I found:\nTwo failures.')).toBe('What I found: Two failures.')
+  })
 })
 
 describe('spokenSummary', () => {
@@ -145,5 +193,33 @@ describe('speakableSoFar', () => {
 
   it('says nothing for a chunk that is only markup', () => {
     expect(speakableSoFar('```\n').say).toEqual([])
+  })
+
+  it('hands back every sentence a fast chunk finished, in order', () => {
+    // A model that answers in one burst still has to come out one sentence at
+    // a time, in the order it wrote them.
+    expect(speakableSoFar('One. Two. Three. And a half').say).toEqual(['One.', 'Two.', 'Three.'])
+  })
+
+  it('waits for the breath after a full stop, which is what ends a sentence', () => {
+    // Nothing after the stop yet: the next chunk may be `5` of `3.5`.
+    expect(speakableSoFar('It costs 3.')).toEqual({ say: [], keep: 'It costs 3.' })
+    expect(speakableSoFar('It costs 3.5 dollars. ').say).toEqual(['It costs 3.5 dollars.'])
+  })
+
+  it('carries a sentence across as many chunks as it arrives in', () => {
+    let keep = ''
+    const said: string[] = []
+    for (const chunk of ['The retry ', 'loop charges ', 'twice. It is ', 'in the webhook. ']) {
+      const so = speakableSoFar(keep + chunk)
+      keep = so.keep
+      said.push(...so.say)
+    }
+    expect(said).toEqual(['The retry loop charges twice.', 'It is in the webhook.'])
+    expect(keep).toBe('')
+  })
+
+  it('a line of its own ends a sentence, even with no full stop', () => {
+    expect(speakableSoFar('## What I found\n').say).toEqual(['What I found'])
   })
 })

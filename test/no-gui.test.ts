@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { desktopSpawns, forgetDesktopSpawns } from './no-gui.ts'
+import { audioSpawns, desktopSpawns, forgetMachineSpawns } from './no-gui.ts'
 
 // The guard in `no-gui.ts`, held to its word.
 //
@@ -23,7 +23,19 @@ async function tries(what: () => unknown): Promise<readonly string[]> {
     // Refused is the point. What was tried is read from the record.
   }
   const tried = desktopSpawns()
-  forgetDesktopSpawns()
+  forgetMachineSpawns()
+  return tried
+}
+
+/** The same, for the other half of the rule. */
+async function triesAudio(what: () => unknown): Promise<readonly string[]> {
+  try {
+    await what()
+  } catch {
+    // Refused is the point.
+  }
+  const tried = audioSpawns()
+  forgetMachineSpawns()
   return tried
 }
 
@@ -59,6 +71,67 @@ describe('a test may never reach the desktop', () => {
     ).toEqual([])
     // `cmd` is the desktop only when it is starting something.
     expect(await tries(() => spawn('echo', ['start']))).toEqual([])
+  })
+})
+
+// The other hardware a test does not own. A microphone opened in CI is the
+// same bug as a Finder window: nobody sees it happen, and on somebody's laptop
+// it is a recording light coming on during a call. Speech out is worse, being
+// audible; and whisper.cpp is a minute of a runner's time per clip.
+describe('a test may never reach the microphone, the speakers, or a speech model', () => {
+  it('refuses the recorder, and says what was tried', async () => {
+    expect(
+      await triesAudio(() => spawn('ffmpeg', ['-f', 'avfoundation', '-i', ':0', '/tmp/x.wav'])),
+    ).toEqual(['ffmpeg -f avfoundation -i :0 /tmp/x.wav'])
+    expect(await triesAudio(() => spawn('sox', ['-d', '/tmp/x.wav']))).toEqual([
+      'sox -d /tmp/x.wav',
+    ])
+    expect(await triesAudio(() => spawn('arecord', ['/tmp/x.wav']))).toEqual(['arecord /tmp/x.wav'])
+  })
+
+  it('refuses to make the machine audible, on either platform', async () => {
+    expect(await triesAudio(() => spawn('say', ['-r', '190', 'Refunds is blocked']))).toEqual([
+      'say -r 190 Refunds is blocked',
+    ])
+    expect(await triesAudio(() => spawn('spd-say', ['--wait', 'hello']))).toEqual([
+      'spd-say --wait hello',
+    ])
+    expect(await triesAudio(() => spawn('afplay', ['/tmp/blocked.wav']))).toEqual([
+      'afplay /tmp/blocked.wav',
+    ])
+    expect(await triesAudio(() => spawn('paplay', ['/tmp/blocked.wav']))).toEqual([
+      'paplay /tmp/blocked.wav',
+    ])
+  })
+
+  it('refuses a speech model, which costs minutes rather than hardware', async () => {
+    // The conformance suite asks every transcriber to transcribe silence. On a
+    // machine that really has whisper.cpp and a model, that ran the model.
+    expect(await triesAudio(() => spawn('whisper-cli', ['-m', 'ggml.bin', '-f', 'x.wav']))).toEqual(
+      ['whisper-cli -m ggml.bin -f x.wav'],
+    )
+  })
+
+  it('holds however the caller reached child_process', async () => {
+    // The speaker's own runner is `execFile`, which never touches `spawn`.
+    expect(await triesAudio(() => execFile('say', ['hello'], () => {}))).toEqual(['say hello'])
+  })
+
+  it('says which seam to use instead, rather than only refusing', async () => {
+    await expect(
+      new Promise((_resolve, reject) => {
+        const child = spawn('ffmpeg', ['-i', ':0'])
+        child.once('error', reject)
+      }),
+    ).rejects.toThrow(/ScriptedRecorder/)
+    forgetMachineSpawns()
+  })
+
+  it('leaves alone the words that only look like one of them', async () => {
+    // `main` was one of whisper.cpp's binary names and is far too common to
+    // claim; a fixture called `rec.sh` is not `rec`.
+    expect(await triesAudio(() => spawn('echo', ['say']))).toEqual([])
+    expect(await triesAudio(() => spawn('git', ['log', '--oneline', '-1']))).toEqual([])
   })
 })
 

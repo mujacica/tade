@@ -19,7 +19,19 @@ import {
 // that: what you say to your own computer about your own code should not have
 // to leave it.
 
-const run = promisify(execFile)
+const execRun = promisify(execFile)
+
+/**
+ * How the model is actually run. Injected so a test can hold this engine to
+ * the whole of its contract — the arguments it builds, the text it reads back,
+ * what it does with silence — without spending a minute of a runner's time on
+ * a model, which is what `test/no-gui.ts` now refuses outright.
+ */
+export type WhisperRun = (
+  binary: string,
+  args: string[],
+  opts: { env: Record<string, string>; signal?: AbortSignal; maxBuffer: number },
+) => Promise<unknown>
 
 /** Homebrew renamed the binary; older installs still have the old names. */
 const BINARIES = ['whisper-cli', 'whisper-cpp', 'whisper', 'main']
@@ -33,6 +45,8 @@ export interface WhisperOptions {
   /** Threads. Default is whisper's own choice. */
   threads?: number
   env?: NodeJS.ProcessEnv
+  /** Overrides how the model is run. For tests: the default runs whisper.cpp. */
+  run?: WhisperRun
 }
 
 export function defaultModelPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -53,10 +67,12 @@ export class WhisperCppTranscriber implements Transcriber {
 
   private readonly opts: WhisperOptions
   private readonly env: Record<string, string>
+  private readonly run: WhisperRun
 
   constructor(opts: WhisperOptions = {}) {
     this.opts = opts
     this.env = stringEnv(opts.env ?? process.env)
+    this.run = opts.run ?? execRun
   }
 
   private binary(): string | null {
@@ -112,7 +128,7 @@ export class WhisperCppTranscriber implements Transcriber {
     if (opts.vocabulary?.length) args.push('--prompt', opts.vocabulary.join(', '))
 
     try {
-      await run(binary, args, {
+      await this.run(binary, args, {
         env: this.env,
         ...(opts.signal ? { signal: opts.signal } : {}),
         maxBuffer: 8 * 1024 * 1024,
