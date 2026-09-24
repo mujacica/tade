@@ -226,6 +226,146 @@ describe('a server that needs a credential it has not got', () => {
   })
 })
 
+describe('the gate at the moment of the call', () => {
+  /** A host holding whatever the broker made of these settings and this environment. */
+  const gate = async (
+    servers: Record<string, { enabled?: boolean; tools?: string[] }>,
+    env: Record<string, string> = { LINEAR_API_KEY: 'from-the-shell' },
+  ) =>
+    ExtensionHost.load({
+      brokered: broke({ servers }).extensions,
+      config: { extensions: {}, projects: {} },
+      home: tmp('mcp-broker-'),
+      env,
+    })
+
+  it('refuses the call when the credential has gone, and never opens the server', async () => {
+    // A harness was handed this tool at launch, when there was a key. The
+    // key going is not something a harness can be told about, so the only
+    // place it can be answered is here, at the call.
+    const opens: string[] = []
+    const watched = {
+      scripted: () => {
+        const transport = makeScriptedTransport({ servers })
+        return {
+          ...transport,
+          open: (server: ServerDeclaration, ctx: TransportContext) => {
+            opens.push(server.name)
+            return transport.open(server, ctx)
+          },
+        }
+      },
+    }
+    const host = await ExtensionHost.load({
+      brokered: broke({ servers: { linear: { enabled: true } }, transports: watched }).extensions,
+      config: { extensions: {}, projects: {} },
+      home: tmp('mcp-broker-'),
+      env: {},
+    })
+    await expect(
+      host.call('mcp_linear_searchissues', {}, { caller: { kind: 'orchestrator' } }),
+    ).rejects.toThrow(/needs a credential/)
+    expect(opens).toEqual([])
+  })
+
+  it('refuses the call for a server that was turned off, whatever a harness still offers', async () => {
+    // The tool list is written at agent launch, so an agent started while a
+    // server was on keeps the name in its list after somebody turns it off.
+    const on = await gate({ linear: { enabled: true } })
+    expect(on.specs('agent').map((spec) => spec.name)).toContain('mcp_linear_searchissues')
+    const off = await gate({ linear: { enabled: false } })
+    expect(off.specs('agent')).toEqual([])
+    await expect(
+      off.call('mcp_linear_searchissues', {}, { caller: { kind: 'orchestrator' } }),
+    ).rejects.toThrow(/no extension has a tool called mcp_linear_searchissues/)
+  })
+
+  it('caps and cleans what a server answers with, before anybody draws or reads it', async () => {
+    // Somebody else's text, on a terminal Tade draws and in a model's
+    // context: control characters out, and never longer than it says it is.
+    const host = await ExtensionHost.load({
+      brokered: broke({
+        servers: { plain: { enabled: true } },
+        transports: {
+          scripted: () =>
+            makeScriptedTransport({
+              servers: {
+                plain: {
+                  tools: [tool('ping')],
+                  answers: {
+                    ping: { text: `over\u0000there\u001b[2J${'x'.repeat(40_000)}`, failed: false },
+                  },
+                },
+              },
+            }),
+        },
+      }).extensions,
+      config: { extensions: {}, projects: {} },
+      home: tmp('mcp-broker-'),
+    })
+    const { text } = await host.call('mcp_plain_ping', {}, { caller: { kind: 'orchestrator' } })
+    // Read as code points rather than as a pattern: a control character is
+    // what is being looked for, and lint refuses one written into a regex.
+    const codes = [...text].map((one) => one.codePointAt(0) ?? 0)
+    expect(codes.some((code) => code < 9 || (code > 10 && code < 32) || code === 127)).toBe(false)
+    expect(text.startsWith('over there ')).toBe(true)
+    expect(text.length).toBeLessThanOrEqual(20_001)
+  })
+})
+
+describe('a server that goes away while it is being used', () => {
+  /** A host over one scripted server, with how many times it was opened. */
+  const using = async (server: ScriptedServer) => {
+    const opens: string[] = []
+    const transports = {
+      scripted: () => {
+        const transport = makeScriptedTransport({ servers: { plain: server } })
+        return {
+          ...transport,
+          open: (declaration: ServerDeclaration, ctx: TransportContext) => {
+            opens.push(declaration.name)
+            return transport.open(declaration, ctx)
+          },
+        }
+      },
+    }
+    const host = await ExtensionHost.load({
+      brokered: broke({ servers: { plain: { enabled: true } }, transports }).extensions,
+      config: { extensions: {}, projects: {} },
+      home: tmp('mcp-broker-'),
+    })
+    return { host, opens }
+  }
+
+  const ping = (host: ExtensionHost) =>
+    host.call('mcp_plain_ping', {}, { caller: { kind: 'orchestrator' } })
+
+  it('is opened again once, because a dead server is not a dead window', async () => {
+    const { host, opens } = await using({
+      tools: [tool('ping')],
+      answers: { ping: { text: 'pong', failed: false } },
+      // It survives one call and then goes, the way a program that crashed
+      // between two agents' calls does.
+      diesAfter: 1,
+    })
+    expect((await ping(host)).text).toBe('pong')
+    expect((await ping(host)).text).toBe('pong')
+    // One session held and one reopened: never one per call, which under a
+    // transport that starts programs would be a process per call.
+    expect(opens).toEqual(['plain', 'plain'])
+  })
+
+  it('says so when it dies twice, rather than opening it for ever', async () => {
+    const { host, opens } = await using({
+      tools: [tool('ping')],
+      answers: { ping: { text: 'pong', failed: false } },
+      diesAfter: 0,
+    })
+    await expect(ping(host)).rejects.toThrow(/stopped/)
+    expect(opens).toEqual(['plain', 'plain'])
+  })
+})
+
 describe('somebody else’s text, as Tade may draw it', () => {
   it('has its control characters taken out and is capped where it is long', () => {
     expect(readable('a\x00b\x1bc')).toBe('a b c')

@@ -33,6 +33,11 @@ export interface TransportConformanceOptions {
   missing?: ServerDeclaration
   /** One that answers with rubbish: dropped, never thrown over. */
   noisy?: ServerDeclaration
+  /**
+   * One that goes away while it is being used — a program that crashed, a
+   * session a server forgot — and the tool whose call it goes away on.
+   */
+  dies?: { server: ServerDeclaration; tool: string }
   /** A tool on `works` that takes long enough to be given up on mid-call. */
   lingers?: string
   /** How long an open may take here. */
@@ -152,6 +157,28 @@ export function testTransport(
       const session = await transport.open(options.noisy, context())
       try {
         await expect(session.listTools()).resolves.toBeInstanceOf(Array)
+      } finally {
+        await session.close()
+      }
+    })
+
+    it('says a server that went away went away, rather than leaving a call out there', async () => {
+      if (!options.dies) return
+      const transport = make()
+      const session = await transport.open(options.dies.server, context())
+      try {
+        // `gone` and not `unavailable`: the two mean different things to
+        // whoever is holding a session, and only `gone` is one to open again.
+        // A server that dies between two agents' calls must not be a window
+        // that has to be restarted, and the broker's one retry is written
+        // against exactly this answer.
+        await expect(session.callTool(options.dies.tool, {}, calling())).rejects.toMatchObject({
+          trouble: 'gone',
+        })
+        // And it stays gone rather than hanging the next caller.
+        await expect(session.callTool(options.dies.tool, {}, calling())).rejects.toMatchObject({
+          trouble: 'gone',
+        })
       } finally {
         await session.close()
       }

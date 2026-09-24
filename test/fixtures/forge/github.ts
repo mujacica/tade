@@ -28,6 +28,15 @@ export interface GithubReplay {
   calls: string[]
   /** What was sent, by call, for asserting what Tade would write. */
   bodies: unknown[]
+  /**
+   * The pull requests this GitHub has, as it has them. Mutable on purpose:
+   * somebody force-pushing a branch or squashing a review is the server's
+   * own state changing under a Tade that is already looking at it, and a
+   * fixture that could not change could not show that.
+   */
+  pulls: Record<string, unknown>[]
+  /** A branch rewritten under a review: a new head, and checks that never ran on it. */
+  forcePush(number: number, sha: string): void
 }
 
 export interface ReplayOptions {
@@ -130,7 +139,17 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     return { code: 0, stdout: 'gho_pretendtoken\n', stderr: '' }
   }
 
-  return { fetch: replayFetch, exec, calls, bodies }
+  const forcePush = (number: number, sha: string): void => {
+    const node = nodes.find((one) => one.number === number)
+    if (!node) throw new Error(`the fixture has no pull request ${number}`)
+    node.headRefOid = sha
+    // Nothing has run on the new commit yet, which is the whole point of
+    // asking again rather than trusting what was read before the push.
+    node.commits = { nodes: [{ commit: { oid: sha, statusCheckRollup: { state: 'PENDING' } } }] }
+    node.updatedAt = '2026-09-19T09:00:00Z'
+  }
+
+  return { fetch: replayFetch, exec, calls, bodies, pulls: nodes, forcePush }
 }
 
 /** The bit of GitHub's GraphQL Tade actually asks for, played back. */

@@ -70,6 +70,12 @@ function answering(): typeof fetch {
     }
     if (init?.method === 'DELETE') return new Response(null, { status: 204 })
     const asked = JSON.parse(String(init?.body ?? '{}')) as Asked
+    // A server that restarted and no longer knows the session it handed out:
+    // 404 to whoever is still holding one, which is a session to open again
+    // rather than a server to stop asking.
+    if (where === 'forgets.invalid' && asked.method === 'tools/call') {
+      return new Response(JSON.stringify({ error: 'no such session' }), { status: 404 })
+    }
     if (where === 'hangs.invalid') {
       // It took the request and says nothing, ever: the deadline is what ends it.
       return new Promise<Response>((_, reject) => {
@@ -194,6 +200,7 @@ testTransport('http', () => makeHttpTransport(), {
   hangs: declare('hangs.invalid'),
   noisy: declare('noisy.invalid'),
   missing: declare('nowhere', { url: 'not an address at all' }),
+  dies: { server: declare('forgets.invalid'), tool: 'search' },
   deadlineMs: 1_000,
   context: () => context(answering()),
 })
@@ -247,6 +254,36 @@ describe('a server reached over HTTP', () => {
     )
     await session.close()
     expect(seen[0]?.authorization).toBe('Bearer a-key')
+  })
+
+  it('sends the one copy of the credential it was given, and puts it nowhere else', async () => {
+    // Over HTTP the credential travels and nothing else does: not into the
+    // address, not into a message, not into a file of its own.
+    const seen: { url: string; headers: Record<string, string>; body: string }[] = []
+    const watching: typeof fetch = async (input, init) => {
+      seen.push({
+        url: String(input),
+        headers: Object.fromEntries(new Headers(init?.headers).entries()),
+        body: String(init?.body ?? ''),
+      })
+      return answering()(input, init)
+    }
+    const session = await open(
+      declare('works.invalid', { auth: 'bearer' }),
+      context(watching, { credential: 'a-very-secret-key' }),
+    )
+    await session.listTools()
+    await session.callTool('search', {}, { signal: new AbortController().signal, progress() {} })
+    await session.close()
+    expect(seen.length).toBeGreaterThan(2)
+    for (const one of seen) {
+      expect(one.url).not.toContain('a-very-secret-key')
+      expect(one.body).not.toContain('a-very-secret-key')
+      const carrying = Object.entries(one.headers).filter(([, value]) =>
+        value.includes('a-very-secret-key'),
+      )
+      expect(carrying.map(([name]) => name)).toEqual(['authorization'])
+    }
   })
 
   it('says a credential it would not take as exactly that, not as a number', async () => {

@@ -73,6 +73,7 @@ testTransport('stdio', () => makeStdioTransport(), {
   hangs: declare('hangs'),
   noisy: declare('noisy'),
   missing: declare('missing', { command: 'tade-no-such-program', install: 'npm i -g nothing' }),
+  dies: { server: declare('works', { name: 'dying' }), tool: 'quits' },
   deadlineMs: 5_000,
   context: () => context(),
 })

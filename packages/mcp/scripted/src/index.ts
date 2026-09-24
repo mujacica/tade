@@ -46,6 +46,15 @@ export interface ScriptedServer {
   ms?: number
   /** It says its tool list changed, this long after it was opened. */
   changesAfterMs?: number
+  /**
+   * It goes away after this many calls on one session, the way a program
+   * that crashed or a session a server forgot does: every call from then on
+   * is `gone`, and opening it again gets a session that works.
+   *
+   * `0` is one that never survives a call at all, which is how a server that
+   * dies twice in a row is written down.
+   */
+  diesAfter?: number
 }
 
 export interface ScriptedTransportOptions extends TransportOptions {
@@ -97,6 +106,10 @@ export function makeScriptedTransport(options: ScriptedTransportOptions = {}): M
 
 function session(name: string, one: ScriptedServer, cap: number): ServerSession {
   let open = true
+  // Per session, not per server: a server that died is opened again, and what
+  // comes back is a session that works. Anything else would make the broker's
+  // one retry untestable, because it would never have anything to retry onto.
+  let calls = 0
   const listeners = new Set<() => void>()
   if (one.changesAfterMs !== undefined) {
     const timer = setTimeout(() => {
@@ -121,6 +134,11 @@ function session(name: string, one: ScriptedServer, cap: number): ServerSession 
     },
     async callTool(tool: string, input: Readonly<Record<string, unknown>>, ctx: CallContext) {
       if (!open) throw new McpError('gone', `${name} was closed`)
+      if (one.diesAfter !== undefined && calls >= one.diesAfter) {
+        open = false
+        throw new McpError('gone', `${name} stopped`)
+      }
+      calls += 1
       if (!shaped().some((offered) => offered.name === tool)) {
         throw new McpError('refused', `${name} has no tool called ${tool}`)
       }

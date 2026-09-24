@@ -418,6 +418,30 @@ describe('watching Sentry for new errors', () => {
     ).toBe('is:unresolved firstSeen:>=2026-09-14T08:50:00.000Z')
   })
 
+  it('keys an issue by the issue, so nothing starts work on it twice', async () => {
+    const { fetcher } = sentry()
+    const extensions = await host(fetcher)
+    const look = () =>
+      extensions.look('sentry.new-errors', {
+        project: 'shop',
+        input: {},
+        since: null,
+        turnedOn: '2026-09-14T06:00:00.000Z',
+      })
+    const first = await look()
+    const again = await look()
+    // Sentry's own id for the issue, and nothing about when it was read: two
+    // looks over the same issue are the same finding.
+    expect(again.found.map((one) => one.key)).toEqual(['4411'])
+    expect(again.found.map((one) => one.key)).toEqual(first.found.map((one) => one.key))
+    // Which is the whole of what the queue reads: it keeps every key a watch
+    // ever found, and what it has already seen is never acted on again. A key
+    // with a timestamp, a cursor or an order of arrival in it would be a new
+    // finding every look, and one error would be an agent every ten minutes.
+    const seen = new Set(first.found.map((one) => one.key))
+    expect(again.found.filter((one) => !seen.has(one.key))).toEqual([])
+  })
+
   it('says why it cannot look, rather than finding nothing', async () => {
     const { fetcher } = sentry({
       'GET https://us.sentry.io/api/0/organizations/acme/issues/': () =>

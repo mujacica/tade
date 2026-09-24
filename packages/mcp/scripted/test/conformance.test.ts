@@ -49,6 +49,9 @@ const servers: Record<string, ScriptedServer> = {
     // like: the good ones come back, and nothing throws over the rest.
     tools: [tool('good'), null as never, { name: 'x' } as never],
   },
+  // One that never survives a call: what a crashed program and a forgotten
+  // session both look like to whoever is holding the session.
+  dying: { tools: [tool('search')], diesAfter: 0 },
 }
 
 const slow: Record<string, ScriptedServer> = {
@@ -62,6 +65,7 @@ testTransport('scripted', () => makeScriptedTransport({ servers }), {
   missing: declare('missing'),
   hangs: declare('hangs'),
   noisy: declare('noisy'),
+  dies: { server: declare('dying'), tool: 'search' },
 })
 
 describe('the scripted transport', () => {
@@ -78,6 +82,23 @@ describe('the scripted transport', () => {
     controller.abort()
     await expect(call).rejects.toMatchObject({ trouble: 'refused' })
     await session.close()
+  })
+
+  it('is alive again when it is opened again, which is what a retry is for', async () => {
+    // A server that dies on every call still gives a working session on the
+    // next open: the count is the session's, not the server's, so the broker
+    // has something to retry onto rather than a table that stays dead.
+    const transport = makeScriptedTransport({
+      servers: { ...servers, works: { ...servers.works, diesAfter: 1 } },
+    })
+    const first = await transport.open(declare('works'), context())
+    const calling = { signal: new AbortController().signal, progress: () => {} }
+    expect((await first.callTool('search', {}, calling)).text).toBe('two issues')
+    await expect(first.callTool('search', {}, calling)).rejects.toMatchObject({ trouble: 'gone' })
+    const second = await transport.open(declare('works'), context())
+    expect((await second.callTool('search', {}, calling)).text).toBe('two issues')
+    await first.close()
+    await second.close()
   })
 
   it('says its tool list changed, which is what reaches the next agent', async () => {

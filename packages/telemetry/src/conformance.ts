@@ -77,6 +77,37 @@ export function reporterConformance(
       await reporter.close()
     })
 
+    it('queues rather than sends, so nothing Tade does waits on the network', async () => {
+      // The window draws four times a second on one thread, so a reporter
+      // that sent where it was called would stop the drawing for as long as
+      // the network took, and no key would end that wait — the same defect as
+      // `execFileSync('security', …)` on the settings page.
+      //
+      // Asserted as "nothing was on the wire when the call returned" rather
+      // than as a number of milliseconds: a duration is a fact about the
+      // machine, and CI's is a machine four suites are running on.
+      const sent: unknown[] = []
+      const reporter = await open({ sink: (envelope) => sent.push(envelope) })
+      reporter.trouble({ error: new Error('boom'), where: 'the suite' })
+      reporter.note({ at: Date.now(), level: 'info', said: 'something' })
+      reporter.measure({ at: Date.now(), name: 'tade.x', kind: 'gauge', value: 1 })
+      reporter.doing({ name: 'something', op: 'tade.test' }).end()
+      expect(sent).toEqual([])
+      await reporter.flush(2_000)
+      await reporter.close()
+    })
+
+    it('is not held open by a span nobody ended', async () => {
+      // Every span that starts must end, and one day one will not. A flush
+      // that waited for it would be a window that will not close, so what is
+      // asserted is that both answer at all — the suite's own timeout is the
+      // ceiling, and it is honest about being one.
+      const reporter = await open()
+      reporter.doing({ name: 'work nobody finished', op: 'tade.test' })
+      await expect(reporter.flush(500)).resolves.toBeUndefined()
+      await expect(reporter.close()).resolves.toBeUndefined()
+    })
+
     it('carries on when what it sends to fails, and gives up in time', async () => {
       const angry = await open({
         sink: () => {

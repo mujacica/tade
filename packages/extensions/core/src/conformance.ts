@@ -59,6 +59,32 @@ export function extensionConformance(
       if (loaded?.state === 'needs setup') expect(loaded.problem).toBeTruthy()
     })
 
+    it('says whether it is ready without reaching the network, whatever the answer', async () => {
+      // `ready()` is asked on every look at the Settings page and before the
+      // window opens. One that dialled would make drawing a poll — and one
+      // that dialled and swallowed what came back would look exactly like one
+      // that did not, which is why this counts rather than waits for a throw.
+      const tried: string[] = []
+      for (const settings of [options.settings ?? {}, {}]) {
+        const host = await ExtensionHost.load({
+          builtin: [make()],
+          config: {
+            extensions: { [extension.name]: settings },
+            projects: options.project ? { here: { root: options.project } } : {},
+          },
+          home: options.project ?? '/nonexistent',
+          env: options.env ?? {},
+          fetch: (async (input: unknown) => {
+            tried.push(String(input))
+            throw new Error('nothing here dials')
+          }) as typeof fetch,
+        })
+        expect(tried).toEqual([])
+        // And it answered rather than falling over on the way.
+        expect(host.list()[0]?.state).not.toBe('broken')
+      }
+    })
+
     it('reads every setting it is given, and reports one it does not', async () => {
       const host = await load({ settings: { ...(options.settings ?? {}), no_such_setting: 1 } })
       expect(host.list()[0]?.unknownSettings).toEqual(['no_such_setting'])

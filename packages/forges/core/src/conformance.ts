@@ -165,6 +165,50 @@ export function testForge(
       expect(after.state).toBe((await forge.review(options.ref)).state)
     })
 
+    it('hands back what people wrote as they wrote it, and the same on a second read', async () => {
+      // A comment is what an agent is asked to answer, so it is attacker-
+      // controlled text that has to arrive unchanged: summarising it would be
+      // summarising the instruction, and normalising it would make two reads
+      // of one review two different things to answer.
+      const forge = await make()
+      if (!forge.capabilities.threads) return
+      const first = await forge.review(options.ref)
+      const again = await forge.review(options.ref)
+      expect(again.threads).toEqual(first.threads)
+      for (const thread of first.threads) {
+        for (const comment of thread.comments) {
+          expect(typeof comment.body).toBe('string')
+          // Never trimmed, cut or ellipsised on the way through.
+          expect(comment.body).not.toMatch(/…$/)
+          expect(comment.by).toBeTruthy()
+        }
+      }
+    })
+
+    it('reads without writing, even with an account that could write', async () => {
+      // Every poll goes through these, so one of them quietly changing
+      // something would change somebody's review four times a minute.
+      const forge = await make()
+      const before = await forge.review(options.ref)
+      await forge.reviews({ who: 'any' })
+      await forge.reviewOf(options.ref.repo, options.branches.withReview)
+      if (forge.capabilities.checks) await forge.checks(options.ref)
+      const after = await forge.review(options.ref)
+      expect(after.state).toBe(before.state)
+      expect(after.head.sha).toBe(before.head.sha)
+      expect(after.updatedAt).toBe(before.updatedAt)
+    })
+
+    it('says what a review belongs to only from what the review says', async () => {
+      // `task` is read back out of the body's trailer. A guess — from the
+      // branch name, from who wrote it — would look exactly like a fact, and
+      // unattributed is always an allowed answer.
+      const forge = await make()
+      for (const review of (await forge.reviews({ who: 'any' })).items) {
+        expect(review.task === null || /^\S+$/.test(review.task), review.url).toBe(true)
+      }
+    })
+
     it('says when it is rate limited, and when to come back', async () => {
       if (!options.limited) return
       const forge = await options.limited()

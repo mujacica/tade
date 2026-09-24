@@ -50,6 +50,11 @@ const TOOLS: Record<string, unknown>[] = [
     description: 'What this program was started with: where, with what, and knowing what.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'quits',
+    description: 'A tool that ends the program mid-call, the way a crash does.',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ]
 
 if (mode === 'noisy') {
@@ -125,6 +130,11 @@ function call(id: number | string | undefined, params: Record<string, unknown>):
   if (name === 'fails') {
     say({ id, result: { content: [{ type: 'text', text: 'it did not work' }], isError: true } })
     return
+  }
+  if (name === 'quits') {
+    // Gone without answering: whoever was waiting has to be told, rather than
+    // left until somebody's deadline.
+    process.exit(3)
   }
   if (name === 'told') {
     say({
