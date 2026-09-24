@@ -525,9 +525,14 @@ export class Workbench {
       if (session.messages === 0) continue
       const known = journalled.byTask[lane.task] ?? noSpend()
       // What this harness's dollars are worth, so money it cannot price is
-      // never reconciled into the journal: what the journal read of a plan's
-      // turns is nothing, so the difference would be the whole session,
-      // written again at every open and never closing. Tokens either way.
+      // never reconciled in: the journal reads a plan's turns as no money, so
+      // the difference would be the whole session, written again at every
+      // open and never closing. Tokens reconcile either way.
+      //
+      // It cannot fire as things are — a harness that declares it cannot
+      // price a turn keeps no price in its own record either, and both that
+      // do report nothing — and it is here so that a change to one of them
+      // cannot quietly open it.
       const prices = adapter?.capabilities.spend.usd !== 'none'
       // Each measure on its own, never below nothing: a harness whose record
       // keeps tokens and no prices (Claude Code's) knows less money than the

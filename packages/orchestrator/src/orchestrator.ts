@@ -196,13 +196,6 @@ export interface OrchestratorUsage {
    * dollar to an estimated one without saying which it did.
    */
   priced: 'exact' | 'estimate' | 'none'
-  /**
-   * The provider it was reached through: the harness's own answer where it
-   * reaches one, and only then what the route asked for. The orchestrator is
-   * a run like an agent's and is filed like one, which it can only be if what
-   * it was is written down rather than read off a model's name later.
-   */
-  provider: string | null
 }
 
 /**
@@ -386,7 +379,6 @@ export class Orchestrator {
           ...usage,
           harness: adapter.id,
           priced: adapter.capabilities.spend.usd,
-          provider: adapter.provider ?? opts.model?.provider ?? null,
         })
       }
     })
