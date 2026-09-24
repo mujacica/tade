@@ -1,5 +1,6 @@
 import { connect } from 'node:net'
 import { join } from 'node:path'
+import type { Plan } from '@tade/core'
 import type { Workbench } from '@tade/workbench'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../test/fixtures/mkrepo.ts'
@@ -192,6 +193,61 @@ describe('where everything stands', () => {
     const bare = join(tmp('tade-tools-'), 'tools.sock')
     host = await ToolHost.listen({ tade: {} as Workbench, path: bare })
     expect((await call(bare, 'status/read', {})).error?.message).toMatch(/no window to ask/)
+  })
+})
+
+describe('a plan that spans repositories, as it reaches the window', () => {
+  let host: ToolHost | null = null
+
+  afterEach(async () => {
+    await host?.close()
+    host = null
+  })
+
+  it('carries each agent’s own project and the name of the change, and leaves them off when unsaid', async () => {
+    const path = join(tmp('tade-plan-'), 'tools.sock')
+    const made: Plan[] = []
+    host = await ToolHost.listen({
+      tade: {} as Workbench,
+      path,
+      queue: {
+        describe: async () => '',
+        change: async () => '',
+        schedule: async () => '',
+        plan: async (plan) => {
+          made.push(plan)
+          return 'made'
+        },
+      },
+    })
+    await call(path, 'queue/plan', {
+      project: 'api',
+      said: 'widen the scopes and bump the client',
+      effort: 'oauth-scopes',
+      agents: [
+        { name: 'oauth-scopes', said: 'widen', prompt: 'widen them' },
+        {
+          name: 'oauth-scopes',
+          project: 'cli',
+          said: 'bump',
+          prompt: 'bump it',
+          after: [{ agent: 'api/oauth-scopes', why: 'scopes first' }],
+        },
+      ],
+    })
+    expect(made[0]?.effort).toBe('oauth-scopes')
+    // Unsaid is absent, not empty: the plan's own project is the default, and
+    // an empty string would be a project nobody has.
+    expect(made[0]?.agents[0]).not.toHaveProperty('project')
+    expect(made[0]?.agents[1]?.project).toBe('cli')
+    expect(made[0]?.agents[1]?.after).toEqual([{ agent: 'api/oauth-scopes', why: 'scopes first' }])
+
+    await call(path, 'queue/plan', {
+      project: 'api',
+      said: 'just the one',
+      agents: [{ name: 'a', said: 'a', prompt: 'a' }],
+    })
+    expect(made[1]).not.toHaveProperty('effort')
   })
 })
 

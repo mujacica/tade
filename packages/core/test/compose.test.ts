@@ -17,6 +17,36 @@ const note = (text: string, scope: string | null, at: string): Note => ({
   at,
 })
 
+describe('what the orchestrator is told about where agents work', () => {
+  it('says the machine’s answer once, when every project takes it', () => {
+    const prompt = composePrompt({
+      config: ConfigSchema.parse({
+        agents: { workspace: 'checkout' },
+        projects: { shop: { root: '~/src/shop' }, docs: { root: '~/src/docs' } },
+      }),
+    })
+    expect(prompt).toContain("Agents work together in each project's own checkout")
+    expect(prompt).not.toContain('In shop,')
+    expect(prompt).not.toContain('In docs,')
+  })
+
+  it('names the project that answers differently, because both are true at once', () => {
+    const prompt = composePrompt({
+      config: ConfigSchema.parse({
+        agents: { workspace: 'checkout' },
+        projects: {
+          shop: { root: '~/src/shop' },
+          docs: { root: '~/src/docs', workspace: 'worktree' },
+        },
+      }),
+    })
+    expect(prompt).toContain("Agents work together in each project's own checkout")
+    expect(prompt).toContain('In docs, each agent works in a git worktree and branch of its own.')
+    // The one that takes the machine's answer is not named again.
+    expect(prompt).not.toContain('In shop,')
+  })
+})
+
 describe('composePrompt', () => {
   it('says what it is and what it does not do', () => {
     const prompt = composePrompt({ config: config() })

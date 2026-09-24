@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { AppState } from '../src/model.ts'
-import { groupedTasks, initialState, tasksOf, withTasks } from '../src/model.ts'
+import { groupedTasks, initialState, tasksOf, withProjects, withTasks } from '../src/model.ts'
 import { inProject } from '../src/view/text.ts'
+import { renderApp } from '../src/view.ts'
+
+/** The same row without its colour, for comparing positions against columns. */
+const plain = (row: string) =>
+  row.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
+
+const frame = (over: Partial<{ width: number; height: number; screen: string }> = {}) => ({
+  width: 80,
+  height: 24,
+  screen: '',
+  ...over,
+})
 
 // What the side looks like when a project holds two unrelated streams.
 //
@@ -58,5 +70,44 @@ describe('a wait that crosses repositories, as the person reads it', () => {
     // change here that would read better and be wrong.
     expect(inProject('sentry-cli', 'after sentry/oauth-scopes')).toBe('after sentry/oauth-scopes')
     expect(inProject('sentry-cli', 'after sentry-cli/bump')).toBe('after bump')
+  })
+})
+
+describe('the agents down the side, with two efforts in one project', () => {
+  const inEfforts = (...efforts: (string | undefined)[]): AppState =>
+    withTasks(
+      withProjects(initialState(), ['checkout']),
+      efforts.map((effort, at) => ({
+        task: `checkout/task-${at}`,
+        state: 'working' as const,
+        ...(effort ? { effort } : {}),
+      })),
+    )
+
+  it('draws a header per effort, and none at all over what is in none', () => {
+    const rows = renderApp(inEfforts('search-perf', 'billing-emails', undefined), frame()).map(
+      plain,
+    )
+    // Only down the side: the row also spans the pane, whose header says the
+    // focused task's name too.
+    const side = rows.map((row) => row.slice(0, 26))
+    const at = (text: string) => side.findIndex((row) => row.includes(text))
+    // Each header above its own agents, in the order the efforts came.
+    expect(at('SEARCH-PERF')).toBeGreaterThan(-1)
+    expect(at('task-0')).toBeGreaterThan(at('SEARCH-PERF'))
+    expect(at('BILLING-EMAILS')).toBeGreaterThan(at('task-0'))
+    expect(at('task-1')).toBeGreaterThan(at('BILLING-EMAILS'))
+    // What is in no effort gets no heading of its own: one saying "no effort"
+    // is noise in the common case where nothing has one.
+    expect(side.join('\n')).not.toMatch(/NO EFFORT|OTHER|UNGROUPED/)
+    // And the heading still counts every agent, grouped or not.
+    expect(rows.find((row) => row.includes('AGENTS'))).toContain('(3)')
+  })
+
+  it('draws nothing extra with one effort or none, which is what it always looked like', () => {
+    const one = renderApp(inEfforts('search-perf', 'search-perf'), frame()).map(plain).join('\n')
+    expect(one).not.toContain('SEARCH-PERF')
+    const none = renderApp(inEfforts(undefined, undefined), frame()).map(plain).join('\n')
+    expect(none).toContain('task-0')
   })
 })
