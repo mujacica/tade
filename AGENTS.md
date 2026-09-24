@@ -1002,9 +1002,10 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   (`workbench/test/harnesses.test.ts`) so the two can never drift. It only ever *corrects a wish*:
   nothing is invented for a harness this Tade does not run, nothing for one that routes, and an
   account beside a subscription keeps its own money, because it may be billed per token and the
-  plan says nothing about it. What this changes is said plainly rather than done quietly: eleven
-  thousand Claude Code events in one journal say `provider: openrouter` and $1,387 of the $1,465
-  in it was a plan's, and both read differently today than they did yesterday.
+  plan says nothing about it. What this changes is said plainly rather than done quietly: in the
+  journal this was found in, eleven thousand Claude Code events say `provider: openrouter`, and the
+  money it adds up to went from $3,057 to $785 — every dollar of the difference a plan's own turns,
+  and not one dollar moved from one provider to another.
 - **What a run was is written down, never read out of a model's name — and never out of a route's
   wish.** Which harness it ran in, which sign-in it ran as and which provider it was reached
   through go on `run_started` and on every `usage` event beside `priced`, for the same reason: they
