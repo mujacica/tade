@@ -8,15 +8,19 @@ front of you while it happens.
 
 ```sh
 npm install -g tade-sh   # the package is `tade-sh`; the command it installs is `tade`
-tade                     # the window; the first time, a short setup
+tade                     # the window; the first time, a short setup that sets you up
 ```
 
 Needs Node ≥ 22.19 and git. Two of the things Tade is built on are native — node-pty, which is
 every terminal it opens, and better-sqlite3 — and they arrive prebuilt on macOS and are compiled on
 Linux, which needs python3 and a C++ toolchain (`build-essential`, or `gcc-c++ make python3`).
 Installing with pnpm, add `pnpm approve-builds -g`: pnpm 10 holds a dependency's install scripts
-until you say so, and an unbuilt node-pty is a Tade that cannot open a terminal. Optional: tmux
-(agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh` (pull request state).
+until you say so, and an unbuilt node-pty is a Tade that cannot open a terminal — which setup
+recognises and tells you how to fix, rather than leaving it to be found at the first lane. Optional:
+tmux (agents that outlive the window), whisper.cpp and ffmpeg (speech), `gh` (pull request state);
+setup offers to install each where you want it, shows the exact command first, and runs it in a
+terminal you are watching. It ends by opening a lane, running a command in it and closing it, and
+`tade setup --check` does the same whenever you want to be sure.
 
 From a checkout, which is how you change Tade:
 

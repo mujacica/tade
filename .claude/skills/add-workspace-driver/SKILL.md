@@ -33,11 +33,14 @@ The port is `packages/drivers/core/src/port.ts`; the reference implementation is
   on those flags and never on `driver.id` (a lint plugin enforces it). A capability you declare
   must work; one you don't must throw `UnsupportedCapabilityError`, never fail silently.
 - **Declare what it needs of the machine** (`programs`): each program it shells out to, what it is
-  needed for in a clause, and the arguments that make it print its version — `{ command: 'tmux',
-  versionArgs: ['-V'] }`. That is what Settings › Updates and `tade update` fold together, so a
-  driver that needs something of the machine is the only place that says so. A driver that needs
-  nothing declares nothing, which is an answer; the conformance suite refuses one nobody could look
-  up or ask.
+  needed for in a clause, the arguments that make it print its version, and how to install it —
+  `{ command: 'tmux', versionArgs: ['-V'], install: { brew: 'tmux', apt: 'tmux' } }`. That is what
+  Settings › Updates, `tade update` and the setup wizard all fold together, so a driver that needs
+  something of the machine is the only place that says so — and the exact command somebody is shown
+  before it runs comes from here, never from a table in the wizard. Only declare an install you are
+  sure of: a command that installs something else under the same name is worse than `instead`, which
+  says where to get it. A driver that needs nothing declares nothing, which is an answer; the
+  conformance suite refuses one nobody could look up or ask.
 - **No implementation vocabulary in the port.** If you want to add `sendKeys`, `newWindow` or
   `selectPane` to the interface, the answer is no: find the neutral name, or it belongs in the
   driver's own module.

@@ -48,11 +48,21 @@ closes, which is the thing this design exists to avoid.
   refused with that sentence, `restart` is done by `restartAgent`. `permissionGate: false` means
   approvals cannot be trusted for that harness — never fake it.
 - Declare what it needs of the machine (`programs`): the program the harness actually is, what it
-  is needed for, and the arguments that make it print its version. `probe()` says whether the one
-  here can run; this says what it is and how to see it, which is what Settings › Updates and `tade
-  update` read. A harness Tade ships as a dependency of its own says where it is (`at`), so it is
-  read from the copy that will actually run rather than reported missing because nothing on PATH
-  answers to its name — and anything inside Tade's own tree is reported as moving when Tade moves.
+  is needed for, the arguments that make it print its version, and how to install it (`install`,
+  only where you are sure of the package — `instead` says where to get it otherwise). `probe()` says
+  whether the one here can run; this says what it is, how to see it and how to get it, which is what
+  Settings › Updates, `tade update` and the setup wizard read. A harness Tade ships as a dependency
+  of its own says where it is (`at`), so it is read from the copy that will actually run rather than
+  reported missing because nothing on PATH answers to its name — and anything inside Tade's own tree
+  is reported as moving when Tade moves.
+- **`probe()` is not "is it installed".** For two of the three harnesses it is false for one that is
+  installed and signed out, so what says the program is here is a version coming back
+  (`lookAtHarnesses` in `workbench/src/machine.ts` reads it that way). Reading `ok` as installed is
+  how somebody gets offered an `npm install` for a program that just said its version, and how the
+  sign-in they actually need is never offered.
+- Offer the harness's own sign-in (`signIn`): what to run in a terminal a person can see, and what
+  they are about to be asked, in the harness's words. Tade never holds the credential; the wizard
+  and Settings › Accounts both run exactly this.
 - Say what each tool does (`effectOf`): `read`, `write`, `exec` or `other`. The policy judges by
   that and never learns a harness's tool names; `exec` is judged by its command.
 - Own the harness's own record: `conversationKey` (two tasks with the same key share a

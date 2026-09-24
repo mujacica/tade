@@ -41,7 +41,7 @@ import { livenessFrom } from '@tade/workbench/lane-liveness'
 import type { Command } from 'commander'
 import { Exit, type Io } from '../io.ts'
 import { reporterFor, reportJournal } from '../telemetry.ts'
-import { gather } from './setup.ts'
+import { gather } from './setup-facts.ts'
 
 /** Run the wizard attached to this terminal, and report how it went. */
 async function runSetup(): Promise<number> {

@@ -258,6 +258,7 @@ export class CodexAdapter implements WorkerAdapter {
       title: 'Codex',
       why: 'being the agent, for every task set to run in it',
       versionArgs: ['--version'],
+      install: { npm: '@openai/codex' },
     },
   ]
 

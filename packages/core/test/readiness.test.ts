@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isReady, nextStep, type ReadinessFacts, readiness } from '../src/readiness.ts'
+import { isReady, nextStep, type ReadinessFacts, readiness, worksStep } from '../src/readiness.ts'
 
 // The first minute on a fresh machine. What matters is that every unfinished
 // step says what to do about it, and that nothing optional blocks the way.
@@ -95,11 +95,16 @@ describe('readiness', () => {
     const steps = readiness(
       facts({ projects: [], loggedIn: false, apiKeys: [], driverOk: false, speechOk: false }),
     )
-    // The talk key late, so the window opens on the key you just picked; the
-    // judge after it, because it is the only step that costs money and the
-    // only one that sends anything anywhere; the extensions last, so whatever
-    // the judge step already answered is not asked a second time.
+    // What Tade is built on and what it shells out to first, because
+    // everything below them is answered by running something in a lane; the
+    // talk key late, so the window opens on the key you just picked; the judge
+    // after it, because it is the only step that costs money and the only one
+    // that sends anything anywhere; the extensions after that, so whatever the
+    // judge step already answered is not asked a second time; and the keys
+    // last of all, because which are wanted is decided by which are on.
     expect(steps.map((s) => s.id)).toEqual([
+      'native',
+      'programs',
       'project',
       'model',
       'workspace',
@@ -107,8 +112,10 @@ describe('readiness', () => {
       'talk',
       'judge',
       'extensions',
+      'keys',
     ])
-    // A project first: choosing a model for nothing is a strange way to start.
+    // A project first of what is left: choosing a model for nothing is a
+    // strange way to start, and nothing was found wrong with this machine.
     expect(nextStep(steps)?.id).toBe('project')
   })
 
@@ -149,6 +156,121 @@ describe('readiness', () => {
     ).toMatchObject({ done: true, detail: '' })
   })
 
+  it('reads a machine nobody looked at as nothing to do', () => {
+    // The window asks for readiness on every open and must not pay for a PATH
+    // walk to get it, so absent facts are absent rather than alarming.
+    const steps = readiness(facts())
+    for (const id of ['native', 'programs', 'keys'] as const) {
+      expect(steps.find((one) => one.id === id)).toMatchObject({ done: true, detail: '' })
+    }
+    expect(isReady(steps)).toBe(true)
+  })
+
+  it('stops for a native module that stops Tade, and only says the other', () => {
+    const helper = {
+      module: 'node-pty',
+      clause: 'node-pty cannot spawn, so no lane can open',
+      fix: 'chmod +x …',
+      blocking: true,
+    }
+    const index = {
+      module: 'better-sqlite3',
+      clause: 'better-sqlite3 did not load, so the journal has no index',
+      fix: 'npm install …',
+      blocking: false,
+    }
+    const stopped = readiness(facts({ native: [helper] }))
+    expect(stopped.find((one) => one.id === 'native')).toMatchObject({
+      done: false,
+      required: true,
+    })
+    expect(isReady(stopped)).toBe(false)
+
+    // The journal works without its index, so a broken one is said and is
+    // never a reason to stop.
+    const said = readiness(facts({ native: [index] }))
+    expect(said.find((one) => one.id === 'native')).toMatchObject({ done: false, required: false })
+    expect(said.find((one) => one.id === 'native')?.detail).toContain('no index')
+    expect(isReady(said)).toBe(true)
+
+    // Both at once is still a stop: what actually stops Tade decides.
+    expect(isReady(readiness(facts({ native: [index, helper] })))).toBe(false)
+  })
+
+  it('is only held up by a program something it uses actually needs', () => {
+    const tmux = {
+      command: 'tmux',
+      title: 'tmux',
+      why: 'holding every lane',
+      optional: true,
+      install: { command: 'brew install tmux' },
+    }
+    const git = {
+      command: 'git',
+      title: 'git',
+      why: 'every commit an agent makes',
+      optional: false,
+      install: { command: 'brew install git' },
+    }
+    // tmux on a machine running the pty driver is a row on a page, not a
+    // question, and never a reason to stop.
+    const spare = readiness(facts({ missing: [tmux] }))
+    expect(spare.find((one) => one.id === 'programs')).toMatchObject({ done: true, detail: '' })
+    expect(isReady(spare)).toBe(true)
+
+    const needed = readiness(facts({ missing: [tmux, git] }))
+    const step = needed.find((one) => one.id === 'programs')
+    expect(step).toMatchObject({ done: false, required: true })
+    // What it is for, so the offer to install it is a decision somebody can make.
+    expect(step?.detail).toContain('every commit an agent makes')
+    expect(step?.detail).not.toContain('tmux')
+  })
+
+  it('says the driver’s own words about why it cannot run here', () => {
+    // “not installed” is the wrong sentence for a driver that is installed and
+    // cannot spawn, which is the one thing a machine gets wrong here.
+    const steps = readiness(
+      facts({
+        driverOk: false,
+        driverReason: 'node-pty’s spawn-helper is not executable',
+      }),
+    )
+    expect(steps.find((one) => one.id === 'workspace')?.detail).toBe(
+      'node-pty’s spawn-helper is not executable',
+    )
+    // And with nothing said, it still says something.
+    expect(
+      readiness(facts({ driverOk: false })).find((one) => one.id === 'workspace')?.detail,
+    ).toContain('not installed')
+  })
+
+  it('asks for a key only where something that is on wants one', () => {
+    const steps = readiness(
+      facts({ keysWanted: [{ extension: 'jev', title: 'Jev', problem: 'it needs a key' }] }),
+    )
+    const step = steps.find((one) => one.id === 'keys')
+    expect(step).toMatchObject({ done: false, required: false })
+    expect(step?.detail).toContain('Jev: it needs a key')
+    // A key is never a reason to stop: everything works without every one.
+    expect(isReady(steps)).toBe(true)
+  })
+
+  it('is not ready until a lane has actually opened, and says so before it is tried', () => {
+    // The act, not a fact: it is deliberately not one of the steps the window
+    // reads on every open, which is why it is its own function.
+    expect(readiness(facts()).some((step) => step.id === 'works')).toBe(false)
+
+    expect(worksStep(null)).toMatchObject({ done: false, detail: 'not tried yet', required: true })
+    expect(worksStep({ ok: true, driver: 'pty', says: 'opened a lane under pty' })).toMatchObject({
+      done: true,
+      detail: '',
+    })
+    const failed = worksStep({ ok: false, driver: 'tmux', says: 'tmux is not installed' })
+    expect(failed).toMatchObject({ done: false, required: true })
+    expect(failed.detail).toBe('tmux is not installed')
+    expect(isReady([...readiness(facts()), failed])).toBe(false)
+  })
+
   it('every unfinished step says what to do about it', () => {
     const steps = readiness(
       facts({
@@ -163,6 +285,19 @@ describe('readiness', () => {
         talkChosen: false,
         judgeChosen: false,
         extensions: [{ name: 'deps', title: 'Dependencies', chosen: false }],
+        native: [
+          { module: 'node-pty', clause: 'it cannot spawn', fix: 'chmod +x …', blocking: true },
+        ],
+        missing: [
+          {
+            command: 'git',
+            title: 'git',
+            why: 'every reading of a project',
+            optional: false,
+            install: { command: 'brew install git' },
+          },
+        ],
+        keysWanted: [{ extension: 'jev', title: 'Jev', problem: 'it needs a key' }],
       }),
     )
     for (const step of steps) {

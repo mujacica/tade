@@ -4,173 +4,84 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runScreen, ScreenCancelled, type Ui } from '@tade/app'
 import {
-  type Config,
   defaultConfigPath,
+  type InstallersHere,
   isReady,
+  type LaneProof,
   loadConfig,
   ownerOnly,
   type ReadinessFacts,
   readiness,
   resolveCommand,
   type Step,
+  type StepId,
   secretPath,
   stringEnv,
   tadeHome,
+  worksStep,
   writeSetting,
 } from '@tade/core'
-import { piBinary, usableModels } from '@tade/harnesses-pi'
-import { loadExtensions } from '@tade/orchestrator'
-import { makeRecorder, makeTranscriber } from '@tade/voice-stt'
-import { drivers, makeJudge } from '@tade/workbench'
+import { usableModels } from '@tade/harnesses-pi'
+import { makeJudge } from '@tade/workbench'
+import { proveALane } from '@tade/workbench/prove'
 import type { Command } from 'commander'
 import { type Document, parseDocument } from 'yaml'
 import { Exit, type Io } from '../io.ts'
+import { gather, type Look, lookHere } from './setup-facts.ts'
+import {
+  harnessLines,
+  offerInstall,
+  sayNativeTrouble,
+  setUpKeys,
+  setUpPrograms,
+  signInSomewhere,
+} from './setup-machine.ts'
 import { WHISPER_MODELS } from './voice.ts'
 
 // The first minute.
 //
-// A fresh machine has no config and no model. What decides whether
-// somebody keeps this tool is whether that first minute tells them what to do
-// or shows them an empty screen, so `tade app` runs this when it has to and
-// nothing else has to be read first.
+// A fresh machine has no config, no model and quite possibly none of the
+// programs Tade shells out to. What decides whether somebody keeps this tool
+// is whether that first minute sets them up or shows them an empty screen, so
+// `tade app` runs this when it has to and nothing else has to be read first.
+//
+// The shape of it: what is still to do is a pure fold over facts
+// (`readiness`), the facts come from `setup-facts.ts`, and each step's
+// questions are here or — for everything about the machine rather than about
+// somebody's preferences — in `setup-machine.ts`. It is safe to run again
+// because every step is skipped once its fact says it is done, and it ends by
+// opening a lane, running a command in it and closing it, because a wizard
+// that says "all set" without ever starting a process is how `posix_spawnp
+// failed.` reaches a user.
 
-/** The config as written, for telling a choice apart from a default. */
-function readConfigText(): string {
-  try {
-    return readFileSync(defaultConfigPath(), 'utf8')
-  } catch {
-    return ''
-  }
-}
-
-/**
- * Offer to install something, and do it if they say yes.
- *
- * Printing a command and leaving somebody to it is where setup wizards lose
- * people: the whole point of being asked is not having to go and find out how.
- * Only offered where we know how — elsewhere it says the name and moves on,
- * because a wrong install command is worse than none.
- */
-async function offerInstall(ui: Ui, what: { name: string; packages: string[] }): Promise<boolean> {
-  const manager = installer()
-  if (!manager) {
-    ui.say(`  install ${what.packages.join(' and ')} and run \`tade setup\` again`)
-    return false
-  }
-  const command = `${manager.join(' ')} ${what.packages.join(' ')}`
-  if (!(await ui.confirm(`install ${what.name}? runs \`${command}\``, true))) {
-    ui.say(`  skipped — \`${command}\` when you want it`)
-    return false
-  }
-  const [bin, ...args] = [...manager, ...what.packages]
-  // In the window, like everything else: an installer that takes the terminal
-  // is an installer whose output you cannot see and whose prompts you cannot
-  // answer, because Tade is still holding the keyboard.
-  const code = await ui.run(command, bin!, args)
-  if (code !== 0) {
-    ui.say(`  that did not work — run \`${command}\` yourself and try again`)
-    return false
-  }
-  return true
-}
-
-/** How this machine installs things, if we know. */
-function installer(): string[] | null {
-  if (process.platform === 'darwin' && which('brew')) return ['brew', 'install']
-  if (which('apt-get')) return ['sudo', 'apt-get', 'install', '-y']
-  return null
-}
-
-/** On the PATH and executable. The same lookup a lane does before spawning. */
-function which(command: string): boolean {
-  return resolveCommand(command, stringEnv(process.env)) !== null
-}
-
-/** Provider keys the harness can use without being logged in. */
-const API_KEYS = [
-  'ANTHROPIC_API_KEY',
-  'OPENAI_API_KEY',
-  'OPENROUTER_API_KEY',
-  'GROQ_API_KEY',
-  'XAI_API_KEY',
-  'GEMINI_API_KEY',
+/** The order the steps are done in, which is `readiness`'s own. */
+const ORDER: StepId[] = [
+  'native',
+  'programs',
+  'project',
+  'model',
+  'workspace',
+  'voice',
+  'talk',
+  'judge',
+  'extensions',
+  'keys',
 ]
 
-/** Where a judge's key lives unless the config says another variable. */
-function judgeKeyVariable(settings: Record<string, unknown> | undefined): string {
-  const said = settings?.key_env
-  return typeof said === 'string' && said !== '' ? said : 'TYPESAFE_API_KEY'
-}
-
-export async function gather(cwd = process.cwd()): Promise<ReadinessFacts> {
-  const loaded = await loadConfig(defaultConfigPath())
-  const config = loaded.ok ? loaded.config : null
-  const voice = config?.surfaces.voice
-  const driver = config?.workspace.driver ?? 'pty'
-  const [mic, speech] = await Promise.all([
-    makeRecorder(voice?.mic ?? {}).available(),
-    makeTranscriber(voice?.stt ?? {}).available(),
-  ])
-  return {
-    configExists: loaded.ok && loaded.exists,
-    projects: Object.keys(config?.projects ?? {}),
-    cwd,
-    cwdIsRepo: existsSync(join(cwd, '.git')),
-    loggedIn: piLoggedIn(),
-    apiKeys: API_KEYS.filter((name) => (process.env[name] ?? '').length > 0),
-    orchestratorModel: config?.orchestrator.model ?? null,
-    driver,
-    driverOk: await driverAvailable(driver),
-    // Read from the file rather than the parsed config, which supplies a
-    // default: the question is whether a person chose, not what is in effect.
-    driverChosen: /^\s*driver:/m.test(readConfigText()),
-    talkChosen: /^\s*talk:/m.test(readConfigText()),
-    micOk: mic.ok,
-    speechOk: speech.ok,
-    speechReason: speech.ok ? null : speech.reason,
-    judgeKey: (process.env[judgeKeyVariable(config?.extensions?.jev)] ?? '').length > 0,
-    // Whatever records that the extension is on or off is the answer: two
-    // places saying whether a judge is on is the bug this avoids.
-    judgeChosen: config?.extensions?.jev?.enabled !== undefined,
-    extensions: await extensionsHere(config),
-  }
-}
-
 /**
- * The extensions this machine has, and which of them somebody has decided
- * about. Asked of the host rather than a list written here, so the ones Tade
- * ships with and the ones in your extensions folder are offered the same way.
- * Never throws: nothing to offer is an empty list, not a failed setup.
+ * Steps whose answers change what is installed or signed in, and so are
+ * followed by looking at the machine again rather than by guessing what
+ * changed. The rest only write config, which is re-read every time round.
  */
-async function extensionsHere(
-  config: Config | null,
-): Promise<{ name: string; title: string; chosen: boolean }[]> {
-  if (!config) return []
-  try {
-    const host = await loadExtensions({
-      config,
-      home: tadeHome(),
-      configPath: defaultConfigPath(),
-    })
-    return host.list().map((one) => ({
-      name: one.name,
-      title: one.title,
-      chosen: config.extensions[one.name]?.enabled !== undefined,
-    }))
-  } catch {
-    return []
-  }
-}
-
-/** The harness keeps its credentials; an empty file means nobody is logged in. */
-function piLoggedIn(home = process.env.HOME ?? ''): boolean {
-  try {
-    const auth = JSON.parse(readFileSync(join(home, '.pi', 'agent', 'auth.json'), 'utf8'))
-    return typeof auth === 'object' && auth !== null && Object.keys(auth).length > 0
-  } catch {
-    return false
-  }
-}
+const CHANGES_MACHINE = new Set<StepId>([
+  'native',
+  'programs',
+  'model',
+  'workspace',
+  'voice',
+  'judge',
+  'extensions',
+])
 
 function render(steps: readonly Step[]): string[] {
   return steps.map((step) => {
@@ -179,26 +90,75 @@ function render(steps: readonly Step[]): string[] {
   })
 }
 
+/**
+ * What this machine has, program by program and harness by harness.
+ *
+ * `--check` is the one place the whole picture is printed rather than asked
+ * about: the checklist says what is still to do, and this says what is here,
+ * which is the answer to "why is it asking me that?".
+ */
+function report(look: Look): string[] {
+  const lines = ['', 'Programs:']
+  for (const program of look.programs) {
+    // Whether it is here is the same answer the wizard acts on, read off the
+    // one list that says so rather than worked out a second way.
+    const gap = look.missing.find((one) => one.command === program.need.command)
+    const version = program.version ? ` ${program.version}` : ''
+    const needed = program.need.inUse ? '' : ' — nothing you use needs it'
+    if (!gap) {
+      lines.push(`  ✓ ${program.need.title}${version}${needed}`)
+      continue
+    }
+    const how = 'command' in gap.install ? gap.install.command : gap.install.cannot
+    // What it is for is said where it is missing, which is where somebody has
+    // to decide whether they want it; a version is the answer where it is not.
+    lines.push(`  ○ ${program.need.title} is not here (${how}) — ${gap.why}${needed}`)
+  }
+  lines.push('', 'Agents:', ...harnessLines(look.harnesses))
+  return lines
+}
+
 export function registerSetup(program: Command, io: Io, setExit: (code: number) => void): void {
   program
     .command('setup')
     .description(
-      'Set Tade up: a project, a model, somewhere to run agents, and speech if you want it',
+      'Set Tade up: the programs it runs, a project, a model, somewhere to run agents, speech',
     )
-    .option('--check', 'report what is missing and exit, changing nothing')
-    .action(async (opts: { check?: boolean }) => {
-      const facts = await gather()
-      const steps = readiness(facts)
+    .option('--check', 'report what is missing and exit, asking nothing')
+    .option('--json', 'the same as data')
+    .action(async (opts: { check?: boolean; json?: boolean }) => {
+      const home = tadeHome()
+      const cwd = process.cwd()
+      let look = await lookHere(home)
+      let facts = await gather(cwd, look)
+      let proof: LaneProof | null = null
 
       if (opts.check) {
-        for (const line of render(steps)) io.out(line)
+        // The whole of it, including the part that opens a process: a check
+        // that only reads files is the check that says "all set" about a
+        // machine where no lane can open. It changes nothing — one lane, one
+        // command, closed again.
+        proof = await proveALane({ driver: facts.driver, home, cwd })
+        const steps = [...readiness(facts), worksStep(proof)]
+        if (opts.json) {
+          io.out(
+            JSON.stringify(
+              {
+                ready: isReady(steps),
+                steps,
+                proof,
+                programs: look.programs,
+                harnesses: look.harnesses,
+              },
+              null,
+              2,
+            ),
+          )
+        } else {
+          for (const line of render(steps)) io.out(line)
+          for (const line of report(look)) io.out(line)
+        }
         if (!isReady(steps)) setExit(Exit.error)
-        return
-      }
-
-      if (isReady(steps) && steps.every((s) => s.done)) {
-        io.out('Everything is set up.')
-        for (const line of render(steps)) io.out(line)
         return
       }
 
@@ -206,34 +166,47 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
         // Nothing to type into: say what is missing rather than hanging on a
         // question nobody can answer.
         io.err('setup needs a terminal. What is missing:')
-        for (const line of render(steps)) io.err(line)
+        for (const line of render(readiness(facts))) io.err(line)
         setExit(Exit.error)
         return
       }
 
       const stuck: string[] = []
-      const flow = runScreen({ title: 'Setting up', context: render(steps) }, async (ui) => {
-        for (const step of steps) {
-          if (step.done) continue
+      const todo = readiness(facts).some((step) => !step.done)
+      const context = () => render([...readiness(facts), worksStep(proof)])
+      const flow = runScreen({ title: 'Setting up', context: context() }, async (ui) => {
+        for (const id of ORDER) {
+          const step = readiness(facts).find((one) => one.id === id)
+          if (!step || step.done) continue
           try {
-            if (step.id === 'project') await setUpProject(ui, facts)
-            if (step.id === 'model') await setUpModel(ui)
-            if (step.id === 'workspace') await setUpWorkspace(ui)
-            if (step.id === 'voice') await setUpVoice(ui, facts)
-            if (step.id === 'talk') await setUpTalkKey(ui)
-            if (step.id === 'judge') await setUpJudge(ui)
-            if (step.id === 'extensions') await setUpExtensions(ui)
+            await doStep(ui, id, facts, look, async () => {
+              look = await lookHere(home)
+              return look
+            })
           } catch (err) {
             // One step that cannot be finished is not a reason to abandon the
             // others: somebody who has to go and export an API key should
             // still come back to a configured project and a chosen driver.
-            stuck.push(`${step.title}: ${err instanceof Error ? err.message : String(err)}`)
-            ui.say(`  ${step.title}: ${err instanceof Error ? err.message : String(err)}`)
+            stuck.push(`${step.title}: ${message(err)}`)
+            ui.say(`  ${step.title}: ${message(err)}`)
           }
+          if (CHANGES_MACHINE.has(id)) look = await lookHere(home)
+          facts = await gather(cwd, look)
           // The checklist is the point of the screen: it has to move as the
           // answers land, or it is a picture of the machine you arrived with.
-          ui.context(render(readiness(await gather())))
+          ui.context(context())
+          if (id === 'native' && stillBlocked(facts)) {
+            ui.say('Nothing else can be set up until that is fixed: all of it runs in a lane.')
+            return
+          }
         }
+        // The closing check, always, whether anything was asked or not: it is
+        // the only part of this that proves the machine rather than reading it.
+        ui.say('')
+        ui.say('Opening a lane, running a command in it, closing it…')
+        proof = await proveALane({ driver: facts.driver, home, cwd })
+        ui.say(`  ${proof.says}`)
+        ui.context(context())
       })
       try {
         await flow
@@ -246,12 +219,49 @@ export function registerSetup(program: Command, io: Io, setExit: (code: number) 
       }
 
       for (const problem of stuck) io.err(`  ${problem}`)
-      const after = readiness(await gather())
+      const after = [...readiness(await gather(cwd, look)), worksStep(proof)]
       for (const line of render(after)) io.out(line)
       io.out('')
-      io.out(isReady(after) ? 'Ready. Run `tade`.' : 'Still missing something — see above.')
+      if (isReady(after)) io.out(todo ? 'Ready. Run `tade`.' : 'Everything is set up. Run `tade`.')
+      else io.out('Still missing something — see above.')
       if (!isReady(after)) setExit(Exit.error)
     })
+}
+
+/** One step's questions. Which step it is decides nothing else about the flow. */
+async function doStep(
+  ui: Ui,
+  id: StepId,
+  facts: ReadinessFacts,
+  look: Look,
+  again: () => Promise<Look>,
+): Promise<void> {
+  if (id === 'native') return sayNativeTrouble(ui, facts.native ?? [])
+  if (id === 'programs') return setUpPrograms(ui, facts.missing ?? [])
+  if (id === 'project') return setUpProject(ui, facts)
+  if (id === 'model') return setUpModel(ui, facts, look, again)
+  if (id === 'workspace') return setUpWorkspace(ui, look)
+  if (id === 'voice') return setUpVoice(ui, facts, look)
+  if (id === 'talk') return setUpTalkKey(ui)
+  if (id === 'judge') return setUpJudge(ui)
+  if (id === 'extensions') return setUpExtensions(ui, look)
+  // Both of these read the look they were handed: the step before either of
+  // them changes the machine, so the loop has already looked again.
+  if (id === 'keys') return setUpKeys(ui, look)
+}
+
+/** Whether what Tade is built on still stops it, after being told about it. */
+function stillBlocked(facts: ReadinessFacts): boolean {
+  return (facts.native ?? []).some((one) => one.blocking)
+}
+
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+/** On the PATH and executable. The same lookup a lane does before spawning. */
+function which(command: string): boolean {
+  return resolveCommand(command, stringEnv(process.env)) !== null
 }
 
 async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
@@ -272,38 +282,36 @@ async function setUpProject(ui: Ui, facts: ReadinessFacts): Promise<void> {
   ui.say(`  added ${name} → ${root}`)
 }
 
-async function setUpModel(ui: Ui): Promise<void> {
-  // Said before anything is asked, because "which harness" is the question
-  // people arrive with and the answer explains everything that follows: Tade
-  // never holds a credential, so every question about models is really a
-  // question about the harness.
-  ui.say('Agents are run by a harness. Tade ships with pi and uses it for everything:')
-  ui.say('  · one login covers subscriptions (Claude, ChatGPT, Copilot, xAI, …)')
-  ui.say('  · or an API key for any of 30-odd providers, read from your environment')
-  ui.say('  · or a local model — Ollama, llama.cpp, LM Studio, anything OpenAI-shaped')
-  ui.say('Credentials stay with pi. Tade never sees, stores or sends them.')
-  ui.say('')
-
-  if (!piLoggedIn() && API_KEYS.every((name) => !process.env[name])) {
-    const choice = await ui.choose('How would you like to pay for a model?', [
-      'log in to a subscription — opens pi, you type /login',
-      'use an API key from the environment',
-    ])
-    if (choice === 0) {
-      ui.say('')
-      // Our own key rather than the harness's quit command: which command that
-      // is is the harness's business and has changed, and being told the wrong
-      // one is worse than being told a key we control.
-      ui.say('Opening the harness. Type /login, pick your provider, then ctrl+] to come back.')
-      await ui.run('pi — /login, then ctrl+] to come back', process.execPath, [piBinary()])
-      if (!piLoggedIn()) throw new Error('still not logged in — run `tade setup` again')
-      ui.say('  logged in')
-    } else {
-      ui.say('  pi reads these from your shell, so export one and it is picked up:')
-      for (const key of API_KEYS) ui.say(`    ${key}`)
-      ui.say('  e.g. `export ANTHROPIC_API_KEY=sk-…` in your ~/.zshrc, then a new terminal')
-      throw new Error('set the key in your shell, then run `tade setup` again')
+/**
+ * A model to think with, which is first a question about a sign-in.
+ *
+ * Tade holds no credential of its own, so every question about models is
+ * really a question about the harness — which is why the sign-ins are here and
+ * not in a step of their own, and why they are asked of the harnesses rather
+ * than of pi's files.
+ */
+async function setUpModel(
+  ui: Ui,
+  facts: ReadinessFacts,
+  look: Look,
+  again: () => Promise<Look>,
+): Promise<void> {
+  const signedIn = look.harnesses.some((one) => one.signedIn)
+  // The keys the facts already found, never a second scan of the environment:
+  // two answers to "is a key set" is how one of them goes stale.
+  if (!signedIn && facts.apiKeys.length === 0) {
+    await signInSomewhere(ui, look, again)
+    const now = await again()
+    if (!now.harnesses.some((one) => one.signedIn)) {
+      ui.say('  no harness is signed in. An API key in your shell works too:')
+      ui.say('  `export ANTHROPIC_API_KEY=sk-…` in your ~/.zshrc, then a new terminal')
+      throw new Error('nothing is signed in and no API key is set — `tade setup` again after')
     }
+  } else {
+    // Signed in somewhere already: say the whole picture and ask nothing. The
+    // window signs in to another whenever somebody wants one.
+    for (const line of harnessLines(look.harnesses)) ui.say(line)
+    ui.say('  Settings › Accounts signs in to another whenever you want one')
   }
 
   const model = await pickModel(ui)
@@ -347,7 +355,7 @@ async function pickModel(ui: Ui): Promise<string> {
  * for: a default nobody was shown deciding whether a night's work stops when
  * you shut your laptop is not a default, it is a surprise.
  */
-async function setUpWorkspace(ui: Ui): Promise<void> {
+async function setUpWorkspace(ui: Ui, look: Look): Promise<void> {
   const keepRunning =
     (await ui.choose('Where should agents run?', [
       'tmux — they keep working after you close Tade, and you can attach from anywhere',
@@ -361,7 +369,10 @@ async function setUpWorkspace(ui: Ui): Promise<void> {
     return
   }
 
-  if (!which('tmux') && !(await offerInstall(ui, { name: 'tmux', packages: ['tmux'] }))) {
+  // Whether tmux is here, and what would install it, both come from what the
+  // driver declared — the same declaration the Updates page reads.
+  const missing = look.missing.find((one) => one.command === 'tmux')
+  if (missing && !(await offerInstall(ui, 'tmux', missing.install))) {
     // Asked for durable agents and has no tmux: say plainly what they got
     // rather than writing a driver that will not start.
     ui.say('  leaving it on pty for now — agents will stop when Tade does')
@@ -374,17 +385,6 @@ async function setUpWorkspace(ui: Ui): Promise<void> {
     config.workspace = { ...(config.workspace ?? {}), driver: 'tmux', fallback: 'pty' }
   })
   ui.say('  agents will live in tmux and keep working when you close Tade')
-}
-
-/**
- * Whether this machine can provide the configured driver. Asked of the driver
- * itself, so there is one answer to it and `tade setup --check` cannot drift
- * from what opening the workbench will actually do.
- */
-async function driverAvailable(driver: string): Promise<boolean> {
-  const make = drivers[driver]
-  if (!make) return false
-  return (await make(tadeHome()).available()).ok
 }
 
 /**
@@ -474,7 +474,9 @@ async function setUpJudge(ui: Ui): Promise<void> {
 
   // One request, and only here: somebody is sitting in front of the screen
   // having just asked for this. `ready()` runs on every load and may never do
-  // it, which is the whole reason a judge has two questions and not one.
+  // it, which is the whole reason a judge has two questions and not one. It
+  // has its own deadline, so a machine with no network says so rather than
+  // hanging on this.
   const problem = await makeJudge('jev', { key }).verify()
   patchConfig((config) => {
     const extensions = (config.extensions ?? {}) as Record<string, Record<string, unknown>>
@@ -502,10 +504,8 @@ async function setUpJudge(ui: Ui): Promise<void> {
  * the ones nobody has decided about are offered; whatever the judge step or
  * the window already answered is left exactly as it is.
  */
-async function setUpExtensions(ui: Ui): Promise<void> {
-  const loaded = await loadConfig(defaultConfigPath())
-  const all = await extensionsHere(loaded.ok ? loaded.config : null)
-  const waiting = all.filter((one) => !one.chosen)
+async function setUpExtensions(ui: Ui, look: Look): Promise<void> {
+  const waiting = look.extensions.filter((one) => !one.chosen)
   if (waiting.length === 0) return
 
   ui.say('Extensions are what Tade can do that it was not built knowing about: your')
@@ -546,7 +546,7 @@ function setExtension(name: string, on: boolean): void {
   })
 }
 
-async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
+async function setUpVoice(ui: Ui, facts: ReadinessFacts, look: Look): Promise<void> {
   ui.say(`Speech is optional — ${facts.speechReason ?? 'not set up'}.`)
   ui.say('Whatever you choose, ctrl+space always opens a line you can type into.')
 
@@ -582,15 +582,27 @@ async function setUpVoice(ui: Ui, facts: ReadinessFacts): Promise<void> {
     return
   }
 
-  await setUpWhisper(ui)
+  await setUpWhisper(ui, look.installers)
 }
 
 /** Local speech: the binary, then a model, then which one to use. */
-async function setUpWhisper(ui: Ui): Promise<void> {
+async function setUpWhisper(ui: Ui, machine: InstallersHere): Promise<void> {
   const missing = ['whisper-cli', 'ffmpeg'].filter((tool) => !which(tool))
   if (missing.length > 0) {
     const packages = missing.map((tool) => (tool === 'whisper-cli' ? 'whisper-cpp' : tool))
-    if (!(await offerInstall(ui, { name: 'speech', packages }))) return
+    // Composed here rather than by `installWith`, which answers about one
+    // declared program: these two are installed together, because a
+    // transcriber with only one of them fails on the first recording — and
+    // neither is declared by a port, since nothing in the voice ports says
+    // what it shells out to yet. That is what to fix if this grows a third.
+    // What this machine installs with is still the one answer everything else
+    // reads, so an offer here cannot differ from an offer anywhere else.
+    const how = machine.managers.includes('brew')
+      ? { command: `brew install ${packages.join(' ')}` }
+      : machine.managers.includes('apt-get')
+        ? { command: `sudo apt-get install -y ${packages.join(' ')}` }
+        : { cannot: `install ${packages.join(' and ')} with whatever this machine uses` }
+    if (!(await offerInstall(ui, 'speech', how))) return
   }
 
   // English-only models are better at English for their size; the rest

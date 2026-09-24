@@ -205,6 +205,10 @@ export function makeGithubForge(options: ForgeOptions): Forge {
         why: 'finding your GitHub credential, unless a token is in the environment',
         versionArgs: ['--version'],
         optional: true,
+        // Homebrew, and otherwise where GitHub says: the apt package is in
+        // their own repository on most releases, and a `sudo apt-get install
+        // gh` that fails is worse than a sentence that says where to look.
+        install: { brew: 'gh', instead: 'cli.github.com has the package for your system' },
       },
     ],
 

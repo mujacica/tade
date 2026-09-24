@@ -31,6 +31,42 @@ export interface RequiredProgram {
    * would be a lie about the one it is actually running.
    */
   at?: string
+  /**
+   * How to put it on a machine that has not got it. Optional: a program
+   * nobody knows how to install is said by name, which is better than a
+   * command that installs the wrong thing.
+   */
+  install?: HowToInstall
+}
+
+/**
+ * How a program gets onto a machine that has not got it, declared by whoever
+ * needs it.
+ *
+ * It lives beside the declaration of needing it for the same reason
+ * `versionArgs` does: a table of install commands in the setup wizard is a
+ * table that goes stale the day somebody adds a harness, and the wizard is the
+ * one place nobody would notice. Declaring it runs nothing — `installWith`
+ * picks the command, a person reads it, and only then is it run in a terminal
+ * they are watching.
+ *
+ * Only offer what you are sure of. A command that installs something else
+ * under the same name is worse than no command at all, so a program whose
+ * package Tade cannot vouch for declares `instead` and says where to get it.
+ */
+export interface HowToInstall {
+  /** A Homebrew formula — or a cask, when `cask` says so. */
+  brew?: string
+  /** Whether the Homebrew name is a cask: two namespaces, and two different installs. */
+  cask?: boolean
+  /** A Debian or Ubuntu package. */
+  apt?: string
+  /** A Fedora package. */
+  dnf?: string
+  /** A package installed globally with npm, which is the same on every platform. */
+  npm?: string
+  /** Where there is nothing to run: what to do instead, as a clause. */
+  instead?: string
 }
 
 /**
@@ -46,12 +82,25 @@ export const TADE_PROGRAMS: readonly RequiredProgram[] = [
     title: 'git',
     why: 'every reading of a project’s state, and every commit an agent makes',
     versionArgs: ['--version'],
+    install: {
+      brew: 'git',
+      apt: 'git',
+      dnf: 'git',
+      // Every Mac has one behind the command line tools, which is a download
+      // Apple runs rather than a package anybody installs.
+      instead: 'macOS: `xcode-select --install`, which is where its git comes from',
+    },
   },
   {
     command: 'node',
     title: 'Node',
     why: 'Tade runs on it, and so does everything it starts',
     versionArgs: ['--version'],
+    // The one that is running, never whatever else on PATH answers to the
+    // name: Tade is running on this file, so reporting a different Node
+    // — or none — would be a lie about the thing doing the reporting.
+    at: process.execPath,
+    install: { instead: 'nodejs.org, or a version manager: mise, nvm, volta' },
   },
 ]
 
@@ -64,6 +113,8 @@ export interface ProgramNeed {
   optional: boolean
   /** Where it is, for what is not looked up on PATH. */
   at?: string
+  /** How to install it, as whoever needs it declared. */
+  install?: HowToInstall
   /** What needs it, what for, and whether that is what Tade is set up to use. */
   needed: readonly { what: string; why: string; inUse: boolean }[]
   /** Whether anything Tade is actually set up to use needs it. */
@@ -101,6 +152,7 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
           versionArgs: program.versionArgs,
           optional: program.optional === true,
           ...(program.at ? { at: program.at } : {}),
+          ...(program.install ? { install: program.install } : {}),
           needed: [reason],
           inUse: declaration.inUse,
         })
@@ -108,6 +160,11 @@ export function neededPrograms(declarations: readonly Declared[]): ProgramNeed[]
       }
       byCommand.set(program.command, {
         ...had,
+        // Whoever declared one first says how it installs, and anybody
+        // declaring one after fills in a row that had none: two ports needing
+        // the same program is one row, and a row with no way to install it is
+        // the one thing this fold could lose.
+        ...((had.install ?? program.install) ? { install: had.install ?? program.install } : {}),
         // What actually asks it its version is whichever declaration wins the
         // row, and they must agree: two ports asking `git` two different ways
         // would be two versions of one program.
@@ -307,6 +364,53 @@ export function updateWith(install: Install): UpdateCommand {
   }
 }
 
+/** What to run to install a program, or why there is nothing to run. */
+export type InstallCommand = { command: string } | { cannot: string }
+
+/** What a machine can install with: what it is, and which managers are on it. */
+export interface InstallersHere {
+  platform: string
+  /**
+   * The package managers found on this machine, as they are run: `brew`,
+   * `apt-get`, `dnf`, `npm`. Looking for them is I/O and the caller's.
+   */
+  managers: readonly string[]
+}
+
+/**
+ * The exact command that would install a program here, or why there is none.
+ *
+ * The machine's own package manager comes before a global npm install, because
+ * something the system manages moves forward with everything else on it; npm
+ * is the fallback and the only one that is the same on every platform. Only a
+ * manager this machine actually has is offered — a `brew install` on a machine
+ * with no Homebrew is a command that fails in a terminal somebody is watching,
+ * which is a worse answer than saying where to get it.
+ */
+export function installWith(
+  how: HowToInstall | undefined,
+  machine: InstallersHere,
+): InstallCommand {
+  if (!how) return { cannot: 'nothing here says how to install it' }
+  const has = (command: string) => machine.managers.includes(command)
+  if (how.brew && has('brew')) {
+    return { command: `brew install ${how.cask ? '--cask ' : ''}${how.brew}` }
+  }
+  if (how.apt && has('apt-get')) return { command: `sudo apt-get install -y ${how.apt}` }
+  if (how.dnf && has('dnf')) return { command: `sudo dnf install -y ${how.dnf}` }
+  if (how.npm && has('npm')) return { command: `npm install --global ${how.npm}` }
+  if (how.instead) return { cannot: how.instead }
+  const offered = [
+    how.brew ? 'Homebrew' : '',
+    how.apt ? 'apt' : '',
+    how.dnf ? 'dnf' : '',
+    how.npm ? 'npm' : '',
+  ].filter(Boolean)
+  return offered.length === 0
+    ? { cannot: 'nothing here says how to install it' }
+    : { cannot: `it installs with ${offered.join(', ')}, and this machine has none of them` }
+}
+
 /**
  * A version out of whatever a program prints: `git version 2.39.5 (Apple
  * Git-154)`, `v22.18.0`, `tmux 3.4`. Null when there is no version in it,
@@ -367,6 +471,15 @@ export function declarationProblems(programs: readonly RequiredProgram[] | undef
     if (!program.why.trim()) problems.push(`${said}: no reason it is needed`)
     if (program.versionArgs.length === 0) {
       problems.push(`${said}: no arguments that make it say its version`)
+    }
+    // An install nobody can run and that says nothing instead is the one
+    // shape that reads as an offer and is not one.
+    const how = program.install
+    if (how && !(how.brew || how.apt || how.dnf || how.npm || how.instead)) {
+      problems.push(`${said}: says how to install it and names nothing to install`)
+    }
+    if (how?.cask && !how.brew) {
+      problems.push(`${said}: a Homebrew cask with no name`)
     }
   }
   return problems

@@ -3,6 +3,7 @@ import {
   compareVersions,
   declarationProblems,
   installOf,
+  installWith,
   isBehind,
   neededPrograms,
   parseVersion,
@@ -246,5 +247,84 @@ describe('what a port may declare', () => {
 
   it('holds Tade’s own declarations to the same rule', () => {
     expect(declarationProblems(TADE_PROGRAMS)).toEqual([])
+  })
+})
+
+describe('what would install a program that is not here', () => {
+  const machine = (managers: string[], platform = 'darwin') => ({ platform, managers })
+
+  it('prefers the machine’s own package manager over a global npm install', () => {
+    const how = { brew: 'tmux', apt: 'tmux', npm: 'tmux-but-not-really' }
+    expect(installWith(how, machine(['brew', 'npm']))).toEqual({ command: 'brew install tmux' })
+    expect(installWith(how, machine(['apt-get', 'npm'], 'linux'))).toEqual({
+      command: 'sudo apt-get install -y tmux',
+    })
+    // npm is the fallback and the only one that is the same everywhere.
+    expect(installWith(how, machine(['npm'], 'linux'))).toEqual({
+      command: 'npm install --global tmux-but-not-really',
+    })
+  })
+
+  it('says which of the two Homebrew namespaces it means', () => {
+    expect(installWith({ brew: 'claude-code', cask: true }, machine(['brew']))).toEqual({
+      command: 'brew install --cask claude-code',
+    })
+  })
+
+  it('offers only a manager this machine actually has', () => {
+    // A `brew install` on a machine with no Homebrew is a command that fails
+    // in a terminal somebody is watching, which is worse than a sentence.
+    const answer = installWith({ brew: 'gh' }, machine([], 'linux'))
+    expect(answer).toEqual({
+      cannot: 'it installs with Homebrew, and this machine has none of them',
+    })
+  })
+
+  it('says what to do instead where there is nothing to run', () => {
+    expect(installWith({ brew: 'git', instead: 'xcode-select --install' }, machine([]))).toEqual({
+      cannot: 'xcode-select --install',
+    })
+    expect(installWith(undefined, machine(['brew']))).toEqual({
+      cannot: 'nothing here says how to install it',
+    })
+  })
+
+  it('carries a declaration’s install through the fold, and never loses one', () => {
+    const tmux = {
+      command: 'tmux',
+      title: 'tmux',
+      why: 'holding lanes',
+      versionArgs: ['-V'],
+      install: { brew: 'tmux' },
+    }
+    // Two ports needing one program is one row, and the row keeps the way to
+    // install it whichever of them declared it.
+    const both = neededPrograms([
+      { what: 'a driver with no idea', inUse: false, programs: [{ ...tmux, install: undefined }] },
+      { what: 'the tmux driver', inUse: true, programs: [tmux] },
+    ])
+    expect(both).toHaveLength(1)
+    expect(installWith(both[0]?.install, machine(['brew']))).toEqual({
+      command: 'brew install tmux',
+    })
+  })
+
+  it('refuses an install declaration that offers nothing', () => {
+    expect(
+      declarationProblems([
+        { command: 'gh', title: 'gh', why: 'because', versionArgs: ['-v'], install: {} },
+      ]),
+    ).toHaveLength(1)
+    expect(
+      declarationProblems([
+        {
+          command: 'gh',
+          title: 'gh',
+          why: 'because',
+          versionArgs: ['-v'],
+          install: { cask: true },
+        },
+      ]),
+    ).toHaveLength(2)
   })
 })

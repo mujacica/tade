@@ -815,6 +815,25 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   command into a terminal you are looking at. Reloading into a new Tade says what it costs in the
   driver's own words (`capabilities.detach`, never its name) and what survives it — worktrees,
   branches, the journal, queued work, schedules — before anybody chooses it.
+  **How to install one is declared the same way** (`install`, a `HowToInstall`), because the setup
+  wizard is the one place a list of install commands would go stale unnoticed: `installWith` picks
+  by what this machine actually has (its own package manager before a global npm install, and only
+  a manager that is on PATH), a program whose package nobody can vouch for declares `instead` and
+  says where to get it, and the conformance rule refuses an install that offers nothing. The wizard
+  offers only what something in use requires and *says* the rest — installing what nobody asked for
+  is the other way to get this wrong.
+- **Setting up ends with a lane.** Everything else `tade setup` does is a reading of a file, so it
+  can find git, find a model, write a config and say "all set" about a machine where no agent can
+  ever start: `posix_spawnp failed.` at the first lane is what that looks like from the outside. So
+  it finishes by opening a lane with the **configured** driver, running a command in it, reading
+  what came back and closing it (`proveALane`) — and `--check` does the same, because that is the
+  one somebody runs when they are not sure. It closes its own lane and then `detach`s, never
+  `shutdown`s: under tmux the lanes of one home share a session, and proving a lane can open must
+  never end every agent working in that checkout. It is deliberately **not** one of the readiness
+  steps: those are facts, this is an act, and the window folds readiness on every open. The two
+  native modules come first for the same reason the proof comes last — every question in between is
+  answered by running something, and node-pty is what runs it, which is also why the fix for a
+  helper whose permission bit is wrong is *said* and never run.
 - **Under the `pty` driver lanes are Tade's own children**, so they die with it; under `tmux` they
   do not. Which it is, is `capabilities.detach` — never branch on the driver's name. Either way:
   never report a lane as alive without evidence, and keep its spec so it can be relaunched.

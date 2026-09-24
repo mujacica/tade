@@ -269,6 +269,10 @@ export class ClaudeAdapter implements WorkerAdapter {
       title: 'Claude Code',
       why: 'being the agent, for every task set to run in it',
       versionArgs: ['--version'],
+      // npm and nothing else: it is the install Anthropic publishes, and the
+      // Homebrew casks called `claude` and `claude-code` are not the same
+      // thing as each other, let alone reliably this.
+      install: { npm: '@anthropic-ai/claude-code' },
     },
   ]
 

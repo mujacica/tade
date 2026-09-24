@@ -213,6 +213,7 @@ export class TmuxDriver implements WorkspaceDriver {
       title: 'tmux',
       why: 'holding every lane, so agents go on working after Tade closes',
       versionArgs: ['-V'],
+      install: { brew: 'tmux', apt: 'tmux', dnf: 'tmux' },
     },
   ]
 
@@ -798,14 +799,12 @@ export class TmuxDriver implements WorkspaceDriver {
  * How a tmux command is run: in its own process group, so the terminal Tade
  * runs in never names its window after one. Lanes are read by polling this,
  * so without it every look retitled the window `tmux`. `execFile` hands
- * `detached` to the spawn beneath it; its types just do not say so.
+ * `detached` to the spawn beneath it; its types just do not say so, which is
+ * why the shape here is the inferred one — an annotation that left `detached`
+ * out needed a local to dodge the excess-property check it caused.
  */
-function clientOptions(env: Record<string, string>): {
-  env: Record<string, string>
-  maxBuffer: number
-} {
-  const options = { env, maxBuffer: 32 * 1024 * 1024, detached: true }
-  return options
+function clientOptions(env: Record<string, string>) {
+  return { env, maxBuffer: 32 * 1024 * 1024, detached: true }
 }
 
 /** tmux window names cannot hold everything a lane id can. */

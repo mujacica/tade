@@ -277,6 +277,7 @@ export class PiAdapter implements WorkerAdapter {
       // that moves when Tade does. A machine with no pi installed at all is
       // what `probe` is for.
       ...(installedPi() ? { at: installedPi() as string } : {}),
+      install: { instead: 'it comes with Tade, so installing Tade again is what brings it back' },
     },
   ]
 
