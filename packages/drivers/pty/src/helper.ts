@@ -55,15 +55,16 @@ export function helperProblem(helper: string | null): string | null {
     return (
       `node-pty's spawn-helper is not executable, so every terminal Tade opens fails with\n` +
       '"posix_spawnp failed." and nothing else. It comes out of the npm tarball without the\n' +
-      'bit, and the install script that puts it back was held — pnpm 10 and npm 11 do not run\n' +
-      "a dependency's install scripts until you approve them.\n" +
+      'bit, and the install script that puts it back was held — pnpm, npm 11 and bun do not\n' +
+      "run a package's install scripts until you approve them.\n" +
       '\n' +
       `  chmod +x ${helper}\n` +
       '\n' +
       'or approve the install script, which also fixes it for the next update:\n' +
       '\n' +
       '  pnpm   pnpm approve-builds -g\n' +
-      '  npm    npm install -g --allow-scripts=tade-sh,node-pty tade-sh\n'
+      '  npm    npm install -g --allow-scripts=tade-sh,node-pty tade-sh\n' +
+      '  bun    bun pm -g trust --all\n'
     )
   }
 }

@@ -58,11 +58,21 @@ describe('the publish directory', () => {
     expect(manifest.engines.node).toBe('>=22.19')
   })
 
-  it('runs nothing on install but the one thing a user needs', () => {
-    // `install-hooks` points git at this repository's hooks. On a contributor's
-    // machine that is the gate; on a user's it is Tade reaching into a
-    // repository of theirs that has nothing to do with Tade.
-    expect(manifest.scripts).toEqual({ postinstall: 'node scripts/fix-pty-permissions.mjs' })
+  it('runs nothing on install but the two things a user needs, and ships both', () => {
+    // Both are node-pty's, which is the one thing in the tarball that is a
+    // binary: what a Linux machine needs before it is compiled, and its
+    // `spawn-helper`'s executable bit after. `install-hooks` is neither — it
+    // points git at this repository's hooks, which on a contributor's machine
+    // is the gate and on a user's is Tade reaching into a repository of theirs
+    // that has nothing to do with Tade.
+    expect(manifest.scripts).toEqual({
+      preinstall: 'node scripts/check-build-tools.mjs',
+      postinstall: 'node scripts/fix-pty-permissions.mjs',
+    })
+    for (const line of Object.values(manifest.scripts)) {
+      const named = line.replace(/^node /, '')
+      expect(existsSync(join(staged.out, named)), named).toBe(true)
+    }
   })
 
   it('asks for vitest nowhere: the suites that import it do not ship', () => {

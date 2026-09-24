@@ -49,6 +49,17 @@ const NOT_SHIPPED = new Set(['conformance.ts', 'echo-child.js'])
 /** Files taken from the root of the repository as they are. */
 const AT_ROOT = ['README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md']
 
+/**
+ * The scripts a user's install runs, which are the only ones that ship.
+ *
+ * Both are node-pty's: it is compiled where there is no prebuild for the
+ * machine, which is every Linux, and its prebuilt `spawn-helper` can come out
+ * of an extraction without its executable bit. `manifestFor` names them as
+ * `preinstall` and `postinstall` in that order, which is the order npm runs
+ * them in around the dependency build.
+ */
+const ON_INSTALL = ['check-build-tools.mjs', 'fix-pty-permissions.mjs']
+
 export interface Staged {
   /** Absolute path of the staged directory. */
   out: string
@@ -94,15 +105,14 @@ export function stage(opts: { out?: string; version: string }): Staged {
   const manifest = manifestFor(root, packages, dependencies, opts.version)
   writeFileSync(join(out, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
   files++
-  // The one script an installed Tade runs, and the only one: `install-hooks`
+  // The scripts an installed Tade runs, and the only ones: `install-hooks`
   // points git at this repository's own hooks, which is a contributor's
-  // business and nobody else's.
-  put(
-    join(out, 'scripts/fix-pty-permissions.mjs'),
-    null,
-    join(ROOT, 'scripts/fix-pty-permissions.mjs'),
-  )
-  files++
+  // business and nobody else's. Both of these are about node-pty, which is the
+  // one thing in the tarball that is a binary rather than a file.
+  for (const name of ON_INSTALL) {
+    put(join(out, `scripts/${name}`), null, join(ROOT, 'scripts', name))
+    files++
+  }
   for (const name of AT_ROOT) {
     if (!existsSync(join(ROOT, name))) continue
     put(join(out, name), null, join(ROOT, name))
@@ -270,10 +280,16 @@ function manifestFor(
     bugs: root.bugs,
     keywords: ['agents', 'cli', 'terminal', 'tui', 'orchestrator', 'coding-agent'],
     dependencies,
-    // node-pty's prebuilt `spawn-helper` can come out of an extraction without
-    // its executable bit, and every PTY spawn then fails with `posix_spawnp
-    // failed`. Nothing else runs on install.
-    scripts: { postinstall: 'node scripts/fix-pty-permissions.mjs' },
+    // Two, and both node-pty's. `preinstall` runs before the dependency build
+    // and says what a Linux machine is missing rather than letting node-gyp
+    // say it in forty lines; `postinstall` runs after it, because node-pty's
+    // prebuilt `spawn-helper` can come out of an extraction without its
+    // executable bit and every PTY spawn then fails with `posix_spawnp
+    // failed`. Nothing else runs on install, and neither reaches the network.
+    scripts: {
+      preinstall: `node scripts/${ON_INSTALL[0]}`,
+      postinstall: `node scripts/${ON_INSTALL[1]}`,
+    },
     // Carried, and it is nobody's install that it fixes: pnpm reads
     // `onlyBuiltDependencies` from the project being installed into and never
     // from a dependency's own manifest, so on 10 and on 12 alike `pnpm add -g
