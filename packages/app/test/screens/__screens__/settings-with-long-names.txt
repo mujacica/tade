@@ -13,11 +13,11 @@
   M pack│  Projects           3  │                                                                             │        
   A …/we│  Checks per project    │ What happened around them  ──██ on                             ↻ on restart │        
   M src/│  Budgets           ● 1 │                                                                             │        
-        │▌ Telemetry             │ Numbers                    ──██ on                             ↻ on restart │        
- ▾ FILES│  Shortcuts             │                                                                             │        
-   ▾ src│  Accounts          ● 2 │ What agents do             ──██ on                             ↻ on restart │        
-       w│  Updates               │                                                                             │        
-       w│                        │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
+        │  Journal               │ Numbers                    ──██ on                             ↻ on restart │        
+ ▾ FILES│▌ Telemetry             │                                                                             │        
+   ▾ src│  Shortcuts             │ What agents do             ──██ on                             ↻ on restart │        
+       w│  Accounts          ● 2 │                                                                             │        
+       w│  Updates               │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │ Which Tade this is          laptop                             ↻ on restart │        
      REA│                        │                                                                             │        

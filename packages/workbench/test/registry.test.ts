@@ -1,6 +1,6 @@
-import { readFileSync, rmSync, statSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { LaneId } from '@tade/core'
+import { type LaneId, sharedTaskDir } from '@tade/core'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
 import { PtyDriver } from '@tade/drivers-pty'
 import { TmuxDriver } from '@tade/drivers-tmux'
@@ -26,10 +26,25 @@ describe('the lane registry, across a restart', () => {
     return registry
   }
 
-  const lane = (registry: LaneRegistry, id: string) =>
-    registry.spawn({
+  /**
+   * The task file a real task has where its agent works. The registry keeps a
+   * dead lane's spec so the work can be put back, and reads this to find out
+   * whether there is still work to put it back into — so a fixture without
+   * one is a fixture of a task that has been removed, which is not what any
+   * of these tests are about.
+   */
+  function taskFile(task: string): void {
+    const dir = join(home, sharedTaskDir(task))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'task.yaml'), `id: ${task}\n`)
+  }
+
+  const lane = (registry: LaneRegistry, id: string) => {
+    const task = id.split('/').slice(0, 2).join('/')
+    taskFile(task)
+    return registry.spawn({
       id: id as LaneId,
-      task: id.split('/').slice(0, 2).join('/'),
+      task,
       kind: 'agent',
       cwd: home,
       command: process.execPath,
@@ -37,6 +52,7 @@ describe('the lane registry, across a restart', () => {
       cols: 80,
       rows: 24,
     })
+  }
 
   beforeEach(async () => {
     home = tmp('tade-registry-')
@@ -152,6 +168,7 @@ describe('the lane registry, across a restart', () => {
 
     it('keeps the harness an agent was started in, through closing and putting it back', async () => {
       const first = await session(new PtyDriver({ scrollback: 200 }))
+      taskFile('app/claude')
       await first.spawn({
         id: 'app/claude/agent' as LaneId,
         task: 'app/claude',
@@ -177,6 +194,49 @@ describe('the lane registry, across a restart', () => {
 
       const exits = (await log.read({ limit: 100 })).filter((e) => e.type === 'lane_exited')
       expect(String(exits.at(-1)?.detail?.reason)).toContain('do not outlive Tade')
+    })
+
+    it('forgets a dead lane once its task is gone, and keeps one whose task is still there', async () => {
+      // 117 of the 136 lanes on the machine this was measured on were dead
+      // agents of tasks removed weeks earlier, each carrying a 3 KB relaunch
+      // spec: 377 KB of file, rewritten on every lane event, of which 51 KB
+      // was about a lane anybody could still do anything with. A spec is kept
+      // so the work can be put back, and there was no work to put back.
+      const first = await session(new PtyDriver({ scrollback: 200 }))
+      await lane(first, 'app/removed/agent')
+      await lane(first, 'app/kept/agent')
+      await first.close('app/removed/agent' as LaneId)
+      await first.close('app/kept/agent' as LaneId)
+      await first.detach()
+
+      // What `removeTask` leaves behind: the task's own folder, gone.
+      rmSync(join(home, sharedTaskDir('app/removed')), { recursive: true, force: true })
+
+      const second = await session(new PtyDriver({ scrollback: 200 }))
+      expect(second.get('app/removed/agent' as LaneId)).toBeNull()
+      // The other one is still a task, so its spec is still how to put it back.
+      expect(second.get('app/kept/agent' as LaneId)).toMatchObject({ alive: false })
+      expect(JSON.parse(readFileSync(path, 'utf8')).lanes.map((l: { id: string }) => l.id)).toEqual(
+        ['app/kept/agent'],
+      )
+    })
+
+    it('never forgets a lane it lost, however gone the task looks', async () => {
+      // `lost` is the mark the next window opens the agent again from, so a
+      // lane carrying it is the one lane that must survive every sweep. Its
+      // task file is deliberately not there: the work being unfindable is not
+      // evidence about an agent that was running when the window closed.
+      const first = await session(new PtyDriver({ scrollback: 200 }))
+      await lane(first, 'app/lost/agent')
+      await first.detach()
+      rmSync(join(home, sharedTaskDir('app/lost')), { recursive: true, force: true })
+
+      const second = await session(new PtyDriver({ scrollback: 200 }))
+      expect(second.get('app/lost/agent' as LaneId)).toMatchObject({ alive: false, lost: true })
+      await second.detach()
+      // And again, by a window after that one: `lost` is not a one-open grace.
+      const third = await session(new PtyDriver({ scrollback: 200 }))
+      expect(third.get('app/lost/agent' as LaneId)?.lost).toBe(true)
     })
 
     it('leaves the registry file readable by anything of yours that wants to look', async () => {

@@ -1254,6 +1254,36 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **events.jsonl is the truth**; the SQLite index is derived and must be rebuildable from it. Raw
   lane output never goes in the log (it lives in the lane's scrollback), only sampled byte counts.
 - Under subscriber backpressure, `trace` events are dropped first and `blocking` events never.
+- **The journal keeps what only it remembers, and forgets the samples when there is no room.**
+  Everything folds over all of `events.jsonl`, so its size is what every statistic costs to read —
+  and 86% of it was a byte count per lane per second that nothing anywhere reads back: 232,324 of
+  270,784 lines, 42 MB of 54, in eleven days. So past `journal.max_mb` (16 by default) a window
+  open drops the oldest of those until it fits (`compactJournal`), and **only** those: what may go
+  is `SAMPLED_TYPES` — `output` and `input`, named by type and never by urgency, because urgency
+  says what is dropped when a *subscriber* falls behind and reading the one as the other is
+  silently destructive. `reflected` is `trace` too and is the only record that a finished task was
+  looked back over; `commit_seen` and `check_ran` are written once precisely because `git log` and
+  a worktree's `checks.jsonl` cannot answer again. None of them is reachable from this code. A
+  journal that is still too big with nothing droppable left says so in a `warning` rather than
+  deleting a record to hit a number, and a compaction that dropped nothing says nothing at all.
+  Under the ceiling the whole check is one `stat`; over it, the file is rewritten to a temp file,
+  fsync'd and renamed, so a crash before the rename leaves the journal exactly as it was.
+  **Not a roll**: rolling bounds the file and not the fold, and either readers do not follow it —
+  and every total silently gets smaller on the day it happens — or they do, and the fold is exactly
+  as long as it was. What compaction cannot bound is the part nobody may delete, about a megabyte a
+  day, and that is said rather than quietly trimmed. **And the samples are cheaper at the source**:
+  a lane's output is summarised every `DEFAULT_OUTPUT_SAMPLE_MS` (30s, was 1s), which is a
+  thirtieth of the lines for the same trace, and paces nothing live — `lastOutputAt` is set on
+  every chunk. **The index is the one file that is always safe to delete**, and `tade logs --size`,
+  the Journal settings group and `event-index.ts` all say so, because a person who came looking
+  because a folder got big is the person nothing was telling.
+- **The lane registry keeps a dead lane's spec so the work can be put back**, so it forgets one
+  whose task is gone (`forgettable`) — never a live one, never one marked `lost`. That is the only
+  safe cut: a dead lane is evidence `deriveState` reads (a task with one is `review` or `failed`
+  where a task with none is `queued`), and a task with no task file has no state derived for it at
+  all. 117 of the 136 lanes on the machine this was measured on were dead agents of tasks removed
+  weeks earlier: 377 KB rewritten on every lane event, 51 KB of it about a lane anybody could
+  still do anything with.
 - `attach` puts the user's terminal in raw mode: every exit path, signals included, must run the
   same `restore()`, and it must be safe to call twice.
 

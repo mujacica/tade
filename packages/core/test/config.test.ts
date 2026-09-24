@@ -167,6 +167,30 @@ projects:
   })
 })
 
+describe('what the journal keeps', () => {
+  it('lets the file reach 16 MB before anything is dropped, unasked', () => {
+    const r = parseConfig('')
+    expect(r.ok && r.config.journal).toEqual({ max_mb: 16 })
+  })
+
+  it('takes the number somebody wrote', () => {
+    const r = parseConfig('journal:\n  max_mb: 64\n')
+    expect(r.ok && r.config.journal).toEqual({ max_mb: 64 })
+  })
+
+  it('refuses a ceiling of nothing, which would be a setting that empties the journal', () => {
+    for (const [yaml, path] of [
+      ['journal:\n  max_mb: 0\n', 'journal.max_mb'],
+      ['journal:\n  max_md: 16\n', 'journal.max_md'],
+    ] as const) {
+      const r = parseConfig(yaml)
+      expect(r.ok, yaml).toBe(false)
+      if (r.ok) continue
+      expect(r.issues[0]?.path).toBe(path)
+    }
+  })
+})
+
 describe('loadConfig', () => {
   it('treats a missing file as defaults', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tade-cfg-'))

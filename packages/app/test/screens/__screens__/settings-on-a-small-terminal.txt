@@ -12,11 +12,11 @@
  ▾ │  Projects     3  │                                                     ││  
   M│  Checks per pro… │ What happened around t…  ──██ on                  ↻ │╯  
   A│  Budgets     ● 1 │                                                     │   
-━  │▌ Telemetry       │ Numbers                  ──██ on                  ↻ │  ━
-   │  Shortcuts       │                                                     │   
-   │  Accounts    ● 2 │ What agents do           ──██ on                  ↻ │  ▕
-   │  Updates         │                                                     │  ▕
-   │                  │ ● Saved as you change it.                           │  ▕
+━  │  Journal         │ Numbers                  ──██ on                  ↻ │  ━
+   │▌ Telemetry       │                                                     │   
+   │  Shortcuts       │ What agents do           ──██ on                  ↻ │  ▕
+   │  Accounts    ● 2 │                                                     │  ▕
+   │  Updates         │ ● Saved as you change it.                           │  ▕
  ❯ │                  │                         Open config.yaml     Done   │  ▕
 ───╰────────────────────────────────────────────────────────────────────────╯── 
  Ask Tade anything                          type, or hold    ctrl   +   space   

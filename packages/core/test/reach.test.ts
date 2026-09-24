@@ -95,6 +95,17 @@ describe('what an ordinary request reaches', () => {
     ])
       expect(settingReach(path).reach, path).toBe('asked')
   })
+
+  it('does not include what the journal keeps, though the worst it can reach is a byte count', () => {
+    // `asked`, decided rather than defaulted into. It widens nothing an agent
+    // may do, hands nobody tools or a credential, changes who is asked and
+    // changes nowhere Tade sends anything — so it is not `never`. And the only
+    // lines it can reach are the sampled byte counts, which nothing reads
+    // back: there is no wording of it that deletes a commit, a check or a
+    // dollar. But it is the size of somebody's own history, which is not a
+    // cosmetic annoyance they are looking at, so it is not `open` either.
+    expect(settingReach('journal.max_mb').reach).toBe('asked')
+  })
 })
 
 describe('the shape of the rule', () => {
@@ -110,6 +121,7 @@ describe('the shape of the rule', () => {
       'approvals',
       'checks',
       'extensions',
+      'journal',
       'mcp',
       'orchestrator',
       'projects',

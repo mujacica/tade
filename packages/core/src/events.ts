@@ -109,6 +109,17 @@ export const EventType = z.enum([
    */
   'ignore_written',
   /**
+   * The journal was compacted: what was dropped, what is left, and what the
+   * file weighed before and after.
+   *
+   * Compaction removes lines from the one file that is the truth, so the line
+   * saying it happened is what makes that readable rather than mysterious —
+   * the same reason `ignore_written` exists. It is written after the fact and
+   * only when something was actually dropped, so a journal with none of these
+   * in it has never had anything taken out of it.
+   */
+  'journal_compacted',
+  /**
    * What Tade has been told was changed: a setting written, a project opened
    * or closed. What it was before is in the line, because the config is one
    * file that is rewritten in place and nothing else remembers — so a change
@@ -181,6 +192,11 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   // itself is already in `git status` and in the diff, which is where somebody
   // sees it; what this line adds is who put it there.
   ignore_written: 'routine',
+  // Notable rather than routine, which is where the other written-once facts
+  // are: this one is fsync'd, because it is the record of a destructive act
+  // and a window that crashed just after compacting must not come back with
+  // the lines gone and nothing saying who took them.
+  journal_compacted: 'notable',
   // Notable, unlike the other things written down once: the rest are facts
   // being recorded, and this is somebody changing how Tade behaves. A person
   // who did not make the change is the one who most needs to see it.

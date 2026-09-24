@@ -13,11 +13,11 @@
   M pack│  Projects           3  │ Microphone       MacBook Pro Microphone                        ↻ on restart │        
   A …/we│  Checks per project    │                 ▁▁▁▁▁▁▁▁▁▁▁▁▁▁    Test                                      │        
   M src/│  Budgets           ● 1 │                                                                             │        
-        │  Telemetry             │ Muted           ██── off                                                    │        
- ▾ FILES│  Shortcuts             │                                                                             │        
-   ▾ src│  Accounts          ● 2 │ Spoken replies  ──██ on                                                     │        
-       w│  Updates               │                                                                             │        
-       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+        │  Journal               │ Muted           ██── off                                                    │        
+ ▾ FILES│  Telemetry             │                                                                             │        
+   ▾ src│  Shortcuts             │ Spoken replies  ──██ on                                                     │        
+       w│  Accounts          ● 2 │                                                                             │        
+       w│  Updates               │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
      REA│                        │                                                                             │        

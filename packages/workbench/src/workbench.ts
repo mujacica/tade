@@ -337,7 +337,10 @@ export class Workbench {
       // where a typo gets reported, so here it degrades to defaults.
       const loaded = await loadConfig(join(opts.home, 'config.yaml'))
       const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
-      const log = await EventLog.open({ path: join(opts.home, 'events.jsonl') })
+      const log = await EventLog.open({
+        path: join(opts.home, 'events.jsonl'),
+        journal: { maxBytes: config.journal.max_mb * 1_048_576 },
+      })
       journal = log
       const { driver, warning } = await chooseDriver({
         wanted: opts.driver ?? config.workspace.driver,

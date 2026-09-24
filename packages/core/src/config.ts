@@ -531,6 +531,29 @@ export const ConfigSchema = z
         environment: z.string().default('laptop'),
       })
       .prefault({}),
+    /**
+     * What the journal keeps.
+     *
+     * `events.jsonl` is the truth and everything folds over all of it, so what
+     * it costs to read is what everything costs. Almost all of it is a byte
+     * count per lane — a sample of output that still sits in the lane's
+     * scrollback, that nothing reads back, and that was 86% of the lines of a
+     * 54 MB journal after eleven days. As much of that as fits is kept, newest
+     * first, and the rest is dropped; nothing else ever is, because nothing
+     * else can be asked again.
+     */
+    journal: z
+      .strictObject({
+        /**
+         * How big `events.jsonl` may get. Under it, nothing is read and
+         * nothing is written: the whole check is one `stat` on open. Over it,
+         * the next window open drops the oldest sampled byte counts until it
+         * fits again — and only those, because a commit, a check run, a turn's
+         * cost and everything else are the only record there is of themselves.
+         */
+        max_mb: z.int().positive().default(16),
+      })
+      .prefault({}),
     /** When a project's own checks run, and what a red one does. */
     checks: ChecksConfigSchema.prefault({}),
     projects: z.record(z.string().regex(/^[a-z0-9][a-z0-9-]*$/), ProjectConfigSchema).default({}),

@@ -13,11 +13,11 @@
   M pack│  Projects           3  │ Microphone      │  ▏                                         │ ↻ on restart │        
   A …/we│  Checks per project    │                 │ ON THIS MACHINE            private, no key │              │        
   M src/│  Budgets           ● 1 │                 │▌ whisper · base.en · on this machine     ✓ │              │        
-        │  Telemetry             │ Muted           │ IN THE CLOUD                   needs a key │              │        
- ▾ FILES│  Shortcuts             │                 │  OpenAI · whisper-1                        │              │        
-   ▾ src│  Accounts          ● 2 │ Spoken replies  │  Groq · whisper-large-v3                   │              │        
-       w│  Updates               │                 ╰────────────────────────────────────────────╯              │        
-       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+        │  Journal               │ Muted           │ IN THE CLOUD                   needs a key │              │        
+ ▾ FILES│  Telemetry             │                 │  OpenAI · whisper-1                        │              │        
+   ▾ src│  Shortcuts             │ Spoken replies  │  Groq · whisper-large-v3                   │              │        
+       w│  Accounts          ● 2 │                 ╰────────────────────────────────────────────╯              │        
+       w│  Updates               │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
      REA│                        │                                                                             │        

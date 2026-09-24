@@ -13,11 +13,11 @@
   M pack│  Projects           3  │     Update Tade…     Reload Tade…                                           │        
   A …/we│  Checks per project    │                                                                             │        
   M src/│  Budgets           ● 1 │ Programs it runs                                                            │        
-        │  Telemetry             │   git             2.39.5      · cannot tell                                 │        
- ▾ FILES│  Shortcuts             │                   the system’s own · /usr/bin/git                           │        
-   ▾ src│  Accounts          ● 2 │                   no command · the system updates it — macOS: `xcode-select │        
-       w│▌ Updates           ● 2 │                   --install`                                                │        
-       w│                        │                                                                             │        
+        │  Journal               │   git             2.39.5      · cannot tell                                 │        
+ ▾ FILES│  Telemetry             │                   the system’s own · /usr/bin/git                           │        
+   ▾ src│  Shortcuts             │                   no command · the system updates it — macOS: `xcode-select │        
+       w│  Accounts          ● 2 │                   --install`                                                │        
+       w│▌ Updates           ● 2 │                                                                             │        
    ▸ tes│                        │   tmux            —           ▲ not installed                               │        
      pac│                        │                   nothing here needs it                                     │        
      REA│                        │                   no command · nothing on your PATH answers to `tmux`       │        

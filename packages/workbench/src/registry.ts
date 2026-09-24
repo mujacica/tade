@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { type LaneId, LaneKind } from '@tade/core'
+import { type LaneId, LaneKind, PROJECT_DIR, sharedTaskDir } from '@tade/core'
 import {
   type LaneHandle,
   LaneNotFoundError,
@@ -41,6 +42,19 @@ export const drivers: Record<string, (home: string) => WorkspaceDriver> = {
 export function tmuxSession(home: string): string {
   return `tade-${createHash('sha1').update(home).digest('hex').slice(0, 8)}`
 }
+
+/**
+ * How often a lane's output is summarised into one line of the journal.
+ *
+ * It was a second, and a second was 232,324 lines and 42 MB of a 54 MB
+ * journal in eleven days — 86% of everything every fold over it reads,
+ * carrying `{bytes: N}` that nothing anywhere reads back. Half a minute keeps
+ * exactly what the line is for, which is a trace of when a lane was noisy,
+ * at a thirtieth of the cost. Nothing live is paced by it: `lastOutputAt` is
+ * set on every chunk, so liveness, stall detection and the window's own idea
+ * of activity are unchanged.
+ */
+export const DEFAULT_OUTPUT_SAMPLE_MS = 30_000
 
 export const LaneRecord = z.object({
   id: z.string(),
@@ -133,7 +147,7 @@ export class LaneRegistry {
     this.driver = opts.driver
     this.log = opts.log
     this.path = opts.path
-    this.outputSampleMs = opts.outputSampleMs ?? 1_000
+    this.outputSampleMs = opts.outputSampleMs ?? DEFAULT_OUTPUT_SAMPLE_MS
   }
 
   static async open(opts: LaneRegistryOptions): Promise<LaneRegistry> {
@@ -177,6 +191,7 @@ export class LaneRegistry {
     for (const lane of parsed.success ? parsed.data.lanes : []) {
       const handle = reachable.get(lane.id)
       reachable.delete(lane.id)
+      if (!handle && forgettable(lane)) continue
       // Keep the stored spec when the lane is gone: it is how `relaunch` puts
       // the work back. When it is here, the driver's handle is fresher.
       const record: LaneRecord = handle
@@ -502,6 +517,44 @@ export class LaneRegistry {
     this.saving = this.saving.then(() => writeJsonAtomic(this.path, snapshot))
     await this.saving
   }
+}
+
+/**
+ * A lane the registry has no reason left to remember.
+ *
+ * A dead lane is kept for one thing — its spec, which is how `relaunch` puts
+ * the work back — and work whose task is gone cannot be put back. So the rule
+ * is the one that was already written, applied at its own edge: nothing is
+ * forgotten while there is still a task to put it back into.
+ *
+ * It is never asked of a lane the driver handed back (that one is alive), nor
+ * of one marked `lost`, which is exactly the lane the next window opens again.
+ * And it is safe against the thing that makes pruning dangerous here: a dead
+ * lane is evidence `deriveState` reads — a task with one is `review` or
+ * `failed` where a task with none is `queued` — so forgetting one while its
+ * task still exists would quietly rewrite that task's state. A task with no
+ * task file has no state derived for it at all, which is what makes this the
+ * one place the record can go without changing an answer.
+ *
+ * 117 of the 136 lanes on the machine this was measured on were dead agents of
+ * tasks removed weeks earlier, each carrying a 3 KB relaunch spec: the file
+ * goes from 377 KB to 51 KB, and it is rewritten atomically on every lane
+ * event.
+ */
+function forgettable(lane: LaneRecord): boolean {
+  if (lane.alive || lane.lost) return false
+  const cwd = lane.spec.cwd
+  // Both shapes, because a lane does not record which it was: a task sharing
+  // its project's checkout keeps its file in a folder of its own, one in a
+  // worktree keeps it at the worktree's own `.tade/task.yaml`. Either found
+  // is a task, and anything this cannot read is a task — `existsSync` says
+  // false for a path it cannot reach, and a disk that is not mounted must
+  // never be read as work that is over.
+  return (
+    !existsSync(join(cwd, sharedTaskDir(lane.task), 'task.yaml')) &&
+    !existsSync(join(cwd, PROJECT_DIR, 'task.yaml')) &&
+    existsSync(cwd)
+  )
 }
 
 /**

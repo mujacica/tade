@@ -13,11 +13,11 @@
   M pack│  Projects          │   While Tade holds it, your agents never see it.           │       ↻ on restart │        
   A …/we│  Checks per project│                                                            │                    │        
   M src/│  Budgets           │ Suggested:    ctrl   +   space      F5      ctrl   +   t   │                    │        
-        │  Telemetry         │ Not a key that types a character.                          │                    │        
- ▾ FILES│  Shortcuts         │                                                            │                    │        
-   ▾ src│  Accounts          │                        Try another     Use ctrl+r anyway   │                    │        
-       w│  Updates           ╰────────────────────────────────────────────────────────────╯                    │        
-       w│                        │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
+        │  Journal           │ Not a key that types a character.                          │                    │        
+ ▾ FILES│  Telemetry         │                                                            │                    │        
+   ▾ src│  Shortcuts         │                        Try another     Use ctrl+r anyway   │                    │        
+       w│  Accounts          ╰────────────────────────────────────────────────────────────╯                    │        
+       w│  Updates               │ Interruptions    ‹  6  ›   an hour, at most                    ↻ on restart │        
    ▸ tes│                        │                                                                             │        
      pac│                        │ Quiet hours      22:00    to  07:00                            ↻ on restart │        
      REA│                        │                                                                             │        

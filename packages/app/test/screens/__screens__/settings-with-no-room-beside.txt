@@ -12,10 +12,10 @@
  ▾ │  Projects   3  │▌  Sentry’s own SDK, imported… │   
   M│  Checks per p… │                               │   
 ━  │  Budgets   ● 1 │ Crashes and warnings        ↻ │  ━
-   │▌ Telemetry     │   ──██ on                     │   
-   │  Shortcuts     │                               │  ▕
-   │  Accounts  ● 2 │ ● Saved as you change it.     │  ▕
- ❯ │  Updates       │                        Done   │d ▕
+   │  Journal       │   ──██ on                     │   
+   │▌ Telemetry     │                               │  ▕
+   │  Shortcuts     │ ● Saved as you change it.     │  ▕
+ ❯ │  Accounts  ● 2 │                        Done   │d ▕
 ───╰────────────────────────────────────────────────╯── 
  Ask Tade anything  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────

@@ -13,11 +13,11 @@
   M pack│  Projects           3  │ ▸ its own sign-in       ● you@example.com · max · 34% of 5h · 2 agents      │        
   A …/we│  Checks per project    │     Sign in again…     Sign out                                             │        
   M src/│  Budgets           ● 1 │   work                  ○ not signed in yet                                 │        
-        │  Telemetry             │     Sign in…     Use for new agents     Remove                              │        
- ▾ FILES│  Shortcuts             │                                                                             │        
-   ▾ src│▌ Accounts          ● 2 │     Add an account…     Add an API-key account…                             │        
+        │  Journal               │     Sign in…     Use for new agents     Remove                              │        
+ ▾ FILES│  Telemetry             │                                                                             │        
+   ▾ src│  Shortcuts             │     Add an account…     Add an API-key account…                             │        
+       w│▌ Accounts          ● 2 │                                                                             │        
        w│  Updates               │                                                                             │        
-       w│                        │                                                                             │        
    ▸ tes│                        │                                                                             │        
      pac│                        │                                                                             │        
      REA│                        │                                                                             │        

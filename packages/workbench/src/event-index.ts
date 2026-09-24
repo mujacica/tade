@@ -3,7 +3,14 @@ import { type EventFilter, type TadeEvent, typeNames, URGENCY_RANK } from '@tade
 
 // A SQLite index over the event log. It is derived state: every row can be
 // rebuilt from events.jsonl, so losing or corrupting the database is never
-// data loss.
+// data loss — and neither is deleting it on purpose, which is worth saying
+// because it is the biggest file Tade has. It holds each event's whole JSON
+// beside its columns and three indexes over them, so it runs to roughly twice
+// the journal: 110 MB against 54 on the machine this was measured on. It is
+// rebuilt whenever it disagrees with the file, so `rm events.jsonl.db*` costs
+// one rebuild on the next open and nothing else. `tade logs --size` and the
+// Journal settings group say so where somebody looking at a full disk will
+// find it.
 
 const require = createRequire(import.meta.url)
 

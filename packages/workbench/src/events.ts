@@ -6,11 +6,13 @@ import {
   DEFAULT_URGENCY,
   type EventFilter,
   type EventInput,
+  type JournalPolicy,
   matchesFilter,
   type TadeEvent,
   URGENCY_RANK,
   type Urgency,
 } from '@tade/core'
+import { type Compaction, compactJournal } from './compact.ts'
 import { EventIndex } from './event-index.ts'
 
 // events.jsonl is the truth: append-only, one JSON object per line. The SQLite
@@ -46,6 +48,12 @@ export interface EventLogOptions {
   indexPath?: string | null
   /** Queue depth per subscriber before dropping starts. */
   subscriberQueue?: number
+  /**
+   * What the journal keeps. Absent, nothing is ever dropped — which is the
+   * right answer for a test's journal and for anything opening this file
+   * without a config to read the numbers from.
+   */
+  journal?: JournalPolicy
 }
 
 export type EventListener = (e: TadeEvent) => void
@@ -85,10 +93,39 @@ export class EventLog {
 
   static async open(opts: EventLogOptions): Promise<EventLog> {
     await mkdir(dirname(opts.path), { recursive: true })
+    const indexPath = opts.indexPath === undefined ? `${opts.path}.db` : opts.indexPath
+    // Before the file is opened for appending and before the index is looked
+    // at, because both are answers about a file this may be about to rewrite.
+    // The caller holds the home lock, which is what makes one writer true.
+    // A compaction that went wrong must not be what stops the window opening,
+    // and must not be silent either: the journal is where the trouble goes,
+    // and the journal is about to exist. Nothing was renamed, so what is on
+    // the disk is the journal exactly as it was.
+    let trouble: string | null = null
+    const compacted = opts.journal
+      ? await compactJournal(opts.path, opts.journal).catch((cause: unknown) => {
+          trouble = `could not compact ${opts.path}, which is unchanged: ${String(cause)}`
+          return null
+        })
+      : null
+    if (compacted && compacted.dropped > 0 && indexPath) {
+      // The index is derived, and after a compaction it holds rows for lines
+      // that are no longer in the file. Its `maxSeq` still matches — the
+      // newest line is always kept — so nothing below would rebuild it, and
+      // the 110 MB it had grown to would stay on the disk answering questions
+      // about events that have gone. Deleting it is what a derived file is
+      // for, and rebuilding it from the compacted journal is the next few
+      // lines. `-wal` and `-shm` go with it: a database file without them is
+      // not a smaller database, it is a database missing its last writes.
+      await Promise.all(
+        ['', '-wal', '-shm'].map((suffix) =>
+          rm(`${indexPath}${suffix}`, { force: true }).catch(() => {}),
+        ),
+      )
+    }
     const fh = await open(opts.path, 'a')
     const { lastSeq, corrupt } = await scanTail(opts.path)
 
-    const indexPath = opts.indexPath === undefined ? `${opts.path}.db` : opts.indexPath
     let index = indexPath === null ? null : EventIndex.open(indexPath)
     if (index && index.maxSeq() !== lastSeq) {
       // The index disagrees with the log (crash, deletion, manual edit): rebuild.
@@ -108,7 +145,35 @@ export class EventLog {
         detail: { message: `${corrupt} unparseable line(s) in ${opts.path}` },
       })
     }
+    if (trouble) await log.append({ type: 'warning', detail: { message: trouble } })
+    if (compacted) await log.recordCompaction(compacted)
     return log
+  }
+
+  /**
+   * Say what compaction did, in the journal it did it to.
+   *
+   * Only when something was actually dropped: a look that found nothing to
+   * drop is not news, and a line per window open saying so is the journal
+   * growing to record that it is not growing. What is still too big is a
+   * warning either way, because that one is a thing to act on.
+   */
+  private async recordCompaction(done: Compaction): Promise<void> {
+    if (done.dropped > 0) {
+      await this.append({
+        type: 'journal_compacted',
+        detail: {
+          dropped: done.dropped,
+          kept: done.read - done.dropped,
+          was_mb: Number((done.bytesBefore / 1_048_576).toFixed(1)),
+          now_mb: Number((done.bytesAfter / 1_048_576).toFixed(1)),
+          what: 'the oldest sampled lane output, to fit the ceiling; nothing else is ever dropped',
+        },
+      }).catch(() => {})
+    }
+    if (done.stillOver) {
+      await this.append({ type: 'warning', detail: { message: done.stillOver } }).catch(() => {})
+    }
   }
 
   async append(input: EventInput): Promise<TadeEvent> {
