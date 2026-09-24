@@ -85,13 +85,6 @@ export interface SpendRow {
   priced: Priced
   /** How long it ran in this window. Null for the orchestrator, which has no run of its own. */
   runtime: Runtime | null
-  /**
-   * Why this row is what it is, where the name alone would be read as a thing
-   * that exists. A run whose `run_started` named no model is not an agent on a
-   * model called `unknown`, and saying so is the difference between a row that
-   * reads as a bug and one that reads as a gap.
-   */
-  note: string | null
 }
 
 /**
@@ -216,7 +209,6 @@ export function spendView(
         // The name column *is* the thing here, so a second column of the
         // model says nothing and takes the room the first one needs.
         model: null,
-        note: key === UNRECORDED ? facet.unrecorded : facet.about(key),
         spend: spent[key],
         runtime: timed[key] ?? null,
       }),
@@ -301,30 +293,16 @@ export function spendView(
 }
 
 /**
- * The facets that are one bucket each: which bucket, what a key is called, and
- * what to say about one nobody can read at a glance.
+ * The facets that are one bucket each: which bucket, and what a key is called.
  *
- * Together rather than as five branches of the same shape, because they *are*
- * the same shape — and because what a row of nothing recorded says is the
- * thing most easily left out of the fifth copy.
+ * Together rather than as four branches of the same shape, because they *are*
+ * the same shape. A key nobody recorded is `not recorded` and nothing else:
+ * the page is figures and the names of things, and a sentence under a row
+ * explaining an empty bucket is read four hundred times and wanted once.
  */
 const HOW = {
-  model: {
-    spend: 'byModel',
-    ran: 'byModel',
-    kind: 'model',
-    name: (key: string) => key,
-    about: () => null,
-    unrecorded: 'no model was written down for these runs',
-  },
-  harness: {
-    spend: 'byHarness',
-    ran: 'byHarness',
-    kind: 'harness',
-    name: (key: string) => key,
-    about: () => null,
-    unrecorded: 'ran before Tade wrote the harness down',
-  },
+  model: { spend: 'byModel', ran: 'byModel', kind: 'model', name: (key: string) => key },
+  harness: { spend: 'byHarness', ran: 'byHarness', kind: 'harness', name: (key: string) => key },
   account: {
     spend: 'byAccount',
     ran: 'byAccount',
@@ -332,19 +310,12 @@ const HOW = {
     // The same spelling the plan list uses, so what the Spend page calls a
     // sign-in and what Settings calls one are one name.
     name: (key: string) => signIn(key),
-    about: (key: string) => (key.includes('@') ? null : "the harness's own sign-in"),
-    unrecorded: 'ran before Tade wrote the sign-in down',
   },
   provider: {
     spend: 'byProvider',
     ran: 'byProvider',
     kind: 'provider',
     name: (key: string) => key,
-    about: () => null,
-    // Never read out of the model's name: `anthropic/claude-opus-5` reached
-    // through OpenRouter is a real route on a real machine, and guessing would
-    // file that spend under Anthropic and look certain about it.
-    unrecorded: 'no provider was written down for these runs',
   },
 } as const satisfies Record<
   string,
@@ -353,8 +324,6 @@ const HOW = {
     ran: keyof RuntimeReport
     kind: SpendRow['kind']
     name: (key: string) => string
-    about: (key: string) => string | null
-    unrecorded: string
   }
 >
 
@@ -363,7 +332,6 @@ function rowOf(of: {
   label: string
   kind: SpendRow['kind']
   model?: string | null
-  note?: string | null
   spend: Spend | undefined
   runtime: Runtime | null
 }): SpendRow {
@@ -378,7 +346,6 @@ function rowOf(of: {
     usdEstimated: spend.usdEstimated,
     priced: pricedOf(spend),
     runtime: of.runtime,
-    note: of.note ?? null,
   }
 }
 

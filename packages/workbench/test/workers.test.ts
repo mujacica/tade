@@ -23,6 +23,8 @@ import { WorkerSupervisor, type WorkerSupervisorOptions } from '../src/workers.t
 
 class FakeAdapter implements WorkerAdapter {
   readonly id = 'fake'
+  /** It routes, like pi: what a run was reached through is the route's to say. */
+  readonly provider = null
   readonly capabilities: WorkerCapabilities = {
     permissionGate: true,
     steer: 'live',
@@ -618,6 +620,47 @@ describe('WorkerSupervisor', () => {
     // An agent that has gone is in the middle of nothing.
     adapter.emit('r1', { type: 'exited', code: 0 })
     await until(() => supervisor.turnOf('r1') === 'unknown')
+  })
+
+  describe('which provider a run was on', () => {
+    it("takes the harness's answer over the route's wish", async () => {
+      // `workers.routes.default` on the machine this was reported from held
+      // `provider: openrouter` beside `harness: claude-code`, and Tade wrote
+      // that wish onto eleven thousand usage events as though it were a fact
+      // about the run. A harness that reaches one provider is asked.
+      const log = await EventLog.open({ path: join(tmp('tade-provider-'), 'events.jsonl') })
+      close = () => log.close()
+      const adapter = new FakeAdapter()
+      // A harness like Claude Code: its own sign-in, and no router anywhere.
+      Object.defineProperty(adapter, 'provider', { value: 'anthropic' })
+      const supervisor = new WorkerSupervisor({ adapter, log, approvals: { mode: 'bypass' } })
+      await supervisor.start({
+        run: 'r1',
+        task: 'app/refunds',
+        cwd: WORKTREE,
+        prompt: 'fix the refund flow',
+        model: { provider: 'openrouter', id: 'anthropic/claude-opus-5' },
+      })
+      expect((await logged(log, 'run_started'))[0]?.detail.provider).toBe('anthropic')
+    })
+
+    it('leaves the route the answer where the harness really routes', async () => {
+      const log = await EventLog.open({ path: join(tmp('tade-provider-'), 'events.jsonl') })
+      close = () => log.close()
+      const supervisor = new WorkerSupervisor({
+        adapter: new FakeAdapter(),
+        log,
+        approvals: { mode: 'bypass' },
+      })
+      await supervisor.start({
+        run: 'r1',
+        task: 'app/refunds',
+        cwd: WORKTREE,
+        prompt: 'fix the refund flow',
+        model: { provider: 'openrouter', id: 'anthropic/claude-opus-5' },
+      })
+      expect((await logged(log, 'run_started'))[0]?.detail.provider).toBe('openrouter')
+    })
   })
 
   describe('one name for the model, wherever it is written', () => {

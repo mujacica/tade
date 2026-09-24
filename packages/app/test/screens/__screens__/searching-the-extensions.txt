@@ -21,4 +21,4 @@
 ─────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                          type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute     claude-opus-5 ▾ │ 2h 5m │ $2.66 today ▾ 
+   Extensions     Settings     Mute     claude-opus-5 ▾ │ 2h 5m │ $1.40 today ▾ 

@@ -225,6 +225,12 @@ interface RpcResponse {
 
 export class PiAdapter implements WorkerAdapter {
   readonly id = 'pi'
+  /**
+   * Null, because pi is the harness that *routes*: it reaches whatever the
+   * route points it at — OpenRouter, an API key, something running here — so
+   * the provider is a fact about the route and the route is what records it.
+   */
+  readonly provider = null
   readonly capabilities: WorkerCapabilities = {
     permissionGate: true,
     // All of it through the supervision extension, into the running session.

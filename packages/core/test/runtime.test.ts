@@ -359,6 +359,25 @@ describe('what the hours were spent on', () => {
     expect(runtimeFrom(runs, { now: NOW }).byModel['claude-opus-5']?.ms).toBe(10 * MINUTE)
   })
 
+  it('counts the hours under the provider the harness reaches, not the route', () => {
+    // The same correction the money gets, and for the same reason: an hour
+    // filed under a router Claude Code cannot reach is an hour drawn beside
+    // money that is not there.
+    const report = runtimeFrom(
+      [
+        event('run_started', {
+          ts: at(30),
+          run: 'r1',
+          detail: { adapter: 'claude-code', provider: 'openrouter' },
+        }),
+        event('run_exited', { ts: at(20), run: 'r1' }),
+      ],
+      { now: NOW },
+    )
+    expect(report.byProvider.anthropic?.ms).toBe(10 * MINUTE)
+    expect(report.byProvider.openrouter).toBeUndefined()
+  })
+
   it('says nothing recorded for a run that named no harness', () => {
     const report = runtimeFrom([event('run_started', { ts: at(10) }), exited(0)], { now: NOW })
     expect(report.byHarness[UNRECORDED]?.ms).toBe(10 * MINUTE)

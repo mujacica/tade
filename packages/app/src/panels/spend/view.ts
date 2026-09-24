@@ -3,7 +3,7 @@ import { duration, type Priced } from '@tade/core'
 import type { Hit } from '../../hits.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
-import { SPEND_BY, SPEND_WINDOWS, type SpendBy, type SpendView } from '../../spend.ts'
+import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { cap, pad, padTo, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
@@ -40,13 +40,19 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   const rows: { text: string; hits: Hit[] }[] = []
 
   const head = row().space()
-  head.text(view?.hasCost ? money(view.usd) : '—', skin.you).space(2)
+  // The mark rides on the figure itself, here as on every row: a total that
+  // holds money nobody priced says so where it is read, not in a footnote.
+  head.text(view ? cost(view.priced, view.usd) : '—', skin.you).space(2)
   head.text(tokenCount(view?.tokens ?? 0), skin.hint).space(2)
   // Every agent's time added together, which is why two working at once put
-  // two hours on the clock in one. Bare, beside the money and the tokens: the
-  // column below says what it is.
+  // two hours on the clock in one — said as `over 3 runs` beside the figure,
+  // because a figure that is not elapsed time is unreadable without it and
+  // `13d 3h` off a machine that has been on since breakfast reads as a bug.
   const ran = view?.runtime
-  head.text(duration(ran?.ms ?? 0), ran?.running ? skin.busy : skin.hint)
+  head.text(
+    `${duration(ran?.ms ?? 0)}${ran && ran.runs > 1 ? ` over ${ran.runs} runs` : ''}`,
+    ran?.running ? skin.busy : skin.hint,
+  )
   head.right((r) => {
     for (const window of SPEND_WINDOWS) {
       r.tab(
@@ -113,18 +119,17 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           ? toneOf(pane, skin)(glyph(pane))
           : skin.hint('·')
     const label = pane && pane.project === ctx.project ? pane.name : entry.label
-    const said = nameLines(label, entry.note, name)
+    const said = nameLines(label, name)
     if (used + said.length > SPEND_LINES) {
       unshown = entries.length - entries.indexOf(entry)
       break
     }
-    const first = said[0] ?? { text: '', note: false }
-    const cost = view?.hasCost ? `${pricedMark(entry.priced)}${money(entry.usd)}` : '—'
+    const first = said[0] ?? ''
     rows.push(
       row()
         .space()
         .text(`${mark} `)
-        .text(padTo(first.text, name))
+        .text(padTo(first, name))
         .space(SPEND_GAP)
         .text(model > 0 ? padTo(entry.model ? shortModel(entry.model) : '', model) : '', skin.hint)
         .space(model > 0 ? SPEND_GAP : 0)
@@ -138,21 +143,17 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           ),
           entry.runtime?.running ? skin.busy : undefined,
         )
-        // Money nobody priced is marked where it is read, not only in the
-        // footer: a column of dollars that quietly mixes the two is the one
-        // thing this page may never draw.
-        .text(cost.padStart(COST_W), entry.priced === 'exact' ? undefined : skin.hint)
+        // Money nobody priced is marked where it is read: a column of dollars
+        // that quietly mixes the two is the one thing this page may never draw.
+        .text(
+          cost(entry.priced, entry.usd).padStart(COST_W),
+          entry.priced === 'exact' ? undefined : skin.hint,
+        )
         .build(),
     )
-    // The rest of a name too long for its column, and what the row is when its
-    // name alone would be read as a thing that exists.
+    // The rest of a name too long for its column.
     for (const rest of said.slice(1)) {
-      rows.push(
-        row()
-          .space(LEAD)
-          .text(padTo(rest.text, name), rest.note ? skin.hint : undefined)
-          .build(),
-      )
+      rows.push(row().space(LEAD).text(padTo(rest, name)).build())
     }
     used += said.length
   }
@@ -167,7 +168,6 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   rows.push(blank(inner))
   rows.push(row().space().text('PLAN', skin.label).build())
   const whose = 17
-  const sentence = inner - whose - 2
   // What can be said comes first. A reason is worth reading, and worth
   // reading after the figures somebody opened this to see.
   const standings = [...(view?.plan ?? [])].sort(
@@ -213,19 +213,18 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
         top = false
       }
     } else {
-      // The harness's own sentence, whole: what a person reads is a sentence
-      // somebody wrote, never a blank or a zero standing in for one.
-      const said = wrapTo(`cannot tell — ${standing.cannotTell}`, sentence, 2)
-      said.forEach((part, at) => {
-        drawn.push(
-          row()
-            .space()
-            .text(padTo(at === 0 ? standing.label : '', whose))
-            .space()
-            .text(part, skin.hint)
-            .build(),
-        )
-      })
+      // Two words, not the harness's paragraph. That a plan has nothing to
+      // show is the fact; *why* — it prices each turn instead, it has not
+      // been told yet — is a sentence read once and then read every time the
+      // page is opened, and it is still on the harness (`why.limits`).
+      drawn.push(
+        row()
+          .space()
+          .text(padTo(standing.label, whose))
+          .space()
+          .text('cannot tell', skin.hint)
+          .build(),
+      )
     }
     if (lines + drawn.length > PLAN_LINES) {
       dropped += 1
@@ -313,22 +312,6 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     }
     rows.push(line.build())
   }
-  // What kind of money and what kind of hours this page has been adding, as
-  // marks rather than as paragraphs. Both caveats are real — a total that
-  // silently mixes priced and guessed dollars is the one thing this page may
-  // never draw, and `13d 3h` off a machine that has been on since breakfast
-  // reads as a bug — but each is a few words here and a sentence in `tade
-  // spend`, which is where somebody asks.
-  const foot = spendFooter(view)
-  if (foot) {
-    rows.push(blank(inner))
-    rows.push(
-      row()
-        .space()
-        .text(cap(foot, inner - 1), skin.hint)
-        .build(),
-    )
-  }
 
   return box('Spend', rows, width, skin, { corner: 'esc' })
 }
@@ -394,48 +377,27 @@ export function spendColumns(
 const MIN_NAME = 10
 
 /**
- * A name over the lines it needs, with what the row is underneath it.
+ * A name over the lines it needs.
  *
- * Two lines for the name, because twice a column holds every model id and task
- * name there is, and the last of them ellipsised — a name cut without saying
- * so is a name a person misreads rather than looks up. The note is its own
- * line in its own tone: `not recorded` is not an agent called that.
+ * Two lines, because twice a column holds every model id and task name there
+ * is, and the last of them ellipsised — a name cut without saying so is a name
+ * a person misreads rather than looks up.
  */
-export function nameLines(
-  label: string,
-  note: string | null,
-  width: number,
-): { text: string; note: boolean }[] {
-  const lines = wrapTo(label, width, 2).map((text) => ({ text, note: false }))
-  if (lines.length === 0) lines.push({ text: cap(label, width), note: false })
-  if (note) lines.push({ text: cap(note, width), note: true })
-  return lines
-}
-
-/** The one character that says this figure holds money nobody priced. */
-function pricedMark(priced: Priced): string {
-  return priced === 'estimate' || priced === 'mixed' ? '~' : ''
+export function nameLines(label: string, width: number): string[] {
+  const lines = wrapTo(label, width, 2)
+  return lines.length === 0 ? [cap(label, width)] : lines
 }
 
 /**
- * The one line under the page: what of the money nobody priced, and what of
- * the hours was added across runs.
+ * A figure of money, and the one character that says nobody priced it.
  *
- * A mark and a few words each, never the paragraph they used to be. Nothing is
- * lost by it — `tade spend` says both in full, in `runtimeSays`'s own words,
- * which is the only place either sentence now lives — and a caveat repeated in
- * four lines under every figure is one people stop reading. Empty where
- * neither is true: money everybody priced over a single run needs no footnote
- * at all.
+ * `—` where no money was reported at all, never `$0.00`: a plan pays a flat
+ * fee and has no price per turn, and drawing that as nothing spent reads as
+ * free. What it used up is the plan's windows, in their own list below.
  */
-export function spendFooter(view: SpendView | null): string {
-  const said: string[] = []
-  if (!view || view.priced === 'none') said.push('a plan, not money')
-  else if (view.priced === 'mixed') said.push(`~ ${money(view.usdEstimated)} estimated`)
-  else if (view.priced === 'estimate') said.push('~ estimated')
-  const ran = view?.runtime
-  if (ran && ran.runs > 1) said.push(`${duration(ran.ms)} over ${ran.runs} runs`)
-  return said.join('  ·  ')
+function cost(priced: Priced, usd: number): string {
+  if (priced === 'none') return '—'
+  return `${priced === 'exact' ? '' : '~'}${money(usd)}`
 }
 
 function toneOf(pane: AgentPane, skin: Skin): (text: string) => string {

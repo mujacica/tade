@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                      ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮─────────────────────
- ▌ ! stripe-v15      │   ‹    ›    ↑    ~ / src                          ~/src/refunds-api▏       │                     
+ ▌ ! stripe-v15   880│   ‹    ›    ↑    ~ / src                          ~/src/refunds-api▏       │                     
  ▌   wants you to app│                                                                            │                     
                      │ FOLDERS                                                                   ▕│                     
    ⠋ refunds         │▌+ refunds-api/ ~/src/refunds-api           create · git init              ▕│                     
@@ -31,4 +31,4 @@
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

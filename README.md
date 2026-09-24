@@ -168,9 +168,9 @@ dollars, each project against the budget you gave it — and what that bought: c
 them, and how the project's own checks have been going.
 
 Where a subscription pays for the work there is no price per turn, so what is used up is a share of
-a rolling window: how much of each plan is gone, when it comes back, and — for a harness that
-cannot say — its own sentence for why, rather than a zero standing in for one. Never added to the
-money: a plan and a dollar are different currencies with no rate between them. The fullest window
+a rolling window: how much of each plan is gone and when it comes back. Never added to the money: a
+plan and a dollar are different currencies with no rate between them, and a plan's turns are tokens
+and hours on this page rather than a large number of dollars nobody is charged. The fullest window
 sits in the status bar beside the cost.
 
 ![Spend: every agent with its model, tokens, share, runtime and cost, how much of each subscription’s window is used and when it resets, what that bought in commits and lines, and each project against its budget](images/spend.svg)
@@ -180,9 +180,9 @@ provider it was reached through. A model is one row under its own name however i
 agent's hours and its money are in the same place; the same weights on a subscription, through an
 API key and through a router are three different bills, and those last three groupings are what tell
 them apart. Money a harness priced against its own catalog is never added to money it could only
-guess at without saying so: a guessed figure is marked where you read it and the split is at the
-bottom of the page. How long the agents ran is every agent's time added together rather than time on
-the clock, and the page says so under the figure.
+guess at without saying so: a guessed figure wears a `~` wherever you read it, and money nobody
+reported at all is a dash rather than a zero that reads as free. How long the agents ran is every
+agent's time added together rather than time on the clock, which the figure says as it stands.
 
 ![The same morning grouped by model: one model reached three ways is one row, its hours and its money in the same place, with the groupings for harness, sign-in and provider beside it](images/spend-by-model.svg)
 

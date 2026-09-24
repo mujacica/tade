@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, lstatSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { WorkerSignal } from '@tade/harnesses-core'
+import type { HarnessAccount, WorkerSignal } from '@tade/harnesses-core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { ClaudeAdapter, HOOK_PATH, MCP_PATH, runSocket } from '../src/adapter.ts'
@@ -44,7 +44,11 @@ describe('ClaudeAdapter', () => {
     adapter = null
   })
 
-  const setUp = async (approvals: 'bypass' | 'policy' = 'bypass') => {
+  const setUp = async (
+    approvals: 'bypass' | 'policy' = 'bypass',
+    /** A sign-in beside Claude Code's own: how the money it reports is decided. */
+    account_?: HarnessAccount,
+  ) => {
     const typed: string[] = []
     const account = tmp('tade-claude-account-')
     const runDir = tmp('tcc-')
@@ -53,6 +57,7 @@ describe('ClaudeAdapter', () => {
       configDir: account,
       home: tmp('tade-claude-home-'),
       approvals,
+      ...(account_ ? { account: account_ } : {}),
       type: async (_run, text) => {
         typed.push(text)
       },
@@ -314,27 +319,50 @@ describe('ClaudeAdapter', () => {
   })
 
   describe('what its status line says', () => {
-    it('is its context, its cost as it grows, and its plan’s limits', async () => {
+    const STATUS = (cost: number) =>
+      JSON.stringify({
+        model: { id: 'claude-opus-5' },
+        cost: { total_cost_usd: cost },
+        context_window: {
+          used_percentage: 20,
+          current_usage: { input_tokens: 10, cache_read_input_tokens: 90 },
+        },
+        rate_limits: { five_hour: { used_percentage: 34, resets_at: 1_800_000_000 } },
+      })
+
+    it('is its context and its plan’s limits, and on a plan no money at all', async () => {
       const { adapter, env, signals } = await setUp()
-      const status = (cost: number) =>
-        JSON.stringify({
-          model: { id: 'claude-opus-5' },
-          cost: { total_cost_usd: cost },
-          context_window: {
-            used_percentage: 20,
-            current_usage: { input_tokens: 10, cache_read_input_tokens: 90 },
-          },
-          rate_limits: { five_hour: { used_percentage: 34, resets_at: 1_800_000_000 } },
-        })
       const statusline = join(HOOK_PATH, '..', 'statusline.ts')
-      const drawn = await run(statusline, status(0.25), env)
+      const drawn = await run(statusline, STATUS(0.25), env)
       expect(drawn.stdout).toContain('20% of context')
-      await run(statusline, status(0.4), env)
+      await run(statusline, STATUS(0.4), env)
       expect(signals.find((s) => s.type === 'context')).toMatchObject({ percent: 20, tokens: 100 })
+      // A plan charges a flat fee, so the figure Claude Code keeps is its own
+      // guess at what an API would have charged and nobody is charged it.
+      // What is used up is the plan's windows, which it does report. It says
+      // nothing at all rather than a usage of zeros: a line in the journal
+      // that says nothing is still a line in the journal.
+      expect(adapter.capabilities.spend.usd).toBe('none')
+      expect(signals.filter((s) => s.type === 'usage')).toEqual([])
+      expect(adapter.limits()?.fiveHour).toEqual({ used: 34, resetsAt: 1_800_000_000_000 })
+    })
+
+    it('is its cost as it grows, where an API key is what pays', async () => {
+      // Against a key the same estimate is a bill somebody gets, and is worth
+      // saying — marked as the estimate it is, and never as a priced figure.
+      const { adapter, env, signals } = await setUp('bypass', {
+        name: 'billed',
+        dir: tmp('tade-claude-billed-'),
+        kind: 'api-key',
+        key: 'echo sk-test',
+      })
+      expect(adapter.capabilities.spend.usd).toBe('estimate')
+      const statusline = join(HOOK_PATH, '..', 'statusline.ts')
+      await run(statusline, STATUS(0.25), env)
+      await run(statusline, STATUS(0.4), env)
       const usd = signals.flatMap((s) => (s.type === 'usage' ? [s.usd] : []))
       expect(usd[0]).toBeCloseTo(0.25)
       expect(usd[1]).toBeCloseTo(0.15)
-      expect(adapter.limits()?.fiveHour).toEqual({ used: 34, resetsAt: 1_800_000_000_000 })
     })
 
     it('draws its owner’s own status line when they had one', async () => {

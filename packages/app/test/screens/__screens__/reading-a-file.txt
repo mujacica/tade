@@ -31,4 +31,4 @@
 ──│──────────────────────────────────────────────────────────────────────────────────────────────────────────────────│─ 
  A│ lines 1–15 of 15  click to edit · ctrl+f find · ctrl+g line             Copy path     Open in editor     Close   │  
 ──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯──
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

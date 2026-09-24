@@ -982,13 +982,38 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Money that was priced and money that was guessed are never added up in silence.** A harness
   declares which it can do (`capabilities.spend.usd`), and that word rides on every `usage` event
   as `priced`, so a total can say which it is. pi prices each turn against its own catalog; Claude
-  Code estimates. A bucket keeps the two apart (`usdExact`, `usdEstimated`) and `pricedOf` is the
-  one word every surface says it with: a guessed figure is marked where it is read (`~`) and the
-  split is at the bottom of the page. Money nobody vouched for counts as guessed, never as priced.
-- **What a run was is written down, never read out of a model's name.** Which harness it ran in,
-  which sign-in it ran as and which provider it was reached through go on `run_started` and on
-  every `usage` event beside `priced`, for the same reason: they are facts about the run, and a
-  fact not recorded when it was true is a question nobody can answer later. So the Spend page can
+  Code against an API key estimates. A bucket keeps the two apart (`usdExact`, `usdEstimated`) and
+  `pricedOf` is the one word every surface says it with: a guessed figure is marked where it is
+  read (`~`), on the row and on the total, and nowhere else — a caveat true under every row is a
+  mark and never a footnote. Money nobody vouched for counts as guessed, never as priced, and a
+  bucket nobody reported money for is drawn `—` rather than `$0.00`, which reads as free.
+- **A plan is not money, so a harness on one reports none.** `capabilities.spend.usd` is `none`
+  for Claude Code's own sign-in and `estimate` for an account of it billed per token, because what
+  Claude Code keeps is its own guess at what an API would have charged and on a flat fee nobody is
+  charged it: $954 of it stood in this machine's total beside $78 that somebody was actually
+  billed. So the adapter reports no dollars at all there (`priceable`), and what it used up is its
+  plan's windows — their own type, their own list, their own bar, and in no total (`PlanWindow`).
+  Tokens and hours stay: unpriced effort is still effort, and is still where it went.
+- **What is true of a harness is true of its old lines too.** A journal is years long and holds
+  what every Tade that ever wrote it believed, so the provider a harness reaches and whether its
+  money is money are applied by the *reader* as well as the writer (`HARNESS_FACTS`, `isMoney`,
+  `runFactsOf`). A reader has an id and nothing else — the run is over and its adapter may not
+  exist here any more — so it is a table keyed by the id, held to the adapters by a test
+  (`workbench/test/harnesses.test.ts`) so the two can never drift. It only ever *corrects a wish*:
+  nothing is invented for a harness this Tade does not run, nothing for one that routes, and an
+  account beside a subscription keeps its own money, because it may be billed per token and the
+  plan says nothing about it. What this changes is said plainly rather than done quietly: eleven
+  thousand Claude Code events in one journal say `provider: openrouter` and $1,387 of the $1,465
+  in it was a plan's, and both read differently today than they did yesterday.
+- **What a run was is written down, never read out of a model's name — and never out of a route's
+  wish.** Which harness it ran in, which sign-in it ran as and which provider it was reached
+  through go on `run_started` and on every `usage` event beside `priced`, for the same reason: they
+  are facts about the run, and a fact not recorded when it was true is a question nobody can answer
+  later. The provider is the **harness's** answer (`WorkerAdapter.provider`, declared: `anthropic`
+  for Claude Code, `openai` for Codex, null for pi, which really routes), and only then the
+  route's. A route is a wish: `workers.routes.default` held `provider: openrouter` beside
+  `harness: claude-code`, and Tade wrote that wish onto eleven thousand runs as a fact, filing
+  every one of them under a router Claude Code cannot reach. So the Spend page can
   ask by harness, by sign-in and by provider as well as by agent, project and model — which is the
   only thing that tells `claude-opus-5`, `anthropic/claude-opus-5` and
   `openrouter/anthropic/claude-opus-5` apart, being one model on a subscription, an API key and a
@@ -1021,11 +1046,12 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   agents over an afternoon each ran for the whole of their own afternoon, and a run is wall clock
   from start to stop, so one that finished at noon and sat in its lane until the window closed
   counted the wait. Both are true and both are surprising, so both are said — `runtimeSays` in core
-  is the one sentence, read by `tade spend`, and the window says the same fact as a clause
-  (`spendFooter`: `2h 5m over 3 runs`, beside `~ $1.26 estimated`). Neither may ever *explain* it
-  differently, and the short one may never be the one that leaves something out: `over 3 runs` is
-  what makes a figure that is not elapsed time readable, which is the whole of what the paragraph
-  was for.
+  is the one sentence, read by `tade spend`, and the window says the same fact as a clause riding
+  on the figure itself (`2h 5m over 3 runs`, in the Spend panel's head). Neither may ever *explain*
+  it differently, and the short one may never be the one that leaves something out: `over 3 runs`
+  is what makes a figure that is not elapsed time readable, which is the whole of what the
+  paragraph was for. It is beside the figure and not under the page, for the reason the `~` is:
+  a footnote is read once and a mark is read every time.
 - **A name is the one column that cannot be abbreviated without lying**, so the Spend table is laid
   out from the room there is (`spendColumns`): the figures take what a figure takes, the share
   meter gives ground first, and everything left is the name's. Past that it wraps (`nameLines`) and

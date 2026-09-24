@@ -1,20 +1,20 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2      ╭─ Spend ──────────────────────────────────────────────────────────────────── esc ─╮   high ▾     ×   
-                  │ $2.66  1.9M tokens  2h 5m                       Today    This window    7 days   │──────────────────
- ▌ ! stripe-v15   │                                                                                  │                  
- ▌   wants you to │ by   Agent    Project    Model    Harness    Sign-in    Provider                 │                  
-                  │                                                                                  │                  
-   ⠋ refunds      │   MODEL                                       TOKENS  SHARE      RUNTIME     COST│                  
-     working      │ · claude-opus-5                                 1.8M  █████████░  1h 35m   ~$2.46│                  
-                  │ · claude-sonnet-5                               148k  █░░░░░░░░░     30m    $0.20│                  
- ▸ SMART QUEUE    │                                                                                  │                  
- ▾ CHANGES  3     │ PLAN                                                                             │                  
-  M package.json  │ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago              │                  
-  A …/webhooks.tes│                   7d  ███░░░░░░░  31%  resets in 3d                              │                  
-  M src/webhooks.t│ claude-code @rev… 5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago             │                  
-                  │ pi                cannot tell — is never told what a plan has left; it prices    │                  
- ▾ FILES          │                   each turn instead                                              │                  
+ ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
+                  ╭─ Spend ──────────────────────────────────────────────────────────────────── esc ─╮──────────────────
+ ▌ ! stripe-v15   │ $1.40  1.9M tokens  2h 5m over 3 runs           Today    This window    7 days   │                  
+ ▌   wants you to │                                                                                  │                  
+                  │ by   Agent    Project    Model    Harness    Sign-in    Provider                 │                  
+   ⠋ refunds      │                                                                                  │                  
+     working      │   MODEL                                       TOKENS  SHARE      RUNTIME     COST│                  
+                  │ · claude-opus-5                                 1.8M  █████████░  1h 35m    $1.20│                  
+ ▸ SMART QUEUE    │ · claude-sonnet-5                               148k  █░░░░░░░░░     30m    $0.20│                  
+ ▾ CHANGES  3     │                                                                                  │                  
+  M package.json  │ PLAN                                                                             │                  
+  A …/webhooks.tes│ claude-code       5h  ████████░░  78%  resets in 1h 22m said 6m ago              │                  
+  M src/webhooks.t│                   7d  ███░░░░░░░  31%  resets in 3d                              │                  
+                  │ claude-code @rev… 5h  █░░░░░░░░░  12%  resets in 2h     said 41m ago             │                  
+ ▾ FILES          │ pi                cannot tell                                                    │                  
    ▾ src/         │                                                                                  │                  
        webhooks.te│ PRODUCED                                                                         │                  
        webhooks.ts│ 4 commits    +357 −58  16 files  1 unattributed                                  │                  
@@ -22,13 +22,13 @@
      package.json │ types        2 runs   all green   20.6s                                          │                  
      README.md    │                                                                                  │                  
 ━   orchestrator  │ BUDGETS                                                                          │━━━━   ⤢     ▾   ━
-                  │ checkout        $1.88 of $5.00 a day        █████░░░░░░░ 38%                     │                  
+                  │ checkout        $0.62 of $5.00 a day        █░░░░░░░░░░░ 12%                     │                  
                   │ search          $0.20                       no budget — set one                  │                 ▕
-                  │                                                                                  │                 ▕
-                  │ ~ $1.26 estimated  ·  2h 5m over 3 runs                                          │                 ▕
                   ╰──────────────────────────────────────────────────────────────────────────────────╯                 ▕
+                                                                                                                       ▕
+                                                                                                                       ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute        claude-opus-5 ▾ │ high ▾ │ claude-code 5h █████░ 78% │ 2h 5m │ $2.66 today ▾ 
+   Extensions     Settings     Mute        claude-opus-5 ▾ │ high ▾ │ claude-code 5h █████░ 78% │ 2h 5m │ $1.40 today ▾ 

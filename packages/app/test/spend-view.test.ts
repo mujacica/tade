@@ -179,28 +179,54 @@ describe('grouping what it cost', () => {
     // One model, so one row: `claude-opus-5`, `anthropic/claude-opus-5` and
     // `openrouter/anthropic/claude-opus-5` are the same weights spelled by
     // three harnesses, and added up by the string one agent became three.
-    expect(viewBy('model').rows.map((row) => [row.label, row.usd])).toEqual([
-      ['claude-opus-5', 2.5],
+    expect(viewBy('model').rows.map((row) => [row.label, row.tokens])).toEqual([
+      ['claude-opus-5', 900_000],
     ])
     // What differs is the route, and that is what the three facets below say.
 
     const harness = viewBy('harness').rows
     expect(harness.map((row) => [row.label, row.usd])).toEqual([
       ['pi', 2],
-      ['claude-code', 0.5],
+      // Its plan paid for it, so it spent 400k tokens and no money at all.
+      ['claude-code', 0],
     ])
     expect(viewBy('account').rows.map((row) => row.label)).toEqual([
       'pi',
       'pi @work',
       'claude-code',
     ])
-    expect(viewBy('provider').rows.map((row) => [row.label, row.usd])).toEqual([
-      ['anthropic', 1.25],
-      ['openrouter', 0.75],
-      // The subscription turn named no provider, and nothing guesses one out
-      // of the model's name.
-      ['not recorded', 0.5],
+    // Claude Code's turn lands under the provider Claude Code reaches, which
+    // is the harness's own answer and not the route's: the route on the
+    // machine this was reported from asked for `openrouter` beside
+    // `harness: claude-code`, and that is not a route Claude Code can take.
+    expect(viewBy('provider').rows.map((row) => [row.label, row.usd, row.tokens])).toEqual([
+      ['anthropic', 1.25, 700_000],
+      ['openrouter', 0.75, 200_000],
     ])
+  })
+
+  it('files a run under the provider its harness reaches, not the one a route wished for', () => {
+    // The journal this was reported from: `workers.routes.default` held
+    // `provider: openrouter` beside `harness: claude-code`, so eleven thousand
+    // Claude Code turns were written down as having gone through a router
+    // Claude Code cannot reach. The wish cannot be unwritten; it is not
+    // believed.
+    const wished = [
+      usage({
+        run: 'r1',
+        detail: { model: 'claude-opus-5', harness: 'claude-code', provider: 'openrouter' },
+      }),
+    ]
+    expect(viewBy('provider', wished).rows.map((row) => row.label)).toEqual(['anthropic'])
+  })
+
+  it('leaves a routing harness the provider that was recorded for it', () => {
+    // pi is the harness that really routes, so what the route recorded is the
+    // fact and nothing overrules it.
+    const routed = [
+      usage({ run: 'r1', detail: { harness: 'pi', provider: 'openrouter', priced: 'exact' } }),
+    ]
+    expect(viewBy('provider', routed).rows.map((row) => row.label)).toEqual(['openrouter'])
   })
 
   it('reads the facets off the run when the usage event carries none', () => {
@@ -213,19 +239,19 @@ describe('grouping what it cost', () => {
     expect(viewBy('account', events, runs).rows.map((row) => row.label)).toEqual(['codex @work'])
   })
 
-  it('says what an unrecorded row is, rather than naming a thing that does not exist', () => {
+  it('names an unrecorded row as that, rather than as a thing that does not exist', () => {
     const events = [usage({ run: null, detail: { model: undefined, usd: 0, tokens: 500 } })]
     const [row] = viewBy('model', events).rows
+    // The name and nothing else: a sentence under it saying no model was
+    // written down is read four hundred times and wanted once.
     expect(row?.label).toBe('not recorded')
-    expect(row?.note).toBe('no model was written down for these runs')
   })
 
   it("names the harness's own sign-in as its own, not as an account", () => {
     const [row] = viewBy('account', [
-      usage({ detail: { harness: 'claude-code', usd: 1, priced: 'exact' } }),
+      usage({ detail: { harness: 'pi', usd: 1, priced: 'exact' } }),
     ]).rows
-    expect(row?.label).toBe('claude-code')
-    expect(row?.note).toBe("the harness's own sign-in")
+    expect(row?.label).toBe('pi')
   })
 
   it('puts an agent\u2019s hours and its money in the same row', () => {
@@ -285,16 +311,59 @@ describe('grouping what it cost', () => {
     // What is genuinely unknown stays unknown, and says which it is.
     expect(nobody?.runtime?.ms).toBe(2 * hour)
     expect(nobody?.tokens).toBe(0)
-    expect(nobody?.note).toBe('no model was written down for these runs')
   })
 
   it('keeps priced money apart from estimated, on the row and in the total', () => {
-    const view = viewBy('harness')
+    // A harness that estimates against an API key is estimating a bill
+    // somebody gets, so it is money and is marked as money nobody priced.
+    const view = viewBy('harness', [
+      ...THREE_ROUTES,
+      usage({
+        run: 'r4',
+        task: 'checkout/refunds',
+        detail: {
+          model: 'claude-opus-5',
+          harness: 'claude-code',
+          account: 'billed',
+          tokens: 50_000,
+          usd: 0.5,
+          priced: 'estimate',
+        },
+      }),
+    ])
     expect(view.rows.find((row) => row.label === 'pi')?.priced).toBe('exact')
     expect(view.rows.find((row) => row.label === 'claude-code')?.priced).toBe('estimate')
     expect(view.priced).toBe('mixed')
     expect(view.usdExact).toBe(2)
     expect(view.usdEstimated).toBe(0.5)
+  })
+
+  it('counts a plan\u2019s own turns as tokens and never as dollars', () => {
+    // $954 of "spend" on a plan that charges a flat fee is a number that means
+    // nothing added to a figure that means something: Claude Code's estimate
+    // is its guess at what an API would have charged, and on a subscription
+    // nobody is charged it. What was used up is the plan's windows, which are
+    // their own list and in no total here.
+    const plan = [
+      usage({
+        run: 'r1',
+        detail: {
+          model: 'claude-opus-5',
+          harness: 'claude-code',
+          tokens: 900_000,
+          usd: 954.51,
+          priced: 'estimate',
+        },
+      }),
+    ]
+    const view = viewBy('harness', plan)
+    expect(view.usd).toBe(0)
+    expect(view.usdEstimated).toBe(0)
+    expect(view.hasCost).toBe(false)
+    expect(view.priced).toBe('none')
+    // The effort is still effort, and is still where it went.
+    expect(view.tokens).toBe(900_000)
+    expect(view.rows.map((row) => [row.label, row.tokens])).toEqual([['claude-code', 900_000]])
   })
 })
 
@@ -361,19 +430,11 @@ describe('a long name at any width', () => {
     // Its own string: this is the wrapper, not the table, and what it has to
     // hold is that two lines are tried before anything is thrown away.
     const name = 'openrouter/anthropic/claude-opus-5'
-    expect(nameLines(name, null, 20)).toEqual([
-      { text: 'openrouter/anthropic', note: false },
-      { text: '/claude-opus-5', note: false },
-    ])
+    expect(nameLines(name, 20)).toEqual(['openrouter/anthropic', '/claude-opus-5'])
     // Past two lines it is cut, and the cut is marked.
-    const tiny = nameLines(name, null, 8)
+    const tiny = nameLines(name, 8)
     expect(tiny).toHaveLength(2)
-    expect(tiny.at(-1)?.text.endsWith('…')).toBe(true)
-    // A note is its own line, in its own tone: `not recorded` is not an agent.
-    expect(nameLines('not recorded', 'no model was written down', 30)).toEqual([
-      { text: 'not recorded', note: false },
-      { text: 'no model was written down', note: true },
-    ])
+    expect(tiny.at(-1)?.endsWith('…')).toBe(true)
   })
 
   it('keeps every grouping reachable, however narrow the panel', () => {
@@ -385,15 +446,38 @@ describe('a long name at any width', () => {
     }
   })
 
-  it('marks estimated money where it is read, and says how much at the foot', () => {
-    const rows = drawn('harness', 96).join('\n')
-    // The estimating harness's row carries the mark; the pricing one does not.
+  it('marks money nobody priced where it is read, and nowhere else', () => {
+    const rows = drawn('harness', 96, [
+      ...THREE_ROUTES,
+      usage({
+        run: 'r4',
+        detail: {
+          model: 'claude-opus-5',
+          harness: 'claude-code',
+          account: 'billed',
+          tokens: 50_000,
+          usd: 0.5,
+          priced: 'estimate',
+        },
+      }),
+    ]).join('\n')
+    // The estimating sign-in's row carries the mark, the pricing one does not,
+    // and the total carries it because it holds both.
     expect(rows).toMatch(/~\$0\.50/)
     expect(rows).toMatch(/[^~]\$2\.00/)
-    // And the foot is the mark and the figure, not the paragraph it was:
-    // `tade spend` says the whole of it, which is where somebody asks.
-    expect(rows).toContain('~ $0.50 estimated')
+    expect(rows).toMatch(/~\$2\.50/)
+    // And there is no footnote under the page saying it again: the mark is on
+    // the figure, and `tade spend` says the whole of it where somebody asks.
+    expect(rows).not.toContain('estimated')
     expect(rows).not.toContain('priced by the harness')
+  })
+
+  it('says no money at all as that, rather than as a zero somebody could trust', () => {
+    const rows = drawn('harness', 96, [
+      usage({ run: 'r1', detail: { harness: 'claude-code', tokens: 900_000, usd: 954.51 } }),
+    ]).join('\n')
+    expect(rows).toContain('—')
+    expect(rows).not.toContain('954')
   })
 })
 

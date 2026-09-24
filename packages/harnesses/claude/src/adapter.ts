@@ -218,9 +218,18 @@ interface Run {
   counting: NodeJS.Timeout | null
 }
 
-export class ClaudeAdapter implements WorkerAdapter {
-  readonly id = CLAUDE_CODE
-  readonly capabilities: WorkerCapabilities = {
+/**
+ * What Claude Code can do, on this sign-in.
+ *
+ * Everything here is the same whoever is signed in but the money, and the
+ * money is the whole of the difference: a subscription charges a flat fee, so
+ * there is no price per turn to report and Claude Code's own running estimate
+ * is a guess at what an API would have charged rather than a bill anybody
+ * gets. Totalled as money it is a large number that means nothing. Against an
+ * API key that same estimate is what the account will be charged.
+ */
+function claudeCapabilities(account: HarnessAccount | undefined): WorkerCapabilities {
+  return {
     permissionGate: true,
     // Typed while a turn runs, Claude Code takes it at its next tool call and
     // answers it in the same turn: a real steer.
@@ -246,7 +255,14 @@ export class ClaudeAdapter implements WorkerAdapter {
     // `-p --input-format stream-json`: a conversation over its own protocol,
     // which is how Tade draws the thing you talk to.
     headless: true,
-    spend: { usd: 'estimate', tokens: true, limits: 'while-working' },
+    // A plan has no price per turn, so on a subscription there is no money
+    // to report at all and the plan's windows are what is used up. Against an
+    // API key the same estimate is a bill somebody gets, and is worth saying.
+    spend: {
+      usd: account?.kind === 'api-key' ? 'estimate' : 'none',
+      tokens: true,
+      limits: 'while-working',
+    },
     accounts: true,
     why: {
       model:
@@ -258,10 +274,29 @@ export class ClaudeAdapter implements WorkerAdapter {
       nativeExtensions:
         'has no place for pi extensions: their tools and skills still reach it, their own code does not',
       spend:
-        "prices a session only as its own estimate; on a subscription it is the plan's limits that are used up",
+        account?.kind === 'api-key'
+          ? 'prices a session only as its own estimate, never against a catalog'
+          : "is paid for by a plan, which has no price per turn: what is used up is the plan's windows",
       limits: 'reports it as one of its agents replies, so there is nothing to show until one has',
     },
   }
+}
+
+export class ClaudeAdapter implements WorkerAdapter {
+  readonly id = CLAUDE_CODE
+  /**
+   * Anthropic, through Claude Code's own sign-in. It reaches no router and
+   * takes no provider in front of a model name, so a route that asks for one
+   * is asking for something this harness cannot do — and every Claude Code run
+   * in this machine's journal was nonetheless filed under `openrouter`,
+   * because the route said so and nobody asked the harness.
+   */
+  readonly provider = 'anthropic'
+  /**
+   * Built here rather than declared flat, because what its money is worth
+   * depends on how this account pays: see `claudeCapabilities`.
+   */
+  readonly capabilities: WorkerCapabilities
 
   readonly programs: readonly RequiredProgram[] = [
     {
@@ -300,6 +335,7 @@ export class ClaudeAdapter implements WorkerAdapter {
       home,
       account: opts.account,
     }
+    this.capabilities = claudeCapabilities(opts.account)
   }
 
   async probe(): Promise<HarnessProbe> {
@@ -835,6 +871,20 @@ export class ClaudeAdapter implements WorkerAdapter {
     }
   }
 
+  /**
+   * Money, or nothing at all.
+   *
+   * Claude Code's figure is its own estimate of what an API would have
+   * charged, and on a plan that is not what anybody pays: reported as money it
+   * makes a total that means nothing out of a flat fee. So it is reported only
+   * where this account is billed per token, which is what the harness already
+   * declares (`capabilities.spend.usd`) and what every reader of the journal
+   * reads it as.
+   */
+  private priceable(usd: number): number {
+    return this.capabilities.spend.usd === 'none' ? 0 : usd
+  }
+
   /** What a turn cost, as the protocol reports it when the turn ends. */
   private sayResultUsage(run: Run, event: Record<string, unknown>): void {
     const usage = (event.usage ?? {}) as Record<string, unknown>
@@ -846,7 +896,7 @@ export class ClaudeAdapter implements WorkerAdapter {
     const total = typeof event.total_cost_usd === 'number' ? event.total_cost_usd : 0
     // Its own running total for this process where it grows, and what this
     // turn cost where it does not: never a charge made up out of the two.
-    const usd = total > run.cost ? total - run.cost : total
+    const usd = this.priceable(total > run.cost ? total - run.cost : total)
     if (total > run.cost) run.cost = total
     const tokens = input + output + cacheRead + cacheWrite
     if (tokens <= 0 && usd <= 0) return
@@ -1147,21 +1197,26 @@ export class ClaudeAdapter implements WorkerAdapter {
       this.say(entry, { type: 'context', tokens: tokens || null, percent })
     }
     // Its own estimate of what the session has cost, as a running total for
-    // this process: what grew since it last said is what this reply cost.
+    // this process: what grew since it last said is what this reply cost —
+    // and nothing at all where a plan pays, because a usage signal of zeros is
+    // a line in the journal that says nothing. The tokens still arrive, from
+    // the transcript, as the turn ends.
     const cost = (status.cost as { total_cost_usd?: unknown } | undefined)?.total_cost_usd
     if (typeof cost === 'number' && cost > entry.cost) {
-      const usd = cost - entry.cost
+      const usd = this.priceable(cost - entry.cost)
       entry.cost = cost
-      this.say(entry, {
-        type: 'usage',
-        model: entry.model,
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        tokens: 0,
-        usd,
-      })
+      if (usd > 0) {
+        this.say(entry, {
+          type: 'usage',
+          model: entry.model,
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          tokens: 0,
+          usd,
+        })
+      }
     }
     const limits = status.rate_limits as Record<string, unknown> | undefined
     if (limits) {

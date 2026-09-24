@@ -516,13 +516,19 @@ export class Workbench {
     for (const lane of this.registry.list()) {
       if (lane.kind !== 'agent') continue
       const harness = lane.harness ?? (await this.harnessOf(lane.task, lane.spec.cwd))
+      const adapter = await Promise.resolve()
+        .then(() => this.adapterFor(harness, lane.account))
+        .catch(() => null)
       const session = await Promise.resolve()
-        .then(() =>
-          this.adapterFor(harness, lane.account).spent(lane.task as TaskId, lane.spec.cwd),
-        )
+        .then(() => adapter?.spent(lane.task as TaskId, lane.spec.cwd) ?? noHarnessSpend())
         .catch(() => noHarnessSpend())
       if (session.messages === 0) continue
       const known = journalled.byTask[lane.task] ?? noSpend()
+      // What this harness's dollars are worth, so money it cannot price is
+      // never reconciled into the journal: what the journal read of a plan's
+      // turns is nothing, so the difference would be the whole session,
+      // written again at every open and never closing. Tokens either way.
+      const prices = adapter?.capabilities.spend.usd !== 'none'
       // Each measure on its own, never below nothing: a harness whose record
       // keeps tokens and no prices (Claude Code's) knows less money than the
       // journal was told live, and that is not a refund.
@@ -532,7 +538,7 @@ export class Workbench {
         cacheRead: Math.max(0, session.cacheRead - known.cacheRead),
         cacheWrite: Math.max(0, session.cacheWrite - known.cacheWrite),
         tokens: Math.max(0, session.tokens - known.tokens),
-        usd: Math.max(0, session.usd - known.usd),
+        usd: prices ? Math.max(0, session.usd - known.usd) : 0,
       }
       // Only ever forward. The journal knowing more than the session means the
       // session was trimmed or replaced, and inventing a negative charge to
@@ -547,7 +553,7 @@ export class Workbench {
           // the bucket for nothing recorded — written the one way every other
           // writer writes it, or money found later would be a row of its own.
           ...modelDetail(session.model),
-          priced: this.adapterFor(harness, lane.account).capabilities.spend.usd,
+          priced: adapter?.capabilities.spend.usd ?? 'estimate',
           // And whose it was: the lane says which harness and which sign-in,
           // so money found later is filed exactly where the live turns were.
           harness,

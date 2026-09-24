@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│                                                                                         
                              █│   Nothing is running in checkout.                                                       
-   ! stripe-v15      $1.26   █│                                                                                         
+   ! stripe-v15   880k tok   █│                                                                                         
      wants you to approve…   █│     + New agent     Open project                                                        
                              █│                                                                                         
    ⠋ refunds         $0.62   █│   Or hold    ctrl   +   space   and say what you want.                                  
@@ -31,4 +31,4 @@
 ─ ▣ tade-clipboard-1.png  ×   ─ ─────────────────────  enter sends · shift+enter new line · ctrl+c clears, again quits ─
  why does the refund button look like this▏                                                                             
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $2.66 today ▾ 
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

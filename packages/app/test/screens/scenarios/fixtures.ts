@@ -168,10 +168,13 @@ export const frame = (over: Partial<Frame> = {}): Frame => ({
   base: 'main',
   spend: {
     tokens: 1_900_000,
-    usd: 2.66,
+    // The same morning the Spend panel draws, so the strip and the panel can
+    // never say two different things about it: the Claude Code agent's turns
+    // are its plan's and are no money, which is why 1.9M tokens cost $1.40.
+    usd: 1.4,
     hasCost: true,
     byTask: {
-      'checkout/stripe-v15': { tokens: 880_000, usd: 1.26 },
+      'checkout/stripe-v15': { tokens: 880_000, usd: 0 },
       'checkout/refunds': { tokens: 460_000, usd: 0.62 },
       'search/pagination': { tokens: 148_000, usd: 0.2 },
     },

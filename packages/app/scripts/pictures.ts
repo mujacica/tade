@@ -238,8 +238,9 @@ export const PICTURES: readonly Picture[] = [
     crop: 'panel',
     about:
       'Spend: every agent and the orchestrator with its model, tokens, share, runtime and cost, ' +
-      'estimated money marked apart from priced, what that bought in commits and lines, how the ' +
-      'project’s own checks have been going, and each project against the budget you set it.',
+      'money nobody priced marked where it is read and a plan’s own turns counted as the plan ' +
+      'they are, what that bought in commits and lines, how the project’s own checks have been ' +
+      'going, and each project against the budget you set it.',
   },
   {
     file: 'spend-by-model.svg',

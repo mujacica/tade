@@ -203,6 +203,8 @@ interface Run {
 
 export class CodexAdapter implements WorkerAdapter {
   readonly id = CODEX
+  /** OpenAI, through its own sign-in: Codex reaches nothing else. */
+  readonly provider = 'openai'
   readonly capabilities: WorkerCapabilities = {
     // Its PreToolUse hook holds the call until Tade answers, and a refusal
     // from that hook is what stops it.

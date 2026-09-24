@@ -398,7 +398,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               ),
               safe,
               extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
-              onUsage: ({ model, ...usage }) => {
+              onUsage: ({ model, provider, ...usage }) => {
                 void client.log
                   .append({
                     type: 'usage',
@@ -406,8 +406,15 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
                     // The model written the one way everything writes it: what
                     // the orchestrator costs is the same question as what an
                     // agent costs, and a second spelling of one model here is
-                    // a second row of it on the Spend page.
-                    detail: { by: 'orchestrator', ...usage, ...modelDetail(model) },
+                    // a second row of it on the Spend page. A provider nobody
+                    // recorded is left out rather than written as `null`,
+                    // which reads as a provider of that name.
+                    detail: {
+                      by: 'orchestrator',
+                      ...usage,
+                      ...(provider ? { provider } : {}),
+                      ...modelDetail(model),
+                    },
                   })
                   .catch(() => {})
               },

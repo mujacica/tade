@@ -120,6 +120,18 @@ export function testHarness(name: string, options: HarnessConformanceOptions): v
         }
       })
 
+      it('says which provider it reaches, or that it routes', async () => {
+        // A fact about the harness, because a route is only a wish: a route
+        // asking for a router a harness cannot reach filed eleven thousand
+        // Claude Code runs under OpenRouter. Null is the honest answer for a
+        // harness that really routes, and is not the same as an empty name.
+        const { provider } = await adapter()
+        if (provider === null) return
+        expect(typeof provider).toBe('string')
+        expect(provider.trim()).toBe(provider)
+        expect(provider.length).toBeGreaterThan(0)
+      })
+
       it('declares the programs it needs in a way anything can look up and ask', async () => {
         // `probe` says whether the one here runs; this says what it is and
         // how to see its version, so keeping it current never means knowing

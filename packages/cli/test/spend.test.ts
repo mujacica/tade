@@ -53,7 +53,8 @@ it('says what today cost while a window has the home open', async () => {
 it('groups what it cost by harness, sign-in and provider, and says which money is which', async () => {
   const home = tmp('tade-cli-spend-by-')
   window = await Workbench.open({ home })
-  // One model reached two ways, in two harnesses, on two kinds of money.
+  // One model reached three ways, in two harnesses, on three kinds of money:
+  // a plan, an API key, and a router priced against a catalog.
   await window.log.append({
     type: 'usage',
     task: 'app/refunds',
@@ -61,9 +62,24 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
     detail: {
       model: 'claude-opus-5',
       tokens: 1_000,
+      usd: 954.51,
+      priced: 'estimate',
+      harness: 'claude-code',
+      // What the route wished for, beside a harness that cannot reach it.
+      provider: 'openrouter',
+    },
+  })
+  await window.log.append({
+    type: 'usage',
+    task: 'app/billing',
+    run: 'app/billing/agent',
+    detail: {
+      model: 'claude-opus-5',
+      tokens: 500,
       usd: 0.4,
       priced: 'estimate',
       harness: 'claude-code',
+      account: 'billed',
     },
   })
   await window.log.append({
@@ -78,6 +94,19 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
       harness: 'pi',
       account: 'work',
       provider: 'anthropic',
+    },
+  })
+  await window.log.append({
+    type: 'usage',
+    task: 'app/queue',
+    run: 'app/queue/agent',
+    detail: {
+      model: 'openrouter/anthropic/claude-opus-5',
+      tokens: 3_000,
+      usd: 0.5,
+      priced: 'exact',
+      harness: 'pi',
+      provider: 'openrouter',
     },
   })
   const result = await new Promise<{ code: number | null; stdout: string }>((resolve) => {
@@ -97,10 +126,13 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
   expect(result.stdout).toContain('by sign-in')
   expect(result.stdout).toContain('pi@work')
   expect(result.stdout).toContain('by provider')
-  expect(result.stdout).toContain('anthropic')
-  // The provider of the subscription turn was never written down, and nothing
-  // reads one out of a model's name.
-  expect(result.stdout).toContain('not recorded')
-  // Priced and estimated money never added in silence.
-  expect(result.stdout).toContain('$1.10 priced by the harness, $0.40 estimated')
+  // Claude Code reaches Anthropic and no router, whatever the route wished
+  // for, so both its turns are Anthropic's; pi is the harness that really
+  // routes, and the one recorded against it stands.
+  expect(result.stdout).toMatch(/anthropic\s+\$1\.50\s+4k tokens/)
+  expect(result.stdout).toMatch(/openrouter\s+\$0\.50\s+3k tokens/)
+  // A plan charges a flat fee, so its $954 is tokens and hours and no money;
+  // the API key's estimate is a bill somebody gets, and is counted and marked.
+  expect(result.stdout).not.toContain('954')
+  expect(result.stdout).toContain('$1.60 priced by the harness, $0.40 estimated')
 }, 30_000)

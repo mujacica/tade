@@ -250,6 +250,98 @@ describe('priced or guessed', () => {
   })
 })
 
+// A journal is years long and holds what every Tade that ever wrote it
+// believed. What a harness *is* — the provider it reaches, whether its money
+// is money — is a fact about the harness and not about any one line, so it is
+// the same answer for a line written today and a line written last spring.
+describe('what a reader may believe about a harness', () => {
+  /**
+   * The shape of the journal this was reported from: one Claude Code agent on
+   * a subscription and one pi agent through a router, the same model spelled
+   * each harness's own way, and a route that had written `openrouter` onto
+   * every line of both because the config said so.
+   */
+  const BOTH: TadeEvent[] = [
+    usage({
+      run: 'r1',
+      task: 'tade/spend',
+      detail: {
+        model: 'claude-opus-5',
+        modelId: 'anthropic/claude-opus-5',
+        harness: 'claude-code',
+        provider: 'openrouter',
+        priced: 'estimate',
+        tokens: 900_000,
+        usd: 954.51,
+      },
+    }),
+    usage({
+      run: 'r2',
+      task: 'tade/queue',
+      detail: {
+        model: 'claude-opus-5',
+        modelId: 'openrouter/anthropic/claude-opus-5',
+        harness: 'pi',
+        provider: 'openrouter',
+        priced: 'exact',
+        tokens: 140_000,
+        usd: 78.23,
+      },
+    }),
+  ]
+
+  it('files the money and the tokens where each belongs', () => {
+    const report = spendFrom(BOTH, { since: 0 })
+    // The plan's turns are tokens and no money; pi's are money it priced.
+    expect(report.total.usd).toBe(78.23)
+    expect(report.total.usdExact).toBe(78.23)
+    expect(report.total.usdEstimated).toBe(0)
+    expect(report.total.tokens).toBe(1_040_000)
+    expect(pricedOf(report.total)).toBe('exact')
+    expect(report.byHarness['claude-code']?.usd).toBe(0)
+    expect(report.byHarness['claude-code']?.tokens).toBe(900_000)
+    expect(report.byHarness.pi?.usd).toBe(78.23)
+    // Both spellings are one model, and its hours and its money are one row.
+    expect(Object.keys(report.byModel)).toEqual(['claude-opus-5'])
+  })
+
+  it('does not believe a router beside a harness that cannot reach one', () => {
+    const report = spendFrom(BOTH, { since: 0 })
+    // Claude Code reaches Anthropic through its own sign-in and no router, so
+    // the tokens of that agent are Anthropic's whatever the route wished; pi
+    // is the harness that really routes, and its line stands as recorded.
+    expect(report.byProvider.anthropic?.tokens).toBe(900_000)
+    expect(report.byProvider.anthropic?.usd).toBe(0)
+    expect(report.byProvider.openrouter?.usd).toBe(78.23)
+    expect(report.byProvider.openrouter?.tokens).toBe(140_000)
+  })
+
+  it('leaves a harness it does not know exactly as it was recorded', () => {
+    // A journal written by a newer Tade, or by one with a harness this one
+    // does not run: nothing is invented, and nothing is taken away.
+    const report = spendFrom(
+      [usage({ detail: { harness: 'something-else', provider: 'a-router', usd: 4 } })],
+      { since: 0 },
+    )
+    expect(report.byProvider['a-router']?.usd).toBe(4)
+  })
+
+  it('leaves an account beside a subscription its own money', () => {
+    // A sign-in added beside the harness's own may be billed per token, and
+    // the harness's own plan says nothing about it.
+    const report = spendFrom(
+      [
+        usage({
+          detail: { harness: 'claude-code', account: 'billed', usd: 3, priced: 'estimate' },
+        }),
+      ],
+      { since: 0 },
+    )
+    expect(report.byAccount['claude-code@billed']?.usd).toBe(3)
+    expect(pricedOf(report.total)).toBe('estimate')
+  })
+})
+
 // One model has as many spellings as there are ways of reaching it, and the
 // journal is full of all of them: the one this was written from had
 // `claude-opus-5` 9,846 times, `openrouter/anthropic/claude-opus-5` 5,858,

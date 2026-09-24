@@ -306,7 +306,7 @@ export class WorkerSupervisor {
         adapter,
         task: request.task,
         worktree: request.cwd,
-        facts: factsOf(request, adapter.id),
+        facts: factsOf(request, adapter),
         model: modelAsked(request),
         stop,
       })
@@ -350,7 +350,7 @@ export class WorkerSupervisor {
       stop()
       throw err
     }
-    const facts = factsOf(request, adapter.id)
+    const facts = factsOf(request, adapter)
     this.runs.set(run, {
       handle,
       adapter,
@@ -368,17 +368,15 @@ export class WorkerSupervisor {
         cwd: request.cwd,
         adapter: adapter.id,
         // The model by its own name, and the spelling that reaches it again
-        // where they differ — written exactly as `usage` and `run_model`
-        // write it, because a run timed under one spelling and priced under
-        // another is one agent drawn as two models that never ran together.
-        // Nothing at all when nothing was asked for: pi picks by what you are
-        // signed in to, and what it picked arrives as `run_model`.
+        // where they differ — written exactly as `usage` and `run_model` write
+        // it, because a run timed under one spelling and priced under another
+        // is one agent drawn as two models that never ran together. Nothing at
+        // all when nothing was asked for: pi picks by what you are signed in
+        // to, and what it picked arrives as `run_model`.
         ...modelDetail(request.model?.id),
         // Which sign-in and which provider, beside which harness: three rows
         // that are one model reached three ways are only ever told apart by
-        // these, and a model id is not one of them — `anthropic/claude-opus-5`
-        // through OpenRouter is a real route, and reading the provider out of
-        // the name would file it under Anthropic and be sure about it.
+        // these, and a model id is not one of them (`factsOf`).
         account: facts.account,
         provider: facts.provider,
         approvals: this.approvals.mode,
@@ -641,17 +639,14 @@ export class WorkerSupervisor {
             cacheWrite: signal.cacheWrite,
             tokens: signal.tokens,
             usd: signal.usd,
-            // Whether that money was priced or guessed, as the harness itself
-            // declares it: pi prices every turn against its own catalog,
-            // Claude Code can only estimate. Written down beside the figure
-            // rather than worked out when it is read, because which harness a
-            // run was in is a fact about the run, and adding an exact dollar
-            // to an estimated one without saying so is how a total nobody can
-            // defend gets onto a dashboard.
+            // Whether that money was priced, guessed, or is no money at all
+            // because a plan pays — as the harness itself declares it. Written
+            // down beside the figure rather than worked out when it is read:
+            // adding an exact dollar to an estimated one without saying so is
+            // how a total nobody can defend gets onto a dashboard.
             priced: this.adapterOf(run).capabilities.spend.usd,
-            // And which harness, sign-in and provider spent it. The same
-            // reasoning: a fact about the run, written down beside the figure
-            // rather than worked out from a name when somebody reads it.
+            // And which harness, sign-in and provider spent it: facts about
+            // the run, written beside the figure rather than read off a name.
             ...factsDetail(this.runs.get(run)?.facts),
           },
         })
@@ -1067,17 +1062,22 @@ function signatureOf(tool: string, summary: string): string {
 }
 
 /**
- * Which harness, sign-in and provider a run is on, read off what it was asked
- * for. `harness` arrives as the key its adapter is filed under — the harness
- * alone, or `harness@account` — so the two halves are taken back apart rather
- * than trusted to arrive separately.
+ * Which harness, sign-in and provider a run is on. `harness` arrives as the
+ * key its adapter is filed under — the harness alone, or `harness@account` —
+ * so the two halves are taken back apart rather than trusted to arrive.
+ *
+ * The provider is the **adapter's** answer wherever it has one, and only then
+ * the route's: a route is a wish and a harness is what happens. This machine's
+ * route asked for `provider: openrouter` beside `harness: claude-code`, and
+ * eleven thousand Claude Code runs were filed under a router it cannot reach.
+ * Only a harness that routes (pi) has nothing to say, and there the route is it.
  */
-function factsOf(request: StartRunRequest, fallback: string): RunState['facts'] {
+function factsOf(request: StartRunRequest, adapter: WorkerAdapter): RunState['facts'] {
   const parts = adapterParts(request.harness ?? '')
   return {
-    harness: parts.harness || fallback,
+    harness: parts.harness || adapter.id,
     account: request.account ?? parts.account,
-    provider: request.model?.provider ?? null,
+    provider: adapter.provider ?? request.model?.provider ?? null,
   }
 }
 

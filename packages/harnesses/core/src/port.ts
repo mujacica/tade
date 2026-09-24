@@ -643,6 +643,19 @@ export interface WorkerAdapter {
   readonly id: string
   readonly capabilities: WorkerCapabilities
   /**
+   * The provider this harness reaches its models through, where reaching one
+   * is a fact about the harness rather than a choice anybody makes: Claude
+   * Code reaches Anthropic through its own sign-in and no router, Codex
+   * reaches OpenAI. Null where the harness routes — pi reaches whatever it is
+   * pointed at — and there what the route asked for is what it got.
+   *
+   * Declared, because what a run was is written down and never read out of a
+   * model's name. A route is a *wish*: `workers.routes.default.provider` said
+   * `openrouter` beside `harness: claude-code`, and every Claude Code run in
+   * this machine's journal was filed under a router it cannot reach.
+   */
+  readonly provider: string | null
+  /**
    * The programs this harness needs on the machine, and how to ask each its
    * version. `probe` says whether the one here can run; this says what it is
    * and how to see it, so keeping it current never means knowing at a call

@@ -12,9 +12,12 @@ import type { TadeEvent } from './events.ts'
 // still add them — a person asking what the morning cost wants one number —
 // but never in silence: `pricedOf` is what every surface says it with.
 //
-// A subscription-billed provider reports tokens and no money at all. That is
+// A subscription reports tokens and no money at all, and what a harness on one
+// once guessed a turn would have cost is not money either (`isMoney`). That is
 // not zero spend, it is unknown spend, and a dollar budget cannot police it —
 // so a token budget exists too, and `hasCost` says which you are looking at.
+// What a plan has left is the other thing entirely: `PlanWindow`, its own list,
+// in no total here.
 //
 // The same dollar is added to several buckets — the project, the task, the
 // model, the harness it ran in, the sign-in it ran as, the provider it was
@@ -187,6 +190,57 @@ export function noRunFacts(): RunFacts {
 }
 
 /**
+ * What is true of every run in a harness, whatever any one of them wrote down.
+ *
+ * A route is a *wish*: `workers.routes.default` held `provider: openrouter`
+ * beside `harness: claude-code`, and Tade wrote that wish onto every run and
+ * every dollar as though it were a fact — eleven thousand Claude Code events
+ * filed under a router Claude Code cannot reach. The harness is what knows,
+ * and it declares it (`WorkerAdapter.provider`, `capabilities.spend.usd`).
+ *
+ * This is that same declaration where a *reader of the journal* can use it.
+ * A reader has an id and nothing else — the run is over, its adapter may not
+ * exist on this machine any more — so a table keyed by the id is the only
+ * shape the answer can take. It never invents a harness: one nobody here
+ * knows is read exactly as it was recorded, which is what a journal written
+ * by a newer Tade reads as. `test/harnesses.test.ts` in the workbench holds
+ * every adapter to its row, so the two can never drift.
+ */
+export interface HarnessFacts {
+  /**
+   * The provider it reaches, where reaching one is a fact about the harness.
+   * Null where it routes — pi reaches whatever it is pointed at — and there
+   * what the route recorded is the answer.
+   */
+  provider: string | null
+  /**
+   * What its dollars are worth **on its own sign-in**: `none` where a plan
+   * pays for the work, so there is no price per turn at all. An account added
+   * beside it may be billed per token, and is left alone.
+   */
+  usd: 'exact' | 'estimate' | 'none'
+}
+
+export const HARNESS_FACTS: Readonly<Record<string, HarnessFacts>> = {
+  pi: { provider: null, usd: 'exact' },
+  'claude-code': { provider: 'anthropic', usd: 'none' },
+  codex: { provider: 'openai', usd: 'none' },
+}
+
+/**
+ * Whether these dollars are money somebody is billed.
+ *
+ * False for a subscription's own sign-in, where the figure is the harness's
+ * guess at what an API would have charged and nobody is charged it — money
+ * that means nothing added to a figure that means something. What was used up
+ * there is the plan's windows, which are their own list and in no total.
+ */
+export function isMoney(facts: RunFacts): boolean {
+  if (facts.account !== null) return true
+  return HARNESS_FACTS[facts.harness]?.usd !== 'none'
+}
+
+/**
  * How a sign-in is filed: the harness alone for its own, `harness@account` for
  * an account's — the same spelling the adapter it runs on is filed under, so
  * what the Spend page calls a sign-in and what Settings calls one are one name.
@@ -206,10 +260,15 @@ export function runFactsOf(event: TadeEvent): RunFacts {
   // what a usage event writes. Either answers the same question.
   const harness = text('harness') || text('adapter')
   const account = event.detail.account
+  // The harness's own answer over whatever was recorded beside it: a run's
+  // provider was written from the route that asked for it, and a route can
+  // ask for a router the harness cannot reach. Nothing is invented for a
+  // harness that routes, or for one this Tade does not know.
+  const provider = text('provider')
   return {
     harness,
     account: typeof account === 'string' && account !== '' ? account : null,
-    provider: text('provider'),
+    provider: HARNESS_FACTS[harness]?.provider ?? provider,
   }
 }
 
@@ -353,7 +412,11 @@ export function spendFrom(
       into(report.byProvider, facts.provider),
     ]
     if (task) buckets.push(into(report.byTask, task))
-    for (const bucket of buckets) add(bucket, event)
+    // Whether the dollars on it are money at all, decided once for the event
+    // and given to every bucket it counts towards, so the total and the
+    // per-provider figure can never disagree about what money is.
+    const money = isMoney(facts)
+    for (const bucket of buckets) add(bucket, event, money)
   }
   return report
 }
@@ -365,7 +428,7 @@ function into(buckets: Record<string, Spend>, key: string): Spend {
   return found
 }
 
-function add(spend: Spend, event: TadeEvent): void {
+function add(spend: Spend, event: TadeEvent, money: boolean): void {
   const number = (key: string) => {
     const value = event.detail[key]
     return typeof value === 'number' && Number.isFinite(value) ? value : 0
@@ -375,7 +438,10 @@ function add(spend: Spend, event: TadeEvent): void {
   spend.cacheRead += number('cacheRead')
   spend.cacheWrite += number('cacheWrite')
   spend.tokens += number('tokens')
-  const usd = number('usd')
+  // A plan's own sign-in reported a figure before anybody asked whether it
+  // was money; the tokens it spent are real and the dollars were never a
+  // bill, so the tokens stay and the dollars are not counted anywhere.
+  const usd = money ? number('usd') : 0
   spend.usd += usd
   if (usd > 0) {
     spend.hasCost = true

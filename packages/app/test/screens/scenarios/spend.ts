@@ -11,9 +11,14 @@ import { base, frame, made, NOW, ran, type Scenario, usage } from './fixtures.ts
  *
  * `claude-opus-5` on a Claude Code subscription, `anthropic/claude-opus-5`
  * through an API key and `openrouter/anthropic/claude-opus-5` through a router
- * are the same weights and three different bills. The name is the only thing
- * that tells them apart, which is why the name column may never be cut without
+ * are the same weights reached three ways. The name is the only thing that
+ * tells them apart, which is why the name column may never be cut without
  * saying so.
+ *
+ * The subscription's line still carries the dollars an older Tade wrote onto
+ * it, because a journal is append-only and every journal has them. They are
+ * not money and are in no total: what that agent used up is its plan's
+ * windows, in the list below.
  */
 const spent = [
   usage(null, 'openrouter/anthropic/claude-opus-5', 412_000, 0.58, {
