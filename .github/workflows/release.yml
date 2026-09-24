@@ -158,6 +158,22 @@ jobs:
       # no NPM_TOKEN anywhere in this repository, and there must never be one.
       id-token: write
     steps:
+      # The one thing about this publish that is not a property of the tarball.
+      # GitHub stopped issuing provenance attestations from private sources in
+      # July 2023, and npm refuses the publish rather than quietly dropping the
+      # attestation — so a private repository fails here, at the last step of a
+      # run whose gate took ten minutes, with a registry error that names none
+      # of this. Said by name instead, and said only on a real release: a
+      # rehearsal from the Actions tab never reaches this job.
+      - name: provenance needs a public repository
+        env:
+          PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          [ "$PRIVATE" = "true" ] || exit 0
+          echo "::error::$GITHUB_REPOSITORY is private, and npm publishes no provenance from a private repository."
+          echo "::error::Make the repository public before tagging, or take --provenance off the publish step"
+          echo "::error::below and lose the attestation. Nothing has been published."
+          exit 1
       - uses: actions/setup-node@v5
         with:
           node-version: '22'

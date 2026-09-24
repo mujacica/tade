@@ -274,6 +274,13 @@ function manifestFor(
     // its executable bit, and every PTY spawn then fails with `posix_spawnp
     // failed`. Nothing else runs on install.
     scripts: { postinstall: 'node scripts/fix-pty-permissions.mjs' },
+    // Carried, and it is nobody's install that it fixes: pnpm reads
+    // `onlyBuiltDependencies` from the project being installed into and never
+    // from a dependency's own manifest, so on 10 and on 12 alike `pnpm add -g
+    // tade-sh` holds node-pty, better-sqlite3 and the postinstall above, and
+    // says so. What answers that is `pnpm approve-builds -g`, which is in the
+    // README, in `nativeTrouble` and in `helperProblem` — here is where
+    // somebody reading this field would otherwise conclude it was handled.
     pnpm: root.pnpm,
   }
 }
