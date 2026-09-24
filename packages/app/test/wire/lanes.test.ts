@@ -1,10 +1,22 @@
 import { ECHO_CHILD } from '@tade/drivers-core/conformance'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
+import { type FakeTerminal, SPAWNING_MS, screenOf, until, windowUnderTest } from './harness.ts'
 
 // A terminal opened in the window, and the wheel over one — which is the
 // window's to answer, or the program's own, and never a guess.
+
+/**
+ * The newest line the shell printed that is still on screen, which is how far
+ * back the wheel has taken it. Nought where it has gone back past all of them.
+ */
+function newestPrinted(terminal: FakeTerminal): number {
+  const seen = screenOf(terminal.written).flatMap((row) => {
+    const found = /printed line (\d+)/.exec(row)
+    return found ? [Number(found[1])] : []
+  })
+  return seen.length === 0 ? 0 : Math.max(...seen)
+}
 
 describe('the window, and the lanes in it', () => {
   let terminal: FakeTerminal
@@ -38,14 +50,7 @@ describe('the window, and the lanes in it', () => {
     const shell = rows.findIndex((row) => row.includes('printed line 400'))
     expect(shell).toBeGreaterThan(0)
 
-    /** The newest line still on screen, which says how far back it has gone. */
-    const newest = () => {
-      const seen = screenOf(terminal.written).flatMap((row) => {
-        const found = /printed line (\d+)/.exec(row)
-        return found ? [Number(found[1])] : []
-      })
-      return seen.length === 0 ? 0 : Math.max(...seen)
-    }
+    const newest = () => newestPrinted(terminal)
 
     /**
      * Where a flick came to rest, rather than where it was passing through.
@@ -90,17 +95,44 @@ describe('the window, and the lanes in it', () => {
     // above the live screen cannot change, and reading it back on every look
     // cost what it asked for — twelve milliseconds two thousand lines back,
     // four times a second, for lines that were the same every time.
+    //
     // Once it has stopped printing: a lane still growing has to be read
-    // again, and that is the bottom being read, not the scrollback.
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    // again, and that is the bottom being read, not the scrollback. Waited
+    // out by the lane's own depth rather than by a sleep — how long a shell
+    // takes to finish four hundred lines and put its prompt back is the
+    // machine's business, and a sleep long enough here is a sleep that was
+    // guessed. Rested rather than merely equal, as `rested` above is: a shell
+    // between two writes is as still as one that has finished.
+    let deep = -1
+    let still = 0
+    await until(
+      'the shell done printing',
+      async () => {
+        const now = (await client.screen(opened.id)).lines
+        still = now === deep ? still + 1 : 0
+        deep = now
+        return still >= 20
+      },
+      SPAWNING_MS,
+    )
+
+    // And counted over looks rather than over milliseconds: what a read costs
+    // is per look, so how many of them a machine fits into half a second says
+    // nothing about whether the window is reading a lane it need not read.
     let reads = 0
+    let looks = 0
     const read = client.capture.bind(client)
     client.capture = (lane, lines, styled) => {
       reads++
       return read(lane, lines, styled)
     }
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    expect(reads).toBeLessThan(2)
+    const looked = client.screen.bind(client)
+    client.screen = (lane) => {
+      looks++
+      return looked(lane)
+    }
+    await until('a few looks with nothing to do', () => looks >= 5, SPAWNING_MS)
+    expect(reads).toBe(0)
 
     // And it stops at the oldest line there is rather than counting on past
     // it: every notch is clamped to what the last frame said the region
@@ -188,6 +220,16 @@ describe('the window, and the lanes in it', () => {
   // reach that far there is nothing to ask the driver at all. Asking anyway
   // cost a screen read a notch, in every lane in front of you: 81 ms of a
   // 735 ms flick spent being told that nothing had changed.
+  //
+  // What a flick costs is counted per look and never per millisecond. Thirty
+  // notches ten milliseconds apart, against a beat, is a count of how many
+  // looks the machine managed to fit in — which is a number about the
+  // machine: it came out six on a quiet laptop and eight on a loaded CI
+  // runner, against an assertion that allowed seven. So the notches are paced
+  // by the looks themselves, one look to a notch however long a look takes,
+  // and what is asserted is what those looks asked the driver for. A slow
+  // machine takes longer to say the same thing rather than saying a different
+  // one.
   it('asks the driver for nothing while a flick stays inside the lines it holds', async () => {
     const opened = await client.openTerminal({ project: 'app' })
     const printing = 'i=1; while [ $i -le 400 ]; do echo "printed line $i"; i=$((i+1)); done'
@@ -202,29 +244,55 @@ describe('the window, and the lanes in it', () => {
       20_000,
     )
     const shell = screenOf(terminal.written).findIndex((row) => row.includes('printed line 400'))
-    // One notch first, so the lines behind the screen have been sent for.
-    terminal.press(`\x1b[<64;10;${shell + 1}M`)
-    await new Promise((resolve) => setTimeout(resolve, 400))
 
-    let asked = 0
+    // The two the window asks the driver for, counted apart. `screen` is how
+    // deep the lane is, read once a look whether or not anything moved — the
+    // beat's cost, not the wheel's, and so also this test's count of looks.
+    // `capture` is the text, and holding the lines is about exactly that one.
+    let looks = 0
+    let captures = 0
     const capture = client.capture.bind(client)
     client.capture = (lane, lines, styled) => {
-      asked++
+      captures++
       return capture(lane, lines, styled)
     }
     const screen = client.screen.bind(client)
     client.screen = (lane) => {
-      asked++
+      looks++
       return screen(lane)
     }
-    for (let i = 0; i < 30; i++) {
-      terminal.press(`\x1b[<64;10;${shell + 1}M`)
-      await new Promise((resolve) => setTimeout(resolve, 10))
+
+    /** A notch, and the look that answers it: what the flick is made of. */
+    const wheelUp = `\x1b[<64;10;${shell + 1}M`
+    const notch = async () => {
+      const was = looks
+      terminal.press(wheelUp)
+      await until('the look that answers a notch', () => looks > was, SPAWNING_MS)
     }
-    // The beat of the window itself is 250 ms, so a flick of a third of a
-    // second is one or two looks. Thirty notches used to be thirty.
-    expect(asked).toBeLessThan(8)
-  }, 40_000)
+
+    // Back past the live rows first. Until the wheel is clear of them there is
+    // nothing settled to cut from — the program is still rewriting the rows it
+    // is on — so the lane is read again every look, which is the cheap end and
+    // not what this is about. Counted in rows of the screen rather than in
+    // notches, because how far a notch goes is the wheel's to say and how tall
+    // the strip is, is the layout's: a whole window's height is past both.
+    const started = newestPrinted(terminal)
+    const clear = () => newestPrinted(terminal) <= started - terminal.rows
+    for (let i = 0; i < 100 && !clear(); i++) await notch()
+    expect(clear()).toBe(true)
+
+    captures = 0
+    const from = newestPrinted(terminal)
+    for (let i = 0; i < 20; i++) await notch()
+
+    // Twenty notches, each with a look of its own to be answered in, and the
+    // screen further back than it started: the flick moved, and cost the
+    // driver not one read of what it moved through. Before the lines were
+    // held this was a read a look, every one of them for lines that had not
+    // changed since the shell printed them.
+    expect(newestPrinted(terminal)).toBeLessThan(from)
+    expect(captures).toBe(0)
+  }, 60_000)
 
   it('opens a terminal from the + beside the orchestrator, and types into it', async () => {
     await start()

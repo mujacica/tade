@@ -32,6 +32,18 @@ real git and PTY processes with short timeouts, so anything CPU-heavy running al
 exactly like a regression and is not one: 13 such failures over 485s became 465 passing in 8s once
 the suite had the machine to itself. Never conclude the suite is broken from a run that shared it.
 
+**And a test never counts what the machine did in a fixed sleep.** CI's runner is that starved
+machine permanently, so a number asserted over a stretch of wall clock is a number about the
+runner: `asked < 8` after thirty notches ten milliseconds apart was six looks on a quiet laptop
+and eight on `macos-latest`, and the driver reads it was written to guard were nought in both —
+the assertion had drifted onto the frame loop and off the behaviour. Pace by the thing being
+counted instead — a notch and the look that answers it — and then assert what those looks asked
+for, which a slow machine takes longer to say rather than saying differently. A sleep is for
+waiting on something to settle, and even then the lane's own depth says when a shell has stopped
+printing better than a guess at how long it takes. The two shapes that are safe are a rate with a
+ceiling (`frame.probe.test.ts`) and a "said once" over a wait, because a slower machine can only
+ever make each of them pass.
+
 There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). Consequences:
 - Relative imports use the `.ts` extension: `import { x } from './x.ts'`.
 - Erasable syntax only: no `enum`, `namespace`, or constructor parameter properties.
