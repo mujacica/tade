@@ -812,6 +812,17 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   credential-shaped is taken out, and the lines around a stack frame are kept only for Tade's own
   files. A reporter never throws and never blocks: a window that crashed while reporting a crash is
   worse than one that reported nothing.
+- **Watching for trouble never decides what it costs.** `watchProcess` answers Node's two
+  handovers differently, and only one of them is fatal: an uncaught exception still ends Tade, with
+  the terminal handed back before the exit, because a crash that left it in raw mode is a crash you
+  cannot read — and **a promise nobody awaited is reported and nothing else**. Registering that
+  listener is itself what turns Node's default off, so a `throw` in it is not Node's answer being
+  passed along, it is the reporter inventing one. It did: a dynamic `import()` in code compiled
+  while Tade ran — in neither Tade's own code nor the terminal library it draws with, neither of
+  which contains one — rejected on a Node with no callback for it, and took the window down. Under
+  the `pty` driver the lanes are the window's own children, so that was every agent in the
+  checkout, killed by somebody else's import. Nothing the drawing could have caught, either:
+  `import()` rejects, it never throws, so the frame was already drawn.
 - **A DSN is an endpoint, and the token is the credential.** `telemetry.dsn` is an ordinary string
   in `config.yaml`, drawn as itself: Sentry publishes a DSN in the JavaScript of every page it
   watches, and all one grants is the right to send events to one project. Marked `secret` it got

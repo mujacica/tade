@@ -75,9 +75,22 @@ export function saw(reporter: Reporter, event: TadeEvent, home: string): void {
 }
 
 /**
- * Report what takes the process down, and keep what Node does about it: an
- * uncaught exception still ends Tade, after whoever is holding the terminal
+ * Report what would otherwise go unseen, and keep what Node does about it —
+ * which is not the same answer for the two things Node can hand over.
+ *
+ * An uncaught exception still ends Tade, after whoever is holding the terminal
  * has had it back and the crash has had its one chance to be sent.
+ *
+ * A promise nobody awaited is reported, and nothing else. Registering the
+ * listener below is itself what turns Node's default off — a rejection is
+ * raised as an uncaught exception only while no hook is set — so a `throw`
+ * here is not Node's answer being passed along, it is this function
+ * manufacturing the crash. It did: a dynamic `import()` in somebody else's
+ * code, compiled while the window ran, rejected on a Node that had no
+ * callback for it, and the window died of a promise it had never touched.
+ * Under the `pty` driver the lanes are the window's own children, so that is
+ * every agent in the checkout, killed by somebody else's import. A rejection
+ * is a bug worth knowing about; it is not a reason to end the window.
  */
 export function watchProcess(
   reporter: Reporter,
@@ -93,10 +106,7 @@ export function watchProcess(
     })()
   }
   const rejected = (reason: unknown) => {
-    // Node's own answer to an unhandled rejection is to take the process down
-    // through the handler above; this only makes sure it is reported first.
     reporter.trouble({ error: reason, where: opts.where, level: 'error' })
-    throw reason
   }
   process.on('uncaughtException', crashed)
   process.on('unhandledRejection', rejected)

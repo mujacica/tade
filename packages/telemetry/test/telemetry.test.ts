@@ -3,8 +3,8 @@ import type { TadeEvent } from '@tade/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { reporterConformance } from '../src/conformance.ts'
 import { noReporter } from '../src/none.ts'
-import { openReporter, saw } from '../src/open.ts'
-import type { Reporter } from '../src/port.ts'
+import { openReporter, saw, watchProcess } from '../src/open.ts'
+import type { Reporter, Trouble } from '../src/port.ts'
 import { sentryReporter } from '../src/sentry.ts'
 import { about, fromEvent, readDsn, scrub, shapeOf } from '../src/shape.ts'
 
@@ -483,5 +483,84 @@ describe('sending', () => {
     expect((await openReporter({ ...off, dsn: '' }, here)).on).toBe(false)
     expect((await openReporter({ ...off, dsn: 'nonsense' }, here)).on).toBe(false)
     expect((await openReporter({ ...off, driver: 'none', dsn: DSN }, here)).on).toBe(false)
+  })
+})
+
+// What Node hands over, and what the window does about it.
+//
+// TADE-1 is why this is tested at all: the window died of a `TypeError: A
+// dynamic import callback was not specified.` — a dynamic `import()` in code
+// compiled while Tade ran, in neither Tade nor the terminal library it draws
+// with, rejecting on a Node that had no callback for it. It was never a throw
+// the drawing could have caught: `import()` returns a promise, so by the time
+// anything could go wrong the frame had been drawn. What ended Tade was the
+// `throw` in `rejected`, which had it exactly backwards: registering the
+// listener is what turns Node's default off, so the line was not passing
+// Node's answer along, it was inventing one.
+
+/**
+ * Whatever `watchProcess` adds for one event, to be called on its own: the
+ * question is what *our* listener does, and emitting the real thing would run
+ * vitest's listeners for it too.
+ */
+function watching(event: 'unhandledRejection' | 'uncaughtException') {
+  const listeners = (): unknown[] =>
+    event === 'uncaughtException'
+      ? (process.listeners('uncaughtException') as unknown[])
+      : (process.listeners('unhandledRejection') as unknown[])
+  const before = listeners()
+  return (): ((reason: unknown) => void) => {
+    const mine = listeners().filter((one) => !before.includes(one))
+    expect(mine).toHaveLength(1)
+    return mine[0] as (reason: unknown) => void
+  }
+}
+
+/** A reporter that sends nowhere and keeps what it was told, so a test can read it. */
+function recording(): { reporter: Reporter; seen: Trouble[] } {
+  const seen: Trouble[] = []
+  return { seen, reporter: { ...noReporter(), on: true, trouble: (one) => seen.push(one) } }
+}
+
+describe('what the process does when something goes wrong', () => {
+  it('reports a promise nobody awaited, and leaves the window running', () => {
+    const { reporter, seen } = recording()
+    const exits: number[] = []
+    const rejection = watching('unhandledRejection')
+    const stop = watchProcess(reporter, { where: 'the window', exit: (code) => exits.push(code) })
+    try {
+      const reason = new TypeError('A dynamic import callback was not specified.')
+      // The listener throwing is the whole mechanism: Node emits this from
+      // inside its own tick, so a throw out of it is an uncaught exception,
+      // and an uncaught exception is the window gone.
+      expect(() => rejection()(reason)).not.toThrow()
+      expect(seen).toEqual([{ error: reason, where: 'the window', level: 'error' }])
+      expect(exits).toEqual([])
+    } finally {
+      stop()
+    }
+  })
+
+  it('still ends on an uncaught exception, the terminal handed back first', async () => {
+    const { reporter, seen } = recording()
+    const order: string[] = []
+    const crash = watching('uncaughtException')
+    const stop = watchProcess(reporter, {
+      where: 'the window',
+      onFatal: () => {
+        order.push('terminal back')
+      },
+      exit: (code) => order.push(`exit ${code}`),
+    })
+    try {
+      crash()(new Error('the driver went'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      // A crash that left the terminal in raw mode is a crash you cannot read,
+      // so the terminal comes back before the exit and before the flush.
+      expect(order).toEqual(['terminal back', 'exit 1'])
+      expect(seen.map((one) => one.level)).toEqual(['fatal'])
+    } finally {
+      stop()
+    }
   })
 })
