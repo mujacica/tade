@@ -16,7 +16,13 @@ why closing it is harmless. **You may be a Tade worker editing Tade itself.**
 - `TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts` is the only test that uses a
   real model. It costs money and needs credentials, so it is skipped by default and run before a
   release — but it is the only evidence that a model can choose the right tool from the descriptions
-  we wrote, because every other test tells the fake model what to call.
+  we wrote, because every other test tells the fake model what to call. **Before a release is not a
+  reminder**: a whole green run writes down the commit it went green against, anything red takes
+  that receipt away, and `pnpm release` refuses without one for HEAD — because a check nobody ran is
+  not a check that passed, and this one had never been run at all. A case is a row in its table, and
+  a failure is a defect: usually a description that reads unambiguously to whoever wrote it and
+  ambiguously to a model, sometimes a capability nothing offers, since a model cannot choose a tool
+  that does not exist.
 
 **The commit hook is the fast gate, and CI is the real one.** `.githooks/pre-commit` runs biome,
 `tsc` and `pnpm test:smoke` — four or five seconds over the whole repository, because a hook people
