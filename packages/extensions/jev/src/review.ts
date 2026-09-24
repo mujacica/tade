@@ -132,6 +132,7 @@ export function findingsIn(
       branch: unit.branch,
       base: unit.base,
       head: unit.head,
+      commits: unit.commits,
       act: thresholds.act,
     }),
   }))

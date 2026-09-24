@@ -252,6 +252,8 @@ export function findingDetail(about: {
   branch: string
   base: string
   head: string
+  /** Where it is one agent's own commits on a shared branch: those, oldest first. */
+  commits?: readonly string[]
   act: number
 }): string {
   return [
@@ -266,7 +268,13 @@ export function findingDetail(about: {
     '',
     ACCOUNT_NOT_VERDICT,
     '',
-    `    git diff ${about.base}...${about.head} -- ${about.file}`,
+    // The command that shows exactly what was read. On a branch everybody
+    // shares that is this agent's own commits and not a range across them:
+    // `git diff` between two of its commits takes in whatever anybody else
+    // committed in between, which is not what any question was asked about.
+    about.commits && about.commits.length > 0
+      ? `    git show ${about.commits.join(' ')} -- ${about.file}`
+      : `    git diff ${about.base}...${about.head} -- ${about.file}`,
   ]
     .filter((line) => line !== '')
     .join('\n')

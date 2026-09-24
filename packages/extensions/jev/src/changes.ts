@@ -206,38 +206,19 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
     const tasks = await tasksIn(worktree.path)
     if (tasks.length === 0 || !worktree.head) continue
     const shared = tasks.length > 1 || !(await taskFile(join(worktree.path, '.tade', 'task.yaml')))
+    const whole = { project: project.name, root: worktree.path, branch: worktree.branch }
+    const mine = shared ? await perAgent(ctx, worktree, tasks) : null
+    if (mine) {
+      units.push(...mine.map((unit) => ({ ...whole, ...unit })))
+      continue
+    }
     const recorded = tasks.map((task) => task.base).filter(Boolean)
     const base = await baseOf(ctx, worktree.path, recorded, worktree.head, baseRef)
     if (!base || base === worktree.head) continue
-    const whole = {
-      project: project.name,
-      root: worktree.path,
-      branch: worktree.branch,
-      base,
-    }
-    const mine = shared
-      ? (await commitsByTask(ctx, worktree.path, `${base}..${worktree.head}`)).byTask
-      : new Map<string, { sha: string; at: number }[]>()
-    if (mine.size > 0) {
-      for (const task of tasks) {
-        const own = mine.get(task.id) ?? []
-        const last = own.at(-1)
-        if (!last) continue
-        units.push({
-          ...whole,
-          key: task.id,
-          tasks: [task.id],
-          intent: task.intent,
-          head: last.sha,
-          commits: own.slice(-COMMIT_LIMIT).map((commit) => commit.sha),
-          at: last.at,
-        })
-      }
-      continue
-    }
     const when = await git(ctx, worktree.path, ['log', '-1', '--format=%ct', worktree.head])
     units.push({
       ...whole,
+      base,
       key: shared
         ? `${project.name}:${worktree.branch || worktree.head.slice(0, 8)}`
         : (tasks[0]?.id ?? ''),
@@ -252,6 +233,49 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
     })
   }
   return units
+}
+
+/**
+ * One unit per agent on a branch they share, or null where nothing says whose
+ * a commit is and the branch is all there is to read.
+ *
+ * It is measured from the oldest point any of them branched at, and never from
+ * one of them: `baseOf` takes the first recorded base that is an ancestor,
+ * which in a folder of nineteen tasks is whichever sorts first by name — and a
+ * task made at HEAD five minutes ago then decided that nobody else's morning
+ * was worth reading. That is not a hypothetical: it is why the watch's one
+ * look at this repository found nothing at all.
+ */
+async function perAgent(
+  ctx: ExtensionContext,
+  worktree: { path: string; head: string },
+  tasks: readonly { id: string; intent: string; base: string }[],
+): Promise<Omit<Unit, 'project' | 'root' | 'branch'>[] | null> {
+  const bases = [...new Set(tasks.map((task) => task.base).filter(Boolean))]
+  if (bases.length === 0) return null
+  const oldest =
+    bases.length === 1
+      ? bases[0]
+      : (await git(ctx, worktree.path, ['merge-base', '--octopus', ...bases])).out.trim()
+  if (!oldest || oldest === worktree.head) return null
+  const { byTask } = await commitsByTask(ctx, worktree.path, `${oldest}..${worktree.head}`)
+  if (byTask.size === 0) return null
+  const units: Omit<Unit, 'project' | 'root' | 'branch'>[] = []
+  for (const task of tasks) {
+    const own = byTask.get(task.id) ?? []
+    const last = own.at(-1)
+    if (!last) continue
+    units.push({
+      key: task.id,
+      tasks: [task.id],
+      intent: task.intent,
+      base: oldest,
+      head: last.sha,
+      commits: own.slice(-COMMIT_LIMIT).map((commit) => commit.sha),
+      at: last.at,
+    })
+  }
+  return units.length > 0 ? units : null
 }
 
 /**

@@ -151,6 +151,48 @@ describe('a shared checkout is read one agent at a time', () => {
       'shop/add-refunds',
       'shop/tidy-receipts',
     ])
+    // What a reader is told to run shows that agent's own commits, because a
+    // diff between two of them takes in whatever landed in between.
+    const detail = look.found.find((one) => one.key.startsWith('shop/add-refunds'))?.detail ?? ''
+    expect(detail).toMatch(/git show [0-9a-f]{40} -- src\/refund\.ts/)
+  })
+
+  it('measures from the oldest point any of them branched at, never from one of them', async () => {
+    const { repo, commit } = sharedCheckout()
+    // One agent's morning, and then a task made at HEAD — which is what a task
+    // folder looks like all day. It sorts first by name, and the base that was
+    // taken used to be the first one that sorted, so the morning fell outside
+    // the range and nothing was read at all. That is what the watch's one look
+    // at this repository did: `found: 0`, with an afternoon of work in front
+    // of it.
+    commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
+    repo.write({
+      '.tade/tasks/a-late-arrival/task.yaml': [
+        'id: shop/a-late-arrival',
+        'project: shop',
+        'intent_spoken: something else entirely',
+        'created: 2026-09-11T09:14:22Z',
+        `base: ${repo.head()}`,
+        'workspace: checkout',
+        '',
+      ].join('\n'),
+    })
+    repo.git('add', '-A')
+    repo.git('commit', '-q', '-m', 'a task file')
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ test_missing: 0.9 }),
+      now: Date.now,
+    })
+    const look = await loaded.look('jev.review', {
+      project: 'shop',
+      input: { settle: '0m' },
+      since: null,
+      turnedOn: new Date(NOW).toISOString(),
+    })
+    expect(look.found.map((one) => one.key)).toEqual(['shop/add-refunds:test_missing'])
   })
 
   it('reaches the agent whose change it is, and nobody else, in time to answer', async () => {
