@@ -35,6 +35,13 @@ export interface Review {
   /** The version of the questions it answered: `RUBRIC` when they were asked. */
   rubric: string
   files: number
+  /**
+   * What the reading left out, where the change was too big to read whole, or
+   * null where it read all of it. Kept because a reading of part of a change
+   * is different evidence from a reading of the whole, and nothing else in the
+   * record would ever say which of the two this was.
+   */
+  part: string | null
   requests: number
   cost_usd: number
   /** Every question's answer, not only the ones that fired. */
@@ -182,6 +189,9 @@ export function readReviews(home: string): Review[] {
       // which is the honest answer: it is not the rubric of the day it is read.
       rubric: String(line.rubric ?? ''),
       files: Number(line.files ?? 0),
+      // A line written before this existed read all of what it read, which is
+      // what null says.
+      part: typeof line.part === 'string' ? line.part : null,
       requests: Number(line.requests ?? 0),
       cost_usd: Number(line.cost_usd ?? 0),
       answers: { ...(line.answers ?? {}) },

@@ -15,6 +15,15 @@ description: Add a new signal to `tade status` (e.g. test results, context usage
 - **Never throw.** A probe returns `{ ..., warnings: string[] }`; failure means a partial result
   (`null` fields) plus a warning that names the project/task. `collectStatus` has a last-resort
   catch, but reaching it is a bug.
+- **A probe that could not look is not a probe that found nothing**, and the difference is the
+  whole value of the warning. Tell the three cases apart and say which (`problemWith` in
+  `src/processes.ts`): not installed, failed with what it said, and ran out of time. Budget the
+  wait like a **spawn on a loaded machine** — four agents running a suite in one checkout is the
+  machine this runs on, and a budget picked from how long the program takes alone reports a busy
+  machine as a missing program. Where an empty answer would be read as an absence, degrade to the
+  last one that could be made rather than to nothing, kept to what is still provably true. Keep
+  the sentence **stable**: the window shows the same warning twice as once, so a count or an age
+  in it is a new line every poll.
 - **Git**: call `git()` from `packages/status/src/git.ts` (sets `GIT_OPTIONAL_LOCKS=0` so probes never take
   the index lock from under an agent). Use porcelain / `-z` formats and parse NUL-delimited output.
 - **No network by default in tests.** Anything that hits the network (like `gh`) is behind an option

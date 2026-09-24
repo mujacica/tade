@@ -28,7 +28,7 @@ import {
   readyProblem,
   thresholds,
 } from './ask.ts'
-import { changesFor, unitFor, unitsIn } from './changes.ts'
+import { CHARS_PER_TOKEN, changesFor, unitFor, unitsIn } from './changes.ts'
 import { circlingIn } from './circles.ts'
 import { findingsOf, gapSaid, shorten } from './loop.ts'
 import {
@@ -48,12 +48,11 @@ import {
   REPEATS,
   REQUEST_QUESTIONS,
   reviewQuestions,
-  SETTLE,
   titleOf,
 } from './questions.ts'
 import { forgetRead, recordOf } from './record.ts'
 import { answersTable, describe, findingsReport, statusLine } from './report.ts'
-import { findingsIn, raisedIn, readChange, reviewLine, stageTwoPrompt } from './review.ts'
+import { raisedIn, readChange, reviewLine, reviewWatch } from './review.ts'
 import { recordReview } from './reviews.ts'
 import { loopTools, verdictsWatch } from './verdicts.ts'
 
@@ -93,6 +92,13 @@ const changed = list(
 function asChanged(said: unknown): string[] {
   return Array.isArray(said) ? said.map(String) : []
 }
+
+/** How much of one line a question is asked about. Past this it is a blob, not a line. */
+const LINE = 300
+
+/** How much of what an agent in a plan would be told is read, and how many paths beside it. */
+const PROMPT = 2_000
+const PATHS = 200
 
 /**
  * What was made of a command already, by task and command.
@@ -369,20 +375,32 @@ export const jevExtension: TadeExtension = {
         if (wanted.length === 0)
           return { text: `Nothing to read in ${what}.`, said: 'Nothing to read.' }
         const found: { line: string; probability: number }[] = []
-        const per = Math.max(1, Math.floor(asking.judge.capabilities.questionsPerAsk / 2))
+        // How many lines one ask takes. Counted rather than assumed, because
+        // each line is sent twice — in the question about it and in the state
+        // beside it — and the port's own check counts only the state: a batch
+        // sized by how many questions fit is a batch nobody measured, and what
+        // that comes back as is a 400 with the whole grep lost inside it.
+        const room = Math.floor(asking.judge.capabilities.stateTokens * CHARS_PER_TOKEN * 0.6)
+        const per = Math.max(
+          1,
+          Math.min(
+            Math.floor(asking.judge.capabilities.questionsPerAsk / 2),
+            Math.floor(room / (LINE * 2 + question.length + 80)),
+          ),
+        )
         for (let at = 0; at < wanted.length; at += per) {
           const batch = wanted.slice(at, at + per)
           ctx.progress(`reading lines ${at + 1}–${at + batch.length} of ${wanted.length}`)
           const questions: Question[] = batch.map((one) => ({
             id: numbered('line', one.index),
             kind: 'yes-no',
-            ask: `About this line only — "${shorten(one.line.trim(), 300)}" — ${question}`,
+            ask: `About this line only — "${shorten(one.line.trim(), LINE)}" — ${question}`,
           }))
           const judged = await asking.askAll(
             // The lines again as context, cut to the same length as the
             // questions: a state that runs over its budget is refused, and a
             // log with one enormous line in it is not a reason to refuse.
-            { looking_for: question, lines: batch.map((one) => shorten(one.line.trim(), 300)) },
+            { looking_for: question, lines: batch.map((one) => shorten(one.line.trim(), LINE)) },
             questions,
             ctx.signal,
           )
@@ -458,8 +476,8 @@ export const jevExtension: TadeExtension = {
           )
         }
         const paths = Array.isArray(input.paths) ? input.paths.map(String) : []
-        const changes = await changesFor(ctx, unit, paths)
-        if (changes.length === 0) {
+        const change = await changesFor(ctx, unit, paths)
+        if (change.files.length === 0) {
           throw new Error(
             `nothing to read in ${unit.key}: no files a question could be about changed between ${unit.base.slice(0, 8)} and ${unit.head.slice(0, 8)}`,
           )
@@ -468,7 +486,7 @@ export const jevExtension: TadeExtension = {
         const limits = thresholds(ctx)
         const report = typeof input.threshold === 'number' ? input.threshold : limits.report
         const asking = Asking.from(ctx)
-        const reading = await readChange(asking, unit, changes, reviewQuestions(only), {
+        const reading = await readChange(asking, unit, change, reviewQuestions(only), {
           ...(ctx.signal ? { signal: ctx.signal } : {}),
           progress: ctx.progress,
         })
@@ -492,7 +510,10 @@ export const jevExtension: TadeExtension = {
           )
         return {
           text: [
-            `**${unit.key}** — ${changes.length} file(s), ${unit.base.slice(0, 8)}…${unit.head.slice(0, 8)}, answered by ${reading.version} (${asking.said()})`,
+            `**${unit.key}** — ${change.files.length} file(s), ${unit.base.slice(0, 8)}…${unit.head.slice(0, 8)}, answered by ${reading.version} (${asking.said()})`,
+            // Before the table, never after it: a table of probabilities about
+            // part of a change reads as a table about the change.
+            reading.part ?? '',
             reading.severity
               ? `How bad it would be to ship as it stands: ${reading.severity}.`
               : '',
@@ -509,8 +530,8 @@ export const jevExtension: TadeExtension = {
             .join('\n'),
           said:
             raised.length === 0
-              ? `Read ${unit.key}: nothing flagged.`
-              : `Read ${unit.key}: ${raised.length} flagged.`,
+              ? `Read ${reading.part ? 'part of ' : ''}${unit.key}: nothing flagged.`
+              : `Read ${reading.part ? 'part of ' : ''}${unit.key}: ${raised.length} flagged.`,
           data: { unit: unit.key, answers: reading.answers, raised },
         }
       },
@@ -603,13 +624,25 @@ export const jevExtension: TadeExtension = {
         const found = input.project ? allowed(ctx, ctx.project(String(input.project))) : null
         const asking = Asking.from(ctx)
         const limits = thresholds(ctx)
+        // Cut to what a plan can be read from, for the same reason a diff is:
+        // the orchestrator writes these and nothing bounds what it writes, so
+        // twenty agents with a page each is an ask over its budget, refused as
+        // a whole rather than read as a plan.
         const state = {
           project: found?.name ?? '',
-          agents: agents.map((one) => ({ name: one.name, will: one.prompt, touches: one.touches })),
+          agents: agents.map((one) => ({
+            name: one.name,
+            will: shorten(one.prompt, PROMPT),
+            touches: one.touches.slice(0, PATHS),
+          })),
           // What the code has actually done since, where somebody handed it
           // over: the questions are the same, asked against the tree.
-          changed: asChanged(input.changed),
+          changed: asChanged(input.changed).slice(0, PATHS),
         }
+        // The same cut where the prompt goes into a question rather than into
+        // the state: `askProblem` counts the state and never the questions.
+        const says = (one: { name: string; prompt: string }) =>
+          shorten(one.prompt || one.name, PROMPT)
         const pairs: { first: string; second: string; concerns: string[] }[] = []
         const couldRunTogether = agents.flatMap((one, index) =>
           agents
@@ -629,7 +662,7 @@ export const jevExtension: TadeExtension = {
           ctx.progress(`${one.name} beside ${other.name}`)
           const judged = await asking.askAll(
             state,
-            pairQuestions(one.prompt || one.name, other.prompt || other.name),
+            pairQuestions(says(one), says(other)),
             ctx.signal,
           )
           const concerns = Object.entries(judged.answers)
@@ -639,11 +672,7 @@ export const jevExtension: TadeExtension = {
         }
         const perAgent: { name: string; concerns: string[] }[] = []
         for (const one of agents) {
-          const judged = await asking.askAll(
-            state,
-            agentQuestions(one.prompt || one.name),
-            ctx.signal,
-          )
+          const judged = await asking.askAll(state, agentQuestions(says(one)), ctx.signal)
           perAgent.push({
             name: one.name,
             concerns: Object.entries(judged.answers)
@@ -796,97 +825,7 @@ export const jevExtension: TadeExtension = {
     },
   ],
   watches: [
-    {
-      id: 'review',
-      title: 'Review what agents change',
-      means: 'reads each agent’s own change once it has stopped moving, and reports what it flags',
-      every: '10m',
-      // On for everybody who has a key: a rubric nobody runs answers nothing,
-      // and the thing it costs — a reading of a change that has stopped
-      // moving — is what somebody set the key up for. With no key the
-      // extension is not ready and no schedule is written at all, so a fresh
-      // install gets no look, no error and no bill.
-      standing: true,
-      // And what it finds is told, not acted on. It still has an `agent` to
-      // offer, so somebody who turns it on and says `found: 'agent'` gets a
-      // second agent on each finding — but that is a decision, and a watch
-      // that is on for everybody may not make it for them. A judge may only
-      // ever add caution, and an agent nobody asked for appearing in a lane on
-      // the day somebody installs Tade is not caution.
-      offers: 'ask',
-      input: object({
-        threshold: number('report at or above this probability; the setting unless said'),
-        questions: list(
-          string('a question id'),
-          'only these questions; the whole pack unless said',
-        ),
-        settle: string(
-          'how long a branch has to have been still before it is read; 10m unless said',
-        ),
-        include: list(string('a task or branch'), 'only these changes'),
-        exclude: list(string('a task or branch'), 'never these changes'),
-      }),
-      check: async (ctx) => {
-        const found = allowed(ctx, ctx.watching)
-        const limits = thresholds(ctx)
-        const report = typeof ctx.input.threshold === 'number' ? ctx.input.threshold : limits.report
-        const settle = periodMs(ctx.input.settle ?? SETTLE, 10 * 60_000)
-        const only = Array.isArray(ctx.input.questions) ? ctx.input.questions.map(String) : null
-        const include = Array.isArray(ctx.input.include) ? ctx.input.include.map(String) : []
-        const exclude = Array.isArray(ctx.input.exclude) ? ctx.input.exclude.map(String) : []
-        // Where the last look left off: the head of each change it read. Most
-        // looks end here, having run `git worktree list` and nothing else.
-        let read: Record<string, string> = {}
-        try {
-          read = ctx.since ? (JSON.parse(ctx.since) as Record<string, string>) : {}
-        } catch {
-          read = {}
-        }
-        const units = await unitsIn(ctx, found)
-        const still = units.filter(
-          (unit) =>
-            read[unit.key] !== unit.head &&
-            ctx.now() - unit.at >= settle &&
-            (include.length === 0 || include.includes(unit.key) || include.includes(unit.branch)) &&
-            !exclude.includes(unit.key) &&
-            !exclude.includes(unit.branch),
-        )
-        const since = { ...read }
-        const findings: Finding[] = []
-        // One budget for the whole look, so a rebase storm cannot turn into a
-        // bill nobody asked for: what it has already spent is what the next
-        // change is measured against.
-        const asking = Asking.from(ctx)
-        for (const unit of still) {
-          const changes = await changesFor(ctx, unit)
-          since[unit.key] = unit.head
-          if (changes.length === 0) continue
-          const before = { requests: asking.requests, usd: asking.usd }
-          const reading = await readChange(asking, unit, changes, reviewQuestions(only), {
-            signal: ctx.signal,
-          })
-          recordReview(
-            ctx.home,
-            reviewLine(
-              reading,
-              unit,
-              { requests: asking.requests - before.requests, usd: asking.usd - before.usd },
-              report,
-              ctx.now(),
-            ),
-          )
-          findings.push(...findingsIn(reading, unit, { ...limits, report }))
-        }
-        if (findings.length > 0 || still.length > 0) forgetRead()
-        // Unchanged when nothing moved, so a quiet hour does not move the cursor.
-        return { found: findings, since: JSON.stringify(since) }
-      },
-      agent: (finding) => ({
-        title: `look at ${finding.key.replace(':', ' ')}`,
-        prompt: stageTwoPrompt(finding),
-        context: finding.detail ?? finding.title,
-      }),
-    },
+    reviewWatch,
     {
       id: 'circles',
       title: 'Agents going in circles',

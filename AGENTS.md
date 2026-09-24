@@ -261,6 +261,18 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   never the reason given to anybody — whatever reaches a person is a sentence somebody wrote. Its
   questions and thresholds live in one file (`packages/extensions/jev/src/questions.ts`), every finding
   keeps the version that answered, and with no key nothing runs and nothing else changes.
+- **A judge that cannot look at everything still looks at something.** What one ask takes is a
+  bound, so a change bigger than it is read as far as the budget goes (`CHANGE_LIMIT` and `cutTo`
+  in `packages/extensions/jev/src/changes.ts`) and what was left out is **named** — in the table,
+  in the finding the agent is handed, and in the record, one sentence in one place (`partSaid`).
+  A reading of part of a change is a perfectly good answer and a different answer from a reading
+  of all of it, which is why it is an object and not a list of files. The bound is counted at the
+  rate a *diff* tokenises at and never at the four characters a token prose does: one estimate
+  used as though it were a measurement is what put an ask inside a 32k budget over it. And
+  because a change is one agent's, a look reads each on its own — one change nobody could read is
+  not a look that could not look, and only a look that could read nothing says so. Silence is the
+  one answer that teaches nobody: a whole review lost to a 400 reached somebody as a single red
+  line with a provider's JSON in it, which is neither a finding nor a reason.
 - **An agent accounts for a finding; somebody else judges it.** A rubric that nobody says was right
   is a rubric nobody can argue with, so a finding has to be answered — and by whom is the whole of
   it (`packages/extensions/jev/src/loop.ts`). The agent whose diff it is gets the question in the
@@ -817,6 +829,15 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
 - **Tade stays light, and proves it.** What the window polls is cheap and shared — one `ps` for
   the whole process table, cached between askers — and anything on a timer or drawn every frame has
   a performance test. The resources extension is how you see what Tade and its agents cost.
+- **A probe that could not look is not a probe that found nothing.** Three cases and never one
+  (`problemWith`, `packages/status/src/processes.ts`): a program that is not installed, one that
+  failed and said why, and one that ran out of time — and a budget picked from how long something
+  takes *alone* is how the third came to be reported as the first, `ps unavailable` about a `ps`
+  sitting in `/bin` answering everybody else. So a probe is budgeted like a spawn on a machine
+  four agents are running a suite on, and a look that could not look degrades to the **last scan
+  that could**, kept to the pids that still exist, rather than to an empty list — because nothing
+  above reads empty as "nobody looked", it reads it as "nothing is running". What it says is one
+  stable sentence, since the window shows the same warning twice as once.
 - **Nothing the window runs waits on a child process.** It draws four times a second and answers
   keys in between, on one thread: a program it waits on stops both, and no key ends that wait.
   Saving a key used to be `execFileSync('security', …)` — read again on *every frame* while the

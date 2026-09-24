@@ -266,6 +266,7 @@ describe('the sweep', () => {
         version: 'jev-1.13.0',
         rubric: RUBRIC,
         files: 1,
+        part: null,
         requests: 1,
         cost_usd: 0,
         answers: { test_missing: 0.9 },

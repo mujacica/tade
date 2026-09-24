@@ -238,14 +238,32 @@ function understood(question: Question, answer: JevAnswer): Answer {
   }
 }
 
+/**
+ * Whether what they refused was the size of the ask.
+ *
+ * Their own words for it, matched on the one part of the body that is a
+ * machine-readable name rather than prose. It is worth telling apart from
+ * everything else a 400 can be, because it is the one a caller can do
+ * something about without anybody's help.
+ */
+function tooLong(said: string): boolean {
+  return /max_tokens_exceeded|too (many|long)|context length/i.test(said)
+}
+
 /** What a refusal means, in words somebody can act on. */
 async function refusal(response: Response): Promise<JudgeError> {
   const said = (await response.text().catch(() => '')).slice(0, 400).trim()
   const status = response.status
-  const because =
-    status === 401
+  // The body is JSON, and a reader who has been handed it verbatim has been
+  // told nothing: `{"detail":{"error_type":"max_tokens_exceeded"}}` reached
+  // somebody as the whole of why a review did not happen. So the one shape
+  // worth recognising is said in words, and the rest still carries what they
+  // said, because an error nobody recognises is evidence.
+  const because = tooLong(said)
+    ? 'the state was longer than one ask takes: read it in pieces, or give it fewer files at a time'
+    : status === 401
       ? 'the key was not accepted: check TYPESAFE_API_KEY'
-      : status === 422
+      : status === 400 || status === 422
         ? `a question or the state would not do: ${said || 'it did not say which'}`
         : status === 429
           ? 'too many requests: ask less often, or for fewer things at once'
@@ -254,7 +272,8 @@ async function refusal(response: Response): Promise<JudgeError> {
             : said || 'it did not say why'
   return new JudgeError(`TypeSafe answered ${status}: ${because}`, {
     status,
-    retryable: status === 429 || status === 529 || status >= 500,
+    // Asking the same thing again cannot make it shorter.
+    retryable: !tooLong(said) && (status === 429 || status === 529 || status >= 500),
   })
 }
 

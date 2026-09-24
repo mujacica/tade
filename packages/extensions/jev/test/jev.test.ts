@@ -567,6 +567,7 @@ describe('what the window shows', () => {
       version: 'jev-1.13.0',
       rubric: RUBRIC,
       files: 12,
+      part: null,
       requests: 3,
       cost_usd: 0.0011,
       answers: { test_missing: 0.7, shell_injection: 0.1 },

@@ -19,6 +19,24 @@ export interface FileChange {
   cut: number
 }
 
+/**
+ * One change as it was read: the files a question can be about, and what of it
+ * was left behind.
+ *
+ * The second half is the whole reason this is an object rather than a list. A
+ * reading of part of a change is a perfectly good answer — it is the only
+ * answer there is about a change nothing could read whole — but it is a
+ * different answer from a reading of all of it, and a caller handed a bare
+ * list has no way to tell the two apart or to say which it got.
+ */
+export interface Change {
+  files: FileChange[]
+  /** The files that changed and that no question was asked about, by name. */
+  unread: string[]
+  /** Characters of patch left behind inside the files that were read. */
+  cut: number
+}
+
 /** A branch with work on it that somebody asked for: what a review is about. */
 export interface Unit {
   /** What a finding about it is keyed by: the task, or the project and branch. */
@@ -68,6 +86,88 @@ const PATCH_LIMIT = 20_000
 
 /** The most files one unit is read as. Past this it is a rewrite, and saying so is the answer. */
 const FILE_LIMIT = 60
+
+/**
+ * How much of one change is read, in characters, across every file in it.
+ *
+ * The two limits above are each about a *part* of a change and neither is a
+ * bound on the whole of it: sixty files at twenty thousand characters each is
+ * 1.2M characters, which is the same lesson the `SKIP` comment records, one
+ * scale up. It is read in as many asks as it takes, so what that buys is
+ * twenty-five requests and several minutes for a reading nobody asked to be
+ * exhaustive — and what a question answers about the twenty-fifth file is not
+ * worth holding the other nine changes on the machine up for.
+ *
+ * Past this the change is read as far as the budget goes and what was left out
+ * is **named**, because a judge that cannot look at everything can still look
+ * at something, and silence is the one answer that teaches nobody. A backstop
+ * rather than a routine cut: sixty files of ordinary work is nearer 180,000
+ * characters, so on nearly every change this never fires.
+ */
+const CHANGE_LIMIT = 300_000
+
+/**
+ * How many characters of the kind of text a question here is about — a diff, a
+ * line of a log, source — stand in for one token, for sizing an ask.
+ *
+ * The port estimates four, which is every provider's own guidance and right
+ * for prose. None of this is prose: indentation, punctuation and identifiers
+ * tokenise far worse, so a batch sized at four characters a token holds
+ * half as much again as it was budgeted for — which is how an ask *inside* a
+ * 32k state budget came back `max_tokens_exceeded`, and the whole reading with
+ * it. This is the number that bug was made of, and it is conservative on
+ * purpose: being refused a batch that would have fit costs a smaller batch,
+ * and being over costs the review.
+ */
+export const CHARS_PER_TOKEN = 2.5
+
+/**
+ * What of a change is read and what is left out: one rule, whichever way the
+ * patches were got, so the two ways of getting them cannot drift about it.
+ *
+ * A file is read whole — as whole as `PATCH_LIMIT` leaves it — or not at all.
+ * Cutting the last one to whatever room is left over would hand a question
+ * three hundred characters of somebody's file and call it a reading.
+ */
+export function cutTo(
+  patches: readonly { file: string; patch: string }[],
+  skipped: readonly string[] = [],
+): Change {
+  const files: FileChange[] = []
+  const unread = [...skipped]
+  let spent = 0
+  let cut = 0
+  for (const one of patches) {
+    if (files.length >= FILE_LIMIT || spent >= CHANGE_LIMIT) {
+      unread.push(one.file)
+      continue
+    }
+    const patch = one.patch.slice(0, PATCH_LIMIT)
+    cut += one.patch.length - patch.length
+    files.push({ file: one.file, patch, cut: one.patch.length - patch.length })
+    spent += patch.length
+  }
+  return { files, unread, cut }
+}
+
+/**
+ * What a reading left out, in a sentence, or null when it read the whole
+ * change. One sentence in one place: the table, the finding an agent is handed
+ * and the record all say it the same way, because three wordings of it would
+ * be three different claims about the same reading.
+ */
+export function partSaid(change: Change): string | null {
+  if (change.unread.length === 0 && change.cut === 0) return null
+  const said: string[] = []
+  if (change.unread.length > 0) {
+    const named = change.unread.slice(0, 3).join(', ')
+    said.push(
+      `${change.unread.length} of ${change.files.length + change.unread.length} files were not read (${named}${change.unread.length > 3 ? ', and others' : ''})`,
+    )
+  }
+  if (change.cut > 0) said.push(`${change.cut} characters of patch were left behind`)
+  return `Read in part: ${said.join('; ')}. What it did not read, it cannot have answered about.`
+}
 
 async function git(
   ctx: ExtensionContext,
@@ -405,7 +505,7 @@ export async function changesFor(
   ctx: ExtensionContext,
   unit: Pick<Unit, 'root' | 'base' | 'head' | 'commits'>,
   paths: readonly string[] = [],
-): Promise<FileChange[]> {
+): Promise<Change> {
   if (unit.commits.length === 0) {
     return changesIn(ctx, unit.root, `${unit.base}...${unit.head}`, paths)
   }
@@ -427,11 +527,7 @@ export async function changesFor(
     if (SKIP.test(file) || SKIP_IN.test(file)) continue
     byFile.set(file, (byFile.get(file) ?? '') + patch)
   }
-  return [...byFile.entries()].slice(0, FILE_LIMIT).map(([file, patch]) => ({
-    file,
-    patch: patch.slice(0, PATCH_LIMIT),
-    cut: Math.max(0, patch.length - PATCH_LIMIT),
-  }))
+  return cutTo([...byFile.entries()].map(([file, patch]) => ({ file, patch })))
 }
 
 /**
@@ -444,7 +540,7 @@ export async function changesIn(
   root: string,
   range: string,
   paths: readonly string[] = [],
-): Promise<FileChange[]> {
+): Promise<Change> {
   const listed = await git(ctx, root, [
     'diff',
     '--name-only',
@@ -456,19 +552,16 @@ export async function changesIn(
     .split('\n')
     .map((file) => file.trim())
     .filter((file) => file !== '' && !SKIP.test(file) && !SKIP_IN.test(file))
-    .slice(0, FILE_LIMIT)
-  const changes: FileChange[] = []
-  for (const file of files) {
+  const patches: { file: string; patch: string }[] = []
+  for (const file of files.slice(0, FILE_LIMIT)) {
     const shown = await git(ctx, root, ['diff', '--unified=3', range, '--', file], 20_000)
-    const patch = shown.out
-    if (patch.trim() === '') continue
-    changes.push({
-      file,
-      patch: patch.slice(0, PATCH_LIMIT),
-      cut: Math.max(0, patch.length - PATCH_LIMIT),
-    })
+    if (shown.out.trim() === '') continue
+    patches.push({ file, patch: shown.out })
   }
-  return changes
+  // The files past `FILE_LIMIT` are named rather than fetched: they are known
+  // to have changed and are known not to have been read, which is exactly what
+  // a reader needs to hear about them.
+  return cutTo(patches, files.slice(FILE_LIMIT))
 }
 
 /**

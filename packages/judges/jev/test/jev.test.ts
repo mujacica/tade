@@ -176,6 +176,30 @@ describe('asking TypeSafe', () => {
     }
   })
 
+  it('says a state that was too long in words, and does not ask again with the same one', async () => {
+    let asked = 0
+    const judge = new JevJudge({
+      key: 'k',
+      retries: 2,
+      retryMs: 0,
+      fetch: (async () => {
+        asked++
+        // What they actually answer, and what reached somebody as the whole of
+        // why a review did not happen: one red line with this JSON in it.
+        return new Response('{"detail":{"error_type":"max_tokens_exceeded"}}', { status: 400 })
+      }) as typeof fetch,
+    })
+    const failed = await judge
+      .ask({ state: 'x', questions: [{ id: 'one', kind: 'yes-no', ask: 'is it?' }] })
+      .then(() => null)
+      .catch((err: unknown) => err as JudgeError)
+    expect(failed?.message).toMatch(/longer than one ask takes.*read it in pieces/)
+    expect(failed?.message).not.toMatch(/error_type|detail|[{}]/)
+    // Asking the same thing again cannot make it shorter.
+    expect(failed?.retryable).toBe(false)
+    expect(asked).toBe(1)
+  })
+
   it('asks again when told to come back, and gives up saying why', async () => {
     let attempts = 0
     const judge = new JevJudge({

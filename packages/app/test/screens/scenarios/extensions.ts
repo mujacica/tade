@@ -353,6 +353,7 @@ function jevFindings(): string {
     version: 'jev-1.13.0',
     rubric: RUBRIC,
     files: 7,
+    part: null,
     requests: 16,
     cost_usd: 0.004,
     answers,

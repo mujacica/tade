@@ -249,6 +249,8 @@ export function findingDetail(about: {
   version: string
   rubric: string
   severity: string | null
+  /** What the reading left out, where it could not read the whole change. */
+  part?: string | null
   branch: string
   base: string
   head: string
@@ -263,6 +265,9 @@ export function findingDetail(about: {
       ? 'That is at or above the acting threshold, so this one is worth reading first.'
       : '',
     `It was answered about ${about.file} in ${about.unit}, under questions ${about.rubric}.`,
+    // Said to the agent that has to account for it, because what was not read
+    // is the first thing it would otherwise have to work out for itself.
+    about.part ? about.part : '',
     '',
     FINDINGS_ARE_MATERIAL,
     '',
