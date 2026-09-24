@@ -18,7 +18,10 @@ only explanation anybody gets.
 | `packages/judges/{jev,scripted}` | the implementations — TypeSafe's vocabulary lives only in `jev` |
 | `packages/workbench/src/judges.ts` | `JUDGES`: the one map a name becomes an implementation in |
 | `packages/extensions/jev/src/questions.ts` | every question and every threshold Tade asks, in one file |
-| `packages/extensions/jev/src/extension.ts` | the tools, the two watches, the second reading of a command, the sentence in search |
+| `packages/extensions/jev/src/extension.ts` | the tools, the review and circles watches, the second reading of a command, the sentence in search |
+| `packages/extensions/jev/src/loop.ts` | who may say what about a finding: the account, the verdict, the sweep, what a verdict has to cite |
+| `packages/extensions/jev/src/verdicts.ts` | `jev_findings`, `jev_account`, `jev_verdict`, and the standing sweep |
+| `packages/extensions/jev/src/changes.ts` | what a change *is*: one agent's own commits, out of the `Tade-Task:` trailer |
 | `AGENTS.md` ("A judge answers, it never decides") | the line a judgement may not cross |
 
 ## Adding an implementation
@@ -41,10 +44,11 @@ only explanation anybody gets.
    literally, about the thing in front of it. Compute anything counted, timed or added up in code
    and put the number in the state.
 2. **Add a tool** (`add-extension`), or extend one. A tool is asked for. Anything that runs unasked
-   is a watch — turned on by somebody, per project — or an advisory path, and an advisory path has
-   a deadline and a way to be turned off. The advisory paths today are `caution` (a command an
-   agent is held at, 4s) and `meant` (a sentence typed into search, 2.5s); the watches are
-   `jev.review` and `jev.circles`.
+   is a watch — per project, and either turned on by somebody or standing (`standing: true`, on
+   from the first look a window takes where there is a key) — or an advisory path, and an advisory
+   path has a deadline and a way to be turned off. The advisory paths today are `caution` (a
+   command an agent is held at, 4s) and `meant` (a sentence typed into search, 2.5s); the watches
+   are `jev.review` and `jev.verdicts`, both standing, and `jev.circles`, which is not.
 3. **Keep the judgement out of the rule.** `deriveState`, `queueStateOf`, `readyToStart`,
    `checkPlan`, `decideApproval`, `dueNow` and `speakable` are pure and stay pure. A judge runs
    *before* them and changes only which facts they are handed.

@@ -198,6 +198,12 @@ export const verdictsWatch: ExtensionWatch = {
   // decision is a person's or the orchestrator's. This asks; it never
   // answers, and no finding here becomes a false positive by getting old.
   offers: 'ask',
+  // On beside the reading it closes the loop on, because half a loop is what
+  // an empty calibration table is: findings nobody answered, and no way to
+  // say whether any of the questions were worth asking. It costs nothing —
+  // it reads the journal and the review log and asks the judge nothing — and
+  // with no key there is no reading to be waiting on and no schedule written.
+  standing: true,
   input: object({
     after: string('how long an agent gets to answer for its own change first; 1h unless said'),
   }),

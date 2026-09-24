@@ -28,7 +28,7 @@ import {
   readyProblem,
   thresholds,
 } from './ask.ts'
-import { changesIn, unitFor, unitsIn } from './changes.ts'
+import { changesFor, unitFor, unitsIn } from './changes.ts'
 import { circlingIn } from './circles.ts'
 import { findingsOf, gapSaid, shorten } from './loop.ts'
 import {
@@ -434,7 +434,14 @@ export const jevExtension: TadeExtension = {
       for: ['orchestrator', 'agent'],
       run: async (input, ctx) => {
         const { project: found, root } = where(input, ctx)
-        const asked = typeof input.task === 'string' ? input.task : ''
+        // An agent that names nothing is asking about its own change, and in a
+        // checkout everybody shares that is its own commits rather than the
+        // branch — which is seven agents' work, and reading it as one is how an
+        // agent came to be told it had done something other than what it was
+        // asked about somebody else's diff.
+        const mine = ctx.caller.kind === 'agent' ? ctx.caller.task : ''
+        const named = typeof input.task === 'string' ? input.task : ''
+        const asked = named || (input.ref ? '' : mine)
         const unit = asked
           ? ((await unitsIn(ctx, found)).find(
               (one) => one.key === asked || one.tasks.includes(asked),
@@ -443,10 +450,15 @@ export const jevExtension: TadeExtension = {
               root,
               ref: typeof input.ref === 'string' ? input.ref : null,
             })
-        if (!unit)
-          throw new Error(`${asked} has no branch in ${found.name} with work on it to read`)
+        if (!unit) {
+          throw new Error(
+            asked === mine
+              ? `${asked} has nothing committed in ${found.name} to read: commit what you have, and it is your change from then on`
+              : `${asked} has no branch in ${found.name} with work on it to read`,
+          )
+        }
         const paths = Array.isArray(input.paths) ? input.paths.map(String) : []
-        const changes = await changesIn(ctx, unit.root, `${unit.base}...${unit.head}`, paths)
+        const changes = await changesFor(ctx, unit, paths)
         if (changes.length === 0) {
           throw new Error(
             `nothing to read in ${unit.key}: no files a question could be about changed between ${unit.base.slice(0, 8)} and ${unit.head.slice(0, 8)}`,
@@ -787,8 +799,21 @@ export const jevExtension: TadeExtension = {
     {
       id: 'review',
       title: 'Review what agents change',
-      means: 'reads a branch that has stopped moving against its base, and reports what it flags',
+      means: 'reads each agent’s own change once it has stopped moving, and reports what it flags',
       every: '10m',
+      // On for everybody who has a key: a rubric nobody runs answers nothing,
+      // and the thing it costs — a reading of a change that has stopped
+      // moving — is what somebody set the key up for. With no key the
+      // extension is not ready and no schedule is written at all, so a fresh
+      // install gets no look, no error and no bill.
+      standing: true,
+      // And what it finds is told, not acted on. It still has an `agent` to
+      // offer, so somebody who turns it on and says `found: 'agent'` gets a
+      // second agent on each finding — but that is a decision, and a watch
+      // that is on for everybody may not make it for them. A judge may only
+      // ever add caution, and an agent nobody asked for appearing in a lane on
+      // the day somebody installs Tade is not caution.
+      offers: 'ask',
       input: object({
         threshold: number('report at or above this probability; the setting unless said'),
         questions: list(
@@ -833,7 +858,7 @@ export const jevExtension: TadeExtension = {
         // change is measured against.
         const asking = Asking.from(ctx)
         for (const unit of still) {
-          const changes = await changesIn(ctx, unit.root, `${unit.base}...${unit.head}`)
+          const changes = await changesFor(ctx, unit)
           since[unit.key] = unit.head
           if (changes.length === 0) continue
           const before = { requests: asking.requests, usd: asking.usd }
@@ -1073,9 +1098,9 @@ export const jevExtension: TadeExtension = {
       'It may only ever add caution: it never approves, closes, merges, unholds or shortens anything, and nothing waits on it.',
       'With approvals on, it also reads each command an agent is held at that Tade’s own rules do not name, and can only raise what it takes to allow one — a command that would have needed a word said to it now has to be read back. If somebody asks why they are being asked about a command, the sentence beside the request is the whole answer; the probability behind it is not one, and turning it off is extensions.jev.commands.',
       'What the jev.review watch finds is reported to you as a question and a number, never a verdict. The agent whose change it is answers first, with jev_account — what it did about it, or why it is not real — and that is testimony rather than a verdict, because it is the one being measured. Yours is the verdict: read the flagged diff, then jev_verdict, whose sentence has to name what in the change decided it (a file, a line, the code in backticks) so that a reading can be told from a rubber stamp later. Nothing becomes a false positive by getting old, and an agent may never write one about its own work.',
-      'jev.verdicts is the sweep: turned on, it tells you once about each finding an agent has accounted for and nobody has judged, and each one whose agent is gone. It starts nothing — what to do about a finding is a decision, so tell the person what is waiting and answer the ones you have read.',
+      'jev.verdicts is the sweep: it tells you once about each finding an agent has accounted for and nobody has judged, and each one whose agent is gone. It starts nothing — what to do about a finding is a decision, so tell the person what is waiting and answer the ones you have read.',
       'Only then make work of it, and when the fix should wait for the agent whose code it is, queue it with tade_plan after that task, with the reason in your own words.',
-      'To have changes read as agents finish them, turn on the watch jev.review with tade_schedule, when asked to, and jev.verdicts beside it so what it flags is not left unanswered; jev.circles is the third, and it watches for an agent going round on the same failing command and tells you which — it starts nothing, and what to do about a stuck agent is theirs to decide.',
+      'Both of those are on already, in every project, from the first time Tade opened with a key set up: they are ordinary schedules and somebody can pause, change or remove one, and removed it stays removed. jev.circles is the third and is off until somebody turns it on — it watches for an agent going round on the same failing command and tells you which, it starts nothing, and what to do about a stuck agent is theirs to decide.',
       'It also answers a sentence somebody types into search that matched nothing, with which of the things already in front of them it might mean.',
     ].join(' ')
   },
@@ -1095,7 +1120,7 @@ export const jevExtension: TadeExtension = {
       '**Version:** pin one (`jev-1.13.0`), never an alias. Thresholds are tuned against one version’s distributions, and an alias moves under you when they ship.',
       '**Projects:** which projects it may read. Leave it empty for all of them, or name the ones whose diffs and logs may be sent.',
       '**What it costs:** roughly a hundredth of a cent a question. `budget` caps how many requests one look or one tool call may make, so a rebase storm cannot turn into a bill you find out about later.',
-      '**What leaves the machine:** the diffs, logs and text you point it at go to TypeSafe, who say they do not train on them. Nothing is sent until you ask for something or turn a watch on — the review watch is off until somebody turns it on, per project.',
+      '**What leaves the machine:** the diffs, logs and text you point it at go to TypeSafe, who say they do not train on them. Nothing is sent until there is a key: with none, the review watch is never turned on, nothing looks and nothing is read. Set one, and it reads each agent’s own change once it has stopped moving, in every project — pause or remove it in the queue and it stays that way.',
       '**Reading commands:** with `approvals.mode: policy`, every command an agent is held at is read for what the rules do not name — `terraform destroy`, `kubectl delete`, an `aws s3 rm --recursive` — and what it finds can only make Tade ask you for more: one word becomes the command read back. It can never allow anything, and under `bypass` nothing is held either way, so nothing is read.',
     ],
     fields: [

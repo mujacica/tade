@@ -8,6 +8,9 @@ import {
   ON_TIME_MS,
   runsOf,
   scheduleEnded,
+  standingId,
+  standingSchedules,
+  type WatchOffered,
   type When,
   wallClock,
   watchedFrom,
@@ -287,5 +290,65 @@ describe('what a watch has done', () => {
       acting: [],
       left: 0,
     })
+  })
+})
+
+describe('a watch that is on without anybody turning it on', () => {
+  const offered = (over: Partial<WatchOffered> = {}): WatchOffered => ({
+    id: 'jev.review',
+    title: 'Review what agents change',
+    every: '10m',
+    offers: 'agent',
+    standing: true,
+    problem: null,
+    ...over,
+  })
+  const NOW = at('2026-09-20T09:00:00Z')
+
+  it('is written once per project, as an ordinary schedule', () => {
+    const made = standingSchedules([offered()], ['shop', 'tade-web'], () => false, NOW)
+    expect(made.map((one) => one.id)).toEqual(['jev-review-shop', 'jev-review-tade-web'])
+    expect(made[0]).toMatchObject({
+      name: 'Review what agents change',
+      project: 'shop',
+      by: 'extension:jev',
+      missed: 'once',
+      when: { every: '10m' },
+      does: { kind: 'watch', watch: 'jev.review', input: {}, found: 'agent', most: 2 },
+      created: '2026-09-20T09:00:00.000Z',
+    })
+    // And its first look is one interval away, not the moment it is written:
+    // a fresh install does not open onto a reading of everything.
+    expect(dueNow(made[0]!, null, 0, NOW)).toBeNull()
+    expect(dueNow(made[0]!, null, 0, NOW + 600_001)).toMatchObject({ run: true })
+  })
+
+  it('is not written at all while its extension cannot look', () => {
+    expect(standingSchedules([offered({ problem: 'no key' })], ['shop'], () => false, NOW)).toEqual(
+      [],
+    )
+  })
+
+  it('is not written where somebody has already decided, however they decided', () => {
+    // Made, paused, changed or removed: the id has been written, and the
+    // append-only file keeps that fact after the schedule itself is gone.
+    const decided = new Set(['jev-review-shop'])
+    expect(
+      standingSchedules([offered()], ['shop', 'tade-web'], (id) => decided.has(id), NOW).map(
+        (one) => one.id,
+      ),
+    ).toEqual(['jev-review-tade-web'])
+  })
+
+  it('leaves a watch nobody said stands alone', () => {
+    expect(standingSchedules([offered({ standing: false })], ['shop'], () => false, NOW)).toEqual(
+      [],
+    )
+  })
+
+  it('keeps an id a schedule can have: one per watch and project, and never empty', () => {
+    expect(standingId('jev.verdicts', 'tade-web')).toBe('jev-verdicts-tade-web')
+    expect(standingId('jev.review', 'shop')).not.toBe(standingId('jev.review', 'till'))
+    expect(standingId('a.b', 'x')).toMatch(/^[a-z0-9][a-z0-9-]*$/)
   })
 })

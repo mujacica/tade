@@ -6,11 +6,13 @@ import {
   newFindings,
   type Schedule,
   type ScheduleDoes,
+  standingSchedules,
   taskOrigin,
   type When,
   watchedFrom,
 } from '@tade/core'
 import type { ExtensionHost } from '@tade/extensions-core'
+import { readEverMade } from '@tade/workbench/schedules'
 import type { Frame } from '../frame.ts'
 import { notice, openSchedule, type ScheduleView, withTranscript } from '../model.ts'
 import { scheduleMenuItems } from '../panels/menu/state.ts'
@@ -214,9 +216,55 @@ export class Schedules implements Subject {
     return this.pass
   }
 
+  /**
+   * Write the watches that are on without anybody turning one on, once each.
+   *
+   * The rule is `standingSchedules` and it is all of it: a watch that says it
+   * stands, an extension that can look right now, and an id nothing has ever
+   * been written under in this project. With no key the extension is not
+   * ready, so there is no schedule, no look and nothing in the journal — which
+   * is the whole of "with no key nothing runs and nothing else changes".
+   * Written, it is an ordinary schedule: it is in the queue, it can be paused,
+   * changed or removed, and removed it stays removed.
+   */
+  private async writeStanding(): Promise<void> {
+    const host = this.wire.opts.extensions
+    if (!host) return
+    const watches = host.watches()
+    const projects = Object.keys(this.wire.opts.config.projects)
+    // Twice, cheaply then exactly. Against the schedules there are, which are
+    // already in hand, this is a set lookup and after the first look it comes
+    // back empty — so the file behind the second question is read only on the
+    // looks where something might actually be written.
+    const there = new Set(this.wire.opts.client.schedules().map((one) => one.id))
+    if (standingSchedules(watches, projects, (id) => there.has(id), this.wire.now()).length === 0) {
+      return
+    }
+    const ever = readEverMade(this.wire.opts.home)
+    const standing = standingSchedules(watches, projects, (id) => ever.has(id), this.wire.now())
+    for (const schedule of standing) {
+      try {
+        const kept = await this.wire.opts.client.setSchedule(schedule, schedule.by)
+        // Said where you would look: a schedule nobody asked for is exactly
+        // the kind of thing somebody has to be able to find and undo.
+        const said = `${kept.name} is on in ${kept.project}, ${describeWhen(kept.when)} — turn it off in the queue if you would rather it did not.`
+        this.deps.news(said)
+        this.wire.put(
+          withTranscript(
+            this.wire.state,
+            tadeDid(this.wire.state.transcript, said, this.wire.now()),
+          ),
+        )
+      } catch (err) {
+        this.wire.note(err)
+      }
+    }
+  }
+
   private async doRunDue(): Promise<void> {
     const live = this.wire.live
     if (!live) return
+    await this.writeStanding()
     const now = this.wire.now()
     for (const one of this.wire.opts.client.schedules()) {
       if (one.paused) continue

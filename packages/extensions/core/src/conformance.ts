@@ -121,6 +121,10 @@ export function extensionConformance(
           : []
         if (required.length === 0) expect(host.watchProblem(id, {})).toBeNull()
         else expect(host.watchProblem(id, {})).toMatch(/is needed/)
+        // One that is on without anybody turning it on is turned on by a
+        // rule, and a rule has nothing of its own to say: it has to take
+        // being asked for with nothing.
+        if (watch.standing) expect(required).toEqual([])
       }
     })
 

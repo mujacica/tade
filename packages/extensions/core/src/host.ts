@@ -169,6 +169,8 @@ export interface WatchOffer {
   input: JsonSchema | null
   /** What it is for when nobody says: work started on each finding, or somebody told. */
   offers: 'ask' | 'agent'
+  /** Whether it is on without anybody turning it on, once its extension can look. */
+  standing: boolean
   /** Why it cannot look now — its extension needs setting up, is off, is broken — or null. */
   problem: string | null
 }
@@ -733,6 +735,7 @@ export class ExtensionHost {
         every: watch.every,
         input: watch.input ?? null,
         offers: watch.offers ?? 'agent',
+        standing: watch.standing === true,
         problem: notReady(entry),
       })),
     )

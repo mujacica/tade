@@ -33,6 +33,13 @@ export interface Unit {
   branch: string
   head: string
   base: string
+  /**
+   * The commits this unit is made of, newest last, when it is one agent's own
+   * work on a branch everybody shares. Empty where the unit is the whole range
+   * `base...head`, which is what a worktree of its own and a branch nobody
+   * signed are.
+   */
+  commits: string[]
   /** When its head landed, so a branch still being typed into is left alone. */
   at: number
 }
@@ -113,11 +120,61 @@ export async function baseRefOf(ctx: ExtensionContext, root: string): Promise<st
   return 'HEAD'
 }
 
+/** The most commits of one agent's own that are read as its change. */
+const COMMIT_LIMIT = 50
+
+/**
+ * Who wrote each commit in a range, out of the `Tade-Task:` trailer.
+ *
+ * Read back, never guessed — the same fact the ACTIONS tab and the queue's
+ * look at the trees read, and the only thing on a shared branch that says
+ * whose a line is. A commit nobody signed belongs to nobody and is left out
+ * rather than given to whoever was nearest.
+ */
+export async function commitsByTask(
+  ctx: ExtensionContext,
+  root: string,
+  range: string,
+): Promise<{ byTask: Map<string, { sha: string; at: number }[]>; signed: number }> {
+  const log = await git(ctx, root, ['log', '--format=%H%x1f%ct%x1f%B%x1e', range])
+  const byTask = new Map<string, { sha: string; at: number }[]>()
+  let signed = 0
+  if (!log.ok) return { byTask, signed }
+  for (const record of log.out.split('\x1e')) {
+    const [sha, at, body] = record.replace(/^\s+/, '').split('\x1f')
+    if (!sha || !body) continue
+    const said = /^Tade-Task:[ \t]*(.+)$/m.exec(body)
+    const task = said?.[1]?.trim()
+    if (!task) continue
+    signed += 1
+    const mine = byTask.get(task) ?? []
+    mine.push({ sha, at: Number(at ?? 0) * 1000 })
+    byTask.set(task, mine)
+  }
+  // `git log` is newest first and a change reads oldest first, as it was made.
+  for (const mine of byTask.values()) mine.reverse()
+  return { byTask, signed }
+}
+
 /**
  * Every branch in a project with work on it somebody asked for, and what it is
- * diffed against. One worktree with a task file of its own is that task; a
- * checkout everybody shares is one unit per branch, because their work is one
- * branch and no reading can say whose line is whose.
+ * diffed against.
+ *
+ * One worktree with a task file of its own is that task. A checkout everybody
+ * shares is **one unit per agent**, made of that agent's own commits — which
+ * is knowable, because every commit Tade's agents write carries a
+ * `Tade-Task:` trailer naming whose it is, and that trailer is read back
+ * rather than guessed. Read as one branch instead, the change a question is
+ * asked about is seven agents' work and the words it was asked for in are
+ * seven intents joined together, which is a question nothing could answer
+ * truthfully: `did_what_was_asked` fired on two changes out of three that way.
+ * It also means one busy agent no longer holds up everybody's reading — a
+ * branch that never settles is still one agent's work that has.
+ *
+ * What nobody signed stays nobody's: a repository where no commit in the range
+ * carries a trailer is read as one branch, exactly as before, and uncommitted
+ * work is in no unit at all, because a working tree four agents are writing in
+ * belongs to none of them.
  */
 export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promise<Unit[]> {
   const listed = await git(ctx, project.root, ['worktree', 'list', '--porcelain'])
@@ -141,25 +198,48 @@ export async function unitsIn(ctx: ExtensionContext, project: ProjectRef): Promi
     const tasks = await tasksIn(worktree.path)
     if (tasks.length === 0 || !worktree.head) continue
     const shared = tasks.length > 1 || !(await taskFile(join(worktree.path, '.tade', 'task.yaml')))
-    const key = shared
-      ? `${project.name}:${worktree.branch || worktree.head.slice(0, 8)}`
-      : (tasks[0]?.id ?? '')
     const recorded = tasks.map((task) => task.base).filter(Boolean)
     const base = await baseOf(ctx, worktree.path, recorded, worktree.head, baseRef)
     if (!base || base === worktree.head) continue
+    const whole = {
+      project: project.name,
+      root: worktree.path,
+      branch: worktree.branch,
+      base,
+    }
+    const mine = shared
+      ? (await commitsByTask(ctx, worktree.path, `${base}..${worktree.head}`)).byTask
+      : new Map<string, { sha: string; at: number }[]>()
+    if (mine.size > 0) {
+      for (const task of tasks) {
+        const own = mine.get(task.id) ?? []
+        const last = own.at(-1)
+        if (!last) continue
+        units.push({
+          ...whole,
+          key: task.id,
+          tasks: [task.id],
+          intent: task.intent,
+          head: last.sha,
+          commits: own.slice(-COMMIT_LIMIT).map((commit) => commit.sha),
+          at: last.at,
+        })
+      }
+      continue
+    }
     const when = await git(ctx, worktree.path, ['log', '-1', '--format=%ct', worktree.head])
     units.push({
-      key,
-      project: project.name,
+      ...whole,
+      key: shared
+        ? `${project.name}:${worktree.branch || worktree.head.slice(0, 8)}`
+        : (tasks[0]?.id ?? ''),
       tasks: tasks.map((task) => task.id),
       intent: tasks
         .map((task) => task.intent)
         .filter(Boolean)
         .join('\n'),
-      root: worktree.path,
-      branch: worktree.branch,
       head: worktree.head,
-      base,
+      commits: [],
       at: Number(when.out.trim() || 0) * 1000,
     })
   }
@@ -227,10 +307,15 @@ export async function unitFor(
   }
   const when = await git(ctx, root, ['log', '-1', '--format=%ct', head])
   return {
+    // A finding's key is one change for ever, so a key may never be made out
+    // of a moving reference: `HEAD~1..HEAD` is a different change every time
+    // somebody commits, and two readings of it days apart folded into one
+    // finding, which put an account written about today's diff on a question
+    // raised about another one. The commits it resolved to are what it was.
     key:
       tasks.length === 1 && tasks[0]
         ? tasks[0].id
-        : `${project.name}:${where.ref || branch || head.slice(0, 8)}`,
+        : `${project.name}:${where.ref ? `${base.slice(0, 8)}..${head.slice(0, 8)}` : branch || head.slice(0, 8)}`,
     project: project.name,
     tasks: tasks.map((task) => task.id),
     intent: tasks
@@ -241,8 +326,80 @@ export async function unitFor(
     branch,
     head,
     base,
+    commits: [],
     at: Number(when.out.trim() || 0) * 1000,
   }
+}
+
+/**
+ * One file's patch out of a combined `git show`, and which file it is about.
+ *
+ * Pure, and a table test holds it: a diff is the one external format here that
+ * a question is asked about, and a reading that got the file wrong would put a
+ * finding on somebody else's code. Anything it cannot name is skipped, never
+ * guessed at — the same rule the transcript parsers keep.
+ */
+export function patchesIn(shown: string): { file: string; patch: string }[] {
+  const out: { file: string; patch: string }[] = []
+  let lines: string[] = []
+  const keep = () => {
+    if (lines.length === 0) return
+    const patch = `${lines.join('\n')}\n`
+    // `+++ b/<path>` names it, except where it was deleted and that line is
+    // `/dev/null`; then `--- a/<path>` is what it was called.
+    const file = /^\+\+\+ b\/(.+)$/m.exec(patch)?.[1] ?? /^--- a\/(.+)$/m.exec(patch)?.[1] ?? ''
+    if (file) out.push({ file, patch })
+    lines = []
+  }
+  for (const line of shown.split('\n')) {
+    if (line.startsWith('diff --git ')) keep()
+    if (lines.length > 0 || line.startsWith('diff --git ')) lines.push(line)
+  }
+  keep()
+  return out
+}
+
+/**
+ * What a unit changed: the range where it is a branch, and the sum of one
+ * agent's own commits where it is one agent's work on a branch it shares.
+ *
+ * Summing the commits rather than diffing across them is what keeps it that
+ * agent's: `git diff first^..last` over a shared branch takes in whatever
+ * anybody else committed in between, and a finding on somebody else's line is
+ * worse than no finding. A file two agents both touched appears in both, which
+ * is true — they both changed it.
+ */
+export async function changesFor(
+  ctx: ExtensionContext,
+  unit: Pick<Unit, 'root' | 'base' | 'head' | 'commits'>,
+  paths: readonly string[] = [],
+): Promise<FileChange[]> {
+  if (unit.commits.length === 0) {
+    return changesIn(ctx, unit.root, `${unit.base}...${unit.head}`, paths)
+  }
+  const shown = await git(
+    ctx,
+    unit.root,
+    [
+      'show',
+      '--format=',
+      '--unified=3',
+      ...unit.commits,
+      ...(paths.length > 0 ? ['--', ...paths] : []),
+    ],
+    30_000,
+  )
+  if (!shown.ok) throw new Error(`git show: ${shown.said || 'it would not resolve'}`)
+  const byFile = new Map<string, string>()
+  for (const { file, patch } of patchesIn(shown.out)) {
+    if (SKIP.test(file) || SKIP_IN.test(file)) continue
+    byFile.set(file, (byFile.get(file) ?? '') + patch)
+  }
+  return [...byFile.entries()].slice(0, FILE_LIMIT).map(([file, patch]) => ({
+    file,
+    patch: patch.slice(0, PATCH_LIMIT),
+    cut: Math.max(0, patch.length - PATCH_LIMIT),
+  }))
 }
 
 /**

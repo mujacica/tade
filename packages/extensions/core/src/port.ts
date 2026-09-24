@@ -228,6 +228,20 @@ export interface ExtensionWatch {
    */
   offers?: 'ask' | 'agent'
   /**
+   * On without anybody turning it on: the first look a window takes in a
+   * project whose extension can look writes the schedule, once, and from then
+   * on it is an ordinary schedule — listed, pausable, changeable, removable,
+   * and removed it stays removed.
+   *
+   * A watch may only say this where being on costs nothing anybody has to
+   * agree to: no key of somebody else's, no third party told anything, and a
+   * look that finds nothing spends nothing. An extension that is not ready —
+   * no key, turned off, broken — has no standing watch written at all, which
+   * is what makes the no-key case exactly nothing rather than a schedule that
+   * fails every ten minutes.
+   */
+  standing?: boolean
+  /**
    * Look, and say what there is. No model: it runs on a clock, and a look that
    * finds nothing costs nothing. Nothing found is an empty list, never a throw;
    * it throws, with why, only when it cannot look at all. What it returns as

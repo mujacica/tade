@@ -274,7 +274,23 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   per finding an agent accounted for and nobody judged, and once per finding whose agent is gone,
   after that agent has had its own hour to answer. It starts nothing — what to do about a finding
   is a decision — and **nothing becomes a false positive by getting old**: unresolved stays
-  unresolved, and how many and for how long is said in `jev_findings` and in the brief.
+  unresolved, and how many, which ones and for how long is said in `jev_findings` and in the brief.
+- **A finding is about one agent's change, and in a shared checkout that is its own commits.** A
+  finding nobody can be asked about is a finding nobody answers, which is what an empty calibration
+  table is made of. Everybody on one branch read as one change asks the pack about seven agents'
+  work against seven intents joined together — a question nothing could answer truthfully, and
+  `did_what_was_asked` fired on two changes in three that way — and no agent could account for the
+  answer, because none of it was only theirs. So the unit is per agent (`unitsIn`,
+  `commitsByTask`): whose a commit is, is **read back out of the `Tade-Task:` trailer and never
+  guessed**, the same fact the ACTIONS tab and the queue's look at the trees read, and a change is
+  the sum of that agent's own commits (`changesFor`) rather than a diff across them, which would
+  take in whatever anybody else committed in between. What nobody signed stays nobody's: a
+  repository where no commit in the range carries a trailer is read as one branch, exactly as
+  before, and uncommitted work is in no unit at all. It is also what unsticks the reading — the
+  cursor and the settling are each agent's own, so one agent still typing no longer holds up the
+  reading of work that has stopped. An agent asking `jev_review` or `jev_findings` about nothing is
+  asking about its own change, which is the whole of how a finding reaches the agent whose it is:
+  a pull, because nothing in the port can push a sentence into a conversation already going.
 - **A raised tier is the only thing a reading may do to a command.** The approval rules are
   patterns somebody wrote and they are what decides; what no pattern names is read a second time
   (`caution` on the extension port, `withCaution` in `core/src/policy.ts`), with the agent held at
@@ -461,13 +477,26 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   caught up once or skipped, as the schedule says, never once per run missed. An agent a schedule
   starts is queued work named for it and the day, in the project's own workspace.
 - **A watch is a schedule that looks before it acts.** An extension offers it (`watches`): a cheap
-  `check`, no model, and what an agent on each finding is told. Nothing is watched until someone
-  turns one on, and then it is a schedule like any other. Tade keeps where each look left off and
-  every key found (`watch_checked`, `watch_found`), so a watch keeps nothing itself and one finding
-  never starts work twice — a start that failed included. One look acts on at most `most` new
-  findings, as queued work named for them or told to the orchestrator; the rest wait for the next
-  look, which starts where this one did. A look that cannot look is said when it starts going
+  `check`, no model, and what an agent on each finding is told. Almost nothing is watched until
+  someone turns one on, and then it is a schedule like any other. Tade keeps where each look left
+  off and every key found (`watch_checked`, `watch_found`), so a watch keeps nothing itself and one
+  finding never starts work twice — a start that failed included. One look acts on at most `most`
+  new findings, as queued work named for them or told to the orchestrator; the rest wait for the
+  next look, which starts where this one did. A look that cannot look is said when it starts going
   wrong, not at every look.
+- **A watch that is on by default is still a schedule somebody can take away.** A watch may declare
+  that it stands (`standing`), and then the window writes it — once, per project, through the same
+  `setSchedule` everything else goes through (`standingSchedules`, `core/src/schedule.ts`; written
+  in `wire/schedules.ts` on the pass that runs what is due). From that moment it is ordinary: it is
+  in the queue, it can be paused, changed or removed, and **removed it stays removed**, because
+  `schedules.jsonl` is append-only and the id it held is a fact that outlives it
+  (`readEverMade`, which nothing rotates, unlike the journal). Three refusals and no judgement: the watch says it stands, its extension
+  can look *right now*, and nothing has ever been written under that id. The middle one is what
+  makes the no-key case exact — with no key the extension is not ready, so there is no schedule at
+  all rather than one failing every ten minutes — and a watch may only ever declare it where being
+  on costs nothing anybody has to agree to: no credential of somebody else's, nobody outside told
+  anything, and a look that finds nothing spending nothing. Its first look is one interval away
+  rather than the moment it is written, so opening Tade is never a reading of everything.
 - **Tade tells the orchestrator; it never talks over it.** What happened waits and goes with the
   next thing you say, under "What they said:"; what needs it now goes after its current turn
   (`whenBusy: 'queue'`). A prompt pi receives mid-turn without saying how to arrive is refused and

@@ -8,27 +8,30 @@
    ⠋ │                                                                                                            │     
      │ 2 of 4 finding(s) have no verdict, 1 of them with an agent's account already. The oldest has waited 6h.    │     
      │                                                                                                            │     
- ▸ SM│ Nothing here becomes a false positive by getting old: jev_verdict is the only thing that closes one, it is │     
- ▾ CH│ never an agent’s to give about its own change, and its sentence has to cite what in the change decided it. │     
+ ▸ SM│ - checkout/refund-window:test_missing — 0.64 · src/webhook.ts · waiting 6h, nobody has accounted for it    │     
+ ▾ CH│ - checkout/stripe-v15:test_missing — 0.88 · src/webhook.ts · waiting 40m, its agent says this is not real  │     
   M p│                                                                                                            │     
-  A …│ By question                                                                                                │     
-  M s│                                                                                                            │     
+  A …│ Nothing here becomes a false positive by getting old: jev_verdict is the only thing that closes one, it is │     
+  M s│ never an agent’s to give about its own change, and its sentence has to cite what in the change decided it. │     
+     │                                                                                                            │     
+ ▾ FI│ By question                                                                                                │     
+   ▾ │                                                                                                            │     
      │ ┌─────────────────┬───────┬───────────┬────────────────┐                                                   │     
- ▾ FI│ │ question        │ fired │ confirmed │ false positive │                                                   │     
-   ▾ │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+     │ │ question        │ fired │ confirmed │ false positive │                                                   │     
+   ▸ │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
      │ │ test_missing    │ 2     │ 0         │ 0              │                                                   │     
      │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
-   ▸ │ │ error_swallowed │ 1     │ 1         │ 0              │                                                   │     
-     │ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
-     │ │ kind_fixture    │ 1     │ 0         │ 1              │                                                   │     
-     │ └─────────────────┴───────┴───────────┴────────────────┘                                                   │     
- ▸ NO│                                                                                                            │     
- ▾ GI│ Calibration                                                                                                │     
-   re│                                                                                                            │     
-   br│ ┌─────────────┬─────────┬───────────┐                                                                      │     
-   fr│ │ probability │ flagged │ confirmed │                                                                      │     
-   wo│ ├─────────────┼─────────┼───────────┤                                                                      │     
-   pa│ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
+     │ │ error_swallowed │ 1     │ 1         │ 0              │                                                   │     
+ ▸ NO│ ├─────────────────┼───────┼───────────┼────────────────┤                                                   │     
+ ▾ GI│ │ kind_fixture    │ 1     │ 0         │ 1              │                                                   │     
+   re│ └─────────────────┴───────┴───────────┴────────────────┘                                                   │     
+   br│                                                                                                            │     
+   fr│ Calibration                                                                                                │     
+   wo│                                                                                                            │     
+   pa│ ┌─────────────┬─────────┬───────────┐                                                                      │     
+     │ │ probability │ flagged │ confirmed │                                                                      │     
+     │ ├─────────────┼─────────┼───────────┤                                                                      │     
+     │ │ 0.6–0.7     │ 2       │ 0         │                                                                      │     
      │ ├─────────────┼─────────┼───────────┤                                                                      │     
      │ │ 0.7–0.8     │ 1       │ 1         │                                                                      │     
      │ ├─────────────┼─────────┼───────────┤                                                                      │     
@@ -44,11 +47,10 @@
      │ - checkout/stripe-v15:test_missing — Does this change alter what the program does without adding or        │     
      │   changing a test that covers it?                                                                          │     
      │   told orchestrator · its agent: not real — the new branch is covered by the contract tests in             │     
-     │   test/stripe.test.ts                                                                                      │     
-━   o│ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving than │▾   ━
-     │   a real project would be?                                                                                 │     
+━   o│   test/stripe.test.ts                                                                                      │▾   ━
+     │ - checkout/refund-window:kind_fixture — Does this change make a test fixture tidier or more forgiving than │     
+     │   a real project would be?                                                                                 │    ▕
      │   told orchestrator · false positive: the fixture in test/fixtures/refunds.ts is small on purpose          │    ▕
-     │                                                                                                            │    ▕
      │                                                                                                            │    ▕
      │ kept current while open                                                                            Close   │    ▕
  ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯    ▕

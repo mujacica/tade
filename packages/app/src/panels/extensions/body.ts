@@ -290,7 +290,10 @@ export function extensionBody(
   const watches = view.state === 'broken' ? [] : view.watches
   if (watches.length > 0) {
     lines.push(blank(form))
-    heading('WATCHES', 'none on until you turn one on')
+    // What the heading says has to be true of these watches: some turn
+    // themselves on once their extension can look, and the rows say where.
+    const on = watches.filter((watch) => watch.on).length
+    heading('WATCHES', on === 0 ? 'none on until you turn one on' : `${on} of ${watches.length} on`)
     for (const watch of watches) {
       const id = watchControl(view.name, watch)
       const every = `  every ${watch.every}`

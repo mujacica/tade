@@ -126,7 +126,7 @@ export function findingsReport(
   lines.push('')
   lines.push(
     looks.length === 0 && week.length === 0
-      ? 'Nothing read yet — the review watch is off, and jev_review reads on demand.'
+      ? 'Nothing read yet — the review watch reads a change once it has stopped moving, and jev_review reads on demand.'
       : `${looks.length} look${looks.length === 1 ? '' : 's'} · ${week.length} change${week.length === 1 ? '' : 's'} read · ${raised} flagged · ${centsSaid(spent)}`,
   )
   const trouble = looks.filter((look) => look.problem)

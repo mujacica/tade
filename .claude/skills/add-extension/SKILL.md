@@ -107,6 +107,16 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   work already going — an agent stuck — where there is nothing to start. A watch that reads what
   Tade is running gets the window as `ctx.tade`, and says it cannot look without one rather than
   finding nothing.
+- **A watch may be on without anybody turning it on** (`standing: true`): the window writes its
+  schedule once per project, the first time its extension can look (`standingSchedules`), and from
+  then on it is an ordinary schedule — pausable, changeable, removable, and removed it stays
+  removed. Declare it only where being on costs nothing anybody has to agree to: no credential of
+  somebody else's, nothing outside told anything, a look that finds nothing spending nothing, and
+  `offers: 'ask'` unless starting an agent per finding is something you would do to somebody on
+  the day they installed Tade. It has to be turnable on with nothing said to it, so nothing in its
+  `input` may be `required` — the conformance suite holds you to that. An extension that needs
+  setting up has no standing schedule at all, which is what makes the no-key case nothing rather
+  than a schedule that fails on a clock.
 - **A sentence typed into search reaches whoever offers to read one** (`meant`): the choices are
   what the window already has in its list, the answer is ids from that list and nothing else, and
   it has a deadline of a couple of seconds because somebody is watching the box.

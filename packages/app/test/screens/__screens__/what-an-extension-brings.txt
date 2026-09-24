@@ -12,7 +12,7 @@
  ▾ │ ○ release-notes        ▕│                                                                                     ▕│   
   M│ · Written by Tade    1 ▕│ WATCHES  none on until you turn one on                                              ▕│   
   A│ · MCP servers        4 ▕│ ◎ Review what agents change  every 10m                             Watch checkout   ▕│   
-  M│ · Harnesses' own     2 ▕│   reads a branch that has stopped moving against its base, and reports what it      ▕│   
+  M│ · Harnesses' own     2 ▕│   reads each agent’s own change once it has stopped moving, and reports what it     ▕│   
    │                        ▕│   flags                                                                             ▕│   
  ▾ │                        ▕│ ◎ Agents going in circles  every 10m                               Watch checkout   ▕│   
    │                        ▕│   reads the agents that keep making the same failing call, and says which           █│   

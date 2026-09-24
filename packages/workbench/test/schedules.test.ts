@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { type Schedule, watchedFrom } from '@tade/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../test/fixtures/mkrepo.ts'
-import { foldSchedules, readSchedules } from '../src/schedules.ts'
+import { foldSchedules, readEverMade, readSchedules } from '../src/schedules.ts'
 import { Workbench } from '../src/workbench.ts'
 
 const deps = (over: Partial<Schedule> = {}): Schedule => ({
@@ -33,6 +33,19 @@ describe('schedules', () => {
 
   afterEach(async () => {
     await client.close().catch(() => {})
+  })
+
+  it('remembers every id it has ever held, so a removal outlives the schedule', async () => {
+    expect(readEverMade(home).has('deps-weekly')).toBe(false)
+    await client.setSchedule(deps(), 'orchestrator')
+    expect(readEverMade(home).has('deps-weekly')).toBe(true)
+    await client.changeSchedule({ id: 'deps-weekly', change: 'remove', by: 'you' })
+    expect(client.schedules()).toEqual([])
+    // Gone, and still decided about: this is what stops a watch that is on by
+    // default being written again over somebody taking it away.
+    expect(readEverMade(home).has('deps-weekly')).toBe(true)
+    expect(readEverMade(home).has('never-made')).toBe(false)
+    expect(readEverMade(tmp('tade-nothing-')).size).toBe(0)
   })
 
   it('keeps every change as a line of its own, with who made it', async () => {

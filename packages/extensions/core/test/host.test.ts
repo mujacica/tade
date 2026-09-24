@@ -434,6 +434,8 @@ describe('watching', () => {
         input: expect.objectContaining({ type: 'object' }),
         // What it is for when nobody says: this one starts work on what it finds.
         offers: 'agent',
+        // And nobody said it stands, so nothing turns it on but a person.
+        standing: false,
         problem: null,
       },
     ])

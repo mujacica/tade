@@ -262,6 +262,9 @@ function accountDetail(one: OpenFinding, now: number): string {
   ].join('\n')
 }
 
+/** How many of the waiting are named on a page before the rest are a number. */
+const MOST_WAITING = 10
+
 /** The gap, for a page: how many are waiting, how many have an account, and for how long. */
 export function gapLines(findings: readonly OpenFinding[], now: number): string[] {
   if (findings.length === 0) return []
@@ -276,6 +279,16 @@ export function gapLines(findings: readonly OpenFinding[], now: number): string[
   lines.push(
     `${open.length} of ${findings.length} finding(s) have no verdict, ${accounted.length} of them with an agent's account already. The oldest has waited ${duration(Math.max(0, now - oldest))}.`,
   )
+  lines.push('')
+  // Which ones, and not only how many: a verdict is written about a finding by
+  // name, so a backlog nobody can name is a backlog nobody can answer. Oldest
+  // first, because that is the order somebody would work through them in.
+  for (const one of [...open].sort((a, b) => a.at - b.at).slice(0, MOST_WAITING)) {
+    lines.push(
+      `- **${one.key}** — ${one.probability.toFixed(2)}${one.file ? ` · ${one.file}` : ''} · waiting ${duration(Math.max(0, now - one.at))}${one.account ? `, its agent says ${one.account.did === 'fixed' ? 'it fixed this' : 'this is not real'}` : ', nobody has accounted for it'}`,
+    )
+  }
+  if (open.length > MOST_WAITING) lines.push(`- … and ${open.length - MOST_WAITING} more.`)
   lines.push('')
   lines.push(
     'Nothing here becomes a false positive by getting old: jev_verdict is the only thing that closes one, it is never an agent’s to give about its own change, and its sentence has to cite what in the change decided it.',

@@ -611,8 +611,10 @@ export const EXTENSION_SCREENS: Scenario[] = [
     state: { ...base(), panel: extensionViewPanel('jev') },
     frame: frame({
       // Tall enough for the whole report: what it found is the half a person
-      // reads, and a picture that stops before it shows a page of tables.
-      height: 58,
+      // reads, and a picture that stops before it shows a page of tables. It
+      // grew by the two findings the gap now names, because a backlog nobody
+      // can name is a backlog nobody can answer.
+      height: 60,
       statuses: [{ extension: 'jev', text: '3 read · 4 flagged', tone: 'quiet', viewable: true }],
       panel: { extensionView: { title: 'Jev', markdown: jevFindings() } },
     }),

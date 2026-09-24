@@ -418,6 +418,85 @@ export function dueNow(
     : { run: false, due: latest, missed: passed.length }
 }
 
+/**
+ * A watch as the window knows it, for deciding what is on without anybody
+ * turning it on. Not the port's own type: this file is pure, and what it needs
+ * of a watch is its name, how often it looks, what it is for, whether it
+ * stands, and whether it can look at all.
+ */
+export interface WatchOffered {
+  /** `<extension>.<watch>`. */
+  id: string
+  title: string
+  every: string
+  offers: 'ask' | 'agent'
+  standing: boolean
+  /** Why its extension cannot look now — no key, turned off, broken — or null. */
+  problem: string | null
+}
+
+/**
+ * The id a standing watch's schedule keeps for good, in one project.
+ *
+ * Never shortened, unlike an id made from a name somebody typed: this one is
+ * the only handle on "has this project ever had this watch", and two long
+ * project names cut to the same forty characters would be one schedule that
+ * one of them could never be given.
+ */
+export function standingId(watch: string, project: string): string {
+  const slug = (said: string) =>
+    said
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  return `${slug(watch)}-${slug(project)}`.replace(/^-+|-+$/g, '') || 'watch'
+}
+
+/**
+ * The standing watches a project has not been given yet: what to write, once.
+ *
+ * Three things have to be true, and each is a refusal rather than a judgement.
+ * The watch says it stands. Its extension can look right now — with no key
+ * there is no schedule at all, which is what makes "nothing runs and nothing
+ * else changes" exact rather than a promise about what a failing look costs.
+ * And nothing has ever been written under its id: a person who paused, changed
+ * or removed one has decided, and a default that argues back is worse than no
+ * default. `schedules.jsonl` is append-only, so a removal is a fact that
+ * outlives the schedule, which is the whole reason `already` can be answered
+ * at all.
+ *
+ * Pure: offers, projects and what has been written in, schedules out. Nothing
+ * here starts a look, and a schedule it returns is an ordinary one from the
+ * moment it is written.
+ */
+export function standingSchedules(
+  watches: readonly WatchOffered[],
+  projects: readonly string[],
+  already: (id: string) => boolean,
+  now: number,
+): Schedule[] {
+  const made: Schedule[] = []
+  for (const project of projects) {
+    for (const watch of watches) {
+      if (!watch.standing || watch.problem !== null) continue
+      const id = standingId(watch.id, project)
+      if (already(id)) continue
+      made.push({
+        id,
+        name: watch.title,
+        project,
+        said: '',
+        when: { every: watch.every },
+        does: { kind: 'watch', watch: watch.id, input: {}, found: watch.offers, most: 2 },
+        missed: 'once',
+        by: `extension:${watch.id.split('.')[0] ?? ''}`,
+        created: new Date(now).toISOString(),
+      })
+    }
+  }
+  return made
+}
+
 /** Whether a schedule has nothing left to run: a one-off that ran, a count reached, an end passed. */
 export function scheduleEnded(
   schedule: { when: When; created: string },

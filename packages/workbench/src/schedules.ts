@@ -82,6 +82,43 @@ export function readSchedules(home: string): KeptSchedule[] {
   }
 }
 
+/**
+ * Every id a home's file has ever named, removed ones included.
+ *
+ * The fold answers what there is; this answers what there has ever *been*,
+ * which is a different question and only one thing asks it: a watch that is on
+ * without anybody turning it on has to tell a project it was never written for
+ * from one where somebody removed it. Append-only is what makes that
+ * answerable at all — a removal is still a line — and nothing rotates this
+ * file, so the answer does not go stale the way the journal's would.
+ *
+ * Read off the disk rather than held: it is asked only when a standing watch
+ * is missing from the schedules there are, which after the first look is
+ * never.
+ */
+export function readEverMade(home: string): Set<string> {
+  try {
+    return idsEverIn(readFileSync(join(home, FILE), 'utf8'))
+  } catch {
+    return new Set()
+  }
+}
+
+/** Every id a file's lines have ever named, however each of them ended up. */
+export function idsEverIn(text: string): Set<string> {
+  const ever = new Set<string>()
+  for (const raw of text.split('\n')) {
+    if (!raw.trim()) continue
+    try {
+      const line = Line.safeParse(JSON.parse(raw))
+      if (line.success) ever.add(line.data.op === 'set' ? line.data.schedule.id : line.data.id)
+    } catch {
+      // A line that will not read is skipped, as everywhere else here.
+    }
+  }
+  return ever
+}
+
 export class Schedules {
   private readonly path: string
   private kept: KeptSchedule[]

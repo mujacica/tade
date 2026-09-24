@@ -217,6 +217,73 @@ describe('the window, and what it watches', () => {
     expect(screenOf(terminal.written).some((row) => row.includes('weather · could not'))).toBe(true)
   }, 90_000)
 
+  it('writes a standing watch once, and never again over somebody removing it', async () => {
+    let key: string | null = null
+    const weather = (id: string, standing: boolean) => ({
+      id,
+      title: id === 'rain' ? 'Rain' : 'Frost',
+      means: 'Looks at the sky.',
+      every: '1h',
+      standing,
+      check: async () => ({ found: [] }),
+      agent: () => ({ title: 'never', prompt: 'never' }),
+    })
+    const extensions = await ExtensionHost.load({
+      builtin: [
+        {
+          name: 'weather',
+          title: 'Weather',
+          description: 'Whether it is raining.',
+          // With no key it is not ready, and nothing that stands is written.
+          ready: () => (key ? null : 'it needs a key'),
+          watches: [weather('rain', true), weather('frost', false)],
+        },
+      ],
+      config: { extensions: {}, projects: { app: { root: repo.root } } },
+      home,
+    })
+    const window = await start({ extensions, thinker: { ask: async () => 'ok' } })
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    // Not ready: no schedule at all, which is the whole of the degradation.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(client.schedules()).toEqual([])
+
+    key = 'k'
+    await extensions.reconfigure({})
+    await until(
+      'the standing watch is on',
+      () => client.schedules().some((one) => one.id === 'weather-rain-app'),
+      15_000,
+    )
+    expect(client.schedules()).toMatchObject([
+      {
+        id: 'weather-rain-app',
+        name: 'Rain',
+        project: 'app',
+        by: 'extension:weather',
+        when: { every: '1h' },
+        does: { kind: 'watch', watch: 'weather.rain', found: 'agent', most: 2 },
+      },
+    ])
+    // Said where you would look, so a schedule nobody asked for can be found.
+    await until('said in the conversation', () =>
+      screenOf(terminal.written).some((row) => row.includes('Rain is on in app')),
+    )
+    // A watch that does not stand is not written, however long it is open.
+    expect(
+      client
+        .schedules()
+        .some((one) => one.does.kind === 'watch' && one.does.watch === 'weather.frost'),
+    ).toBe(false)
+
+    await window.queueTools().change({ schedule: 'weather-rain-app', change: 'remove' })
+    expect(client.schedules()).toEqual([])
+    // Removed is a decision, and it stays made: the file is append-only, so
+    // the id it held is still a fact after the schedule itself is gone.
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+    expect(client.schedules()).toEqual([])
+  }, 30_000)
+
   it('turns a watch on for the orchestrator: what it finds is told, and what cannot be kept is refused', async () => {
     const told: string[] = []
     const extensions = await ExtensionHost.load({

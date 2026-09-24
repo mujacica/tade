@@ -291,6 +291,11 @@ describe('the gap, where anybody can see it', () => {
     expect(before.text).toMatch(/## Waiting on a verdict/)
     expect(before.text).toMatch(/1 of 1 finding\(s\) have no verdict, 0 of them with an agent/)
     expect(before.text).toMatch(/never an agent’s to give about its own change/)
+    // Named, and not only counted: a verdict is written about a finding by
+    // name, so a backlog nobody can name is a backlog nobody can answer.
+    expect(before.text).toMatch(
+      /- \*\*shop\/add-refunds:test_missing\*\* — 0\.88 · src\/refund\.ts · waiting .+, nobody has accounted for it/,
+    )
 
     await loaded.call(
       'jev_account',
@@ -299,6 +304,7 @@ describe('the gap, where anybody can see it', () => {
     )
     const after = await loaded.call('jev_findings', { project: 'shop' }, asked)
     expect(after.text).toMatch(/1 of 1 finding\(s\) have no verdict, 1 of them with an agent/)
+    expect(after.text).toMatch(/waiting .+, its agent says this is not real/)
     // An account is testimony, never a verdict: an agent saying its own work
     // is fine may not move the tables that say whether the rubric was right.
     expect(after.text).toMatch(/\| test_missing \| 1 \| 0 \| 0 \|/)
