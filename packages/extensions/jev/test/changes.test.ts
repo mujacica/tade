@@ -183,6 +183,7 @@ describe('reading a change that will not fit', () => {
 describe('whose work a named range holds', () => {
   const asking = {
     ref: 'HEAD~3..HEAD',
+    read: true,
     commits: 3,
     mine: 0,
     others: [] as { task: string; commits: number }[],
@@ -224,5 +225,18 @@ describe('whose work a named range holds', () => {
 
   it('never claims a range with nothing in it is anybody’s', () => {
     expect(whoseWork({ ...asking, commits: 0 })).toContain('holds no commits at all')
+  })
+
+  it('says a log it could not read as that, never as a range that is nobody’s', () => {
+    // A probe that could not look is not a probe that found nothing: git
+    // failing leaves every count at zero, which reads exactly like a range
+    // with nothing in it, and the one thing it may never come out as is the
+    // confident sentence about whose the commits are.
+    const said = whoseWork({ ...asking, read: false, commits: 0 })
+    expect(said).toContain('could read whose the commits in `HEAD~3..HEAD` are')
+    expect(said).not.toContain('holds no commits at all')
+    // And it still says the reading below is not known to be the asker's,
+    // because it may only ever add caution.
+    expect(said).toContain('not known to be your own change')
   })
 })

@@ -248,12 +248,20 @@ export async function commitsByTask(
   signed: number
   /** Every commit in the range, signed or not: what `signed` is out of. */
   total: number
+  /**
+   * Whether git answered at all. A log that could not be read is not a range
+   * with nothing in it, and anybody counting on these numbers has to be able
+   * to tell the two apart — `unitsIn` already reads no answer as no units,
+   * which is the same answer either way; `whoseIn` may not, because there
+   * `total: 0` would otherwise come out as a sentence saying nobody's.
+   */
+  read: boolean
 }> {
   const log = await git(ctx, root, ['log', '--format=%H%x1f%ct%x1f%B%x1e', range])
   const byTask = new Map<string, { sha: string; at: number }[]>()
   let signed = 0
   let total = 0
-  if (!log.ok) return { byTask, signed, total }
+  if (!log.ok) return { byTask, signed, total, read: false }
   for (const record of log.out.split('\x1e')) {
     const [sha, at, body] = record.replace(/^\s+/, '').split('\x1f')
     if (!sha) continue
@@ -269,7 +277,7 @@ export async function commitsByTask(
   }
   // `git log` is newest first and a change reads oldest first, as it was made.
   for (const mine of byTask.values()) mine.reverse()
-  return { byTask, signed, total }
+  return { byTask, signed, total, read: true }
 }
 
 /**
@@ -286,10 +294,14 @@ export async function commitsByTask(
  *
  * It never refuses. A range somebody named is a range somebody meant, and
  * `unattributed` is always an allowed answer — what it may not be is a quiet
- * one.
+ * one. Nor may a look that could not look be read as one that found nothing:
+ * `read: false` is git having no answer, which is its own sentence and never
+ * `nobody's`.
  */
 export function whoseWork(of: {
   ref: string
+  /** Whether git answered about the range at all. */
+  read: boolean
   /** Every commit in the range. */
   commits: number
   /** Of those, how many carry the asking task's own trailer. */
@@ -299,6 +311,9 @@ export function whoseWork(of: {
   /** Of those, how many carry no trailer at all. */
   unsigned: number
 }): string | null {
+  if (!of.read) {
+    return `Nothing here could read whose the commits in \`${of.ref}\` are, so this is not known to be your own change.`
+  }
   if (of.commits > 0 && of.mine === of.commits) return null
   const rest = [
     ...of.others.map((one) => `${one.task} (${one.commits})`),
@@ -328,9 +343,10 @@ export async function whoseIn(
   ref: string,
 ): Promise<string | null> {
   const range = `${unit.base}..${unit.head}`
-  const { byTask, signed, total } = await commitsByTask(ctx, unit.root, range)
+  const { byTask, signed, total, read } = await commitsByTask(ctx, unit.root, range)
   return whoseWork({
     ref,
+    read,
     commits: total,
     mine: byTask.get(asking)?.length ?? 0,
     others: [...byTask.entries()]
