@@ -395,6 +395,8 @@ export class Live {
   >()
   /** Every `usage` event since midnight, which is what today's spend is. */
   private usage: TadeEvent[] = []
+  /** The last spend fold, and the day and the event count it was of. */
+  private spent: { since: number; of: number; report: SpendReport } | null = null
   /**
    * What the agents produced over the same week: commits written down once
    * each, and check runs. Read the same way spend is, so the panel can say
@@ -991,9 +993,23 @@ export class Live {
       : null
   }
 
-  /** What has been spent since midnight, in total and by task. */
+  /**
+   * What has been spent since midnight, in total and by task.
+   *
+   * Folded once per event rather than once per frame. `spendFrom` is pure and
+   * `usage` only ever grows, so the same count of events over the same day is
+   * the same answer — and this is read from `facts()`, which is four times a
+   * second, over every usage event of the last week. Twenty-four thousand of
+   * them was 3% of a core spent re-deriving a number that only moves when an
+   * agent spends something, and on an idle window nothing ever does.
+   */
   spendToday(): SpendReport {
-    return spendFrom(this.usage, { since: startOfToday(this.now()) })
+    const since = startOfToday(this.now())
+    const spent = this.spent
+    if (spent && spent.since === since && spent.of === this.usage.length) return spent.report
+    const report = spendFrom(this.usage, { since })
+    this.spent = { since, of: this.usage.length, report }
+    return report
   }
 
   /** How long the agents have run since midnight, in total and by task. */
