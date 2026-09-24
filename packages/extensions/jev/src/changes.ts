@@ -49,11 +49,19 @@ export interface Unit {
  * asked about: a lockfile is not a judgement, it is bulk, and bulk costs
  * accuracy as well as money. `.tade/` goes with them — Tade's own bookkeeping
  * is not anybody's work, and a task file in a diff would be read as one.
+ *
+ * An image is an image whether it is bytes or markup, and a terminal capture
+ * is bytes with escapes in them: `.svg` and `.ansi` are here with `.png` and
+ * `.snap` because they are output rather than judgement, and because dense
+ * generated markup is where a budget counted in characters is furthest from
+ * the tokens it is standing in for. One redrawn picture — a 97 KB change to
+ * one line of SVG — was enough to come back `max_tokens_exceeded` and read as
+ * a review that could not look at anything at all.
  */
 const SKIP_IN = /(^|\/)(\.tade|node_modules|vendor|dist)\//
 
 const SKIP =
-  /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|go\.sum|poetry\.lock|uv\.lock|.*\.min\.(js|css)|.*\.snap|.*\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf))$/i
+  /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|go\.sum|poetry\.lock|uv\.lock|.*\.min\.(js|css)|.*\.(snap|ansi)|.*\.(png|jpg|jpeg|gif|webp|ico|svg|pdf|zip|gz|wav|mp3|mp4|woff2?|ttf))$/i
 
 /** How much of one file's patch is read. Past this, a question is about the first half anyway. */
 const PATCH_LIMIT = 20_000

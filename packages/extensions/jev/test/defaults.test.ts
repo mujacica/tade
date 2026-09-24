@@ -224,6 +224,36 @@ describe("a finding's key is one change, for ever", () => {
   })
 })
 
+describe('what a question cannot be about is dropped before anybody is asked', () => {
+  it('leaves out a redrawn picture and a terminal capture, which are output', async () => {
+    const { repo, commit } = sharedCheckout()
+    commit('add-refunds', {
+      'src/refund.ts': 'export const refund = () => {}\n',
+      // A redrawn screenshot: one line, and 40,000 characters of it. Dense
+      // generated markup is where a budget counted in characters is furthest
+      // from the tokens it stands in for, and one of these came back
+      // `max_tokens_exceeded` for a whole review.
+      'images/jev.svg': `<svg>${'<text x="1">a</text>'.repeat(2_000)}</svg>\n`,
+      'test/__screens__/jev.ansi': `${'\u001b[32mgreen\u001b[0m'.repeat(2_000)}\n`,
+    })
+    const seen: unknown[] = []
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({}, seen),
+      now: Date.now,
+    })
+    await loaded.call('jev_review', {}, agentAsking('shop/add-refunds', repo.root))
+    const state = JSON.stringify(seen)
+    expect(state).toContain('src/refund.ts')
+    expect(state).not.toContain('images/jev.svg')
+    expect(state).not.toContain('jev.ansi')
+    // One ask, because what was left out is what would have needed a second.
+    expect(seen).toHaveLength(1)
+  })
+})
+
 describe('a patch is split by the file it is about', () => {
   it('names each file, and skips what it cannot name', () => {
     const shown = [
