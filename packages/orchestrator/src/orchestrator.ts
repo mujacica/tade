@@ -1,7 +1,15 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Config, Note, SkillActivity, TadeEvent, ThinkingLevel, Unsubscribe } from '@tade/core'
+import type {
+  Config,
+  Effort,
+  Note,
+  SkillActivity,
+  TadeEvent,
+  ThinkingLevel,
+  Unsubscribe,
+} from '@tade/core'
 import { composePrompt, expandHome, livingSkills, orchestratorRoute } from '@tade/core'
 import {
   type HarnessModels,
@@ -148,6 +156,12 @@ export interface OrchestratorOptions {
    * `tade_queue` gives. Only a window has a queue, so only a window has this.
    */
   queue?: string
+  /**
+   * The changes that span repositories, as the window folded them out of the
+   * task files. Passed in for the same reason the queue is: it is a fold of
+   * what is on disk now, and composing a briefing stays pure.
+   */
+  efforts?: readonly Effort[]
   /** Extra pi arguments. Tests use this to inject a scripted model. */
   args?: string[]
   env?: NodeJS.ProcessEnv
@@ -272,6 +286,8 @@ export class Orchestrator {
     const briefing = composeBriefing({
       now: opts.now ?? Date.now(),
       events: opts.journal ?? [],
+      projects: Object.keys(opts.config?.projects ?? {}),
+      ...(opts.efforts ? { efforts: opts.efforts } : {}),
       ...(opts.queue ? { queue: opts.queue } : {}),
     })
 

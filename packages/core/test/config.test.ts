@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { checksFor } from '../src/checks.ts'
-import { loadConfig, parseConfig, writeSetting } from '../src/config.ts'
+import { ConfigSchema, loadConfig, parseConfig, writeSetting } from '../src/config.ts'
+import { workspaceFor } from '../src/project.ts'
 
 describe('parseConfig', () => {
   it('fills defaults for an empty file', () => {
@@ -249,5 +250,39 @@ describe('the orchestrator’s harness', () => {
   it('is refused as a typo, like any other harness that does not exist', () => {
     const r = parseConfig('orchestrator:\n  harness: clod\n')
     expect(!r.ok && r.issues[0]?.path).toBe('orchestrator.harness')
+  })
+})
+
+describe('where a project’s agents work', () => {
+  it('means exactly what it meant before the key existed', () => {
+    // A config written before this: no project says anything, so every project
+    // is the machine's answer, and the machine's default is still `checkout`.
+    const before = ConfigSchema.parse({ projects: { shop: { root: '~/src/shop' } } })
+    expect(before.agents.workspace).toBe('checkout')
+    expect(before.projects.shop?.workspace).toBeUndefined()
+    expect(workspaceFor(before, 'shop')).toBe('checkout')
+  })
+
+  it('is one project’s to answer, over the machine’s', () => {
+    const config = ConfigSchema.parse({
+      agents: { workspace: 'checkout' },
+      projects: {
+        shop: { root: '~/src/shop' },
+        docs: { root: '~/src/docs', workspace: 'worktree' },
+      },
+    })
+    expect(workspaceFor(config, 'shop')).toBe('checkout')
+    expect(workspaceFor(config, 'docs')).toBe('worktree')
+    // Nothing else changes meaning: a project Tade does not have, and no
+    // project at all, are still the machine's answer.
+    expect(workspaceFor(config, 'ghost')).toBe('checkout')
+    expect(workspaceFor(config, null)).toBe('checkout')
+  })
+
+  it('refuses a word that is not one of the two, rather than accepting and ignoring it', () => {
+    const wrong = ConfigSchema.safeParse({
+      projects: { shop: { root: '~/src/shop', workspace: 'worktrees' } },
+    })
+    expect(wrong.success).toBe(false)
   })
 })

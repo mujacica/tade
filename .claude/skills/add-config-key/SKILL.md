@@ -63,5 +63,27 @@ Schema: `ConfigSchema` in `packages/core/src/config.ts` (zod 4).
    people cannot start without (an extension's organization, say).
 7. `pnpm check`.
 
+## A key one project answers for itself
+
+Some settings are the machine's answer only until somebody runs two repositories daily, and then
+both answers are true at once — `agents.workspace` was one, and being global is what made the
+start-time collision check read the wrong project's tree. The shape is always the same, and there
+are exactly two files it can go wrong in:
+
+- The key goes on `ProjectConfigSchema` as `.optional()` — never with a default, which would make
+  "unset" and "set to the default" different things.
+- **One reader, and every call site goes through it**: `checksFor` (`core/src/checks.ts`) and
+  `workspaceFor` (`core/src/project.ts`) are the two there are, and a third belongs beside them.
+  The bug is never the resolution, it is the site that still reads the global — so grep for the
+  global key after you add the override and make sure the only reader left is the resolver.
+- Anything that already exists keeps what it was made with. A task file records its own answer;
+  changing the setting must never move an agent that is already working.
+- Add it to the `projects` group in `settingsOf` with `value: project.<key> ?? ''` and
+  `fallback: config.<the global>`, and put `''` first in a `choice` — empty is how somebody gives
+  the question back to the machine, and `writeSetting` deletes the key.
+- Add the path to `ALLOWED_UNDER` in `reach.ts`, or it is `never`: `projects` is a `never` subtree
+  because of `root`, so a new key under it is refused until somebody decides — which is the rule
+  working, not the rule in the way.
+
 Writing config: always edit the YAML **document** (`parseDocument`, `setIn`, `deleteIn`), never
 `parse` then `stringify` — that drops every comment in a file somebody wrote by hand.

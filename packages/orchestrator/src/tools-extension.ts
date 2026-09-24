@@ -153,7 +153,7 @@ export function orchestratorTools(
 
   tool(
     'tade_status',
-    'Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.',
+    'Where everything stands: every task, in every project, with its state, why, and the effort it belongs to when it is one repository\'s share of a change that spans several — so "how far is oauth-scopes" is these tasks counted, never something remembered. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.',
     object({}),
     // From the window when there is one: only it knows which agents are between
     // turns, and the CLI would call every one of them working.
@@ -261,27 +261,31 @@ export function orchestratorTools(
 
   tool(
     'tade_plan',
-    "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
+    'Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade\'s queue until what they wait on has finished, then start by themselves. A plan may span repositories — give an agent its own project and it works there, and a wait may name a task in another project, which waits for it to finish and then starts from its own repository\'s base. When the whole plan is one change, give it an effort: a short name, which every task it makes carries, so "two of three repos done" is one question later. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.',
     object(
       {
-        project: string('project name, as configured'),
+        project: string('project name, as configured; where an agent works unless it says'),
         said: string('the whole request, word for word'),
+        effort: string(
+          'what to call this one change, lowercase with dashes, when the whole plan is one change across repositories or one of several streams in a repository',
+        ),
         agents: {
           type: 'array',
           description: 'one entry per agent, in any order',
           items: object(
             {
               name: string('its task name, lowercase with dashes'),
+              project: string('the repository it works in, when not the plan’s own'),
               said: string('the words of the request this agent covers, word for word'),
               prompt: string('what to tell the agent first'),
               done,
               after: {
                 type: 'array',
                 description:
-                  'what it waits on: other agents in this plan by name, or tasks already in the project',
+                  'what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task',
                 items: object(
                   {
-                    agent: string('an agent in this plan, or an existing task'),
+                    agent: string('an agent in this plan, or an existing task as project/task'),
                     why: string('why it has to wait, in a few words'),
                   },
                   ['agent', 'why'],

@@ -18,7 +18,6 @@ import {
   selectProject,
   showOrchestrator,
   showTerminal,
-  splitRatio,
   toggleCheck,
   toggleFolder,
   toggleSection,
@@ -33,6 +32,7 @@ import { Painted, type PointerEvent } from '../pointer.ts'
 import { noteRecent } from '../projects.ts'
 import type { Reach } from '../scroll.ts'
 import { pointerSequence } from '../skin.ts'
+import { splitRatio } from '../split.ts'
 import type { Wiring } from './context.ts'
 
 // The mouse, which is a shortcut into what you could also have typed.

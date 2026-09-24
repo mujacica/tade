@@ -71,6 +71,8 @@ export interface CreateTaskOptions {
    * its own.
    */
   workspace?: 'checkout' | 'worktree'
+  /** The change this is one repository's share of, by its slug. */
+  effort?: string
   /** Who asked for it: kept in the task file, as `TaskOrigin` says it. */
   by?: string
   /** How it counts as finished, kept in the task file. */
@@ -160,7 +162,7 @@ export async function createTask(opts: CreateTaskOptions): Promise<TaskWorktree>
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    { by: opts.by, done: opts.done, start: opts.start },
+    { by: opts.by, done: opts.done, start: opts.start, effort: opts.effort },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(worktree, TASK_CONTEXT_FILE), context)
@@ -195,7 +197,7 @@ async function createSharedTask(opts: CreateTaskOptions, id: string): Promise<Ta
     opts.intent,
     opts.now ?? new Date(),
     opts.links ?? [],
-    { by: opts.by, done: opts.done, start: opts.start },
+    { by: opts.by, done: opts.done, start: opts.start, effort: opts.effort },
   )
   const context = contextDocument(opts.context ?? '', opts.links ?? [])
   if (context) await writeFile(join(dir, 'context.md'), context)
@@ -230,6 +232,7 @@ async function writeTaskFile(
     by?: string | undefined
     done?: DoneRule | undefined
     start?: StartCondition | undefined
+    effort?: string | undefined
   },
 ): Promise<void> {
   await mkdir(join(path, '..'), { recursive: true })
@@ -244,6 +247,7 @@ async function writeTaskFile(
       base: task.base,
       parked: false,
       ...(task.workspace === 'checkout' ? { workspace: 'checkout' } : {}),
+      ...(kept.effort ? { effort: kept.effort } : {}),
       ...(links.length > 0 ? { links: links.map(({ title, url }) => ({ title, url })) } : {}),
       ...(kept.by ? { by: kept.by } : {}),
       ...(kept.done ? { done: kept.done } : {}),

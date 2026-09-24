@@ -87,14 +87,21 @@ const NEVER: readonly (readonly [string, string])[] = [
  *
  * `projects` is the whole of a project's block, and most of it is ordinary:
  * what it may spend, the line I am told about it, its own answer to the check
- * rules. Only `root` moves where the work happens. Checked before `NEVER`, and
- * a list rather than a pattern so that a key added to `ProjectConfigSchema`
- * tomorrow is refused until somebody looks at it.
+ * rules, whether its agents share its checkout. Only `root` moves where the
+ * work happens. Checked before `NEVER`, and a list rather than a pattern so
+ * that a key added to `ProjectConfigSchema` tomorrow is refused until somebody
+ * looks at it.
+ *
+ * `workspace` is here because it is the machine-wide `agents.workspace` asked
+ * of one project, and that is `asked`: it decides where the next agent works,
+ * which widens nothing an agent may do. `root` stays refused — moving it moves
+ * every agent already in the project.
  */
 const ALLOWED_UNDER: readonly RegExp[] = [
   /^projects\.[a-z0-9-]+\.brief$/,
   /^projects\.[a-z0-9-]+\.budget\./,
   /^projects\.[a-z0-9-]+\.checks\./,
+  /^projects\.[a-z0-9-]+\.workspace$/,
   /^workers\.routes\.[a-z0-9-]+\.(model|thinking|harness)$/,
 ]
 

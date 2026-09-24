@@ -6,8 +6,10 @@ import {
   agentEnded,
   eventNews,
   NEWS_MAX,
+  THEIR_WORDS,
   taskNews,
   unended,
+  whereYouAre,
   withNews,
 } from '../src/inbox.ts'
 
@@ -166,5 +168,46 @@ describe('news for the orchestrator', () => {
         'Fix the refund test',
       ].join('\n'),
     )
+  })
+})
+
+describe('where they are standing, said every turn', () => {
+  it('names the project and the agent in front, and how many projects there are', () => {
+    expect(
+      whereYouAre({ project: 'sentry', agent: 'flaky-tests', projects: ['sentry', 'getsentry'] }),
+    ).toBe('You are looking at sentry › flaky-tests. 2 projects are open: sentry, getsentry.')
+  })
+
+  it('says it with one project too, because which agent is in front is the question', () => {
+    expect(whereYouAre({ project: 'app', agent: 'refunds', projects: ['app'] })).toBe(
+      'You are looking at app › refunds.',
+    )
+  })
+
+  it('says nothing when there is nothing to disambiguate', () => {
+    // One project and nothing in front of them: a line saying so is noise on
+    // every turn, and there is nothing it could have meant instead.
+    expect(whereYouAre({ project: 'app', agent: null, projects: ['app'] })).toBeNull()
+    expect(whereYouAre({ project: null, agent: null, projects: [] })).toBeNull()
+    // With several open, which one they are in is the whole point.
+    expect(whereYouAre({ project: 'app', agent: null, projects: ['app', 'docs'] })).toBe(
+      'You are looking at app. 2 projects are open: app, docs.',
+    )
+  })
+
+  it('goes above their words, never into them', () => {
+    const lines = withNews(
+      'start an agent on this',
+      [],
+      clock,
+      THEIR_WORDS,
+      'You are looking at app › refunds.',
+    ).split('\n')
+    expect(lines).toEqual([
+      'You are looking at app › refunds.',
+      '',
+      'What they said:',
+      'start an agent on this',
+    ])
   })
 })

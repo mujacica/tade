@@ -60,6 +60,10 @@ describe('what no words reach', () => {
     expect(settingReach('projects.checkout.brief').reach).toBe('asked')
     expect(settingReach('projects.checkout.budget.usd_per_day').reach).toBe('asked')
     expect(settingReach('projects.checkout.checks.before').reach).toBe('asked')
+    // Where a project's agents work is the machine-wide setting asked of one
+    // project, and that is `asked`: it decides where the next agent works and
+    // widens nothing any agent may do. `root` above stays refused.
+    expect(settingReach('projects.checkout.workspace').reach).toBe('asked')
   })
 
   it('says why, in a clause somebody can be told', () => {

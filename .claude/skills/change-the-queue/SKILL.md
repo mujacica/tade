@@ -32,6 +32,17 @@ files, `schedules.jsonl` and the journal on every look at the tasks, and writes 
   takes facts and `now` and returns an answer. Test the rule in core; the window only applies it.
 - **Queued work is a task.** A task file with `start` — never a second store. It is made when it is
   planned, in the project's own workspace, and started by `startQueued`.
+- **A plan may span repositories, so nothing in it may assume one.** An agent's project is its own
+  (`projectOf`), a wait is a qualified id and resolves anywhere, and what a project answers about
+  itself is asked per project (`PlanContext.workspace`, `workspaceFor`). Two rules are easy to get
+  wrong and are worth re-reading before touching either: paths are only ever compared **inside**
+  one project (two `src/index.ts` in two repos are two files), and `startFrom` never hands a ref
+  across one — a cross-repo wait is a wait on *when*, and the other repository's commits are not
+  this one's to build on.
+- **An effort is a name for related work, never a lock on a file.** The tree evidence must not
+  learn the word: "different effort" is not collides harder, and — the dangerous one — "same
+  effort" is never permission. Two agents in one effort editing one file in one checkout is the
+  same accident as any other.
 - **The queue is shown as the tree it resolves to.** `queueTree` (`app/src/model.ts`) orders queued
   work by the path it is on — what comes next first, and under each piece whatever waits on it —
   from the states the rules derived, never from the plan alone; `queueRows` is that list as the

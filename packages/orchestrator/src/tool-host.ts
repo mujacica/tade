@@ -414,10 +414,12 @@ function planOf(p: Record<string, unknown>): Plan {
   return {
     project: text(p.project),
     said: text(p.said),
+    ...(p.effort ? { effort: text(p.effort) } : {}),
     agents: p.agents.map((raw) => {
       const agent = (raw ?? {}) as Record<string, unknown>
       return {
         name: text(agent.name),
+        ...(agent.project ? { project: text(agent.project) } : {}),
         said: text(agent.said),
         prompt: text(agent.prompt),
         ...(agent.done ? { done: doneRuleOf(agent.done) } : {}),

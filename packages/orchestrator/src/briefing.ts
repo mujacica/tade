@@ -1,4 +1,4 @@
-import { ago, historyFrom, type TadeEvent } from '@tade/core'
+import { ago, type Effort, effortSays, historyFrom, type TadeEvent } from '@tade/core'
 
 // Where things stood when the window opened, for an orchestrator picking its
 // conversation back up.
@@ -31,13 +31,39 @@ export interface BriefingInput {
   queue?: string
   /** How many of the person's own lines to bring back. */
   said?: number
-  /** How many tasks to say something about. */
+  /** How many tasks to say something about, per project. */
   tasks?: number
+  /**
+   * Every project open, so the first line can say how big the world is. Without
+   * it the orchestrator has to infer how many there are from what it happened
+   * to be told about, which is exactly what a briefing is for.
+   */
+  projects?: readonly string[]
+  /**
+   * The changes that span repositories, folded from the task files that name
+   * them. One line each, and each replaces the several task lines it is made
+   * of while saying more than they did: which repository has not landed yet.
+   * Passed in rather than derived here — an effort is a fold of task files and
+   * this is a fold of the journal.
+   */
+  efforts?: readonly Effort[]
 }
 
 /** Enough to recognise the thread, few enough that nobody skips the section. */
 const SAID = 5
 const TASKS = 6
+/**
+ * The per-project cap once there is more than one project.
+ *
+ * A flat cap across every project was the bug: with five repositories open,
+ * six lines is one repository's worth and the other four vanish **without a
+ * word**, which reads as "nothing is happening there" — worse than a long
+ * briefing and exactly the shape of thing that sends somebody looking for this
+ * code. So the cap is per project and what it left out is counted and said. It
+ * is only smaller than `TASKS` where there are several projects to spend the
+ * budget on; one project briefs exactly as it always did.
+ */
+const PER_PROJECT = 3
 /** What finished long enough ago to be history rather than news. */
 const STALE = 3 * 86_400_000
 
@@ -56,12 +82,34 @@ export function composeBriefing(input: BriefingInput): string | null {
   if (closed) sections.push(`Tade was last open until ${since(closed.ts)}.`)
   else if (latest) sections.push(`Tade last wrote something down ${since(latest.ts)}.`)
 
-  const running = stillRunning(events).slice(-(input.tasks ?? TASKS))
-  if (running.length > 0) {
+  // How big the world is, before anything about what is in it.
+  const open = input.projects ?? []
+  if (open.length > 1) {
+    sections.push(`${open.length} projects are open: ${[...open].join(', ')}.`)
+  }
+  const most = open.length > 1 ? (input.tasks ?? PER_PROJECT) : (input.tasks ?? TASKS)
+
+  const allRunning = stillRunning(events)
+  const running = perProject(allRunning, (run) => run.task, most)
+  if (running.kept.length > 0) {
     sections.push(
       [
         'Agents that were still running when Tade last closed, and that it reopens where they left off:',
-        ...running.map((run) => `- ${run.task}, started ${since(run.ts)}`),
+        ...running.kept.map((run) => `- ${run.task}, started ${since(run.ts)}`),
+        ...leftOut(running.left),
+      ].join('\n'),
+    )
+  }
+
+  // Before the tasks, because one effort line replaces the several task lines
+  // it is made of and says more than they did: which repository has not landed
+  // yet is the part anybody can act on.
+  const efforts = input.efforts ?? []
+  if (efforts.length > 0) {
+    sections.push(
+      [
+        'Changes that span repositories, and how far each has got:',
+        ...efforts.map((effort) => `- ${effortSays(effort)}`),
       ].join('\n'),
     )
   }
@@ -71,14 +119,22 @@ export function composeBriefing(input: BriefingInput): string | null {
   // one that gets skimmed.
   const gone = removed(events)
   const finished = finishedBy(events, input.now)
-  const moved = historyFrom(events, input.now)
-    .tasks.filter((task) => !gone.has(task.task) && !running.some((run) => run.task === task.task))
-    .slice(0, input.tasks ?? TASKS)
-  if (moved.length > 0) {
+  const inEffort = new Set(efforts.flatMap((one) => one.tasks.map((task) => task.task)))
+  const moved = perProject(
+    historyFrom(events, input.now).tasks.filter(
+      (task) =>
+        !gone.has(task.task) &&
+        !inEffort.has(task.task) &&
+        !allRunning.some((run) => run.task === task.task),
+    ),
+    (task) => task.task,
+    most,
+  )
+  if (moved.kept.length > 0) {
     sections.push(
       [
         'The rest of the work Tade has written anything down about, most recently touched first:',
-        ...moved.map((task) => {
+        ...moved.kept.map((task) => {
           const touched = ago(Math.max(0, input.now - task.lastEventAt))
           const done = finished.get(task.task)
           // Only what the journal actually knows. Which state a task is in is
@@ -88,6 +144,7 @@ export function composeBriefing(input: BriefingInput): string | null {
           if (task.state) return `- ${task.task}: ${task.state} as of ${touched}`
           return `- ${task.task}: nothing written down since ${touched}`
         }),
+        ...leftOut(moved.left),
       ].join('\n'),
     )
   }
@@ -121,6 +178,37 @@ export function composeBriefing(input: BriefingInput): string | null {
     ...sections,
     'That is what the journal said as Tade opened, not what is true now. Anything current — where a task is, what is queued, what an agent did — is tade_status, tade_queue and tade_logs to answer.',
   ].join('\n\n')
+}
+
+/**
+ * The first `most` of each project's, keeping the order they came in, and how
+ * many of each were left over. A cap counted per project rather than over the
+ * whole list, so one busy repository cannot silently spend every line.
+ */
+function perProject<T>(
+  items: readonly T[],
+  idOf: (item: T) => string,
+  most: number,
+): { kept: T[]; left: Map<string, number> } {
+  const seen = new Map<string, number>()
+  const left = new Map<string, number>()
+  const kept: T[] = []
+  for (const item of items) {
+    const id = idOf(item)
+    const project = id.slice(0, id.indexOf('/')) || id
+    const count = (seen.get(project) ?? 0) + 1
+    seen.set(project, count)
+    if (count <= most) kept.push(item)
+    else left.set(project, (left.get(project) ?? 0) + 1)
+  }
+  return { kept, left }
+}
+
+/** What a cap left out, per project — never nothing, because silence reads as calm. */
+function leftOut(left: ReadonlyMap<string, number>): string[] {
+  return [...left]
+    .sort(([one], [other]) => (one < other ? -1 : 1))
+    .map(([project, count]) => `- ${project}: ${count} more not listed`)
 }
 
 /** Tasks that are not there any more, so nothing is said about them. */

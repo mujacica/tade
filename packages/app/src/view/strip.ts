@@ -1,16 +1,10 @@
 import type { Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, shift } from '../hits.ts'
-import {
-  type AppState,
-  activeTerminal,
-  isAction,
-  matchActions,
-  somethingTyped,
-  terminalSplitShown,
-} from '../model.ts'
+import { type AppState, activeTerminal, isAction, matchActions, somethingTyped } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
+import { terminalSplitShown } from '../split.ts'
 import { type Line, transcriptLines } from '../transcript-view.ts'
 import { blank, type Drawn, fit, type Pointer, Row, shiftRegions } from '../ui.ts'
 import { bottomTabs, terminalBody } from './foot.ts'

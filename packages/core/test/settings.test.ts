@@ -336,3 +336,35 @@ describe('reading what was typed', () => {
     expect(parseSetting(find('orchestrator.model'), '   ')).toBeUndefined()
   })
 })
+
+describe('a project’s own answer to where its agents work', () => {
+  const groups = (over: Record<string, unknown> = {}) =>
+    settingsOf(
+      ConfigSchema.parse({
+        agents: { workspace: 'worktree' },
+        projects: { shop: { root: '~/src/shop', ...over } },
+      }),
+    )
+  const setting = (over?: Record<string, unknown>) =>
+    groups(over)
+      .flatMap((group) => group.settings)
+      .find((one) => one.path === 'projects.shop.workspace')
+
+  it('is empty, and falls back to the machine’s, until somebody sets it', () => {
+    expect(setting()).toMatchObject({ value: '', fallback: 'worktree' })
+  })
+
+  it('shows what the project says once it says something', () => {
+    expect(setting({ workspace: 'checkout' })).toMatchObject({
+      value: 'checkout',
+      fallback: 'worktree',
+    })
+  })
+
+  it('offers empty as a choice, which is how it is given back to the machine', () => {
+    expect(setting()?.type).toEqual({ kind: 'choice', options: ['', 'checkout', 'worktree'] })
+    // An empty choice parses to nothing, and `writeSetting` deletes the key.
+    const one = setting()
+    expect(one && parseSetting(one, '')).toBeUndefined()
+  })
+})

@@ -29,6 +29,14 @@ export const EventType = z.enum([
   /** An agent that started without a branch got one, named for its work. */
   'task_named',
   'task_removed',
+  /**
+   * A change that spans repositories was named: its slug and the sentence
+   * that asked for it, verbatim, written once when the plan is made. The
+   * effort itself is the fold of the task files that name it — this is here
+   * for the same reason `intent_spoken` is, because nothing else can recover
+   * the sentence once those files are gone.
+   */
+  'effort_named',
   'state_change',
   /**
    * A task finished: its agent said so, a person marked it, or Tade saw its
@@ -130,6 +138,7 @@ export const DEFAULT_URGENCY: Record<EventType, Urgency> = {
   task_created: 'notable',
   task_named: 'notable',
   task_removed: 'notable',
+  effort_named: 'notable',
   state_change: 'notable',
   task_done: 'notable',
   queue_started: 'notable',

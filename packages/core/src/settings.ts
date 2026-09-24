@@ -520,6 +520,20 @@ export function settingsOf(
           type: { kind: 'text', placeholder: 'Payments. Stripe, Postgres, Node.' } as const,
           live: false,
         },
+        {
+          // Empty follows the Agents setting: two projects on one machine want
+          // different answers — agents side by side where work is sequential,
+          // a worktree each where two efforts are unrelated — and tasks that
+          // already exist keep the answer they were made with.
+          path: `projects.${name}.workspace`,
+          title: `${name} — where agents work`,
+          means: `checkout: all of ${name}'s agents in its own checkout at once; worktree: one each`,
+          value: project.workspace ?? '',
+          fallback: config.agents.workspace,
+          type: { kind: 'choice', options: ['', ...AGENT_WORKSPACES] } as const,
+          live: true,
+          keywords: [name, 'workspace', 'worktree', 'checkout'],
+        },
       ]),
     },
     {

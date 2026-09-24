@@ -1,5 +1,5 @@
 import { checksTold } from './checks.ts'
-import type { ChecksConfig, Config } from './config.ts'
+import type { AgentWorkspace, ChecksConfig, Config } from './config.ts'
 import type { Note } from './memory.ts'
 import { type Skill, skillText } from './skills.ts'
 
@@ -86,10 +86,16 @@ function describePosture(config: Config): string {
       : 'Agents run inside Tade and stop when it closes. Say so if somebody is about to rely on one surviving.',
   )
   lines.push(
-    config.agents.workspace === 'checkout'
-      ? `Agents work together in each project's own checkout, on the branch it is on, so several can change one project at once; each is told ${COMMIT_SAID[config.agents.commit]}.`
-      : `Each agent works in a git worktree and branch of its own, named for its work; each is told ${COMMIT_SAID[config.agents.commit]}.`,
+    `${WORKSPACE_SAID[config.agents.workspace].machine}; each is told ${COMMIT_SAID[config.agents.commit]}.`,
   )
+  // A project that answers differently is named. "Where does an agent work"
+  // has one answer per project, not per machine, so a briefing that said the
+  // machine's would be confidently wrong about half of somebody's day.
+  for (const [name, project] of Object.entries(config.projects)) {
+    const own = project?.workspace
+    if (!own || own === config.agents.workspace) continue
+    lines.push(`In ${name}, ${WORKSPACE_SAID[own].project}.`)
+  }
   lines.push(
     config.approvals.mode === 'policy'
       ? 'Approvals are on: risky commands are held until a human answers, and you may be asked to relay that.'
@@ -128,6 +134,25 @@ function describeNotes(input: ComposeInput): string {
   const kept = [...notes].sort((a, b) => b.at.localeCompare(a.at)).slice(0, input.maxNotes ?? 20)
   const lines = kept.map((note) => `- ${note.scope ? `(${note.scope}) ` : ''}${note.text}`)
   return ['Things you have been told, in the words they were said:', ...lines].join('\n')
+}
+
+/**
+ * Where agents work, said of the machine and said of one project that differs.
+ *
+ * Two wordings rather than one, because the same fact is the setup in the
+ * first sentence and an exception to it in the second, and a briefing that
+ * repeats the whole sentence per project reads as though nothing were shared.
+ */
+const WORKSPACE_SAID: Record<AgentWorkspace, { machine: string; project: string }> = {
+  checkout: {
+    machine:
+      "Agents work together in each project's own checkout, on the branch it is on, so several can change one project at once",
+    project: 'agents work together in its own checkout, on the branch it is on',
+  },
+  worktree: {
+    machine: 'Each agent works in a git worktree and branch of its own, named for its work',
+    project: 'each agent works in a git worktree and branch of its own',
+  },
 }
 
 /** A commit rule, said as part of a sentence to the orchestrator. */

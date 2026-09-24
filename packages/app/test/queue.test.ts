@@ -58,7 +58,7 @@ describe('what the queue says', () => {
   it('answers a plan with what started, what waits, and what to watch', () => {
     expect(
       planAnswer({
-        project: 'shop',
+        projects: ['shop'],
         made: ['shop/fix-charge', 'shop/add-refunds'],
         started: ['shop/fix-charge'],
         waiting: [{ task: 'shop/add-refunds', state: 'after shop/fix-charge' }],
@@ -70,6 +70,27 @@ describe('what the queue says', () => {
         'Started fix-charge.',
         'Queued add-refunds (after shop/fix-charge).',
         'Watch out: a and b both change src/x.ts.',
+      ].join('\n'),
+    )
+  })
+
+  it('keeps every name whole when the change spans repositories, and says what it is called', () => {
+    // Two tasks called `oauth-scopes` is the ordinary shape of one change in
+    // two repos: stripped of their projects they are one name said twice.
+    expect(
+      planAnswer({
+        projects: ['sentry', 'sentry-cli'],
+        effort: 'oauth-scopes',
+        made: ['sentry/oauth-scopes', 'sentry-cli/oauth-scopes'],
+        started: ['sentry/oauth-scopes'],
+        waiting: [{ task: 'sentry-cli/oauth-scopes', state: 'after sentry/oauth-scopes' }],
+        warnings: [],
+      }),
+    ).toBe(
+      [
+        'Made 2 tasks in sentry and sentry-cli, as oauth-scopes.',
+        'Started sentry/oauth-scopes.',
+        'Queued sentry-cli/oauth-scopes (after sentry/oauth-scopes).',
       ].join('\n'),
     )
   })

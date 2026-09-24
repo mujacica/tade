@@ -5,6 +5,14 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import { asPaste } from '../../src/images.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
+/**
+ * What the person actually said, out of the message the orchestrator is handed:
+ * the window puts where they are standing above their words, under a heading,
+ * and every test here is about the words.
+ */
+const theirWords = (message: string | undefined): string =>
+  (message ?? '').split('What they said:\n').at(-1) ?? ''
+
 // A screenshot pasted, dropped or taken off the clipboard: who it is for,
 // and how it is taken back.
 
@@ -80,7 +88,7 @@ describe('the window, taking a picture', () => {
     for (const char of 'what is this') terminal.press(char)
     terminal.press('\r')
     await until('the orchestrator to be asked', () => sent.length === 1)
-    expect(sent[0]?.text).toBe('what is this')
+    expect(theirWords(sent[0]?.text)).toBe('what is this')
     expect(sent[0]?.images.map((image) => image.mimeType)).toEqual(['image/png'])
   })
 

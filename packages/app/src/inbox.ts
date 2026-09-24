@@ -164,17 +164,57 @@ export function eventNews(event: TadeEvent): string | null {
 export const THEIR_WORDS = 'What they said:'
 
 /**
- * A message with the news that has waited for it, if there is any. The words
- * go last, under a heading, so the orchestrator can tell what was said to it
- * from what it is being told — and record only the first as somebody's intent.
+ * Where the person is standing, in one line, for the turn they are standing
+ * there in.
+ *
+ * With five projects open, "start an agent on the flaky test" is not a
+ * question anybody could answer: the orchestrator had no idea which tab was in
+ * front of them, so it guessed or asked. This is the one thing it genuinely
+ * lacked — not knowledge, which `tade_status` answers fresh, but *location*.
+ *
+ * Derived at the moment of asking and never stored, and deliberately not in
+ * the briefing: a briefing that says "you were in sentry" is wrong the instant
+ * somebody presses a tab, which is the same class of bug as a remembered
+ * branch. Null with nothing open and with one project and nothing focused,
+ * where there is nothing to disambiguate and a line saying so is noise.
+ */
+export function whereYouAre(here: {
+  project: string | null
+  /** The agent in front of them, by the name the window shows. */
+  agent: string | null
+  /** Every project open, so it knows the size of what it is choosing between. */
+  projects: readonly string[]
+}): string | null {
+  const many = here.projects.length > 1
+  if (!here.project && !here.agent) return null
+  if (!many && !here.agent) return null
+  const at = here.agent
+    ? `${here.project ?? here.projects[0] ?? ''} › ${here.agent}`
+    : (here.project ?? '')
+  const rest = many
+    ? ` ${here.projects.length} projects are open: ${here.projects.join(', ')}.`
+    : ''
+  return `You are looking at ${at}.${rest}`
+}
+
+/**
+ * A message with the news that has waited for it, if there is any, and where
+ * the person is standing as they say it. The words go last, under a heading,
+ * so the orchestrator can tell what was said to it from what it is being told
+ * — and record only the first as somebody's intent.
+ *
+ * Where they are goes above that heading for the same reason: it is Tade's
+ * sentence, not theirs, and it must never be recorded as something they said.
  */
 export function withNews(
   message: string,
   news: readonly News[],
   clock: (at: number) => string,
   heading = THEIR_WORDS,
+  /** `whereYouAre`, for the turn being asked. Null when there is nothing to say. */
+  where: string | null = null,
 ): string {
-  if (news.length === 0) return message
+  if (news.length === 0 && !where) return message
   const ended = news.flatMap((one) => (one.ended ? [one.ended] : []))
   // Every agent that went is said where the last of them went, so a batch is
   // one line in the order the rest of the news happened.
@@ -184,5 +224,6 @@ export function withNews(
     if (one.ended && at !== collapse) return
     lines.push(`- ${clock(one.at)} ${one.ended ? endedNews(ended) : one.text}`)
   })
-  return ['Since you last heard from Tade:', ...lines, '', heading, message].join('\n')
+  const said = news.length > 0 ? ['Since you last heard from Tade:', ...lines, ''] : []
+  return [...said, ...(where ? [where, ''] : []), heading, message].join('\n')
 }

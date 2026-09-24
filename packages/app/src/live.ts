@@ -5,6 +5,8 @@ import { readOutcome, settled } from '@tade/checks-core'
 import {
   type Config,
   type DoneRule,
+  type Effort,
+  effortsIn,
   type Finished,
   finishedFrom,
   historyFrom,
@@ -33,6 +35,7 @@ import {
   type Workspace,
   watchedFrom,
   workedFrom,
+  workspaceFor,
 } from '@tade/core'
 import type { LaneScreen, PointerReport, WheelTurn } from '@tade/drivers-core'
 import { collectStatus, git } from '@tade/status'
@@ -177,6 +180,7 @@ export function snapshotsFrom(
         ...(done ? { finished: { by: done.by, summary: done.summary } } : {}),
         ...(task.done ? { done: task.done } : {}),
         ...(task.by ? { by: task.by } : {}),
+        ...(task.effort ? { effort: task.effort } : {}),
         ...(queued.has(task.id) ? { queued: queued.get(task.id) } : {}),
         // Kept after it starts: the plan it was part of is still drawn with it,
         // and what it changes is what a later plan is checked against.
@@ -484,6 +488,22 @@ export class Live {
     return this.snapshots
   }
 
+  /**
+   * The changes that span repositories, folded out of what the task files say
+   * — never a table, so a task removed leaves its effort correctly smaller.
+   */
+  get efforts(): Effort[] {
+    return effortsIn(
+      this.snapshots.map((task) => ({
+        id: task.task,
+        project: task.task.split('/')[0] ?? task.task,
+        state: task.state,
+        ...(task.effort ? { effort: task.effort } : {}),
+      })),
+      new Set(this.finished.keys()),
+    )
+  }
+
   /** Work made and waiting to start, oldest first, as the last look saw it. */
   get queued(): readonly Queued[] {
     return this.queue
@@ -526,7 +546,10 @@ export class Live {
 
   /** What one project's tree says now: who is at work in it, and what has moved. */
   private async lookAtTree(project: string): Promise<Reality> {
-    const workspace = this.opts.config.agents.workspace
+    // This project's answer, never the machine's: with one project in a
+    // worktree each and another sharing its checkout, a look that asked the
+    // machine held the wrong one and read the wrong tree for the other.
+    const workspace = workspaceFor(this.opts.config, project)
     const at = this.atWork(project)
     const working = [...at.keys()].sort()
     const bare: Reality = { workspace, working, dirty: [], committed: [] }

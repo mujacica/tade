@@ -139,3 +139,89 @@ describe('what the orchestrator opens knowing', () => {
     expect(() => composeBriefing({ now: NOW, events: [broken] })).not.toThrow()
   })
 })
+
+describe('what it opens knowing with several repositories', () => {
+  it('says how big the world is, before anything about what is in it', () => {
+    const said = composeBriefing({
+      now: NOW,
+      events: [event('tade_closing', null, { pid: 1 }, 180)],
+      projects: ['getsentry', 'sentry', 'sentry-cli'],
+    })
+    expect(said).toContain('3 projects are open: getsentry, sentry, sentry-cli.')
+  })
+
+  it('says nothing about the size of a world with one project in it', () => {
+    const said = composeBriefing({
+      now: NOW,
+      events: [event('tade_closing', null, { pid: 1 }, 180)],
+      projects: ['app'],
+    })
+    expect(said).not.toContain('projects are open')
+  })
+
+  it('caps per project and counts what it left out, rather than losing a repo in silence', () => {
+    // A flat cap across projects is one repository's worth of lines and four
+    // repositories' silence, which reads as "nothing is happening there".
+    const events: TadeEvent[] = [event('tade_closing', null, { pid: 1 }, 600)]
+    for (const project of ['sentry', 'relay']) {
+      for (let n = 0; n < 5; n++) {
+        events.push(event('state_change', `${project}/task-${n}`, { state: 'working' }, 60 - n))
+      }
+    }
+    const said = composeBriefing({ now: NOW, events, projects: ['sentry', 'relay'] }) ?? ''
+    for (const project of ['sentry', 'relay']) {
+      expect(said.split('\n').filter((line) => line.startsWith(`- ${project}/`))).toHaveLength(3)
+      expect(said).toContain(`- ${project}: 2 more not listed`)
+    }
+  })
+
+  it('says an effort once, instead of the task lines it is made of', () => {
+    const events = [
+      event('tade_closing', null, { pid: 1 }, 600),
+      event('state_change', 'sentry/oauth-scopes', { state: 'working' }, 30),
+      event('state_change', 'sentry-cli/oauth-scopes', { state: 'working' }, 29),
+    ]
+    const said =
+      composeBriefing({
+        now: NOW,
+        events,
+        projects: ['sentry', 'sentry-cli'],
+        efforts: [
+          {
+            name: 'oauth-scopes',
+            projects: ['sentry', 'sentry-cli'],
+            tasks: [
+              {
+                task: 'sentry/oauth-scopes',
+                project: 'sentry',
+                state: 'merged' as const,
+                finished: true,
+              },
+              {
+                task: 'sentry-cli/oauth-scopes',
+                project: 'sentry-cli',
+                state: 'working' as const,
+                finished: false,
+              },
+            ],
+            finished: 1,
+            unfinished: [
+              {
+                task: 'sentry-cli/oauth-scopes',
+                project: 'sentry-cli',
+                state: 'working' as const,
+                finished: false,
+              },
+            ],
+          },
+        ],
+      }) ?? ''
+    expect(said).toContain(
+      '- oauth-scopes (sentry, sentry-cli): 1 of 2 finished — sentry-cli/oauth-scopes working',
+    )
+    // And its tasks are not then listed again underneath: a briefing that says
+    // the same thing twice is one that gets skimmed.
+    expect(said).not.toContain('- sentry/oauth-scopes:')
+    expect(said).not.toContain('- sentry-cli/oauth-scopes:')
+  })
+})

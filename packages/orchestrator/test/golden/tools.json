@@ -241,17 +241,21 @@
   },
   {
     "name": "tade_plan",
-    "description": "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
+    "description": "Start several changes as one plan: agents that can work at the same time start now, and the rest wait in Tade's queue until what they wait on has finished, then start by themselves. A plan may span repositories — give an agent its own project and it works there, and a wait may name a task in another project, which waits for it to finish and then starts from its own repository's base. When the whole plan is one change, give it an effort: a short name, which every task it makes carries, so \"two of three repos done\" is one question later. Before calling it, read the code to see what each change will touch. In a project whose agents share one checkout, never let two agents that change the same files run at once: make one wait on the other. Small changes to the same place are one agent. Give every wait a reason, and choose how each agent counts as finished. Nothing is made if the plan cannot be kept, and it says why.",
     "parameters": {
       "type": "object",
       "properties": {
         "project": {
           "type": "string",
-          "description": "project name, as configured"
+          "description": "project name, as configured; where an agent works unless it says"
         },
         "said": {
           "type": "string",
           "description": "the whole request, word for word"
+        },
+        "effort": {
+          "type": "string",
+          "description": "what to call this one change, lowercase with dashes, when the whole plan is one change across repositories or one of several streams in a repository"
         },
         "agents": {
           "type": "array",
@@ -262,6 +266,10 @@
               "name": {
                 "type": "string",
                 "description": "its task name, lowercase with dashes"
+              },
+              "project": {
+                "type": "string",
+                "description": "the repository it works in, when not the plan’s own"
               },
               "said": {
                 "type": "string",
@@ -284,13 +292,13 @@
               },
               "after": {
                 "type": "array",
-                "description": "what it waits on: other agents in this plan by name, or tasks already in the project",
+                "description": "what it waits on: other agents in this plan by name, or tasks Tade already has — in another project, as project/task",
                 "items": {
                   "type": "object",
                   "properties": {
                     "agent": {
                       "type": "string",
-                      "description": "an agent in this plan, or an existing task"
+                      "description": "an agent in this plan, or an existing task as project/task"
                     },
                     "why": {
                       "type": "string",
@@ -751,7 +759,7 @@
   },
   {
     "name": "tade_status",
-    "description": "Where everything stands: every task, its state, and why. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.",
+    "description": "Where everything stands: every task, in every project, with its state, why, and the effort it belongs to when it is one repository's share of a change that spans several — so \"how far is oauth-scopes\" is these tasks counted, never something remembered. Derived fresh from git, running agents and provider transcripts. Use this for any question about what is happening.",
     "parameters": {
       "type": "object",
       "properties": {},

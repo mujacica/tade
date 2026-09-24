@@ -62,7 +62,7 @@ describe('queued work', () => {
         said: '',
         agents: [agent('lost', { after: [{ agent: 'ghost', why: '' }] }), agent('fine')],
       }),
-    ).rejects.toThrow(/ghost, which is neither in the plan nor a task in app/)
+    ).rejects.toThrow(/ghost, which is neither in the plan nor a task Tade has/)
     // Refused whole: not even the part that was fine was made.
     expect(existsSync(join(home, 'worktrees', 'app-fine'))).toBe(false)
   })

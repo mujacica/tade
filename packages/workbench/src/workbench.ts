@@ -8,7 +8,6 @@ import {
   type Config,
   ConfigSchema,
   checkBudget,
-  checkPlan,
   type checksFor,
   composeAgentPrompt,
   type DoneRule,
@@ -42,6 +41,7 @@ import {
   THINKING_LEVELS,
   type ThinkingLevel,
   type Unsubscribe,
+  workspaceFor,
   writeSetting,
 } from '@tade/core'
 import type {
@@ -84,6 +84,7 @@ import {
 import { ensureIgnored, IGNORE_PATH } from './ignore.ts'
 import { type HomeLock, lockHome } from './lock.ts'
 import { Memory } from './memory.ts'
+import { makePlan, type PlanMade } from './plans.ts'
 import { drivers, type LaneRecord, LaneRegistry, type SpawnRequest } from './registry.ts'
 import { type KeptSchedule, Schedules } from './schedules.ts'
 import {
@@ -206,8 +207,10 @@ export interface CreateTaskRequest {
   context?: string
   /** Where the work came from, kept with the task and shown beside it. */
   links?: readonly { title: string; url: string }[]
-  /** Where the agent works; the config's `agents.workspace` unless said. */
+  /** Where the agent works; the project's own answer (`workspaceFor`) unless said. */
   workspace?: 'checkout' | 'worktree'
+  /** The change this task is one repository's share of, by its slug. */
+  effort?: string
   /** Who asked for it, as `TaskOrigin` says it: kept with the task and in the journal. */
   by?: string
   /** How it counts as finished; `said` unless chosen. */
@@ -224,12 +227,6 @@ export interface CreateTaskRequest {
  * for a fortnight from reading a year of history to find them.
  */
 const COMMITS_SEEN = 200
-
-/** What a plan made: its tasks, in the order they were made, and what to watch out for. */
-export interface PlanMade {
-  made: TaskWorktree[]
-  warnings: string[]
-}
 
 export interface RemoveTaskRequest {
   root: string
@@ -961,7 +958,7 @@ export class Workbench {
       throw new Error(`unknown project "${req.project}": add it to config.yaml or pass a root`)
     }
     await this.guardName(`${req.project}/${req.slug}`)
-    const workspace = req.workspace ?? this.config.agents.workspace
+    const workspace = req.workspace ?? workspaceFor(this.config, req.project)
     if ((req.done === 'committed' || req.done === 'merged') && workspace !== 'worktree') {
       // In a shared checkout nothing is any one agent's to commit or merge.
       throw new Error(
@@ -984,6 +981,7 @@ export class Workbench {
       ...(req.by ? { by: req.by } : {}),
       ...(req.done ? { done: req.done } : {}),
       ...(req.start ? { start: req.start } : {}),
+      ...(req.effort ? { effort: req.effort } : {}),
       workspace,
     })
     await this.log.append({
@@ -996,6 +994,7 @@ export class Workbench {
         base: task.base,
         // The journal is where "what was that about" gets answered.
         intent_spoken: req.intent,
+        ...(req.effort ? { effort: req.effort } : {}),
         ...(req.by ? { by: req.by } : {}),
         ...(req.done ? { done: req.done } : {}),
         ...(req.start ? { after: req.start.after.map((dep) => dep.task) } : {}),
@@ -1033,57 +1032,30 @@ export class Workbench {
   }
 
   /**
-   * Make every task in a plan, in an order where each comes after what it
-   * waits on — or none of them, with every reason, when the plan cannot be
-   * kept. Making is not starting: the queue starts whatever is ready.
+   * Make every task in a plan. `makePlan` does the work — it is about several
+   * projects at once, which is its own subject — and this hands it the few
+   * things it needs of the workbench.
    */
   async planTasks(
     plan: Plan,
     by = 'orchestrator',
-    /** Work the project already has, so the plan is checked against it too. */
+    /** Work the projects already have, so the plan is checked against it too. */
     busy: readonly PlanBusy[] = [],
   ): Promise<PlanMade> {
-    const configured = this.config.projects[plan.project]
-    if (!configured) {
-      throw new Error(`unknown project "${plan.project}": add it to config.yaml first`)
-    }
-    const created = await this.log.read({ types: ['task_created', 'task_removed'] }).catch(() => [])
-    const tasks = new Set<string>()
-    for (const event of created) {
-      if (!event.task?.startsWith(`${plan.project}/`)) continue
-      if (event.type === 'task_created') tasks.add(event.task)
-      else tasks.delete(event.task)
-    }
-    const check = checkPlan(plan, { workspace: this.config.agents.workspace, tasks, busy })
-    if (!check.ok) throw new Error(`the plan was not made: ${check.problems.join('; ')}`)
-    // Every model named for the work settled first: a plan that starts half its
-    // agents and then cannot tell which model the rest meant is a mess to undo.
-    const models = new Map<string, { provider: string; id: string }>()
-    for (const agent of check.order) {
-      if (agent.model) models.set(agent.name, await this.resolveModel(agent.model))
-    }
-    const made: TaskWorktree[] = []
-    for (const agent of check.order) {
-      const model = models.get(agent.name)
-      made.push(
-        await this.createTask({
-          project: plan.project,
-          slug: agent.name,
-          intent: agent.said,
-          by,
-          ...(agent.done ? { done: agent.done } : {}),
-          start: {
-            after: check.waitsOn.get(agent.name) ?? [],
-            prompt: agent.prompt,
-            touches: agent.touches,
-            ...(agent.at ? { at: new Date(Date.parse(agent.at)).toISOString() } : {}),
-            ...(model ? { model } : {}),
-            ...(agent.thinking ? { thinking: agent.thinking } : {}),
-          },
-        }),
-      )
-    }
-    return { made, warnings: check.warnings }
+    return makePlan(
+      {
+        config: this.config,
+        events: (filter) => this.log.read(filter),
+        note: async (event) => {
+          await this.log.append(event)
+        },
+        createTask: (req) => this.createTask(req),
+        resolveModel: (said) => this.resolveModel(said),
+      },
+      plan,
+      by,
+      busy,
+    )
   }
 
   /**

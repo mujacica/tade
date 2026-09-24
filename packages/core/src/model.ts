@@ -102,6 +102,13 @@ export const TaskFile = z.object({
   links: z.array(z.object({ title: z.string(), url: z.string() })).default([]),
   /** Where the agent works: the project's own checkout, or a worktree of its own. */
   workspace: z.enum(['checkout', 'worktree']).optional(),
+  /**
+   * The change this task is one repository's share of, by its slug. An effort
+   * is nothing but the fold of the task files that name it — no table, no
+   * registry — so removing a task leaves the effort correctly smaller and
+   * there is never anything to keep in sync.
+   */
+  effort: z.string().optional(),
   /** The harness its agent runs in, when it is not the route's. */
   harness: z.string().optional(),
   /** The account its agent runs as, when it is not its harness's usual one. */
@@ -268,6 +275,8 @@ export const Task = z.object({
   links: z.array(z.object({ title: z.string(), url: z.string() })).optional(),
   /** Where it works: the checkout, shared with other agents, or a worktree of its own. */
   workspace: z.enum(['checkout', 'worktree']).optional(),
+  /** The change it is one repository's share of, as its task file says. */
+  effort: z.string().optional(),
   /** The directory its work is in: the project's checkout, or its worktree. */
   worktree: z.string(),
   /** Who asked for it, as its task file says. */

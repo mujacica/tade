@@ -6,7 +6,9 @@ import { App, thinkerOffers } from '@tade/app'
 import {
   activityFrom,
   defaultConfigPath,
+  effortsIn,
   expandHome,
+  finishedFrom,
   historyFrom,
   isReady,
   loadConfig,
@@ -201,6 +203,17 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
       // orchestrator may touch is checked there rather than in its own process.
       let settings: ReturnType<App['configTools']> | null = null
       const opening = () => new Error('Tade is still opening: ask again in a moment')
+      // Where everything stands, derived fresh. What `tade_status` answers
+      // with, and what the efforts in the briefing are folded out of.
+      const status = () =>
+        collectStatus({
+          config: client.config,
+          now: Date.now(),
+          home: homedir(),
+          cwd: process.cwd(),
+          pr: false,
+          liveness: livenessFrom(client),
+        })
       const tools = await ToolHost.listen({
         tade: client,
         path: join(home, 'runs', `tools-${process.pid}.sock`),
@@ -242,15 +255,7 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
             return settings.closeProject(req)
           },
         },
-        status: () =>
-          collectStatus({
-            config: client.config,
-            now: Date.now(),
-            home: homedir(),
-            cwd: process.cwd(),
-            pr: false,
-            liveness: livenessFrom(client),
-          }),
+        status,
         orchestratorModel: async (said) => {
           // Among what the orchestrator's own harness offers, and kept for
           // the next start either way. Only its own: a model is resolved by
@@ -383,6 +388,14 @@ export function registerApp(program: Command, io: Io, setExit: (code: number) =>
               // What it was tracking: the queue's own words, so the briefing
               // and tade_queue can never say different things.
               queue: await queue?.describe().catch(() => ''),
+              // And what spans repositories, which the journal alone cannot
+              // say: an effort is the fold of the task files that name it,
+              // read out of the same status answer everything else reads.
+              efforts: effortsIn(
+                (await status().catch(() => null))?.projects.flatMap((project) => project.tasks) ??
+                  [],
+                new Set(finishedFrom(journal).keys()),
+              ),
               safe,
               extensions: orchestratorExtensions(extensions, home, config.orchestrator.harness),
               onUsage: ({ model, ...usage }) => {

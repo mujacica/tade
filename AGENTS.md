@@ -1073,11 +1073,51 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   across is how a route ends up asking for something that does not exist there — and the same rule
   reaches backwards, so a run resumed in one harness is only ever told what *that* harness ran it
   on (`modelLastRunOn`).
-- **Agents work where `agents.workspace` says.** `checkout` (the default): every agent in the
-  project's own checkout, on its branch, at once, each task a folder under `.tade/tasks/<name>`;
-  its state is its agent's, never the shared files' (`deriveState` with `shared`), and removing it
-  removes only that folder. `worktree`: a worktree and branch each. Nothing that runs git on a
-  task's directory may assume the directory is the task's alone — ask `task.workspace`.
+- **Agents work where the *project* says, and the machine's answer is its default.**
+  `workspaceFor(config, project)` (`core/src/project.ts`) is the one reader: a project's own
+  `workspace` over `agents.workspace`, exactly the shape `checksFor` already had. `checkout` (the
+  default): every agent in the project's own checkout, on its branch, at once, each task a folder
+  under `.tade/tasks/<name>`; its state is its agent's, never the shared files' (`deriveState` with
+  `shared`), and removing it removes only that folder. `worktree`: a worktree and branch each.
+  It is a project's and not the machine's because **both are true at the same moment**: a
+  repository where agents work on one thing at a time wants one checkout, and two unrelated efforts
+  in another want a worktree each, and somebody running two repositories daily has both open. So
+  nothing asks the machine — not `createTask`'s default, not `checkPlan` (`PlanContext.workspace`
+  is asked per project, since `done: committed` and `done: merged` turn on it), and above all not
+  the start-time look at a tree (`lookAtTree`), which read the wrong project's answer and so read
+  the wrong tree: inert where it should have held, and holding where there was nothing to hold.
+  What a task that already exists is, is written in its own task file and stays true when somebody
+  changes the setting underneath it. Nothing that runs git on a task's directory may assume the
+  directory is the task's alone — ask `task.workspace`.
+- **A change that spans repositories is an effort: a name, the sentence, and one ordinary task per
+  repository.** Not a task with several workspaces — a lane has one `cwd`, a `Task` has one
+  worktree and one git snapshot, `done: merged` has no meaning across three branches, and the
+  `Tade-Task:` trailer would stop naming one history, so "what did this change" would stop having
+  an answer in the one place nothing can see that it has. Underneath an effort, each task keeps its
+  own branch, agent, checks, review and done rule exactly as tasks work today; git, the forge port
+  and the checks record learn no new word.
+  It lives **nowhere new**: `TaskFile.effort` is one optional field and an effort is the *fold* of
+  the task files that name it (`effortsIn`, `core/src/effort.ts`), so a removed task leaves it
+  correctly smaller and there is nothing to keep in sync — a table would be wrong the moment
+  somebody removed one. `effort_named` records the slug and the sentence verbatim, once, for the
+  same reason `intent_spoken` is journalled: nothing else can recover the sentence. There is **no
+  `Tade-Effort:` trailer** (derivable from the task, and the one place Tade could never correct a
+  mistake), no effort-level done rule, merge, review or branch — a fourth rule above three rules is
+  a rule that will disagree with them and nothing could say which was right — and **no state**:
+  until every task in it has finished it has a *list*, because "two of three" is not something
+  anybody can act on and *which one is not* is (`effortSays`).
+- **A plan may span repositories, and a wait across one is a wait on when, not on what.**
+  `PlannedAgent.project` defaults to the plan's, so every plan written before this means what it
+  meant; `checkPlan` gives each agent its own project's id, which is what lets one change land in
+  three repositories under one name. Three rules keep the widening honest. `overlaps` compares
+  paths **only inside one project** — two files called `src/index.ts` in two repositories are not
+  one file, and warning that they collide is a lie the widening would otherwise have invented.
+  `startFrom` takes the project it is starting in and **never hands a ref across one**: the
+  upstream map is flat because a wait is, so without it repo A's branch name went to `git worktree
+  add` in repo B, which fails in the good case and in the bad one finds a ref of that name that is
+  somebody else's work entirely. And the start-time tree evidence never learns the word *effort*:
+  it must not read "different effort" as collides harder and, the dangerous one, must never read
+  "same effort" as permission — an effort is a name for related work, not a lock on a file.
 - **A model or thinking level chosen for an agent is what new agents start on**, until another is
   chosen: kept in the agent route (`workers.routes.<route>.model`, `.thinking`), which Settings shows.
   Only new agents are given them — one coming back to its conversation keeps what its session was
@@ -1134,6 +1174,23 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   is held, what is queued and scheduled in the queue's own words, and the last things you said, in
   yours. It is appended to its prompt as a snapshot with times on it and says so — status is still a
   query, and what is true now is `tade_status`'s to answer, never the briefing's.
+  **The briefing has a shape rather than a budget**, because with five repositories open a flat cap
+  of six lines is one repository's worth and the other four vanish *without a word* — which reads
+  as "nothing is happening there", worse than a long briefing and the exact shape of bug that sends
+  somebody looking for this code. So it opens by saying how big the world is, caps per project, and
+  **counts what it left out** (`sentry: 9 more not listed`); an effort's one line replaces the task
+  lines it is made of and says more than they did; and what is held and the person's own words stay
+  global and uncapped, being the two that must never be lost to a per-project budget.
+  Two things the briefing may **never** say: which project you are looking at, and a branch or a
+  worktree path. Both go stale within the minute, and a remembered location is the same class of
+  bug as a remembered branch.
+- **Where you are is said every turn, as a fact, and is never remembered.** With several projects
+  open, "start an agent on the flaky test" is not a question anybody could answer — so `ask`
+  appends one line (`whereYouAre`, `app/src/inbox.ts`) the way `withNews` already appends what
+  happened: the project and the agent in front of you, and how many projects are open. Derived at
+  the moment of asking, never stored, never in the briefing, and **above** the `What they said:`
+  heading rather than inside it, because it is Tade's sentence and must never be recorded as
+  something the person said.
 - **Every agent is told it runs in Tade** (`composeAgentPrompt`): its task, where it works and
   who else does, the commit rule (`agents.commit`), your own rules (`agents.instructions`), your
   notes about the work, and its context file. Appended to the harness's own instructions, never

@@ -4,6 +4,14 @@ import { describe, expect, it } from 'vitest'
 import type { ThinkerEvent } from '../../src/transcript.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
+/**
+ * What the person actually said, out of the message the orchestrator is handed:
+ * the window puts where they are standing above their words, under a heading,
+ * and every test here is about the words.
+ */
+const theirWords = (message: string | undefined): string =>
+  (message ?? '').split('What they said:\n').at(-1) ?? ''
+
 // Where a key goes and what it does there: the line you type on, what is
 // selected on it, the two keys that stop things, and what you said before.
 
@@ -80,7 +88,7 @@ describe('the window, taking a keystroke', () => {
     for (const char of 'and search') terminal.press(char)
     terminal.press('\r')
     await until('the question', () => asked.length === 1)
-    expect(asked[0]).toBe('and search')
+    expect(theirWords(asked[0])).toBe('and search')
   })
 
   it('keeps the keyboard on the orchestrator after sending, until you leave it', async () => {
@@ -105,7 +113,7 @@ describe('the window, taking a keystroke', () => {
     for (const char of 'and what about search') terminal.press(char)
     terminal.press('\r')
     await until('the second question', () => asked.length === 2)
-    expect(asked).toEqual(['why is refunds slow', 'and what about search'])
+    expect(asked.map(theirWords)).toEqual(['why is refunds slow', 'and what about search'])
 
     // Escape is the way out, and then the keyboard is the agent's again.
     terminal.written = ''
@@ -155,7 +163,7 @@ describe('the window, taking a keystroke', () => {
     for (const char of 'is ') terminal.press(char)
     terminal.press('\r')
     await until('the question', () => asked.length === 1)
-    expect(asked).toEqual(['why is refunds slow'])
+    expect(asked.map(theirWords)).toEqual(['why is refunds slow'])
   })
 
   it('stops the orchestrator on escape, and leaves what you typed alone', async () => {
@@ -261,7 +269,7 @@ describe('the window, taking a keystroke', () => {
     for (const char of 'and search') terminal.press(char)
     terminal.press('\r')
     await until('the question', () => asked.length === 1)
-    expect(asked[0]).toBe('and search')
+    expect(theirWords(asked[0])).toBe('and search')
   })
 
   it('brings back what you said with up, and finds it with ctrl+r, in the next window too', async () => {
@@ -312,7 +320,7 @@ describe('the window, taking a keystroke', () => {
     )
     terminal.press('\r')
     await until('it sent again', () => asked.length === 3)
-    expect(asked[2]).toBe('why is refunds slow')
+    expect(theirWords(asked[2])).toBe('why is refunds slow')
   })
 
   it('types to the orchestrator when no agent has focus', async () => {

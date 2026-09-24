@@ -9,6 +9,14 @@ import { tmp } from '../../../../test/fixtures/mkrepo.ts'
 import type { ThinkerEvent } from '../../src/transcript.ts'
 import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
 
+/**
+ * What the person actually said, out of the message the orchestrator is handed:
+ * the window puts where they are standing above their words, under a heading,
+ * and every test here is about the words.
+ */
+const theirWords = (message: string | undefined): string =>
+  (message ?? '').split('What they said:\n').at(-1) ?? ''
+
 // What reaches the thing you talk to, what it says back, and what it is told
 // while nobody is asking.
 
@@ -43,7 +51,7 @@ describe('the window, talking to the orchestrator', () => {
 
     // The grammar has no verb for this, so it goes to the thing that can think.
     await until('the orchestrator to be asked', () => asked.length === 1)
-    expect(asked[0]).toBe('why is refunds slow')
+    expect(theirWords(asked[0])).toBe('why is refunds slow')
     await until('the answer on screen', () =>
       terminal.written.includes('because the webhook retries twice'),
     )

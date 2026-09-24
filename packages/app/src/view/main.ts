@@ -9,11 +9,11 @@ import {
   offsetOf,
   showingActions,
   shownName,
-  splitShown,
 } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
+import { splitShown } from '../split.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { actionRows } from './actions.ts'
 import {

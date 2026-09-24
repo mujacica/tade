@@ -48,25 +48,27 @@ import {
   showTerminal,
   sidebar,
   somethingTyped,
-  splitPane,
-  splitRatio,
-  splitShown,
   startHistorySearch,
-  swapSplit,
   type TaskSnapshot,
   tasksOf,
   terminalsOf,
   toggleDone,
   toggleSection,
-  turnSplit,
-  typingLane,
-  unsplitPane,
   whichProject,
   withProjects,
   withTasks,
   withTerminals,
 } from '../src/model.ts'
 import { extensionsPanel } from '../src/panels/extensions/state.ts'
+import {
+  splitPane,
+  splitRatio,
+  splitShown,
+  swapSplit,
+  turnSplit,
+  typingLane,
+  unsplitPane,
+} from '../src/split.ts'
 import { thinking, youSaid } from '../src/transcript.ts'
 
 const NOW = Date.parse('2026-09-11T14:00:00Z')

@@ -1,5 +1,4 @@
 import type { LaneId } from '@tade/core'
-import { matchingLines } from '@tade/workbench'
 import type { Frame, LaneView } from '../frame.ts'
 import { halvesOf, resolveLayout } from '../layout.ts'
 import {
@@ -10,13 +9,6 @@ import {
   ORCHESTRATOR_TAB,
   setHeld,
   showTerminal,
-  splitPane,
-  splitShown,
-  swapSplit,
-  terminalSplitShown,
-  turnSplit,
-  typingLane,
-  unsplitPane,
 } from '../model.ts'
 import { laneMenuItems, terminalMenuItems } from '../panels/menu/state.ts'
 import { findPanel, promptPanel } from '../panels/small/state.ts'
@@ -25,6 +17,15 @@ import { initialRouter, pending, type RouterState, route } from '../router.ts'
 import { cutFrom, type HeldLines, keeping, settledAbove } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
 import type { Skin } from '../skin.ts'
+import {
+  splitPane,
+  splitShown,
+  swapSplit,
+  terminalSplitShown,
+  turnSplit,
+  typingLane,
+  unsplitPane,
+} from '../split.ts'
 import { carded, rowsRead } from '../view/lane.ts'
 import {
   type Actions,
@@ -34,6 +35,7 @@ import {
   type Wiring,
   why,
 } from './context.ts'
+import { Finding } from './finding.ts'
 
 // The two screens in front of you, and the terminals they are.
 //
@@ -128,7 +130,7 @@ export class Lanes implements Subject {
   /** How each lane was last sized — once per change; its height, what may be rewritten. */
   private readonly fitted = new Map<string, { cols: number; rows: number }>()
   /** A terminal's scrollback, read for finding in it. */
-  private findText: { id: string; lines: string[] } | null = null
+  private readonly find = new Finding()
   private router: RouterState = initialRouter()
   /** Which agent the router's half-typed line belongs to. */
   private routerFor: string | null = null
@@ -385,6 +387,23 @@ export class Lanes implements Subject {
   }
 
   /** Stop watching both lanes: the window is closing. */
+  /** The scrollback the find box is looking through, and the line it is on. */
+  findView(): NonNullable<Frame['terminal']>['find'] {
+    return this.find.view(this.wire.state.panel)
+  }
+
+  /** Look for text in a terminal's scrollback, with the find box over it. */
+  async openFind(id: string, query = '', index = 0): Promise<void> {
+    this.wire.put({ ...showTerminal(this.wire.state, id), panel: findPanel(id, query, index) })
+    await this.find.read(id, (at) => this.wire.opts.client.readTerminal(at, 5_000))
+    this.wire.draw()
+  }
+
+  /** The lines the find box matches, newest first, as line numbers into the scrollback read. */
+  findMatches(): number[] {
+    return this.find.matches(this.wire.state.panel)
+  }
+
   stopWatching(): void {
     for (const watched of this.watching.values()) watched.stop()
   }
@@ -661,18 +680,6 @@ export class Lanes implements Subject {
     return true
   }
 
-  /** The scrollback the find box is looking through, and the line it is on. */
-  findView(): NonNullable<Frame['terminal']>['find'] {
-    const panel = this.wire.state.panel
-    if (panel?.kind !== 'find' || this.findText?.id !== panel.terminal) return null
-    const matches = this.findMatches()
-    return {
-      lines: this.findText.lines,
-      line: matches.length > 0 ? (matches[panel.index % matches.length] ?? null) : null,
-      query: panel.query,
-    }
-  }
-
   /** Put a terminal in front, once the window knows about it. For whoever opened it elsewhere. */
   async showTerminal(id: string): Promise<void> {
     // Just opened, it may take a refresh or two to be listed: it still comes to the front.
@@ -723,24 +730,6 @@ export class Lanes implements Subject {
       this.wire.draw()
       return null
     }
-  }
-
-  /** Look for text in a terminal's scrollback, with the find box over it. */
-  async openFind(id: string, query = '', index = 0): Promise<void> {
-    this.wire.put({ ...showTerminal(this.wire.state, id), panel: findPanel(id, query, index) })
-    const text = await this.wire.opts.client.readTerminal(id, 5_000).catch(() => '')
-    this.findText = { id, lines: text.split('\n') }
-    this.wire.draw()
-  }
-
-  /** The lines the find box matches, newest first, as line numbers into the scrollback read. */
-  findMatches(): number[] {
-    const panel = this.wire.state.panel
-    if (panel?.kind !== 'find' || this.findText?.id !== panel.terminal || panel.query === '')
-      return []
-    return matchingLines(this.findText.lines.join('\n'), panel.query, 10_000)
-      .map((match) => match.line - 1)
-      .reverse()
   }
 
   /**

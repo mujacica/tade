@@ -14,7 +14,17 @@ import {
 } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { readImage } from '../images.ts'
-import { addEnded, addNews, type Ended, type News, taskNews, unended, withNews } from '../inbox.ts'
+import {
+  addEnded,
+  addNews,
+  type Ended,
+  type News,
+  THEIR_WORDS,
+  taskNews,
+  unended,
+  whereYouAre,
+  withNews,
+} from '../inbox.ts'
 import {
   type AppState,
   focusTask,
@@ -22,6 +32,7 @@ import {
   notice,
   ORCHESTRATOR_TAB,
   setQuestion,
+  shownName,
   type TaskSnapshot,
   withTranscript,
 } from '../model.ts'
@@ -478,7 +489,21 @@ export class Orchestrator implements Subject {
         ),
       )
     }
-    const message = withNews(text, this.newsWaiting, clockOf)
+    // Where they are, derived on this turn and never stored: with several
+    // projects open, "start an agent on the flaky test" is unanswerable
+    // without it, and a remembered location is stale the moment a tab moves.
+    const pane = this.wire.state.panes.find((one) => one.task === this.wire.state.focused)
+    const message = withNews(
+      text,
+      this.newsWaiting,
+      clockOf,
+      THEIR_WORDS,
+      whereYouAre({
+        project: this.wire.state.project,
+        agent: pane ? shownName(pane) : null,
+        projects: this.wire.state.known,
+      }),
+    )
     this.newsWaiting = []
     try {
       return await this.thinker.ask(message, images)

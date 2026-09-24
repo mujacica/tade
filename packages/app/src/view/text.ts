@@ -100,7 +100,14 @@ export function shortModel(model: string): string {
   return model.split('/').at(-1) ?? model
 }
 
-/** A task's name without its project, which the list it is in already says. */
+/**
+ * A task's name without its project, which the list it is in already says.
+ *
+ * Only *this* project's prefix, deliberately. A wait that crosses repositories
+ * then keeps its own: `held: after sentry/oauth-scopes` in a `sentry-cli` pane,
+ * rather than the lie `held: after oauth-scopes`, which names a task that pane
+ * could plausibly have. Stripping every prefix would read tidier and be wrong.
+ */
 export function inProject(project: string, text: string): string {
   return text.replaceAll(`${project}/`, '')
 }

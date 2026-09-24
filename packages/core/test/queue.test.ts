@@ -4,6 +4,7 @@ import type { EventType, TadeEvent } from '../src/events.ts'
 import type { StartCondition, TaskState } from '../src/model.ts'
 import {
   checkPlan,
+  collidesNow,
   describeQueueState,
   inWrittenOrder,
   orderFirst,
@@ -394,10 +395,60 @@ describe('where queued work in a worktree begins', () => {
       ],
     ])
     expect(
-      startFrom([{ task: 'shop/fix-charge' }, { task: 'shop/bump-mailer' }], upstream, 'main'),
+      startFrom(
+        [{ task: 'shop/fix-charge' }, { task: 'shop/bump-mailer' }],
+        upstream,
+        'main',
+        'shop',
+      ),
     ).toEqual(['tade/fix-charge', 'bbb'])
-    expect(startFrom([{ task: 'shop/docs' }], upstream, 'main')).toEqual(['main'])
-    expect(startFrom([], upstream, null)).toEqual([])
+    expect(startFrom([{ task: 'shop/docs' }], upstream, 'main', 'shop')).toEqual(['main'])
+    expect(startFrom([], upstream, null, 'shop')).toEqual([])
+  })
+
+  it('holds two agents of one effort as readily as any other, in one checkout', () => {
+    // An effort is a name for related work, not a lock on a file. Two agents
+    // in one effort editing one file in one checkout is the same accident as
+    // any other, so the tree evidence must not learn the word — and above all
+    // must never read "same effort" as permission.
+    const seen = {
+      workspace: 'checkout' as const,
+      working: ['shop/search-a'],
+      dirty: ['src/index.ts'],
+      committed: [],
+    }
+    const sibling = queued('shop/search-b', { touches: ['src/index.ts'] })
+    expect(collidesNow(sibling, seen)).toMatchObject({
+      paths: ['src/index.ts'],
+      because:
+        'src/index.ts, which this was planned to change, is changed and not committed, while shop/search-a works in the same checkout',
+    })
+  })
+
+  it('never begins on a branch from another repository, however the wait reads', () => {
+    // The upstream map is flat across every project, because a wait is. Repo
+    // A's branch name handed to `git worktree add` in repo B fails in the good
+    // case and in the bad one finds a ref of that name that is somebody else's
+    // work entirely — so a cross-repo wait is a wait on *when*, and this
+    // begins from its own base exactly as it would with no wait at all.
+    const upstream = new Map([
+      [
+        'api/oauth-scopes',
+        {
+          workspace: 'worktree' as const,
+          branch: 'tade/oauth-scopes',
+          head: 'aaa',
+          done: 'said' as const,
+        },
+      ],
+      [
+        'cli/bump',
+        { workspace: 'worktree' as const, branch: 'tade/bump', head: 'bbb', done: 'said' as const },
+      ],
+    ])
+    const after = [{ task: 'api/oauth-scopes' }, { task: 'cli/bump' }]
+    expect(startFrom(after, upstream, 'main', 'cli')).toEqual(['tade/bump'])
+    expect(startFrom([{ task: 'api/oauth-scopes' }], upstream, 'main', 'cli')).toEqual(['main'])
   })
 })
 
@@ -410,7 +461,79 @@ describe('a plan', () => {
     touches: [],
     ...over,
   })
-  const context = { workspace: 'checkout' as const, tasks: new Set(['shop/existing']) }
+  const context = { workspace: () => 'checkout' as const, tasks: new Set(['shop/existing']) }
+
+  it('spans repositories: one agent per repo, each waiting on the last by its whole id', () => {
+    const check = checkPlan(
+      {
+        project: 'api',
+        said: 'widen the scopes everywhere',
+        effort: 'oauth-scopes',
+        agents: [
+          agent('oauth-scopes', {
+            project: 'cli',
+            after: [{ agent: 'api/oauth-scopes', why: 'the scopes land first' }],
+            touches: ['src/auth.ts'],
+          }),
+          agent('oauth-scopes', { touches: ['src/auth.ts'] }),
+        ],
+      },
+      context,
+    )
+    if (!check.ok) throw new Error(check.problems.join('; '))
+    // The one in the plan's own project first, because the other waits on it.
+    expect(check.order.map((one) => `${one.project ?? 'api'}/${one.name}`)).toEqual([
+      'api/oauth-scopes',
+      'cli/oauth-scopes',
+    ])
+    expect(check.waitsOn.get('cli/oauth-scopes')).toEqual([
+      { task: 'api/oauth-scopes', why: 'the scopes land first' },
+    ])
+    // Both change `src/auth.ts`, in two different repositories, which is two
+    // files. Warning that they collide would be a lie the widening invented.
+    expect(check.warnings).toEqual([])
+  })
+
+  it('asks which one a bare name means when it could mean two repositories', () => {
+    const check = checkPlan(
+      {
+        project: 'api',
+        said: '',
+        agents: [
+          agent('bump', { project: 'cli' }),
+          agent('bump', { project: 'docs' }),
+          agent('after', { after: [{ agent: 'bump', why: 'needs it' }] }),
+        ],
+      },
+      context,
+    )
+    expect(check.ok).toBe(false)
+    if (check.ok) return
+    expect(check.problems).toEqual([
+      'after waits on bump, which is in cli and docs: say which as cli/bump',
+    ])
+  })
+
+  it('asks each project how its agents work, not the machine', () => {
+    const check = checkPlan(
+      {
+        project: 'api',
+        said: '',
+        agents: [
+          agent('shared', { done: 'merged' }),
+          agent('apart', { project: 'cli', done: 'merged' }),
+        ],
+      },
+      // api shares its checkout; cli gives each agent a worktree. One plan,
+      // two answers — which is the whole of why this is asked per project.
+      { ...context, workspace: (project: string) => (project === 'cli' ? 'worktree' : 'checkout') },
+    )
+    expect(check.ok).toBe(false)
+    if (check.ok) return
+    expect(check.problems).toEqual([
+      'shared cannot finish when merged: agents in api share one checkout. Use said, idle or manual',
+    ])
+  })
 
   it('is made in an order where every agent comes after what it waits on', () => {
     const check = checkPlan(
@@ -436,7 +559,7 @@ describe('a plan', () => {
       'add-refunds',
       'refund-emails',
     ])
-    expect(check.waitsOn.get('refund-emails')).toEqual([
+    expect(check.waitsOn.get('shop/refund-emails')).toEqual([
       { task: 'shop/add-refunds', why: 'emails what refund() returns' },
       { task: 'shop/existing', why: 'already under way' },
     ])
@@ -459,8 +582,8 @@ describe('a plan', () => {
     if (check.ok) return
     expect(check.problems).toEqual([
       'b cannot finish when merged: agents in shop share one checkout. Use said, idle or manual',
-      'b is in the plan twice',
-      'a waits on ghost, which is neither in the plan nor a task in shop',
+      'shop/b is in the plan twice',
+      'a waits on ghost, which is neither in the plan nor a task Tade has',
     ])
     const cycle = checkPlan(
       {
@@ -475,7 +598,7 @@ describe('a plan', () => {
     )
     expect(cycle).toEqual({
       ok: false,
-      problems: ['x and y wait on each other, so none could start'],
+      problems: ['shop/x and shop/y wait on each other, so none could start'],
     })
   })
 
@@ -528,7 +651,7 @@ describe('a plan', () => {
     ])
     const worktrees = checkPlan(
       { project: 'shop', said: '', agents: [agent('add-refunds', { touches: ['src/charge.ts'] })] },
-      { workspace: 'worktree', tasks: new Set(['shop/fix-charge']), busy },
+      { workspace: () => 'worktree', tasks: new Set(['shop/fix-charge']), busy },
     )
     expect(worktrees.ok && worktrees.warnings).toEqual([
       'add-refunds and shop/fix-charge, which is working, both change src/charge.ts: merging both may conflict',

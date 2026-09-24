@@ -42,12 +42,11 @@ import {
   setDictation,
   setListening,
   startHistorySearch,
-  terminalSplitShown,
-  typingLane,
 } from '../model.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelKey } from '../panels.ts'
 import type { Skin } from '../skin.ts'
+import { terminalSplitShown, typingLane } from '../split.ts'
 import type { Subject, Wiring } from './context.ts'
 
 // Where a keystroke goes, and what it does when it gets there.

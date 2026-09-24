@@ -4,13 +4,13 @@ import {
   type AppState,
   focusTask,
   initialState,
-  splitPane,
   toggleCheck,
   toggleDone,
   viewActions,
   withProjects,
   withTasks,
 } from '../../../src/model.ts'
+import { splitPane } from '../../../src/split.ts'
 import { actions, base, check, finished, frame, green, running, type Scenario } from './fixtures.ts'
 
 // An agent, its screen, and what it has actually done.

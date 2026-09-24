@@ -6,10 +6,10 @@ import {
   type AppState,
   agentsHere,
   doneTasks,
+  groupedTasks,
   queuedCount,
   queueRows,
   sectionOpen,
-  tasksOf,
 } from '../model.ts'
 import { BAR, barAcross } from '../scrollbar.ts'
 import type { Band, Look, Skin } from '../skin.ts'
@@ -66,7 +66,8 @@ export function renderSidebar(
   const tree: QueueTree = { ...spread, across }
   // The bar lies along the bottom row, and the list gets what is left.
   const body = sideways > 0 ? Math.max(1, height - 1) : height
-  const tasks = tasksOf(state)
+  const groups = groupedTasks(state)
+  const tasks = groups.flatMap((group) => group.tasks)
   const changes = frame.changes ?? []
   const notes = frame.notes ?? []
   const files = frame.files ?? []
@@ -131,12 +132,20 @@ export function renderSidebar(
                 .build(),
               blank(width),
             ]
-          : tabList(
-              tasks.map((task) =>
-                taskRow(width, skin, pointer, task, spend[task.task], frame.now ?? 0),
+          : groups.flatMap((group) => [
+              // The name it was given, not the sentence it came from: the side
+              // is twenty-odd columns wide and a sentence cut to that says
+              // less than the slug everything else already calls the work.
+              ...(group.effort
+                ? [row().space(3).text(group.effort.toUpperCase(), skin.hint).build()]
+                : []),
+              ...tabList(
+                group.tasks.map((task) =>
+                  taskRow(width, skin, pointer, task, spend[task.task], frame.now ?? 0),
+                ),
+                width,
               ),
-              width,
-            ),
+            ]),
     },
     // Always, so the queue is somewhere you can look rather than something
     // that appears: with nothing in it, its heading is all it costs the side.

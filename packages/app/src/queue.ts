@@ -177,15 +177,25 @@ export function describeQueue(
 
 /** What a plan made and did, for the orchestrator to say back. */
 export function planAnswer(result: {
-  project: string
+  /** Every repository it made something in, the plan's own first. */
+  projects: readonly string[]
+  /** What the whole change is called, when it is one change. */
+  effort?: string | undefined
   made: readonly string[]
   started: readonly string[]
   waiting: readonly { task: string; state: string }[]
   warnings: readonly string[]
 }): string {
-  const name = (task: string) => task.split('/').slice(1).join('/')
+  // A name only loses its project where there is one project to lose it to:
+  // across repositories two tasks are called the same thing far more often
+  // than not, and `oauth-scopes and oauth-scopes` says nothing at all.
+  const name = (task: string) =>
+    result.projects.length > 1 ? task : task.split('/').slice(1).join('/')
+  const where = joined([...result.projects])
   const lines = [
-    `Made ${result.made.length} task${result.made.length === 1 ? '' : 's'} in ${result.project}.`,
+    `Made ${result.made.length} task${result.made.length === 1 ? '' : 's'} in ${where}${
+      result.effort ? `, as ${result.effort}` : ''
+    }.`,
   ]
   if (result.started.length > 0) lines.push(`Started ${joined(result.started.map(name))}.`)
   if (result.waiting.length > 0) {

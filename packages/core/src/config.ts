@@ -135,6 +135,15 @@ export type ChecksConfig = z.infer<typeof ChecksConfigSchema>
 export const ProjectConfigSchema = z.strictObject({
   root: z.string().min(1),
   brief: z.string().optional(),
+  /**
+   * Where this project's agents work, over `agents.workspace`. A repository
+   * whose agents work on one thing at a time wants `checkout`; two unrelated
+   * efforts in one repository want a `worktree` each — and on a machine with
+   * both, both are true at once, which is why the answer is a project's and
+   * not the machine's. Unset is the machine's answer, so a config written
+   * before this key existed means exactly what it meant.
+   */
+  workspace: z.enum(AGENT_WORKSPACES).optional(),
   /** Names a route in `workers.routes`. */
   worker: RouteName.optional(),
   /** At most this many agents at once; as many as you start unless set. */
@@ -465,6 +474,9 @@ export const ConfigSchema = z
          * `checkout`: every agent works in the project's own checkout, on the
          * branch it is on, at the same time. `worktree`: each gets a git
          * worktree of its own, and a branch named for its work.
+         *
+         * The answer for a project that has not given its own
+         * (`projects.<name>.workspace`), which is what `workspaceFor` reads.
          */
         workspace: z.enum(AGENT_WORKSPACES).default('checkout'),
         /** When agents commit, and what. */

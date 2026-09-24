@@ -58,6 +58,12 @@ export interface AgentPane {
   queued?: QueuedView | null
   /** What it was planned to wait on, started or not: what draws it into its plan. */
   waitsOn?: readonly { task: string; why: string }[]
+  /**
+   * The change it is one repository's share of. Two unrelated streams in one
+   * repository are two efforts, which is what the sidebar groups by when there
+   * is more than one — and what makes them readable at all.
+   */
+  effort?: string
 }
 
 /** Queued work, as the window shows it: where it stands, and what it is waiting to do. */
@@ -369,6 +375,8 @@ export interface TaskSnapshot {
   waitsOn?: readonly { task: string; why: string }[]
   /** What it was planned to change: what a plan made later is checked against. */
   touches?: readonly string[]
+  /** The change it is one repository's share of, as its task file says. */
+  effort?: string
 }
 
 /**
@@ -392,6 +400,7 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     ...(task.finished ? { finished: task.finished } : {}),
     ...(task.done ? { done: task.done } : {}),
     ...(task.by ? { by: task.by } : {}),
+    ...(task.effort ? { effort: task.effort } : {}),
     ...(task.queued ? { queued: task.queued } : {}),
   }))
   const focused = refocus(state, panes)
@@ -488,6 +497,44 @@ export function tasksOf(
     focused: pane.task === state.focused,
     dragging: pane.task === state.reordering?.task,
   }))
+}
+
+/** One group down the side: an effort, or the tasks in none. */
+export interface EffortGroup {
+  /**
+   * Its name, or null for the tasks in no effort — which get no header at
+   * all, because a heading that says "no effort" is noise in the common case
+   * where nothing has one.
+   */
+  effort: string | null
+  tasks: Array<AgentPane & { focused: boolean; dragging: boolean }>
+}
+
+/**
+ * The tasks down the side, grouped by effort where there is more than one.
+ *
+ * Two unrelated streams in one repository — search performance and billing
+ * emails, say — are one flat list of agents interleaved, which says nothing
+ * about which is which. Two efforts is what says they are separate, so that is
+ * what the list is grouped by, and only once there are two: with one effort or
+ * none the side looks exactly as it looks today, which is the common case.
+ *
+ * Drawing only. `tasksOf` is unchanged and still decides the order, so what
+ * you dragged is kept within each group.
+ */
+export function groupedTasks(state: AppState): EffortGroup[] {
+  const tasks = tasksOf(state)
+  const efforts: string[] = []
+  for (const task of tasks) {
+    if (task.effort && !efforts.includes(task.effort)) efforts.push(task.effort)
+  }
+  if (efforts.length < 2) return [{ effort: null, tasks }]
+  const groups = efforts.map((effort) => ({
+    effort,
+    tasks: tasks.filter((task) => task.effort === effort),
+  }))
+  const rest = tasks.filter((task) => !task.effort)
+  return rest.length > 0 ? [...groups, { effort: null, tasks: rest }] : groups
 }
 
 /** In what order the front of a path is listed: what needs deciding, then what starts soonest. */
@@ -1074,89 +1121,6 @@ export function toggleCheck(state: AppState, task: string, check: string): AppSt
   if (open) delete openCheck[task]
   else openCheck[task] = check
   return { ...state, openCheck }
-}
-
-/** The second lane an agent's pane shows, while it is alive and not the one already shown. */
-export function splitShown(state: AppState, pane: AgentPane): Split | null {
-  const split = state.splits[pane.task]
-  if (!split || !pane.lanes.some((lane) => lane.id === split.lane)) return null
-  return split.lane === laneShown(state, pane) ? null : split
-}
-
-/** Show a lane beside or below the one a pane shows, half and half, with the keyboard on it. */
-export function splitPane(
-  state: AppState,
-  task: string,
-  lane: string,
-  direction: Split['direction'],
-): AppState {
-  const pane = state.panes.find((one) => one.task === task)
-  if (!pane) return state
-  // Splitting the lane in front with itself means the agent goes in front.
-  const shown = laneShown(state, pane)
-  const next =
-    shown === lane ? { ...state, viewing: { ...state.viewing, [task]: pane.lane ?? lane } } : state
-  return {
-    ...next,
-    splits: { ...next.splits, [task]: { lane, direction, ratio: 0.5 } },
-    splitFocus: true,
-  }
-}
-
-/** One lane again. */
-export function unsplitPane(state: AppState, task: string): AppState {
-  const { [task]: _, ...rest } = state.splits
-  return { ...state, splits: rest, splitFocus: false }
-}
-
-/** The two halves change places. */
-export function swapSplit(state: AppState, task: string): AppState {
-  const pane = state.panes.find((one) => one.task === task)
-  const split = pane ? splitShown(state, pane) : null
-  const shown = pane ? laneShown(state, pane) : null
-  if (!pane || !split || !shown) return state
-  return {
-    ...state,
-    viewing: { ...state.viewing, [task]: split.lane },
-    splits: { ...state.splits, [task]: { ...split, lane: shown } },
-    splitFocus: !state.splitFocus,
-  }
-}
-
-/** Beside becomes below, and below beside. */
-export function turnSplit(state: AppState, task: string): AppState {
-  const split = state.splits[task]
-  if (!split) return state
-  const direction = split.direction === 'beside' ? 'below' : 'beside'
-  return { ...state, splits: { ...state.splits, [task]: { ...split, direction } } }
-}
-
-/** How much of a split the first half takes, kept where both halves stay usable. */
-export function splitRatio(ratio: number): number {
-  return Math.min(0.8, Math.max(0.2, ratio))
-}
-
-/** The lane typing goes to in a pane: its second half when that has the keyboard. */
-export function typingLane(state: AppState, pane: AgentPane): string | null {
-  const split = splitShown(state, pane)
-  return split && state.splitFocus ? split.lane : laneShown(state, pane)
-}
-
-/** Two terminals in the bottom panel: the one in front, and this one beside or below it. */
-export function splitTerminal(
-  state: AppState,
-  id: string,
-  direction: Split['direction'],
-): AppState {
-  if (id === state.bottom || !state.terminals.some((one) => one.id === id)) return state
-  return { ...state, terminalSplit: { lane: id, direction, ratio: 0.5 }, splitFocus: true }
-}
-
-/** The second terminal in the bottom panel, while both are open and the first is in front. */
-export function terminalSplitShown(state: AppState): Split | null {
-  const split = state.terminalSplit
-  if (!split || state.bottom === ORCHESTRATOR_TAB || split.lane === state.bottom) return null
-  return state.terminals.some((one) => one.id === split.lane) ? split : null
 }
 
 /**

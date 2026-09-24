@@ -7,6 +7,7 @@ import {
   orderFirst,
   type Plan,
   type PlanBusy,
+  projectsIn,
   QUEUE_CHANGES,
   queueStateOf,
   readyToStart,
@@ -170,7 +171,7 @@ export class Queue implements Subject {
           task,
           worktree,
           why: because,
-          from: startFrom(item.start.after, live.upstream, live.baseOf(task)),
+          from: startFrom(item.start.after, live.upstream, live.baseOf(task), item.project),
         })
         started.push(task)
         this.deps.news(`started ${task}: ${because}`)
@@ -278,11 +279,13 @@ export class Queue implements Subject {
         return `Done: ${req.task ?? 'the queue'} ${change === 'pause' ? 'is paused' : change === 'resume' ? 'is back on' : change === 'wait' ? 'waits again' : 'starts as soon as there is room'}.`
       },
       plan: async (plan) => {
-        // Checked against what the project is already on, which no plan can see:
-        // agents working now, and work an earlier plan left waiting to start.
+        // Checked against what the projects are already on, which no plan can
+        // see: agents working now, and work an earlier plan left to start.
+        // Every repository the plan reaches into, since it may reach several.
+        const reaches = projectsIn(plan)
         const busy: PlanBusy[] = []
         for (const task of this.wire.live?.tasks ?? []) {
-          if (!task.task.startsWith(`${plan.project}/`)) continue
+          if (!reaches.some((project) => task.task.startsWith(`${project}/`))) continue
           const touches = task.queued ? task.queued.touches : (task.touches ?? [])
           if (touches.length === 0) continue
           const said = task.queued
@@ -311,7 +314,8 @@ export class Queue implements Subject {
             }
           })
         return planAnswer({
-          project: plan.project,
+          projects: reaches.filter((project) => made.made.some((task) => task.project === project)),
+          ...(plan.effort ? { effort: plan.effort } : {}),
           made: made.made.map((task) => task.id),
           started,
           waiting,
