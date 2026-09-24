@@ -9,8 +9,16 @@ import { fakeCapture, wavOf } from './fake-audio.ts'
 // meter — is the real recorder.
 
 /** A recorder wired to a fake device, with the fake in reach of the test. */
-function recorder(opts: { captured?: number; platform?: NodeJS.Platform; device?: string } = {}) {
-  const fake = fakeCapture({ captured: opts.captured ?? 200 })
+function recorder(
+  opts: {
+    captured?: number
+    platform?: NodeJS.Platform
+    device?: string
+    /** An ffmpeg that has stopped answering `q`, so it has to be escalated. */
+    deaf?: boolean
+  } = {},
+) {
+  const fake = fakeCapture({ captured: opts.captured ?? 200, deaf: opts.deaf ?? false })
   return {
     fake,
     recorder: new FfmpegRecorder({
@@ -145,6 +153,20 @@ describe('stopping a recording', () => {
     await expect(recording.stop()).rejects.toThrow()
     expect(existsSync(path)).toBe(false)
   })
+})
+
+describe('an ffmpeg that has stopped answering', () => {
+  it('escalates rather than hanging on the key you let go of', async () => {
+    // A device that stops answering takes ffmpeg with it, and then `q` does
+    // nothing. Waiting for it is push-to-talk that never comes back, so the
+    // recorder asks, then signals, then insists.
+    const { fake, recorder: rec } = recorder({ deaf: true })
+    const recording = await rec.start()
+
+    await expect(recording.stop()).rejects.toThrow(/allowed to use the microphone/)
+    expect(fake.capture?.typed).toBe('q')
+    expect(fake.capture?.signalCode).toBe('SIGINT')
+  }, 10_000)
 })
 
 describe('giving up on a recording', () => {

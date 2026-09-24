@@ -53,16 +53,19 @@ export class FakeCapture extends EventEmitter {
   readonly path: string
   /** How much audio it will have written by the time it is asked to stop. */
   captured: number
+  /** Ignores `q`, like an ffmpeg that has wedged on a device that stopped answering. */
+  private readonly deaf: boolean
 
-  constructor(path: string, captured: number) {
+  constructor(path: string, captured: number, deaf = false) {
     super()
     this.path = path
     this.captured = captured
+    this.deaf = deaf
     this.stdin.on('data', (chunk: Buffer) => {
       this.typed += chunk.toString()
       // ffmpeg finishes the file and exits on `q`, which is why the recorder
       // asks that way rather than signalling: a signal loses the header.
-      if (this.typed.includes('q')) this.finish()
+      if (!this.deaf && this.typed.includes('q')) this.finish()
     })
   }
 
@@ -107,16 +110,20 @@ export interface FakeSpawn {
 /**
  * A `spawn` that opens no device. `captured` is how many milliseconds of audio
  * will be in the file by the time it is stopped; zero is a device that never
- * produced anything, which is what an untrusted microphone looks like.
+ * produced anything, which is what an untrusted microphone looks like. `deaf`
+ * is one that has stopped answering `q` altogether, which is the only way to
+ * reach the recorder's escalation — a fixture that always exits politely is
+ * kinder than reality, and the ladder that stops push-to-talk hanging forever
+ * would never run.
  */
-export function fakeCapture({ captured = 200 } = {}): FakeSpawn {
+export function fakeCapture({ captured = 200, deaf = false } = {}): FakeSpawn {
   const state: FakeSpawn = {
     starts: [],
     capture: null,
     spawn: ((binary: string, args: string[], options: Record<string, unknown>) => {
       state.starts.push({ binary, args, options })
       // ffmpeg's output file is its last argument; `-y` is the flag before it.
-      const capture = new FakeCapture(args.at(-1) ?? '', captured)
+      const capture = new FakeCapture(args.at(-1) ?? '', captured, deaf)
       ;(state as { capture: FakeCapture | null }).capture = capture
       return capture as unknown as ChildProcess
     }) as unknown as SpawnCapture,
