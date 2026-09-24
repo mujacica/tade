@@ -1,4 +1,4 @@
-import { appendFileSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { EventType, type JournalPolicy, type TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
@@ -207,6 +207,26 @@ describe('the journal Tade opens', () => {
         'output',
         'output',
       ])
+    } finally {
+      await log.close()
+    }
+  })
+
+  it('says a compaction it could not do, and leaves the journal exactly as it was', async () => {
+    // Nothing goes wrong silently, and this one goes wrong over the file that
+    // is the truth — so it must not be what stops the window opening either.
+    const path = journal(sampled(400))
+    const before = readFileSync(path, 'utf8')
+    // A directory where the temp file wants to be: `open(tmp, 'w')` throws,
+    // which is what a disk that filled up or a permission would do.
+    mkdirSync(`${path}.compacting`)
+    const log = await EventLog.open({ path, indexPath: null, journal: POLICY })
+    try {
+      const warnings = await log.read({ types: ['warning'] })
+      expect(String(warnings.at(-1)?.detail.message)).toContain('could not compact')
+      expect(String(warnings.at(-1)?.detail.message)).toContain('unchanged')
+      expect((await log.read({ types: ['journal_compacted'] })).length).toBe(0)
+      expect(readFileSync(path, 'utf8').startsWith(before)).toBe(true)
     } finally {
       await log.close()
     }

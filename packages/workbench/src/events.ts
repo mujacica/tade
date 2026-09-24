@@ -108,15 +108,15 @@ export class EventLog {
           return null
         })
       : null
-    if (compacted && compacted.dropped > 0 && indexPath) {
-      // The index is derived, and after a compaction it holds rows for lines
-      // that are no longer in the file. Its `maxSeq` still matches — the
-      // newest line is always kept — so nothing below would rebuild it, and
-      // the 110 MB it had grown to would stay on the disk answering questions
-      // about events that have gone. Deleting it is what a derived file is
-      // for, and rebuilding it from the compacted journal is the next few
-      // lines. `-wal` and `-shm` go with it: a database file without them is
-      // not a smaller database, it is a database missing its last writes.
+    // After a compaction the index holds rows for lines that are no longer in
+    // the file, and its `maxSeq` still matches — the newest line is always
+    // kept — so nothing below would notice. It is derived, so it is thrown
+    // away: deleting the file is what reclaims the disk (110 MB against a 54
+    // MB journal on the machine this was measured on), and `-wal` and `-shm`
+    // go with it, because a database file without them is not a smaller
+    // database, it is a database missing its last writes.
+    const compactedAway = (compacted?.dropped ?? 0) > 0
+    if (compactedAway && indexPath) {
       await Promise.all(
         ['', '-wal', '-shm'].map((suffix) =>
           rm(`${indexPath}${suffix}`, { force: true }).catch(() => {}),
@@ -127,7 +127,12 @@ export class EventLog {
     const { lastSeq, corrupt } = await scanTail(opts.path)
 
     let index = indexPath === null ? null : EventIndex.open(indexPath)
-    if (index && index.maxSeq() !== lastSeq) {
+    // `compactedAway` and not only the sequence numbers: a delete that did not
+    // happen — a permission, a file something else is holding — leaves an
+    // index whose `maxSeq` agrees with a file it no longer describes, and an
+    // index answering about events that are not in the truth is the one thing
+    // derived state may never do. The disk is the lesser half of this.
+    if (index && (compactedAway || index.maxSeq() !== lastSeq)) {
       // The index disagrees with the log (crash, deletion, manual edit): rebuild.
       try {
         index.clear()
