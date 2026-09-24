@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LaneId, TadeEvent } from '@tade/core'
 import { ECHO_CHILD, until } from '@tade/drivers-core/conformance'
@@ -168,7 +168,71 @@ describe('the workbench', () => {
     await client.close()
     await expect(client.close()).resolves.toBeUndefined()
   })
+
+  // An open that gets as far as the journal and then goes wrong used to give
+  // the lock back and leave the file behind. Nothing noticed, because nothing
+  // looks at a descriptor — until the garbage collector reaches the handle, and
+  // since Node 20 that is an error thrown at whatever happens to be running.
+  // Which in this repository was the test suite, blaming files at random under
+  // load for a handle none of them had opened.
+  it('lets go of the journal when opening goes wrong, not only of the lock', async () => {
+    const before = openDescriptors()
+    for (let i = 0; i < TRIES; i++) {
+      const fresh = tmp('tade-workbench-')
+      // Past the journal, and then as far as the driver: an unknown one throws.
+      await expect(Workbench.open({ home: fresh, driver: 'nope' })).rejects.toThrow(
+        /unknown workspace driver/,
+      )
+      // The lock went back too, so the home is not locked out either.
+      const second = await Workbench.open({ home: fresh, version: '9.9.9' })
+      await second.close()
+    }
+    expect(openDescriptors() - before).toBeLessThan(TRIES)
+  }, 30_000)
+
+  // The same rule on the way out: a step that fails must not take the ones
+  // after it with it. A detach that failed leaves a lane running, which the
+  // tmux driver does on purpose and is survivable; a journal left open is a
+  // descriptor nobody can reach again.
+  it('closes the journal and lets the home go even when detaching fails', async () => {
+    const before = openDescriptors()
+    for (let i = 0; i < TRIES; i++) {
+      const fresh = tmp('tade-workbench-')
+      const one = await Workbench.open({ home: fresh, version: '9.9.9' })
+      const registry = (one as unknown as { registry: { detach(): Promise<void> } }).registry
+      registry.detach = () => Promise.reject(new Error('the driver went away'))
+      // Said rather than swallowed: the first thing that went wrong is thrown,
+      // once everything has been let go of.
+      await expect(one.close()).rejects.toThrow(/the driver went away/)
+      const next = await Workbench.open({ home: fresh, version: '9.9.9' })
+      await next.close()
+    }
+    expect(openDescriptors() - before).toBeLessThan(TRIES)
+  }, 30_000)
 })
+
+/** How many times the two tests below repeat what they are watching for a leak. */
+const TRIES = 5
+
+/**
+ * How many file descriptors this process is holding, now.
+ *
+ * `/dev/fd` is the process's own open files on both systems this runs on — a
+ * symlink to `/proc/self/fd` on Linux. Counting them is the only way to see a
+ * leak from in here: a handle nobody holds a reference to any more is invisible
+ * until the garbage collector reaches it, which is far too late to blame the
+ * code that dropped it.
+ *
+ * It counts rather than names, because naming is not portable — on macOS
+ * `/dev/fd/N` resolves to itself rather than to the file, so a helper that
+ * looked for the journal by path answered nought on this machine whether or not
+ * it had leaked, which is a test that cannot fail. So the tests repeat what they
+ * are testing instead: a leak is a run of descriptors, and a stray one from
+ * somewhere else in the process cannot be mistaken for it.
+ */
+function openDescriptors(): number {
+  return readdirSync('/dev/fd').length
+}
 
 function isRunning(pid: number): boolean {
   try {

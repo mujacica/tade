@@ -3,7 +3,14 @@ import { join } from 'node:path'
 import { ExtensionHost } from '@tade/extensions-core'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
+import {
+  type FakeTerminal,
+  type Repo,
+  SPAWNING_MS,
+  screenOf,
+  until,
+  windowUnderTest,
+} from './harness.ts'
 
 // A schedule that comes due, and a watch — which is a schedule that looks
 // before it acts, whether it finds work to start or something to say.
@@ -57,7 +64,7 @@ describe('the window, and what it watches', () => {
     await until(
       'its agent started',
       () => client.runs().some((run) => run.task.startsWith('app/release-notes-')),
-      15_000,
+      SPAWNING_MS,
     )
     await until('the orchestrator asked', () =>
       told.some((text) => text.includes('It is time for "Morning brief"')),
@@ -163,7 +170,7 @@ describe('the window, and what it watches', () => {
         ['app/bring-in-shed', 'app/bring-in-yard'].every((task) =>
           client.runs().some((run) => run.task === task),
         ),
-      15_000,
+      SPAWNING_MS,
     )
     const file = readFileSync(
       join(repo.root, '.tade', 'tasks', 'bring-in-shed', 'task.yaml'),

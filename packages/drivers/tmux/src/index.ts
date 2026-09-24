@@ -574,7 +574,10 @@ export class TmuxDriver implements WorkspaceDriver {
     }
     this.lanes.clear()
     this.started = false
-    rmSync(this.dir, { recursive: true, force: true })
+    // Retried, where `shutdown` below need not be: tmux is still running and
+    // still writing to these files, which is the point of detaching, so the
+    // removal races it — and `ENOTEMPTY` thrown here is a window that won't shut.
+    rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 })
   }
 
   async shutdown(): Promise<void> {

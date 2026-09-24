@@ -330,12 +330,18 @@ export class Workbench {
   static async open(opts: WorkbenchOptions): Promise<Workbench> {
     await mkdir(opts.home, { recursive: true })
     const lock = await lockHome(opts.home)
+    // Kept out here so the failure path can close it: an open that got as far
+    // as the journal and then went wrong — no driver, a registry that would not
+    // load — used to release the lock and leave the file behind, which is the
+    // descriptor `doClose` says the garbage collector now throws about.
+    let journal: EventLog | null = null
     try {
       // A broken config must not stop Tade opening; `tade config --check` is
       // where a typo gets reported, so here it degrades to defaults.
       const loaded = await loadConfig(join(opts.home, 'config.yaml'))
       const config = loaded.ok ? loaded.config : ConfigSchema.parse({})
       const log = await EventLog.open({ path: join(opts.home, 'events.jsonl') })
+      journal = log
       const { driver, warning } = await chooseDriver({
         wanted: opts.driver ?? config.workspace.driver,
         fallback: config.workspace.fallback,
@@ -444,6 +450,7 @@ export class Workbench {
       await workbench.lookAtChecks().catch(() => {})
       return workbench
     } catch (err) {
+      await journal?.close().catch(() => {})
       await lock.release()
       throw err
     }
@@ -2429,14 +2436,35 @@ export class Workbench {
     return this.closing
   }
 
+  /**
+   * Every step of it is tried, and the journal and the lock go back whatever
+   * happened above them — the same rule `attach` obeys about the terminal it
+   * put in raw mode: an exit path that gives up half way is worse than the
+   * failure that stopped it.
+   *
+   * What it costs when they are not is one-sided. A detach that failed leaves a
+   * lane running, which is survivable and is what the tmux driver does on
+   * purpose; a journal left open leaves a file descriptor nobody holds a
+   * reference to any more, and since Node 20 that is not a leak that waits for
+   * the process to end — it is an **error thrown out of the garbage
+   * collector**, landing on whatever happened to be running at the time. In
+   * this repository that was the test suite, blaming files at random under
+   * load for a handle none of them had opened.
+   *
+   * The first thing that went wrong is still thrown, so nothing goes silently;
+   * it is thrown at the end, once everything has been let go of.
+   */
   private async doClose(): Promise<void> {
-    await this.log.append({ type: 'tade_closing', detail: { pid: process.pid } })
+    const trouble: unknown[] = []
+    const step = (what: () => Promise<unknown>) => what().catch((err) => void trouble.push(err))
+    await step(() => this.log.append({ type: 'tade_closing', detail: { pid: process.pid } }))
     // Let go of both, ending neither: saying `shutdown` to an agent because a
     // window closed would stop exactly the work the tmux driver keeps alive.
-    await this.workers.detach()
-    await this.registry.detach()
-    await this.log.close()
-    await this.lock.release()
+    await step(() => this.workers.detach())
+    await step(() => this.registry.detach())
+    await step(() => this.log.close())
+    await step(() => this.lock.release())
+    if (trouble.length > 0) throw trouble[0]
   }
 
   /** Stop everything, lanes included, rather than letting go of it. */

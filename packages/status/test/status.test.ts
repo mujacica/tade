@@ -273,6 +273,14 @@ describe('collectStatus', () => {
     expect(ws.projects[0]?.tasks[0]?.id).toBe('repo/implicit')
   })
 
+  // Ten of these, and each one shells out to git several times over a real
+  // repository — about three seconds with the machine to itself. The default
+  // budget is ten, which sounds generous and is not: the suite runs its files
+  // side by side, so this one is asking for git while two hundred others are
+  // asking for git, and the answer arrives when it arrives. Timing out then
+  // reads as a hang in `collectStatus` and is nothing of the sort, which is
+  // what this test did. The number is for the machine, not for the work, so it
+  // is loose on purpose — what this test is about is the answer, not the clock.
   it('is idempotent: repeated runs produce identical output', async () => {
     const r = mkrepo()
     r.addTask('a', { project: 'app' })
@@ -281,5 +289,5 @@ describe('collectStatus', () => {
     const o = opts({ config: config({ app: r.root }) })
     const first = JSON.stringify(await collectStatus(o))
     for (let i = 0; i < 9; i++) expect(JSON.stringify(await collectStatus(o))).toBe(first)
-  })
+  }, 60_000)
 })

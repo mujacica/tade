@@ -2,7 +2,14 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Workbench } from '@tade/workbench'
 import { describe, expect, it } from 'vitest'
-import { type FakeTerminal, type Repo, screenOf, until, windowUnderTest } from './harness.ts'
+import {
+  type FakeTerminal,
+  type Repo,
+  SPAWNING_MS,
+  screenOf,
+  until,
+  windowUnderTest,
+} from './harness.ts'
 
 // What starts by itself and what holds it: a rule met, a dependency that
 // stopped, a plan that runs into the tree it was written against.
@@ -64,7 +71,7 @@ describe('the window, and the work waiting in it', () => {
     await until(
       'the second started',
       () => client.runs().some((run) => run.task === 'app/refund-back'),
-      10_000,
+      SPAWNING_MS,
     )
     await until(
       'why it started, written down',
@@ -110,7 +117,7 @@ describe('the window, and the work waiting in it', () => {
     await until(
       'it started',
       () => client.runs().some((run) => run.task === 'app/fix-after'),
-      10_000,
+      SPAWNING_MS,
     )
   }, 60_000)
 
@@ -201,7 +208,7 @@ describe('the window, and the work waiting in it', () => {
     await until(
       'it starts again',
       () => client.runs().some((run) => run.task === 'app/second-one'),
-      15_000,
+      SPAWNING_MS,
     )
   }, 60_000)
 
@@ -235,7 +242,7 @@ describe('the window, and the work waiting in it', () => {
     await until(
       'it starts again',
       () => client.runs().some((run) => run.task === 'app/second-one'),
-      15_000,
+      SPAWNING_MS,
     )
   }, 60_000)
 
@@ -279,7 +286,7 @@ describe('the window, and the work waiting in it', () => {
         },
       ],
     })
-    await until('the first two started', () => client.runs().length === 2, 10_000)
+    await until('the first two started', () => client.runs().length === 2, SPAWNING_MS)
 
     // The agent at work commits the very file the write-up was planned
     // around. Its trailer is what says whose the commit is.
@@ -292,7 +299,7 @@ describe('the window, and the work waiting in it', () => {
     await until(
       'the one nobody collided with started',
       () => client.runs().some((run) => run.task === 'app/mail-notes'),
-      15_000,
+      SPAWNING_MS,
     )
     // The other is held on the evidence, with the files and whose they are.
     const [held] = await client.events({ types: ['queue_held'], task: 'app/write-up' })

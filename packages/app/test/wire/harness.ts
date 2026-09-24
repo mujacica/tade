@@ -108,6 +108,26 @@ export function screenOf(written: string): string[] {
   return rows.map((line) => Array.from(line, (char) => char ?? ' ').join(''))
 }
 
+/**
+ * How long to wait on something that is really waiting on a process.
+ *
+ * Starting an agent starts one for real — a lane, a PTY, a harness process —
+ * and the suite runs its files side by side, so a spawn that takes two seconds
+ * with the machine to itself takes far longer while two hundred other files are
+ * spawning their own. Budgets picked from how long it takes alone were the
+ * whole of this repository's flakiness: `queue`, `schedules` and `status` each
+ * went red on a busy laptop, as a *timeout*, which reads exactly like the hang
+ * it is not and sends whoever sees it looking for a bug that was never there.
+ *
+ * So it is one number for all of them rather than one per call site, which is
+ * what let them drift to ten and fifteen seconds while their neighbours sat at
+ * thirty. Loose on purpose, and safely inside the `it` budgets that enclose it
+ * so the message you get says what it was waiting for: a test that is genuinely
+ * stuck still fails, half a minute later, and half a minute is far cheaper than
+ * a suite nobody believes.
+ */
+export const SPAWNING_MS = 30_000
+
 /** Wait for something to become true, rather than for a fixed time. */
 export async function until(
   what: string,
