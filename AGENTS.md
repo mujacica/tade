@@ -767,17 +767,35 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   it, and only then publishes — over OIDC, with provenance, so there is no npm token in this
   repository and there must never be one. `pnpm release <version> --dry-run` is all of that except
   the four writes, the install included, because the first publish cannot be taken back.
-- **What a user needs on install and what a contributor needs are two scripts.** `postinstall` is
-  `fix-pty-permissions` and nothing else: node-pty's prebuilt `spawn-helper` comes out of a tarball
-  without its executable bit, and every lane then fails with `posix_spawnp failed.` and no other
-  word — so the pty driver's `available()` and `open()` both say which file and what to type, and
-  `helperProblem` is where that sentence lives. `install-hooks` is `prepare`, which runs for this
-  repository and for a git install and never for somebody installing the published package: pointing
-  a stranger's git at hooks in a repository of theirs is not Tade's business. A dependency that did
-  not load at all is caught once, in `bin.ts`, and answered by `nativeTrouble` — which names the
-  module, what the machine said, the toolchain a build needs and the two commands that approve an
-  install script a package manager held rather than ran. A relative file that is missing is Tade's
-  own bug and is never dressed up as somebody's install problem.
+- **What a user's install runs is node-pty, twice, and what a contributor needs is somewhere
+  else.** Both published scripts are about the one thing in the tarball that is a binary rather
+  than a file, and `ON_INSTALL` in `stage.ts` is the list. **`preinstall` is `check-build-tools`**:
+  node-pty ships prebuilds for darwin and win32 and for no Linux, so on Linux it is always
+  compiled, and on a machine with no toolchain the install used to end in forty lines of node-gyp
+  naming a Python that is not Tade's. npm runs a package's `preinstall` before it builds that
+  package's dependencies, and npm shows a script's output only when the script *fails* — so it
+  refuses, and the sentence is the whole of the error instead of a line above the wall. It may only
+  ever refuse where node-gyp would have failed anyway, so it looks for what node-gyp looks for and
+  is generous about it, and anything it cannot read is not a refusal. **`postinstall` is
+  `fix-pty-permissions`**: that same prebuilt `spawn-helper` comes out of a tarball without its
+  executable bit, and every lane then fails with `posix_spawnp failed.` and no other word — so the
+  pty driver's `available()` and `open()` both say which file and what to type, and `helperProblem`
+  is where that sentence lives. Nothing else ships and neither reaches the network. `install-hooks`
+  is `prepare`, which runs for this repository and for a git install and never for somebody
+  installing the published package: pointing a stranger's git at hooks in a repository of theirs is
+  not Tade's business. A dependency that did not load at all is caught once, in `bin.ts`, and
+  answered by `nativeTrouble` — which names the module, what the machine said, the toolchain a
+  build needs and the commands that approve an install script a package manager held rather than
+  ran, for each of the three that hold one. A relative file that is missing is Tade's own bug and
+  is never dressed up as somebody's install problem.
+- **A Node that cannot run Tade is turned away at the door.** `engines` is a warning npm prints
+  once and installs over, and what came next was a `TypeError` out of the middle of execa naming no
+  version at all — so `bin.ts` checks `nodeTooOld` before it loads anything, and the two files it
+  imports to do that are the only code that runs first. The floor is `engines.node` read back
+  through `needsNode`, because two numbers drift and the one that drifts is the one nobody runs.
+  It may only ever stop somebody, so it reads `>=x.y.z` and nothing else, compares as numbers —
+  22.9 is above 22.19 only in a dictionary — and treats a manifest it cannot read as no answer
+  rather than as a refusal.
 - **A setting Tade accepts and ignores is worse than one it doesn't have**, because it reads like a
   promise. If a config key has no reader, either wire it or delete it.
 - **What Tade needs of the machine is declared by whoever needs it.** Every driver, harness and
