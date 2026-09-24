@@ -25,6 +25,12 @@ export interface ForgeConformanceOptions {
   remotes: { serves: string; not: string }
   /** The branch of `ref`, for `reviewOf`, and one with no review at all. */
   branches: { withReview: string; without: string }
+  /**
+   * A commit the fixture has run checks on, and one it has not — the second
+   * is what a branch looks like in the minute after a push, which is the
+   * ordinary case rather than a failure.
+   */
+  commits: { withChecks: string; nothingRan: string }
   /** A forge with no credential, for the `auth` path. */
   signedOut?(): Forge | Promise<Forge>
   /** A forge that is being rate limited, for the `rate` path. */
@@ -50,6 +56,7 @@ export function testForge(
       for (const key of [
         'assigned',
         'checks',
+        'commitChecks',
         'checkLogs',
         'threads',
         'drafts',
@@ -117,6 +124,39 @@ export function testForge(
       }
       const going = ran.filter((run) => run.state === 'queued' || run.state === 'running')
       for (const run of going) expect(run.state).not.toBe('passed')
+    })
+
+    it('says what ran on a commit, whether or not anything was opened for it', async () => {
+      // This is the whole of watching CI on a branch nobody opened a review
+      // for — a push straight to the base branch — so it has to answer from
+      // the commit alone, and say the commit it answered about.
+      const forge = await make()
+      if (!forge.capabilities.commitChecks) return
+      const ran = await forge.checksOn(options.ref.repo, options.commits.withChecks)
+      expect(ran.length).toBeGreaterThan(0)
+      for (const run of ran) {
+        expect(CHECK_STATES).toContain(run.state)
+        expect(run.where.kind).toBe('forge')
+        expect(run.commit).toBe(options.commits.withChecks)
+        if (run.state === 'queued' || run.state === 'running') expect(run.state).not.toBe('passed')
+      }
+    })
+
+    it('says nothing ran on a commit rather than saying it could not look', async () => {
+      // A push CI has not reached yet is every push, for a minute. Read as a
+      // failure it would be a watch saying it cannot look, every ten minutes,
+      // about a repository where nothing whatever is wrong.
+      const forge = await make()
+      if (!forge.capabilities.commitChecks) return
+      expect(await forge.checksOn(options.ref.repo, options.commits.nothingRan)).toEqual([])
+    })
+
+    it('refuses a log for a check that did not run on that commit, by name', async () => {
+      const forge = await make()
+      if (!forge.capabilities.commitChecks || !forge.capabilities.checkLogs) return
+      await expect(
+        forge.checkLogOn(options.ref.repo, options.commits.withChecks, 'no-such-check', 20),
+      ).rejects.toMatchObject({ trouble: 'missing' })
     })
 
     it('reads no more than it was asked for, and says there is more', async () => {
@@ -193,6 +233,9 @@ export function testForge(
       await forge.reviews({ who: 'any' })
       await forge.reviewOf(options.ref.repo, options.branches.withReview)
       if (forge.capabilities.checks) await forge.checks(options.ref)
+      if (forge.capabilities.commitChecks) {
+        await forge.checksOn(options.ref.repo, options.commits.withChecks)
+      }
       const after = await forge.review(options.ref)
       expect(after.state).toBe(before.state)
       expect(after.head.sha).toBe(before.head.sha)

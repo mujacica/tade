@@ -89,10 +89,12 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   test.
 - **A watch finds work on a clock** (`watches`): `check(ctx)` looks cheaply — no model, a minute at
   most — and returns findings with a `key` that stays the same each time the same thing is found,
-  and a `since` its next look starts from (`ctx.since`, or `ctx.turnedOn` the first time: what was
-  there before it was turned on is not new). Overlap the cursor rather than risk a gap; Tade drops
-  what it has seen. `agent(finding, ctx)` is asked only for what work starts on, so fetch the
-  details there, and write them as `context`. Nothing found is an empty list; throw only when it
+  and the `since` its next look starts from (`ctx.since`, or `ctx.turnedOn` the first time: what
+  was there before it was turned on is not new). A finding is one thing somebody would fix, never
+  one row of whatever the service answered with: the key is what decides how many agents a look
+  can start, so put in it exactly what makes two findings different work and nothing else.
+  Overlap the cursor rather than risk a gap; Tade drops what it has seen. `agent(finding, ctx)` is
+  asked only for what work starts on, so fetch the details there, and write them as `context`. Nothing found is an empty list; throw only when it
   cannot look, with why. Declare what it takes as `input`, and how often it looks as `every`
   (`30m`, `1h`). Tade does the rest: turning it on, the journal, the queue, telling people.
   Test it through `host.look(...)` with a fake `fetch` (see `extensions/sentry`).
@@ -111,10 +113,14 @@ tools registered by Tade's own pi extensions, which call back to Tade. What only
   schedule once per project, the first time its extension can look (`standingSchedules`), and from
   then on it is an ordinary schedule — pausable, changeable, removable, and removed it stays
   removed. Declare it only where being on costs nothing anybody has to agree to: no credential of
-  somebody else's, nothing outside told anything, a look that finds nothing spending nothing, and
-  `offers: 'ask'` unless starting an agent per finding is something you would do to somebody on
-  the day they installed Tade. It has to be turnable on with nothing said to it, so nothing in its
-  `input` may be `required` — the conformance suite holds you to that. An extension that needs
+  somebody else's, nothing outside told anything, and a look that finds nothing spending nothing.
+  It may start agents (the default `offers: 'agent'`) only where you would do that to somebody on
+  the day they installed Tade, which means the fan-out has to be bounded by the finding rather
+  than by `most`: `review.branch-checks` looks at one commit and makes **one** finding of it,
+  however many checks went red, so a look can start one agent and not six, and past `attempts`
+  fixes on one thing it stops fixing and only reports. Anything that could find ten at once is
+  `offers: 'ask'`. It has to be turnable on with nothing said to it, so nothing in its `input` may
+  be `required` — the conformance suite holds you to that. An extension that needs
   setting up has no standing schedule at all, which is what makes the no-key case nothing rather
   than a schedule that fails on a clock.
 - **A sentence typed into search reaches whoever offers to read one** (`meant`): the choices are

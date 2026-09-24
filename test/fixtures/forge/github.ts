@@ -48,6 +48,15 @@ export interface ReplayOptions {
   scopes?: string
   /** Who the token belongs to. */
   me?: string
+  /**
+   * What ran on a commit that is nobody's pull request head — a push straight
+   * to `main`, which is the whole case the branch watch exists for. By sha,
+   * in GitHub's own check-runs shape; a sha nothing names has had nothing run
+   * on it, which is what CI not having got there yet looks like.
+   */
+  runs?: Record<string, { check_runs: Record<string, unknown>[] }>
+  /** The log of one job, by `<sha>:<check>`. */
+  logs?: Record<string, string>
 }
 
 export function githubReplay(options: ReplayOptions = {}): GithubReplay {
@@ -55,6 +64,7 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
   const checkRuns = read('check-runs.json')
   const calls: string[] = []
   const bodies: unknown[] = []
+  let lastHeadSha = ''
   const me = options.me ?? 'mujacica'
   const readOnly = options.scopes !== undefined && !/repo/.test(options.scopes)
 
@@ -77,6 +87,11 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     const method = (init?.method ?? 'GET').toUpperCase()
     calls.push(`${method} ${url}`)
+    // GitHub's jobs and logs are addressed by run id, not by commit, so the
+    // replay keeps the commit the walk started at rather than inventing an
+    // id-to-commit table nothing here would ever read back.
+    const asked = /\/actions\/runs\?head_sha=([^&]+)/.exec(url)
+    if (asked?.[1]) lastHeadSha = asked[1]
     if (init?.body) bodies.push(JSON.parse(String(init.body)))
     if (options.limited) {
       return answer({ message: 'API rate limit exceeded' }, 403, {
@@ -105,7 +120,35 @@ export function githubReplay(options: ReplayOptions = {}): GithubReplay {
       return answer(graphql(sent, nodes, me))
     }
     const runs = /\/repos\/([^/]+\/[^/]+)\/commits\/([^/]+)\/check-runs/.exec(url)
-    if (runs) return answer(checkRuns)
+    if (runs) {
+      const sha = runs[2] ?? ''
+      const named = options.runs?.[sha]
+      if (named) return answer(named)
+      // A commit no pull request here is on, and nobody scripted, has had
+      // nothing run on it. Answering the one fixture for every sha would make
+      // "CI has not reached this push yet" untestable, and that is the state
+      // a branch is in for a minute after every push.
+      const head = nodes.some((one) => String(one.headRefOid) === sha)
+      return answer(head ? checkRuns : { total_count: 0, check_runs: [] })
+    }
+    const jobs = /\/repos\/([^/]+\/[^/]+)\/actions\/runs\?head_sha=([^&]+)/.exec(url)
+    if (jobs) return answer({ workflow_runs: [{ id: 77, head_sha: jobs[2] }] })
+    if (/\/actions\/runs\/\d+\/jobs/.test(url)) {
+      const sha = String(lastHeadSha)
+      const names = options.runs?.[sha]?.check_runs ?? (checkRuns.check_runs as { name: string }[])
+      return answer({
+        jobs: names.map((one, n) => ({ id: 900 + n, name: String(one.name ?? '') })),
+      })
+    }
+    const log = /\/actions\/jobs\/(\d+)\/logs/.exec(url)
+    if (log) {
+      const sha = String(lastHeadSha)
+      const names = options.runs?.[sha]?.check_runs ?? (checkRuns.check_runs as { name: string }[])
+      const name = String(names[Number(log[1]) - 900]?.name ?? '')
+      return answer(options.logs?.[`${sha}:${name}`] ?? `nothing was kept for ${name}`, 200, {
+        'content-type': 'text/plain',
+      })
+    }
     const pull = /\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)$/.exec(url)
     if (pull) {
       const node = nodes.find((one) => one.number === Number(pull[2]))

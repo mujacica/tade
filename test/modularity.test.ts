@@ -59,7 +59,7 @@ const BUDGET: Record<string, number> = {
   // this file.
   'packages/extensions/jev/src/extension.ts': 1_250,
   'packages/extensions/jev/test/jev.test.ts': 1_000,
-  'packages/extensions/review/src/extension.ts': 1_200,
+  'packages/extensions/review/src/extension.ts': 1_100,
   'packages/harnesses/claude/src/adapter.ts': 1_600,
   'packages/harnesses/codex/src/adapter.ts': 1_700,
   'packages/harnesses/pi/src/adapter.ts': 1_100,

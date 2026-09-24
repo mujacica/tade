@@ -41,7 +41,12 @@ export interface ScriptedForgeOptions {
   reviews?: readonly ScriptedReview[]
   /** What ran on a review's head, by `<repo>#<number>`. */
   checks?: Readonly<Record<string, readonly CheckRun[]>>
-  /** The tail of a check's log, by `<repo>#<number>:<check>`. */
+  /**
+   * What ran on a commit, by `<repo>@<commit>` — a branch nobody opened
+   * anything for included, which is what watching CI on `main` reads.
+   */
+  commits?: Readonly<Record<string, readonly CheckRun[]>>
+  /** The tail of a check's log, by `<repo>@<commit>:<check>`. */
   logs?: Readonly<Record<string, string>>
   hosts?: readonly string[]
   capabilities?: Partial<ForgeCapabilities>
@@ -62,6 +67,7 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
   const capabilities: ForgeCapabilities = {
     assigned: true,
     checks: true,
+    commitChecks: true,
     checkLogs: true,
     threads: true,
     drafts: true,
@@ -140,19 +146,36 @@ export function makeScriptedForge(options: ScriptedForgeOptions = {}): ScriptedF
         throw new ForgeError('unsupported', 'this forge does not report checks')
       }
       const one = found(ref)
-      return options.checks?.[`${ref.repo}#${ref.number}`] ?? one.checksRan
+      return (
+        options.checks?.[`${ref.repo}#${ref.number}`] ??
+        options.commits?.[`${ref.repo}@${one.head.sha}`] ??
+        one.checksRan
+      )
+    },
+    async checksOn(repo, commit) {
+      if (!capabilities.commitChecks) {
+        throw new ForgeError('unsupported', 'this forge cannot say what ran on a commit')
+      }
+      complain()
+      // Nothing in the table for a commit is nothing having run on it, never
+      // `missing`: on a branch that is the ordinary answer for the first
+      // minute after every push.
+      return options.commits?.[`${repo}@${commit}`] ?? []
     },
     async checkLog(ref, check, lines) {
       if (!capabilities.checkLogs) {
         throw new ForgeError('unsupported', 'this forge cannot hand back a check log')
       }
-      found(ref)
-      const text = options.logs?.[`${ref.repo}#${ref.number}:${check}`]
+      return this.checkLogOn(ref.repo, found(ref).head.sha, check, lines)
+    },
+    async checkLogOn(repo, commit, check, lines) {
+      if (!capabilities.checkLogs) {
+        throw new ForgeError('unsupported', 'this forge cannot hand back a check log')
+      }
+      complain()
+      const text = options.logs?.[`${repo}@${commit}:${check}`]
       if (text === undefined) {
-        throw new ForgeError(
-          'missing',
-          `there is no check called ${check} on ${ref.repo}#${ref.number}`,
-        )
+        throw new ForgeError('missing', `${check} did not run on ${repo}@${commit}`)
       }
       return text.split('\n').slice(-lines).join('\n')
     },

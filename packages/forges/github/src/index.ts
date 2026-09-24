@@ -37,6 +37,7 @@ export function makeGithubForge(options: ForgeOptions): Forge {
   const capabilities: ForgeCapabilities = {
     assigned: true,
     checks: true,
+    commitChecks: true,
     checkLogs: true,
     threads: true,
     drafts: true,
@@ -182,6 +183,16 @@ export function makeGithubForge(options: ForgeOptions): Forge {
     return { owner, name }
   }
 
+  /** The commit a review's head is on now — asked again rather than remembered. */
+  async function headOf(ref: ReviewRef): Promise<string> {
+    const detail = (await request(rest(`/repos/${ref.repo}/pulls/${ref.number}`))).body as {
+      head?: { sha?: string }
+    } | null
+    const sha = detail?.head?.sha
+    if (!sha) throw new ForgeError('missing', `there is no ${ref.repo}#${ref.number}`)
+    return sha
+  }
+
   async function nodeId(ref: ReviewRef): Promise<string> {
     const data = (await graphql(NODE_ID, { ...parts(ref), number: ref.number })) as {
       repository?: { pullRequest?: { id?: string } }
@@ -295,48 +306,50 @@ export function makeGithubForge(options: ForgeOptions): Forge {
       return node ? asReview(node, who, host) : null
     },
 
+    // Both of these were always a question about a commit underneath: a
+    // review's number buys nothing but the sha, so the commit-addressed pair
+    // is the real call and the review-addressed pair resolves the head first.
     async checks(ref) {
-      const detail = (await request(rest(`/repos/${ref.repo}/pulls/${ref.number}`))).body as {
-        head?: { sha?: string }
-      } | null
-      const sha = detail?.head?.sha
-      if (!sha) throw new ForgeError('missing', `there is no ${ref.repo}#${ref.number}`)
-      const answer = await request(
-        rest(`/repos/${ref.repo}/commits/${sha}/check-runs?per_page=100`),
-      )
+      return this.checksOn(ref.repo, await headOf(ref))
+    },
+
+    async checksOn(repo, commit) {
+      const answer = await request(rest(`/repos/${repo}/commits/${commit}/check-runs?per_page=100`))
       const runs = (answer.body as { check_runs?: unknown[] } | null)?.check_runs ?? []
       return runs.flatMap((one) => {
-        const run = asCheckRun(one, { repo: ref.repo, commit: sha, url: null })
+        const run = asCheckRun(one, { repo, commit, url: null })
         return run ? [run] : []
       })
     },
 
     async checkLog(ref, check, lines) {
-      const runs = await this.checks(ref)
-      const wanted = runs.find((one) => one.check === check)
-      if (!wanted) {
+      return this.checkLogOn(ref.repo, await headOf(ref), check, lines)
+    },
+
+    async checkLogOn(repo, commit, check, lines) {
+      const runs = await this.checksOn(repo, commit)
+      if (!runs.some((one) => one.check === check)) {
         throw new ForgeError(
           'missing',
-          `${ref.repo}#${ref.number} has no check called ${check} (it has ${runs.map((one) => one.check).join(', ') || 'none'})`,
+          `${check} did not run on ${repo}@${commit.slice(0, 7)} (${runs.map((one) => one.check).join(', ') || 'nothing did'})`,
         )
       }
-      const commit = wanted.commit
       const list = (
-        await request(rest(`/repos/${ref.repo}/actions/runs?head_sha=${commit}&per_page=20`))
+        await request(rest(`/repos/${repo}/actions/runs?head_sha=${commit}&per_page=20`))
       ).body as { workflow_runs?: { id?: number }[] } | null
       for (const run of list?.workflow_runs ?? []) {
         if (typeof run.id !== 'number') continue
         const jobs = (
-          await request(rest(`/repos/${ref.repo}/actions/runs/${run.id}/jobs?per_page=100`))
+          await request(rest(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`))
         ).body as { jobs?: { id?: number; name?: string }[] } | null
         const job = jobs?.jobs?.find((one) => one.name === check)
         if (!job?.id) continue
-        const log = await request(rest(`/repos/${ref.repo}/actions/jobs/${job.id}/logs`), {
+        const log = await request(rest(`/repos/${repo}/actions/jobs/${job.id}/logs`), {
           accept: 'text/plain',
         })
         return log.text.split('\n').slice(-lines).join('\n')
       }
-      throw new ForgeError('missing', `${check} has no log on ${ref.repo}#${ref.number}`)
+      throw new ForgeError('missing', `${check} has no log on ${repo}@${commit.slice(0, 7)}`)
     },
 
     async open(request_: OpenRequest) {

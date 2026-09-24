@@ -33,6 +33,10 @@ testForge('github', () => make().forge, {
   unknown: { repo: 'acme/api', number: 9999, host: 'github.com' },
   remotes: { serves: 'git@github.com:acme/api.git', not: 'git@gitlab.com:acme/api.git' },
   branches: { withReview: 'shop/refunds-retry', without: 'nothing-here' },
+  commits: {
+    withChecks: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+    nothingRan: '0000000000000000000000000000000000000000',
+  },
   signedOut: () => make({ signedOut: true }).forge,
   limited: () => make({ limited: true }).forge,
   readOnly: () => make({ scopes: 'read:org, gist' }).forge,

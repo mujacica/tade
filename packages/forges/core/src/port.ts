@@ -122,6 +122,13 @@ export interface ForgeCapabilities {
   /** Can say what is waiting on you as a reviewer, not just what you wrote. */
   assigned: boolean
   checks: boolean
+  /**
+   * Can say what ran on a commit with no review to ask through. That is the
+   * whole of watching CI on a branch nobody opened anything for — a push
+   * straight to the base branch — and a forge that can only answer about a
+   * review says so here rather than being asked and failing.
+   */
+  commitChecks: boolean
   /** Can hand back a failing check's log. */
   checkLogs: boolean
   /** Conversations with line positions, and replying inside one. */
@@ -214,8 +221,25 @@ export interface Forge {
   /** The review a branch has, if any: the one narrow question `packages/status` asks. */
   reviewOf(repo: string, branch: string): Promise<Review | null>
   checks(ref: ReviewRef): Promise<readonly CheckRun[]>
+  /**
+   * What ran on one commit, whoever it belongs to and whether or not anything
+   * was ever opened for it. Needs `capabilities.commitChecks`.
+   *
+   * A commit nothing has run on is an **empty list, never `missing`**: CI not
+   * having reached a push yet is the ordinary case on any branch, and a watch
+   * that read it as a failure to look would say it could not look every ten
+   * minutes about a repository where nothing is wrong.
+   */
+  checksOn(repo: string, commit: string): Promise<readonly CheckRun[]>
   /** The tail of a failing check's log, at most `lines`. Needs `capabilities.checkLogs`. */
   checkLog(ref: ReviewRef, check: string, lines: number): Promise<string>
+  /**
+   * The same log, for a check that ran on a commit rather than on a review.
+   * Needs `capabilities.checkLogs` and `capabilities.commitChecks`; a check
+   * that did not run on that commit is `missing`, because a caller asking for
+   * one has already been told which ran.
+   */
+  checkLogOn(repo: string, commit: string, check: string, lines: number): Promise<string>
   /** Needs `capabilities.write`. */
   open(request: OpenRequest): Promise<Review>
   /** Say something: on the review, or as a reply inside one thread. */

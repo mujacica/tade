@@ -301,6 +301,9 @@ importers:
       '@tade/extensions-core':
         specifier: workspace:*
         version: link:../core
+      '@tade/forge-scripted':
+        specifier: workspace:*
+        version: link:../../forges/scripted
       '@tade/forges-core':
         specifier: workspace:*
         version: link:../../forges/core

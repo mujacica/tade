@@ -103,7 +103,9 @@ or, where the work is already going and going badly, a sentence for the orchestr
 **Agents going in circles** is the second kind: it counts what each agent keeps doing, and where the
 same failing call keeps coming round it asks whether that is a loop or a method, and tells you which
 agent and what it keeps trying. It never stops one, steers one or starts one.
-Extensions offer them; nothing is watched until you turn one on.
+Extensions offer them, and almost nothing is watched until you turn one on — the exception is
+**CI on the branch you are on**, which is on wherever you have a forge, because a red `main` is
+everybody's and nobody should have to notice it by hand.
 
 ![A watch: every hour it looks, starts an agent on each new issue, and keeps what it found and every look](images/watches.svg)
 
@@ -152,7 +154,10 @@ push with nothing green behind it is held, with what is missing.
 What you have offered other people, and what they and their robots say about it: your open pull
 requests, what waits on you, what CI makes of each, and the conversations nobody has answered.
 Watches can fix what is red and answer the bots — and nothing merges anything unless you asked for
-exactly that.
+exactly that. **CI on the branch itself is watched too**, which is the half of it that has no
+review: push straight to `main`, and a red commit puts one agent on reproducing it here and fixing
+the cause. One agent per red commit, however many checks went red; a re-run of the same commit
+starts nothing new; and it never force-pushes, never reverts and never merges.
 
 ![The REVIEWS section: every open review with what it is waiting on](images/reviews.svg)
 

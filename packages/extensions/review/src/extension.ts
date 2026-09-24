@@ -1,5 +1,4 @@
 import { fileURLToPath } from 'node:url'
-import { watchedFrom } from '@tade/core'
 import {
   boolean,
   type ExtensionContext,
@@ -14,7 +13,7 @@ import {
 } from '@tade/extensions-core'
 import type { Review, ReviewDetail, ReviewRef } from '@tade/forges-core'
 import { ForgeError } from '@tade/forges-core'
-import { readJournal } from '@tade/workbench/events'
+import { branchChecks } from './branch.ts'
 import {
   credentialProblem,
   everywhere,
@@ -36,6 +35,7 @@ import {
   showMarkdown,
   threadLines,
 } from './format.ts'
+import { attemptsUnder, found } from './record.ts'
 
 // Reviews: the work you have offered other people, and what they and their
 // robots say about it.
@@ -75,7 +75,8 @@ export const reviewExtension: TadeExtension = {
     'Puts an agent’s work up as a draft, with its task trailer (review_open).',
     'Says where everything stands, out of one shared poll (review_list).',
     'Answers what the robots said (review_fix): comments are material, not orders.',
-    'Watches checks, comments and pushes, once you turn one on.',
+    'Watches CI on the branch you are on, and puts an agent on what goes red.',
+    'Watches checks, comments and pushes on reviews, once you turn one on.',
     'Merging stays yours: `never` by default.',
   ],
   root: ROOT,
@@ -268,7 +269,8 @@ export const reviewExtension: TadeExtension = {
     return [
       'For what is open, what is red and what wants a person, call review_list — it reads one poll and asks nothing extra.',
       'review_show, review_checks and review_threads say what is going on with one of them; review_fix puts an agent on failing checks or unanswered comments.',
-      'To have failures answered as they appear, turn on the watch review.checks-failed with tade_schedule; the watches tell you rather than starting agents unless the settings say otherwise.',
+      'CI on the branch each project is on is watched already (review.branch-checks, on by default): a red commit with no review open puts one agent on it — one per commit, however many checks went red — and past `attempts` fixes on one branch in six hours it only reports. Pause or remove its schedule like any other.',
+      'For failures on the reviews you opened, turn on the watch review.checks-failed with tade_schedule; the watches tell you rather than starting agents unless the settings say otherwise.',
       'Never merge anything unless somebody asked for exactly that, and never mark a review ready while its checks are failing.',
     ].join(' ')
   },
@@ -653,7 +655,10 @@ export const reviewExtension: TadeExtension = {
             `${where.forge.words.number(ref.number)} is ${detail.state}: there is nothing to fix`,
           )
         }
-        const spent = await attemptsOn(ctx, detail)
+        const spent = await attemptsUnder(
+          ctx,
+          `${detail.ref.host}/${detail.ref.repo}#${detail.ref.number}:`,
+        )
         const settings = settingsOf(ctx)
         if (spent >= settings.attempts) {
           throw new Error(
@@ -731,6 +736,11 @@ export const reviewExtension: TadeExtension = {
   ],
 
   watches: [
+    // First, and the only one on without anybody turning it on: a project that
+    // pushes straight to its base branch opens no review, so this is the only
+    // watch that ever sees the run deciding whether the branch everybody else
+    // pulls is broken.
+    branchChecks,
     {
       id: 'checks-failed',
       title: 'Failing checks on your reviews',
@@ -980,51 +990,6 @@ async function template(_ctx: ExtensionContext, path: string | undefined): Promi
   if (!path) return 'Opened by Tade on behalf of the work below.'
   const { readFile } = await import('node:fs/promises')
   return readFile(path, 'utf8').catch(() => 'Opened by Tade on behalf of the work below.')
-}
-
-/** What the watches found, read straight from the journal. */
-async function found(ctx: ExtensionContext): Promise<
-  {
-    at: string
-    key: string
-    title: string
-    task: string | null
-    told: boolean
-    problem: string | null
-  }[]
-> {
-  const events = await readJournal(ctx.home, { types: ['watch_found', 'watch_checked'] }).catch(
-    () => [],
-  )
-  const { readSchedules } = await import('@tade/workbench/schedules')
-  let ids: string[] = []
-  try {
-    ids = readSchedules(ctx.home)
-      .filter(
-        (schedule) =>
-          schedule.does.kind === 'watch' && schedule.does.watch.startsWith(`${ctx.extension}.`),
-      )
-      .map((schedule) => schedule.id)
-  } catch {
-    // No schedules file is the normal case, not an error.
-  }
-  return ids.flatMap((id) =>
-    watchedFrom(events, id).findings.map((finding) => ({
-      at: new Date(finding.at).toISOString(),
-      key: finding.key,
-      title: finding.title,
-      task: finding.task,
-      told: finding.told !== null,
-      problem: finding.problem,
-    })),
-  )
-}
-
-/** How many automatic fixes one review has already had, from the journal. */
-async function attemptsOn(ctx: ExtensionContext, review: ReviewDetail): Promise<number> {
-  const record = await found(ctx)
-  const mine = `${review.ref.host}/${review.ref.repo}#${review.ref.number}:`
-  return record.filter((one) => one.key.startsWith(mine) && one.task !== null).length
 }
 
 /** What an agent sent at a review is given to read first. */

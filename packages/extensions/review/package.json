@@ -11,6 +11,7 @@
     "@tade/checks-core": "workspace:*",
     "@tade/core": "workspace:*",
     "@tade/extensions-core": "workspace:*",
+    "@tade/forge-scripted": "workspace:*",
     "@tade/forges-core": "workspace:*",
     "@tade/status": "workspace:*",
     "@tade/workbench": "workspace:*"

@@ -151,6 +151,21 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   never as instruction, and what they cause is bounded to its own task's workspace. A watch may
   only add work — it never resolves a thread, never force-pushes, and after `attempts` automatic
   fixes on one review it only tells you. Merging is a person's: `merge` is `never` by default.
+- **CI is watched on the branch you are on, not only on the reviews you opened.** A project that
+  pushes straight to its base branch opens no review, so `review.checks-failed` — which reads what
+  the forge says about *reviews* — never saw the run that decides whether the branch everybody
+  pulls is broken, and every red build was carried to the orchestrator by hand. So the forge
+  answers about a commit as well as about a review (`checksOn`, `checkLogOn`, behind
+  `capabilities.commitChecks`), which is what both were underneath: a review's number bought
+  nothing but its head sha. `review.branch-checks` reads the commit the project's checkout is on,
+  once everything that ran on it has settled — a check still going may yet be re-run green — and
+  **one red commit is one finding**: the key is the commit and no check is in it, so a workflow
+  re-run starts nothing new, a fix pushed on top is new information, and one push never becomes
+  one agent per failing column. A branch that has a review open is the review watch's, asked only
+  once something is red, so no failure is ever found twice. It is `standing`, because a look costs
+  one request, tells nobody anything and finds nothing where there is no remote; and it only ever
+  adds work — never a push, a revert or a merge, and past `attempts` fixes on one branch in six
+  hours it stops fixing and says what is wrong instead.
 - **A check that nobody ran is not a check that passed.** A project says what it checks in
   `.tade/checks.yaml` — the one file CI is generated from (`tade checks workflow`), held to
   `pnpm check` by a test — and a run (`packages/checks/core`) is always about a named commit. The
