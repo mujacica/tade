@@ -135,4 +135,11 @@ it('groups what it cost by harness, sign-in and provider, and says which money i
   // the API key's estimate is a bill somebody gets, and is counted and marked.
   expect(result.stdout).not.toContain('954')
   expect(result.stdout).toContain('$1.60 priced by the harness, $0.40 estimated')
+  // And that the figure does not cover everything under it. Claude Code's own
+  // sign-in has no price per turn at all, so its thousand tokens are effort
+  // this total says nothing about — and a figure missing an agent's cost is
+  // worse than one marked incomplete.
+  expect(result.stdout).toContain(
+    '1k of these tokens ran in a harness that reports no money at all',
+  )
 }, 30_000)

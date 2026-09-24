@@ -243,14 +243,22 @@ export async function commitsByTask(
   ctx: ExtensionContext,
   root: string,
   range: string,
-): Promise<{ byTask: Map<string, { sha: string; at: number }[]>; signed: number }> {
+): Promise<{
+  byTask: Map<string, { sha: string; at: number }[]>
+  signed: number
+  /** Every commit in the range, signed or not: what `signed` is out of. */
+  total: number
+}> {
   const log = await git(ctx, root, ['log', '--format=%H%x1f%ct%x1f%B%x1e', range])
   const byTask = new Map<string, { sha: string; at: number }[]>()
   let signed = 0
-  if (!log.ok) return { byTask, signed }
+  let total = 0
+  if (!log.ok) return { byTask, signed, total }
   for (const record of log.out.split('\x1e')) {
     const [sha, at, body] = record.replace(/^\s+/, '').split('\x1f')
-    if (!sha || !body) continue
+    if (!sha) continue
+    total += 1
+    if (!body) continue
     const said = /^Tade-Task:[ \t]*(.+)$/m.exec(body)
     const task = said?.[1]?.trim()
     if (!task) continue
@@ -261,7 +269,76 @@ export async function commitsByTask(
   }
   // `git log` is newest first and a change reads oldest first, as it was made.
   for (const mine of byTask.values()) mine.reverse()
-  return { byTask, signed }
+  return { byTask, signed, total }
+}
+
+/**
+ * What to say to an agent about whose work the range it named actually holds,
+ * or null where it is all its own and there is nothing to say.
+ *
+ * A range is whatever is in it. In a checkout everybody shares `HEAD` is
+ * whoever committed last, so `HEAD~5..HEAD` asked for by one agent can be five
+ * of somebody else's commits — and a reading of that comes back as a table of
+ * probabilities under the heading of a change the agent never made, which is
+ * a finding it cannot account for about work it did not do. Whose a commit is
+ * is already knowable and already read back out of the `Tade-Task:` trailer,
+ * so this only has to be *said*: reviewing it silently is the bug.
+ *
+ * It never refuses. A range somebody named is a range somebody meant, and
+ * `unattributed` is always an allowed answer — what it may not be is a quiet
+ * one.
+ */
+export function whoseWork(of: {
+  ref: string
+  /** Every commit in the range. */
+  commits: number
+  /** Of those, how many carry the asking task's own trailer. */
+  mine: number
+  /** The other tasks in the range, with how many commits each, biggest first. */
+  others: readonly { task: string; commits: number }[]
+  /** Of those, how many carry no trailer at all. */
+  unsigned: number
+}): string | null {
+  if (of.commits > 0 && of.mine === of.commits) return null
+  const rest = [
+    ...of.others.map((one) => `${one.task} (${one.commits})`),
+    ...(of.unsigned > 0 ? [`${of.unsigned} nobody signed`] : []),
+  ]
+  const whose = rest.length > 0 ? ` It holds ${rest.join(', ')}.` : ''
+  if (of.commits === 0) {
+    return `\`${of.ref}\` holds no commits at all, so nothing below is anybody's change in particular.`
+  }
+  if (of.mine === 0) {
+    return `None of the ${of.commits} commits in \`${of.ref}\` carry your \`Tade-Task:\` trailer, so this is not your own change.${whose} Ask with no ref to read only your own.`
+  }
+  return `${of.mine} of the ${of.commits} commits in \`${of.ref}\` are yours; the rest are not.${whose} Ask with no ref to read only your own.`
+}
+
+/**
+ * Whose work a named range holds: read out of git, said by `whoseWork`.
+ *
+ * `base..head` and not `base...head`, because the three-dot form is what the
+ * *diff* is and `git log base..head` is the commits that diff is made of —
+ * which is the same set, asked the way git asks it.
+ */
+export async function whoseIn(
+  ctx: ExtensionContext,
+  unit: Pick<Unit, 'root' | 'base' | 'head'>,
+  asking: string,
+  ref: string,
+): Promise<string | null> {
+  const range = `${unit.base}..${unit.head}`
+  const { byTask, signed, total } = await commitsByTask(ctx, unit.root, range)
+  return whoseWork({
+    ref,
+    commits: total,
+    mine: byTask.get(asking)?.length ?? 0,
+    others: [...byTask.entries()]
+      .filter(([task]) => task !== asking)
+      .map(([task, commits]) => ({ task, commits: commits.length }))
+      .sort((a, b) => b.commits - a.commits || a.task.localeCompare(b.task)),
+    unsigned: total - signed,
+  })
 }
 
 /**

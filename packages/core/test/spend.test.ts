@@ -326,6 +326,44 @@ describe('what a reader may believe about a harness', () => {
     expect(report.byProvider['a-router']?.usd).toBe(4)
   })
 
+  it('keeps how much effort nobody could price, so a total can say what it misses', () => {
+    // The finding this is here for: Codex declares `usd: 'none'` and reports
+    // tokens and never a dollar, so a total beside a harness that does price
+    // comes out looking complete with one agent's cost missing from it.
+    const report = spendFrom(
+      [
+        ...BOTH,
+        usage({
+          run: 'r3',
+          task: 'tade/codex-work',
+          detail: { harness: 'codex', tokens: 300_000, usd: 0, priced: 'estimate' },
+        }),
+      ],
+      { since: 0 },
+    )
+    // 900k of Claude Code's plan and 300k of Codex's: effort in the total
+    // that no figure of money in it covers.
+    expect(report.total.tokensUnpriced).toBe(1_200_000)
+    expect(report.total.tokens).toBe(1_340_000)
+    expect(report.total.usd).toBe(78.23)
+    // And the money in it is still exactly the money somebody was billed, so
+    // this only ever adds what to say and never changes what is counted.
+    expect(pricedOf(report.total)).toBe('exact')
+    expect(report.byHarness.codex?.tokensUnpriced).toBe(300_000)
+    expect(report.byHarness.pi?.tokensUnpriced).toBe(0)
+  })
+
+  it('counts an account billed per token as priced effort, plan or no plan', () => {
+    // The flag follows `isMoney` and nothing else: a sign-in added beside a
+    // subscription may be billed per token, and its tokens are covered by the
+    // dollars beside them.
+    const report = spendFrom(
+      [usage({ detail: { harness: 'codex', account: 'billed', tokens: 500, usd: 2 } })],
+      { since: 0 },
+    )
+    expect(report.total.tokensUnpriced).toBe(0)
+  })
+
   it('leaves an account beside a subscription its own money', () => {
     // A sign-in added beside the harness's own may be billed per token, and
     // the harness's own plan says nothing about it.

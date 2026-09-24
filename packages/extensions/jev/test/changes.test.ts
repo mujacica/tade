@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mkrepo, tmp } from '../../../../test/fixtures/mkrepo.ts'
-import { CHARS_PER_TOKEN, cutTo, partSaid } from '../src/changes.ts'
+import { CHARS_PER_TOKEN, cutTo, partSaid, whoseWork } from '../src/changes.ts'
 import { readReviews } from '../src/reviews.ts'
 import { host, NOW, typesafe } from './harness.ts'
 
@@ -173,5 +173,56 @@ describe('reading a change that will not fit', () => {
     ).rejects.toThrow(
       /the one change it found could not be read: shop\/regenerate .*longer than one ask takes/,
     )
+  })
+})
+
+// A range somebody named is whatever is in it, and in a checkout everybody
+// shares `HEAD` is whoever committed last — so a review of "this change" can
+// be a review of somebody else's. Whose a commit is is already read back out
+// of the `Tade-Task:` trailer; what was missing was saying so.
+describe('whose work a named range holds', () => {
+  const asking = {
+    ref: 'HEAD~3..HEAD',
+    commits: 3,
+    mine: 0,
+    others: [] as { task: string; commits: number }[],
+    unsigned: 0,
+  }
+
+  it('says nothing when every commit in it is the asker’s own', () => {
+    expect(whoseWork({ ...asking, mine: 3 })).toBeNull()
+  })
+
+  it('says plainly that none of it is the asker’s, and whose it is', () => {
+    const said = whoseWork({ ...asking, others: [{ task: 'tade/other', commits: 3 }] })
+    expect(said).toContain(
+      'None of the 3 commits in `HEAD~3..HEAD` carry your `Tade-Task:` trailer',
+    )
+    expect(said).toContain('tade/other (3)')
+    expect(said).toContain('Ask with no ref')
+  })
+
+  it('says how much of it is the asker’s when only some of it is', () => {
+    const said = whoseWork({
+      ...asking,
+      mine: 1,
+      others: [{ task: 'tade/other', commits: 1 }],
+      unsigned: 1,
+    })
+    expect(said).toContain('1 of the 3 commits in `HEAD~3..HEAD` are yours')
+    expect(said).toContain('tade/other (1)')
+    // Unattributed is always an allowed answer, and is said as itself rather
+    // than given to whoever was nearest.
+    expect(said).toContain('1 nobody signed')
+  })
+
+  it('says a range nobody signed is nobody’s, rather than naming a task', () => {
+    const said = whoseWork({ ...asking, unsigned: 3 })
+    expect(said).toContain('not your own change')
+    expect(said).toContain('3 nobody signed')
+  })
+
+  it('never claims a range with nothing in it is anybody’s', () => {
+    expect(whoseWork({ ...asking, commits: 0 })).toContain('holds no commits at all')
   })
 })

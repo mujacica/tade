@@ -38,6 +38,9 @@ import {
 //
 // An agent that ran and reported no money still gets a row: the question the
 // panel answers is where the effort went, and unpriced effort is still effort.
+// The total above it says how much of it there was (`tokensUnpriced`), because
+// a harness with no price per turn — Codex, Claude Code on its own sign-in —
+// puts its work in the token figure and none of it in the money one.
 
 export type SpendWindow = 'today' | 'window' | 'week'
 
@@ -124,6 +127,12 @@ export interface SpendView {
   usdEstimated: number
   /** Which of those the total is. Said in the footer, never left for the reader to assume. */
   priced: Priced
+  /**
+   * Of `tokens`, what ran where nothing reports a price. Said under the total
+   * whenever there is money for it to be missing from: a figure that quietly
+   * leaves an agent's cost out is worse than one marked incomplete.
+   */
+  tokensUnpriced: number
   /** Whether any price was reported. Subscription providers report none. */
   hasCost: boolean
   /** Every agent's time in this window added up: two running at once count as two. */
@@ -281,6 +290,7 @@ export function spendView(
     usd: report.total.usd,
     usdExact: report.total.usdExact,
     usdEstimated: report.total.usdEstimated,
+    tokensUnpriced: report.total.tokensUnpriced,
     priced: pricedOf(report.total),
     hasCost: report.total.hasCost,
     runtime: ran.total,

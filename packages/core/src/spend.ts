@@ -16,6 +16,10 @@ import type { TadeEvent } from './events.ts'
 // once guessed a turn would have cost is not money either (`isMoney`). That is
 // not zero spend, it is unknown spend, and a dollar budget cannot police it —
 // so a token budget exists too, and `hasCost` says which you are looking at.
+// How much of a bucket's effort that was is kept beside the money
+// (`tokensUnpriced`), because a bucket holding both reads as a complete
+// figure with one agent's cost missing from it, and every surface that totals
+// money has to be able to say so.
 // What a plan has left is the other thing entirely: `PlanWindow`, its own list,
 // in no total here.
 //
@@ -116,6 +120,19 @@ export interface Spend {
   usdExact: number
   /** Of `usd`, what a harness could only estimate. */
   usdEstimated: number
+  /**
+   * Of `tokens`, what ran where nothing reports a price at all.
+   *
+   * A harness whose own sign-in is a plan has no price per turn, so its
+   * agents run up tokens and never a dollar — and added to a bucket beside
+   * work that *was* priced, the figure comes out looking complete with one
+   * agent's cost missing from it. A figure missing an agent is worse than one
+   * marked incomplete, so this is counted rather than flagged: `some of this
+   * was not priced` is a caveat, and `880k of 1.9M` is a fact. What that
+   * effort used up is its plan's windows, which are their own list and in no
+   * total here.
+   */
+  tokensUnpriced: number
   /** Whether anything reported money. Distinguishes free from unpriced. */
   hasCost: boolean
 }
@@ -130,6 +147,7 @@ export function noSpend(): Spend {
     usd: 0,
     usdExact: 0,
     usdEstimated: 0,
+    tokensUnpriced: 0,
     hasCost: false,
   }
 }
@@ -440,7 +458,10 @@ function add(spend: Spend, event: TadeEvent, money: boolean): void {
   spend.tokens += number('tokens')
   // A plan's own sign-in reported a figure before anybody asked whether it
   // was money; the tokens it spent are real and the dollars were never a
-  // bill, so the tokens stay and the dollars are not counted anywhere.
+  // bill, so the tokens stay and the dollars are not counted anywhere — and
+  // how much effort that is, is kept, because a total that quietly leaves an
+  // agent's cost out is the one thing a money figure may never do.
+  if (!money) spend.tokensUnpriced += number('tokens')
   const usd = money ? number('usd') : 0
   spend.usd += usd
   if (usd > 0) {

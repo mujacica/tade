@@ -3,7 +3,7 @@
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
                   ╭─ Spend ──────────────────────────────────────────────────────────────────── esc ─╮──────────────────
  ▌ ! stripe-v15   │ $1.40  1.9M tokens  2h 5m over 3 runs           Today    This window    7 days   │                  
- ▌   wants you to │                                                                                  │                  
+ ▌   wants you to │ 880k tokens here ran in a harness that reports no money                          │                  
                   │ by   Agent    Project    Model    Harness    Sign-in    Provider                 │                  
    ⠋ refunds      │                                                                                  │                  
      working      │   MODEL                                       TOKENS  SHARE      RUNTIME     COST│                  

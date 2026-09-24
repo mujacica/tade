@@ -2,7 +2,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2      ╭─ Spend ──────────────────────────────────────────────────────────────────── esc ─╮   high ▾     ×   
                   │ $1.40  1.9M tokens  2h 5m over 3 runs           Today    This window    7 days   │──────────────────
- ▌ ! stripe-v15   │                                                                                  │                  
+ ▌ ! stripe-v15   │ 880k tokens here ran in a harness that reports no money                          │                  
  ▌   wants you to │ by   Agent    Project    Model    Harness    Sign-in    Provider                 │                  
                   │                                                                                  │                  
    ⠋ refunds      │   AGENT                     MODEL               TOKENS  SHARE    RUNTIME     COST│                  

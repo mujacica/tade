@@ -174,7 +174,11 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   and the row in the window come free — four agents in one checkout must never start four suites.
   The rule (`checks.before`) is honest about what it can hold: under `approvals.mode: 'policy'` an
   agent's push with nothing green behind it comes back refused with what is missing; anywhere else
-  the agent is told the rule and what happened is written down. Overruling it is an act, not a
+  the agent is told the rule and what happened is written down. The default mode is `bypass` and
+  approvals are never Tade's to change on its own, so out of the box this is a rule an agent keeps
+  and not a gate that holds one — said where somebody *chooses* it (the setting's `means`, the
+  group's `about`) and not only in the code that enforces it, because a setting that reads like a
+  promise Tade does not keep is worse than one it does not have. Overruling it is an act, not a
   setting — `checks_override`, with a reason, read back out of the journal — and a red run that was
   overruled is still recorded red.
 - **A suite takes minutes, so a run says what it is doing while it is doing it.** `checks.jsonl`

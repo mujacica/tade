@@ -39,6 +39,22 @@ describe('what there is to change', () => {
     expect(find('approvals.mode').means).toContain('never interrupts')
   })
 
+  it('says what the checks rule can actually hold, where somebody chooses it', () => {
+    // `checks.before: push` reads like a gate and is one only under
+    // `approvals.mode: policy`; the default is `bypass`, where the agent is
+    // told the rule and Tade writes down what happened. That is said in the
+    // code that enforces it, and has to be said where somebody picks a value.
+    expect(ConfigSchema.parse({}).approvals.mode).toBe('bypass')
+    expect(find('checks.before').means).toContain('approvals.mode policy')
+    const group = settingsOf(config()).find((one) => one.id === 'checks')
+    expect(group?.about).toContain('bypass')
+    // And on a project's own answer to the same rule, which is chosen on a
+    // different page from the one above it.
+    expect(
+      find('projects.shop.checks.before', { projects: { shop: { root: '/tmp/shop' } } }).means,
+    ).toContain('approvals.mode policy')
+  })
+
   it('offers only values the schema would accept', () => {
     const driver = find('workspace.driver')
     expect(driver.type).toEqual({ kind: 'choice', options: ['pty', 'tmux'] })

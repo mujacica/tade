@@ -472,6 +472,30 @@ describe('a long name at any width', () => {
     expect(rows).not.toContain('priced by the harness')
   })
 
+  it('says what the total does not cover, in the gap under the figure', () => {
+    // Claude Code's own sign-in has no price per turn, so its 400k tokens are
+    // in the token figure and in no figure of money beside it. A total that
+    // adds up the rest and stops there is a figure with an agent's cost
+    // missing from it, which is worse than one marked incomplete.
+    const rows = drawn('harness', 96).join('\n')
+    expect(rows).toContain('400k tokens here ran in a harness that reports no money')
+    // The money in it is untouched: this only ever adds what to say.
+    expect(rows).toMatch(/\$2\.00/)
+    // And a narrow panel keeps the figure and gives up the words, rather than
+    // cutting the sentence off where nobody can tell what it was about.
+    expect(drawn('harness', 48).join('\n')).toContain('400k tokens unpriced')
+  })
+
+  it('says nothing about what it misses when there is no money for it to miss', () => {
+    // Nothing was priced at all, so the `—` beside the token figure has
+    // already said it, and a sentence under it would be the same fact twice.
+    const rows = drawn('harness', 96, [
+      usage({ run: 'r1', detail: { harness: 'claude-code', tokens: 900_000, usd: 954.51 } }),
+    ]).join('\n')
+    expect(rows).not.toContain('reports no money')
+    expect(rows).not.toContain('unpriced')
+  })
+
   it('says no money at all as that, rather than as a zero somebody could trust', () => {
     const rows = drawn('harness', 96, [
       usage({ run: 'r1', detail: { harness: 'claude-code', tokens: 900_000, usd: 954.51 } }),

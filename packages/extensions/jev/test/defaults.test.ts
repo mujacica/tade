@@ -237,6 +237,52 @@ describe('a shared checkout is read one agent at a time', () => {
     // Testimony, never a verdict: the half nobody here may write stays empty.
     expect(finding?.verdict).toBeNull()
   })
+
+  it('says whose the commits in a named range are, rather than reading them silently', async () => {
+    const { repo, commit } = sharedCheckout()
+    commit('tidy-receipts', { 'src/receipt.ts': 'export const receipt = () => {}\n' })
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ test_missing: 0.9 }),
+      now: Date.now,
+    })
+    // `HEAD` in a checkout everybody shares is whoever committed last, which
+    // here is the agent beside this one. The range is read, because a range
+    // somebody named is a range somebody meant — but never as this agent's
+    // own change.
+    const read = await loaded.call(
+      'jev_review',
+      { ref: 'HEAD~1..HEAD' },
+      agentAsking('shop/add-refunds', repo.root),
+    )
+    expect(read.text).toContain('carry your `Tade-Task:` trailer')
+    expect(read.text).toContain('shop/tidy-receipts (1)')
+    // Said before the table, never after it: a table of probabilities under
+    // nothing reads as a table about the asker's own change.
+    expect(read.text.indexOf('Tade-Task:')).toBeLessThan(read.text.indexOf('| question |'))
+    // And it is a sentence and not a refusal: the reading still happened.
+    expect(read.text).toContain('test_missing')
+  })
+
+  it('says nothing about whose a range is when all of it is the asker’s own', async () => {
+    const { repo, commit } = sharedCheckout()
+    commit('add-refunds', { 'src/refund.ts': 'export const refund = () => {}\n' })
+    const loaded = await host({
+      home: tmp('tade-jev-'),
+      projects: { shop: { root: repo.root } },
+      env: { TYPESAFE_API_KEY: 'k' },
+      fetch: typesafe({ test_missing: 0.9 }),
+      now: Date.now,
+    })
+    const read = await loaded.call(
+      'jev_review',
+      { ref: 'HEAD~1..HEAD' },
+      agentAsking('shop/add-refunds', repo.root),
+    )
+    expect(read.text).not.toContain('Tade-Task:')
+  })
 })
 
 describe("a finding's key is one change, for ever", () => {

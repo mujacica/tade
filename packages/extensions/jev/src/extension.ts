@@ -28,7 +28,7 @@ import {
   readyProblem,
   thresholds,
 } from './ask.ts'
-import { CHARS_PER_TOKEN, changesFor, unitFor, unitsIn } from './changes.ts'
+import { CHARS_PER_TOKEN, changesFor, unitFor, unitsIn, whoseIn } from './changes.ts'
 import { circlingIn } from './circles.ts'
 import { findingsOf, gapSaid, shorten } from './loop.ts'
 import {
@@ -439,7 +439,9 @@ export const jevExtension: TadeExtension = {
           task: string(
             "a task, to read its whole diff against its base; the agent's own work when it asks",
           ),
-          ref: string('or a commit or range, like main..HEAD, when you want exactly that'),
+          ref: string(
+            'or a commit or range, like main..HEAD, when you want exactly that; a range is whatever is in it, so in a shared checkout it may be another agent’s commits, and it says whose',
+          ),
           paths: list(string('a path'), 'only these files'),
           questions: list(
             string('a question id'),
@@ -459,15 +461,13 @@ export const jevExtension: TadeExtension = {
         // asked about somebody else's diff.
         const mine = ctx.caller.kind === 'agent' ? ctx.caller.task : ''
         const named = typeof input.task === 'string' ? input.task : ''
-        const asked = named || (input.ref ? '' : mine)
+        const ref = typeof input.ref === 'string' ? input.ref : ''
+        const asked = named || (ref ? '' : mine)
         const unit = asked
           ? ((await unitsIn(ctx, found)).find(
               (one) => one.key === asked || one.tasks.includes(asked),
             ) ?? null)
-          : await unitFor(ctx, found, {
-              root,
-              ref: typeof input.ref === 'string' ? input.ref : null,
-            })
+          : await unitFor(ctx, found, { root, ref: ref || null })
         if (!unit) {
           throw new Error(
             asked === mine
@@ -475,6 +475,18 @@ export const jevExtension: TadeExtension = {
               : `${asked} has no branch in ${found.name} with work on it to read`,
           )
         }
+        // A range somebody named is whatever is in it, and in a checkout
+        // everybody shares that is whoever committed last — so an agent that
+        // reads `HEAD~5..HEAD` may be reading somebody else's work under its
+        // own name, and a finding it cannot account for is what comes back.
+        // Whose a commit is, is read back out of the `Tade-Task:` trailer
+        // rather than guessed, and said: it is only ever a sentence, because
+        // a range somebody asked for is a range somebody meant, and
+        // `unattributed` is always an allowed answer — what it may not be is
+        // a quiet one. Only for an agent's own named range: a task names its
+        // own unit and is labelled with it, and the orchestrator has no
+        // commits of its own for any of this to be about.
+        const whose = mine && !named && ref ? await whoseIn(ctx, unit, mine, ref) : null
         const paths = Array.isArray(input.paths) ? input.paths.map(String) : []
         const change = await changesFor(ctx, unit, paths)
         if (change.files.length === 0) {
@@ -512,7 +524,9 @@ export const jevExtension: TadeExtension = {
           text: [
             `**${unit.key}** — ${change.files.length} file(s), ${unit.base.slice(0, 8)}…${unit.head.slice(0, 8)}, answered by ${reading.version} (${asking.said()})`,
             // Before the table, never after it: a table of probabilities about
-            // part of a change reads as a table about the change.
+            // part of a change — or about somebody else's — reads as a table
+            // about this agent's change.
+            whose ?? '',
             reading.part ?? '',
             reading.severity
               ? `How bad it would be to ship as it stands: ${reading.severity}.`

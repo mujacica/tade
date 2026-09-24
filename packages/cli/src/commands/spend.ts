@@ -221,17 +221,29 @@ function shown(key: string): string {
 export function pricedSays(spend: Spend): string {
   const exact = `$${spend.usdExact.toFixed(2)} priced by the harness`
   const guessed = `$${spend.usdEstimated.toFixed(2)} estimated`
-  switch (pricedOf(spend)) {
-    case 'mixed':
-      return `of $${spend.usd.toFixed(2)}: ${exact}, ${guessed}`
-    case 'exact':
-      return `${exact}, against its own catalog`
-    case 'estimate':
-      return `${guessed} — this harness cannot price a turn, only guess at it`
-    default:
-      // Zero dollars from a subscription is not the same as free.
-      return 'no prices reported — a subscription plan bills you, not per token'
+  const said = (() => {
+    switch (pricedOf(spend)) {
+      case 'mixed':
+        return `of $${spend.usd.toFixed(2)}: ${exact}, ${guessed}`
+      case 'exact':
+        return `${exact}, against its own catalog`
+      case 'estimate':
+        return `${guessed} — this harness cannot price a turn, only guess at it`
+      default:
+        // Zero dollars from a subscription is not the same as free.
+        return 'no prices reported — a subscription plan bills you, not per token'
+    }
+  })()
+  // And what no figure above covers. A harness whose own sign-in is a plan
+  // has no price per turn at all — Codex and Claude Code both say so
+  // (`capabilities.spend.usd: 'none'`) — so its agents ran up tokens and no
+  // dollars, and a total that adds the rest up and stops there is a figure
+  // with an agent's cost missing from it. Only said where there is money for
+  // it to be missing from: with none at all the sentence above has said it.
+  if (spend.tokensUnpriced > 0 && spend.usd > 0) {
+    return `${said} — and ${count(spend.tokensUnpriced)} of these tokens ran in a harness that reports no money at all, which no figure here covers`
   }
+  return said
 }
 
 function line(name: string, width: number, spend?: Spend, ran?: Runtime): string {
@@ -244,14 +256,13 @@ function money(spend: Spend): string {
 }
 
 function tokens(spend: Spend): string {
-  const n = spend.tokens
-  const text =
-    n >= 1_000_000
-      ? `${(n / 1_000_000).toFixed(1)}M`
-      : n >= 1000
-        ? `${Math.round(n / 1000)}k`
-        : String(n)
-  return `${text} tokens`.padStart(14)
+  return `${count(spend.tokens)} tokens`.padStart(14)
+}
+
+/** A count of tokens as a person reads one: `1.9M`, `880k`, `412`. */
+function count(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n)
 }
 
 function time(ran: Runtime | undefined): string {

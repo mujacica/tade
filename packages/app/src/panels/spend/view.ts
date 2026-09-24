@@ -64,7 +64,23 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     r.space()
   })
   rows.push(head.build())
-  rows.push(blank(inner))
+  // What the figure above does not cover, in the gap under it rather than in a
+  // row of its own: a harness whose own sign-in is a plan has no price per
+  // turn, so its agents put their work in the token figure and nothing at all
+  // in the money one, and a total that adds up the rest and stops there is a
+  // figure with an agent's cost missing from it. Said only where there is
+  // money for it to be missing from — where nothing was priced the `—` beside
+  // it has already said it — and here rather than beside the figure because
+  // the head has no columns to spare and a tab you cannot press costs more
+  // than a sentence one line lower.
+  rows.push(
+    view && view.tokensUnpriced > 0 && view.usd > 0
+      ? row()
+          .space()
+          .text(missingFrom(view.tokensUnpriced, inner - 1), skin.hint)
+          .build()
+      : blank(inner),
+  )
 
   // Six facets is more than a narrow panel fits on one line, and a tab that
   // ran off the edge is a grouping nobody can reach. So they wrap, under the
@@ -386,6 +402,19 @@ const MIN_NAME = 10
 export function nameLines(label: string, width: number): string[] {
   const lines = wrapTo(label, width, 2)
   return lines.length === 0 ? [cap(label, width)] : lines
+}
+
+/**
+ * What the money figure does not cover, in the room there is: the whole of it,
+ * and the figure alone where a narrow panel has no room for the sentence.
+ *
+ * The figure is the part that may never go — it is what says the total is
+ * missing something — so the words around it are what gives ground, and what
+ * is cut past that is cut with `cap`, which says so.
+ */
+function missingFrom(tokens: number, room: number): string {
+  const said = `${tokenCount(tokens)} here ran in a harness that reports no money`
+  return cap(said.length <= room ? said : `${tokenCount(tokens)} unpriced`, room)
 }
 
 /**

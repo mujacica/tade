@@ -316,12 +316,17 @@ export function settingsOf(
       id: 'checks',
       title: 'Checks',
       about:
-        "A project's own checks, run here before anybody else sees the work. What a project checks is `.tade/checks.yaml`, beside its code; these are the rules about when Tade runs them.",
+        "A project's own checks, run here before anybody else sees the work. What a project checks is `.tade/checks.yaml`, beside its code; these are the rules about when Tade runs them. Only `approvals.mode: policy` can actually hold an agent's push while they run — under the default `bypass` nothing here is a gate: the agent is told the rule and Tade writes down what happened.",
       settings: [
         {
           path: 'checks.before',
           title: 'Needed before',
-          means: 'when a push or commit needs a green run behind it',
+          // Honest about what it can hold where somebody chooses it, and not
+          // only in the code that enforces it: read as a gate it is one a
+          // person has to turn on, and a setting that reads like a promise
+          // Tade does not keep is worse than one it does not have.
+          means:
+            'when a push or commit needs a green run behind it — held only under approvals.mode policy, otherwise told and recorded',
           value: config.checks.before,
           fallback: 'push',
           type: { kind: 'choice', options: ['off', 'commit', 'push', 'commit and push'] },
@@ -548,7 +553,7 @@ export function settingsOf(
         {
           path: `projects.${name}.checks.before`,
           title: `${name} — needed before`,
-          means: `when Tade runs ${name}'s checks unasked, whatever the rule above says`,
+          means: `when Tade runs ${name}'s checks unasked, whatever the rule above says; holding a push still needs approvals.mode policy`,
           value: project.checks?.before ?? '',
           fallback: config.checks.before,
           type: { kind: 'choice', options: ['', 'off', 'commit', 'push', 'commit and push'] },
