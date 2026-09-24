@@ -519,12 +519,16 @@ export class App {
   }
 
   private async begin(): Promise<void> {
-    const { sidebarWidth, stripHeight, order, hidingDone, folded, opened } =
+    const { sidebarWidth, stripHeight, order, spots, hidingDone, folded, opened } =
       this.window.recall() ?? {}
     this.state = {
       ...this.state,
       sizes: { ...(sidebarWidth ? { sidebarWidth } : {}), ...(stripHeight ? { stripHeight } : {}) },
       order: order ?? {},
+      // Where you were in each project, so coming back to one tomorrow is the
+      // same as coming back to it a second after leaving. Whatever it names
+      // may have gone since; `standingIn` is what checks that, at the tab.
+      spots: spots ?? {},
       // Here rather than on the first tasks: the view you left is what the
       // first frame draws, so a list you hid the finished agents in never
       // flashes them and then takes them away again.

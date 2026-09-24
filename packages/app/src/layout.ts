@@ -103,6 +103,105 @@ export function resolveLayout(
 }
 
 /**
+ * Where you were standing in a project: the agent whose pane was in front of
+ * you, and the tab in the panel below it.
+ *
+ * A project is a place you come back to, and coming back to it should put you
+ * where you left it — which is one question with one answer whether you came
+ * back by clicking its tab a second later or by opening Tade again tomorrow.
+ * So it is one shape, read by both, rather than the window keeping its own
+ * idea of where you were beside the file's. What differs between the two is
+ * only how much of it survives, and that is `worthKeeping`'s to say.
+ */
+export interface Spot {
+  /** The task whose pane was in front, or `null` where no agent was. */
+  focused: string | null
+  /**
+   * The tab in front below: a terminal of that project, or the orchestrator's.
+   * Only ever for as long as the window is open — see `worthKeeping`.
+   */
+  bottom?: string
+}
+
+/**
+ * Where you were in every project, counting the one you are standing in now.
+ *
+ * The spot for the project you are in is not kept anywhere — it is the focus
+ * and the tab themselves — so this is what folds it in, and what everything
+ * that wants the whole answer reads. The rule is here once and read wherever
+ * a project is left: its tab (`selectProject`), tabbing past its last agent
+ * (`focusBy`), the beat every state passes through (`withTasks`), which is
+ * what catches a jump out of a project that went through neither door, and
+ * the write on the way out of the window, since closing Tade in a project is
+ * leaving it too.
+ */
+export function whereYouWere(state: {
+  project: string | null
+  focused: string | null
+  bottom: string
+  spots: Readonly<Record<string, Spot>>
+}): Record<string, Spot> {
+  if (!state.project) return { ...state.spots }
+  return {
+    ...state.spots,
+    [state.project]: { focused: state.focused, bottom: state.bottom },
+  }
+}
+
+/**
+ * Where to stand on arriving in a project: the spot you left it on, as far as
+ * it is still there.
+ *
+ * The other door, and the one that has to be careful, because everything a
+ * spot names can have gone since. Everything falls back the way the window
+ * fell back before any of this, which is what keeps a remembered place from
+ * ever being worse than no memory at all: an agent that has finished and been
+ * closed, was stopped, or went with its task is not somewhere to stand, and
+ * neither is a plan or a schedule you had open, since those stay behind in
+ * the project they are of — all of them come back to the first agent, exactly
+ * as a project you have never been in opens on it. Only a project with no
+ * agents at all comes back to the orchestrator, because there is nothing else
+ * there. So there is no arriving at an empty pane, and none of it depends on
+ * the spot being right.
+ *
+ * Given everything there is rather than what is in that project, because what
+ * counts as being in it is the same question both halves answer and is worth
+ * answering once. `bottom: null` is the orchestrator's tab, left for the
+ * caller to name: which tab that is, is the model's word and not this file's.
+ */
+export function standingIn(
+  spot: Spot | undefined,
+  project: string,
+  here: {
+    panes: readonly { task: string; project: string }[]
+    terminals: readonly { id: string; project: string }[]
+  },
+): { focused: string | null; bottom: string | null } {
+  const agents = here.panes.filter((pane) => pane.project === project)
+  const focused =
+    agents.find((pane) => pane.task === spot?.focused)?.task ?? agents[0]?.task ?? null
+  const kept = here.terminals.some((one) => one.id === spot?.bottom && one.project === project)
+  return { focused, bottom: kept ? (spot?.bottom ?? null) : null }
+}
+
+/**
+ * The spots as they are worth writing down: where you were, and not which tab.
+ *
+ * A terminal is a lane of the window's own, and under a driver whose lanes
+ * cannot outlive it — `detach: false`, which `pty` is and which is the default
+ * — closing Tade ends every one of them. So a tab written down is a tab that
+ * can never be found again, and a file that kept one would be promising
+ * something Tade cannot do, which is worse than not offering it. Which tab you
+ * were on is remembered for as long as the window is open, which is exactly as
+ * long as the terminal it names is there to go back to.
+ */
+export function worthKeeping(spots: Readonly<Record<string, Spot>>): Record<string, Spot> {
+  return Object.fromEntries(
+    Object.entries(spots).map(([project, spot]) => [project, { focused: spot.focused }]),
+  )
+}
+
+/**
  * What is worth writing down when the window closes: which pane you were on,
  * the sizes you dragged the dividers to, the order you dragged agents into,
  * and the view choices you made in the sidebar's headings. The config says
@@ -127,6 +226,8 @@ export interface RememberedWindow {
   opened?: string[]
   /** By project, the agents in the order they were dragged into. */
   order?: Record<string, string[]>
+  /** By project, where you were standing in it — the pane, never the tab (`worthKeeping`). */
+  spots?: Record<string, Spot>
 }
 
 /**
@@ -157,6 +258,16 @@ export function asRemembered(value: unknown): RememberedWindow | null {
       : null
   const folded = names('folded')
   const opened = names('opened')
+  // A spot is only as good as what is still in it, and `standingIn` is what
+  // checks that — so what is asked of the file is only that it has the shape.
+  const spots: Record<string, Spot> = {}
+  if (typeof raw.spots === 'object' && raw.spots !== null && !Array.isArray(raw.spots)) {
+    for (const [project, value] of Object.entries(raw.spots)) {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) continue
+      const spot = value as Record<string, unknown>
+      spots[project] = { focused: typeof spot.focused === 'string' ? spot.focused : null }
+    }
+  }
   return {
     focused: typeof raw.focused === 'string' ? raw.focused : null,
     ...size('sidebarWidth'),
@@ -165,6 +276,7 @@ export function asRemembered(value: unknown): RememberedWindow | null {
     ...(folded ? { folded } : {}),
     ...(opened ? { opened } : {}),
     ...(Object.keys(order).length > 0 ? { order } : {}),
+    ...(Object.keys(spots).length > 0 ? { spots } : {}),
   }
 }
 

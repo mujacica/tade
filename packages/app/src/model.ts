@@ -9,6 +9,7 @@ import {
 } from '@tade/core'
 import type { Turn } from '@tade/voice-core'
 import type { ScrollArea, Target } from './hits.ts'
+import { type Spot, standingIn, whereYouWere } from './layout.ts'
 import type { Panel } from './panels.ts'
 import { endOf, type Reach, scrollable } from './scroll.ts'
 import { offsetAt, thumbOf } from './scrollbar.ts'
@@ -265,6 +266,8 @@ export interface AppState {
    * not placed come after, in the order they came.
    */
   order: Record<string, string[]>
+  /** By project: where you were standing in it — `whereYouWere` folds in the one you are in. */
+  spots: Record<string, Spot>
   /** An agent being dragged to a new place in the list: where it would land if let go now. */
   reordering: { project: string; task: string; to: number } | null
   /** The keyboard is on the second half of a split, not the first. */
@@ -342,6 +345,7 @@ export function initialState(): AppState {
     splits: {},
     terminalSplit: null,
     order: {},
+    spots: {},
     reordering: null,
     splitFocus: false,
     orchestratorDraft: '',
@@ -396,7 +400,10 @@ export function withTasks(state: AppState, tasks: TaskSnapshot[]): AppState {
     state.project ??
     panes[0]?.project ??
     null
-  return { ...state, panes, focused, project }
+  // Tabbing and a search walk you into another project without its tab, so
+  // where you were is caught up with here, not at each place focus can move.
+  const next = { ...state, panes, focused, project }
+  return { ...next, spots: whereYouWere(next) }
 }
 
 /** The projects from the config, which is the only place empty ones exist. */
@@ -416,26 +423,36 @@ export function projects(state: AppState): string[] {
 }
 
 /**
- * Go to a project.
+ * Go to a project, and stand where you left it (`standingIn`).
  *
  * Focus follows, because a sidebar listing one project's tasks while the pane
- * shows another project's agent is two answers to "where am I". An empty
- * project puts you on the orchestrator, which is where you would start work.
+ * shows another project's agent is two answers to "where am I" — and it follows
+ * to the agent you were on here rather than to the top of the list, which was
+ * somebody else's idea of where you were. The tab below comes with it; one that
+ * is not this project's is the orchestrator's, the keyboard back on the pane.
  *
- * What was in front of you instead of an agent goes with it: a plan and a
- * schedule are as much one project's as an agent is, so arriving in an empty
- * project used to land on `infra › plan  0 tasks`, which is not the
- * orchestrator and is not anything anybody asked for — and a plan scrolled
- * along opened the next one already scrolled.
+ * Arriving is `focusTask`, so coming back to an agent is the same act as
+ * clicking it, its pane read from its newest line and not from wherever the
+ * last project's was scrolled to. A plan or a schedule you had in front of you
+ * instead stays behind, being as much one project's as an agent is — left
+ * open, an empty project landed on `infra › plan  0 tasks`, which is nothing
+ * anybody asked for — and the sidebar, another list, is read from its top and
+ * its left.
  */
 export function selectProject(state: AppState, project: string): AppState {
-  const first = state.panes.find((pane) => pane.project === project)
+  const left = { ...state, spots: whereYouWere(state) }
+  const stand = standingIn(left.spots[project], project, left)
+  const arrived = stand.focused
+    ? focusTask(left, stand.focused)
+    : { ...left, focused: null, paneScroll: 0 }
   return {
-    ...state,
+    ...arrived,
     project,
-    focused: first?.task ?? null,
+    bottom: stand.bottom ?? ORCHESTRATOR_TAB,
+    ...(stand.bottom ? {} : { keyboard: 'pane' as const }),
     chose: true,
     scroll: 0,
+    across: 0,
     showingPlan: false,
     planAcross: 0,
     schedule: null,
@@ -925,7 +942,7 @@ export function focusBy(state: AppState, delta: number): AppState {
   const focused = ring[next] ?? null
   if (focused === null) return openLine(state)
   const project = state.panes.find((pane) => pane.task === focused)?.project ?? state.project
-  return { ...leaveLine(state), focused, project }
+  return { ...leaveLine({ ...state, spots: whereYouWere(state) }), focused, project }
 }
 
 /** What an agent is shown as: what its work is called, once it has said, else its name. */
@@ -1173,9 +1190,13 @@ export function terminalsOf(state: AppState): TerminalTab[] {
   )
 }
 
-/** The terminal in front, if the bottom panel is showing one. */
+/**
+ * The terminal in front, and only ever one of the project you are in, whatever
+ * `bottom` still names — the panel went on showing the one of the project you
+ * came from, under a row of this project's tabs with none of them lit.
+ */
 export function activeTerminal(state: AppState): TerminalTab | null {
-  return state.terminals.find((terminal) => terminal.id === state.bottom) ?? null
+  return terminalsOf(state).find((terminal) => terminal.id === state.bottom) ?? null
 }
 
 /**

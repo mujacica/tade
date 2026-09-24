@@ -1,7 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Frame } from '../frame.ts'
-import { asRemembered, type LayoutPrefs, type RememberedWindow } from '../layout.ts'
+import {
+  asRemembered,
+  type LayoutPrefs,
+  type RememberedWindow,
+  whereYouWere,
+  worthKeeping,
+} from '../layout.ts'
 import {
   type AgentMark,
   conversing,
@@ -144,6 +150,12 @@ export class Window implements Subject {
 
   remember(): void {
     try {
+      // Closing Tade in a project is leaving it too, so the one you are
+      // standing in is folded in here as it is at its own tab: `focused` says
+      // which agent you come back to, and this says where you were in each of
+      // the others. `worthKeeping` is what drops the half of a spot that
+      // cannot survive the close.
+      const spots = worthKeeping(whereYouWere(this.wire.state))
       const kept: RememberedWindow = {
         focused: this.wire.state.focused,
         ...this.wire.state.sizes,
@@ -159,6 +171,7 @@ export class Window implements Subject {
           : { folded: this.wire.state.folded }),
         ...(this.wire.state.opened.length > 0 ? { opened: this.wire.state.opened } : {}),
         ...(Object.keys(this.wire.state.order).length > 0 ? { order: this.wire.state.order } : {}),
+        ...(Object.keys(spots).length > 0 ? { spots } : {}),
       }
       writeFileSync(this.memoryFile, `${JSON.stringify(kept, null, 2)}\n`)
     } catch {
@@ -169,6 +182,13 @@ export class Window implements Subject {
 
   /**
    * Stand where you were standing, once there are panes to stand in.
+   *
+   * The agent and nothing else, because a spot is the only other thing written
+   * down and the tab in it is not (`worthKeeping`). Going through
+   * `selectProject` would be the other way to arrive, and is wrong here: it
+   * writes down where you were on the way out of a project, and on the way
+   * into the one being opened it would write the first agent the window
+   * guessed at over the very spot being read back.
    *
    * Tried at every look until it takes, because the tasks arrive after the
    * first frame: a window that gave up on the first empty list would open on

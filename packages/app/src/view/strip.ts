@@ -2,6 +2,7 @@ import type { Frame } from '../frame.ts'
 import { type Hit, rowHit, sameTarget, shift } from '../hits.ts'
 import {
   type AppState,
+  activeTerminal,
   isAction,
   matchActions,
   somethingTyped,
@@ -34,7 +35,7 @@ export function renderStrip(
   let bar: string
   let barHits: Hit[] = []
   const talking = state.listening && state.talkingSince !== null
-  const terminal = talking ? null : state.terminals.find((one) => one.id === state.bottom)
+  const terminal = talking ? null : activeTerminal(state)
   if (talking) {
     const seconds = Math.max(0, Math.floor(((frame.now ?? 0) - (state.talkingSince ?? 0)) / 1000))
     const left = new Row(width, skin)

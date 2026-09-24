@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { asRemembered, CHROME, DEFAULTS, MINIMUM, resolveLayout } from '../src/layout.ts'
+import {
+  asRemembered,
+  CHROME,
+  DEFAULTS,
+  MINIMUM,
+  resolveLayout,
+  worthKeeping,
+} from '../src/layout.ts'
 
 // A preference is a wish, not an instruction. Everything here is about what
 // happens when the wish does not fit the terminal in front of you.
@@ -88,6 +95,38 @@ describe('asRemembered', () => {
     expect(
       asRemembered({ focused: null, order: { app: ['app/b', 7, 'app/a'], bad: 'app/c' } }),
     ).toEqual({ focused: null, order: { app: ['app/b', 'app/a'] } })
+  })
+
+  it('reads back where you were standing in each project, and skips what is not one', () => {
+    expect(
+      asRemembered({
+        focused: 'app/search',
+        spots: {
+          // A tab is never written down, so one in the file is not read back.
+          app: { focused: 'app/search', bottom: 'app/terminals/1' },
+          infra: { focused: null },
+          // Neither of these is a spot, and neither is a reason to open the
+          // window on no preferences at all.
+          bad: 'app/a',
+          worse: { focused: 7 },
+        },
+      }),
+    ).toEqual({
+      focused: 'app/search',
+      spots: { app: { focused: 'app/search' }, infra: { focused: null }, worse: { focused: null } },
+    })
+  })
+
+  it('keeps the agent out of a spot and never the tab, which cannot outlive the window', () => {
+    // A terminal is a lane of the window's own, and under the default driver
+    // closing Tade ends it — so a tab written down is one nothing could ever
+    // go back to, which is worse than not offering it.
+    expect(
+      worthKeeping({
+        app: { focused: 'app/search', bottom: 'app/terminals/1' },
+        infra: { focused: null },
+      }),
+    ).toEqual({ app: { focused: 'app/search' }, infra: { focused: null } })
   })
 
   it('reads back the view choices in the sidebar headings, either way round', () => {

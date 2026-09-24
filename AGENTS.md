@@ -503,6 +503,27 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   caret and the selection are where they were left too. A panel is the one text a click may throw
   away, because dismissing one is an act rather than a focus moving; the file you have open is not,
   and `panelDismiss` asks what escape asks before it loses an unsaved edit.
+- **A project is a place you come back to, so where you were in it is remembered per project.**
+  Clicking an agent, going to another project and coming back put you at the top of the list, which
+  is somebody else's idea of where you were — the selection was one window's, where it is one
+  project's. So a `Spot` (`layout.ts`) is the agent in front and the tab below it, kept by project
+  in `spots`. The agent goes to `window.json` with the rest of the view, because coming back to it
+  tomorrow is the same courtesy as a second later; the tab does not, and `worthKeeping` is where
+  that is decided — a terminal is a lane of the window's own and under a driver whose lanes cannot
+  outlive it (`detach: false`, which the default `pty` is) closing Tade ends it, so a tab written
+  down is one nothing could ever go back to. Two doors and one rule: `whereYouWere` folds in
+  the project you are standing in, since that spot is the focus and the tab themselves and is kept
+  nowhere else — read wherever a project is left, its tab (`selectProject`), tabbing out of it
+  (`focusBy`), the beat every state passes through (`withTasks`), which is what catches a jump that
+  went through neither door, and the write on the way out of the window. `standingIn` is the other,
+  and everything it cannot find falls back the way the window fell back before any of this, which is
+  what stops a remembered place ever being worse than no memory: an agent that finished, was stopped
+  or went with its task, and a plan or schedule that stays behind in the project it is of, all come
+  back to the first agent, exactly as a project nobody has been in opens on it — only one with no
+  agents at all comes back to the orchestrator. Arriving is `focusTask`, so coming back to an agent
+  is the same act as clicking it. **The tab below had the same bug from the other side**, and it was
+  the worse one: the panel went on showing the terminal of the project you came from, under a row of
+  this project's tabs with none of them lit.
 - **The file you have open selects out of that same model, because two of them would drift.** A
   word is the same run of letters in a file as on the line, shift and an arrow reach the same way,
   and what a second press takes is not something anybody should have to learn twice — so `input.ts`

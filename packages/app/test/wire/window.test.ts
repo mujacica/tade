@@ -36,6 +36,12 @@ describe('the window, remembering itself', () => {
     terminal.press('\t')
     await until('the marker to move', () => /▌ \S search/.test(terminal.written))
     await first.stop()
+    // Where you were is written down per project as well as on its own, so
+    // that coming back to a project tomorrow and coming back to it a second
+    // after leaving are the same arrival.
+    const kept = JSON.parse(readFileSync(join(home, 'window.json'), 'utf8'))
+    expect(kept.focused).toBe('app/search')
+    expect(kept.spots.app).toEqual({ focused: 'app/search' })
 
     // A new window, same home: it should not dump you back on the first task.
     terminal = newTerminal()

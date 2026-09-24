@@ -88,7 +88,7 @@ export function bottomTabs(
   row.space().button('+', { kind: 'action', name: 'new-terminal' }, 'add').space()
 
   const controls = (r: Row) => {
-    if (state.terminals.some((one) => one.id === state.bottom)) {
+    if (activeTerminal(state)) {
       r.button('⌕', { kind: 'action', name: 'find-terminal' }).space()
     }
     r.button(state.bottomMode === 'max' ? '⤡' : '⤢', { kind: 'action', name: 'bottom-max' }).space()
