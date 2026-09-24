@@ -191,6 +191,21 @@
     }
   },
   {
+    "name": "tade_notes",
+    "description": "What the human has told you, in the words they said it, newest first — the notes tade_remember writes. Use it whenever they ask what they told you, what you know about something, or what was said about a project or a task, and before saying there is nothing: notes are the one thing Tade is told rather than works out, so no other tool holds them and neither tade_status nor tade_logs can see one. Naming a task or project asks for what applies to it, which is what was said about it, about its project and about everything.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "about": {
+          "type": "string",
+          "description": "task or project to ask about; leave it off for everything"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "tade_orchestrator_model",
     "description": "Switch the model you — the orchestrator — think with: \"use opus 5 yourself\", \"change your model to sonnet\". Say the model the way the human did. It takes effect from your next reply and is kept for the next time Tade starts. For an agent's model use tade_agent_model; for \"both\", call each.",
     "parameters": {

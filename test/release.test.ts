@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +7,7 @@ import { readChecks, WORKFLOW_PATH, workflowFor } from '@tade/checks-core'
 import { afterAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { changelogFor, notesFor } from '../scripts/release/changelog.ts'
-import { manifests, PUBLISHED } from '../scripts/release/repo.ts'
+import { LIVE_RUN, liveTrouble, manifests, PUBLISHED } from '../scripts/release/repo.ts'
 import { exportsFor, rewrite, stage } from '../scripts/release/stage.ts'
 
 // What has to be true of the thing a stranger installs.
@@ -263,5 +263,44 @@ describe('the release workflow', () => {
     const named = [...runs.matchAll(/\bnode (scripts\/[\w/.-]+)/g)].map((match) => match[1] ?? '')
     expect(named.length).toBeGreaterThan(0)
     for (const script of named) expect(existsSync(join(ROOT, script)), script).toBe(true)
+  })
+})
+
+describe('the live test, which a release may not go out without', () => {
+  const receipt = join(where, 'live.json')
+
+  it('refuses a release that has no evidence at all', () => {
+    // The state this repository was actually in: a test skipped by default,
+    // never once run, and nothing anywhere that would have said so.
+    const trouble = liveTrouble(join(where, 'nothing.json'), 'a'.repeat(40))
+    expect(trouble).toContain('has not been run')
+    expect(trouble).toContain(LIVE_RUN)
+  })
+
+  it('refuses evidence from another commit, and says which', () => {
+    writeFileSync(receipt, JSON.stringify({ commit: 'b'.repeat(40), cases: 13 }))
+    const trouble = liveTrouble(receipt, 'a'.repeat(40))
+    expect(trouble).toContain('bbbbbbbb')
+    expect(trouble).toContain('aaaaaaaa')
+    expect(trouble).toContain(LIVE_RUN)
+  })
+
+  it('refuses a receipt that will not parse, rather than reading a value out of it', () => {
+    writeFileSync(receipt, 'half a file')
+    expect(liveTrouble(receipt, 'a'.repeat(40))).toContain('has not been run')
+  })
+
+  it('is satisfied only by a green run against this very commit', () => {
+    writeFileSync(receipt, JSON.stringify({ commit: 'a'.repeat(40), cases: 13 }))
+    expect(liveTrouble(receipt, 'a'.repeat(40))).toBeNull()
+  })
+
+  it('names a command that runs the test this repository has', () => {
+    const file = LIVE_RUN.split(' ').at(-1) ?? ''
+    expect(existsSync(join(ROOT, file))).toBe(true)
+    // Gated, so a release is the only thing that pays for it and `pnpm check`
+    // never does.
+    expect(LIVE_RUN).toContain('TADE_LIVE=1')
+    expect(readFileSync(join(ROOT, file), 'utf8')).toContain("process.env.TADE_LIVE === '1'")
   })
 })

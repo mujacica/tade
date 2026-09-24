@@ -9,18 +9,46 @@ Tade goes out as **one** npm package, `tade-sh`, installing the command `tade`. 
 `packages/` ships inside it and nothing else is published. `AGENTS.md` says why, under *One package
 goes out*; this is how to do it.
 
-## The three commands
+## The four commands
 
 ```sh
+TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts
 pnpm release 0.2.0 --dry-run          # rehearse; writes nothing outside dist/
 pnpm release 0.2.0                    # CHANGELOG.md, the version, a commit, a tag — all local
 git push origin main --follow-tags    # the tag is what publishes
 ```
 
-**The third one is a person's.** Do the first two, say what they produced, and ask — unless whoever
+**The last one is a person's.** Do the first three, say what they produced, and ask — unless whoever
 asked for the release already said to push it. Everything up to the tag is undoable in ten seconds;
 the push starts a workflow that puts a version on npm, and **a version on npm cannot be taken back
 or reused**. This is the same rule as `merge`: the machine prepares, a person lets it out.
+
+## The live test is the first one, and `pnpm release` refuses without it
+
+It is the only test in the repository that uses a real model, and so the only evidence that a model
+can pick the right tool out of the descriptions we wrote: every other test tells a fake model which
+tool to call, so all sixty descriptions could say the same thing and `pnpm check` would still be
+green. The symptom when one of them is ambiguous is not a red test — it is somebody saying "start an
+agent on the auth bug" and getting a status report back.
+
+It costs money and needs credentials, so it is skipped unless `TADE_LIVE=1` asks for it, which is
+how it came never to have been run at all, through three rewrites of those descriptions. So a green
+run writes down which commit it went green against — `.tade/live.json`, ignored like everything else
+Tade writes under there — and `pnpm release` reads it: no receipt, or a receipt naming another
+commit, and the release is refused with the command to run. The dry run says the same thing instead
+of refusing, because a rehearsal that costs a model call is a rehearsal nobody does.
+
+Under a minute, and about a dollar. Run it on the commit you are releasing, after the last change
+rather than before it. `--no-live` is the way past a refusal: use it only when the credentials are
+the problem, and say that you did.
+
+**A failure is a defect, not a flake.** Usually it means a description that reads unambiguously to
+whoever wrote it and ambiguously to a model; the fix is the description, in
+`packages/orchestrator/src/tools-extension.ts`, and the golden file
+(`packages/orchestrator/test/golden/tools.json`) is where that change shows up in review. Two other
+things it can mean, both seen the first time it was run: a capability missing altogether, since a
+model cannot choose a tool that does not exist, and a fixture emptier than a real project, which
+turns a case into a question the model is right to ask instead of answering.
 
 ## Choosing the version
 
@@ -60,9 +88,9 @@ Staging checks itself and throws a list rather than shipping. What each one mean
 | `… is declared as ^1 and ^2` | one published package can hold one range; make the workspace agree first |
 
 `pnpm release` also refuses before it starts: not on `main`, uncommitted changes, behind
-`origin/main`, or a tag that already exists. Each is said in full. The uncommitted-changes one
-matters most here — agents share this checkout, and a release must carry the changelog and the
-version and nobody else's work.
+`origin/main`, a tag that already exists, or no live-test receipt for this commit. Each is said in
+full. The uncommitted-changes one matters most here — agents share this checkout, and a release must
+carry the changelog and the version and nobody else's work.
 
 ## What the workflow does with the tag
 
@@ -118,9 +146,10 @@ was added. `test/release.test.ts` fails if a `secrets.` reference appears in tha
 
 ## If you change any of this
 
-`test/release.test.ts` holds the parts that would otherwise break quietly: what the published
-manifest says, that the exports map answers every `@tade/…` specifier this repository actually
-writes, what the two rewrite rules do and do not touch, and the handful of facts about the workflow
-— that its gate calls `ci.yml`, that `ci.yml` still offers `workflow_call`, that a push to main is
-not a trigger, that no `run:` block carries a `${{ }}` expression, and that every script it names
-exists. Run `pnpm check`, and then the dry run, which is the only one that proves the thing itself.
+`test/release.test.ts` holds the parts that would otherwise break quietly: what `liveTrouble`
+refuses and what satisfies it, what the published manifest says, that the exports map answers every
+`@tade/…` specifier this repository actually writes, what the two rewrite rules do and do not touch,
+and the handful of facts about the workflow — that its gate calls `ci.yml`, that `ci.yml` still
+offers `workflow_call`, that a push to main is not a trigger, that no `run:` block carries a
+`${{ }}` expression, and that every script it names exists. Run `pnpm check`, and then the dry run,
+which is the only one that proves the thing itself.

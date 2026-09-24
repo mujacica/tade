@@ -118,3 +118,45 @@ function read(dir: string, at: string): Manifest | null {
     dependencies: parsed.dependencies ?? {},
   }
 }
+
+/** Where a green run of the live test left its evidence. */
+export const LIVE = join(ROOT, '.tade', 'live.json')
+
+/** The one command that asks a real model to choose from our descriptions. */
+export const LIVE_RUN = 'TADE_LIVE=1 pnpm vitest run packages/orchestrator/test/live.test.ts'
+
+/**
+ * What is wrong with the live test's evidence for this tree, or `null`.
+ *
+ * `pnpm check` says nothing about whether a model can pick the right tool from
+ * the descriptions we wrote: every other test in the repository tells a fake
+ * model which tool to call, so all sixty descriptions could say the same thing
+ * and the suite would still be green. The live test is the only one that asks,
+ * it costs money, and it is skipped unless somebody asks for it — which is how
+ * it came never to have been run at all, over three rewrites of those
+ * descriptions.
+ *
+ * So it is held to what every other run is held to: a run is about a named
+ * commit, a run against another commit is not a run against this one, and a
+ * check nobody ran is not a check that passed. Pure, and given both the
+ * receipt and the commit, because a refusal nobody can test is a refusal
+ * nobody finds out is broken.
+ */
+export function liveTrouble(receipt: string, head: string): string | null {
+  let ran: { commit?: unknown }
+  try {
+    ran = JSON.parse(readFileSync(receipt, 'utf8')) as { commit?: unknown }
+  } catch {
+    return (
+      'the live test has not been run here. It is the only evidence that a model can pick the\n' +
+      '  right tool from the descriptions we wrote, and nothing in `pnpm check` asks:\n' +
+      `    ${LIVE_RUN}`
+    )
+  }
+  if (ran.commit === head) return null
+  return (
+    `the live test last passed against ${String(ran.commit).slice(0, 8)}, and HEAD is ${head.slice(0, 8)}.\n` +
+    '  The descriptions may have moved under it since:\n' +
+    `    ${LIVE_RUN}`
+  )
+}

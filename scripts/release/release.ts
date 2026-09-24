@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { CHANGELOG, changelogFor, notesFor, releases, tags, today } from './changelog.ts'
-import { git, PUBLISHED, ROOT, repoUrl, rootManifest } from './repo.ts'
+import { git, LIVE, liveTrouble, PUBLISHED, ROOT, repoUrl, rootManifest } from './repo.ts'
 import { stage } from './stage.ts'
 
 // Cutting a release.
@@ -23,6 +23,14 @@ import { stage } from './stage.ts'
 // tarball into a directory of its own and runs the `tade` inside it. A package
 // whose `exports` do not answer, or whose stripped JavaScript reaches for a
 // file that is not in it, fails there rather than on somebody else's machine.
+//
+// One thing here is not run but read: the live test. `pnpm check` cannot ask
+// whether a model can choose the right tool from our descriptions — every
+// other test tells a fake model what to call — and the one test that can costs
+// money and needs credentials, so it is a person's to run and this refuses to
+// go out without the commit it went green against (`liveTrouble`). The dry run
+// says so instead of refusing, because a rehearsal that costs a model call is
+// a rehearsal nobody does.
 
 const OUT = 'dist'
 const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
@@ -31,25 +39,39 @@ interface Options {
   version: string
   dry: boolean
   smoke: boolean
+  live: boolean
 }
 
 function parse(argv: readonly string[]): Options | string {
   const args = argv.filter((arg) => arg !== '')
   const version = args.find((arg) => !arg.startsWith('-'))
-  if (version === undefined) return 'usage: pnpm release <version> [--dry-run] [--no-smoke]'
+  if (version === undefined)
+    return 'usage: pnpm release <version> [--dry-run] [--no-smoke] [--no-live]'
   if (!SEMVER.test(version)) return `${version} is not a version: 0.2.0, or 0.2.0-rc.1`
   const unknown = args.find(
-    (arg) => arg.startsWith('-') && !['--dry-run', '--no-smoke'].includes(arg),
+    (arg) => arg.startsWith('-') && !['--dry-run', '--no-smoke', '--no-live'].includes(arg),
   )
   if (unknown !== undefined) return `unknown option ${unknown}`
-  return { version, dry: args.includes('--dry-run'), smoke: !args.includes('--no-smoke') }
+  return {
+    version,
+    dry: args.includes('--dry-run'),
+    smoke: !args.includes('--no-smoke'),
+    live: !args.includes('--no-live'),
+  }
 }
 
 /** What would stop this release, each said in full rather than one at a time. */
 function refusals(opts: Options): string[] {
   const wrong: string[] = []
   if (tags().includes(`v${opts.version}`)) wrong.push(`v${opts.version} is already a tag here`)
+  // The dry run is told rather than refused, and the release is refused: a
+  // rehearsal that costs a model call is a rehearsal nobody does, and the dry
+  // run is the one part of this that is not optional.
   if (opts.dry) return wrong
+  if (opts.live) {
+    const trouble = liveTrouble(LIVE, git(['rev-parse', 'HEAD']))
+    if (trouble !== null) wrong.push(trouble)
+  }
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD'])
   if (branch !== 'main') wrong.push(`on ${branch}, and a release is cut from main`)
   // v1 rather than v2: this is read by somebody, and `1 .M N... 100644 …` is
@@ -160,6 +182,10 @@ function main(): number {
   if (opts.smoke) smoke(tarball, opts.version)
 
   if (opts.dry) {
+    const trouble = liveTrouble(LIVE, git(['rev-parse', 'HEAD']))
+    say('')
+    if (trouble === null) say('  the live test has passed against this commit')
+    else say(`  ${trouble}`)
     say('')
     say('Nothing was written outside dist/ and nothing was published. What a release would do:')
     say(`  ${CHANGELOG}   ${text.split('\n').length - 1} lines, in dist/CHANGELOG.md`)

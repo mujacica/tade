@@ -19,6 +19,8 @@ import { ToolHost } from '../src/tool-host.ts'
 // tool call made by the model reaches Tade and comes back with an answer.
 
 const TOOLS = fileURLToPath(new URL('../src/tools-extension.ts', import.meta.url))
+/** The CLI the tools shell out to, exactly as `toolEnv` hands it to them. */
+const CLI = fileURLToPath(new URL('../../cli/src/bin.ts', import.meta.url))
 
 async function until(check: () => boolean | Promise<boolean>, timeout = 30_000): Promise<void> {
   const deadline = Date.now() + timeout
@@ -68,6 +70,11 @@ describe('orchestrator tools', () => {
         TADE_TEST_BASE_URL: model.url,
         TADE_SOCKET: tools.path,
         TADE_HOME: home,
+        // The tools that answer a question shell out to the CLI rather than
+        // asking the window, so that what the orchestrator reads is what a
+        // person reads. Without these they would look for a `tade` on PATH.
+        TADE_CLI: process.execPath,
+        TADE_CLI_ARGS: CLI,
       },
     })
     const signals: WorkerSignal[] = []
@@ -128,6 +135,18 @@ describe('orchestrator tools', () => {
     await until(() => signals.some((s) => s.type === 'message'))
     const message = signals.find((s) => s.type === 'message')
     expect(message).toMatchObject({ type: 'message', text: 'Done looking.' })
+  }, 90_000)
+
+  it('reads notes back, which no other tool can see', async () => {
+    // Notes live in their own file, not the journal: `tade_logs` cannot find
+    // one and `tade_status` does not know they exist. Without this tool the
+    // orchestrator can write down what it was told and never read it again —
+    // and answers "what did I tell you?" with a confident nothing.
+    tade.remember('the staging key rotates on the first', 'app', 'you')
+    await runWithTool({ name: 'tade_notes', arguments: { about: 'app' } })
+
+    await until(() => (model?.requests.length ?? 0) >= 2)
+    expect(JSON.stringify(model?.requests[1] ?? {})).toContain('staging key')
   }, 90_000)
 
   async function taskEvents() {

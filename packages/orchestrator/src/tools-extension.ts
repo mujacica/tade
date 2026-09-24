@@ -634,6 +634,13 @@ export function orchestratorTools(
   )
 
   tool(
+    'tade_notes',
+    'What the human has told you, in the words they said it, newest first — the notes tade_remember writes. Use it whenever they ask what they told you, what you know about something, or what was said about a project or a task, and before saying there is nothing: notes are the one thing Tade is told rather than works out, so no other tool holds them and neither tade_status nor tade_logs can see one. Naming a task or project asks for what applies to it, which is what was said about it, about its project and about everything.',
+    object({ about: string('task or project to ask about; leave it off for everything') }),
+    async (p) => runTade(['notes', '--json', ...(p.about ? [String(p.about)] : [])]),
+  )
+
+  tool(
     'tade_propose_skill',
     'Write down a lesson about working here — something you noticed that would have helped you earlier. It is saved as a proposal and does nothing until a human reads it and activates it. Propose one only when you have actually learned something, not to be helpful.',
     object(
