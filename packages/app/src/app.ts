@@ -504,6 +504,7 @@ export class App {
     if (this.timer) clearInterval(this.timer)
     if (this.soon) clearTimeout(this.soon)
     this.mouse.stopDraggingFile()
+    this.mouse.stopDraggingRegion()
     this.lanes.stopWatching()
     this.window.remember()
     this.release?.()

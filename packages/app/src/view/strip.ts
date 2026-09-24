@@ -9,10 +9,12 @@ import {
   terminalSplitShown,
 } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
+import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { type Line, transcriptLines } from '../transcript-view.ts'
-import { blank, type Drawn, fit, type Pointer, Row } from '../ui.ts'
+import { blank, type Drawn, fit, type Pointer, Row, shiftRegions } from '../ui.ts'
 import { bottomTabs, terminalBody } from './foot.ts'
+import { pointedIn, typingIn } from './lane.ts'
 import { barBeside } from './rows.ts'
 import { splitView } from './split.ts'
 import { clock } from './text.ts'
@@ -66,6 +68,14 @@ export function renderStrip(
 
   if (terminal) {
     const split = terminalSplitShown(state)
+    // A lane that took the whole screen and asked for the mouse gets none of
+    // Tade's own reading of its text: on such a lane the program's meaning for
+    // a cell is the one that counts, and a path that lights up and then hands
+    // the click over is a worse lie than not offering it.
+    const linkers =
+      !split && pointedIn(frame.terminal?.view ?? null, typingIn(state) === 'terminal')
+        ? null
+        : frame.linkers
     const drawn = split
       ? splitView({
           width,
@@ -88,6 +98,7 @@ export function renderStrip(
               skin,
               scroll: state.terminalScroll,
               pointer,
+              linkers,
             }),
           second: (w, h) =>
             terminalBody({
@@ -97,6 +108,7 @@ export function renderStrip(
               skin,
               pointer,
               side: 'split',
+              linkers,
             }),
         })
       : terminalBody({
@@ -107,8 +119,14 @@ export function renderStrip(
           scroll: state.terminalScroll,
           pointer,
           state,
+          linkers,
+          held: frame.held?.get('terminal'),
         })
-    return { rows: [...rows, ...drawn.rows], hits: [...hits, ...shift(drawn.hits, 2)] }
+    return {
+      rows: [...rows, ...drawn.rows],
+      hits: [...hits, ...shift(drawn.hits, 2)],
+      regions: shiftRegions(drawn.regions, 2),
+    }
   }
 
   if (frame.orchestrator !== undefined && !isAction(state.dictation)) {
@@ -189,6 +207,21 @@ export function renderStrip(
   // Listing commands is not reading the conversation: there is nothing to
   // scroll through, and the bar says so.
   const lines = isAction(state.dictation) ? bodyRoom : body.length
+  // The conversation's own lines, so a selection dragged over it is anchored
+  // in them rather than in the rows on screen: what scrolls away then stays
+  // selected, and copying gives the whole of it. Never while the commands are
+  // listed — that is a list of what you could type, not something to read.
+  const region: Regions = isAction(state.dictation)
+    ? {}
+    : {
+        transcript: {
+          lines: body.map((line) => line.text),
+          first: 0,
+          offset: Math.max(0, end - bodyRoom),
+          row: rows.length + Math.max(0, bodyRoom - shown.length),
+          rows: shown.length,
+        },
+      }
   for (const row of barBeside(
     conversation,
     {
@@ -214,7 +247,7 @@ export function renderStrip(
   }
   hits.push(...shift(box.hits, rows.length))
   rows.push(...box.rows)
-  return { rows: rows.slice(0, height), hits }
+  return { rows: rows.slice(0, height), hits, regions: region }
 }
 
 /** What the input box holds, one row each: the editor's lines while typing, or one line saying what it is. */

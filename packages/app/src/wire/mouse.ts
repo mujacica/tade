@@ -1,6 +1,6 @@
 import type { Component } from '@earendil-works/pi-tui'
 import type { Frame } from '../frame.ts'
-import { pressable, sameTarget, type Target } from '../hits.ts'
+import { pressable, type ScrollArea, sameTarget, type Target } from '../hits.ts'
 import { textOf } from '../input.ts'
 import { resolveLayout } from '../layout.ts'
 import {
@@ -31,6 +31,7 @@ import type { PanelOutcome } from '../panels/outcome.ts'
 import { type PanelInputs, panelClick, panelDismiss, panelKey } from '../panels.ts'
 import { Painted, type PointerEvent } from '../pointer.ts'
 import { noteRecent } from '../projects.ts'
+import type { Reach } from '../scroll.ts'
 import { pointerSequence } from '../skin.ts'
 import type { Wiring } from './context.ts'
 
@@ -134,6 +135,8 @@ export class Mouse {
   private readonly deps: MouseDeps
   /** A drag held off the top or bottom of the file: it goes on scrolling until it is let go. */
   private draggingFile: NodeJS.Timeout | null = null
+  /** The same for a region — the conversation, a screen — with a selection being dragged in it. */
+  private draggingRegion: NodeJS.Timeout | null = null
 
   constructor(wire: Wiring, deps: MouseDeps) {
     this.wire = wire
@@ -298,6 +301,7 @@ export class Mouse {
         return true
       case 'release':
         this.stopDraggingFile()
+        this.stopDraggingRegion()
         if (this.wire.state.scrolling) {
           this.wire.put({ ...this.wire.state, scrolling: null, pressed: null })
           return true
@@ -341,6 +345,9 @@ export class Mouse {
       case 'drag-file':
         this.dragFileOn(event.rows, event.cell)
         return true
+      case 'drag-region':
+        this.dragRegionOn(event.area, event.rows, event.reach)
+        return true
       case 'selected-file': {
         this.stopDraggingFile()
         const text = this.fileSelectionText()
@@ -380,6 +387,47 @@ export class Mouse {
   stopDraggingFile(): void {
     if (this.draggingFile) clearInterval(this.draggingFile)
     this.draggingFile = null
+  }
+
+  /**
+   * A selection dragged off the top or the bottom of the region it was started
+   * in: the region scrolls under it, as far past the edge as the pointer is
+   * held and on until it comes back inside or is let go — the pointer sitting
+   * still off the end reports nothing, and a selection that stopped there could
+   * never reach past one screen.
+   */
+  private dragRegionOn(area: ScrollArea, rows: number, reach: Reach): void {
+    this.stopDraggingRegion()
+    if (rows === 0) return
+    this.draggingRegion = setInterval(() => this.dragRegion(area, rows, reach), EDGE_MS)
+    this.draggingRegion.unref?.()
+    // After the timer, so the first step can stop it where there is nowhere to go.
+    this.dragRegion(area, rows, reach)
+  }
+
+  stopDraggingRegion(): void {
+    if (this.draggingRegion) clearInterval(this.draggingRegion)
+    this.draggingRegion = null
+  }
+
+  /** One step of that: the region scrolled, and the selection reaching the new edge. */
+  private dragRegion(area: ScrollArea, rows: number, reach: Reach): void {
+    const moved = this.deps.stopped()
+      ? this.wire.state
+      : scrollBy(this.wire.state, area, rows, reach)
+    if (moved === this.wire.state) {
+      // Nowhere left to go: a timer redrawing the same screen twelve times a
+      // second for the rest of the drag is a spinner nobody asked for.
+      this.stopDraggingRegion()
+      return
+    }
+    this.wire.put(moved)
+    if (area === 'pane' || area === 'terminal') {
+      // As the wheel does: the text goes with the bar rather than a look
+      // behind it, and what the held lines cannot reach is asked for.
+      if (!this.deps.reslice(area)) this.deps.soonTick()
+    }
+    this.wire.draw()
   }
 
   /** One step of that: the file scrolled, and the selection reaching the new edge. */

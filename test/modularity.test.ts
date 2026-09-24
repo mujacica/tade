@@ -264,6 +264,7 @@ const PURE = [
   'packages/app/src/plan-graph.ts',
   'packages/app/src/scroll.ts',
   'packages/app/src/scrollbar.ts',
+  'packages/app/src/selection.ts',
   'packages/app/src/skin.ts',
   'packages/app/src/spend.ts',
   'packages/app/src/ui.ts',

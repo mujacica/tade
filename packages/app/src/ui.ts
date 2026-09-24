@@ -6,6 +6,7 @@ import {
   visibleWidth,
 } from '@earendil-works/pi-tui'
 import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
+import type { Regions } from './selection.ts'
 import { type IconState, type Look, markLabel, type Skin, type SwitchState } from './skin.ts'
 
 // The controls, and the two things every region is made of: rows that know
@@ -46,6 +47,22 @@ export function keysWidth(names: readonly string[]): number {
 export interface Drawn {
   rows: string[]
   hits: Hit[]
+  /**
+   * The scrolling regions in it, and the lines each is a window onto — so a
+   * selection can be anchored in a region's own text rather than in the rows
+   * that happen to be on screen. Declared by whoever drew the region, for the
+   * same reason the hits are: where something ended up is the drawing's to say.
+   */
+  regions?: Regions
+}
+
+/** Regions moved down `rows` and across `cols`, as their drawing was. */
+export function shiftRegions(regions: Regions | undefined, rows: number): Regions {
+  const moved: Regions = {}
+  for (const [area, region] of Object.entries(regions ?? {})) {
+    if (region) moved[area as keyof Regions] = { ...region, row: region.row + rows }
+  }
+  return moved
 }
 
 export class Row {
@@ -429,7 +446,10 @@ export function overlay(
   const under = modal
     ? base.rows.map((_, i) => rowHit(i, width, { kind: 'dismiss' }))
     : uncovered(base.hits, { row: at.row, col: at.col, rows: top.rows.length, cols: topWidth })
-  return { rows, hits: [...under, ...shift(top.hits, at.row, at.col)] }
+  // The regions are the base's: what floats over it — a toast, a panel, a menu
+  // — is a box and never a region somebody scrolls, and a region under a panel
+  // is one nothing can reach, because the panel took its hits.
+  return { rows, regions: base.regions, hits: [...under, ...shift(top.hits, at.row, at.col)] }
 }
 
 /**

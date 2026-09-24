@@ -193,6 +193,22 @@ export function pressable(target: Target | null): boolean {
 }
 
 /**
+ * Whether something is both a control and text: a link or a file reference
+ * Tade found inside somebody else's words.
+ *
+ * Every other control is a thing the window drew, and a press on one is a
+ * press and nothing else. These two were not drawn — they are a reading of
+ * text that is there to be read — so a press on one has to be able to mean
+ * either, and which it was is only knowable when the button comes back up: a
+ * press that never moved is a click and opens it, and one that moved is a drag
+ * and selects. Without this, a line with a URL in it was a line you could not
+ * start selecting at, which is not what a terminal does.
+ */
+export function selectableText(target: Target | null): boolean {
+  return target?.kind === 'link' || target?.kind === 'place'
+}
+
+/**
  * The rows one thing covers: where it starts and how many rows it is — or,
  * `across`, where it starts along the window and how many columns it is, for
  * something lying down. Read back out of the map rather than remembered while

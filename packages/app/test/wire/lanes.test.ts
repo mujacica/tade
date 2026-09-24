@@ -9,9 +9,11 @@ import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.t
 describe('the window, and the lanes in it', () => {
   let terminal: FakeTerminal
   let client: Workbench
+  let opened: { command: string; args: readonly string[] }[]
   const { start, click, find } = windowUnderTest((wired) => {
     terminal = wired.terminal
     client = wired.client
+    opened = wired.opened
   })
 
   it('scrolls a terminal with the wheel, a line a notch in a run and never past the end', async () => {
@@ -244,6 +246,35 @@ describe('the window, and the lanes in it', () => {
       if (Date.now() > deadline) throw new Error('the command never ran')
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
+  }, 30_000)
+
+  // A URL a program printed is a link like any other on screen: it lights up
+  // under the pointer and a click opens it. Where it opens is the seam — the
+  // window hands the opener to whatever it was started with, and a test is
+  // handed one that records the command instead of running it, because a
+  // suite that opened a browser on somebody's machine is what that is for.
+  it('opens a link a terminal printed, through the opener it was given', async () => {
+    const terminalLane = await client.openTerminal({ project: 'app' })
+    await client.write(terminalLane.id, 'echo see https://example.com/found\r')
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    const tab = find('terminal 1')
+    click(tab.col + 1, tab.row)
+    await until('what it printed', () =>
+      screenOf(terminal.written).some(
+        (row) => row.includes('https://example.com/found') && !row.includes('echo'),
+      ),
+    )
+    const rows = screenOf(terminal.written)
+    const row = rows.findLastIndex(
+      (one) => one.includes('https://example.com/found') && !one.includes('echo'),
+    )
+    click((rows[row] ?? '').indexOf('https://'), row)
+    await until('the link opened', () =>
+      opened.some((one) => one.args.includes('https://example.com/found')),
+    )
+    // And through the seam, not past it: nothing was spawned on this machine.
+    expect(opened.every((one) => ['open', 'xdg-open', 'cmd'].includes(one.command))).toBe(true)
   }, 30_000)
 
   it('opens and names a terminal when told to in words', async () => {

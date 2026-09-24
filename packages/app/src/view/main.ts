@@ -12,10 +12,20 @@ import {
   splitShown,
 } from '../model.ts'
 import { BAR } from '../scrollbar.ts'
+import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { blank, box, type Drawn, fit, overlay, type Pointer, Row, stack } from '../ui.ts'
 import { actionRows } from './actions.ts'
-import { blockAt, carded, pointedIn, rowsRead, screenRows, scrolledBar, typingIn } from './lane.ts'
+import {
+  blockAt,
+  carded,
+  laneRegion,
+  pointedIn,
+  rowsRead,
+  screenRows,
+  scrolledBar,
+  typingIn,
+} from './lane.ts'
 import { renderPlan, renderQueued } from './queue.ts'
 import { barBeside, gutterBeside } from './rows.ts'
 import { renderSchedule } from './schedule.ts'
@@ -189,6 +199,10 @@ export function renderMain(
   // screen scrolled back: what is drawn then is not the screen the program
   // has, so there is no row of it to name.
   const pointed = !back && state.paneScroll === 0 && pointedIn(lane, typingIn(state) === 'pane')
+  // The lane's own lines behind the screen, filled in by whichever branch
+  // draws one: a selection over the agent's screen is anchored in those, so
+  // scrolling it carries the selection rather than abandoning it.
+  let regions: Regions = {}
   if (work) {
     // Laid out in the room there is, then windowed: a page longer than its
     // pane scrolls, with a bar beside it, rather than losing its end.
@@ -262,22 +276,15 @@ export function renderMain(
             skin,
             pointer,
             frame.linkers,
-          ),
+          ).rows,
           w,
           { kind: 'pane' },
           'pane',
         ),
       second: (w, h) =>
         underTargets(
-          laneLines(
-            frame.splitScreen ?? '',
-            kindOf(split.lane),
-            w,
-            h,
-            skin,
-            pointer,
-            frame.linkers,
-          ),
+          laneLines(frame.splitScreen ?? '', kindOf(split.lane), w, h, skin, pointer, frame.linkers)
+            .rows,
           w,
           { kind: 'pane', side: 'split' },
           null,
@@ -291,31 +298,46 @@ export function renderMain(
     )
   } else if (state.paneScroll > 0) {
     // Scrolled back: exactly the lines asked for, and a way back to the newest.
-    const lines = frame.screen.split('\n').slice(-inView)
+    const screen = frame.screen.split('\n')
+    const lines = screen.slice(-inView)
+    const at = rows.length + Math.max(0, inView - lines.length)
     for (let gap = inView - lines.length; gap > 0; gap--) rows.push(blank(body))
     for (const line of lines) rows.push(linkedRow(line, body, skin, pointer, frame.linkers))
     rows.push(scrolledBar(state.paneScroll, 'pane-end', body, skin, pointer))
+    regions = paneRegion(state, frame, {
+      screen: screen.length,
+      dropped: screen.length - lines.length,
+      shown: lines.length,
+      top: lines[0] ?? '',
+      row: at,
+    })
   } else {
     const kind = pane.lanes.find((one) => one.id === shown)?.kind
     const from = rows.length
-    rows.push(
-      ...laneLines(
-        frame.screen,
-        kind ?? 'shell',
-        body,
-        inView,
-        skin,
-        pointer,
-        // A lane that answers the pointer itself gets none of Tade's own
-        // reading of its text: a path that lights up under the pointer and
-        // then hands the click to the program is a worse lie than not
-        // offering it, and on such a lane the program's own meaning for that
-        // cell is the one that counts.
-        pointed ? null : frame.linkers,
-        // The block where what you type lands, on the lane the keyboard is on.
-        lane && typingIn(state) === 'pane' ? lane.cursor : null,
-      ),
+    const drawn = laneLines(
+      frame.screen,
+      kind ?? 'shell',
+      body,
+      inView,
+      skin,
+      pointer,
+      // A lane that answers the pointer itself gets none of Tade's own
+      // reading of its text: a path that lights up under the pointer and
+      // then hands the click to the program is a worse lie than not
+      // offering it, and on such a lane the program's own meaning for that
+      // cell is the one that counts.
+      pointed ? null : frame.linkers,
+      // The block where what you type lands, on the lane the keyboard is on.
+      lane && typingIn(state) === 'pane' ? lane.cursor : null,
     )
+    rows.push(...drawn.rows)
+    regions = paneRegion(state, frame, {
+      screen: frame.screen.split('\n').length,
+      dropped: drawn.dropped,
+      shown: drawn.seen.length,
+      top: drawn.seen[0] ?? '',
+      row: from + drawn.pad,
+    })
     if (pointed && lane && shown) {
       const screen = screenRows(lane.lines, inView)
       const target: Target = {
@@ -374,7 +396,7 @@ export function renderMain(
       ),
     )
   }
-  const drawn = stack(rows.slice(0, height))
+  const drawn = { ...stack(rows.slice(0, height)), regions }
   // The approval card belongs to the agent's screen: over the ACTIONS tab it
   // would cover what somebody opened the tab to read, and in a split it stays
   // inside the agent's own half rather than laying itself over the shell
@@ -387,9 +409,34 @@ export function renderMain(
         : split.direction === 'beside'
           ? { width: width >= 24 ? besideFirst(width, split.ratio) : width, height }
           : { width, height: rows.length - room + belowFirst(room, split.ratio) }
-    return withApproval(drawn, pane.approval, half, width, height, skin, pointer)
+    // The region goes through unchanged: the card's rows were taken off the
+    // screen before it was drawn (`rowsRead`), so none of them is a row the
+    // region says holds a line of the lane.
+    return { ...withApproval(drawn, pane.approval, half, width, height, skin, pointer), regions }
   }
   return drawn
+}
+
+/**
+ * The agent's screen as a region a selection can be anchored in, or nothing
+ * where it is not one: a split's halves, whose lines the window does not hold.
+ */
+function paneRegion(
+  state: AppState,
+  frame: Frame,
+  at: { screen: number; dropped: number; shown: number; top: string; row: number },
+): Regions {
+  const held = frame.held?.get('pane')
+  const region = laneRegion({
+    held,
+    ...at,
+    back: state.paneScroll,
+    // How deep the lane is now, as the look reads it: what the driver last
+    // said, or — before it has said anything — how deep it was when these
+    // lines were read.
+    at: frame.paneScreen?.lines ?? held?.at ?? 0,
+  })
+  return region ? { pane: region } : {}
 }
 
 /**
@@ -415,17 +462,29 @@ function laneLines(
    */
   linkers: Frame['linkers'] | null,
   cursor: LaneView['cursor'] | null = null,
-): { text: string; hits: Hit[] }[] {
+): {
+  rows: { text: string; hits: Hit[] }[]
+  /** Blank rows above the first line drawn, which an agent's screen is pushed down by. */
+  pad: number
+  /** The lines actually drawn, and how many were dropped off the front to fit. */
+  seen: readonly string[]
+  dropped: number
+} {
   const lines = screen.split('\n')
   const out: { text: string; hits: Hit[] }[] = []
   if (kind === 'agent') {
     while (lines.length > 0 && stripTerminalSequences(lines.at(-1) ?? '').trim() === '') lines.pop()
     for (let gap = rows - lines.length; gap > 0; gap--) out.push(blank(width))
   }
+  // Where the lines themselves landed, which is not the region: an agent's
+  // screen is pushed down by the blanks above it, and a shell's top lines are
+  // dropped off the front when there are more of them than there is room.
+  const pad = out.length
+  const seen = lines.slice(-rows)
   // Which row the last line captured ended on: what the cursor is counted
   // back from, and the one thing the two anchorings above disagree about.
   const last = kind === 'agent' ? rows - 1 : Math.min(lines.length, rows) - 1
-  for (const line of lines.slice(-rows)) {
+  for (const line of seen) {
     out.push(
       linkers === null
         ? { text: fit(line, width), hits: [] }
@@ -434,7 +493,7 @@ function laneLines(
   }
   while (out.length < rows) out.push(blank(width))
   if (cursor) blockAt(out, last - cursor.back, cursor.column, width, skin)
-  return out
+  return { rows: out, pad, seen, dropped: lines.length - seen.length }
 }
 
 /** Rows given what a click and the wheel anywhere on them mean, under what they already hold. */

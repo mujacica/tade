@@ -6,6 +6,7 @@ import type { Linker } from './links.ts'
 import type { ScheduleView } from './model.ts'
 import type { PanelContext } from './panels/context.ts'
 import type { AgentOffers, ThinkerOffers } from './panels/menu/state.ts'
+import type { HeldLines } from './scroll.ts'
 import type { Skin } from './skin.ts'
 import type { SpendView } from './spend.ts'
 
@@ -231,6 +232,13 @@ export interface Frame {
     /** How far back it can be read, and where typing lands in it. */
     view?: LaneView | null
   }
+  /**
+   * The lines the window is holding of the two lane screens, by which of them
+   * it is. The screen drawn is a cut of these, so this is how far back a
+   * selection in one reaches once it has been scrolled: as far as the window
+   * has read, and no further — nothing here invents a line nobody has seen.
+   */
+  held?: ReadonlyMap<'pane' | 'terminal', HeldLines>
   /** The files of the focused agent's worktree, or of the project when there is none. */
   files?: readonly FileEntry[]
   /** What git says about those files, by path: `M`, `A`, `D`, `R`, `U`, `!`. */

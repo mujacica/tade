@@ -1,11 +1,4 @@
-import {
-  type Component,
-  sliceByColumn,
-  stripTerminalSequences,
-  type TuiMouseEvent,
-  type TuiMouseEventResult,
-  visibleWidth,
-} from '@earendil-works/pi-tui'
+import type { Component, TuiMouseEvent, TuiMouseEventResult } from '@earendil-works/pi-tui'
 import type { PointerReport } from '@tade/drivers-core'
 import type { Frame } from './frame.ts'
 import {
@@ -15,10 +8,22 @@ import {
   pressable,
   type ScrollArea,
   scrollAt,
+  selectableText,
   type Target,
 } from './hits.ts'
 import type { AppState } from './model.ts'
 import { type Reach, reachOf, Wheel } from './scroll.ts'
+import {
+  cellsIn,
+  type End,
+  highlighted,
+  lineAt,
+  type Region,
+  type Regions,
+  selectedText,
+  spanText,
+  type Within,
+} from './selection.ts'
 import { draw } from './view.ts'
 
 // What the terminal reported, turned into what the window means by it — and
@@ -31,7 +36,9 @@ import { draw } from './view.ts'
 //
 // The rest is the selection: a drag over the window takes text rather than
 // controls, bounded to the columns of the region it was started in, because
-// the window is regions side by side and not one flow of text.
+// the window is regions side by side and not one flow of text. What it covers
+// lives in `selection.ts`; what is here is the gesture — where it was started,
+// where it has got to, and the edge it is being held off.
 
 /** What the pointer did, reduced to what the window cares about. */
 export type PointerEvent =
@@ -81,6 +88,17 @@ export type PointerEvent =
   | { kind: 'drag-file'; rows: number; cell: number }
   /** A drag that was selecting in the file has been let go: what it covers is copied. */
   | { kind: 'selected-file' }
+  /**
+   * A selection being dragged in a region that scrolls: how far past its top or
+   * its bottom edge the pointer is being held, negative above it, and `0` back
+   * inside it.
+   *
+   * Reaching the edge is the only way to select past what is on screen with a
+   * mouse, so the region scrolls under the selection until the pointer comes
+   * back inside or the drag is let go. `reach` is how far the region goes, read
+   * off the bar the last frame drew beside it, as every other scroll is.
+   */
+  | { kind: 'drag-region'; area: ScrollArea; rows: number; reach: Reach }
   /**
    * The wheel over somewhere that scrolls, and how far that somewhere goes —
    * down its side and along its bottom — read off the bars the last frame
@@ -203,8 +221,14 @@ export class Painted implements Component {
    * control selects here instead, and letting go copies it.
    */
   private selection: {
-    from: Cell
-    to: Cell
+    /**
+     * The region it was started in, where that region scrolls: its own lines
+     * are where the two ends really live, so scrolling does not abandon the
+     * selection and copying gives the pages of it that are off screen.
+     */
+    area: ScrollArea | null
+    from: End
+    to: End
     moved: boolean
     /**
      * The columns of the region it was started in, which it never reaches
@@ -213,8 +237,10 @@ export class Painted implements Component {
      * the sidebar with it: dragging over an agent came back with the queue
      * and the agents beside it.
      */
-    within: { from: number; to: number } | null
+    within: Within | null
   } | null = null
+  /** The regions the last frame drew, by area: where a selection is anchored. */
+  private regions: Regions = {}
   /**
    * A press inside a lane that answers the pointer itself: everything until
    * it is let go goes there too, wherever the pointer wanders. Kept with the
@@ -261,10 +287,44 @@ export class Painted implements Component {
     const drawn = draw(state, frame)
     this.hits = drawn.hits
     this.rows = drawn.rows
-    const chosen = this.selection?.moved ? ordered(this.selection) : null
-    return chosen
-      ? highlighted(drawn.rows, chosen, width, this.selection?.within ?? null)
-      : drawn.rows
+    this.regions = drawn.regions ?? {}
+    const selection = this.selection
+    if (!selection?.moved) return drawn.rows
+    // Projected onto the frame in front of you rather than kept as the cells
+    // it was made in: the region may have scrolled since, and an offset into
+    // rows that have gone is an offset into nothing.
+    const chosen = cellsIn(selection, this.regionOf(selection.area), selection.within)
+    return highlighted(drawn.rows, chosen, width, selection.within)
+  }
+
+  /** The region a selection is anchored in, where the last frame drew one. */
+  private regionOf(area: ScrollArea | null): Region | null {
+    return area ? (this.regions[area] ?? null) : null
+  }
+
+  /**
+   * How far a drag has gone past the top or the bottom of the region it was
+   * started in — negative above it — which is what the region is scrolled by
+   * while the pointer is held there. Nothing, where it is still inside it or
+   * where the region does not scroll.
+   */
+  private pastEdge(y: number): number {
+    const region = this.regionOf(this.selection?.area ?? null)
+    if (!region) return 0
+    const last = region.row + Math.max(0, region.rows - 1)
+    return y < region.row ? y - region.row : y > last ? y - last : 0
+  }
+
+  /** What a finished selection puts on the clipboard: its whole span, off-screen pages included. */
+  private copied(): string {
+    const selection = this.selection
+    if (!selection) return ''
+    const region = this.regionOf(selection.area)
+    // Out of the region's own lines where it was anchored in one, and out of
+    // the rows on screen where there was no region to anchor it in — the
+    // sidebar, a panel, a page that does not scroll.
+    if (region && selection.from.line !== null) return spanText(region, selection, selection.within)
+    return selectedText(this.rows, cellsIn(selection, null, selection.within), selection.within)
   }
 
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
@@ -337,7 +397,22 @@ export class Painted implements Component {
           }
         }
         if (event.type === 'drag' && this.selection) {
-          this.selection = { ...this.selection, to: { x: event.x, y: event.y }, moved: true }
+          // The far end follows the pointer while the drag is live: its line is
+          // whatever is under it now, which is what makes the wheel and the
+          // edge scroll *extend* a selection rather than leave it behind.
+          this.selection = {
+            ...this.selection,
+            to: { x: event.x, y: event.y, line: null },
+            moved: true,
+          }
+          const area = this.selection.area
+          if (!area) return { handled: true, render: true }
+          this.onPointer({
+            kind: 'drag-region',
+            area,
+            rows: this.pastEdge(event.y),
+            reach: reachOf(this.hits, area),
+          })
           return { handled: true, render: true }
         }
         return { handled: true, render: this.onPointer({ kind: 'move', target }) }
@@ -437,20 +512,32 @@ export class Painted implements Component {
         // An agent pressed may be about to be dragged somewhere else in the list.
         this.held = target?.kind === 'task' ? heldAgent(this.hits, target.task, event.y) : null
         // Anywhere that is not a control is text you might select — and only
-        // ever within the one region it was started in.
+        // ever within the one region it was started in. A link or a path is
+        // both: the press starts a selection here too, and the click that
+        // opens it only arrives if the pointer never moved.
         const area = scrollAt(this.hits, event.x, event.y)
         const across = area ? extentOf(this.hits, { kind: 'scroll', area }, true) : null
-        this.selection = pressable(target)
-          ? null
-          : {
-              from: { x: event.x, y: event.y },
-              to: { x: event.x, y: event.y },
-              moved: false,
-              within:
-                across && across.rows > 0
-                  ? { from: across.top, to: across.top + across.rows - 1 }
-                  : null,
-            }
+        const region = this.regionOf(area)
+        // Anchored in the region's own line rather than in the row it is on
+        // now, so scrolling carries the selection with it instead of losing it.
+        const at: End = {
+          x: event.x,
+          y: event.y,
+          line: region ? lineAt(region, event.y) : null,
+        }
+        this.selection =
+          pressable(target) && !selectableText(target)
+            ? null
+            : {
+                area,
+                from: at,
+                to: { ...at },
+                moved: false,
+                within:
+                  across && across.rows > 0
+                    ? { from: across.top, to: across.top + across.rows - 1 }
+                    : null,
+              }
         return {
           handled: target !== null || this.selection !== null,
           render: this.onPointer({ kind: 'press', target }) || true,
@@ -472,14 +559,26 @@ export class Painted implements Component {
         // double click select, and leave the clipboard alone.
         if (this.selectingFile?.dragged) this.onPointer({ kind: 'selected-file' })
         this.selectingFile = null
-        const chosen = this.selection?.moved ? ordered(this.selection) : null
-        if (chosen) {
-          const text = selectedText(this.rows, chosen, this.selection?.within ?? null)
+        const moved = this.selection?.moved === true
+        if (this.selection) {
+          // Where the far end stopped, fixed: until now it followed the
+          // pointer, and left following it the highlight would slide under the
+          // next scroll of a region nobody is dragging in any more.
+          const region = this.regionOf(this.selection.area)
+          if (region && this.selection.to.line === null) {
+            this.selection = {
+              ...this.selection,
+              to: { ...this.selection.to, line: lineAt(region, this.selection.to.y) },
+            }
+          }
+        }
+        if (moved) {
+          const text = this.copied()
           if (text.trim() !== '') this.onCopy(text)
         }
         // Kept lit until the next press, so you can see what was copied.
-        if (!chosen) this.selection = null
-        return { handled: true, render: this.onPointer({ kind: 'release' }) || chosen !== null }
+        if (!moved) this.selection = null
+        return { handled: true, render: this.onPointer({ kind: 'release' }) || moved }
       }
       case 'click':
         // A terminal makes one out of the press and the release it already
@@ -570,20 +669,6 @@ export class Painted implements Component {
   }
 }
 
-/** A cell on the screen. */
-interface Cell {
-  x: number
-  y: number
-}
-
-/** A selection from where it starts to where it ends, reading order, whichever way it was dragged. */
-export function ordered(selection: { from: Cell; to: Cell }): { from: Cell; to: Cell } {
-  const { from, to } = selection
-  return from.y < to.y || (from.y === to.y && from.x <= to.x)
-    ? { from, to }
-    : { from: to, to: from }
-}
-
 /**
  * What a drag means to the selection in the file you have open: which of its
  * lines the pointer is on, or how far past the top or the bottom of it the
@@ -618,65 +703,4 @@ export function draggedInFile(
   const cell = Math.max(0, Math.min(x - from, to - from))
   if (here !== null) return { line: here, cell }
   return { rows: y < top ? y - top : y - bottom, cell }
-}
-
-/**
- * The columns a selection may reach: the region it was started in, or the
- * whole row where it was started on nothing in particular.
- *
- * The window is regions side by side, not one flow of text. A selection that
- * took whole rows between its two ends took whatever else was drawn on them
- * with it — dragging over an agent's screen came back with the sidebar's
- * queue and its agents down the left of every line but the first and the
- * last. So a selection is bounded to where it began, in columns.
- */
-export interface Within {
-  from: number
-  to: number
-}
-
-/** The first and the last column of a row a selection takes, in reading order. */
-function columnsOn(
-  chosen: { from: Cell; to: Cell },
-  y: number,
-  width: number,
-  within: Within | null,
-): { start: number; end: number } {
-  const start = Math.max(within?.from ?? 0, y === chosen.from.y ? chosen.from.x : 0)
-  const end = Math.min(
-    within ? within.to + 1 : Number.POSITIVE_INFINITY,
-    y === chosen.to.y ? chosen.to.x + 1 : width,
-  )
-  return { start, end: Math.max(start, end) }
-}
-
-/** The text a selection covers, one line per row, without the spaces that pad a row out. */
-export function selectedText(
-  rows: readonly string[],
-  chosen: { from: Cell; to: Cell },
-  within: Within | null = null,
-): string {
-  const lines: string[] = []
-  for (let y = chosen.from.y; y <= chosen.to.y; y++) {
-    const plain = stripTerminalSequences(rows[y] ?? '')
-    const { start, end } = columnsOn(chosen, y, visibleWidth(plain), within)
-    lines.push(sliceByColumn(plain, start, Math.max(0, end - start)).trimEnd())
-  }
-  return lines.join('\n')
-}
-
-/** Rows with a selection shown the way a terminal shows one: reversed. */
-export function highlighted(
-  rows: readonly string[],
-  chosen: { from: Cell; to: Cell },
-  width: number,
-  within: Within | null = null,
-): string[] {
-  return rows.map((row, y) => {
-    if (y < chosen.from.y || y > chosen.to.y) return row
-    const { start, end } = columnsOn(chosen, y, width, within)
-    const plain = stripTerminalSequences(row)
-    const lit = sliceByColumn(plain, start, Math.max(0, end - start))
-    return `${sliceByColumn(row, 0, start)}\x1b[0m\x1b[7m${lit}\x1b[0m${sliceByColumn(row, end, Math.max(0, width - end))}`
-  })
 }

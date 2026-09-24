@@ -7,6 +7,8 @@ import {
 import type { LaneView } from '../frame.ts'
 import type { Hit } from '../hits.ts'
 import type { AgentPane, AppState } from '../model.ts'
+import { cutAt, type HeldLines } from '../scroll.ts'
+import type { Region } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { type Pointer, Row } from '../ui.ts'
 
@@ -162,4 +164,46 @@ export function pointedIn(view: LaneView | null | undefined, typing: boolean): b
 export function screenRows(lines: number, shown: number): { from: number; rows: number } {
   const rows = Math.max(0, Math.min(Math.trunc(lines), Math.trunc(shown)))
   return { from: Math.max(0, Math.trunc(lines) - rows), rows }
+}
+
+/**
+ * The region behind a lane's screen: the lines the window holds of it, and
+ * which of them the first drawn row is — so a selection dragged over the screen
+ * is anchored in the lane's own scrollback rather than in rows that are about
+ * to scroll away.
+ *
+ * Which lines the screen is, is `cutAt`, the very arithmetic it was cut with,
+ * rather than a second reading of the same sums. What each region does with
+ * them afterwards is its own: a pane anchors an agent's screen to its bottom
+ * and drops the blank lines under it, the panel along the bottom anchors a
+ * terminal's to its top and drops the ones above — so `dropped` and `shown` are
+ * the drawing's to say and never this.
+ *
+ * `top` is the first line actually drawn, and it is checked: where the screen on
+ * show was not cut from these lines — the driver answered a capture nothing
+ * held could reach — a selection anchored in them would copy the wrong words,
+ * and no region at all is the honest answer.
+ */
+export function laneRegion(opts: {
+  held: HeldLines | undefined
+  /** How many lines the screen was cut to. */
+  screen: number
+  /** How many of those were dropped off the front, and how many were drawn. */
+  dropped: number
+  shown: number
+  top: string
+  /** Where the drawn rows start in this drawing. */
+  row: number
+  /** How far back the region is scrolled, and how deep the lane is now. */
+  back: number
+  at: number
+}): Region | null {
+  const { held } = opts
+  if (!held || opts.shown <= 0) return null
+  const cut = cutAt(held, opts.screen, opts.back, opts.at)
+  if (cut === null) return null
+  const first = held.at - held.lines.length
+  const offset = first + cut + opts.dropped
+  if (held.lines[offset - first] !== opts.top) return null
+  return { lines: held.lines, first, offset, row: opts.row, rows: opts.shown }
 }

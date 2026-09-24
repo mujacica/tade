@@ -2,11 +2,14 @@ import { stripTerminalSequences } from '@earendil-works/pi-tui'
 import { duration, type PlanWindow, planLabel, resetsIn, tightestPlan } from '@tade/core'
 import type { Frame } from '../frame.ts'
 import { type Hit, pointingIn, rowHit, sameTarget, shift, type Target } from '../hits.ts'
+import { linkedRow } from '../links.ts'
 import { type AppState, activeTerminal, ORCHESTRATOR_TAB, terminalsOf } from '../model.ts'
+import type { HeldLines } from '../scroll.ts'
 import { BAR } from '../scrollbar.ts'
+import type { Regions } from '../selection.ts'
 import type { Skin } from '../skin.ts'
 import { type Drawn, fit, type Pointer, Row, stack } from '../ui.ts'
-import { blockAt, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
+import { blockAt, laneRegion, pointedIn, screenRows, scrolledBar, typingIn } from './lane.ts'
 import { gutterBeside } from './rows.ts'
 import { dollars, shortModel, tokens } from './text.ts'
 
@@ -124,6 +127,16 @@ export function terminalBody(opts: {
    * what you type goes here. Left out for a split's second half.
    */
   state?: AppState
+  /**
+   * What to read the terminal's text for, or `null` to read it for nothing at
+   * all — which is what a lane that answers the pointer itself gets, exactly as
+   * an agent's pane hands its cells over: a path that lights up under the
+   * pointer and then hands the click to the program is a worse lie than not
+   * offering it.
+   */
+  linkers?: Frame['linkers'] | null
+  /** The lines the window holds of this lane, which is what a selection reaches into. */
+  held?: HeldLines
 }): Drawn {
   const { terminal, room, skin, side } = opts
   const scroll = opts.scroll ?? 0
@@ -137,6 +150,22 @@ export function terminalBody(opts: {
   const width = view ? opts.width - BAR : opts.width
   const rows: string[] = []
   const hits: Hit[] = []
+  // The lane's own lines behind what is drawn, filled in below by whichever
+  // branch draws them: a selection over a terminal is anchored in those, so
+  // scrolling carries it rather than losing it.
+  let regions: Regions = {}
+  // A line of the terminal's own output, with the links and the file
+  // references in it made clickable — unless the lane answers the pointer
+  // itself, and then Tade's reading of its text steps aside.
+  const linked = (line: string) => {
+    if (opts.linkers === null) {
+      rows.push(fit(line, width))
+      return
+    }
+    const row = linkedRow(line, width, skin, pointer, opts.linkers ?? [])
+    hits.push(...shift(row.hits, rows.length))
+    rows.push(row.text)
+  }
   if (find) {
     const at = find.line ?? find.lines.length - 1
     const start = Math.max(0, Math.min(at - Math.floor(room / 2), find.lines.length - room))
@@ -155,15 +184,21 @@ export function terminalBody(opts: {
       rows.push(here ? skin.selected(text) : text)
     })
   } else if (scroll > 0) {
-    const lines = (terminal?.screen ?? '').split('\n').slice(-(room - 1))
-    for (const line of lines) rows.push(fit(line, width))
+    const screen = (terminal?.screen ?? '').split('\n')
+    // Counted forward, not as `slice(-(room - 1))`: a panel with one row in it
+    // would ask for the last none of them and be given all of them.
+    const lines = screen.slice(Math.max(0, screen.length - Math.max(0, room - 1)))
+    for (const line of lines) linked(line)
+    regions = anchored(opts, screen, lines, screen.length - lines.length)
     while (rows.length < room - 1) rows.push(' '.repeat(width))
     const bar = scrolledBar(scroll, 'terminal-end', width, skin, pointer)
     hits.push(...shift(bar.hits, rows.length))
     rows.push(bar.text)
   } else {
     const lines = (terminal?.screen ?? '').split('\n')
-    for (const line of lines.slice(-room)) rows.push(fit(line, width))
+    const seen = lines.slice(-room)
+    for (const line of seen) linked(line)
+    regions = anchored(opts, lines, seen, lines.length - seen.length)
     // A shell with a program in it that answers the pointer itself: the cells
     // it drew are its own, exactly as an agent's pane hands its over. Read
     // from the same `typingIn` the cursor block below reads, so the two can
@@ -205,7 +240,7 @@ export function terminalBody(opts: {
     hits.push(rowHit(i, opts.width, side ? { kind: 'terminal', side } : { kind: 'terminal' }))
   }
   hits.push(...own)
-  if (!view || !opts.state) return { rows, hits }
+  if (!view || !opts.state) return { rows, hits, regions }
   // The bar last, over the click map: dragging it is not clicking into the
   // terminal, and a press that did both would scroll and steal the keyboard.
   const seen = rows.length
@@ -229,7 +264,36 @@ export function terminalBody(opts: {
     opts.state,
     skin,
   )
-  return stack(drawn)
+  return { ...stack(drawn), regions }
+}
+
+/**
+ * The terminal's screen as a region a selection can be anchored in, or nothing
+ * where it is not one: a split's half, which the window neither scrolls nor
+ * holds lines for, and a lane whose capture did not come out of what is held.
+ */
+function anchored(
+  opts: Parameters<typeof terminalBody>[0],
+  screen: readonly string[],
+  drawn: readonly string[],
+  dropped: number,
+): Regions {
+  if (!opts.state || opts.side) return {}
+  const region = laneRegion({
+    held: opts.terminal ? opts.held : undefined,
+    screen: screen.length,
+    dropped,
+    shown: drawn.length,
+    top: drawn[0] ?? '',
+    // A terminal's screen is drawn from the top of its region down.
+    row: 0,
+    back: opts.scroll ?? 0,
+    // How deep the lane is now, as the look reads it: what the driver last
+    // said, or — before it has said anything — how deep it was when these
+    // lines were read.
+    at: opts.terminal?.view?.lines ?? opts.held?.at ?? 0,
+  })
+  return region ? { terminal: region } : {}
 }
 
 export function renderFoot(

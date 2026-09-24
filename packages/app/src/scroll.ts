@@ -226,6 +226,19 @@ export function settledAbove(back: number, live: number): boolean {
  * lines read once are lines read for good.
  */
 export function cutFrom(held: HeldLines, rows: number, back: number, at: number): string | null {
+  const first = cutAt(held, rows, back, at)
+  return first === null ? null : held.lines.slice(first, first + rows).join('\n')
+}
+
+/**
+ * Which of the lines held that cut starts at, or nothing where they do not
+ * reach that far.
+ *
+ * The same arithmetic, said once: the drawing needs it too, because a selection
+ * anchored in a lane's scrollback has to know which line of it the top of the
+ * screen is — and two readings of that drift the first time either moves.
+ */
+export function cutAt(held: HeldLines, rows: number, back: number, at: number): number | null {
   // Which line of the lane the oldest one held is.
   const oldest = held.at - held.lines.length
   let first = at - back - rows - oldest
@@ -239,5 +252,5 @@ export function cutFrom(held: HeldLines, rows: number, back: number, at: number)
   // Below the newest held: the agent has printed since, and what it printed
   // is not in here.
   if (first + rows > held.lines.length) return null
-  return held.lines.slice(first, first + rows).join('\n')
+  return first
 }

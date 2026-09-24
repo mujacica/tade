@@ -281,7 +281,16 @@ regions in a cycle now.
   empty paste — what some terminals send for a picture — is taken as ctrl+v. Tests pass a stub
   `clipboard`: a developer's clipboard is not a test's to read.
 - **The mouse selects.** Dragging over anything that is not a control selects text and copies it on
-  release (`Window.selection`); the terminal cannot, because the window reports the mouse.
+  release (`Painted.selection`); the terminal cannot, because the window reports the mouse.
+- **A region that scrolls says so, and gets selection across pages for free.** Return a `Region` in
+  your drawing's `Drawn.regions` — the region's own lines, which of them landed on its first row,
+  and where those rows are — and `view.ts` moves it with your rows the way it moves your hits. The
+  selection is then anchored in your lines rather than in the rows on screen, so scrolling carries
+  it, the wheel and a drag held off your edge extend it, and copying gives the pages of it that
+  are off screen (`selection.ts`; the conversation does it in `view/strip.ts`, the two lane screens
+  through `laneRegion`). A region that does not declare one still selects, only within a screen.
+  Never work the numbers out a second time somewhere else: that is exactly the drift the hits
+  avoid, and a region that says the wrong line copies the wrong words.
 - **Agent panes and terminals scroll back** through their lane's scrollback: the wheel sets
   `paneScroll`/`terminalScroll`, the tick captures that much further back, and typing returns to
   the newest line.

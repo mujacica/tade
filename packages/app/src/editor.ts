@@ -218,7 +218,14 @@ export interface Found {
     | { kind: 'place'; path: string; line?: number; column?: number }
 }
 
-const URL_PATTERN = /\bhttps?:\/\/[^\s<>"'`)\]]+[^\s<>"'`)\].,;:!?]/g
+/**
+ * A web address in somebody else's text. `www.` counts and is opened over
+ * https, because a terminal full of `www.example.com` is a terminal full of
+ * links and the path pattern below would otherwise claim them as files; a bare
+ * `example.com` does not, because nothing tells it from `report.md` and a path
+ * is the better guess when Tade is looking at a project.
+ */
+const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s<>"'`)\]]+[^\s<>"'`)\].,;:!?]/g
 /** `src/a.ts:12`, `./b.js:3:7`, `pkg/c.tsx` — a path with a slash or an extension, maybe a line. */
 const PATH_PATTERN =
   /(?:^|[\s(["'`])((?:\.{0,2}\/)?[\w.@-]+(?:\/[\w.@-]+)*\.[A-Za-z][\w]{0,6})(?::(\d+))?(?::(\d+))?/g
@@ -256,7 +263,10 @@ export function findOpenable(
   for (const match of text.matchAll(URL_PATTERN)) {
     const from = match.index ?? 0
     if (taken(from)) continue
-    found.push({ from, to: from + match[0].length - 1, target: { kind: 'url', url: match[0] } })
+    // The address as it will be opened, not as it was written: a `www.` with
+    // no scheme is not something the system knows how to open.
+    const url = match[0].startsWith('www.') ? `https://${match[0]}` : match[0]
+    found.push({ from, to: from + match[0].length - 1, target: { kind: 'url', url } })
   }
   for (const match of text.matchAll(PATH_PATTERN)) {
     const path = match[1]

@@ -125,6 +125,27 @@ describe('what on screen can be opened', () => {
     )
   })
 
+  // Two ways of writing a web address, and the line between them. `www.` is
+  // unambiguous enough to be worth taking, and taking it is also what stops
+  // the path pattern claiming `www.example.com` as a file nobody has. A bare
+  // `example.com` is not: nothing tells it from `report.md`, and where Tade is
+  // looking at a project a file is the better guess.
+  it('takes a bare www. as a link, and opens it over https', () => {
+    const [found] = findOpenable('see www.example.com/pricing for it')
+    expect(found?.target).toEqual({ kind: 'url', url: 'https://www.example.com/pricing' })
+    // The columns are the ones it was written in, not the ones it will open as.
+    expect('see www.example.com/pricing'.slice(found?.from, (found?.to ?? 0) + 1)).toBe(
+      'www.example.com/pricing',
+    )
+  })
+
+  it('leaves a bare domain to be read as a file, which is what it looks like', () => {
+    expect(findOpenable('open example.com now')[0]?.target).toEqual({
+      kind: 'place',
+      path: 'example.com',
+    })
+  })
+
   it('does not mistake a version or a sentence for a file', () => {
     expect(findOpenable('upgraded to 15.0.1 and it works.')).toEqual([])
   })

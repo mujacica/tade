@@ -4,8 +4,9 @@ import { type Hit, rowHit, sameTarget, shift, type Target } from './hits.ts'
 import { resolveLayout } from './layout.ts'
 import { type AppState, conversing } from './model.ts'
 import { drawPanel } from './panels/context.ts'
+import type { Regions } from './selection.ts'
 import { PLAIN } from './skin.ts'
-import { type Drawn, fit, overlay, type Pointer } from './ui.ts'
+import { type Drawn, fit, overlay, type Pointer, shiftRegions } from './ui.ts'
 import { renderFoot } from './view/foot.ts'
 import { renderMain } from './view/main.ts'
 import { renderSidebar } from './view/sidebar.ts'
@@ -49,7 +50,11 @@ export function draw(state: AppState, frame: Frame): Drawn {
 
   const rows: string[] = []
   const hits: Hit[] = []
+  // Where each scrolling region ended up, moved with its rows exactly as its
+  // hits are: a selection anchored in one is projected back through this.
+  let regions: Regions = {}
   const add = (drawn: Drawn) => {
+    regions = { ...regions, ...shiftRegions(drawn.regions, rows.length) }
     hits.push(...shift(drawn.hits, rows.length))
     rows.push(...drawn.rows)
   }
@@ -64,6 +69,8 @@ export function draw(state: AppState, frame: Frame): Drawn {
   const edgeLit = state.resizing === 'sidebar' || sameTarget(state.hover, sidebarEdge)
   const body: Drawn = {
     rows: [],
+    // The two are laid side by side in the same rows, so neither moves down.
+    regions: { ...left.regions, ...right.regions },
     hits: [
       ...left.hits,
       ...shift(right.hits, 0, sidebarWidth + 1),
@@ -85,7 +92,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
   add(renderStrip(state, frame, width, stripHeight, skin, pointer))
   add(renderFoot(state, frame, width, skin, pointer))
 
-  let window: Drawn = { rows, hits }
+  let window: Drawn = { rows, hits, regions }
   const toast = toastFor(state, frame, width, skin, pointer)
   if (toast) {
     const toastWidth = Math.max(0, ...toast.rows.map((row) => visibleWidth(row)))
@@ -195,6 +202,7 @@ export function draw(state: AppState, frame: Frame): Drawn {
     // whole would take that many of the menu's rows away with them.
     drawn = {
       rows: drawn.rows,
+      regions: drawn.regions,
       hits: [
         ...drawn.rows.map((_, i) => rowHit(i, width, { kind: 'dismiss' })),
         ...shift(panel.hits, at.row, at.col),

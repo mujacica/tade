@@ -543,6 +543,34 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   queue and its agents down the left of every line but the first and the last. Which columns those
   are is read off the map (`scrollAt`, then `extentOf` across), like everything else about where
   something ended up.
+- **And it is anchored in the region's lines, never in the rows it was made on.** A region scrolls,
+  so an offset into the rows on screen means nothing the moment those rows go — which is what
+  "selecting over more than a page does not work" was: press, scroll, and the selection was made of
+  cells that no longer pointed at anything. So the drawing declares what it drew (`Drawn.regions`,
+  a `Region` in `selection.ts`: the region's own lines, which of them landed on its first row, and
+  which rows those are), for the same reason it declares the hits — where something ended up is the
+  drawing's to say, and a second reading of how a region slid would drift. The ends are lines of
+  that region and are projected back onto whatever is drawn now (`cellsIn`), an end that has
+  scrolled out of view taken at the edge it went past; and what is copied comes out of the lines
+  rather than off the screen (`spanText`), so it is the whole span and not the part still visible.
+  Three regions have one — the conversation, the agent's screen and the terminal — and the
+  conversation's lines are its own while a lane's are the scrollback the window is holding
+  (`Frame.held`), which is honest about the limit: **as far back as Tade has read, and no further.**
+  Everywhere else — the side, a panel, the ACTIONS page — a selection is still the rows it was made
+  on, because none of those is a thing people drag over pages of. The far end of a *live* drag is
+  deliberately not anchored: it follows the pointer, so the content moving under a hand that is
+  holding still is what **extends** the selection, which is what makes the wheel during a drag and
+  the scroll at an edge (`drag-region`, on a timer like the file's) do what a terminal does. It is
+  fixed where the drag is let go, so nothing slides afterwards.
+- **A link is a control and text, and which it was is only knowable on the way up.** Everything else
+  a click presses is something the window drew; a link or a file reference is a *reading* of
+  somebody else's words (`selectableText`), so a press on one starts a selection like a press on the
+  words around it and only a press that never moved opens it — a line with a URL in it was otherwise
+  a line no selection could be started at. `www.` counts as a link and is opened over https, which
+  is also what stops the path pattern claiming it as a file nobody has; a bare `example.com` does
+  not, because nothing tells it from `report.md`. Where it opens is the one seam that reaches the
+  machine (`AppOptions.open`), so a test is handed an opener that records the command instead of
+  running it.
 - **A sandbox that cannot be applied fails the run**, never silently runs the worker unconfined:
   a config that says `seatbelt` and a machine that ignores it is worse than not offering it. It
   contains writes only (the worktree, temp, build caches) — reads are a policy concern, not this.
