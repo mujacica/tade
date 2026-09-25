@@ -17,16 +17,16 @@
  ▾ FILES                     ▕│  ▸ Edit src/webhooks.ts  +12 −4                                                         
    ▾ src/                    ▕│  ▸ bash npm i stripe@15                                                                 
        webhooks.test.ts      ▕│  ╭─ wants approval ─────────────────────────────────────────────╮                       
-      ╭─ webhooks.ts ──────────────╮ash  npm i stripe@15                                        │                       
-   ▸ t│▌ Open                click │ Allow once     Deny                                        │                       
-     p│  Open in editor            │────────────────────────────────────────────────────────────╯                       
-     R│  Show changes              │                                                                                    
-━   or│  Ask the agent about it    │━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
-      │────────────────────────────│                                                                                    
-      │  Copy path                 │                                                                                   ▕
-      │  Copy relative path        │                                                                                   ▕
-      │  Reveal in Finder          │                                                                                   ▕
-      ╰────────────────────────────╯                                                                                   ▕
+      ╭─ webhooks.ts ───────────────╮sh  npm i stripe@15                                        │                       
+   ▸ t│▌ Open                click ▕│Allow once     Deny                                        │                       
+     p│  Open in editor            ▕│───────────────────────────────────────────────────────────╯                       
+     R│  Show changes              ▕│                                                                                   
+━   or│  Ask the agent about it    ▕│━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
+      │────────────────────────────▕│                                                                                   
+      │  Copy path                 ▕│                                                                                  ▕
+      │  Copy relative path        ▕│                                                                                  ▕
+      │  Reveal in Finder          ▕│                                                                                  ▕
+      ╰─────────────────────────────╯                                                                                  ▕
  ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

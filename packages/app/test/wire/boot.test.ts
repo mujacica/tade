@@ -73,7 +73,9 @@ describe('the window, booted', () => {
     const status = find('today')
     terminal.written = ''
     click(status.col + 1, status.row)
-    await until('the spend panel', () => terminal.written.includes('BUDGETS'))
+    // Its own title and its column heads: the sections under them scroll, like
+    // every other panel's body, so which of them is in view is the window's size.
+    await until('the spend panel', () => terminal.written.includes('RUNTIME'))
   })
 
   it('shows agent spend in the status bar', async () => {

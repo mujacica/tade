@@ -12,11 +12,18 @@ export interface SearchPanel {
   query: string
   /** Which result the keyboard is on. */
   index: number
+  /** Lines of the list scrolled past: the panel's place in the one scroll area. */
+  scroll: number
+  /**
+   * Whether the list follows the result the keyboard is on. It does while you
+   * walk it, and stops the moment you scroll it yourself.
+   */
+  following: boolean
   busy: false
 }
 
 export function searchPanel(query = ''): SearchPanel {
-  return { kind: 'search', query, index: 0, busy: false }
+  return { kind: 'search', query, index: 0, scroll: 0, following: true, busy: false }
 }
 
 export function searchClick(
@@ -35,7 +42,7 @@ export function searchClick(
       ? panel.query.slice(1)
       : panel.query
     const prefix = SCOPES.find((one) => one.prefix === control.slice('scope:'.length))?.prefix ?? ''
-    return stay({ ...panel, query: `${prefix}${bare}`, index: 0 })
+    return stay({ ...panel, query: `${prefix}${bare}`, index: 0, following: true })
   }
   return stay(panel)
 }
@@ -50,20 +57,27 @@ export function searchKey(
   if (key === 'down' || key === 'up') {
     const count = Math.max(1, entries.length)
     const index = (panel.index + (key === 'down' ? 1 : -1) + count) % count
-    return stay({ ...panel, index })
+    return stay({ ...panel, index, following: true })
   }
   // Tab completes, as it does in a shell: the chosen result's name into the box.
   if (key === 'tab') {
     const query = completed(panel.query, entries[panel.index])
-    return stay({ ...panel, query, index: 0 })
+    return stay({ ...panel, query, index: 0, following: true })
   }
   if (key === 'enter') {
     const entry = entries[panel.index]
     return entry ? { panel, submit: true, choice: entry.id } : stay(panel)
   }
   if (key === 'backspace')
-    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0 })
-  if (key === 'ctrl+u') return stay({ ...panel, query: '', index: 0 })
+    return stay({
+      ...panel,
+      query: [...panel.query].slice(0, -1).join(''),
+      index: 0,
+      following: true,
+    })
+  if (key === 'ctrl+u') return stay({ ...panel, query: '', index: 0, following: true })
   const text = typed(data, key)
-  return text ? stay({ ...panel, query: panel.query + text, index: 0 }) : stay(panel)
+  return text
+    ? stay({ ...panel, query: panel.query + text, index: 0, following: true })
+    : stay(panel)
 }

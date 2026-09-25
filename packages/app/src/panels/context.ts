@@ -210,7 +210,7 @@ export function drawPanel(panel: Panel, ctx: PanelContext): PanelDrawing {
     case 'find':
       return { panel: find(panel, ctx), popups: [] }
     case 'keys':
-      return { panel: keysSheet(ctx), popups: [] }
+      return { panel: keysSheet(panel, ctx), popups: [] }
     case 'quit':
       return { panel: quit(panel, ctx), popups: [] }
     case 'reload':

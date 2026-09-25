@@ -10,6 +10,13 @@ export interface ModelPanel {
   for: string
   query: string
   index: number
+  /** Lines of the list scrolled past: the panel's place in the one scroll area. */
+  scroll: number
+  /**
+   * Whether the list follows the model the keyboard is on. It does while you
+   * walk it, and stops the moment you scroll it yourself.
+   */
+  following: boolean
   busy: boolean
   error: string | null
 }
@@ -54,8 +61,20 @@ export function priceSaid(model: ModelChoice): string | null {
   return `${input} in · ${output} out · ${cached} cached`
 }
 
+/** Models a page key moves by, which is a screenful of an ordinary terminal. */
+const PAGE = 10
+
 export function modelPanel(target: string): ModelPanel {
-  return { kind: 'model', for: target, query: '', index: 0, busy: false, error: null }
+  return {
+    kind: 'model',
+    for: target,
+    query: '',
+    index: 0,
+    scroll: 0,
+    following: true,
+    busy: false,
+    error: null,
+  }
 }
 
 /** The models that fit what is typed: every word somewhere in the id or the name. */
@@ -74,23 +93,26 @@ export function modelKey(
   models: readonly ModelChoice[],
 ): PanelOutcome {
   const choices = modelChoices(models, panel.query)
+  const last = Math.max(0, choices.length - 1)
+  const at = (index: number) => stay({ ...panel, index, following: true })
   if (key === 'escape') return close
-  if (key === 'up') return stay({ ...panel, index: Math.max(0, panel.index - 1) })
-  if (key === 'down')
-    return stay({ ...panel, index: Math.min(Math.max(0, choices.length - 1), panel.index + 1) })
-  if (key === 'pageUp') return stay({ ...panel, index: Math.max(0, panel.index - 10) })
-  if (key === 'pageDown')
-    return stay({ ...panel, index: Math.min(Math.max(0, choices.length - 1), panel.index + 10) })
+  if (key === 'up') return at(Math.max(0, panel.index - 1))
+  if (key === 'down') return at(Math.min(last, panel.index + 1))
+  if (key === 'pageUp') return at(Math.max(0, panel.index - PAGE))
+  if (key === 'pageDown') return at(Math.min(last, panel.index + PAGE))
   if (key === 'enter') {
     const chosen = choices[panel.index]
     return chosen
       ? { panel: { ...panel, busy: true, error: null }, submit: true, choice: chosen.id }
       : stay(panel)
   }
-  if (key === 'backspace') return stay({ ...panel, query: panel.query.slice(0, -1), index: 0 })
-  if (key === 'space') return stay({ ...panel, query: `${panel.query} `, index: 0 })
+  if (key === 'backspace')
+    return stay({ ...panel, query: panel.query.slice(0, -1), index: 0, following: true })
+  if (key === 'space')
+    return stay({ ...panel, query: `${panel.query} `, index: 0, following: true })
   const text = typed(data, key)
-  if (text) return stay({ ...panel, query: panel.query + text, index: 0, error: null })
+  if (text)
+    return stay({ ...panel, query: panel.query + text, index: 0, following: true, error: null })
   return stay(panel)
 }
 

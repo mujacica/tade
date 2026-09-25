@@ -4,9 +4,8 @@ import {
   stripTerminalSequences,
   visibleWidth,
 } from '@earendil-works/pi-tui'
-import type { Hit, Target } from '../../hits.ts'
+import type { Hit } from '../../hits.ts'
 import { onLine, type Place, placeOf } from '../../input.ts'
-import { BAR, barRows } from '../../scrollbar.ts'
 import type { Skin } from '../../skin.ts'
 import { blank, box, type Drawn, fit as fitRow, Row } from '../../ui.ts'
 import {
@@ -21,19 +20,26 @@ import {
 } from '../../viewer.ts'
 import { tildeOf } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, bar, panelSize } from '../frame.ts'
 import { type FileAsk, type FilePanel, fileMatches, fileSelection } from './state.ts'
 
 // What the file viewer looks like: the lines, the selection laid over them,
 // the bar along the bottom and what it is asking. What a key does to it is
 // beside this in `state.ts`.
 
-/** How big the file viewer is in a window this size, and how wide its text is. */
+/**
+ * How big the file viewer is in a window this size, and how wide its text is.
+ *
+ * `panelSize`, like every other panel: the room there is, less the margin and
+ * the strip at the foot. It used to take all but two rows of the window and so
+ * covered that strip, which is the one thing a panel may not do.
+ */
 export function fileViewSize(
   width: number,
   height: number,
 ): { width: number; height: number; text: number } {
-  const w = Math.max(40, Math.min(160, width - 4))
-  return { width: w, height: Math.max(10, height - 2), text: w - 2 - 9 }
+  const size = panelSize({ width, height }, { max: 160, least: 8 })
+  return { width: size.width, height: size.height, text: size.width - 2 - 9 }
 }
 
 /**
@@ -181,21 +187,21 @@ export function fileView(panel: FilePanel, ctx: PanelContext): Drawn {
         hits,
       })
     }
-    const bar = barRows(
+    // The same bar every other panel draws, from the same three numbers: how
+    // much there is, how much is in view, and where in it you are.
+    const cells = bar(
       { total: lines.length, shown: body, offset: scroll, rows: body },
-      skin,
-      ctx.scrolling === 'panel' || ctx.pointer.hover?.kind === 'scrollbar',
+      'panel',
+      ctx,
     )
-    const target: Target = {
-      kind: 'scrollbar',
-      area: 'panel',
-      total: lines.length,
-      shown: body,
-    }
     read.forEach((row, i) => {
+      const cell = cells[i]
       rows.push({
-        text: `${row.text}${bar[i] ?? ' '}`,
-        hits: [...row.hits, { row: 0, from: text, to: text, target }],
+        text: `${row.text}${cell?.cell ?? ' '}`,
+        hits: [
+          ...row.hits,
+          ...(cell ? [{ row: 0, from: text, to: text, target: cell.target }] : []),
+        ],
       })
     })
   }

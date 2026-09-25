@@ -1,17 +1,17 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
-                     ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮─────────────────────
- ▌ ! stripe-v15   880│   ‹    ›    ↑    ~ / src                          ▏filter, or a path       │                     
- ▌   wants you to app│                                                                            │                     
-                     │ RECENT                                                                    ▕│                     
-   ⠋ refunds         │ ● checkout     ~/src/checkout              2h ago                         ▕│                     
-     working         │ ● tade         ~/tade                      4 days ago                     ▕│                     
-                     │ FOLDERS                                                                   ▕│                     
- ▸ SMART QUEUE       │ ◆ this folder                              no git                         ▕│                     
- ▾ CHANGES  3        │▌▸ payments/                                git · main                   › ▕│                     
-  M package.json     │ ▸ payroll/                                 no git                       › ▕│                     
-  A …/webhooks.test.t│ ▸ search/                                  git · main                   › ▕│                     
+ ▾ AGENTS  2         ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮▾     high ▾     ×   
+                     │   ‹    ›    ↑    ~ / src                         ▏filter, or a path        │─────────────────────
+ ▌ ! stripe-v15   880│                                                                            │                     
+ ▌   wants you to app│ RECENT                                                                    ▕│                     
+                     │ ● checkout     ~/src/checkout              2h ago                         ▕│                     
+   ⠋ refunds         │ ● tade         ~/tade                      4 days ago                     ▕│                     
+     working         │ FOLDERS                                                                   ▕│                     
+                     │ ◆ this folder                              no git                         ▕│                     
+ ▸ SMART QUEUE       │▌▸ payments/                                git · main                   › ▕│                     
+ ▾ CHANGES  3        │ ▸ payroll/                                 no git                       › ▕│                     
+  M package.json     │ ▸ search/                                  git · main                   › ▕│                     
+  A …/webhooks.test.t│                                                                           ▕│                     
   M src/webhooks.ts  │                                                                           ▕│                     
                      │                                                                           ▕│                     
  ▾ FILES             │                                                                           ▕│                     
@@ -20,14 +20,14 @@
        webhooks.ts   │                                                                           ▕│                     
    ▸ test/           │                                                                           ▕│                     
      package.json    │                                                                           ▕│                     
-     README.md       │                                                                            │                     
-━   orchestrator     │                                                                            │━━━━━━━   ⤢     ▾   ━
+     README.md       │                                                                           ▕│                     
+━   orchestrator     │                                                                           ▕│━━━━━━━   ⤢     ▾   ━
                      │                                                                            │                     
-                     │ Name   payments                           Cancel     Open ~/src/payments   │                    ▕
+                     │                                                                            │                    ▕
+                     │                                                                            │                    ▕
+                     │ Name   payments                          Cancel     Open ~/src/payments    │                    ▕
                      │ → in · ← up · tab completes · enter opens                                  │                    ▕
-                     ╰────────────────────────────────────────────────────────────────────────────╯                    ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+ ❯ what you say   ◆ t╰────────────────────────────────────────────────────────────────────────────╯                    ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

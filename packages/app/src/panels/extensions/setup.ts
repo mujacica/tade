@@ -1,3 +1,4 @@
+import { pageBy } from '../frame.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The two panels that open out of the Extensions page: setting an extension
@@ -24,6 +25,10 @@ export interface ExtensionSetupPanel {
   extension: string
   /** Which control the keyboard is on, of `setupControls`. */
   index: number
+  /** Lines of the page scrolled past: the panel's place in the one scroll area. */
+  scroll: number
+  /** Whether the page follows the control the keyboard is on, until you scroll it. */
+  following: boolean
   /** What is typed into each field, by key. */
   values: Record<string, string>
   busy: boolean
@@ -57,6 +62,8 @@ export function extensionSetupPanel(
     kind: 'extension-setup',
     extension,
     index: 0,
+    scroll: 0,
+    following: true,
     values: Object.fromEntries(fields.map((field) => [field.key, field.value])),
     busy: false,
     error: null,
@@ -87,9 +94,20 @@ export function setupKey(
   if (key === 'escape') return close
   if (panel.busy) return stay(panel)
   if (key === 'tab' || key === 'down')
-    return stay({ ...panel, index: (panel.index + 1) % controls.length })
+    return stay({ ...panel, index: (panel.index + 1) % controls.length, following: true })
   if (key === 'shift+tab' || key === 'up') {
-    return stay({ ...panel, index: (panel.index - 1 + controls.length) % controls.length })
+    return stay({
+      ...panel,
+      index: (panel.index - 1 + controls.length) % controls.length,
+      following: true,
+    })
+  }
+  // A page key reads on rather than walking, which is the wheel's own move
+  // said with a key. Not space: in a field it types one.
+  if (key === 'pageUp' || key === 'pageDown') {
+    const by = pageBy(key)
+    if (by !== null)
+      return stay({ ...panel, scroll: Math.max(0, panel.scroll + by), following: false })
   }
   if (key === 'enter' || (key === 'space' && !at.startsWith('field:')))
     return setupPress(panel, at, fields)
@@ -154,11 +172,10 @@ export function extensionViewKey(
 ): PanelOutcome {
   const most = Math.max(0, lines - 1)
   if (key === 'escape' || key === 'enter') return close
-  const by =
-    key === 'up' ? -1 : key === 'down' ? 1 : key === 'pageUp' ? -10 : key === 'pageDown' ? 10 : 0
   if (key === 'home') return stay({ ...panel, scroll: 0 })
   if (key === 'end') return stay({ ...panel, scroll: most })
-  return by === 0
+  const by = pageBy(key)
+  return by === null
     ? stay(panel)
     : stay({ ...panel, scroll: Math.max(0, Math.min(most, panel.scroll + by)) })
 }

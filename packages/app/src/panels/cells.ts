@@ -1,52 +1,15 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
-import type { Target } from '../hits.ts'
-import { barRows, type Scrolled } from '../scrollbar.ts'
 import { fit as fitRow, type Pointer } from '../ui.ts'
-import type { PanelContext } from './context.ts'
 
-// The cells every panel is built out of.
+// The cells every panel is built out of: text, fitted and cut.
 //
 // Not a dumping ground: each of these is here because the measurement says it
-// is genuinely shared — `cap` in eight panels, `bar` in six, `pad` and `padTo`
-// and `wrapTo` across the three that draw a table. A helper only one panel uses
-// lives in that panel's own file, where a change to it is a change to one thing.
-
-/**
- * A scrollbar's cells for one of the panel's two sides, each with the hit that
- * turns a drag on it back into a line to scroll to. The same bar the rest of
- * the window uses — one thumb, painted cells — so the panel does not grow a
- * scrollbar of its own.
- *
- * Drawn whether or not there is anything to scroll: a column that comes and
- * goes moves everything beside it every time the page changes.
- */
-export function bar(
-  view: Scrolled,
-  area: 'panel' | 'panel-side',
-  ctx: PanelContext,
-): { cell: string; target: Target }[] {
-  const held =
-    ctx.scrolling === area ||
-    (ctx.pointer.hover?.kind === 'scrollbar' && ctx.pointer.hover.area === area)
-  const target: Target = { kind: 'scrollbar', area, total: view.total, shown: view.shown }
-  return barRows(view, ctx.skin, held).map((cell) => ({ cell, target }))
-}
-
-/**
- * The first row of a list to draw: where it was scrolled to, moved as far as
- * it must to keep the row you are on in view.
- *
- * Which is the whole rule, in one place: whoever scrolls reads where they
- * like, and the keyboard moving the choice brings the list back to it —
- * because a choice you cannot see is a choice you did not make.
- */
-export function listStart(scroll: number, total: number, room: number, chosen: number): number {
-  const most = Math.max(0, total - room)
-  let from = Math.max(0, Math.min(scroll, most))
-  if (chosen >= from + room) from = Math.min(most, chosen - room + 1)
-  if (chosen < from) from = chosen
-  return Math.max(0, Math.min(from, most))
-}
+// is genuinely shared — `cap` in eight panels, `pad` and `padTo` and `wrapTo`
+// across the three that draw a table. A helper only one panel uses lives in
+// that panel's own file, where a change to it is a change to one thing.
+//
+// The panel's shell — how big it is, how its body scrolls, the bar beside it —
+// is `frame.ts`, which is built on these.
 
 /** `8 tools`, `1 watch`: a count said the way somebody would say it. */
 export function count(n: number, one: string, many = `${one}s`): string {

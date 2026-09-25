@@ -42,6 +42,14 @@ export interface MenuPanel {
   title: string
   /** Which item the keyboard is on. */
   index: number
+  /**
+   * Lines scrolled past, for a menu longer than the window. A menu is nearly
+   * always shorter than the room there is — but nearly always is not always,
+   * and the one that is not used to have its last items nowhere at all.
+   */
+  scroll: number
+  /** Whether it follows the item the keyboard is on, until you scroll it. */
+  following: boolean
   /** The screen cell it was opened from, so it appears there. */
   anchor: { row: number; col: number } | null
   busy: false
@@ -163,7 +171,7 @@ export function menuPanel(
   title: string,
   anchor: MenuPanel['anchor'] = null,
 ): MenuPanel {
-  return { kind: 'menu', subject, title, index: 0, anchor, busy: false }
+  return { kind: 'menu', subject, title, index: 0, scroll: 0, following: true, anchor, busy: false }
 }
 
 /** What can be done with a file or folder in FILES. */
@@ -452,7 +460,7 @@ export function menuKey(
     const here = usable.findIndex(({ at }) => at === panel.index)
     const step = key === 'down' || key === 'tab' ? 1 : -1
     const next = usable[(Math.max(0, here) + step + usable.length) % Math.max(1, usable.length)]
-    return stay({ ...panel, index: next?.at ?? panel.index })
+    return stay({ ...panel, index: next?.at ?? panel.index, following: true })
   }
   if (key === 'enter') {
     const item = items[panel.index]

@@ -10,7 +10,7 @@ import {
   withTerminals,
 } from '../../../src/model.ts'
 import { imageMenuItems, menuPanel } from '../../../src/panels/menu/state.ts'
-import { findPanel, notePanel } from '../../../src/panels/small/state.ts'
+import { findPanel, keysPanel, notePanel } from '../../../src/panels/small/state.ts'
 import {
   emptyTranscript,
   fromThinker,
@@ -433,7 +433,7 @@ export const WINDOW_SCREENS: Scenario[] = [
   {
     name: 'keys',
     about: 'The keys Tade keeps, talking first.',
-    state: { ...base(), panel: { kind: 'keys', busy: false } },
+    state: { ...base(), panel: keysPanel() },
     frame: frame({ panel: { talkKey: 'ctrl+space', talkMode: 'hold', releases: true } }),
   },
   {

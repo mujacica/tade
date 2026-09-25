@@ -1,7 +1,8 @@
 import { truncateToWidth, visibleWidth } from '@earendil-works/pi-tui'
-import type { Hit } from '../../hits.ts'
+import { sameTarget } from '../../hits.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, column, type Line, panelSize, rowLook } from '../frame.ts'
 import { type ModelPanel, modelChoices, priceCells } from './state.ts'
 
 // What the model panel looks like. What a key does to it is beside this in
@@ -23,11 +24,13 @@ const PRICE_COLUMNS = PRICE_CELL * 3
  */
 export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(120, ctx.width - 4)
-  const inner = width - 2
+  // As tall as the window allows: a long list is scrolled, never cut short,
+  // and the box keeps its height while typing narrows what is in it.
+  const { width, rows: tall } = panelSize(ctx, { max: 120 })
+  // The list keeps a column for its bar, so nothing reflows when narrowing
+  // leaves fewer models than fit.
+  const inner = width - 2 - BAR
   const choices = modelChoices(ctx.models, panel.query)
-  // As tall as the window allows: a long list is scrolled, never cut short.
-  const room = Math.max(4, Math.min(40, ctx.height - 12))
   // Columns that stay put while you type: the model, as wide as the longest in
   // the catalog allows; what it costs; then its name, where there is room.
   const lead = 4
@@ -37,7 +40,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   )
   const priced = inner >= lead + idWidth + PRICE_COLUMNS && ctx.models.some((one) => one.price)
   const nameRoom = inner - lead - idWidth - (priced ? PRICE_COLUMNS : 0) - 3
-  const rows: { text: string; hits: Hit[] }[] = [
+  const head: Line[] = [
     new Row(inner, skin)
       .space()
       .field(panel.query, inner - 2, {
@@ -55,15 +58,17 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
   ]
   if (priced) {
     // What the price columns are, over them.
-    const head = new Row(inner, skin).space(lead + idWidth)
-    for (const label of ['in', 'out', 'cached']) head.text(label.padStart(PRICE_CELL), skin.label)
-    if (nameRoom >= 14) head.space(3).text('$ per 1M tokens', skin.hint)
-    rows.push(head.build())
+    const columns = new Row(inner, skin).space(lead + idWidth)
+    for (const label of ['in', 'out', 'cached'])
+      columns.text(label.padStart(PRICE_CELL), skin.label)
+    if (nameRoom >= 14) columns.space(3).text('$ per 1M tokens', skin.hint)
+    head.push(columns.build())
   }
-  const start = Math.max(0, Math.min(panel.index - room + 1, choices.length - room))
-  choices.slice(start, start + room).forEach((choice, offset) => {
-    const at = start + offset
+  const lines: Line[] = []
+  choices.forEach((choice, at) => {
     const on = at === panel.index
+    const target = { kind: 'control' as const, id: `row:${at}` }
+    const pointed = sameTarget(ctx.pointer.hover, target)
     const current =
       ctx.currentModel !== null &&
       (choice.id === ctx.currentModel || choice.id.endsWith(`/${ctx.currentModel}`))
@@ -73,7 +78,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       .text(current ? '● ' : '  ', skin.done)
     const id = choice.id.slice(choice.provider.length + 1)
     const shownId = visibleWidth(id) > idWidth ? truncateToWidth(id, idWidth, '…') : id
-    r.text(shownId, on ? skin.you : skin.busy).space(idWidth - visibleWidth(shownId))
+    r.text(shownId, on || pointed ? skin.you : skin.busy).space(idWidth - visibleWidth(shownId))
     if (priced) {
       const [input, output, cached] = priceCells(choice)
       const tone = input === 'free' ? skin.done : input === 'varies' ? skin.hint : (t: string) => t
@@ -87,9 +92,9 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
       )
     }
     const built = r.build()
-    rows.push({
-      text: on ? skin.selected(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'control', id: `row:${at}` } }],
+    lines.push({
+      text: rowLook(built.text, skin, { on, pointed }),
+      hits: [{ row: 0, from: 0, to: inner - 1, target }],
     })
   })
   if (choices.length === 0) {
@@ -98,7 +103,7 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
     // at all — and then it is the harness's own sentence, never a fallback to
     // another harness's list.
     const why = ctx.models.length === 0 ? (ctx.modelsFrom?.why ?? null) : null
-    rows.push(
+    lines.push(
       new Row(inner, skin)
         .space()
         .text(
@@ -110,24 +115,33 @@ export function models(panel: ModelPanel, ctx: PanelContext): Drawn {
         .build(),
     )
   }
-  for (let gap = room - Math.min(room, Math.max(1, choices.length)); gap > 0; gap--)
-    rows.push(blank(inner))
-  rows.push(
-    panel.error
-      ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
-      : blank(inner),
+  const drawn = column(
+    {
+      head,
+      body: {
+        lines,
+        width: inner,
+        scroll: panel.scroll,
+        chosen: panel.following ? { from: panel.index, to: panel.index } : null,
+      },
+      foot: [
+        panel.error
+          ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
+          : blank(inner),
+        new Row(inner, skin, ctx.pointer)
+          .space()
+          .text(
+            panel.busy
+              ? 'Switching…'
+              : `↑↓ choose · enter switches · ${choices.length} of ${ctx.models.length}${ctx.modelsFrom ? ` in ${ctx.modelsFrom.harness}` : ''}`,
+            skin.hint,
+          )
+          .right((r) => r.button('Cancel', { kind: 'control', id: 'cancel' }).space())
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
   )
-  rows.push(
-    new Row(inner, skin, ctx.pointer)
-      .space()
-      .text(
-        panel.busy
-          ? 'Switching…'
-          : `↑↓ choose · enter switches · ${choices.length} of ${ctx.models.length}${ctx.modelsFrom ? ` in ${ctx.modelsFrom.harness}` : ''}`,
-        skin.hint,
-      )
-      .right((r) => r.button('Cancel', { kind: 'control', id: 'cancel' }).space())
-      .build(),
-  )
-  return box(`Model for ${ctx.modelTarget}`, rows, width, skin, { corner: 'esc' })
+  return box(`Model for ${ctx.modelTarget}`, drawn.rows, width, skin, { corner: 'esc' })
 }

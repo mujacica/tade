@@ -1,8 +1,8 @@
 import { type Hit, sameTarget } from '../../hits.ts'
-import { BAR } from '../../scrollbar.ts'
-import { blank, box, type Drawn, fit as fitRow, Row } from '../../ui.ts'
-import { bar, cap, listStart, pad, tildeOf } from '../cells.ts'
+import { blank, box, type Drawn, Row } from '../../ui.ts'
+import { cap, pad, tildeOf } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, column, type Line, panelSize } from '../frame.ts'
 import { completedQuery, nameFrom, type OpenProjectPanel, type OpenRowView } from './state.ts'
 
 // What the Open project panel looks like: where you are as parts you can click
@@ -17,18 +17,17 @@ import { completedQuery, nameFrom, type OpenProjectPanel, type OpenRowView } fro
 // wheel, the bar and the arrows are the one move the rest of Tade makes.
 
 /** A line of the list: a heading, something to say about a section, or a row. */
-type Line = { head: string } | { hint: string } | { view: OpenRowView; at: number }
-
-/** Rows of the panel that are not the list: the bar, the notice, the two feet. */
-const AROUND = 7
+type Entry = { head: string } | { hint: string } | { view: OpenRowView; at: number }
 
 export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
   // Narrower than it was, because it is one column now rather than two: a
   // table whose last column is pinned forty blanks from its first is a table
   // nobody reads across.
-  const width = Math.min(78, ctx.width - 4)
-  const inner = width - 2
+  // As tall as the window allows and never taller: what it holds changes
+  // while you type in it, so a height read off the rows would move the panel
+  // under the pointer between two clicks.
+  const { width, inner, rows: tall } = panelSize(ctx, { max: 78 })
   // The list keeps a column for its bar, so the text never runs under one and
   // nothing reflows when there stops being anything to scroll.
   const listWidth = inner - BAR
@@ -36,8 +35,9 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
     ctx.pointer.hover || (panel.field !== 'init' && panel.field !== 'name')
       ? ctx.pointer
       : { ...ctx.pointer, hover: { kind: 'control' as const, id: panel.field } }
-  const row = () => new Row(inner, skin, pointer)
-  const rows: { text: string; hits: Hit[] }[] = []
+  const row = () => new Row(listWidth, skin, pointer)
+  const head: Line[] = []
+  const foot: Line[] = []
   const control = (id: string) => ({ kind: 'control' as const, id })
 
   // ── back, forward, up, where you are, and a field to narrow or jump ──
@@ -47,9 +47,9 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
     .button('›', control('forward'), panel.forward.length > 0 ? 'rest' : 'off')
     .button('↑', control('up'), panel.dir !== '/' ? 'rest' : 'off')
     .space(2)
-  const fieldWidth = Math.min(34, Math.max(16, Math.floor(inner / 3)))
+  const fieldWidth = Math.min(34, Math.max(16, Math.floor(listWidth / 3)))
   const crumbs = crumbsOf(ctx.browsing ?? panel.dir, ctx.homeDir)
-  const room = inner - nav.used - fieldWidth - 3
+  const room = listWidth - nav.used - fieldWidth - 3
   // The end of the path is where you are; the start is what gives way.
   let from = 0
   const widthFrom = (at: number) =>
@@ -84,78 +84,59 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       })
       .space(),
   )
-  rows.push(nav.build())
-  rows.push(blank(inner))
+  head.push(nav.build())
+  head.push(blank(listWidth))
 
   // ── the one list: recent projects, then here and what is in it ──
-  // As tall as the window allows and never taller: a panel whose height is
-  // read off what it holds moves under the pointer between two clicks.
-  // The panel is the list, `AROUND`, and its border; what is left of the
-  // window is the margin and the strip at the foot it must never cover.
-  const list = Math.max(6, Math.min(16, ctx.height - AROUND - 2 - 5))
-  const lines: Line[] = []
+  const entries: Entry[] = []
   let section: string | null = null
   ctx.openRows.forEach((view, at) => {
-    const head = view.row.kind === 'recent' ? 'RECENT' : 'FOLDERS'
-    if (head !== section) {
-      lines.push({ head })
-      section = head
+    const title = view.row.kind === 'recent' ? 'RECENT' : 'FOLDERS'
+    if (title !== section) {
+      entries.push({ head: title })
+      section = title
     }
-    lines.push({ view, at })
+    entries.push({ view, at })
   })
-  if (lines.length === 0) lines.push({ head: panel.query ? 'NOTHING LIKE THAT' : 'NOTHING HERE' })
+  if (entries.length === 0)
+    entries.push({ head: panel.query ? 'NOTHING LIKE THAT' : 'NOTHING HERE' })
   // A folder with nothing under it says so. The rows alone would say it by
   // leaving the section at one line, which is a thing you have to notice.
   // Not where a folder is being offered to make, though: what was typed
   // matching nothing there is what that offer is the answer to, and saying
   // both reads as the offer being a mistake.
   else if (!ctx.openRows.some((one) => one.row.kind === 'folder' || one.row.kind === 'new'))
-    lines.push({ hint: panel.query ? 'no folder like that here' : 'no folders here' })
+    entries.push({ hint: panel.query ? 'no folder like that here' : 'no folders here' })
   const chosenLine = Math.max(
     0,
-    lines.findIndex((line) => 'view' in line && line.at === panel.index),
+    entries.findIndex((line) => 'view' in line && line.at === panel.index),
   )
-  const start = listStart(panel.scroll, lines.length, list, chosenLine)
   const nameWidth = Math.min(
     22,
     Math.max(13, ...ctx.openRows.map((one) => one.row.name.length + 2)),
   )
   // Where it is, for the two rows the crumb bar does not already say it for.
   const pathWidth = Math.max(0, Math.min(28, listWidth - nameWidth - 22))
-  const bars = bar({ total: lines.length, shown: list, offset: start, rows: list }, 'panel', ctx)
-  for (let i = 0; i < list; i++) {
-    const line = lines[start + i]
-    const drawn = line
-      ? 'head' in line
-        ? new Row(listWidth, skin).space().text(line.head, skin.label).build()
-        : 'hint' in line
-          ? new Row(listWidth, skin).space(3).text(line.hint, skin.hint).build()
-          : lineOf(line, panel, ctx, listWidth, nameWidth, pathWidth)
-      : blank(listWidth)
-    const cell = bars[i]
-    rows.push({
-      text: `${fitRow(drawn.text, listWidth)}${cell?.cell ?? ' '}`,
-      // The wheel is the window's own: it lays a `panel` scroll hit under every
-      // row of whatever panel is open, so nothing here adds a second one.
-      hits: [
-        ...drawn.hits,
-        ...(cell ? [{ row: 0, from: listWidth, to: listWidth, target: cell.target }] : []),
-      ],
-    })
-  }
-  rows.push(blank(inner))
+  const lines: Line[] = entries.map((line) =>
+    'head' in line
+      ? new Row(listWidth, skin).space().text(line.head, skin.label).build()
+      : 'hint' in line
+        ? new Row(listWidth, skin).space(3).text(line.hint, skin.hint).build()
+        : lineOf(line, panel, ctx, listWidth, nameWidth, pathWidth),
+  )
+  foot.push(blank(listWidth))
 
   // ── what is in the way, and the one option about it ──
   // Always the same height, said or not: a panel that grew when a folder was
   // chosen would move under the pointer, and the second click would land on
   // the folder below the one you meant.
   const chosen = ctx.openRows[panel.index]?.row
-  const notice: { text: string; hits: Hit[] }[] = []
+  const notice: Line[] = []
   if (panel.error) {
     notice.push(
       row()
         .space()
-        .text(cap(`▲ ${panel.error}`, inner - 2), skin.waiting)
+        .text(cap(`▲ ${panel.error}`, listWidth - 2), skin.waiting)
         .build(),
     )
   } else if (chosen && !chosen.git && chosen.kind !== 'new') {
@@ -173,7 +154,7 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
         .build(),
     )
   }
-  for (let i = 0; i < 2; i++) rows.push(notice[i] ?? blank(inner))
+  for (let i = 0; i < 2; i++) foot.push(notice[i] ?? blank(listWidth))
 
   // ── the name it will be called, and the act ──
   const known = chosen?.kind === 'recent'
@@ -187,7 +168,7 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       : known
         ? `Go to ${chosen.name}`
         : `${chosen.kind === 'new' ? 'Create' : 'Open'} ${tildeOf(chosen.path, ctx.homeDir)}`
-  rows.push(
+  foot.push(
     row()
       .space()
       .text('Name  ', skin.hint)
@@ -211,8 +192,26 @@ export function openProject(panel: OpenProjectPanel, ctx: PanelContext): Drawn {
       )
       .build(),
   )
-  rows.push(row().space().text('→ in · ← up · tab completes · enter opens', skin.hint).build())
-  return box('Open a project', rows, width, skin, { corner: 'esc' })
+  foot.push(row().space().text('→ in · ← up · tab completes · enter opens', skin.hint).build())
+
+  // The list is the window's own scroll area, so the wheel, the bar and the
+  // arrows are the one move the rest of Tade makes; the head and the foot
+  // keep their own rows, which nothing scrolls over.
+  const drawn = column(
+    {
+      head,
+      body: {
+        lines,
+        width: listWidth,
+        scroll: panel.scroll,
+        chosen: panel.following ? { from: chosenLine, to: chosenLine } : null,
+      },
+      foot,
+      rows: tall,
+    },
+    ctx,
+  )
+  return box('Open a project', drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /**

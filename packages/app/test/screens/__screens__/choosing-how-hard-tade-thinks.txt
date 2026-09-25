@@ -23,12 +23,12 @@
      README.md               ▕│                                                                                         
 ━   orchestrator     +   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ⤢     ▾   ━
                                                                                                                         
-                                                                                        ╭─ Thinking ─────────────────╮ ▕
-                                                                                        │▌   off                     │ ▕
-                                                                                        │    minimal                 │ ▕
-                                                                                        │    low                     │ ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                   │    medium                  │ ▕
-────────────────────────────────────────────────────────────────────────────────────────│  ● high                now │─ 
- Ask Tade anything                                                                  type│    xhigh                   │  
-────────────────────────────────────────────────────────────────────────────────────────│    max                     │──
-   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1╰────────────────────────────╯▾ 
+                                                                                        ╭─ Thinking ──────────────────╮▕
+                                                                                        │▌   off                     ▕│▕
+                                                                                        │    minimal                 ▕│▕
+                                                                                        │    low                     ▕│▕
+ ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                   │    medium                  ▕│▕
+────────────────────────────────────────────────────────────────────────────────────────│  ● high                now ▕│ 
+ Ask Tade anything                                                                  type│    xhigh                   ▕│ 
+────────────────────────────────────────────────────────────────────────────────────────│    max                     ▕│─
+   Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1╰─────────────────────────────╯ 

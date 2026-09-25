@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { NOTCH } from '../../src/scroll.ts'
 import { type FakeTerminal, screenOf, until, windowUnderTest } from './harness.ts'
 
 // What a click, a drag and a right-click land on: the bar down a side, the
@@ -37,6 +38,57 @@ describe('the window, under the pointer', () => {
       'the sidebar scrolled',
       () => !(screenOf(terminal.written)[top] ?? '').includes('AGENTS'),
     )
+  }, 30_000)
+
+  it('scrolls a panel with the wheel, by rows and not by rows of its list', async () => {
+    // The whole of what was reported about Settings: the wheel over it was
+    // answered by pressing the panel's own down key, so a notch moved *what is
+    // chosen* — a setting at a time, jumping over the ones between — instead
+    // of the page, and there was no bar beside it because nothing knew how
+    // long the form was. Short of room, so there is more of it than fits.
+    terminal.columns = 100
+    terminal.rows = 20
+    await start()
+    await until('the first frame', () => terminal.written.includes('refunds'))
+    terminal.press('\x1b[44;5u')
+    await until('the settings panel', () =>
+      screenOf(terminal.written).some((row) => row.includes('Saved as you change it')),
+    )
+    /**
+     * The form's own column of the panel, row by row: what is between the rule
+     * that divides the categories from it and the column its scrollbar takes.
+     * The marker down the left of the chosen setting is dropped, because where
+     * that is, is the other half of what this test asks.
+     */
+    const form = () => {
+      const lines = screenOf(terminal.written)
+      const top = lines.findIndex((row) => row.includes('\u256d\u2500 Settings'))
+      const bottom = lines.findIndex((row, at) => at > top && row.includes('\u2570'))
+      return lines.slice(top + 1, bottom).map((row) => {
+        const rule = row.indexOf('\u2502', row.indexOf('\u2502') + 1)
+        return row
+          .slice(rule + 1, row.lastIndexOf('\u2502') - 1)
+          .replace(/^\u258c/, ' ')
+          .trimEnd()
+      })
+    }
+    const before = form()
+    expect(before.length).toBeGreaterThan(6)
+    // One notch over the form, a few rows above its foot.
+    const lines = screenOf(terminal.written)
+    const foot = lines.findIndex((row) => row.includes('Saved as you change it'))
+    expect(foot).toBeGreaterThan(4)
+    const at = foot - 3
+    const row = lines[at] ?? ''
+    const column = row.indexOf('\u2502', row.indexOf('\u2502') + 1) + 6
+    terminal.press(`\x1b[<65;${column};${at + 1}M`)
+    await until('the form to scroll', () => form().join('\n') !== before.join('\n'))
+    // Three rows of the page, which is what a notch on its own is worth —
+    // never one row of a list, and never the next setting chosen. Counted from
+    // the third row of the panel, since the heading and the blank under it
+    // stay put, as the two at the foot do.
+    const after = form()
+    expect(after.slice(2, 5)).toEqual(before.slice(2 + NOTCH, 5 + NOTCH))
   }, 30_000)
 
   it('moves an agent to where it is dragged in the list, and remembers it there', async () => {

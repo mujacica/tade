@@ -1,15 +1,15 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
-                     ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮─────────────────────
- ▌ ! stripe-v15   880│   ‹    ›    ↑    ~ / src                          ▏filter, or a path       │                     
- ▌   wants you to app│                                                                            │                     
+ ▾ AGENTS  2         ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮▾     high ▾     ×   
+                     │   ‹    ›    ↑    ~ / src                         ▏filter, or a path        │─────────────────────
+ ▌ ! stripe-v15   880│                                                                            │                     
+ ▌   wants you to app│ ▸ dashboard/                                 git · main                 › ▕│                     
                      │ ▸ edge-cache/                                no git                     › ▕│                     
    ⠋ refunds         │ ▸ fulfilment/                                no git                     › ▕│                     
      working         │ ▸ gateway/                                   git · main                 › ▕│                     
                      │ ▸ identity/                                  no git                     › ▕│                     
  ▸ SMART QUEUE       │ ▸ invoices/                                  no git                     › ▕│                     
- ▾ CHANGES  3        │ ▸ ledger/                                    git · main                 › ▕│                     
+ ▾ CHANGES  3        │ ▸ ledger/                                    git · main                 › █│                     
   M package.json     │ ▸ mailer/                                    no git                     › █│                     
   A …/webhooks.test.t│▌▸ notifications/                             no git                     › █│                     
   M src/webhooks.ts  │ ▸ onboarding/                                git · main                 › █│                     
@@ -19,15 +19,15 @@
        webhooks.test.│ ▸ refunds/                                   no git                     › █│                     
        webhooks.ts   │ ▸ reporting/                                 no git                     › █│                     
    ▸ test/           │ ▸ search/                                    git · main                 › █│                     
-     package.json    │ ▸ shipping/                                  no git                     › ▕│                     
-     README.md       │                                                                            │                     
-━   orchestrator     │ ▲ notifications has no git.                                                │━━━━━━━   ⤢     ▾   ━
-                     │   ■ git init, committing what's there                                      │                     
-                     │ Name   notifications                 Cancel     Open ~/src/notifications   │                    ▕
+     package.json    │ ▸ shipping/                                  no git                     › █│                     
+     README.md       │ ▸ subscriptions/                             no git                     › █│                     
+━   orchestrator     │ ▸ webhooks/                                  git · main                 › █│━━━━━━━   ⤢     ▾   ━
+                     │                                                                            │                     
+                     │ ▲ notifications has no git.                                                │                    ▕
+                     │   ■ git init, committing what's there                                      │                    ▕
+                     │ Name   notifications                Cancel     Open ~/src/notifications    │                    ▕
                      │ → in · ← up · tab completes · enter opens                                  │                    ▕
-                     ╰────────────────────────────────────────────────────────────────────────────╯                    ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+ ❯ what you say   ◆ t╰────────────────────────────────────────────────────────────────────────────╯                    ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

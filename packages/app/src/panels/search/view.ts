@@ -1,15 +1,20 @@
-import type { Hit } from '../../hits.ts'
+import { type Hit, sameTarget } from '../../hits.ts'
 import { completed, GROUPS, parseQuery, SCOPES, type SearchEntry } from '../../search.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, column, type Line, panelSize, rowLook } from '../frame.ts'
 import type { SearchPanel } from './state.ts'
 
 // What search looks like. What a key does to it is beside this in `state.ts`.
 
 export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(100, ctx.width - 4)
-  const inner = width - 2
+  // As tall as the window allows: what it holds changes with every letter, so
+  // a height read off the results would move the box under the pointer.
+  const { width, rows: tall } = panelSize(ctx, { max: 100 })
+  // The list keeps a column for its bar, so nothing reflows when a search
+  // stops having more results than fit.
+  const inner = width - 2 - BAR
   const entries = ctx.entries
   const query = parseQuery(panel.query)
   const chosen = entries[panel.index]
@@ -19,7 +24,7 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
       ? suggestion.slice(panel.query.length)
       : ''
 
-  const rows: { text: string; hits: Hit[] }[] = [
+  const head: Line[] = [
     new Row(inner, skin)
       .space()
       .text('⌕', skin.signal)
@@ -38,8 +43,8 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
   chips.right((r) =>
     r.text(ctx.searching ? 'looking in files…' : 'file:42 goes to a line', skin.hint).space(),
   )
-  rows.push(chips.build())
-  rows.push(blank(inner))
+  head.push(chips.build())
+  head.push(blank(inner))
 
   // Headings between the groups, and every result a row: the list is laid out
   // whole, then the part around the chosen result is shown.
@@ -61,25 +66,9 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
     for (const { entry, at } of members)
       lines.push({ ...resultRow(entry, at, at === panel.index, inner, query.text, ctx), at })
   }
-  const room = Math.max(6, Math.min(40, ctx.height - 12))
-  const chosenLine = Math.max(
-    0,
-    lines.findIndex((line) => line.at === panel.index),
-  )
-  // Keep the chosen result in view, with its group's heading where there is room.
-  const start = Math.max(0, Math.min(chosenLine - room + 2, lines.length - room))
-  for (const line of lines.slice(start, start + room)) {
-    rows.push({
-      text: line.text,
-      hits: [
-        { row: 0, from: 0, to: inner - 1, target: { kind: 'scroll', area: 'panel' } },
-        ...line.hits,
-      ],
-    })
-  }
   if (entries.length === 0) {
-    rows.push(
-      new Row(inner, skin)
+    lines.push({
+      ...new Row(inner, skin)
         .space()
         .text(
           query.scope === 'text' && query.text.length < 3
@@ -90,22 +79,37 @@ export function search(panel: SearchPanel, ctx: PanelContext): Drawn {
           skin.hint,
         )
         .build(),
-    )
+      at: null,
+    })
   }
-  for (
-    let gap = room - Math.min(room, lines.length) - (entries.length === 0 ? 1 : 0);
-    gap > 0;
-    gap--
+  const chosenLine = Math.max(
+    0,
+    lines.findIndex((line) => line.at === panel.index),
   )
-    rows.push(blank(inner))
-  rows.push(blank(inner))
-  rows.push(
-    new Row(inner, skin)
-      .space()
-      .text('↑↓ move · tab completes · enter opens · esc closes', skin.hint)
-      .build(),
+  // The chosen result kept in view with its group's heading above it where
+  // there is room: a heading is what says which list you are in.
+  const inView = { from: Math.max(0, chosenLine - 1), to: chosenLine }
+  const drawn = column(
+    {
+      head,
+      body: {
+        lines: lines.map((line) => ({ text: line.text, hits: line.hits })),
+        width: inner,
+        scroll: panel.scroll,
+        chosen: panel.following ? inView : null,
+      },
+      foot: [
+        blank(inner),
+        new Row(inner, skin)
+          .space()
+          .text('↑↓ move · tab completes · enter opens · esc closes', skin.hint)
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
   )
-  return box('Search', rows, width, skin, { corner: 'ctrl+k' })
+  return box('Search', drawn.rows, width, skin, { corner: 'ctrl+k' })
 }
 
 /** One result: its mark, its name with what matched lit, where it is, and why at the edge. */
@@ -123,6 +127,8 @@ function resultRow(
     : entry.kind === 'file' || entry.kind === 'match'
       ? skin.busy
       : skin.tab
+  const target = { kind: 'control' as const, id: `entry:${at}` }
+  const pointed = sameTarget(ctx.pointer.hover, target)
   const r = new Row(width, skin).marker(on).space().text(entry.mark, tone).space()
   const hits = new Set(entry.hits ?? [])
   const label = [...entry.label]
@@ -130,7 +136,7 @@ function resultRow(
   let run = ''
   let lit = false
   const flush = () => {
-    if (run) r.text(run, lit ? skin.waiting : on ? skin.you : (t: string) => t)
+    if (run) r.text(run, lit ? skin.waiting : on || pointed ? skin.you : (t: string) => t)
     run = ''
   }
   label.forEach((char, i) => {
@@ -167,7 +173,7 @@ function resultRow(
   }
   const built = r.build()
   return {
-    text: on ? skin.selected(built.text) : built.text,
-    hits: [{ row: 0, from: 0, to: width - 1, target: { kind: 'control', id: `entry:${at}` } }],
+    text: rowLook(built.text, skin, { on, pointed }),
+    hits: [{ row: 0, from: 0, to: width - 1, target }],
   }
 }

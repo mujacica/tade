@@ -1,32 +1,32 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
-━━━━━╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮━━━━━
- ▾ AG│ Tade is using 91% CPU and 783 MB of memory, across 7 processes.                                            │ ×   
-     │                                                                                                            │─────
- ▌ ! │ By project                                                                                                 │     
- ▌   │                                                                                                            │     
-     │                                 CPU              memory                                                    │     
-   ⠋ │   checkout                      ████████░░   77%  █████░░░░░  369 MB                                       │     
-     │   Tade itself                   ██░░░░░░░░   15%  █████░░░░░  414 MB                                       │     
-     │                                                                                                            │     
- ▸ SM│ By kind                                                                                                    │     
- ▾ CH│                                                                                                            │     
-  M p│                                 CPU              memory                                                    │     
-  A …│   agents                        ████████░░   76%  █████░░░░░  361 MB                                       │     
-  M s│   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                       │     
-     │   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                       │     
- ▾ FI│   terminals                     ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                       │     
-   ▾ │   helpers (git, ps, …)          ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                       │     
-     │                                                                                                            │     
-     │ By agent and terminal                                                                                      │     
-   ▸ │                                                                                                            │     
-     │                                 CPU              memory                                                    │     
-     │   refunds                       ████████░░   76%  █████░░░░░  361 MB                                       │     
-━   o│   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                       │▾   ━
-     │   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                       │     
-     │   terminal 1                    ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                       │    ▕
-     │   helpers                       ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                       │    ▕
-     │                                                                                                            │    ▕
-     │ ↑↓ scrolls · 1–26 of 43 · kept current while open                                                  Close   │    ▕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AG╭─ Resources ────────────────────────────────────────────────────────────────────────────────────────── esc ─╮ ×   
+     │ Tade is using 91% CPU and 783 MB of memory, across 7 processes.                                           █│─────
+ ▌ ! │                                                                                                           █│     
+ ▌   │ By project                                                                                                █│     
+     │                                                                                                           █│     
+   ⠋ │                                 CPU              memory                                                   █│     
+     │   checkout                      ████████░░   77%  █████░░░░░  369 MB                                      █│     
+     │   Tade itself                   ██░░░░░░░░   15%  █████░░░░░  414 MB                                      █│     
+ ▸ SM│                                                                                                           █│     
+ ▾ CH│ By kind                                                                                                   █│     
+  M p│                                                                                                           █│     
+  A …│                                 CPU              memory                                                   █│     
+  M s│   agents                        ████████░░   76%  █████░░░░░  361 MB                                      █│     
+     │   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                      █│     
+ ▾ FI│   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                      █│     
+   ▾ │   terminals                     ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                      █│     
+     │   helpers (git, ps, …)          ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                      ▕│     
+     │                                                                                                           ▕│     
+   ▸ │ By agent and terminal                                                                                     ▕│     
+     │                                                                                                           ▕│     
+     │                                 CPU              memory                                                   ▕│     
+━   o│   refunds                       ████████░░   76%  █████░░░░░  361 MB                                      ▕│▾   ━
+     │   the orchestrator              █░░░░░░░░░   12%  ████░░░░░░  293 MB                                      ▕│     
+     │   the window                    ░░░░░░░░░░  2.5%  █░░░░░░░░░  117 MB                                      ▕│    ▕
+     │   terminal 1                    ░░░░░░░░░░  0.5%  ░░░░░░░░░░    8 MB                                      ▕│    ▕
+     │   helpers                       ░░░░░░░░░░  0.1%  ░░░░░░░░░░    4 MB                                      ▕│    ▕
+     │ ↑↓ scrolls · 1–25 of 43 · kept current while open                                                 Close    │    ▕
  ❯ wh╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯    ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

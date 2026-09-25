@@ -1,24 +1,24 @@
    T A D E      checkout    search    infra      +           ctrl   +   space   
-━━━╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮━━━
- ▾ │  search settin…  │ Telemetry                                           │   
-   │                  │                                                     │───
- ▌ │  Agents          │ Send to                   $TADE_TELEMETRY_DSN,…   ↻ │t s
- ▌ │  Models          │                                                     │   
-   │  Orchestrator    │▌Reporter                 ◉ sentry   ○ none        ↻ │   
-   │  Approvals       │▌  sentry sends through Sentry’s own SDK, imported   │   
-   │  Checks          │▌  only when there is a DSN; none sends nothing      │   
-   │  Voice           │                                                     │╮  
- ▸ │  Window          │ Crashes and warnings     ──██ on                  ↻ ││  
- ▾ │  Projects     3  │                                                     ││  
-  M│  Checks per pro… │ What happened around t…  ──██ on                  ↻ │╯  
-  A│  Budgets     ● 1 │                                                     │   
-━  │  Journal         │ Numbers                  ──██ on                  ↻ │  ━
-   │▌ Telemetry       │                                                     │   
-   │  Shortcuts       │ What agents do           ──██ on                  ↻ │  ▕
-   │  Accounts    ● 2 │                                                     │  ▕
-   │  Updates         │ ● Saved as you change it.                           │  ▕
- ❯ │                  │                         Open config.yaml     Done   │  ▕
-───╰────────────────────────────────────────────────────────────────────────╯── 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Settings ───────────────────────────────── ~/.tade/config.yaml · esc ─╮   
+   │  search settin…   │ Telemetry                                          │───
+ ▌ │                   │                                                    │t s
+ ▌ │  Agents          █│ Send to                  $TADE_TELEMETRY_DSN…   ↻ █│   
+   │  Models          █│                                                   █│   
+   │  Orchestrator    █│▌Reporter                ◉ sentry   ○ none       ↻ █│   
+   │  Approvals       █│▌  sentry sends through Sentry’s own SDK, imported █│   
+   │  Checks          █│▌  only when there is a DSN; none sends nothing    █│╮  
+ ▸ │  Voice           █│                                                   ▕││  
+ ▾ │  Window          █│ Crashes and warnings    ──██ on                 ↻ ▕││  
+  M│  Projects     3  █│                                                   ▕│╯  
+  A│  Checks per pro… █│ What happened around …  ──██ on                 ↻ ▕│   
+━  │  Budgets     ● 1 █│                                                   ▕│  ━
+   │  Journal         █│ Numbers                 ──██ on                 ↻ ▕│   
+   │▌ Telemetry       █│                                                   ▕│  ▕
+   │  Shortcuts       █│ ● Saved as you change it.                          │  ▕
+   │  Accounts    ● 2 ▕│                       Open config.yaml     Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────╯  ▕
+─────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                          type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute     claude-opus-5 ▾ │ 2h 5m │ $1.40 today ▾ 

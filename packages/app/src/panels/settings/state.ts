@@ -52,6 +52,16 @@ export interface SettingsPanel {
   category: string
   /** Which row of the category the keyboard is on. */
   row: number
+  /** Lines of the form scrolled past: the panel's place in the one scroll area. */
+  scroll: number
+  /** Rows of the categories scrolled past, for a side longer than the panel. */
+  listScroll: number
+  /**
+   * Whether the form follows the setting the keyboard is on. It does while you
+   * walk it, and stops the moment you scroll it yourself: a page that jumps
+   * back to a row every time you read past it is a page nobody can read.
+   */
+  following: boolean
   focus: 'categories' | 'form' | 'search'
   search: string
   /** A text setting being typed into. */
@@ -69,6 +79,9 @@ export interface SettingsPanel {
   confirm: string | null
   busy: false
 }
+
+/** Lines a page key moves the form, which is a screenful of an ordinary terminal. */
+const PAGE = 10
 
 export const ACCOUNTS = 'accounts'
 /**
@@ -141,6 +154,9 @@ export function settingsPanel(category = 'agents'): SettingsPanel {
     kind: 'settings',
     category,
     row: 0,
+    scroll: 0,
+    listScroll: 0,
+    following: true,
     focus: 'form',
     search: '',
     editing: null,
@@ -303,7 +319,32 @@ function copyHere(panel: SettingsPanel, rows: readonly Setting[]): PanelOutcome 
   return { panel: { ...panel, saved: null, error: null }, submit: true, choice: `copy:${path}` }
 }
 
+/**
+ * A keystroke on the Settings page.
+ *
+ * The form is the one scroll area every other panel is, so the two halves of
+ * moving in it are kept apart: walking it with the keyboard brings the page
+ * back to the row you are on, and scrolling it yourself — the wheel, the bar,
+ * a page key — leaves the keyboard where it was. That is `following`, and it
+ * is answered here rather than at each of the dozen places a key moves the
+ * row, because a rule every one of them has to remember is one half of them
+ * forgot.
+ */
 export function settingsKey(
+  panel: SettingsPanel,
+  key: string | undefined,
+  data: string,
+  inputs: PanelInputs,
+): PanelOutcome {
+  const outcome = settingsPress(panel, key, data, inputs)
+  const next = outcome.panel
+  if (next?.kind !== 'settings') return outcome
+  const walked =
+    next.row !== panel.row || next.category !== panel.category || next.focus !== panel.focus
+  return walked ? { ...outcome, panel: { ...next, following: true } } : outcome
+}
+
+function settingsPress(
   panel: SettingsPanel,
   key: string | undefined,
   data: string,
@@ -424,6 +465,14 @@ export function settingsKey(
         ? (inputs.updateActions ?? []).length
         : rows.length
   if (key === 'tab' || key === 'shift+tab') return stay({ ...panel, focus: 'categories' })
+  // A page key reads on rather than walking: the form goes by a screenful and
+  // the keyboard stays where it was, which is the wheel's half of the move
+  // said with a key. Space is not one of them here — on a page of switches it
+  // is what throws the one you are on.
+  if (key === 'pageDown' || key === 'pageUp') {
+    const page = key === 'pageDown' ? PAGE : -PAGE
+    return stay({ ...panel, scroll: Math.max(0, panel.scroll + page), following: false })
+  }
   if (key === 'down')
     return stay({ ...panel, row: Math.min(Math.max(0, count - 1), panel.row + 1) })
   if (key === 'up') {

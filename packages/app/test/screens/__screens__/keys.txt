@@ -1,34 +1,34 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
-━━━━━━━━━━━━━━╭─ Shortcuts ──────────────────────────────────────────────────────────────────────── esc ─╮━━━━━━━━━━━━━━
- ▾ AGENTS  2  │                                                                                          │igh ▾     ×   
-              │ Push to talk                 ctrl   +   space    hold                                    │──────────────
- ▌ ! stripe-v1│ Search                       ctrl   +   k    agents, files, lines, commands              │              
- ▌   wants you│ Next agent                   tab    the next agent, then the orchestrator                │              
-              │ Previous agent               shift   +   tab    back through the same                    │              
-   ⠋ refunds  │ Talk to Tade                 ctrl   +   /    type to the orchestrator                    │              
-     working  │ Next waiting agent           ctrl   +   q    the agent waiting on you                    │              
-              │ New agent                    ctrl   +   n    start one in the project you are in         │              
- ▸ SMART QUEUE│ New terminal                 ctrl   +   t    a terminal in the bottom panel              │              
- ▾ CHANGES  3 │ Open project                 ctrl   +   o    add or go to a repository                   │              
-  M package.js│ Mute                         ctrl   +   m    quiet now, and back                         │              
-  A …/webhooks│ Extensions                   ctrl   +   shift   +   e    turn them on and off            │              
-  M src/webhoo│ Settings                     ctrl   +   ,    this panel                                  │              
-              │ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window       │              
- ▾ FILES      │ Shortcuts                    F1    the sheet of every shortcut                           │              
-   ▾ src/     │ Reload                       ctrl   +   shift   +   r    restart with your changes       │              
-       webhook│ Allow                        a    allow what an agent asks, while one waits              │              
-       webhook│ Deny                         d    deny what an agent asks, while one waits               │              
-   ▸ test/    │                                                                                          │              
-     package.j│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before           │              
-     README.md│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays       │              
-━   orchestrat│ Discard what you typed       ctrl   +   c    the line and the pictures with it           │   ⤢     ▾   ━
-              │ Quit                         ctrl   +   c    once there is nothing left to discard       │              
-              │ In a panel                   enter      esc      ↑     ↓    the wheel scrolls it         │             ▕
-              │ In a file you are reading    ctrl   +   f     ctrl   +   g     ctrl   +   s    find · l… │             ▕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS  2  ╭─ Shortcuts ──────────────────────────────────────────────────────────────────────── esc ─╮igh ▾     ×   
+              │                                                                                         █│──────────────
+ ▌ ! stripe-v1│ Push to talk                 ctrl   +   space    hold                                   █│              
+ ▌   wants you│ Search                       ctrl   +   k    agents, files, lines, commands             █│              
+              │ Next agent                   tab    the next agent, then the orchestrator               █│              
+   ⠋ refunds  │ Previous agent               shift   +   tab    back through the same                   █│              
+     working  │ Talk to Tade                 ctrl   +   /    type to the orchestrator                   █│              
+              │ Next waiting agent           ctrl   +   q    the agent waiting on you                   █│              
+ ▸ SMART QUEUE│ New agent                    ctrl   +   n    start one in the project you are in        █│              
+ ▾ CHANGES  3 │ New terminal                 ctrl   +   t    a terminal in the bottom panel             █│              
+  M package.js│ Open project                 ctrl   +   o    add or go to a repository                  █│              
+  A …/webhooks│ Mute                         ctrl   +   m    quiet now, and back                        █│              
+  M src/webhoo│ Extensions                   ctrl   +   shift   +   e    turn them on and off           █│              
+              │ Settings                     ctrl   +   ,    this panel                                 █│              
+ ▾ FILES      │ Bottom panel fills window    ctrl   +   shift   +   f    it takes the whole window      █│              
+   ▾ src/     │ Shortcuts                    F1    the sheet of every shortcut                          █│              
+       webhook│ Reload                       ctrl   +   shift   +   r    restart with your changes      █│              
+       webhook│ Allow                        a    allow what an agent asks, while one waits             █│              
+   ▸ test/    │ Deny                         d    deny what an agent asks, while one waits              █│              
+     package.j│                                                                                         █│              
+     README.md│ On the orchestrator line     ↑     ↓      ctrl   +   r    what you said before          █│              
+━   orchestrat│ Stop the orchestrator        esc    stops the turn it is on · what you typed stays      █│   ⤢     ▾   ━
+              │ Discard what you typed       ctrl   +   c    the line and the pictures with it          ▕│              
+              │ Quit                         ctrl   +   c    once there is nothing left to discard      ▕│             ▕
+              │ In a panel                   enter      esc      ↑     ↓    the wheel scrolls it        ▕│             ▕
               │                                                                                          │             ▕
-              │ Everything else goes to the agent or terminal you're typing at.                          │             ▕
- ❯ what you sa│                                                                      Change shortcuts…   │             ▕
-──────────────╰──────────────────────────────────────────────────────────────────────────────────────────╯───────────── 
+              │                                                                     Change shortcuts…    │             ▕
+ ❯ what you sa╰──────────────────────────────────────────────────────────────────────────────────────────╯             ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

@@ -1,12 +1,12 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { KEYS_AND_AGENTS } from '@tade/core'
-import { type Hit, sameTarget, type Target } from '../../hits.ts'
+import { type Hit, sameTarget } from '../../hits.ts'
 import { linkedRow } from '../../links.ts'
-import { BAR } from '../../scrollbar.ts'
 import { blank, box, type Drawn, NO_POINTER, Row } from '../../ui.ts'
 import { markdownLines } from '../../viewer.ts'
-import { bar, cap, count, fitTo, listStart, sideWidth, withFocus, wrapTo } from '../cells.ts'
+import { cap, count, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, beside, column, type Line, panelSize, searchRow, startOf } from '../frame.ts'
 import { type ExtensionFacts, extensionBody } from './body.ts'
 import { type ExtensionSetupPanel, type ExtensionViewPanel, setupControls } from './setup.ts'
 import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries } from './state.ts'
@@ -18,11 +18,11 @@ import { chosenEntry, type ExtensionsPanel, extensionControls, extensionEntries 
 /**
  * How big the Extensions panel is, and how its two sides divide the room.
  *
- * Settings' shape, and not Settings' block: a form is as tall as its rows and
- * stops, while this holds an extension's own account of itself — sixty lines
- * for one of them — so it takes the window it is given, less the margin and
- * the strip at the foot it must never cover. Capped at 120 columns only
- * because prose read across a whole ultrawide is prose nobody reads.
+ * The size is `panelSize`, like every other panel's: the room there is, less
+ * the margin and the strip at the foot it must never cover. Capped at 120
+ * columns only because prose read across a whole ultrawide is prose nobody
+ * reads. What is its own is the split — a list down the left, an extension's
+ * own account of itself on the right, each with its own bar.
  */
 export function extensionsSize(
   width: number,
@@ -40,23 +40,18 @@ export function extensionsSize(
   /** Rows of the list that scroll. */
   listRoom: number
 } {
-  const w = Math.min(120, Math.max(32, width - 6))
-  // The window's own strip at the bottom is four rows, and a panel drawn over
-  // it is a panel whose foot — Done, and what it last said — is under it.
-  const h = Math.max(14, height - 6)
-  const inner = w - 2
-  const side = sideWidth(inner) + BAR
+  const size = panelSize({ width, height }, { max: 120 })
+  const side = sideWidth(size.inner) + BAR
   return {
-    width: w,
-    height: h,
-    inner,
+    width: size.width,
+    height: size.height,
+    inner: size.inner,
     side,
-    body: inner - side - 1,
-    // What is left after the border, the head that stays put and the two
-    // rows at the foot.
-    room: Math.max(1, h - 2 - HEAD - 2),
-    // What is left after the border and the search field with its blank row.
-    listRoom: Math.max(1, h - 2 - 2),
+    body: size.inner - side - 1,
+    // What is left after the head that stays put and the two rows at the foot.
+    room: Math.max(1, size.rows - HEAD - 2),
+    // What is left after the search field with its blank row.
+    listRoom: Math.max(1, size.rows - 2),
   }
 }
 
@@ -76,7 +71,7 @@ const HEAD = 3
  */
 export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const { width, height, side, body, room, listRoom } = extensionsSize(ctx.width, ctx.height)
+  const { width, height, side, body } = extensionsSize(ctx.width, ctx.height)
   const entries = extensionEntries(
     ctx.extensions,
     ctx.written,
@@ -97,25 +92,20 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
   const told = body - BAR
 
   // ── the side: search, then every extension the search leaves ──
-  const aside: { text: string; hits: Hit[] }[] = []
-  const asking = panel.search === '' && panel.focus !== 'search'
-  aside.push(
-    new Row(names, skin, pointer)
-      .space()
-      .field(asking ? 'search extensions' : panel.search, names - 2, {
-        caret: panel.focus === 'search',
-        hint: asking,
-        target: { kind: 'control', id: 'search' },
-      })
-      .build(),
-  )
-  aside.push(blank(names))
+  const asideHead: Line[] = [
+    searchRow(names, ctx, {
+      text: panel.search,
+      says: 'search extensions',
+      caret: panel.focus === 'search',
+    }),
+    blank(names),
+  ]
+  const aside: Line[] = []
   const at = Math.max(
     0,
     entries.findIndex((entry) => entry.id === here?.id),
   )
-  const from = listStart(panel.listScroll, entries.length, listRoom, at)
-  for (const entry of entries.slice(from, from + listRoom)) {
+  for (const entry of entries) {
     const on = entry.id === here?.id
     const target = { kind: 'control' as const, id: `pick:${entry.id}` }
     const pointed = sameTarget(ctx.pointer.hover, target)
@@ -225,13 +215,6 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     if (focusTo === 0 && focusFrom === 0) focusFrom = index
     focusTo = index
   })
-  const most = Math.max(0, lines.length - room)
-  let start = Math.max(0, Math.min(panel.scroll, most))
-  if (panel.following && focused) {
-    if (focusTo >= start + room) start = Math.min(most, focusTo - room + 1)
-    if (focusFrom < start) start = focusFrom
-  }
-  const shown = lines.slice(start, start + room)
 
   // ── the foot ──
   // Only what is happening. Where an extension of your own goes is said by
@@ -255,41 +238,40 @@ export function extensions(panel: ExtensionsPanel, ctx: PanelContext): Drawn {
     .right((r) => r.button('Done', { kind: 'control', id: 'close' }, 'primary').space())
 
   // ── the two of them, each with its own bar ──
-  const listBar = bar(
-    { total: entries.length, shown: listRoom, offset: from, rows: listRoom },
-    'panel-side',
+  // A bar runs beside what it scrolls and nowhere else: the search field keeps
+  // its own row, and so do the two at the foot.
+  const tall = height - 2
+  const left = column(
+    {
+      head: asideHead,
+      body: {
+        lines: aside,
+        width: names,
+        scroll: panel.listScroll,
+        chosen: { from: at, to: at },
+        area: 'panel-side',
+      },
+      rows: tall,
+    },
     ctx,
   )
-  const bodyBar = bar({ total: lines.length, shown: room, offset: start, rows: room }, 'panel', ctx)
-  const main = [...head, ...shown]
-  const rowsOfBody = height - 2
-  const rows: { text: string; hits: Hit[] }[] = []
-  for (let i = 0; i < rowsOfBody; i++) {
-    const left = aside[i] ?? blank(names)
-    let right = main[i] ?? blank(told)
-    if (i === rowsOfBody - 2) right = said
-    if (i === rowsOfBody - 1) right = keys.build()
-    // A bar runs beside what it scrolls and nowhere else: the search field
-    // keeps its own row, and so do the two at the foot.
-    const beside = listBar[i - 2]
-    const along = i >= HEAD && i < HEAD + room ? bodyBar[i - HEAD] : null
-    rows.push({
-      text: `${fitTo(left.text, names)}${beside?.cell ?? ' '}${skin.chrome('│')}${fitTo(right.text, told)}${along?.cell ?? ' '}`,
-      hits: [
-        // The wheel over the list moves the list, and over the page the page.
-        // Laid under everything on the row, so a click still presses what it
-        // is on; the panel's own scroll hit is under this one in turn.
-        { row: 0, from: 0, to: side, target: { kind: 'scroll', area: 'panel-side' } as Target },
-        ...left.hits,
-        ...(beside ? [{ row: 0, from: names, to: names, target: beside.target }] : []),
-        ...right.hits.map((hit) => ({ ...hit, from: hit.from + side + 1, to: hit.to + side + 1 })),
-        ...(along
-          ? [{ row: 0, from: side + 1 + told, to: side + 1 + told, target: along.target }]
-          : []),
-      ],
-    })
-  }
-  return box('Extensions', rows, width, skin, { corner: 'esc' })
+  const right = column(
+    {
+      head,
+      body: {
+        lines,
+        width: told,
+        scroll: panel.scroll,
+        chosen: panel.following && focused ? { from: focusFrom, to: focusTo } : null,
+      },
+      foot: [said, keys.build()],
+      rows: tall,
+    },
+    ctx,
+  )
+  return box('Extensions', beside(left.rows, right.rows, side, skin), width, skin, {
+    corner: 'esc',
+  })
 }
 
 /**
@@ -328,32 +310,40 @@ export function extensionsScrollable(
  */
 export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(110, ctx.width - 4)
-  const inner = width - 2
+  const { width, rows: tall } = panelSize(ctx, { max: 110 })
+  // The page keeps a column for its bar: it is somebody else's document and
+  // there is no telling how long it is until it has been laid out.
+  const inner = width - 2 - BAR
   const lines = ctx.extensionView
-    ? markdownLines(ctx.extensionView.markdown, inner - 2, !skin.colour)
-    : []
-  const room = Math.max(6, ctx.height - 8)
-  const start = Math.max(0, Math.min(panel.scroll, lines.length - room))
-  const rows: { text: string; hits: Hit[] }[] = []
-  if (!ctx.extensionView)
-    rows.push(new Row(inner, skin).space().text('Looking…', skin.hint).build())
-  for (const line of lines.slice(start, start + room))
-    rows.push(linkedRow(` ${line}`, inner, skin, ctx.pointer))
-  for (let gap = room - rows.length; gap > 0; gap--) rows.push(blank(inner))
-  rows.push(
-    new Row(inner, skin, ctx.pointer)
-      .space()
-      .text(
-        lines.length > room
-          ? `↑↓ scrolls · ${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · kept current while open`
-          : 'kept current while open',
-        skin.hint,
+    ? markdownLines(ctx.extensionView.markdown, inner - 2, !skin.colour).map((line) =>
+        linkedRow(` ${line}`, inner, skin, ctx.pointer),
       )
-      .right((r) => r.button('Close', { kind: 'control', id: 'close' }).space())
-      .build(),
+    : [new Row(inner, skin).space().text('Looking…', skin.hint).build()]
+  // Where it ended up, worked out once and handed to the column: the bar says
+  // it as a picture, and the foot says it in figures, because a document of
+  // somebody else's is one you want to be able to say where you are in.
+  const room = Math.max(1, tall - 1)
+  const start = startOf(panel.scroll, lines.length, room)
+  const drawn = column(
+    {
+      body: { lines, width: inner, scroll: start },
+      foot: [
+        new Row(inner, skin, ctx.pointer)
+          .space()
+          .text(
+            lines.length > room
+              ? `↑↓ scrolls · ${start + 1}–${Math.min(lines.length, start + room)} of ${lines.length} · kept current while open`
+              : 'kept current while open',
+            skin.hint,
+          )
+          .right((r) => r.button('Close', { kind: 'control', id: 'close' }).space())
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
   )
-  return box(ctx.extensionView?.title ?? 'Extension', rows, width, skin, { corner: 'esc' })
+  return box(ctx.extensionView?.title ?? 'Extension', drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /**
@@ -363,8 +353,11 @@ export function extensionView(panel: ExtensionViewPanel, ctx: PanelContext): Dra
  */
 export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(96, ctx.width - 4)
-  const inner = width - 2
+  const { width, rows: tall } = panelSize(ctx, { max: 96 })
+  // The guide keeps a column for its bar. It used to be cut at the panel's
+  // height with `rows.slice` — so an extension with a long guide lost its own
+  // Save button off the bottom, which is the one thing a foot may never do.
+  const inner = width - 2 - BAR
   const setup = ctx.setup
   const controls = setupControls(setup?.fields ?? [])
   const chosen = controls[panel.index] ?? null
@@ -373,7 +366,16 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
       ? ctx.pointer
       : { ...ctx.pointer, hover: chosen ? { kind: 'control' as const, id: chosen } : null }
   const row = () => new Row(inner, skin, pointer)
-  const rows: { text: string; hits: Hit[] }[] = []
+  const rows: Line[] = []
+  /** Where the control the keyboard is on ended up, so tabbing keeps it in view. */
+  let focusFrom = 0
+  let focusTo = 0
+  const marking = (id: string) => {
+    if (chosen === id) {
+      focusFrom = rows.length
+      focusTo = rows.length
+    }
+  }
   if (!setup) {
     rows.push(row().space().text('This extension has nothing to set up.', skin.hint).build())
     return box('Set up', rows, width, skin, { corner: 'esc' })
@@ -420,6 +422,7 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
   const label = 16
   for (const field of setup.fields) {
     const focused = chosen === `field:${field.key}`
+    marking(`field:${field.key}`)
     const value = panel.values[field.key] ?? ''
     const r = row()
       .space()
@@ -458,35 +461,44 @@ export function extensionSetup(panel: ExtensionSetupPanel, ctx: PanelContext): D
           rows.push(picks.build())
           picks = row().text(' '.repeat(label + 1))
         }
+        marking(`pick:${field.key}:${choice}`)
         picks.button(choice, { kind: 'control', id: `pick:${field.key}:${choice}` }).space()
       }
       rows.push(picks.build())
     }
   }
-  rows.push(blank(inner))
-  rows.push(
-    panel.error
-      ? row().space().text(`▲ ${panel.error}`, skin.waiting).build()
-      : panel.said
-        ? row().space().text(panel.said, skin.done).build()
-        : blank(inner),
-  )
-  rows.push(
-    row()
-      .space()
-      .text(
-        panel.busy ? 'Checking…' : 'tab moves · enter presses · space turns on and off',
-        skin.hint,
-      )
-      .right((r) =>
-        r
-          .button('Close', { kind: 'control', id: 'cancel' })
+  const drawn = column(
+    {
+      body: {
+        lines: rows,
+        width: inner,
+        scroll: panel.scroll,
+        chosen: panel.following && chosen ? { from: focusFrom, to: focusTo } : null,
+      },
+      foot: [
+        panel.error
+          ? row().space().text(`▲ ${panel.error}`, skin.waiting).build()
+          : panel.said
+            ? row().space().text(panel.said, skin.done).build()
+            : blank(inner),
+        row()
           .space()
-          .button('Save and check', { kind: 'control', id: 'save' }, 'primary')
-          .space(),
-      )
-      .build(),
+          .text(
+            panel.busy ? 'Checking…' : 'tab moves · enter presses · space turns on and off',
+            skin.hint,
+          )
+          .right((r) =>
+            r
+              .button('Close', { kind: 'control', id: 'cancel' })
+              .space()
+              .button('Save and check', { kind: 'control', id: 'save' }, 'primary')
+              .space(),
+          )
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
   )
-  const room = Math.max(8, ctx.height - 6)
-  return box(`Set up ${setup.title}`, rows.slice(0, room), width, skin, { corner: 'esc' })
+  return box(`Set up ${setup.title}`, drawn.rows, width, skin, { corner: 'esc' })
 }

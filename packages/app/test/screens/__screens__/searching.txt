@@ -1,30 +1,30 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
-━━━━━━━━━━╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮━━━━━━━━━━
- ▾ AGENTS │ ⌕ webhook▏                                                                                       │▾     ×   
-          │     @ agents     # in files     > actions                                 file:42 goes to a line │──────────
- ▌ ! strip│                                                                                                  │          
- ▌   wants│ FILES  4                                                                                         │          
-          │  □ src/webhooks.ts  checkout                                                                     │          
-   ⠋ refun│▌ □ src/webhooks.ts  checkout › stripe-v15                                                        │          
-     worki│  □ src/webhooks.test.ts  checkout                                                                │          
-          │  □ src/webhooks.test.ts  checkout › stripe-v15                                                   │          
- ▸ SMART Q│ IN FILES  2                                                                                      │          
- ▾ CHANGES│  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync(  │          
-  M packag│  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                 │          
-  A …/webh│                                                                                                  │          
-  M src/we│                                                                                                  │          
-          │                                                                                                  │          
- ▾ FILES  │                                                                                                  │          
-   ▾ src/ │                                                                                                  │          
-       web│                                                                                                  │          
-       web│                                                                                                  │          
-   ▸ test/│                                                                                                  │          
-     packa│                                                                                                  │          
-     READM│                                                                                                  │          
-━   orches│                                                                                                  │     ▾   ━
-          │                                                                                                  │          
-          │                                                                                                  │         ▕
-          │                                                                                                  │         ▕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ AGENTS ╭─ Search ──────────────────────────────────────────────────────────────────────────────── ctrl+k ─╮▾     ×   
+          │ ⌕ webhook▏                                                                                       │──────────
+ ▌ ! strip│     @ agents     # in files     > actions                                file:42 goes to a line  │          
+ ▌   wants│                                                                                                  │          
+          │ FILES  4                                                                                        ▕│          
+   ⠋ refun│  □ src/webhooks.ts  checkout                                                                    ▕│          
+     worki│▌ □ src/webhooks.ts  checkout › stripe-v15                                                       ▕│          
+          │  □ src/webhooks.test.ts  checkout                                                               ▕│          
+ ▸ SMART Q│  □ src/webhooks.test.ts  checkout › stripe-v15                                                  ▕│          
+ ▾ CHANGES│ IN FILES  2                                                                                     ▕│          
+  M packag│  ≡ src/webhooks.ts:9  checkout › stripe-v15  …vent = await stripe.webhooks.constructEventAsync( ▕│          
+  A …/webh│  ≡ README.md:7  checkout  …t` runs everything, webhooks included                                ▕│          
+  M src/we│                                                                                                 ▕│          
+          │                                                                                                 ▕│          
+ ▾ FILES  │                                                                                                 ▕│          
+   ▾ src/ │                                                                                                 ▕│          
+       web│                                                                                                 ▕│          
+       web│                                                                                                 ▕│          
+   ▸ test/│                                                                                                 ▕│          
+     packa│                                                                                                 ▕│          
+     READM│                                                                                                 ▕│          
+━   orches│                                                                                                 ▕│     ▾   ━
+          │                                                                                                 ▕│          
+          │                                                                                                 ▕│         ▕
+          │                                                                                                 ▕│         ▕
           │                                                                                                  │         ▕
           │ ↑↓ move · tab completes · enter opens · esc closes                                               │         ▕
  ❯ what yo╰──────────────────────────────────────────────────────────────────────────────────────────────────╯         ▕

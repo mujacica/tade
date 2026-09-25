@@ -1,12 +1,12 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
-                     ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮─────────────────────
- ▌ ! stripe-v15   880│   ‹    ›    ↑    ~ / src                          ~/src/refunds-api▏       │                     
- ▌   wants you to app│                                                                            │                     
-                     │ FOLDERS                                                                   ▕│                     
-   ⠋ refunds         │▌+ refunds-api/ ~/src/refunds-api           create · git init              ▕│                     
-     working         │ ◆ this folder                              no git                         ▕│                     
+ ▾ AGENTS  2         ╭─ Open a project ───────────────────────────────────────────────────── esc ─╮▾     high ▾     ×   
+                     │   ‹    ›    ↑    ~ / src                         ~/src/refunds-api▏        │─────────────────────
+ ▌ ! stripe-v15   880│                                                                            │                     
+ ▌   wants you to app│ FOLDERS                                                                   ▕│                     
+                     │▌+ refunds-api/ ~/src/refunds-api           create · git init              ▕│                     
+   ⠋ refunds         │ ◆ this folder                              no git                         ▕│                     
+     working         │                                                                           ▕│                     
                      │                                                                           ▕│                     
  ▸ SMART QUEUE       │                                                                           ▕│                     
  ▾ CHANGES  3        │                                                                           ▕│                     
@@ -20,14 +20,14 @@
        webhooks.ts   │                                                                           ▕│                     
    ▸ test/           │                                                                           ▕│                     
      package.json    │                                                                           ▕│                     
-     README.md       │                                                                            │                     
-━   orchestrator     │                                                                            │━━━━━━━   ⤢     ▾   ━
+     README.md       │                                                                           ▕│                     
+━   orchestrator     │                                                                           ▕│━━━━━━━   ⤢     ▾   ━
                      │                                                                            │                     
-                     │ Name   refunds-api                   Cancel     Create ~/src/refunds-api   │                    ▕
+                     │                                                                            │                    ▕
+                     │                                                                            │                    ▕
+                     │ Name   refunds-api                  Cancel     Create ~/src/refunds-api    │                    ▕
                      │ → in · ← up · tab completes · enter opens                                  │                    ▕
-                     ╰────────────────────────────────────────────────────────────────────────────╯                    ▕
-                                                                                                                       ▕
- ❯ what you say   ◆ the orchestrator   ● what Tade did   ✓✗ its tools                                                  ▕
+ ❯ what you say   ◆ t╰────────────────────────────────────────────────────────────────────────────╯                    ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

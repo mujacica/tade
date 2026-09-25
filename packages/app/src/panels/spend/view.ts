@@ -1,12 +1,12 @@
 import { visibleWidth } from '@earendil-works/pi-tui'
 import { duration, type Priced } from '@tade/core'
-import type { Hit } from '../../hits.ts'
 import { type AgentPane, glyph, MARK_TONES, markOf } from '../../model.ts'
 import type { Skin } from '../../skin.ts'
 import { SPEND_BY, SPEND_WINDOWS, type SpendBy } from '../../spend.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { cap, pad, padTo, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, column, type Line, panelSize } from '../frame.ts'
 import type { SpendPanel } from './state.ts'
 
 // What the Spend panel looks like. The table is laid out from the room there
@@ -33,27 +33,34 @@ import type { SpendPanel } from './state.ts'
  */
 export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(SPEND_WIDTH, ctx.width - 4)
-  const inner = width - 2
+  const { width, rows: tall } = panelSize(ctx, { max: SPEND_WIDTH })
+  // The table keeps a column for its bar, so nothing reflows when a window
+  // with fewer agents in it stops having more rows than fit.
+  const inner = width - 2 - BAR
   const row = () => new Row(inner, skin, ctx.pointer)
   const view = ctx.spend
-  const rows: { text: string; hits: Hit[] }[] = []
+  // What stays put: the totals and the tabs that change them, then the column
+  // heads. Everything under those scrolls, so nothing is cut at a number and
+  // said as `+7 more` — a list that stops without saying where it stopped is
+  // the shape this page was three times over.
+  const head: Line[] = []
+  const rows: Line[] = []
 
-  const head = row().space()
+  const top = row().space()
   // The mark rides on the figure itself, here as on every row: a total that
   // holds money nobody priced says so where it is read, not in a footnote.
-  head.text(view ? cost(view.priced, view.usd) : '—', skin.you).space(2)
-  head.text(tokenCount(view?.tokens ?? 0), skin.hint).space(2)
+  top.text(view ? cost(view.priced, view.usd) : '—', skin.you).space(2)
+  top.text(tokenCount(view?.tokens ?? 0), skin.hint).space(2)
   // Every agent's time added together, which is why two working at once put
   // two hours on the clock in one — said as `over 3 runs` beside the figure,
   // because a figure that is not elapsed time is unreadable without it and
   // `13d 3h` off a machine that has been on since breakfast reads as a bug.
   const ran = view?.runtime
-  head.text(
+  top.text(
     `${duration(ran?.ms ?? 0)}${ran && ran.runs > 1 ? ` over ${ran.runs} runs` : ''}`,
     ran?.running ? skin.busy : skin.hint,
   )
-  head.right((r) => {
+  top.right((r) => {
     for (const window of SPEND_WINDOWS) {
       r.tab(
         window.label,
@@ -63,7 +70,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     }
     r.space()
   })
-  rows.push(head.build())
+  head.push(top.build())
   // What the figure above does not cover, in the gap under it rather than in a
   // row of its own: a harness whose own sign-in is a plan has no price per
   // turn, so its agents put their work in the token figure and nothing at all
@@ -73,7 +80,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   // it has already said it — and here rather than beside the figure because
   // the head has no columns to spare and a tab you cannot press costs more
   // than a sentence one line lower.
-  rows.push(
+  head.push(
     view && view.tokensUnpriced > 0 && view.usd > 0
       ? row()
           .space()
@@ -88,16 +95,16 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   let by = row().space().text('by ', skin.hint)
   for (const option of SPEND_BY) {
     if (by.used + visibleWidth(option.label) + 4 > inner) {
-      rows.push(by.build())
+      head.push(by.build())
       by = row().space(4)
     }
     by.tab(option.label, { kind: 'control', id: `by:${option.id}` }, panel.by === option.id)
   }
-  rows.push(by.build())
-  rows.push(blank(inner))
+  head.push(by.build())
+  head.push(blank(inner))
 
   const { name, model, meter } = spendColumns(inner, panel.by)
-  rows.push(
+  head.push(
     row()
       .space(LEAD)
       .text(padTo(SPEND_HEADS[panel.by], name), skin.label)
@@ -120,12 +127,6 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   if (entries.length === 0) {
     rows.push(row().space(3).text('Nothing in this window.', skin.hint).build())
   }
-  // Counted in lines rather than in rows, because a row is one line or three:
-  // the panel floats over the work, and every line it grows is a line of the
-  // work underneath that somebody cannot see. Biggest first, so what stops is
-  // the tail — and what it left out is said, never quietly dropped.
-  let used = 0
-  let unshown = 0
   for (const entry of entries) {
     const pane = ctx.panes.find((p) => p.task === entry.label)
     const mark =
@@ -136,10 +137,6 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           : skin.hint('·')
     const label = pane && pane.project === ctx.project ? pane.name : entry.label
     const said = nameLines(label, name)
-    if (used + said.length > SPEND_LINES) {
-      unshown = entries.length - entries.indexOf(entry)
-      break
-    }
     const first = said[0] ?? ''
     rows.push(
       row()
@@ -171,10 +168,6 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     for (const rest of said.slice(1)) {
       rows.push(row().space(LEAD).text(padTo(rest, name)).build())
     }
-    used += said.length
-  }
-  if (unshown > 0) {
-    rows.push(row().space(3).text(`+${unshown} more`, skin.hint).build())
   }
 
   // What a subscription has left, under what it cost: money and a plan are
@@ -192,14 +185,8 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   if (standings.length === 0) {
     rows.push(row().space(3).text('No plan reported.', skin.hint).build())
   }
-  // The panel floats over the work, so the section is bounded — and what it
-  // left out is said, because a list that stops without saying so reads as a
-  // list of everything there is.
-  const PLAN_LINES = 9
-  let lines = 0
-  let dropped = 0
   for (const standing of standings) {
-    const drawn: { text: string; hits: Hit[] }[] = []
+    const drawn: Line[] = []
     if (standing.cannotTell === null) {
       let top = true
       for (const window of standing.windows) {
@@ -242,15 +229,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
           .build(),
       )
     }
-    if (lines + drawn.length > PLAN_LINES) {
-      dropped += 1
-      continue
-    }
     rows.push(...drawn)
-    lines += drawn.length
-  }
-  if (dropped > 0) {
-    rows.push(row().space(3).text(`+${dropped} more`, skin.hint).build())
   }
 
   // What the money bought, beside what it cost: the two numbers are only
@@ -272,10 +251,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     if (nobody > 0) line.space(2).text(`${nobody} unattributed`, skin.hint)
     rows.push(line.build())
   }
-  // Two, not the whole suite: the panel floats over the window and every row
-  // it grows is a row of the work underneath that somebody cannot see. The
-  // busiest two are the ones worth a glance; `tade spend` lists them all.
-  for (const check of (view?.checks ?? []).slice(0, 2)) {
+  for (const check of view?.checks ?? []) {
     const took = check.medianMs === null ? '' : `${(check.medianMs / 1000).toFixed(1)}s`
     rows.push(
       row()
@@ -305,7 +281,7 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
   const verdictW = Math.max(bar + 6, visibleWidth('no budget — set one'))
   const whoseBudget = Math.min(14, Math.max(8, Math.floor(inner / 5)))
   const spentW = Math.min(28, Math.max(8, inner - 1 - whoseBudget - SPEND_GAP - verdictW))
-  for (const budget of budgets.slice(0, 5)) {
+  for (const budget of budgets) {
     const line = row().space().text(padTo(budget.project, whoseBudget)).space(SPEND_GAP)
     const limit = budget.budget?.usd_per_day
     const spent = limit
@@ -329,7 +305,26 @@ export function spend(panel: SpendPanel, ctx: PanelContext): Drawn {
     rows.push(line.build())
   }
 
-  return box('Spend', rows, width, skin, { corner: 'esc' })
+  // The table is the window's own scroll area, so the wheel, the bar and the
+  // arrows are the one move the rest of Tade makes. The totals and the tabs
+  // that change them stay put above it, and Done stays put below.
+  const drawn = column(
+    {
+      head,
+      body: { lines: rows, width: inner, scroll: panel.scroll },
+      foot: [
+        blank(inner),
+        new Row(inner, skin, ctx.pointer)
+          .space()
+          .text(cap('↑↓ reads · ←→ windows · tab groups', inner - 12), skin.hint)
+          .right((r) => r.button('Done', { kind: 'control', id: 'close' }, 'primary').space())
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
+  )
+  return box('Spend', drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /** As wide as the table wants, and never wider than the window it floats over. */
@@ -343,9 +338,6 @@ const TOKENS_W = 6
 const RUNTIME_W = 7
 /** Room for the figure and the mark that says whether anybody priced it. */
 const COST_W = 9
-
-/** How many lines the table may take before it starts saying what it left out. */
-const SPEND_LINES = 10
 
 /** What the first column is, in the words of the facet it is grouped by. */
 const SPEND_HEADS: Readonly<Record<SpendBy, string>> = {

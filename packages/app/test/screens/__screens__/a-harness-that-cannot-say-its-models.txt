@@ -1,33 +1,33 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
-━━╭─ Model for stripe-v15 ───────────────────────────────────────────────────────────────────────────────────── esc ─╮━━
- ▾│  ▏type to narrow: opus, kimi, openrouter…                                                                        │  
-  │ stripe-v15 is on its default model, in codex                                                                     │──
- ▌│                                                                                                                  │  
- ▌│ codex names its own models (codex debug models), and the codex on this machine did not answer                    │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
- ▸│                                                                                                                  │  
- ▾│                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
- ▾│                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-━ │                                                                                                                  │ ━
-  │                                                                                                                  │  
-  │                                                                                                                  │ ▕
-  │                                                                                                                  │ ▕
-  │                                                                                                                  │ ▕
-  │ ↑↓ choose · enter switches · 0 of 0 in codex                                                            Cancel   │ ▕
- ❯╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ ▕
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Model for stripe-v15 ─────────────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │  ▏type to narrow: opus, kimi, openrouter…                                                                      │───
+ ▌ │ stripe-v15 is on its default model, in codex                                                                   │   
+ ▌ │                                                                                                                │   
+   │ codex names its own models (codex debug models), and the codex on this machine did not answer                 ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+ ▸ │                                                                                                               ▕│   
+ ▾ │                                                                                                               ▕│   
+  M│                                                                                                               ▕│   
+  A│                                                                                                               ▕│   
+  M│                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+ ▾ │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+━  │                                                                                                               ▕│  ━
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│  ▕
+   │                                                                                                               ▕│  ▕
+   │                                                                                                                │  ▕
+   │ ↑↓ choose · enter switches · 0 of 0 in codex                                                         Cancel    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -625,15 +625,24 @@ describe('setting one up, where a key is pasted', () => {
     fields,
   })
 
-  /** What the panel says, read across the wrap: the box's own edges are not words. */
+  /**
+   * What the panel says, read across the wrap: the box's own edges are not
+   * words. Drawn on a terminal tall enough to hold the whole page, because
+   * the page scrolls: what is asked here is what it says at a width, not
+   * which of it a short terminal shows first.
+   */
   const said = (fields: readonly SetupFieldView[], width = 120) =>
     plainRows(
-      drawPanel(extensionSetupPanel('sentry', []), context({ width, setup: setup(fields) })).panel,
+      drawPanel(
+        extensionSetupPanel('sentry', []),
+        context({ width, height: 80, setup: setup(fields) }),
+      ).panel,
     )
       .map((row) =>
         row
           .replace(/^[│╭╰]/u, '')
-          .replace(/[│╮╯]$/u, '')
+          // The column the page keeps for its scrollbar is not a word either.
+          .replace(/[▕█┆]?[│╮╯]$/u, '')
           .trim(),
       )
       .join(' ')

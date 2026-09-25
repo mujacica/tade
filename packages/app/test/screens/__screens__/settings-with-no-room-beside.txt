@@ -1,22 +1,22 @@
    T A D E      checkout    search    infra      +      
-━━━╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮━━━
- ▾ │  search sett…  │ Telemetry                     │l  
-   │                │                               │───
- ▌ │  Agents        │ Send to                     ↻ │   
- ▌ │  Models        │    $TADE_TELEMETRY_DSN, or …  │   
-   │  Orchestrator  │                               │+12
-   │  Approvals     │▌Reporter                    ↻ │   
-   │  Checks        │▌  ◉ sentry                    │   
-   │  Voice         │▌  ○ none                      │   
- ▸ │  Window        │▌  sentry sends through        │   
- ▾ │  Projects   3  │▌  Sentry’s own SDK, imported… │   
-  M│  Checks per p… │                               │   
-━  │  Budgets   ● 1 │ Crashes and warnings        ↻ │  ━
-   │  Journal       │   ──██ on                     │   
-   │▌ Telemetry     │                               │  ▕
-   │  Shortcuts     │ ● Saved as you change it.     │  ▕
- ❯ │  Accounts  ● 2 │                        Done   │d ▕
-───╰────────────────────────────────────────────────╯── 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Settings ───────── ~/.tade/config.yaml · esc ─╮l  
+   │  search sett…   │ Telemetry                    │───
+ ▌ │                 │                              │   
+ ▌ │  Agents        █│ Send to                   ↻ █│   
+   │  Models        █│    $TADE_TELEMETRY_DSN, o…  █│+12
+   │  Orchestrator  █│                             ▕│   
+   │  Approvals     █│▌Reporter                  ↻ ▕│   
+   │  Checks        █│▌  ◉ sentry                  ▕│   
+ ▸ │  Voice         █│▌  ○ none                    ▕│   
+ ▾ │  Window        █│▌  sentry sends through      ▕│   
+  M│  Projects   3  █│▌  Sentry’s own SDK, import… ▕│   
+━  │  Checks per p… █│                             ▕│  ━
+   │  Budgets   ● 1 █│ Crashes and warnings      ↻ ▕│   
+   │  Journal       ▕│ ● Saved as you change it.    │  ▕
+   │▌ Telemetry     ▕│                      Done    │  ▕
+ ❯ ╰────────────────────────────────────────────────╯d ▕
+─────────────────────────────────────────────────────── 
  Ask Tade anything  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────
    Extensions     Settings     Mute       $1.40 today ▾ 

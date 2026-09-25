@@ -31,6 +31,12 @@ export interface OpenProjectPanel {
   index: number
   /** Lines above the first one drawn: the panel's place in the one scroll area. */
   scroll: number
+  /**
+   * Whether the list follows the row the keyboard is on. It does while you
+   * walk it, and stops the moment you scroll it yourself: a list that jumps
+   * back to the chosen row every time you read past it is one nobody can read.
+   */
+  following: boolean
   field: 'query' | 'init' | 'name'
   /** The name you typed, or null to use the folder's. */
   name: string | null
@@ -64,6 +70,7 @@ export function openProjectPanel(dir: string, query = ''): OpenProjectPanel {
     query,
     index: -1,
     scroll: 0,
+    following: true,
     field: 'query',
     name: null,
     init: true,
@@ -83,6 +90,7 @@ function goTo(panel: OpenProjectPanel, dir: string): OpenProjectPanel {
     query: '',
     index: -1,
     scroll: 0,
+    following: true,
     name: null,
     error: null,
     field: 'query',
@@ -109,6 +117,7 @@ function navigate(panel: OpenProjectPanel, where: string): OpenProjectPanel {
       query: '',
       index: -1,
       scroll: 0,
+      following: true,
       name: null,
       error: null,
     }
@@ -124,6 +133,7 @@ function navigate(panel: OpenProjectPanel, where: string): OpenProjectPanel {
       query: '',
       index: -1,
       scroll: 0,
+      following: true,
       name: null,
       error: null,
     }
@@ -209,7 +219,12 @@ export function openKey(
   // used to take the down key and do nothing with it.
   if (key === 'down' || key === 'up' || key === 'home' || key === 'end') {
     if (rows.length === 0) return stay(panel)
-    return stay({ ...panel, index: moved(key, panel.index, rows.length), name: null })
+    return stay({
+      ...panel,
+      index: moved(key, panel.index, rows.length),
+      name: null,
+      following: true,
+    })
   }
   // → goes into the chosen folder, ← to the one above: the arrows a list of
   // folders has everywhere else. Only while the query has the keyboard — with
@@ -230,7 +245,15 @@ export function openKey(
     return text ? stay({ ...panel, name: name + text.toLowerCase() }) : stay(panel)
   }
   if (key === 'ctrl+u')
-    return stay({ ...panel, query: '', index: -1, scroll: 0, name: null, error: null })
+    return stay({
+      ...panel,
+      query: '',
+      index: -1,
+      scroll: 0,
+      following: true,
+      name: null,
+      error: null,
+    })
   if (key === 'backspace' && panel.query === '') return stay(navigate(panel, 'up'))
   if (key === 'backspace')
     return stay({
@@ -238,6 +261,7 @@ export function openKey(
       query: [...panel.query].slice(0, -1).join(''),
       index: -1,
       scroll: 0,
+      following: true,
       name: null,
     })
   const text = typed(data, key)
@@ -247,6 +271,7 @@ export function openKey(
         query: panel.query + text,
         index: -1,
         scroll: 0,
+        following: true,
         name: null,
         error: null,
       })

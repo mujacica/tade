@@ -17,7 +17,7 @@ description: Change what `tade app` shows, or which keys it claims — panes, th
 | `hits.ts` | What is where on the screen, so a click can mean something | a terminal |
 | `skin.ts` | The 256-colour palette and every control's look, plain and painted | a terminal |
 | `panels.ts` | The `Panel` union, `PanelInputs`, and the two dispatches — `panelKey` and `panelClick` — and nothing else | a terminal |
-| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, and `small` for the ten that are one question each. Over three shared ones: `context` (`PanelContext`, `drawPanel`), `cells` (`cap`, `bar`, `pad`, the drawing every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
+| `panels/` | One folder per panel, its state and its drawing side by side: `settings`, `extensions`, `file`, `project`, `spend`, `menu`, `models`, `search`, and `small` for the ten that are one question each. Over four shared ones: `context` (`PanelContext`, `drawPanel`), `frame` (`panelSize`, `column`, `beside`, `bar`, `rowLook`, `searchRow` — the shell every panel is drawn in), `cells` (`cap`, `pad`, `wrapTo`, the text every panel is built from) and `outcome` (`PanelOutcome`, what a press does) | a terminal |
 | `spend.ts` | What the Spend panel shows, from `usage` events | a terminal |
 | `projects.ts` | Recent projects, folder listing, `git init` for Open project | a real disk and git |
 | `files.ts` | The FILES tree: order, what is hidden, which folders are open | a disk (it takes a lister) |
@@ -130,6 +130,18 @@ regions in a cycle now.
   subject's `submits()` table, putting any failure back into the panel rather than behind it. A panel under about 250 lines all told joins `panels/small/` instead of
   taking a folder — and the dispatch stays a dispatch: what a key does to your panel is a function
   in your own file, never a branch written out in `panels.ts`.
+- **Every panel is drawn in the same shell** (`panels/frame.ts`), and a panel that grows its own
+  answer to any of these four questions is the bug this file exists to stop. How big it is, is
+  `panelSize` — the room there is, up to a `max` worth being wide, never over the strip at the foot,
+  and a `needs` only where the body is fixed the whole time the panel is open (a menu); one whose
+  body changes under you takes the window, or it moves between two clicks. How its body scrolls and
+  where its bar goes, is `column` — the head above, the body with `bar` beside it, the two rows at
+  the foot pinned under it — and the body keeps `scroll` in the panel's own state plus `following`
+  wherever it has a selection to follow, because `atOffset` turns that off when the wheel or the bar
+  moves it. Two of them side by side is `beside`. How a row looks is `rowLook`: the marker says where
+  the keyboard is, the lighter ground says what the mouse is over, and they are never the same thing.
+  A search box is `searchRow`. Nothing cuts its own rows with `slice` to fit — that is what lost the
+  setup page's Save button and the Spend table's last seven rows.
 - **Never offer a click where nothing is drawn.** The screens test fails on it — it found the task
   menu doing exactly that, and controls left clickable under a popup.
 - **Items down the side are tabs** (`tabList`, `tabbed` in `view/rows.ts`): an agent is two rows — its

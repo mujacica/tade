@@ -2,8 +2,9 @@ import { visibleWidth } from '@earendil-works/pi-tui'
 import { HARNESS_CHOICES, type Setting } from '@tade/core'
 import { type Hit, sameTarget, type Target } from '../../hits.ts'
 import { blank, box, NO_POINTER, type Pointer, Row } from '../../ui.ts'
-import { cap, fitTo, padTo, sideWidth, withFocus, wrapTo } from '../cells.ts'
+import { cap, padTo, sideWidth, withFocus, wrapTo } from '../cells.ts'
 import type { PanelContext, PanelDrawing } from '../context.ts'
+import { BAR, beside, column, type Line, panelSize, searchRow } from '../frame.ts'
 import {
   badgeFor,
   capture,
@@ -76,6 +77,20 @@ function roomFor(layout: FormLayout, setting: Setting): number {
   return layout.control + (setting.live ? layout.note : 0)
 }
 
+/**
+ * Which category row the keyboard is on, so the side scrolls to keep it in
+ * view. Nothing while a search is on: no category is marked then, so there is
+ * nothing for the list to follow.
+ */
+function chosenCategory(
+  panel: SettingsPanel,
+  categories: readonly { id: string }[],
+): { from: number; to: number } | null {
+  if (panel.search !== '') return null
+  const at = categories.findIndex((one) => one.id === panel.category)
+  return at < 0 ? null : { from: at, to: at }
+}
+
 /** Whether the pointer is on this setting: its row, or any control of it. */
 function onSetting(hover: Target | null, path: string): boolean {
   if (hover?.kind !== 'control') return false
@@ -83,39 +98,30 @@ function onSetting(hover: Target | null, path: string): boolean {
   return arg === path || arg.startsWith(`${path}=`)
 }
 
-/** The first line of a list to show, so the one you are on is always in it. */
-function scrolledTo(lines: number, room: number, from: number, to: number): number {
-  if (lines <= room || room <= 0) return 0
-  const most = lines - room
-  const offset = to >= room ? Math.min(to - room + 1, most) : 0
-  return Math.max(0, Math.min(from < offset ? from : offset, most))
-}
-
 export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing {
   const { skin } = ctx
-  const width = Math.min(104, Math.max(32, ctx.width - 6))
-  const height = Math.max(14, Math.min(28, ctx.height - 4))
-  const inner = width - 2
-  const side = sideWidth(inner)
-  const form = inner - side - 1
+  // The room there is, never a number somebody typed: it used to stop at
+  // twenty-eight rows however tall the terminal, which is where "the Settings
+  // window is too small" came from.
+  const { width, height, inner, rows: tall } = panelSize(ctx, { max: 104 })
+  // Each side keeps a column for its own bar, so the two are the same object
+  // the rest of the window uses and the text never runs under one.
+  const side = sideWidth(inner) + BAR
+  const names = side - BAR
+  const form = inner - side - 1 - BAR
   const pointer = ctx.pointer
   const plain = (text: string) => text
 
   // ── the side: search, then categories ──
-  const aside: { text: string; hits: Hit[] }[] = []
-  const searching = panel.search === '' && panel.focus !== 'search'
-  aside.push(
-    new Row(side, skin, pointer)
-      .space()
-      .field(searching ? 'search settings' : panel.search, side - 2, {
-        caret: panel.focus === 'search',
-        // The field says what it is for until you use it.
-        hint: searching,
-        target: { kind: 'control', id: 'search' },
-      })
-      .build(),
-  )
-  aside.push(blank(side))
+  const asideHead: Line[] = [
+    searchRow(names, ctx, {
+      text: panel.search,
+      says: 'search settings',
+      caret: panel.focus === 'search',
+    }),
+    blank(names),
+  ]
+  const aside: Line[] = []
   const categories = [
     ...ctx.settings.map((group) => ({ id: group.id, title: group.title })),
     { id: ACCOUNTS, title: 'Accounts' },
@@ -125,10 +131,10 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     const on = panel.search === '' && panel.category === category.id
     const target = { kind: 'control' as const, id: `category:${category.id}` }
     const pointed = sameTarget(pointer.hover, target)
-    const row = new Row(side, skin, pointer)
+    const row = new Row(names, skin, pointer)
       .marker(on, target)
       .space()
-      .text(cap(category.title, side - 3), on ? skin.you : pointed ? skin.link : plain, target)
+      .text(cap(category.title, names - 3), on ? skin.you : pointed ? skin.link : plain, target)
     row.right((r) => {
       const badge = badgeFor(category.id, ctx)
       if (badge) badge(r)
@@ -137,7 +143,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     const built = row.build()
     aside.push({
       text: on ? skin.selected(built.text) : pointed ? skin.hovered(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: side - 1, target }],
+      hits: [{ row: 0, from: 0, to: names - 1, target }],
     })
   }
 
@@ -150,7 +156,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
       : panel.category === UPDATES
         ? 'Updates'
         : (group?.title ?? '')
-  const head: { text: string; hits: Hit[] }[] = [
+  const formHead: Line[] = [
     new Row(form, skin)
       .space()
       .text(cap(title, form - 2), skin.brand)
@@ -161,7 +167,7 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
   // config` reads it — but three lines of prose over every page, saying what
   // the heading and the controls under it already say, is the paragraph this
   // panel was asked to stop drawing.
-  head.push(blank(form))
+  formHead.push(blank(form))
 
   // ── the form ──
   const rows =
@@ -434,21 +440,53 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
     r.button('Done', { kind: 'control', id: 'done' }, 'primary').space()
   })
 
-  // Rows beyond the panel used to be drawn and lost. The form follows the row
-  // you are on instead, which is what the wheel over it moves.
-  const room = Math.max(1, height - 2 - head.length - 2)
-  const offset = scrolledTo(body.length, room, focusFrom, focusTo)
-  const shown = body.slice(offset, offset + room)
-  const main = [...head, ...shown]
+  // ── the two of them, each with its own bar ──
+  // The form is the window's own scroll area, so the wheel, the bar and a page
+  // key are the one move the rest of Tade makes. It follows the setting the
+  // keyboard is on while you walk it and stops the moment you scroll it
+  // yourself — which is the whole of what was wrong here: with nothing to
+  // scroll, the wheel over the page was answered by pressing the down key, so
+  // it moved the selection a setting at a time and jumped over the ones
+  // between.
+  const left = column(
+    {
+      head: asideHead,
+      body: {
+        lines: aside,
+        width: names,
+        scroll: panel.listScroll,
+        chosen: chosenCategory(panel, categories),
+        area: 'panel-side',
+      },
+      rows: tall,
+    },
+    ctx,
+  )
+  const right = column(
+    {
+      head: formHead,
+      body: {
+        lines: body,
+        width: form,
+        scroll: panel.scroll,
+        chosen: panel.following ? { from: focusFrom, to: focusTo } : null,
+      },
+      foot: [foot.build(), buttons.build()],
+      rows: tall,
+    },
+    ctx,
+  )
+  const lines = beside(left.rows, right.rows, side, skin)
 
   const popups: PanelDrawing['popups'] = []
   if (anchor !== null) {
     const { line, col } = anchor as { line: number; col: number }
-    const at = line - offset
+    const room = Math.max(1, tall - formHead.length - 2)
+    const at = line - right.offset
     if (at >= 0 && at < room) {
       const listWidth = Math.min(46, Math.max(24, inner - 2))
       const list = settingsDropdown(panel, rows[panel.row] as Setting, ctx, listWidth)
-      const under = 1 + head.length + at + 1
+      const under = 1 + formHead.length + at + 1
       popups.push({
         drawn: list,
         // Under its control where the list fits below it, and over it where
@@ -461,22 +499,6 @@ export function settings(panel: SettingsPanel, ctx: PanelContext): PanelDrawing 
         col: Math.max(1, Math.min(1 + side + 1 + col, width - listWidth - 1)),
       })
     }
-  }
-
-  const rowsOfBody = height - 2
-  const lines: { text: string; hits: Hit[] }[] = []
-  for (let i = 0; i < rowsOfBody; i++) {
-    const left = aside[i] ?? blank(side)
-    let right = main[i] ?? blank(form)
-    if (i === rowsOfBody - 2) right = foot.build()
-    if (i === rowsOfBody - 1) right = buttons.build()
-    lines.push({
-      text: `${fitTo(left.text, side)}${skin.chrome('│')}${fitTo(right.text, form)}`,
-      hits: [
-        ...left.hits,
-        ...right.hits.map((hit) => ({ ...hit, from: hit.from + side + 1, to: hit.to + side + 1 })),
-      ],
-    })
   }
 
   if (panel.capture) {

@@ -197,7 +197,12 @@ const plainRows = (drawn: Drawn) => drawn.rows.map((row) => stripTerminalSequenc
 const readAcross = (rows: readonly string[], value: string): string => {
   let got = ''
   for (const row of rows) {
-    for (let len = value.length - got.length; len > 2; len--) {
+    for (let len = value.length - got.length; len > 0; len--) {
+      // A piece of one or two characters is only believable as the last of
+      // them: `05` could be anywhere on a row, but the `05` that finishes the
+      // value is what is left of it. A wrap that happens to leave two
+      // characters on the last line is a wrap, not a value cut short.
+      if (len <= 2 && got.length + len !== value.length) break
       const piece = value.slice(got.length, got.length + len)
       if (row.includes(piece)) {
         got += piece

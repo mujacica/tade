@@ -1,7 +1,7 @@
 // Type-only, so the pure panel model never loads the extension host behind it.
 import type { LoadedExtension } from '@tade/extensions-core'
 import type { PanelInputs } from '../../panels.ts'
-import { listStart } from '../cells.ts'
+import { listStart } from '../frame.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The extensions this window runs with, the servers it brokers, and setting

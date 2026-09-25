@@ -164,11 +164,16 @@ const drawn = (by: SpendBy, width: number, events: readonly TadeEvent[] = THREE_
   )
 }
 
-/** A drawn row without the box around it. */
+/**
+ * A drawn row without the box around it — nor the column its scrollbar takes.
+ *
+ * Every panel keeps that column whether or not there is anything to scroll, so
+ * what is inside the box stops one cell short of its right border.
+ */
 const inside = (row: string) =>
   row
     .replace(/^[^\S\n]*│/, '')
-    .replace(/│[^\S\n]*$/, '')
+    .replace(/[▕█┆]?│[^\S\n]*$/, '')
     .trim()
 
 /** The widths worth trying: from a terminal nobody should use to a wide one. */

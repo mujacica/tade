@@ -437,3 +437,69 @@ describe('the project picker', () => {
     expect(top.panel && 'scroll' in top.panel ? top.panel.scroll : null).toBe(0)
   })
 })
+
+// Every panel is the same thing underneath, and this is the half of it that
+// was reported: over Settings the wheel used to be answered by pressing the
+// panel's own down key, so a notch moved *what is chosen* rather than what is
+// shown — a setting at a time, jumping over the ones between — and there was
+// no bar beside it, because nothing knew how long the form was. Both were one
+// bug. So: over every panel there is, a notch moves the body and touches
+// nothing else.
+describe('a notch over a panel', () => {
+  /**
+   * Everything a panel holds except where it is scrolled to, which is exactly
+   * what a notch may change. Read off the panel rather than named field by
+   * field, so a panel that grows a selection tomorrow is covered today.
+   */
+  const apartFromScroll = (panel: object): string =>
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(panel).filter(
+          ([key]) => !['scroll', 'listScroll', 'following'].includes(key),
+        ),
+      ),
+    )
+
+  const open = SCENARIOS.filter((scenario) => scenario.state.panel !== null)
+
+  for (const scenario of open) {
+    const panel = scenario.state.panel
+    if (!panel) continue
+    const drawn = draw(scenario.state, scenario.frame)
+    const reach = reachOf(drawn.hits, 'panel')
+
+    it(`moves what ${scenario.name} shows, and nothing it has chosen`, () => {
+      const before = apartFromScroll(panel)
+      const down = scrollBy(scenario.state, 'panel', NOTCH, reach)
+      const up = scrollBy(scenario.state, 'panel', -NOTCH, reach)
+      // The one thing a notch may never do: choose something else.
+      for (const moved of [down, up]) {
+        expect(moved.panel, scenario.name).not.toBeNull()
+        expect(apartFromScroll(moved.panel as object), scenario.name).toBe(before)
+      }
+      // And where there is somewhere to go, it goes there — one way or the
+      // other, since a body already at its end only moves back.
+      if (scrollable(reach)) {
+        expect(down !== scenario.state || up !== scenario.state, scenario.name).toBe(true)
+      }
+    })
+  }
+
+  it('is over panels that have a bar to read it off', () => {
+    // A panel whose state has a `scroll` is one whose body scrolls, and a body
+    // that scrolls draws the bar the notch is clamped by. Without it `reachOf`
+    // finds nothing, `scrollBy` has no end to stop at, and the notch is a
+    // press with nowhere to land — which is what it was.
+    const scrolls = open.filter(
+      (scenario) => scenario.state.panel! && 'scroll' in scenario.state.panel!,
+    )
+    expect(scrolls.length).toBeGreaterThan(6)
+    for (const scenario of scrolls) {
+      const drawn = draw(scenario.state, scenario.frame)
+      const bars = drawn.hits.filter(
+        (hit) => hit.target.kind === 'scrollbar' && hit.target.area === 'panel',
+      )
+      expect(bars.length, scenario.name).toBeGreaterThan(0)
+    }
+  })
+})

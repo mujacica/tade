@@ -1,32 +1,32 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENT╭─ Settings ─────────────────────────────────────────────────────────────── ~/.tade/config.yaml · esc ─╮    ×   
-        │  search settings       │ Telemetry                                                                   │────────
- ▌ ! str│                        │                                                                             │        
- ▌   wan│  Agents                │▌Send to                     $TADE_TELEMETRY_DSN, or nothing…   ↻ on restart │        
-        │  Models                │▌                           a Sentry DSN of yours, from that project’s       │        
-   ⠋ ref│  Orchestrator          │▌                           Client Keys; it is an ingest endpoint, not a key │        
-     wor│  Approvals      bypass │                                                                             │        
-        │  Checks                │ Reporter                   ◉ sentry   ○ none                   ↻ on restart │        
- ▸ SMART│  Voice                 │                                                                             │        
- ▾ CHANG│  Window                │ Crashes and warnings       ──██ on                             ↻ on restart │        
-  M pack│  Projects           3  │                                                                             │        
-  A …/we│  Checks per project    │ What happened around them  ──██ on                             ↻ on restart │        
-  M src/│  Budgets           ● 1 │                                                                             │        
-        │  Journal               │ Numbers                    ──██ on                             ↻ on restart │        
- ▾ FILES│▌ Telemetry             │                                                                             │        
-   ▾ src│  Shortcuts             │ What agents do             ──██ on                             ↻ on restart │        
-       w│  Accounts          ● 2 │                                                                             │        
-       w│  Updates               │ How much of Tade is timed   ‹  0.1  ›                          ↻ on restart │        
-   ▸ tes│                        │                                                                             │        
-     pac│                        │ Which Tade this is          laptop                             ↻ on restart │        
-     REA│                        │                                                                             │        
-━   orch│                        │ Read Sentry back           ──██ on                             ↻ on restart │   ▾   ━
-        │                        │                                                                             │        
-        │                        │ Sentry organization         $SENTRY_ORG, or sentry-cli’s default            │       ▕
-        │                        │                                                                             │       ▕
-        │                        │ ● Saved as you change it.                                                   │       ▕
-        │                        │                                                 Open config.yaml     Done   │       ▕
+        │  search settings        │ Telemetry                                                                  │────────
+ ▌ ! str│                         │                                                                            │        
+ ▌   wan│  Agents                ▕│▌Send to                     $TADE_TELEMETRY_DSN, or nothi…   ↻ on restart █│        
+        │  Models                ▕│▌                           a Sentry DSN of yours, from that project’s     █│        
+   ⠋ ref│  Orchestrator          ▕│▌                           Client Keys; it is an ingest endpoint, not a … █│        
+     wor│  Approvals      bypass ▕│                                                                           █│        
+        │  Checks                ▕│ Reporter                   ◉ sentry   ○ none                 ↻ on restart █│        
+ ▸ SMART│  Voice                 ▕│                                                                           █│        
+ ▾ CHANG│  Window                ▕│ Crashes and warnings       ──██ on                           ↻ on restart █│        
+  M pack│  Projects           3  ▕│                                                                           █│        
+  A …/we│  Checks per project    ▕│ What happened around them  ──██ on                           ↻ on restart █│        
+  M src/│  Budgets           ● 1 ▕│                                                                           █│        
+        │  Journal               ▕│ Numbers                    ──██ on                           ↻ on restart █│        
+ ▾ FILES│▌ Telemetry             ▕│                                                                           █│        
+   ▾ src│  Shortcuts             ▕│ What agents do             ──██ on                           ↻ on restart █│        
+       w│  Accounts          ● 2 ▕│                                                                           █│        
+       w│  Updates               ▕│ How much of Tade is timed   ‹  0.1  ›                        ↻ on restart █│        
+   ▸ tes│                        ▕│                                                                           █│        
+     pac│                        ▕│ Which Tade this is          laptop                           ↻ on restart ▕│        
+     REA│                        ▕│                                                                           ▕│        
+━   orch│                        ▕│ Read Sentry back           ──██ on                           ↻ on restart ▕│   ▾   ━
+        │                        ▕│                                                                           ▕│        
+        │                        ▕│ Sentry organization         $SENTRY_ORG, or sentry-cli’s default          ▕│       ▕
+        │                        ▕│                                                                           ▕│       ▕
+        │                        ▕│ ● Saved as you change it.                                                  │       ▕
+        │                        ▕│                                               Open config.yaml     Done    │       ▕
  ❯ what ╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯       ▕
 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   

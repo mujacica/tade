@@ -1,34 +1,34 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
-━━╭─ Model for the orchestrator ─────────────────────────────────────────────────────────────────────────────── esc ─╮━━
- ▾│  ▏type to narrow: opus, kimi, openrouter…                                                                        │  
-  │ the orchestrator is on openrouter/anthropic/claude-opus-5, in pi                                                 │──
- ▌│                                                                                                                  │  
- ▌│                                                in     out  cached   $ per 1M tokens                              │  
-  │  ● anthropic/claude-opus-5                     $5     $25   $0.50   Claude Opus 5 · openrouter                   │  
-  │▌   anthropic/claude-sonnet-5                   $3     $15   $0.30   Claude Sonnet 5 · openrouter                 │  
-  │    moonshotai/kimi-k2.6                     $0.95      $4   $0.16   Kimi K2.6 · openrouter                       │  
-  │    nvidia/nemotron-3-super-120b-a12b:free    free                   Nemotron 3 Super (free) · openrouter         │  
- ▸│    claude-opus-5                               $5     $25   $0.50   Claude Opus 5 · anthropic                    │  
- ▾│                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
- ▾│                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-  │                                                                                                                  │  
-━ │                                                                                                                  │ ━
-  │                                                                                                                  │  
-  │                                                                                                                  │ ▕
-  │                                                                                                                  │ ▕
-  │                                                                                                                  │ ▕
-  │                                                                                                                  │ ▕
- ❯│ ↑↓ choose · enter switches · 5 of 5 in pi                                                               Cancel   │ ▕
-──╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯─ 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ ▾ ╭─ Model for the orchestrator ───────────────────────────────────────────────────────────────────────────── esc ─╮   
+   │  ▏type to narrow: opus, kimi, openrouter…                                                                      │───
+ ▌ │ the orchestrator is on openrouter/anthropic/claude-opus-5, in pi                                               │   
+ ▌ │                                                                                                                │   
+   │                                                in     out  cached   $ per 1M tokens                            │   
+   │  ● anthropic/claude-opus-5                     $5     $25   $0.50   Claude Opus 5 · openrouter                ▕│   
+   │▌   anthropic/claude-sonnet-5                   $3     $15   $0.30   Claude Sonnet 5 · openrouter              ▕│   
+   │    moonshotai/kimi-k2.6                     $0.95      $4   $0.16   Kimi K2.6 · openrouter                    ▕│   
+ ▸ │    nvidia/nemotron-3-super-120b-a12b:free    free                   Nemotron 3 Super (free) · openrouter      ▕│   
+ ▾ │    claude-opus-5                               $5     $25   $0.50   Claude Opus 5 · anthropic                 ▕│   
+  M│                                                                                                               ▕│   
+  A│                                                                                                               ▕│   
+  M│                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+ ▾ │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│   
+━  │                                                                                                               ▕│  ━
+   │                                                                                                               ▕│   
+   │                                                                                                               ▕│  ▕
+   │                                                                                                               ▕│  ▕
+   │                                                                                                                │  ▕
+   │ ↑↓ choose · enter switches · 5 of 5 in pi                                                            Cancel    │  ▕
+ ❯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ▕
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
  Ask Tade anything                                                                  type, or hold    ctrl   +   space   
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
    Extensions     Settings     Mute                         claude-opus-5 ▾ │ high ▾ │ 1.9M tok │ 2h 5m │ $1.40 today ▾ 

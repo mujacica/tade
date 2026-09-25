@@ -183,6 +183,26 @@ export const PANEL_SCREENS: Scenario[] = [
     }),
   },
   {
+    name: 'pointing-at-a-list-row',
+    about:
+      'A menu item under the pointer, with the keyboard on another: the pointed row is a shade ' +
+      'lighter and the marker stays where the keyboard is — chosen and pointed at are two ' +
+      'different things, in every list Tade draws.',
+    state: {
+      ...base(),
+      hover: { kind: 'control', id: 'item:stop' },
+      panel: menuPanel({ kind: 'task', task: 'checkout/stripe-v15' }, 'stripe-v15', {
+        row: 4,
+        col: 2,
+      }),
+    },
+    frame: frame({
+      panel: {
+        items: menuItems({ lane: 'checkout/stripe-v15/agent', state: 'blocked' }, 3),
+      },
+    }),
+  },
+  {
     name: 'choosing-how-hard-it-thinks',
     about:
       'The thinking button beside the model, opened: every level from off to max, the one the agent is at marked.',
@@ -356,7 +376,7 @@ export const PANEL_SCREENS: Scenario[] = [
     about: 'More folders than fit: the list scrolls on its own bar, like everything else.',
     state: {
       ...base(),
-      panel: { ...openProjectPanel('/Users/me/src'), index: 14, scroll: 9 },
+      panel: { ...openProjectPanel('/Users/me/src'), index: 14, scroll: 8, following: false },
     },
     frame: frame({
       panel: {

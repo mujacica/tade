@@ -1,7 +1,6 @@
 import type { PlanSource, TadeEvent } from '@tade/core'
 import { describe, expect, it } from 'vitest'
 import { textOf } from '../src/input.ts'
-import { listStart } from '../src/panels/cells.ts'
 import {
   extensionSetupPanel,
   extensionViewPanel,
@@ -26,6 +25,7 @@ import {
   savedFile,
   scrollFile,
 } from '../src/panels/file/state.ts'
+import { listStart } from '../src/panels/frame.ts'
 import {
   accountMenuItems,
   agentOffers,

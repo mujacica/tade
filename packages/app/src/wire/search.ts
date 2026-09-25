@@ -4,6 +4,7 @@ import type { Frame } from '../frame.ts'
 import type { Target } from '../hits.ts'
 import { focusTask, glyph, MARK_TONES, markOf, notice, projects } from '../model.ts'
 import { searchPanel } from '../panels/search/state.ts'
+import { keysPanel } from '../panels/small/state.ts'
 import {
   parseOpenId,
   parseQuery,
@@ -316,8 +317,7 @@ export class Search implements Subject {
         await this.deps.showTerminal(arg)
         return
       case 'run':
-        if (arg === 'keys')
-          this.wire.put({ ...this.wire.state, panel: { kind: 'keys', busy: false } })
+        if (arg === 'keys') this.wire.put({ ...this.wire.state, panel: keysPanel() })
         else if (arg === 'quit') this.deps.quit()
         else await this.deps.run(arg)
         break

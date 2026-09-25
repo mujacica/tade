@@ -1,15 +1,15 @@
    T A D E      checkout !⠋    search ✓    infra      +             ! 1  ⠋ 1   in checkout      ctrl   +   space   talk 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ▾ AGENTS  2            +    █│ stripe-v15    agent    shell    actions     +        claude-opus-5 ▾     high ▾     ×   
-                             █│─────────────────────────────────────────────────────╭─ Thinking ─────────────────╮──────
- ▌ ! stripe-v15   880k tok   █│                                                     │▌   off                     │      
- ▌   wants you to approve…   █│                                                     │    minimal                 │      
-                             █│                                                     │    low                     │      
-   ⠋ refunds         $0.62   █│                                                     │    medium                  │      
-     working                 █│                                                     │  ● high                now │      
-                             █│                                                     │    xhigh                   │      
- ▸ SMART QUEUE          none █│                                                     │    max                     │      
- ▾ CHANGES  3        vs main █│                                                     ╰────────────────────────────╯      
+                             █│─────────────────────────────────────────────────────╭─ Thinking ──────────────────╮─────
+ ▌ ! stripe-v15   880k tok   █│                                                     │▌   off                     ▕│     
+ ▌   wants you to approve…   █│                                                     │    minimal                 ▕│     
+                             █│                                                     │    low                     ▕│     
+   ⠋ refunds         $0.62   █│                                                     │    medium                  ▕│     
+     working                 █│                                                     │  ● high                now ▕│     
+                             █│                                                     │    xhigh                   ▕│     
+ ▸ SMART QUEUE          none █│                                                     │    max                     ▕│     
+ ▾ CHANGES  3        vs main █│                                                     ╰─────────────────────────────╯     
   M package.json       +2 −1 █│  ● Upgrading stripe to v15. The webhook signature API changed,                          
   A …/webhooks.test.ts   +48 █│    so src/webhooks.ts needs the new constructEvent signature.                           
   M src/webhooks.ts   +12 −4 █│                                                                                         

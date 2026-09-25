@@ -24,6 +24,7 @@ import {
   settingsPanel,
   UPDATES,
 } from '../panels/settings/state.ts'
+import { keysPanel } from '../panels/small/state.ts'
 import { writeSetting } from '../settings.ts'
 import {
   type Actions,
@@ -119,7 +120,7 @@ export class Settings implements Subject {
   actions(): Actions {
     return {
       keys: () => {
-        this.wire.put({ ...this.wire.state, panel: { kind: 'keys', busy: false } })
+        this.wire.put({ ...this.wire.state, panel: keysPanel() })
         this.wire.draw()
       },
       settings: async () => {

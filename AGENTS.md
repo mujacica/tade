@@ -433,6 +433,29 @@ There is **no build step**. Node ≥22.18 runs `.ts` directly (type stripping). 
   carried to the next notch (`Wheel`), so a run of them is even and adds up to exactly what the
   hand asked for. A terminal grid moves by whole cells and that is the ceiling: even, in step and
   predictable, never sub-cell.
+- **Every pop-up panel is the same thing underneath, and the shell it is drawn in is one file**
+  (`panels/frame.ts`). Nine panels grew nine answers to the same four questions, and the worst of
+  them was Settings: it had no offset at all, so the wheel over it was answered by *pressing its own
+  down key* — a notch moved what is **chosen**, one setting at a time, jumping over the ones between
+  — and it drew no bar, because nothing knew how long the form was. One bug, twice. So a panel's
+  body is a region of the window like any other (`panel`, `panel-side`), and the wheel, a key and a
+  drag on its bar all land through `scrollBy` and `atOffset` with the rest.
+  How big it is, is `panelSize`: the room there is, up to a width worth being, and never over the
+  four-row strip at the foot — never a number somebody typed, which is what capped Settings at
+  twenty-eight rows however tall the terminal. A height read off the content is only for a body that
+  is fixed the whole time the panel is open (a menu); one that changes under you — a list being
+  filtered, a form whose category switches — takes the window, because a panel that grows moves
+  between the click that chose a row and the click that presses it.
+  How its body scrolls is `column`: the head above it, the body with `bar` beside it in a column
+  kept whether or not there is anything to scroll, and two rows pinned at the foot — what it last
+  said, then the keys with its buttons. **Nothing cuts its own rows to fit**: `rows.slice(0, room)`
+  is what took the setup page's own Save button off the bottom, and a cap with `+7 more` under it is
+  what the Spend table said instead of scrolling — three times on one page. A panel with a selection
+  keeps `following` beside `scroll`, because `atOffset` turns it off: the keyboard moving brings the
+  body back to the row it is on, and scrolling yourself leaves the keyboard where it was. And
+  `rowLook` is the one answer to how a row looks — the marker says where the keyboard is, the lighter
+  ground says what the mouse is over, and they are never the same thing; a menu drawing the pointed
+  item as chosen made the keyboard appear to move when only the mouse had.
 - **A lane that took the whole screen scrolls itself, and the wheel is handed to it.** A program
   on the alternate screen — Claude Code, an editor a shell was pointed at — keeps no scrollback for
   anybody else to move: the lines that went past were never kept, so a window scrolling it has

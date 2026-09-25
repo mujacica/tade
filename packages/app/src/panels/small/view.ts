@@ -1,10 +1,11 @@
 import { visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui'
 import { KEY_BINDINGS, KEYS_AND_AGENTS } from '@tade/core'
-import type { Hit } from '../../hits.ts'
+import { type Hit, sameTarget } from '../../hits.ts'
 import { keyCaps } from '../../keys.ts'
 import { blank, box, type Drawn, Row } from '../../ui.ts'
 import { cap, fitTo, pad, wrapTo } from '../cells.ts'
 import type { PanelContext } from '../context.ts'
+import { BAR, column, type Line, panelSize, rowLook } from '../frame.ts'
 import {
   type BranchPanel,
   branchChoices,
@@ -13,6 +14,7 @@ import {
   type ConfirmRemovePanel,
   type DiffPanel,
   type FindPanel,
+  type KeysPanel,
   noteFacts,
   type PromptPanel,
   type QuitPanel,
@@ -22,10 +24,13 @@ import {
 // How each of the one-question panels looks. What a key does to one is beside
 // this in `state.ts`.
 
-export function keysSheet(ctx: PanelContext): Drawn {
+export function keysSheet(panel: KeysPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(92, ctx.width - 4)
-  const inner = width - 2
+  const { width, rows: tall } = panelSize(ctx, { max: 92 })
+  // The sheet keeps a column for its bar: it is thirty lines on a terminal
+  // that may have fourteen, and the last of them used to be off the bottom
+  // with nothing to say so.
+  const inner = width - 2 - BAR
   const label = (text: string) =>
     new Row(inner, skin, ctx.pointer).space().text(pad(text, 26), skin.label)
   // What a key does, in whatever room its caps leave: capped a column short
@@ -34,7 +39,7 @@ export function keysSheet(ctx: PanelContext): Drawn {
   const means = (row: Row, text: string) =>
     row.text(cap(text, Math.max(0, inner - row.used - 1)), skin.hint).build()
   const talk = ctx.talkKey
-  const rows: { text: string; hits: Hit[] }[] = [
+  const rows: Line[] = [
     blank(inner),
     means(
       label('Push to talk').keys(keyCaps(talk)).space(2),
@@ -92,16 +97,28 @@ export function keysSheet(ctx: PanelContext): Drawn {
       .space()
       .text("Everything else goes to the agent or terminal you're typing at.", skin.hint)
       .build(),
-    new Row(inner, skin, ctx.pointer)
-      .right((r) => r.button('Change shortcuts…', { kind: 'control', id: 'change-keys' }).space())
-      .build(),
   )
-  return box('Shortcuts', rows, width, skin, { corner: 'esc' })
+  const drawn = column(
+    {
+      body: { lines: rows, width: inner, scroll: panel.scroll },
+      foot: [
+        blank(inner),
+        new Row(inner, skin, ctx.pointer)
+          .right((r) =>
+            r.button('Change shortcuts…', { kind: 'control', id: 'change-keys' }).space(),
+          )
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
+  )
+  return box('Shortcuts', drawn.rows, width, skin, { corner: 'esc' })
 }
 
 export function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(62, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 62 })
   const inner = width - 2
   const pointer = ctx.pointer.hover
     ? ctx.pointer
@@ -144,7 +161,7 @@ export function quit(panel: QuitPanel, ctx: PanelContext): Drawn {
 
 export function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(62, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 62 })
   const inner = width - 2
   const pointer = ctx.pointer.hover
     ? ctx.pointer
@@ -184,7 +201,7 @@ export function reload(panel: ReloadPanel, ctx: PanelContext): Drawn {
 /** One line asked for: a note, with whether it is about everything, or a branch name. */
 export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(72, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 72 })
   const inner = width - 2
   const row = () => new Row(inner, skin, ctx.pointer)
   const rows: { text: string; hits: Hit[] }[] = [blank(inner)]
@@ -297,11 +314,11 @@ export function prompt(panel: PromptPanel, ctx: PanelContext): Drawn {
 /** The project's branches, narrowed by typing, with a new one offered for a name nobody has. */
 export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(72, ctx.width - 4)
-  const inner = width - 2
+  // As tall as the window allows, and the same height while typing narrows it.
+  const { width, rows: tall } = panelSize(ctx, { max: 72 })
+  const inner = width - 2 - BAR
   const choices = branchChoices(ctx.branches, panel.query)
-  const room = Math.max(4, Math.min(40, ctx.height - 12))
-  const rows: { text: string; hits: Hit[] }[] = [
+  const head: Line[] = [
     new Row(inner, skin)
       .space()
       .field(panel.query, inner - 2, { caret: true })
@@ -312,55 +329,66 @@ export function branches(panel: BranchPanel, ctx: PanelContext): Drawn {
       .build(),
     blank(inner),
   ]
-  const start = Math.max(0, Math.min(panel.index - room + 1, choices.length - room))
-  choices.slice(start, start + room).forEach((choice, offset) => {
-    const at = start + offset
+  const rows: Line[] = []
+  choices.forEach((choice, at) => {
     const on = at === panel.index
+    const target = { kind: 'control' as const, id: `row:${at}` }
+    const pointed = sameTarget(ctx.pointer.hover, target)
+    const lit = on || pointed
     const r = new Row(inner, skin).marker(on).space()
     if (choice.create) {
       r.text('+ ', skin.signal)
-        .text('Create ', on ? skin.you : (t: string) => t)
+        .text('Create ', lit ? skin.you : (t: string) => t)
         .text(choice.name, skin.busy)
     } else {
       r.text(choice.row?.current ? '● ' : '  ', skin.done).text(
         choice.name,
-        on ? skin.you : skin.busy,
+        lit ? skin.you : skin.busy,
       )
       const when = choice.row?.when ?? ''
       r.right((g) => g.text(choice.row?.current ? 'current' : when, skin.hint).space())
     }
     const built = r.build()
     rows.push({
-      text: on ? skin.selected(built.text) : built.text,
-      hits: [{ row: 0, from: 0, to: inner - 1, target: { kind: 'control', id: `row:${at}` } }],
+      text: rowLook(built.text, skin, { on, pointed }),
+      hits: [{ row: 0, from: 0, to: inner - 1, target }],
     })
   })
   if (choices.length === 0)
     rows.push(new Row(inner, skin).space().text('No branch like that.', skin.hint).build())
-  for (let gap = room - Math.min(room, Math.max(1, choices.length)); gap > 0; gap--)
-    rows.push(blank(inner))
-  rows.push(
-    panel.error
-      ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
-      : blank(inner),
+  const drawn = column(
+    {
+      head,
+      body: {
+        lines: rows,
+        width: inner,
+        scroll: panel.scroll,
+        chosen: panel.following ? { from: panel.index, to: panel.index } : null,
+      },
+      foot: [
+        panel.error
+          ? new Row(inner, skin).space().text(`▲ ${panel.error}`, skin.waiting).build()
+          : blank(inner),
+        new Row(inner, skin, ctx.pointer)
+          .space()
+          .text(
+            panel.busy ? 'Switching…' : '↑↓ choose · enter switches · a new name creates it',
+            skin.hint,
+          )
+          .right((r) => r.button('Cancel', { kind: 'control', id: 'cancel' }).space())
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
   )
-  rows.push(
-    new Row(inner, skin, ctx.pointer)
-      .space()
-      .text(
-        panel.busy ? 'Switching…' : '↑↓ choose · enter switches · a new name creates it',
-        skin.hint,
-      )
-      .right((r) => r.button('Cancel', { kind: 'control', id: 'cancel' }).space())
-      .build(),
-  )
-  return box('Switch branch', rows, width, skin, { corner: 'esc' })
+  return box('Switch branch', drawn.rows, width, skin, { corner: 'esc' })
 }
 
 /** Finding in a terminal: the box, how many, and older and newer. */
 export function find(panel: FindPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(58, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 58 })
   const inner = width - 2
   const count = ctx.found
   const said =
@@ -382,7 +410,7 @@ export function find(panel: FindPanel, ctx: PanelContext): Drawn {
 /** Throwing a file's uncommitted changes away, asked first. */
 export function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(66, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 66 })
   const inner = width - 2
   const pointer = ctx.pointer.hover
     ? ctx.pointer
@@ -413,7 +441,7 @@ export function confirm(panel: ConfirmPanel, ctx: PanelContext): Drawn {
 
 export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(66, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 66 })
   const inner = width - 2
   const pointer = ctx.pointer.hover
     ? ctx.pointer
@@ -485,7 +513,7 @@ export function confirmRemove(panel: ConfirmRemovePanel, ctx: PanelContext): Dra
  */
 export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(66, ctx.width - 4)
+  const { width } = panelSize(ctx, { max: 66 })
   const inner = width - 2
   const pointer = ctx.pointer.hover
     ? ctx.pointer
@@ -539,13 +567,14 @@ export function closeDone(panel: CloseDonePanel, ctx: PanelContext): Drawn {
 
 export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
   const { skin } = ctx
-  const width = Math.min(96, ctx.width - 4)
-  const inner = width - 2
+  const { width, rows: tall } = panelSize(ctx, { max: 96 })
+  // The diff keeps a column for its bar: it is the one panel where how far
+  // through a file you are is most of what you want to know.
+  const inner = width - 2 - BAR
   const row = () => new Row(inner, skin, ctx.pointer)
   const path = panel.files[panel.file] ?? ''
   const name = panel.task.split('/').at(-1) ?? panel.task
-  const room = Math.max(6, Math.min(24, ctx.height - 10))
-  const rows: { text: string; hits: Hit[] }[] = []
+  const rows: Line[] = []
   const parsed = ctx.diff
 
   if (!parsed) {
@@ -558,8 +587,7 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
     const numberWidth = String(
       Math.max(...parsed.lines.map((line) => line.new ?? line.old ?? 0)),
     ).length
-    const scroll = Math.min(panel.scroll, Math.max(0, parsed.lines.length - room))
-    for (const line of parsed.lines.slice(scroll, scroll + room)) {
+    for (const line of parsed.lines) {
       const r = row().space()
       if (line.kind === 'hunk') {
         r.text(line.text, skin.hint)
@@ -576,28 +604,34 @@ export function diff(panel: DiffPanel, ctx: PanelContext): Drawn {
       rows.push(r.build())
     }
   }
-  while (rows.length < Math.min(room, 4)) rows.push(blank(inner))
-  rows.push(blank(inner))
-  rows.push(
-    row()
-      .space()
-      .button('Open in editor', { kind: 'control', id: 'editor' })
-      .space()
-      .button('Ask the agent about this', { kind: 'control', id: 'ask' })
-      .right((r) => {
-        if (panel.files.length > 1) {
-          r.text('‹', skin.signal, { kind: 'control', id: 'prev-file' })
-            .text(` ${panel.file + 1}/${panel.files.length} `, skin.hint)
-            .text('›', skin.signal, { kind: 'control', id: 'next-file' })
-            .space(2)
-        }
-        r.text('↑↓ scroll · ←→ file', skin.hint).space()
-      })
-      .build(),
+  const drawn = column(
+    {
+      body: { lines: rows, width: inner, scroll: panel.scroll },
+      foot: [
+        blank(inner),
+        row()
+          .space()
+          .button('Open in editor', { kind: 'control', id: 'editor' })
+          .space()
+          .button('Ask the agent about this', { kind: 'control', id: 'ask' })
+          .right((r) => {
+            if (panel.files.length > 1) {
+              r.text('‹', skin.signal, { kind: 'control', id: 'prev-file' })
+                .text(` ${panel.file + 1}/${panel.files.length} `, skin.hint)
+                .text('›', skin.signal, { kind: 'control', id: 'next-file' })
+                .space(2)
+            }
+            r.text('↑↓ scroll · ←→ file', skin.hint).space()
+          })
+          .build(),
+      ],
+      rows: tall,
+    },
+    ctx,
   )
   const counts =
     parsed && !parsed.binary
       ? `${skin.done(`+${parsed.added}`)} ${skin.bad(`−${parsed.removed}`)} `
       : ''
-  return box(`${path} · ${name}`, rows, width, skin, { corner: `${counts}esc` })
+  return box(`${path} · ${name}`, drawn.rows, width, skin, { corner: `${counts}esc` })
 }

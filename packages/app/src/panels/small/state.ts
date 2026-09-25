@@ -1,3 +1,4 @@
+import { pageBy } from '../frame.ts'
 import { close, type PanelOutcome, stay, typed } from '../outcome.ts'
 
 // The panels that are one question each.
@@ -111,6 +112,10 @@ export interface BranchPanel {
   /** Narrows the branches; a name nobody has offers to create it. */
   query: string
   index: number
+  /** Lines of the list scrolled past: the panel's place in the one scroll area. */
+  scroll: number
+  /** Whether the list follows the branch the keyboard is on, until you scroll it. */
+  following: boolean
   busy: boolean
   error: string | null
 }
@@ -211,7 +216,15 @@ export function promptPanel(
 }
 
 export function branchPanel(): BranchPanel {
-  return { kind: 'branch', query: '', index: 0, busy: false, error: null }
+  return {
+    kind: 'branch',
+    query: '',
+    index: 0,
+    scroll: 0,
+    following: true,
+    busy: false,
+    error: null,
+  }
 }
 
 /** The branches matching what was typed, and a new one when none is called that. */
@@ -232,7 +245,13 @@ export function branchChoices(
 /** The keys Tade keeps, and the way to change the one that is yours. */
 export interface KeysPanel {
   kind: 'keys'
+  /** Lines of the sheet scrolled past: thirty of them, on a terminal that may have fourteen. */
+  scroll: number
   busy: false
+}
+
+export function keysPanel(): KeysPanel {
+  return { kind: 'keys', scroll: 0, busy: false }
 }
 
 /** Closing, when closing would stop something. */
@@ -325,7 +344,11 @@ export function branchKey(
   const choices = branchChoices(rows, panel.query)
   if (key === 'down' || key === 'up') {
     const count = Math.max(1, choices.length)
-    return stay({ ...panel, index: (panel.index + (key === 'down' ? 1 : -1) + count) % count })
+    return stay({
+      ...panel,
+      index: (panel.index + (key === 'down' ? 1 : -1) + count) % count,
+      following: true,
+    })
   }
   if (key === 'enter') {
     const choice = choices[panel.index]
@@ -338,10 +361,15 @@ export function branchKey(
       : stay(panel)
   }
   if (key === 'backspace')
-    return stay({ ...panel, query: [...panel.query].slice(0, -1).join(''), index: 0 })
+    return stay({
+      ...panel,
+      query: [...panel.query].slice(0, -1).join(''),
+      index: 0,
+      following: true,
+    })
   const text = typed(data, key)
   return text && !/\s/.test(text)
-    ? stay({ ...panel, query: panel.query + text, index: 0 })
+    ? stay({ ...panel, query: panel.query + text, index: 0, following: true })
     : stay(panel)
 }
 
@@ -364,12 +392,9 @@ export function confirmKey(
 
 export function diffKey(panel: DiffPanel, key: string | undefined): PanelOutcome {
   if (key === 'escape' || key === 'enter') return close
-  if (key === 'down') return stay({ ...panel, scroll: panel.scroll + 1 })
-  if (key === 'up') return stay({ ...panel, scroll: Math.max(0, panel.scroll - 1) })
-  if (key === 'pageDown' || key === 'space') return stay({ ...panel, scroll: panel.scroll + 10 })
-  if (key === 'pageUp') return stay({ ...panel, scroll: Math.max(0, panel.scroll - 10) })
   if (key === 'left' || key === 'right') return stay(stepFile(panel, key === 'left' ? -1 : 1))
-  return stay(panel)
+  const by = pageBy(key)
+  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
 }
 
 export function diffClick(panel: DiffPanel, control: string): PanelOutcome {
@@ -384,9 +409,14 @@ function stepFile(panel: DiffPanel, delta: number): DiffPanel {
   return { ...panel, file: (panel.file + delta + count) % count, scroll: 0 }
 }
 
-/** The shortcuts sheet: nothing to answer, and one control that opens the file. */
+/**
+ * The shortcuts sheet: nothing to answer, one control that opens the file, and
+ * the arrows reading down it — the wheel's own move, said with a key.
+ */
 export function keysKey(panel: KeysPanel, key: string | undefined): PanelOutcome {
-  return key === 'escape' || key === 'enter' ? close : stay(panel)
+  if (key === 'escape' || key === 'enter') return close
+  const by = pageBy(key)
+  return by === null ? stay(panel) : stay({ ...panel, scroll: Math.max(0, panel.scroll + by) })
 }
 
 export function keysClick(panel: KeysPanel, control: string): PanelOutcome {

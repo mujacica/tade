@@ -27,7 +27,7 @@ import {
 import { type FilePanel, fileSelection, scrollFile } from '../panels/file/state.ts'
 import type { MenuSubject } from '../panels/menu/state.ts'
 import type { PanelOutcome } from '../panels/outcome.ts'
-import { type PanelInputs, panelClick, panelDismiss, panelKey } from '../panels.ts'
+import { type PanelInputs, panelClick, panelDismiss } from '../panels.ts'
 import { Painted, type PointerEvent } from '../pointer.ts'
 import { noteRecent } from '../projects.ts'
 import type { Reach } from '../scroll.ts'
@@ -180,29 +180,14 @@ export class Mouse {
             return true
           }
         }
-        if (event.area === 'panel' && panel?.kind === 'file') {
-          // Over a file the wheel scrolls it. It cannot be the down key here:
-          // with a caret in the text, that key moves the caret.
-          this.wire.put({
-            ...this.wire.state,
-            panel: scrollFile(panel, event.rows, this.deps.fileLines()),
-          })
-          return true
-        }
-        // A panel that is a list rather than a page has nothing to scroll:
-        // the wheel over it moves what is chosen, which is what its down key
-        // does. A row a notch, never the notch's rows — a flick through a
-        // list of models is not a request to visit forty of them.
-        if (event.area === 'panel' && panel && !('scroll' in panel)) {
-          const outcome = panelKey(
-            panel,
-            event.rows > 0 ? 'down' : 'up',
-            '',
-            this.deps.panelInputs(),
-          )
-          this.wire.put({ ...this.wire.state, panel: outcome.panel })
-          return true
-        }
+        // A panel is scrolled the way everything else is: through the one
+        // move, clamped to what the bar beside it said the body actually is.
+        // It used to be answered by pressing the panel's own down key, which
+        // moved *what is chosen* rather than what is shown — so scrolling
+        // Settings jumped a setting at a time and skipped the ones between,
+        // and the bar that would have said how far there was to go was never
+        // drawn at all. Both were the same bug: nothing knew how long the
+        // body was.
         // An open panel is in front of everything: the wheel beside it moves
         // nothing behind it, however much of the window is still drawn there.
         if (panel && event.area !== 'panel' && event.area !== 'panel-side') return false
