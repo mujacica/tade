@@ -1,10 +1,16 @@
 # Tade — **T**erminal **A**gentic **D**evelopment **E**nvironment
 
-### Say what you want done. Watch a team of coding agents do it — in one terminal window.
+### Run a team of coding agents. Know exactly what each one did, and what it cost.
 
-Tade is an IDE for the agents doing the work: an orchestrator you talk to, agents in your own
-repositories, a queue that knows what waits for what, and every file, diff, terminal and dollar in
-front of you while it happens.
+Plenty of things run agents in parallel. Tade is the one that keeps the books. A queue where every
+piece says what it waits on and holds when that fails. The project's own checks, recorded against
+the commit they ran on. Per-agent cost that never adds a subscription's turns to a dollar total. A
+judge whose findings the agent has to answer and you rule on. And nothing is remembered — what each
+agent *is* comes back from git and the processes every time you look, so nothing drifts and closing
+Tade leaves nothing behind.
+
+One machine, one terminal. No server, no browser, no cloud, and agents are not sandboxed — see
+[Agents run as you](#agents-run-as-you).
 
 ```sh
 npm install -g tade-sh   # the package is `tade-sh`; the command it installs is `tade`
